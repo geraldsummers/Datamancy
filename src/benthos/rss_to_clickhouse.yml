@@ -1,0 +1,50 @@
+logger:
+  level: INFO
+metrics:
+  prometheus: {}
+input:
+  broker:
+    inputs:
+      - generate:
+          mapping: |
+            root.id = uuid_v4()
+            root.ts = now()
+            root.label = "heartbeat"
+            root.msg = "hello VECTAR"
+          interval: 5s
+      - http_client:
+          url: https://hnrss.org/frontpage
+          interval: 10m
+          retries: 3
+          label: hn_frontpage
+      - http_client:
+          url: http://browserless:3000/content?url=https://example.com&waitUntil=networkidle0
+          interval: 10m
+          retries: 3
+          label: js_site
+pipeline:
+  processors:
+    - switch:
+        - check: this.label == "hn_frontpage"
+          processors:
+            - xml:
+                operator: generic
+                path: /rss/channel/item
+            - mapping: |
+                root.title = this.title.text().string()
+                root.link = this.link.text().string()
+                root.published = this.pubDate.text().string()
+                root.label = "hn_frontpage"
+        - check: this.label == "js_site"
+          processors:
+            - mapping: |
+                root.html = this
+                root.url = "https://example.com"
+                root.label = "js_site"
+output:
+  clickhouse:
+    url: tcp://clickhouse:9000
+    table: ingest
+    format: json_each_row
+    flush_period: 10s
+shutdown_delay: 2s

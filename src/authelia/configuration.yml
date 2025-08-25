@@ -1,0 +1,105 @@
+# Minimal Authelia v4 configuration enabling OIDC for your apps.
+# Replace 'change_me_*' values and align client IDs/secrets with your .env.
+
+server:
+  address: 'tcp://0.0.0.0:9091'
+
+log:
+  level: info
+
+jwt_secret: change_me_jwt_secret
+
+default_redirection_url: https://id.${BASE_DOMAIN}
+
+theme: light
+
+storage:
+  local:
+    path: /config/db.sqlite3
+
+session:
+  name: authelia_session
+  secret: change_me_session_secret
+  same_site: lax
+  expiration: 3600
+  inactivity: 300
+  remember_me_duration: 1M
+  cookies:
+    - name: authelia_session
+      domain: ${BASE_DOMAIN}
+      authelia_url: https://id.${BASE_DOMAIN}
+
+authentication_backend:
+  file:
+    path: /config/users.yml
+    password:
+      algorithm: argon2id
+      iterations: 3
+      memory: 64
+      parallelism: 1
+      salt_length: 16
+      key_length: 32
+
+access_control:
+  default_policy: one_factor
+  rules:
+    - domain: '*.{{env "BASE_DOMAIN"}}'
+      policy: one_factor
+
+notifier:
+  disable_startup_check: true
+  filesystem:
+    filename: /config/notification.txt
+
+identity_providers:
+  oidc:
+    hmac_secret: change_me_hmac_secret
+    issuer_private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      MIICXQIBAAKBgQCm0m5CqkqKzvG3b0+uZf+g0m1m2p6m6pX4z0y5cJm0uU1b0JmM
+      rK8J0q0Q2wE5B7Jt0K5mK2Jc6Y8eN2F2aY2YlY3H2Q6yCwRrV0p2s7e1o2c3b4d5
+      6P7Q8R9S0T1U2V3W4X5Y6Z7a8b9c0d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s6t7u
+      vwxYZ
+      -----END RSA PRIVATE KEY-----
+    enable_client_debug_messages: false
+    lifespans:
+      id_token: 10m
+      refresh_token: 720h
+    clients:
+      - id: {{env "GRAFANA_OIDC_CLIENT_ID"}}
+        description: Grafana
+        secret: {{env "GRAFANA_OIDC_CLIENT_SECRET"}}
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://grafana.{{env "BASE_DOMAIN"}}/login/generic_oauth
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+          - refresh_token
+        response_types:
+          - code
+      - id: {{env "LIBRECHAT_OIDC_CLIENT_ID"}}
+        description: LibreChat
+        secret: {{env "LIBRECHAT_OIDC_CLIENT_SECRET"}}
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://chat.{{env "BASE_DOMAIN"}}/oidc/callback
+        scopes: [openid, profile, email, groups]
+        grant_types: [authorization_code, refresh_token]
+        response_types: [code]
+      - id: {{env "NEXTCLOUD_OIDC_CLIENT_ID"}}
+        description: Nextcloud
+        secret: {{env "NEXTCLOUD_OIDC_CLIENT_SECRET"}}
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://cloud.{{env "BASE_DOMAIN"}}/apps/oidc_login/oidc
+        scopes: [openid, profile, email, groups]
+        grant_types: [authorization_code, refresh_token]
+        response_types: [code]

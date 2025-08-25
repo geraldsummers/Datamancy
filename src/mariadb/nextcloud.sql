@@ -1,0 +1,4 @@
+CREATE DATABASE IF NOT EXISTS nextcloud;
+CREATE USER IF NOT EXISTS 'nextcloud'@'%' IDENTIFIED BY 'nextcloud_pass';
+GRANT ALL PRIVILEGES ON nextcloud.* TO 'nextcloud'@'%';
+FLUSH PRIVILEGES;

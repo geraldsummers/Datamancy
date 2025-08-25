@@ -1,0 +1,10 @@
+# Example user database. Replace with your users and hashed passwords.
+users:
+  demo:
+    displayname: Demo User
+    email: demo@example.com
+    groups:
+      - admins
+      - users
+    password: "$argon2id$v=19$m=65536,t=3,p=1$Wm1hU2FsdEhlcmU$2W9g5Uq8f2n3b5t5x8wz3Cq8e1Gm1mG1gVn8o4d2awQ"
+    # The above is a placeholder hash and won't work; generate your own.
