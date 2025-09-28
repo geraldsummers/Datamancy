@@ -1,105 +1,84 @@
-# Minimal Authelia v4 configuration enabling OIDC for your apps.
-# Replace 'change_me_*' values and align client IDs/secrets with your .env.
+# Authelia v4 – dev-friendly config for *.lab.localhost
+# Works with Caddy forward-auth and LibreChat OIDC.
 
 server:
-  address: 'tcp://0.0.0.0:9091'
+  address: 0.0.0.0
+  port: 9091
 
 log:
   level: info
 
-jwt_secret: change_me_jwt_secret
-
-default_redirection_url: https://id.${BASE_DOMAIN}
-
 theme: light
 
-storage:
-  local:
-    path: /config/db.sqlite3
+totp:
+  issuer: lab.localhost
 
 session:
   name: authelia_session
-  secret: change_me_session_secret
+  secret: "CHANGE_ME_SESSION_SECRET"     # e.g. base64 32+ bytes
   same_site: lax
-  expiration: 3600
-  inactivity: 300
-  remember_me_duration: 1M
+  expiration: 3600s
+  inactivity: 300s
   cookies:
-    - name: authelia_session
-      domain: ${BASE_DOMAIN}
-      authelia_url: https://id.${BASE_DOMAIN}
+    - domain: lab.localhost
+      authelia_url: https://id.lab.localhost
+
+storage:
+  local:
+    path: /data/db.sqlite3
+
+notifier:
+  filesystem:
+    filename: /data/notification.txt
 
 authentication_backend:
   file:
     path: /config/users.yml
+    search:
+      email: true
     password:
       algorithm: argon2id
-      iterations: 3
-      memory: 64
-      parallelism: 1
-      salt_length: 16
+      iterations: 1
       key_length: 32
+      salt_length: 16
+      memory: 65536
+      parallelism: 4
 
 access_control:
-  default_policy: one_factor
+  default_policy: deny
   rules:
-    - domain: '*.{{env "BASE_DOMAIN"}}'
-      policy: one_factor
-
-notifier:
-  disable_startup_check: true
-  filesystem:
-    filename: /config/notification.txt
+    - domain:
+        - "lab.localhost"
+        - "*.lab.localhost"
+      policy: one_factor   # dev: single factor; change to two_factor later
 
 identity_providers:
   oidc:
-    hmac_secret: change_me_hmac_secret
-    issuer_private_key: |
+    # Minimal OIDC so LibreChat can log in via Authelia
+    hmac_secret: "CHANGE_ME_OIDC_HMAC"    # base64 32+ bytes
+    issuer_private_key: |-
       -----BEGIN RSA PRIVATE KEY-----
-      MIICXQIBAAKBgQCm0m5CqkqKzvG3b0+uZf+g0m1m2p6m6pX4z0y5cJm0uU1b0JmM
-      rK8J0q0Q2wE5B7Jt0K5mK2Jc6Y8eN2F2aY2YlY3H2Q6yCwRrV0p2s7e1o2c3b4d5
-      6P7Q8R9S0T1U2V3W4X5Y6Z7a8b9c0d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s6t7u
-      vwxYZ
+      PASTE_YOUR_2048b_RSA_PRIVATE_KEY_HERE
       -----END RSA PRIVATE KEY-----
-    enable_client_debug_messages: false
-    lifespans:
-      id_token: 10m
-      refresh_token: 720h
+    access_token_lifespan: 1h
+    refresh_token_lifespan: 90d
+    authorize_code_lifespan: 1m
+    minimum_parameter_entropy: 14
     clients:
-      - id: {{env "GRAFANA_OIDC_CLIENT_ID"}}
-        description: Grafana
-        secret: {{env "GRAFANA_OIDC_CLIENT_SECRET"}}
+      - id: librechat
+        description: LibreChat
+        secret: "CHANGE_ME_LIBRECHAT_SECRET"     # must match .env LIBRECHAT_OIDC_CLIENT_SECRET
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://grafana.{{env "BASE_DOMAIN"}}/login/generic_oauth
+          - https://chat.lab.localhost/oidc/callback
         scopes:
           - openid
           - profile
           - email
-          - groups
         grant_types:
           - authorization_code
           - refresh_token
         response_types:
           - code
-      - id: {{env "LIBRECHAT_OIDC_CLIENT_ID"}}
-        description: LibreChat
-        secret: {{env "LIBRECHAT_OIDC_CLIENT_SECRET"}}
-        public: false
-        authorization_policy: one_factor
-        redirect_uris:
-          - https://chat.{{env "BASE_DOMAIN"}}/oidc/callback
-        scopes: [openid, profile, email, groups]
-        grant_types: [authorization_code, refresh_token]
-        response_types: [code]
-      - id: {{env "NEXTCLOUD_OIDC_CLIENT_ID"}}
-        description: Nextcloud
-        secret: {{env "NEXTCLOUD_OIDC_CLIENT_SECRET"}}
-        public: false
-        authorization_policy: one_factor
-        redirect_uris:
-          - https://cloud.{{env "BASE_DOMAIN"}}/apps/oidc_login/oidc
-        scopes: [openid, profile, email, groups]
-        grant_types: [authorization_code, refresh_token]
-        response_types: [code]
+        token_endpoint_auth_method: client_secret_post

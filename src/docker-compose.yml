@@ -1,297 +1,69 @@
+# Step 1: Ingress skeleton
 version: "3.9"
-
-# ────────────────────────────────────────────────────────────────────────────────
-#  VECTAR — FULL STACK (CORE + SSO via AUTHELIA + LOGS)
-#  -----------------------------------------------------------------------------
-#  Single domain knob via .env: set BASE_DOMAIN=example.com (default: localhost)
-#  All hosts/URLs derive from it. All secrets now sourced from .env.
-# ────────────────────────────────────────────────────────────────────────────────
-
-# .env REQUIRED KEYS (example at bottom of this file):
-#   BASE_DOMAIN, GRAFANA_ADMIN_USER, GRAFANA_ADMIN_PASSWORD,
-#   GRAFANA_OIDC_CLIENT_ID, GRAFANA_OIDC_CLIENT_SECRET,
-#   LIBRECHAT_OIDC_CLIENT_ID, LIBRECHAT_OIDC_CLIENT_SECRET,
-#   NEXTCLOUD_OIDC_CLIENT_ID, NEXTCLOUD_OIDC_CLIENT_SECRET,
-#   JUPYTER_TOKEN, VAULTWARDEN_ADMIN_TOKEN
 
 networks:
   app_net:
     name: app_net
 
-volumes:
-  clickhouse_data:
-  grafana_data:
-  prometheus_data:
-  mariadb_data:
-  ollama_data:
-  librechat_data:
-  nextcloud_data:
-  caddy_data:
-  portainer_data:
-  netdata_data:
-  mailu_maildata:
-  mailu_mailstate:
-  mailu_mailconfig:
-  loki_data:
-  qbittorrent_config:
-  qbittorrent_downloads:
-  jellyfin_config:
-  jellyfin_cache:
-  jellyfin_media:
-  vaultwarden_data:
-  keycloak_db:
-  homeassistant_config:
-
-configs:
-  mariadb_nextcloud_init:
-    file: ./mariadb/nextcloud.sql
-  prometheus_config:
-    file: ./prometheus/prometheus.yml
-  loki_config:
-    file: ./loki/local-config.yaml
-  promtail_config:
-    file: ./promtail/promtail.yaml
-  benthos_config:
-    file: ./benthos/rss_to_clickhouse.yml
-  authelia_config:
-    file: ./authelia/configuration.yml
-  authelia_users:
-    file: ./authelia/users.yml
-
 services:
-  # -------------------------- METRICS / VISUAL -------------------------------
-  prometheus:
-    image: prom/prometheus:v2.52.0
-    container_name: prometheus
-    restart: unless-stopped
-    ports: ["9090:9090"]
-    configs:
-      - source: prometheus_config
-        target: /etc/prometheus/prometheus.yml
-    labels:
-      caddy: prometheus.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 9090}}"
-      caddy.import: auth
-    networks: [app_net]
-
-  grafana:
-    image: grafana/grafana-oss:11.0.0
-    container_name: grafana
-    restart: unless-stopped
-    depends_on: [prometheus, loki]
-    ports: ["3000:3000"]
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-      # Proxy-aware server config
-      - GF_SERVER_ROOT_URL=https://grafana.${BASE_DOMAIN}/
-      - GF_SERVER_DOMAIN=grafana.${BASE_DOMAIN}
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
-      # Centralized SSO via Caddy/Authelia (auth proxy mode)
-      - GF_AUTH_PROXY_ENABLED=true
-      - GF_AUTH_PROXY_HEADER_NAME=Remote-User
-      - GF_AUTH_PROXY_HEADER_PROPERTY=username
-      - GF_AUTH_PROXY_AUTO_SIGN_UP=true
-      - GF_AUTH_DISABLE_LOGIN_FORM=true
-      - GF_AUTH_ANONYMOUS_ENABLED=false
-      - GF_AUTH_SIGNOUT_REDIRECT_URL=https://id.${BASE_DOMAIN}/logout
-    volumes:
-      - grafana_data:/var/lib/grafana
-    labels:
-      caddy: grafana.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
-      caddy.import: auth
-    networks: [app_net]
-
-
-  loki:
-    image: grafana/loki:3.0.0
-    container_name: loki
-    restart: unless-stopped
-    command: -config.file=/etc/loki/local-config.yaml
-    ports:
-      - "3100:3100"
-    configs:
-      - source: loki_config
-        target: /etc/loki/local-config.yaml
-    volumes:
-      - loki_data:/loki
-    labels:
-      caddy: loki.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3100}}"
-      caddy.import: auth
-    networks: [app_net]
-
-  promtail:
-    image: grafana/promtail:3.0.0
-    container_name: promtail
-    restart: unless-stopped
-    command: -config.file=/etc/promtail/promtail.yaml
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    configs:
-      - source: promtail_config
-        target: /etc/promtail/promtail.yaml
-    networks: [app_net]
-
-  netdata:
-    image: netdata/netdata:stable
-    container_name: netdata
-    restart: unless-stopped
-    pid: host
-    privileged: true
-    ports: ["19999:19999"]
-    volumes:
-      - netdata_data:/var/lib/netdata
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-    labels:
-      caddy: netdata.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 19999}}"
-      caddy.import: auth
-    networks: [app_net]
-  # -------------------------- OBSERVABILITY HELPERS ---------------------------
-  blackbox:
-    image: prom/blackbox-exporter:v0.24.0
-    container_name: blackbox
-    restart: unless-stopped
-    command:
-      - --config.file=/etc/blackbox/blackbox.yml
-    # Expose for local troubleshooting; Prometheus will access via service DNS.
-    ports:
-      - "9115:9115"
-    networks: [app_net]
-
-  pushgateway:
-    image: prom/pushgateway:v1.7.0
-    container_name: pushgateway
-    restart: unless-stopped
-    expose:
-      - "9091"
-    labels:
-      caddy: push.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 9091}}"
-      caddy.import: auth
-    networks: [app_net]
-
-  # Optional: run a simple script that pushes health metrics to Pushgateway
-  health-runner:
-    image: python:3.13-alpine
-    container_name: health-runner
+  docker-socket-proxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:latest
+    container_name: docker-socket-proxy
     restart: unless-stopped
     environment:
-      - BASE_DOMAIN=${BASE_DOMAIN}
-      - PUSHGATEWAY_URL=http://pushgateway:9091
-      - INTERVAL_SECONDS=60
+      # allow only what caddy-docker-proxy needs (read-only)
+      - CONTAINERS=1
+      - NETWORKS=1
+      - EVENTS=1
+      - INFO=1
+      - POST=0
     volumes:
-      - ./:/app:ro
-    working_dir: /app
-    command: >
-      sh -c "python scripts/health_push.py || true; while true; do
-      python scripts/health_push.py || true; sleep ${INTERVAL_SECONDS:-60}; done"
-    depends_on:
-      - pushgateway
+      # rootless socket path
+      - ${XDG_RUNTIME_DIR:-/run/user/1000}/docker.sock:/var/run/docker.sock:ro
     networks: [app_net]
 
-  # -------------------------- INGESTION --------------------------------------
-  benthos:
-    image: jeffail/benthos:4.27.0
-    container_name: benthos
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.8-alpine
+    container_name: caddy
     restart: unless-stopped
-    depends_on: [clickhouse, browserless]
-    configs:
-      - source: benthos_config
-        target: /benthos.yaml
-    command: ["-c", "/benthos.yaml", "-w"]
-    labels:
-      caddy: benthos.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 4195}}"
-      caddy.import: auth
-    networks: [app_net]
-
-  browserless:
-    image: browserless/chrome:latest
-    container_name: browserless
-    restart: unless-stopped
+    user: "0:0"
+    ports: ["8080:80", "8443:443"]
     environment:
-      - MAX_CONCURRENT_SESSIONS=5
-      - KEEP_ALIVE=true
-    ports: ["3001:3000"]
-    labels:
-      caddy: bl.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
-      caddy.import: auth
+      - CADDY_INGRESS_NETWORKS=app_net
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+    # 🔒 No direct /var/run/docker.sock mount here
     networks: [app_net]
-
-  # -------------------------- RAG / AI CORE ----------------------------------
-  ollama:
-    image: ollama/ollama:0.1.34
-    container_name: ollama
-    tty: true
+  whoami:
+    image: traefik/whoami:latest
+    container_name: whoami
     restart: unless-stopped
-    ports: ["11434:11434"]
-    volumes:
-      - ollama_data:/root/.ollama
     labels:
-      caddy: ollama.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 11434}}"
-      caddy.import: auth
-    networks: [app_net]
-
-  librechat:
-    image: librechat/librechat:latest
-    container_name: librechat
-    restart: unless-stopped
-    ports: ["3080:3000"]
-    environment:
-      - OIDC_ISSUER=https://id.${BASE_DOMAIN}
-      - OIDC_CLIENT_ID=${LIBRECHAT_OIDC_CLIENT_ID}
-      - OIDC_CLIENT_SECRET=${LIBRECHAT_OIDC_CLIENT_SECRET}
-      - OIDC_REDIRECT_URI=https://chat.${BASE_DOMAIN}/oidc/callback
-    volumes:
-      - librechat_data:/app/data
-    labels:
-      caddy: chat.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
-      caddy.import: auth
-    networks: [app_net]
-
-  # -------------------------- COLLABORATION ----------------------------------
-  nextcloud:
-    image: nextcloud:29-apache
-    container_name: nextcloud
-    restart: unless-stopped
-    ports: ["8080:80"]
-    environment:
-      - OIDC_LOGIN_CLIENT_ID=${NEXTCLOUD_OIDC_CLIENT_ID}
-      - OIDC_LOGIN_CLIENT_SECRET=${NEXTCLOUD_OIDC_CLIENT_SECRET}
-      - OIDC_LOGIN_PROVIDER_URL=https://id.${BASE_DOMAIN}
-      - OIDC_LOGIN_REDIRECT_URI=https://cloud.${BASE_DOMAIN}/apps/oidc_login/oidc
-    volumes:
-      - nextcloud_data:/var/www/html
-    labels:
-      caddy: cloud.${BASE_DOMAIN}
+      caddy: whoami.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 80}}"
       caddy.import: auth
     networks: [app_net]
 
 
-  # -------------------------- OPS -------------------------------------------
-  caddy:
-    image: lucaslorentz/caddy-docker-proxy:2.8-alpine
-    container_name: caddy
+
+# Step 2: Authelia (forward-auth) and add an auth snippet for Caddy
+  authelia:
+    image: authelia/authelia:latest
+    container_name: authelia
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    expose: ["9091"]
+    configs:
+      - source: authelia_config
+        target: /config/configuration.yml
+      - source: authelia_users
+        target: /config/users.yml
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - caddy_data:/data
-    environment:
-      - CADDY_INGRESS_NETWORKS=app_net
+      - authelia_data:/data
+    labels:
+      caddy: id.${BASE_DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 9091}}"
     networks: [app_net]
 
-  # Reusable Caddy snippets via a tiny helper container
+  # Defines reusable Caddy labels (auth) and a base-domain redirect.
   caddy-config:
     image: traefik/whoami:latest
     container_name: caddy-config
@@ -301,126 +73,20 @@ services:
       caddy_1.forward_auth: authelia:9091
       caddy_1.forward_auth.uri: /api/authz/forward-auth
       caddy_1.forward_auth.copy_headers: Remote-User Remote-Groups Remote-Name Remote-Email
-      # Redirect base domain to a specific Grafana view (set GRAFANA_DEFAULT_VIEW in your env, e.g. /d/abcd123/my-dashboard?orgId=1)
       caddy_2: ${BASE_DOMAIN}
       caddy_2.import: auth
-      caddy_2.redir: https://grafana.${BASE_DOMAIN}${GRAFANA_DEFAULT_VIEW:-/} permanent
+      caddy_2.redir: "https://grafana.${BASE_DOMAIN}${GRAFANA_DEFAULT_VIEW:-/} permanent"
     networks: [app_net]
 
 
-  portainer:
-    image: portainer/portainer-ce:2.20.3
-    container_name: portainer
-    restart: unless-stopped
-    ports: ["9443:9443"]
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - portainer_data:/data
-    labels:
-      caddy: portainer.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 9443}}"
-      caddy.import: auth
-    networks: [app_net]
 
-  jellyfin:
-    image: jellyfin/jellyfin:latest
-    container_name: jellyfin
-    restart: unless-stopped
-    ports:
-      - "8096:8096"
-    volumes:
-      - jellyfin_config:/config
-      - jellyfin_cache:/cache
-      - jellyfin_media:/media:ro
-    labels:
-      caddy: jellyfin.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8096}}"
-      caddy.import: auth
-    networks: [app_net]
+volumes:
+  caddy_data:
+  authelia_data:
 
 
-  qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
-    container_name: qbittorrent
-    restart: unless-stopped
-    ports:
-      - "8181:8181"
-    volumes:
-      - qbittorrent_config:/config
-      - qbittorrent_downloads:/downloads
-    labels:
-      caddy: qb.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8181}}"
-      caddy.import: auth
-    networks: [app_net]
-
-  vaultwarden:
-    image: vaultwarden/server:latest
-    container_name: vaultwarden
-    restart: unless-stopped
-    environment:
-      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
-    volumes:
-      - vaultwarden_data:/data
-    labels:
-      caddy: vault.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 80}}"
-      caddy.import: auth
-    networks: [app_net]
-
-  jupyterhub:
-    image: jupyterhub/jupyterhub:4.1
-    container_name: jupyterhub
-    restart: unless-stopped
-    # Install oauthenticator + dockerspawner, then launch hub with config
-    command: >
-      sh -c "pip install --no-cache-dir oauthenticator==16.3.0 dockerspawner==14.3.0 &&
-             jupyterhub -f /srv/jupyterhub/jupyterhub_config.py"
-    ports:
-      - "8000:8000"
-    environment:
-      - BASE_DOMAIN=${BASE_DOMAIN}
-      # Single-user image for per-user servers (DockerSpawner)
-      - JUPYTERHUB_SINGLEUSER_IMAGE=jupyter/minimal-notebook:python-3.11
-    volumes:
-      - jupyterhub_data:/srv/jupyterhub
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
-    labels:
-      caddy: jupyter.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8000}}"
-    networks: [app_net]
-
-
-  # -------------------------- IDENTITY (Authelia) ----------------------------
-  authelia:
-    image: authelia/authelia:latest
-    container_name: authelia
-    restart: unless-stopped
-    expose:
-      - "9091"
-    configs:
-      - source: authelia_config
-        target: /config/configuration.yml
-      - source: authelia_users
-        target: /config/users.yml
-    labels:
-      caddy: id.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 9091}}"
-    networks: [app_net]
-
-  clickhouse:
-    image: clickhouse/clickhouse-server:24.4
-    container_name: clickhouse
-    restart: unless-stopped
-    ports:
-      - "8123:8123"   # HTTP
-      - "9000:9000"   # Native TCP
-      - "9363:9363"   # Prometheus metrics
-    volumes:
-      - clickhouse_data:/var/lib/clickhouse
-    ulimits:
-      nofile:
-        soft: 262144
-        hard: 262144
-    networks: [app_net]
+configs:
+  authelia_config:
+    file: ./authelia/configuration.yml
+  authelia_users:
+    file: ./authelia/users.yml

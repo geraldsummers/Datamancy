@@ -1,57 +1,84 @@
-# docker-compose.override.yml
-x-tls-labels: &tls_labels
-  caddy.tls: /certs/wildcard.pem /certs/wildcard-key.pem
-
+version: "3.9"
 
 services:
-  caddy:
-    volumes:
-      - /home/gerald/_wildcard.localhost+1.pem:/certs/wildcard.pem:ro
-      - /home/gerald/_wildcard.localhost+1-key.pem:/certs/wildcard-key.pem:ro
-
-
-  # Apply the same TLS cert to selected hosts (reuses the anchor)
-  grafana:
-    labels: *tls_labels
-
-  loki:
-    labels: *tls_labels
-
-  netdata:
-    labels: *tls_labels
-
-  benthos:
-    labels: *tls_labels
-
-  browserless:
-    labels: *tls_labels
-
-  ollama:
-    labels: *tls_labels
-
-  librechat:
-    labels: *tls_labels
-
-  nextcloud:
-    labels: *tls_labels
-
-  portainer:
-    labels: *tls_labels
-
-  jellyfin:
-    labels: *tls_labels
-
-  qbittorrent:
-    labels: *tls_labels
-
-  vaultwarden:
-    labels: *tls_labels
-
-  jupyter:
-    labels: *tls_labels
-
+  # Step 1/2 bits
+  whoami:
+    labels:
+      caddy.tls: internal
   authelia:
-    labels: *tls_labels
+    labels:
+      caddy.tls: internal
+  caddy-config:
+    labels:
+      # the base-domain vhost uses numbered labels
+      caddy_2.tls: internal
 
-  clickhouse:
-    labels: *tls_labels
+  # Step 3: observability
+  prometheus:
+    labels:
+      caddy.tls: internal
+  alertmanager:
+    labels:
+      caddy.tls: internal
+  loki:
+    labels:
+      caddy.tls: internal
+  grafana:
+    labels:
+      caddy.tls: internal
+
+  # Step 4: ops helpers
+  portainer:
+    labels:
+      caddy.tls: internal
+  netdata:
+    labels:
+      caddy.tls: internal
+
+  # Step 6: AI core
+  localai:
+    labels:
+      caddy.tls: internal
+
+  # Step 7: chat/UI
+  librechat:
+    labels:
+      caddy.tls: internal
+
+  # Step 8: agent builder
+  flowise:
+    labels:
+      caddy.tls: internal
+
+  # Step 9: ingestion
+  benthos:
+    labels:
+      caddy.tls: internal
+  browserless:
+    labels:
+      caddy.tls: internal
+
+  # Step 10: core apps
+  nextcloud:
+    labels:
+      caddy.tls: internal
+  vaultwarden:
+    labels:
+      caddy.tls: internal
+  vikunja:
+    labels:
+      caddy.tls: internal
+  jupyterhub:
+    labels:
+      caddy.tls: internal
+
+  # Step 11: nice-to-haves
+  jellyfin:
+    labels:
+      caddy.tls: internal
+  qbittorrent:
+    labels:
+      caddy.tls: internal
+  homeassistant:
+    labels:
+      caddy.tls: internal
