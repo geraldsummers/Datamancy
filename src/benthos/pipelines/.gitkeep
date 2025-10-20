@@ -1,0 +1,2 @@
+# Add your Benthos pipeline YAML files here
+# Example: rss-to-clickhouse.yaml

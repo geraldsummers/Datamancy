@@ -3,7 +3,7 @@ users:
   admin@lab.localhost:
     displayname: "Admin"
     # Generate your own hash (see below) and paste it here:
-    password: "ARGON2ID_HASH_GOES_HERE"
+    password: "$argon2id$v=19$m=65536,t=3,p=4$jC/VOaHubFn8zs7U5Z1+ug$MjVVB7f0pS5MrzjZlJeKsOVLzGkOcYwIpBjoMB/x5uw"  # TODO: abstract (plaintext: adminpassword)
     email: admin@lab.localhost
     groups:
       - admins

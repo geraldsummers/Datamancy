@@ -1,29 +1,27 @@
-# Authelia v4 – dev-friendly config for *.lab.localhost
-# Works with Caddy forward-auth and LibreChat OIDC.
-
 server:
-  address: 0.0.0.0
-  port: 9091
+  address: 'tcp://0.0.0.0:9091'
 
 log:
   level: info
 
 theme: light
 
-totp:
-  issuer: lab.localhost
+identity_validation:
+  reset_password:
+    jwt_secret: EloRIyrx1441KJ5MUuksX+zxd9Km8RmKSvBuyO2Igbs=
 
 session:
   name: authelia_session
-  secret: "CHANGE_ME_SESSION_SECRET"     # e.g. base64 32+ bytes
+  secret: HwXfq6Rxhv3mSl2kYTpjzQ9a4uJVhtIJfcwQu8s0htc=
   same_site: lax
   expiration: 3600s
   inactivity: 300s
   cookies:
-    - domain: lab.localhost
-      authelia_url: https://id.lab.localhost
+    - domain: "lab.localhost"
+      authelia_url: "https://id.lab.localhost"
 
 storage:
+  encryption_key: 5WlkqaN5oMghwRYw7JaIF3Ug5KuD44RgXZ10ivtiQA4=
   local:
     path: /data/db.sqlite3
 
@@ -45,40 +43,104 @@ authentication_backend:
       parallelism: 4
 
 access_control:
-  default_policy: deny
+  default_policy: one_factor
   rules:
-    - domain:
-        - "lab.localhost"
-        - "*.lab.localhost"
-      policy: one_factor   # dev: single factor; change to two_factor later
+    - domain: ["lab.localhost", "*.lab.localhost"]
+      policy: one_factor
 
 identity_providers:
   oidc:
-    # Minimal OIDC so LibreChat can log in via Authelia
-    hmac_secret: "CHANGE_ME_OIDC_HMAC"    # base64 32+ bytes
-    issuer_private_key: |-
-      -----BEGIN RSA PRIVATE KEY-----
-      PASTE_YOUR_2048b_RSA_PRIVATE_KEY_HERE
-      -----END RSA PRIVATE KEY-----
-    access_token_lifespan: 1h
-    refresh_token_lifespan: 90d
-    authorize_code_lifespan: 1m
-    minimum_parameter_entropy: 14
+    hmac_secret: authelia_oidc_hmac_secret_change_me
+    jwks:
+      - key_id: 'main'
+        algorithm: 'RS256'
+        use: 'sig'
+        key: |
+          -----BEGIN PRIVATE KEY-----
+          MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCWLbrsQTjKSwnn
+          JS2+d1ZdFlMMdwN2pZ7umO8TGxYpItMUbuxREoLaj6u46pe6An+cu9Qy9mjBAT+I
+          ntDo4GJOl13+GXdep0VdhZGpcF4BDgQ2IxW7A9UGWBQ8yE4Wv5Iog6cxRYC8D/4R
+          hm2jm3VtmCOWaOnGQKD/qJ5HzCc+9szxj+S0TbVNwVm7Ttw/DHVKccsV9nOQP+K5
+          r2mJP3dbXSkhIsichYZbrXCzbLFYw3RDdlNDi88waCNAIwnl9N3mZPK0AwJc5lv9
+          JlFhlwfqUAm/AXG2FS6lpDGAK74PqKHKLErQkIR7JWYa/RN2CXVyTK0QkpURF8i/
+          Oq+1Ux/nAgMBAAECggEAKO4Gu1wdQ7kG1moCGR6CObWbZdLL7Vq/Qa0Jv43K0ORO
+          XgvLOV9PrYypkyjQuF/08r0YXNlefHfAHpaWPlnlQSEs+1NqfrAdDhuYsvLOlAAD
+          ctPGGOW2+dcokNZQvg9xILyc5SdZqie7qYAXQpdcfkWQMW6fhCpaFsOYe93utlB3
+          V/OQoj4QWWykl4TwpgDx7cPV/4ZBKF1S+QoC1+BfO9zydwnF+zXXlhCOacnyMhJA
+          +ZxwunlzgjtdWX6CRI2MXEaCnWol74Kf1bOJJMAJZRhKrSGwFI8QixtEnLPKdV27
+          LdGAm3j5MjMvsaT0b0xl4jDVgNzjwz350ufG3gPsEQKBgQDM8rydeKCtqjVNltaj
+          qeWpec1lEQsitvmZ0JLtt26Jk+w50Q42Wo0j91XDYk5MV0n+lSTNsmrrzQF+0/qp
+          tCKogyxB74W0ZMOL6WFCf7dckm7APcwaj46W+l5SHorqMjMvK0UnLaDnkse/3kth
+          HuXvLEPTk/Rm6j+VHu5WZQ6H9wKBgQC7lmoRvWOuk6yGT3WhsNrdD6iNGUoLO+sT
+          ORY8g7jvRCrLREut9JseVd1Xni3wOWo5PEwkZqMe6mwPDRlzrcOa3xPfMuG94eJI
+          bgQm68Ze0CCGgUSD+Mu7IeJfiwPFDNizHcOyLG8GxbCkq4v3FvtRuOC3PIgZaSSt
+          z/z6jqOLkQKBgD7gMXF2MoVU9KlrH0pysxy9W4AoLGxoCkdgL9NyNR1MHmrWci/G
+          tApWtR8OJ8tP9EmAZBwfIqJY8J6CViJ+OyvLomZQH4rqZvuji80k9ZIW8pdT3iw/
+          4pT7FrjG2gNjh0RvV/XfD8A7zcBVaHbRTeWEhQKCH7b7IqqTJLeopT6dAoGAK9yz
+          2IoMMNne0VjrDG+p/V6X7sYnBhFwmgITLPsv1uJ9jyHdAEPdsW4qXz5hR3ZlXBS5
+          SRmmsqfltG8/sEjFIAVhRCNFnXyfyIfQ+LjQnYLU2B6JwsH+ATefEvASZZTnZppj
+          E9pH67F16EskYxZAlY9BHBdPS4HGTc4APSX1H8ECgYABC1/+IRgQuN8Ej6DoSFzP
+          hv4jZMQKjDlIjyAC4oVJ7bL9GdO52Dsc4t18XyL18M/Lkhh+Zr9GSp2xpcSZIFfU
+          pWAUQbzBzzNIRyR121Y4B+gpuSHHbIfStAQR0jrT/+eiO122LqZqLZfxHCxAP1id
+          3T+iHCHA4rWS+qRkSOzifw==
+          -----END PRIVATE KEY-----
+    lifespans:
+      access_token: 1h
+      authorize_code: 1m
+      id_token: 1h
+      refresh_token: 90m
+    enable_client_debug_messages: true
     clients:
-      - id: librechat
-        description: LibreChat
-        secret: "CHANGE_ME_LIBRECHAT_SECRET"     # must match .env LIBRECHAT_OIDC_CLIENT_SECRET
+      - client_id: planka
+        client_name: Planka
+        client_secret: $argon2id$v=19$m=65536,t=3,p=4$UGxhbmthU2VjcmV0S2V5MTIz$nH7kP2mN9wQ5xR8tV3uY6zA1bC4dE7fG9hJ0kL2mN5o  # TODO: abstract (plaintext: planka_oidc_secret_change_me)
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://chat.lab.localhost/oidc/callback
+          - https://tasks.lab.localhost/oidc-callback
         scopes:
           - openid
           - profile
           - email
-        grant_types:
-          - authorization_code
-          - refresh_token
-        response_types:
-          - code
-        token_endpoint_auth_method: client_secret_post
+          - groups
+
+      - client_id: grafana
+        client_name: Grafana
+        client_secret: $argon2id$v=19$m=65536,t=3,p=4$Ir4e7XL1UNSMKJg3rYm4xQ$L1B16/YVTxW0iNrzcQA0hfVFhkyO8hZ1V4ULbdTZCqo  # TODO: abstract (plaintext: grafana_oidc_secret_change_me)
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://grafana.lab.localhost/login/generic_oauth
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+
+      - client_id: nextcloud
+        client_name: Nextcloud
+        client_secret: $argon2id$v=19$m=65536,t=3,p=4$1U3GXWjjzvJrtS+mLQiMRg$VJwV3w4ODjTqGzf4I8UklYb6ILLSjxIqQjL8DYk0v4Q  # TODO: abstract (plaintext: nextcloud_oidc_secret_change_me)
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://nextcloud.lab.localhost/apps/oidc_login/oidc
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+
+      - client_id: jupyterhub
+        client_name: JupyterHub
+        client_secret: $argon2id$v=19$m=65536,t=3,p=4$S81C8DWdP7zkSD9J4Gn4+g$HDwor3BSoaIU0hx1dOQfm+XJYLeEoVdF17IXuIqgSmA  # TODO: abstract (plaintext: jupyterhub_oidc_secret_change_me)
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://jupyter.lab.localhost/hub/oauth_callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+
+

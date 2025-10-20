@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Datamancy Lab</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 3rem;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+        .card-description {
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .category {
+            margin-bottom: 3rem;
+        }
+        .category-title {
+            color: white;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            padding-left: 0.5rem;
+            border-left: 4px solid white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔮 Datamancy Lab</h1>
+
+        <div class="category">
+            <h2 class="category-title">Monitoring & Observability</h2>
+            <div class="grid">
+                <a href="https://grafana.lab.localhost/" class="card">
+                    <div class="card-title">Grafana</div>
+                    <div class="card-description">Metrics visualization and dashboards</div>
+                </a>
+                <a href="https://prometheus.lab.localhost/" class="card">
+                    <div class="card-title">Prometheus</div>
+                    <div class="card-description">Metrics collection and alerting</div>
+                </a>
+                <a href="https://alertmanager.lab.localhost/" class="card">
+                    <div class="card-title">Alertmanager</div>
+                    <div class="card-description">Alert management and routing</div>
+                </a>
+                <a href="https://grafana.lab.localhost/explore" class="card">
+                    <div class="card-title">Loki (via Grafana)</div>
+                    <div class="card-description">Log aggregation - no standalone UI</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="category">
+            <h2 class="category-title">AI & Chat</h2>
+            <div class="grid">
+                <a href="https://chat.lab.localhost/" class="card">
+                    <div class="card-title">LibreChat</div>
+                    <div class="card-description">AI chat interface - create account on first visit</div>
+                </a>
+                <a href="https://ai.lab.localhost/" class="card">
+                    <div class="card-title">LocalAI</div>
+                    <div class="card-description">Local AI API service</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="category">
+            <h2 class="category-title">Productivity</h2>
+            <div class="grid">
+                <a href="https://tasks.lab.localhost/" class="card">
+                    <div class="card-title">Vikunja</div>
+                    <div class="card-description">Task management - register to create account</div>
+                </a>
+                <a href="https://nextcloud.lab.localhost/" class="card">
+                    <div class="card-title">Nextcloud</div>
+                    <div class="card-description">Files - login: admin / adminpass123</div>
+                </a>
+                <a href="https://vault.lab.localhost/" class="card">
+                    <div class="card-title">Vaultwarden</div>
+                    <div class="card-description">Passwords - create account to start</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="category">
+            <h2 class="category-title">Data & Development</h2>
+            <div class="grid">
+                <a href="https://benthos.lab.localhost/ping" class="card">
+                    <div class="card-title">Benthos</div>
+                    <div class="card-description">Stream processing API - no web UI</div>
+                </a>
+                <a href="https://browser.lab.localhost/" class="card">
+                    <div class="card-title">Browserless</div>
+                    <div class="card-description">Headless Chrome API - no web UI</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="category">
+            <h2 class="category-title">System</h2>
+            <div class="grid">
+                <a href="https://id.lab.localhost/" class="card">
+                    <div class="card-title">Authelia</div>
+                    <div class="card-description">Authentication & SSO</div>
+                </a>
+                <a href="https://whoami.lab.localhost/" class="card">
+                    <div class="card-title">Whoami</div>
+                    <div class="card-description">Request debugging tool</div>
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

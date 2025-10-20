@@ -1,0 +1,58 @@
+# Global config
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'lab'
+    environment: 'dev'  # TODO: abstract
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "alerts/*.yml"
+
+# Scrape configs
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Alertmanager
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+
+  # Blackbox exporter (for probing)
+  - job_name: 'blackbox-exporter'
+    static_configs:
+      - targets: ['blackbox-exporter:9115']
+
+  # Script exporter (custom health checks)
+  - job_name: 'script-exporter'
+    static_configs:
+      - targets: ['prometheus-script-exporter:9469']
+
+  # Blackbox probes - HTTP checks
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://grafana.lab.localhost  # TODO: abstract (use BASE_DOMAIN)
+          - https://prometheus.lab.localhost  # TODO: abstract
+          - https://alertmanager.lab.localhost  # TODO: abstract
+          - https://id.lab.localhost  # TODO: abstract (authelia)
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

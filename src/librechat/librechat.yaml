@@ -1,0 +1,21 @@
+# LibreChat minimal configuration
+version: 1.0.0
+
+endpoints:
+  openAI:
+    name: "LocalAI"
+    apiKey: "not_needed"
+    baseURL: "http://localai:8080/v1"
+    models:
+      default:
+        - "gpt-3.5-turbo"
+        - "gpt-4"
+
+registration:
+  socialLogins: []
+
+interface:
+  # Disable password login completely
+  privacyPolicy:
+    externalUrl: "https://id.lab.localhost"
+    openNewTab: true
