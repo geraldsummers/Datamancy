@@ -27,6 +27,22 @@
             font-size: 2.5rem;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
+        .topology-link {
+            display: block;
+            text-align: center;
+            color: white;
+            text-decoration: none;
+            padding: 1rem;
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            transition: all 0.2s;
+            font-size: 1.1rem;
+        }
+        .topology-link:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -73,6 +89,10 @@
     <div class="container">
         <h1>🔮 Datamancy Lab</h1>
 
+        <a href="/topology.html" class="topology-link">
+            📊 View Container Topology & Status
+        </a>
+
         <div class="category">
             <h2 class="category-title">Monitoring & Observability</h2>
             <div class="grid">
@@ -113,16 +133,24 @@
             <h2 class="category-title">Productivity</h2>
             <div class="grid">
                 <a href="https://tasks.lab.localhost/" class="card">
-                    <div class="card-title">Vikunja</div>
-                    <div class="card-description">Task management - register to create account</div>
+                    <div class="card-title">Planka</div>
+                    <div class="card-description">Task management - OIDC authentication</div>
                 </a>
                 <a href="https://nextcloud.lab.localhost/" class="card">
                     <div class="card-title">Nextcloud</div>
-                    <div class="card-description">Files - login: admin / adminpass123</div>
+                    <div class="card-description">Files & collaboration - OIDC authentication</div>
                 </a>
                 <a href="https://vault.lab.localhost/" class="card">
                     <div class="card-title">Vaultwarden</div>
-                    <div class="card-description">Passwords - create account to start</div>
+                    <div class="card-description">Password manager - create account to start</div>
+                </a>
+                <a href="https://outline.lab.localhost/" class="card">
+                    <div class="card-title">Outline</div>
+                    <div class="card-description">Team wiki & documentation - OIDC authentication</div>
+                </a>
+                <a href="https://jupyter.lab.localhost/" class="card">
+                    <div class="card-title">JupyterHub</div>
+                    <div class="card-description">Jupyter notebooks - OIDC authentication</div>
                 </a>
             </div>
         </div>
@@ -142,11 +170,41 @@
         </div>
 
         <div class="category">
-            <h2 class="category-title">System</h2>
+            <h2 class="category-title">Media & Home</h2>
+            <div class="grid">
+                <a href="https://jellyfin.lab.localhost/" class="card">
+                    <div class="card-title">Jellyfin</div>
+                    <div class="card-description">Media server - OIDC authentication</div>
+                </a>
+                <a href="https://homeassistant.lab.localhost/" class="card">
+                    <div class="card-title">Home Assistant</div>
+                    <div class="card-description">Home automation - OIDC authentication</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="category">
+            <h2 class="category-title">System & Infrastructure</h2>
             <div class="grid">
                 <a href="https://id.lab.localhost/" class="card">
                     <div class="card-title">Authelia</div>
-                    <div class="card-description">Authentication & SSO</div>
+                    <div class="card-description">Authentication & SSO provider</div>
+                </a>
+                <a href="https://portainer.lab.localhost/" class="card">
+                    <div class="card-title">Portainer</div>
+                    <div class="card-description">Docker management - OIDC authentication</div>
+                </a>
+                <a href="https://watchtower.lab.localhost/" class="card">
+                    <div class="card-title">Watchtower</div>
+                    <div class="card-description">Container update automation</div>
+                </a>
+                <a href="https://duplicati.lab.localhost/" class="card">
+                    <div class="card-title">Duplicati</div>
+                    <div class="card-description">Backup solution</div>
+                </a>
+                <a href="https://topology-api.lab.localhost/health" class="card">
+                    <div class="card-title">Topology API</div>
+                    <div class="card-description">Real-time container monitoring API</div>
                 </a>
                 <a href="https://whoami.lab.localhost/" class="card">
                     <div class="card-title">Whoami</div>

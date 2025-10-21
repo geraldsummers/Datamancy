@@ -161,3 +161,55 @@ identity_providers:
           - email
           - groups
         token_endpoint_auth_method: client_secret_post
+
+      - client_id: jellyfin
+        client_name: Jellyfin
+        client_secret: $argon2id$v=19$m=65536,t=3,p=4$V8aZQXfLyY8vJxBqGzFmHQ$7rK2mVJvH3zCxQwE9nP5LtA8sU1fD6gY4bN0oI2jM9c # TODO: abstract (plaintext: 'jellyfin_oidc_secret_change_me')
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://jellyfin.lab.localhost/sso/OID/redirect/authelia
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+
+      - client_id: homeassistant
+        client_name: Home Assistant
+        client_secret: $argon2id$v=19$m=65536,t=3,p=4$K9xP2wV7jL4mN5zQ8sY1tA$3hR6nF9gT2dC7bW4eM8pL1oS5jK0vX6yU9qI3aZ7rN # TODO: abstract (plaintext: 'homeassistant_oidc_secret_change_me')
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://homeassistant.lab.localhost/auth/external/callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+
+      - client_id: portainer
+        client_name: Portainer
+        client_secret: $argon2id$v=19$m=65536,t=3,p=4$B3mC6vF9wK2nL5xQ8sA1tD$5jT8nR7gY2hC9bW4eP6pM1oU4jL0wZ3yX9rK3aB7sO # TODO: abstract (plaintext: 'portainer_oidc_secret_change_me')
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://portainer.lab.localhost
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+
+      - client_id: outline
+        client_name: Outline
+        client_secret: $argon2id$v=19$m=65536,t=3,p=4$D7pF0xK3wN6rM9zB2vC5yL$8kX1nT4gV7jD0cY5hQ9qP2pW6jM3xA8zU4sL7aE3oI # TODO: abstract (plaintext: 'outline_oidc_secret_change_me')
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://outline.lab.localhost/auth/oidc.callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
