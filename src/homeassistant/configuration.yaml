@@ -1,0 +1,46 @@
+# Home Assistant Configuration with Header Authentication via Authelia
+# Requires: hass-auth-header custom component from HACS
+# Installation: https://github.com/BeryJu/hass-auth-header
+
+# Core configuration
+homeassistant:
+  name: Home
+  unit_system: metric
+  time_zone: Etc/UTC
+  external_url: https://homeassistant.lab.localhost
+  internal_url: http://homeassistant:8123
+
+# HTTP Configuration - Trust reverse proxy
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 10.0.0.0/8
+
+# Header Authentication Provider (requires hass-auth-header custom component)
+# Install via HACS: https://github.com/BeryJu/hass-auth-header
+auth_header:
+  # Use Remote-User header from Authelia
+  username_header: Remote-User
+  # Enable debug mode to troubleshoot header issues
+  debug: false
+  # Allow bypassing login screen when header is present
+  allow_bypass_login: true
+
+# Authentication Providers
+auth_providers:
+  # Home Assistant built-in authentication (fallback if header auth fails)
+  - type: homeassistant
+
+# Default configuration
+default_config:
+
+# Enable frontend
+frontend:
+  themes: !include_dir_merge_named themes
+
+# Enable lovelace
+lovelace:
+  mode: yaml
+  resources: []

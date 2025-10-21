@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PluginConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SamlConfigs />
+  <OidConfigs>
+    <ConfigModel>
+      <OidEndpoint>https://id.lab.localhost</OidEndpoint>
+      <OidClientId>jellyfin</OidClientId>
+      <OidSecret>jellyfin_oidc_secret_change_me</OidSecret>
+      <Enabled>true</Enabled>
+      <EnableAllFolders>true</EnableAllFolders>
+      <EnabledFolders />
+      <AdminRoles>
+        <string>admins</string>
+      </AdminRoles>
+      <Roles>
+        <string>users</string>
+      </Roles>
+      <EnableAuthorization>true</EnableAuthorization>
+      <EnableFolderRoles>false</EnableFolderRoles>
+      <FolderRoleMappings />
+      <RoleClaim>groups</RoleClaim>
+      <OidScopes>openid profile email groups</OidScopes>
+      <CanonicalLinks>
+        <CanonicalLink>
+          <Base>https://jellyfin.lab.localhost</Base>
+          <Link>sso/OID/start/authelia</Link>
+        </CanonicalLink>
+      </CanonicalLinks>
+      <SchemeShortName>authelia</SchemeShortName>
+    </ConfigModel>
+  </OidConfigs>
+</PluginConfiguration>
