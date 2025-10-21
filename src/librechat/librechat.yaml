@@ -12,7 +12,7 @@ endpoints:
         - "gpt-4"
 
 registration:
-  socialLogins: []
+  socialLogins: ["openid"]
 
 interface:
   # Disable password login completely

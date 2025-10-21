@@ -1,20 +1,3 @@
-# ============================================================================
-# Authentication Architecture: Mixed (Forward Auth + OIDC)
-# ============================================================================
-# Most services use Authelia forward authentication via Caddy for URL-agnostic SSO.
-# Some services (Planka) require OIDC and will only work via configured domain.
-#
-# Forward Auth (URL-agnostic):
-#   ✅ Grafana   - Auto-provisions users via Remote-User header
-#   ✅ Nextcloud - SSO via user_backend_remote app
-#   ⚠️  LibreChat - Protected by Authelia but may show internal login
-#
-# OIDC (requires access via lab.localhost domain):
-#   ✅ Planka    - Full SSO with auto-provisioning
-#
-# To protect a service with forward auth: Add "caddy.import: auth" label
-# To add OIDC client: Configure in authelia/configuration.yml
-# ============================================================================
 networks:
   app_net:
     name: app_net
@@ -65,7 +48,15 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     # 🔒 No direct /var/run/docker.sock mount here
-    networks: [app_net]
+    networks:
+      app_net:
+        aliases:
+          - id.lab.localhost
+          - tasks.lab.localhost
+          - grafana.lab.localhost
+          - nextcloud.lab.localhost
+          - jupyter.lab.localhost
+          - chat.lab.localhost
   whoami:
     image: traefik/whoami:latest
     container_name: whoami
@@ -222,14 +213,13 @@ services:
       - GF_AUTH_SIGNOUT_REDIRECT_URL=https://id.${BASE_DOMAIN}/logout
       - GF_AUTH_GENERIC_OAUTH_USE_PKCE=true
       - GF_AUTH_GENERIC_OAUTH_USE_REFRESH_TOKEN=true
-      - GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=preferred_username
+      - GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=email
       - GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name
       - GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH=email
-      - GF_AUTH_GENERIC_OAUTH_USERNAME_ATTRIBUTE_PATH=preferred_username
+      - GF_AUTH_GENERIC_OAUTH_USERNAME_ATTRIBUTE_PATH=email
       - GF_AUTH_GENERIC_OAUTH_GROUPS_ATTRIBUTE_PATH=groups
-      - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=false
-      - GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC=false
       - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=true
+      - GF_AUTH_GENERIC_OAUTH_AUTO_ASSIGN_ORG_ROLE=Admin
       - GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=false
       - GF_LOG_LEVEL=debug
       - GF_LOG_FILTERS=oauth.generic_oauth:debug,user.sync:debug,sqlstore:debug,login:debug
@@ -307,22 +297,37 @@ services:
       - OPENAI_REVERSE_PROXY=http://localai:8080/v1
       - DOMAIN_SERVER=https://chat.lab.localhost
       - DOMAIN_CLIENT=https://chat.lab.localhost
-      # Authentication disabled - protected by Authelia forward auth
+      # OIDC Authentication via Authelia
       - ALLOW_EMAIL_LOGIN=false
       - ALLOW_REGISTRATION=false
-      - JWT_SECRET=librechat_jwt_secret_changeme123  # TODO: abstract (plaintext: librechat_jwt_secret_changeme123)
-      - CREDS_KEY=librechat_creds_key_changeme456  # TODO: abstract (plaintext: librechat_creds_key_changeme456)
-      - CREDS_IV=librechat_creds_iv_changeme78  # TODO: abstract (plaintext: librechat_creds_iv_changeme78)
+      - ALLOW_SOCIAL_LOGIN=true
+      - ALLOW_SOCIAL_REGISTRATION=true
+      - OPENID_ISSUER=https://id.${BASE_DOMAIN}
+      - OPENID_CLIENT_ID=librechat
+      - OPENID_CLIENT_SECRET=${OIDC_LIBRECHAT_CLIENT_SECRET}
+      - OPENID_CALLBACK_URL=/oauth/openid/callback
+      - OPENID_SCOPE=openid profile email groups
+      - OPENID_SESSION_SECRET=librechat_oidc_session_secret_changeme
+      - OPENID_BUTTON_LABEL=Login with Authelia
+      - OPENID_REQUIRED_ROLE=
+      - OPENID_REQUIRED_ROLE_TOKEN_KIND=
+      - OPENID_REQUIRED_ROLE_PARAMETER_PATH=
+      - NODE_EXTRA_CA_CERTS=/app/caddy-root-ca.crt
+      - JWT_SECRET=librechat_jwt_secret_changeme123
+      - JWT_REFRESH_SECRET=librechat_jwt_refresh_secret_changeme789
+      - CREDS_KEY=librechat_creds_key_changeme456
+      - CREDS_IV=librechat_creds_iv_changeme78
     depends_on:
       - librechat-mongo
       - localai
     volumes:
       - librechat_data:/app/client/public/images
       - ./librechat/librechat.yaml:/app/librechat.yaml:ro
+      - ./caddy-root-ca.crt:/app/caddy-root-ca.crt:ro
     labels:
       caddy: chat.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 3080}}"
-      caddy.import: auth
+      # Remove forward auth - LibreChat handles its own auth via OIDC
     networks: [app_net]
 
   librechat-mongo:
@@ -454,18 +459,18 @@ services:
       - OIDC_CLIENT_SECRET=planka_oidc_secret_change_me
       - OIDC_SCOPES=openid email profile
       - OIDC_ADMIN_ROLES=admins
+      - NODE_EXTRA_CA_CERTS=/app/caddy-root-ca.crt
     depends_on:
       - planka-db
     volumes:
       - planka_data:/app/public/user-avatars
       - planka_attachments:/app/private/attachments
-    extra_hosts:
-      # Required for OIDC: makes id.lab.localhost resolve to host (Caddy)
-      - "id.lab.localhost:host-gateway"
-      - "tasks.lab.localhost:host-gateway"
+      - ./caddy-root-ca.crt:/app/caddy-root-ca.crt:ro
     labels:
       caddy: tasks.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 1337}}"
+      caddy.reverse_proxy.header_up: "Connection {http.request.header.Connection}"
+      caddy.reverse_proxy.header_up_1: "Upgrade {http.request.header.Upgrade}"
     networks: [app_net]
 
 
