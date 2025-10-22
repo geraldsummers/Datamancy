@@ -48,7 +48,7 @@ scrape_configs:
           - https://grafana.lab.localhost  # TODO: abstract (use BASE_DOMAIN)
           - https://prometheus.lab.localhost  # TODO: abstract
           - https://alertmanager.lab.localhost  # TODO: abstract
-          - https://id.lab.localhost  # TODO: abstract (authelia)
+          - https://id.lab.localhost  # TODO: abstract (authentik)
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

@@ -1,3 +1,9 @@
+
+## DON'T HARDCODE IPS!!
+## System should be URL agnostic
+## OIDC is currently working in grafana, jupyterhub, librechat, planka, check them for examples
+## Using network aliases to manage OIDC/docker/dns nuance
+## ALL configuration must be baked into this compose or supporting files.
 networks:
   app_net:
     name: app_net
@@ -57,32 +63,6 @@ services:
           - nextcloud.lab.localhost
           - jupyter.lab.localhost
           - chat.lab.localhost
-  whoami:
-    image: traefik/whoami:latest
-    container_name: whoami
-    restart: unless-stopped
-    labels:
-      caddy: whoami.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 80}}"
-      caddy.import: auth
-    networks: [app_net]
-
-  authelia:
-    image: authelia/authelia:latest
-    container_name: authelia
-    restart: unless-stopped
-    expose: ["9091"]
-    environment:
-      - TZ=${TZ}
-    command: ["authelia", "--config", "/config/configuration.yml"]
-    volumes:
-      - ./authelia/configuration.yml:/config/configuration.yml:ro
-      - ./authelia/users.yml:/config/users.yml:ro
-      - authelia_data:/data
-    labels:
-      caddy: id.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 9091}}"
-    networks: [app_net]
 
   caddy-config:
     image: traefik/whoami:latest
@@ -90,9 +70,9 @@ services:
     restart: unless-stopped
     labels:
       caddy: (auth)
-      caddy.forward_auth: authelia:9091
-      caddy.forward_auth.uri: /api/authz/forward-auth
-      caddy.forward_auth.copy_headers: Remote-User Remote-Groups Remote-Name Remote-Email
+      caddy.forward_auth: authentik-server:9000
+      caddy.forward_auth.uri: /outpost.goauthentik.io/auth/caddy
+      caddy.forward_auth.copy_headers: X-authentik-username X-authentik-groups X-authentik-email X-authentik-name X-authentik-uid
     networks: [app_net]
 
   topology-api:
@@ -221,14 +201,14 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=true
       - GF_SERVER_ROOT_URL=https://grafana.${BASE_DOMAIN}
       - GF_AUTH_GENERIC_OAUTH_ENABLED=true
-      - GF_AUTH_GENERIC_OAUTH_NAME=Authelia
+      - GF_AUTH_GENERIC_OAUTH_NAME=Authentik
       - GF_AUTH_GENERIC_OAUTH_CLIENT_ID=grafana
-      - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=grafana_oidc_secret_change_me
+      - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=${OIDC_GRAFANA_CLIENT_SECRET}
       - GF_AUTH_GENERIC_OAUTH_SCOPES=openid profile email groups
-      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://id.${BASE_DOMAIN}/api/oidc/authorization
-      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://authelia:9091/api/oidc/token
-      - GF_AUTH_GENERIC_OAUTH_API_URL=http://authelia:9091/api/oidc/userinfo
-      - GF_AUTH_SIGNOUT_REDIRECT_URL=https://id.${BASE_DOMAIN}/logout
+      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://id.${BASE_DOMAIN}/application/o/authorize/
+      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://authentik-server:9000/application/o/token/
+      - GF_AUTH_GENERIC_OAUTH_API_URL=http://authentik-server:9000/application/o/userinfo/
+      - GF_AUTH_SIGNOUT_REDIRECT_URL=https://id.${BASE_DOMAIN}/application/o/grafana/end-session/
       - GF_AUTH_GENERIC_OAUTH_USE_PKCE=true
       - GF_AUTH_GENERIC_OAUTH_USE_REFRESH_TOKEN=true
       - GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=email
@@ -245,8 +225,6 @@ services:
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
-    extra_hosts:
-      - "id.lab.localhost:host-gateway"
     labels:
       caddy: grafana.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 3000}}"
@@ -297,7 +275,7 @@ services:
       - localai_models:/models
       - localai_data:/tmp/localai
     labels:
-      caddy: how .${BASE_DOMAIN}
+      caddy: ai.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 8080}}"
       caddy.import: auth
     networks: [app_net]
@@ -313,20 +291,21 @@ services:
       - OPENAI_API_KEY=not_needed
       - ENDPOINTS=openAI
       - OPENAI_REVERSE_PROXY=http://localai:8080/v1
-      - DOMAIN_SERVER=https://chat.lab.localhost
-      - DOMAIN_CLIENT=https://chat.lab.localhost
-      # OIDC Authentication via Authelia
+      - DOMAIN_SERVER=https://chat.${BASE_DOMAIN}
+      - DOMAIN_CLIENT=https://chat.${BASE_DOMAIN}
+      # OIDC Authentication via Authentik
       - ALLOW_EMAIL_LOGIN=false
       - ALLOW_REGISTRATION=false
       - ALLOW_SOCIAL_LOGIN=true
       - ALLOW_SOCIAL_REGISTRATION=true
-      - OPENID_ISSUER=https://id.${BASE_DOMAIN}
+      - OPENID_ISSUER=https://id.${BASE_DOMAIN}/application/o/librechat
       - OPENID_CLIENT_ID=librechat
       - OPENID_CLIENT_SECRET=${OIDC_LIBRECHAT_CLIENT_SECRET}
       - OPENID_CALLBACK_URL=/oauth/openid/callback
       - OPENID_SCOPE=openid profile email groups
+      - OPENID_LOGOUT_URL=https://id.${BASE_DOMAIN}/application/o/librechat/end-session/
       - OPENID_SESSION_SECRET=librechat_oidc_session_secret_changeme
-      - OPENID_BUTTON_LABEL=Login with Authelia
+      - OPENID_BUTTON_LABEL=Login with Authentik
       - OPENID_REQUIRED_ROLE=
       - OPENID_REQUIRED_ROLE_TOKEN_KIND=
       - OPENID_REQUIRED_ROLE_PARAMETER_PATH=
@@ -379,7 +358,7 @@ services:
     environment:
       - MAX_CONCURRENT_SESSIONS=3  # TODO: abstract
       - CONNECTION_TIMEOUT=60000  # TODO: abstract
-      - TOKEN=  # Disabled - using Authelia for auth
+      - TOKEN=  # Disabled - using Authentik for auth
     labels:
       caddy: browser.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 3000}}"
@@ -401,14 +380,13 @@ services:
       - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.${BASE_DOMAIN}
       - OVERWRITEPROTOCOL=https
       - OVERWRITEHOST=nextcloud.${BASE_DOMAIN}
-      - OIDC_NEXTCLOUD_CLIENT_SECRET=nextcloud_oidc_secret_change_me
+      - BASE_DOMAIN=${BASE_DOMAIN}
+      - OIDC_NEXTCLOUD_CLIENT_SECRET=${OIDC_NEXTCLOUD_CLIENT_SECRET}
     depends_on:
       - mariadb
     volumes:
       - nextcloud_data:/var/www/html
-      - ./nextcloud/config.php:/var/www/html/config/sso.config.php:ro
-    extra_hosts:
-      - "id.lab.localhost:host-gateway"
+      - ./nextcloud/hooks:/docker-entrypoint-hooks.d/post-installation:ro
     labels:
       caddy: nextcloud.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 80}}"
@@ -438,12 +416,11 @@ services:
     expose: ["8000"]
     environment:
       - DOCKER_NETWORK_NAME=app_net
-      - OIDC_JUPYTERHUB_CLIENT_SECRET=jupyterhub_oidc_secret_change_me
+      - BASE_DOMAIN=${BASE_DOMAIN}
+      - OIDC_JUPYTERHUB_CLIENT_SECRET=${OIDC_JUPYTERHUB_CLIENT_SECRET}
     volumes:
       - jupyterhub_data:/srv/jupyterhub
       - ./jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
-    extra_hosts:
-      - "id.lab.localhost:host-gateway"
     labels:
       caddy: jupyter.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 8000}}"
@@ -471,12 +448,15 @@ services:
       - DATABASE_URL=postgresql://planka:plankapass123@planka-db/planka  # TODO: abstract (plaintext: planka:plankapass123)
       - SECRET_KEY=plankaSecretKeyChangeMe123456  # TODO: abstract (plaintext: plankaSecretKeyChangeMe123456)
       - TRUST_PROXY=true
-      # OIDC Configuration (Planka does not support forward auth headers)
       - OIDC_ISSUER=https://id.${BASE_DOMAIN}
       - OIDC_CLIENT_ID=planka
-      - OIDC_CLIENT_SECRET=planka_oidc_secret_change_me
-      - OIDC_SCOPES=openid email profile
+      - OIDC_CLIENT_SECRET=${OIDC_PLANKA_CLIENT_SECRET}
+      - OIDC_SCOPES=openid email profile groups
       - OIDC_ADMIN_ROLES=admins
+      - OIDC_EMAIL_ATTRIBUTE=email
+      - OIDC_NAME_ATTRIBUTE=name
+      - OIDC_USERNAME_ATTRIBUTE=preferred_username
+      - OIDC_ROLES_ATTRIBUTE=groups
       - NODE_EXTRA_CA_CERTS=/app/caddy-root-ca.crt
     depends_on:
       - planka-db
@@ -487,8 +467,8 @@ services:
     labels:
       caddy: tasks.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 1337}}"
-      caddy.reverse_proxy.header_up: "Connection {http.request.header.Connection}"
-      caddy.reverse_proxy.header_up_1: "Upgrade {http.request.header.Upgrade}"
+      caddy.reverse_proxy.transport: http
+      caddy.reverse_proxy.transport.versions: 1.1
     networks: [app_net]
 
   jellyfin:
@@ -500,6 +480,8 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      - BASE_DOMAIN=${BASE_DOMAIN}
+      - OIDC_JELLYFIN_CLIENT_SECRET=${OIDC_JELLYFIN_CLIENT_SECRET}
       - JELLYFIN_PublishedServerUrl=https://jellyfin.${BASE_DOMAIN}
     volumes:
       - jellyfin_config:/config
@@ -522,6 +504,7 @@ services:
       caddy.reverse_proxy: "{{upstreams 8123}}"
       caddy.reverse_proxy.header_up: "Connection {http.request.header.Connection}"
       caddy.reverse_proxy.header_up_1: "Upgrade {http.request.header.Upgrade}"
+      caddy.import: auth
     networks: [app_net]
 
   watchtower:
@@ -562,22 +545,108 @@ services:
       caddy.import: auth
     networks: [app_net]
 
-  portainer:
-    image: portainer/portainer-ce:latest
-    container_name: portainer
+  dockge:
+    image: louislam/dockge:latest
+    container_name: dockge
     restart: unless-stopped
-    expose: ["9000"]
+    expose: ["5001"]
     environment:
       - TZ=${TZ}
+      - DOCKGE_STACKS_DIR=/stacks
     volumes:
-      - portainer_data:/data
+      - dockge_data:/app/data
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/docker.sock:/var/run/docker.sock:ro
-    command: >
-      --http-enabled
-      --admin-password='$$2y$$05$$somehashedpasswordhere'
+      - ./dockge/stacks:/stacks
     labels:
-      caddy: portainer.${BASE_DOMAIN}
+      caddy: dockge.${BASE_DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 5001}}"
+      caddy.import: auth
+    networks: [app_net]
+
+  authentik-postgres:
+    image: postgres:16-alpine
+    container_name: authentik-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=authentik
+      - POSTGRES_USER=authentik
+      - POSTGRES_PASSWORD=authentik_db_pass_change_me  # TODO: abstract
+    volumes:
+      - authentik_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    networks: [app_net]
+
+  authentik-redis:
+    image: redis:7-alpine
+    container_name: authentik-redis
+    restart: unless-stopped
+    command: --save 60 1 --loglevel warning
+    volumes:
+      - authentik_redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 3s
+    networks: [app_net]
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:latest
+    container_name: authentik-server
+    restart: unless-stopped
+    expose: ["9000", "9443"]
+    command: server
+    environment:
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
+      - AUTHENTIK_REDIS__HOST=authentik-redis
+      - AUTHENTIK_POSTGRESQL__HOST=authentik-postgres
+      - AUTHENTIK_POSTGRESQL__USER=authentik
+      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__PASSWORD=authentik_db_pass_change_me
+      - AUTHENTIK_ERROR_REPORTING__ENABLED=false
+      - AUTHENTIK_LOG_LEVEL=info
+      - AUTHENTIK_BOOTSTRAP_PASSWORD=${AUTHENTIK_BOOTSTRAP_PASSWORD:-admin}
+      - AUTHENTIK_BOOTSTRAP_TOKEN=${AUTHENTIK_BOOTSTRAP_TOKEN:-bootstrap-token-changeme}
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+      - ./authentik/blueprints:/blueprints/custom:ro
+    depends_on:
+      - authentik-postgres
+      - authentik-redis
+    labels:
+      caddy: id.${BASE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 9000}}"
+    networks: [app_net]
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:latest
+    container_name: authentik-worker
+    restart: unless-stopped
+    command: worker
+    environment:
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
+      - AUTHENTIK_REDIS__HOST=authentik-redis
+      - AUTHENTIK_POSTGRESQL__HOST=authentik-postgres
+      - AUTHENTIK_POSTGRESQL__USER=authentik
+      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__PASSWORD=authentik_db_pass_change_me
+      - AUTHENTIK_ERROR_REPORTING__ENABLED=false
+      - AUTHENTIK_LOG_LEVEL=info
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+      - ./authentik/blueprints:/blueprints/custom:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - authentik-postgres
+      - authentik-redis
     networks: [app_net]
 
   outline-postgres:
@@ -610,6 +679,7 @@ services:
       - SECRET_KEY=outline_secret_key_change_me_min_32_chars  # TODO: abstract
       - UTILS_SECRET=outline_utils_secret_change_me_min_32  # TODO: abstract
       - DATABASE_URL=postgres://outline:outline_db_pass_change_me@outline-postgres:5432/outline  # TODO: abstract
+      - PGSSLMODE=disable
       - REDIS_URL=redis://outline-redis:6379
       - URL=https://outline.${BASE_DOMAIN}
       - PORT=3000
@@ -619,11 +689,11 @@ services:
       # OIDC Configuration
       - OIDC_CLIENT_ID=outline
       - OIDC_CLIENT_SECRET=${OIDC_OUTLINE_CLIENT_SECRET}
-      - OIDC_AUTH_URI=https://id.${BASE_DOMAIN}/api/oidc/authorization
-      - OIDC_TOKEN_URI=http://authelia:9091/api/oidc/token
-      - OIDC_USERINFO_URI=http://authelia:9091/api/oidc/userinfo
+      - OIDC_AUTH_URI=https://id.${BASE_DOMAIN}/application/o/authorize/
+      - OIDC_TOKEN_URI=http://authentik-server:9000/application/o/token/
+      - OIDC_USERINFO_URI=http://authentik-server:9000/application/o/userinfo/
       - OIDC_USERNAME_CLAIM=preferred_username
-      - OIDC_DISPLAY_NAME=Authelia
+      - OIDC_DISPLAY_NAME=Authentik
       - OIDC_SCOPES=openid profile email
     depends_on:
       - outline-postgres
@@ -640,7 +710,10 @@ services:
 volumes:
   caddy_data:
   caddy_config:
-  authelia_data:
+  authentik_postgres_data:
+  authentik_redis_data:
+  authentik_media:
+  authentik_templates:
   prometheus_data:
   alertmanager_data:
   loki_data:
@@ -662,14 +735,9 @@ volumes:
   duplicati_config:
   duplicati_backups:
   duplicati_source:
-  portainer_data:
+  dockge_data:
   outline_postgres_data:
   outline_redis_data:
   outline_data:
 
 
-configs:
-  authelia_config:
-    file: ./authelia/configuration.yml
-  authelia_users:
-    file: ./authelia/users.yml

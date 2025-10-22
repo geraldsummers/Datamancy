@@ -3,12 +3,10 @@ FROM ghcr.io/home-assistant/home-assistant:stable
 # Install HACS (Home Assistant Community Store) and hass-auth-header
 # HACS is required to easily install custom components like hass-auth-header
 RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
+    apk add --no-cache \
         wget \
         unzip \
     ; \
-    rm -rf /var/lib/apt/lists/*; \
     # Download and install HACS
     wget -q -O /tmp/hacs.zip https://github.com/hacs/integration/releases/latest/download/hacs.zip; \
     mkdir -p /config/custom_components; \

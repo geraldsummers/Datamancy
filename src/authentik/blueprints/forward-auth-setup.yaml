@@ -1,0 +1,47 @@
+version: 1
+metadata:
+  name: Forward Auth Setup
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  # Create Proxy Provider for Forward Auth (single proxy mode)
+  - model: authentik_providers_proxy.proxyprovider
+    id: forward-auth-provider
+    identifiers:
+      name: Forward Auth Provider
+    attrs:
+      name: Forward Auth Provider
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
+      mode: forward_domain
+      cookie_domain: !Env BASE_DOMAIN
+      external_host: !Format "https://%s" !Env BASE_DOMAIN
+      skip_path_regex: |-
+        ^/outpost.goauthentik.io
+        ^/api
+        ^/static
+      access_token_validity: hours=24
+
+  # Create Application for Forward Auth
+  - model: authentik_core.application
+    id: forward-auth-app
+    identifiers:
+      slug: forward-auth
+    attrs:
+      name: Forward Auth
+      slug: forward-auth
+      provider: !KeyOf forward-auth-provider
+      policy_engine_mode: any
+      open_in_new_tab: false
+
+  # Assign provider to the embedded outpost
+  - model: authentik_outposts.outpost
+    id: embedded-outpost
+    state: present
+    identifiers:
+      name: authentik Embedded Outpost
+    attrs:
+      name: authentik Embedded Outpost
+      type: proxy
+      providers:
+        - !KeyOf forward-auth-provider

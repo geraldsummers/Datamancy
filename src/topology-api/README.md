@@ -73,7 +73,7 @@ The service automatically categorizes containers:
 
 - **database**: postgres, mysql, mariadb, mongo, redis, clickhouse
 - **monitoring**: prometheus, grafana, loki, alertmanager
-- **proxy**: caddy, authelia, traefik
+- **proxy**: caddy, authentik, traefik
 - **infrastructure**: watchtower, socket-proxy
 - **application**: everything else
 - **storage**: volumes

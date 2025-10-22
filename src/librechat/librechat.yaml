@@ -16,6 +16,7 @@ registration:
 
 interface:
   # Disable password login completely
+  # Note: YAML doesn't support env var substitution - this is just a static link
   privacyPolicy:
     externalUrl: "https://id.lab.localhost"
     openNewTab: true

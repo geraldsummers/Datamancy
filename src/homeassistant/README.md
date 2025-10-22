@@ -23,8 +23,8 @@ The custom components will be pre-installed and ready to use.
 Home Assistant uses header-based authentication via the `hass-auth-header` component:
 
 1. User accesses `https://homeassistant.lab.localhost`
-2. Caddy + Authelia authenticate the user
-3. Authelia passes `Remote-User` header to Home Assistant
+2. Caddy + Authentik authenticate the user
+3. Authentik passes `Remote-User` header to Home Assistant
 4. hass-auth-header reads the header and logs the user in automatically
 5. Fallback to local authentication if header is missing
 
@@ -32,7 +32,7 @@ Home Assistant uses header-based authentication via the `hass-auth-header` compo
 
 The `configuration.yaml` includes:
 
-- **Header Authentication**: Uses `Remote-User` header from Authelia
+- **Header Authentication**: Uses `Remote-User` header from Authentik
 - **Trusted Proxies**: Accepts headers from internal Docker networks
 - **Auto-Login**: Bypasses login screen when authenticated via header
 - **Fallback Auth**: Home Assistant local auth still available
@@ -41,17 +41,17 @@ The `configuration.yaml` includes:
 
 1. **Create your first user** (owner account):
    - Visit Home Assistant UI
-   - Create an account matching your Authelia username
+   - Create an account matching your Authentik username
 
 2. **Test header authentication**:
    - Log out of Home Assistant
    - Visit the URL again
-   - Should auto-login via Authelia
+   - Should auto-login via Authentik
 
 ## User Management
 
-- Users must exist in **both** Authelia and Home Assistant
-- Username in Home Assistant should match `Remote-User` from Authelia
+- Users must exist in **both** Authentik and Home Assistant
+- Username in Home Assistant should match `Remote-User` from Authentik
 - Create users in HA first, then they'll auto-login via headers
 
 ## Manual Component Update
@@ -68,7 +68,7 @@ To update HACS or hass-auth-header:
 ## Troubleshooting
 
 - **Not auto-logging in**: Check `debug: true` in `auth_header` config, restart HA, check logs
-- **Header not found**: Verify Authelia is passing `Remote-User` header via Caddy
+- **Header not found**: Verify Authentik is passing `Remote-User` header via Caddy
 - **Permission denied**: Ensure user exists in Home Assistant with correct username
 - **Build fails**: Check internet connectivity to GitHub
 

@@ -20,10 +20,10 @@ The SSO-Auth plugin (v3.5.2.0) will be automatically installed with the correct 
 
 The SSO configuration (`sso-config.xml`) is pre-configured with:
 
-- **OIDC Provider**: Authelia at `https://id.lab.localhost`
+- **OIDC Provider**: Authentik at `https://id.lab.localhost`
 - **Client ID**: `jellyfin`
 - **Client Secret**: `jellyfin_oidc_secret_change_me` (stored in `.env`)
-- **Redirect URI**: `https://jellyfin.lab.localhost/sso/OID/redirect/authelia`
+- **Redirect URI**: `https://jellyfin.lab.localhost/sso/OID/redirect/authentik`
 - **Admin Role**: Users in `admins` group become Jellyfin admins
 - **User Role**: Users in `users` group get standard access
 - **Scopes**: `openid profile email groups`
@@ -31,8 +31,8 @@ The SSO configuration (`sso-config.xml`) is pre-configured with:
 ## Authentication Flow
 
 1. User visits `https://jellyfin.lab.localhost`
-2. Clicks "Sign in with Authelia" button
-3. Redirects to Authelia for authentication
+2. Clicks "Sign in with Authentik" button
+3. Redirects to Authentik for authentication
 4. Returns to Jellyfin with user profile and group membership
 5. Auto-creates user account with appropriate permissions
 
@@ -52,6 +52,6 @@ Latest releases: https://github.com/9p4/jellyfin-plugin-sso/releases
 ## Troubleshooting
 
 - **Plugin not loading**: Check container logs with `docker logs jellyfin`
-- **Authentication fails**: Verify Authelia client secret matches between `.env` and Authelia config
-- **No admin access**: Ensure your user is in the `admins` group in Authelia
+- **Authentication fails**: Verify Authentik client secret matches between `.env` and Authentik config
+- **No admin access**: Ensure your user is in the `admins` group in Authentik
 - **Build fails**: Check internet connection and GitHub release availability

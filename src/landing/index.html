@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Datamancy Lab</title>
+    <title>Lab Services</title>
     <style>
         * {
             margin: 0;
@@ -11,21 +11,30 @@
             box-sizing: border-box;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Georgia', 'Times New Roman', serif;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
             min-height: 100vh;
-            padding: 2rem;
+            padding: 0;
+        }
+        .header {
+            background: #8b7355;
+            padding: 2rem 0;
+            margin-bottom: 3rem;
         }
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 0 2rem;
         }
         h1 {
             color: white;
             text-align: center;
-            margin-bottom: 3rem;
+            margin: 0;
             font-size: 2.5rem;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .content {
+            padding: 0 2rem 2rem;
         }
         .topology-link {
             display: block;
@@ -43,14 +52,9 @@
             background: rgba(255,255,255,0.2);
             transform: translateY(-2px);
         }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 1.5rem;
-        }
         .card {
             background: white;
-            border-radius: 12px;
+            border-radius: 0;
             padding: 1.5rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             transition: transform 0.2s, box-shadow 0.2s;
@@ -65,7 +69,7 @@
         .card-title {
             font-size: 1.25rem;
             font-weight: 600;
-            color: #667eea;
+            color: #2c3e50;
             margin-bottom: 0.5rem;
         }
         .card-description {
@@ -73,8 +77,14 @@
             font-size: 0.9rem;
             line-height: 1.5;
         }
+        .categories-wrapper {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
         .category {
-            margin-bottom: 3rem;
+            display: flex;
+            flex-direction: column;
         }
         .category-title {
             color: white;
@@ -83,88 +93,48 @@
             padding-left: 0.5rem;
             border-left: 4px solid white;
         }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🔮 Datamancy Lab</h1>
-
-        <a href="/topology.html" class="topology-link">
-            📊 View Container Topology & Status
-        </a>
-
-        <div class="category">
-            <h2 class="category-title">Monitoring & Observability</h2>
-            <div class="grid">
-                <a href="https://grafana.lab.localhost/" class="card">
-                    <div class="card-title">Grafana</div>
-                    <div class="card-description">Metrics visualization and dashboards</div>
-                </a>
-                <a href="https://prometheus.lab.localhost/" class="card">
-                    <div class="card-title">Prometheus</div>
-                    <div class="card-description">Metrics collection and alerting</div>
-                </a>
-                <a href="https://alertmanager.lab.localhost/" class="card">
-                    <div class="card-title">Alertmanager</div>
-                    <div class="card-description">Alert management and routing</div>
-                </a>
-                <a href="https://grafana.lab.localhost/explore" class="card">
-                    <div class="card-title">Loki (via Grafana)</div>
-                    <div class="card-description">Log aggregation - no standalone UI</div>
-                </a>
-            </div>
+    <div class="header">
+        <div class="container">
+            <h1>Lab Services</h1>
         </div>
-
-        <div class="category">
-            <h2 class="category-title">AI & Chat</h2>
-            <div class="grid">
-                <a href="https://chat.lab.localhost/" class="card">
-                    <div class="card-title">LibreChat</div>
-                    <div class="card-description">AI chat interface - create account on first visit</div>
-                </a>
-                <a href="https://ai.lab.localhost/" class="card">
-                    <div class="card-title">LocalAI</div>
-                    <div class="card-description">Local AI API service</div>
-                </a>
-            </div>
-        </div>
-
-        <div class="category">
+    </div>
+    <div class="content">
+        <div class="container">
+            <div class="categories-wrapper">
+            <div class="category">
             <h2 class="category-title">Productivity</h2>
             <div class="grid">
-                <a href="https://tasks.lab.localhost/" class="card">
-                    <div class="card-title">Planka</div>
-                    <div class="card-description">Task management - OIDC authentication</div>
-                </a>
                 <a href="https://nextcloud.lab.localhost/" class="card">
                     <div class="card-title">Nextcloud</div>
-                    <div class="card-description">Files & collaboration - OIDC authentication</div>
-                </a>
-                <a href="https://vault.lab.localhost/" class="card">
-                    <div class="card-title">Vaultwarden</div>
-                    <div class="card-description">Password manager - create account to start</div>
+                    <div class="card-description">Files & collaboration</div>
                 </a>
                 <a href="https://outline.lab.localhost/" class="card">
                     <div class="card-title">Outline</div>
-                    <div class="card-description">Team wiki & documentation - OIDC authentication</div>
+                    <div class="card-description">Documentation wiki</div>
+                </a>
+                <a href="https://tasks.lab.localhost/" class="card">
+                    <div class="card-title">Planka</div>
+                    <div class="card-description">Task management</div>
+                </a>
+                <a href="https://vault.lab.localhost/" class="card">
+                    <div class="card-title">Vaultwarden</div>
+                    <div class="card-description">Password manager</div>
+                </a>
+                <a href="https://chat.lab.localhost/" class="card">
+                    <div class="card-title">LibreChat</div>
+                    <div class="card-description">AI chat interface</div>
                 </a>
                 <a href="https://jupyter.lab.localhost/" class="card">
                     <div class="card-title">JupyterHub</div>
-                    <div class="card-description">Jupyter notebooks - OIDC authentication</div>
-                </a>
-            </div>
-        </div>
-
-        <div class="category">
-            <h2 class="category-title">Data & Development</h2>
-            <div class="grid">
-                <a href="https://benthos.lab.localhost/ping" class="card">
-                    <div class="card-title">Benthos</div>
-                    <div class="card-description">Stream processing API - no web UI</div>
-                </a>
-                <a href="https://browser.lab.localhost/" class="card">
-                    <div class="card-title">Browserless</div>
-                    <div class="card-description">Headless Chrome API - no web UI</div>
+                    <div class="card-description">Interactive notebooks</div>
                 </a>
             </div>
         </div>
@@ -174,42 +144,43 @@
             <div class="grid">
                 <a href="https://jellyfin.lab.localhost/" class="card">
                     <div class="card-title">Jellyfin</div>
-                    <div class="card-description">Media server - OIDC authentication</div>
+                    <div class="card-description">Media server</div>
                 </a>
                 <a href="https://homeassistant.lab.localhost/" class="card">
                     <div class="card-title">Home Assistant</div>
-                    <div class="card-description">Home automation - OIDC authentication</div>
+                    <div class="card-description">Home automation</div>
                 </a>
             </div>
         </div>
 
         <div class="category">
-            <h2 class="category-title">System & Infrastructure</h2>
+            <h2 class="category-title">Infrastructure</h2>
             <div class="grid">
-                <a href="https://id.lab.localhost/" class="card">
-                    <div class="card-title">Authelia</div>
-                    <div class="card-description">Authentication & SSO provider</div>
-                </a>
                 <a href="https://portainer.lab.localhost/" class="card">
                     <div class="card-title">Portainer</div>
-                    <div class="card-description">Docker management - OIDC authentication</div>
+                    <div class="card-description">Container management</div>
                 </a>
-                <a href="https://watchtower.lab.localhost/" class="card">
-                    <div class="card-title">Watchtower</div>
-                    <div class="card-description">Container update automation</div>
+                <a href="https://ai.lab.localhost/" class="card">
+                    <div class="card-title">LocalAI</div>
+                    <div class="card-description">Local AI service</div>
                 </a>
-                <a href="https://duplicati.lab.localhost/" class="card">
-                    <div class="card-title">Duplicati</div>
-                    <div class="card-description">Backup solution</div>
+                <a href="https://grafana.lab.localhost/" class="card">
+                    <div class="card-title">Grafana</div>
+                    <div class="card-description">Metrics & dashboards</div>
                 </a>
-                <a href="https://topology-api.lab.localhost/health" class="card">
-                    <div class="card-title">Topology API</div>
-                    <div class="card-description">Real-time container monitoring API</div>
+                <a href="https://prometheus.lab.localhost/" class="card">
+                    <div class="card-title">Prometheus</div>
+                    <div class="card-description">Metrics collection</div>
                 </a>
-                <a href="https://whoami.lab.localhost/" class="card">
-                    <div class="card-title">Whoami</div>
-                    <div class="card-description">Request debugging tool</div>
+                <a href="https://alertmanager.lab.localhost/" class="card">
+                    <div class="card-title">Alertmanager</div>
+                    <div class="card-description">Alert management</div>
                 </a>
+                <a href="https://browser.lab.localhost/" class="card">
+                    <div class="card-title">Browserless</div>
+                    <div class="card-description">Headless browser</div>
+                </a>
+            </div>
             </div>
         </div>
     </div>

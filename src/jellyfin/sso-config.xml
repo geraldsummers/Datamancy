@@ -3,9 +3,9 @@
   <SamlConfigs />
   <OidConfigs>
     <ConfigModel>
-      <OidEndpoint>https://id.lab.localhost</OidEndpoint>
+      <OidEndpoint>https://id.${BASE_DOMAIN}</OidEndpoint>
       <OidClientId>jellyfin</OidClientId>
-      <OidSecret>jellyfin_oidc_secret_change_me</OidSecret>
+      <OidSecret>${OIDC_JELLYFIN_CLIENT_SECRET}</OidSecret>
       <Enabled>true</Enabled>
       <EnableAllFolders>true</EnableAllFolders>
       <EnabledFolders />
@@ -22,11 +22,11 @@
       <OidScopes>openid profile email groups</OidScopes>
       <CanonicalLinks>
         <CanonicalLink>
-          <Base>https://jellyfin.lab.localhost</Base>
-          <Link>sso/OID/start/authelia</Link>
+          <Base>https://jellyfin.${BASE_DOMAIN}</Base>
+          <Link>sso/OID/start/authentik</Link>
         </CanonicalLink>
       </CanonicalLinks>
-      <SchemeShortName>authelia</SchemeShortName>
+      <SchemeShortName>authentik</SchemeShortName>
     </ConfigModel>
   </OidConfigs>
 </PluginConfiguration>
