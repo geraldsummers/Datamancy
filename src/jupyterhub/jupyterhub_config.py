@@ -27,19 +27,18 @@ c.Authenticator.allow_all = True
 # Allow named servers
 c.JupyterHub.allow_named_servers = True
 
-# OIDC via Authentik
+# OIDC via Dex
 c.JupyterHub.authenticator_class = 'oauthenticator.generic.GenericOAuthenticator'
 
 # Generic OAuthenticator settings
 c.GenericOAuthenticator.client_id = 'jupyterhub'
-c.GenericOAuthenticator.client_secret = os.environ.get('OIDC_JUPYTERHUB_CLIENT_SECRET', 'jupyterhub_oidc_secret_change_me')
+c.GenericOAuthenticator.client_secret = 'jupyterhub_secret_change_me'
 c.GenericOAuthenticator.oauth_callback_url = f'https://jupyter.{base_domain}/hub/oauth_callback'
 
-# Browser-facing URL (external)
-c.GenericOAuthenticator.authorize_url = f'https://id.{base_domain}/application/o/authorize/'
-# Internal Docker network URLs (container-to-container)
-c.GenericOAuthenticator.token_url = 'http://authentik-server:9000/application/o/token/'
-c.GenericOAuthenticator.userdata_url = 'http://authentik-server:9000/application/o/userinfo/'
+# Dex URLs
+c.GenericOAuthenticator.authorize_url = f'https://dex.{base_domain}/auth'
+c.GenericOAuthenticator.token_url = f'https://dex.{base_domain}/token'
+c.GenericOAuthenticator.userdata_url = f'https://dex.{base_domain}/userinfo'
 
 c.GenericOAuthenticator.scope = ['openid', 'profile', 'email', 'groups']
 c.GenericOAuthenticator.username_key = 'preferred_username'

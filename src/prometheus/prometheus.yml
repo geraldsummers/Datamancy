@@ -38,6 +38,12 @@ scrape_configs:
     static_configs:
       - targets: ['prometheus-script-exporter:9469']
 
+  # Auth Status Dashboard
+  - job_name: 'auth-status-dashboard'
+    static_configs:
+      - targets: ['auth-status-dashboard:3000']
+    metrics_path: /metrics
+
   # Blackbox probes - HTTP checks
   - job_name: 'blackbox-http'
     metrics_path: /probe
@@ -48,7 +54,7 @@ scrape_configs:
           - https://grafana.lab.localhost  # TODO: abstract (use BASE_DOMAIN)
           - https://prometheus.lab.localhost  # TODO: abstract
           - https://alertmanager.lab.localhost  # TODO: abstract
-          - https://id.lab.localhost  # TODO: abstract (authentik)
+          - https://dex.lab.localhost  # TODO: abstract (dex)
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

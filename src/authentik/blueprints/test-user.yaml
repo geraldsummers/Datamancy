@@ -1,0 +1,18 @@
+version: 1
+metadata:
+  name: Test User for Authentication Testing
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+
+entries:
+  # Create test user with plaintext password (will be hashed by Authentik)
+  - model: authentik_core.user
+    id: test-user
+    identifiers:
+      username: authtest
+    attrs:
+      username: authtest
+      name: Auth Test User
+      email: authtest@lab.localhost
+      is_active: true
+      path: users

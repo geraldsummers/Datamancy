@@ -1,0 +1,128 @@
+{
+  "testCredentials": {
+    "username": "${TEST_USERNAME}",
+    "password": "${TEST_PASSWORD}"
+  },
+  "services": [
+    {
+      "name": "grafana",
+      "url": "http://grafana:3000",
+      "authType": "oidc",
+      "description": "Metrics visualization and dashboards"
+    },
+    {
+      "name": "jupyterhub",
+      "url": "http://jupyterhub:8000",
+      "authType": "oidc",
+      "description": "Jupyter notebook environment"
+    },
+    {
+      "name": "librechat",
+      "url": "http://librechat:3080",
+      "authType": "oidc",
+      "description": "AI chat interface"
+    },
+    {
+      "name": "planka",
+      "url": "http://planka:1337",
+      "authType": "oidc",
+      "description": "Project management board"
+    },
+    {
+      "name": "nextcloud",
+      "url": "http://nextcloud:80",
+      "authType": "oidc",
+      "description": "File storage and collaboration"
+    },
+    {
+      "name": "jellyfin",
+      "url": "http://jellyfin:8096",
+      "authType": "oidc",
+      "description": "Media server"
+    },
+    {
+      "name": "outline",
+      "url": "http://outline:3000",
+      "authType": "oidc",
+      "description": "Team wiki and documentation"
+    },
+    {
+      "name": "prometheus",
+      "url": "http://prometheus:9090",
+      "authType": "forward_auth",
+      "description": "Metrics collection and storage"
+    },
+    {
+      "name": "alertmanager",
+      "url": "http://alertmanager:9093",
+      "authType": "forward_auth",
+      "description": "Alert routing and management"
+    },
+    {
+      "name": "loki",
+      "url": "http://loki:3100/ready",
+      "authType": "forward_auth",
+      "description": "Log aggregation system"
+    },
+    {
+      "name": "homeassistant",
+      "url": "http://homeassistant:8123",
+      "authType": "forward_auth",
+      "description": "Home automation platform"
+    },
+    {
+      "name": "vaultwarden",
+      "url": "http://vaultwarden:80",
+      "authType": "forward_auth",
+      "description": "Password manager"
+    },
+    {
+      "name": "watchtower",
+      "url": "http://watchtower:8080/v1/update",
+      "authType": "forward_auth",
+      "description": "Container update automation"
+    },
+    {
+      "name": "duplicati",
+      "url": "http://duplicati:8200",
+      "authType": "forward_auth",
+      "description": "Backup management"
+    },
+    {
+      "name": "dockge",
+      "url": "http://dockge:5001",
+      "authType": "forward_auth",
+      "description": "Docker compose manager"
+    },
+    {
+      "name": "localai",
+      "url": "http://localai:8080",
+      "authType": "forward_auth",
+      "description": "Local AI inference"
+    },
+    {
+      "name": "benthos",
+      "url": "http://benthos:4195/ping",
+      "authType": "forward_auth",
+      "description": "Stream processing"
+    },
+    {
+      "name": "browserless",
+      "url": "http://browserless:3000",
+      "authType": "forward_auth",
+      "description": "Headless browser service"
+    },
+    {
+      "name": "topology-api",
+      "url": "http://topology-api:3100/health",
+      "authType": "forward_auth",
+      "description": "Network topology visualization"
+    },
+    {
+      "name": "landing",
+      "url": "http://landing:80",
+      "authType": "forward_auth",
+      "description": "Service landing page"
+    }
+  ]
+}

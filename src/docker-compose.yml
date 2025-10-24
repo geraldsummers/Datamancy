@@ -4,12 +4,36 @@
 ## OIDC is currently working in grafana, jupyterhub, librechat, planka, check them for examples
 ## Using network aliases to manage OIDC/docker/dns nuance
 ## ALL configuration must be baked into this compose or supporting files.
+
+# Common DNS configuration for all services
+x-dns: &dns-config
+  dns:
+    - 172.18.0.53  # CoreDNS
+    - 8.8.8.8      # Fallback
 networks:
   app_net:
     name: app_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
 
 services:
+  coredns:
+    image: coredns/coredns:latest
+    container_name: coredns
+    restart: unless-stopped
+    expose: ["53/udp", "53/tcp"]
+    volumes:
+      - ./coredns/Corefile:/Corefile:ro
+    command: -conf /Corefile
+    networks:
+      app_net:
+        ipv4_address: 172.18.0.53
+
   docker-socket-proxy:
+    <<: *dns-config
     image: ghcr.io/tecnativa/docker-socket-proxy:latest
     container_name: docker-socket-proxy
     restart: unless-stopped
@@ -41,41 +65,31 @@ services:
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/docker.sock:/var/run/docker.sock:ro
     networks: [app_net]
 
-  caddy:
-    image: lucaslorentz/caddy-docker-proxy:2.8-alpine
-    container_name: caddy
+  traefik:
+    <<: *dns-config
+    image: traefik:v3.3
+    container_name: traefik
     restart: unless-stopped
-    user: "0:0"
     ports: ["80:80", "443:443"]
     environment:
-      - CADDY_INGRESS_NETWORKS=app_net
       - DOCKER_HOST=tcp://docker-socket-proxy:2375
     volumes:
-      - caddy_data:/data
-      - caddy_config:/config
-    # 🔒 No direct /var/run/docker.sock mount here
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - traefik_certs:/letsencrypt
     networks:
       app_net:
-        aliases:
-          - id.lab.localhost
-          - tasks.lab.localhost
-          - grafana.lab.localhost
-          - nextcloud.lab.localhost
-          - jupyter.lab.localhost
-          - chat.lab.localhost
-
-  caddy-config:
-    image: traefik/whoami:latest
-    container_name: caddy-config
-    restart: unless-stopped
+        ipv4_address: 172.18.0.2
     labels:
-      caddy: (auth)
-      caddy.forward_auth: authentik-server:9000
-      caddy.forward_auth.uri: /outpost.goauthentik.io/auth/caddy
-      caddy.forward_auth.copy_headers: X-authentik-username X-authentik-groups X-authentik-email X-authentik-name X-authentik-uid
-    networks: [app_net]
+      # Traefik dashboard protected by ForwardAuth
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=auth-forward@docker"
 
   topology-api:
+    <<: *dns-config
     build: ./topology-api
     container_name: topology-api
     restart: unless-stopped
@@ -86,14 +100,17 @@ services:
     depends_on:
       - docker-socket-proxy
     labels:
-      caddy: topology-api.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3100}}"
-      caddy.reverse_proxy.header_up: "Connection {http.request.header.Connection}"
-      caddy.reverse_proxy.header_up_1: "Upgrade {http.request.header.Upgrade}"
-      caddy.import: auth
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.topology-api.rule=Host(`topology-api.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.topology-api.entrypoints=websecure"
+      - "traefik.http.routers.topology-api.tls=true"
+      - "traefik.http.routers.topology-api.middlewares=auth-forward@docker"
+      - "traefik.http.services.topology-api.loadbalancer.server.port=3100"
     networks: [app_net]
 
   landing:
+    <<: *dns-config
     image: nginx:alpine
     container_name: landing
     restart: unless-stopped
@@ -101,12 +118,16 @@ services:
     volumes:
       - ./landing:/usr/share/nginx/html:ro
     labels:
-      caddy: ${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 80}}"
-      caddy.import: auth
+      # Public landing page (no auth)
+      - "traefik.enable=true"
+      - "traefik.http.routers.landing.rule=Host(`${BASE_DOMAIN}`)"
+      - "traefik.http.routers.landing.entrypoints=websecure"
+      - "traefik.http.routers.landing.tls=true"
+      - "traefik.http.services.landing.loadbalancer.server.port=80"
     networks: [app_net]
 
   prometheus:
+    <<: *dns-config
     image: prom/prometheus:latest
     container_name: prometheus
     restart: unless-stopped
@@ -120,12 +141,17 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     labels:
-      caddy: prometheus.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 9090}}"
-      caddy.import: auth
+      # ForwardAuth-protected (admin only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.middlewares=auth-admin@docker"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
     networks: [app_net]
 
   alertmanager:
+    <<: *dns-config
     image: prom/alertmanager:latest
     container_name: alertmanager
     restart: unless-stopped
@@ -137,12 +163,17 @@ services:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
     labels:
-      caddy: alertmanager.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 9093}}"
-      caddy.import: auth
+      # ForwardAuth-protected (admin only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.alertmanager.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager.tls=true"
+      - "traefik.http.routers.alertmanager.middlewares=auth-admin@docker"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
     networks: [app_net]
 
   loki:
+    <<: *dns-config
     image: grafana/loki:latest
     container_name: loki
     restart: unless-stopped
@@ -152,12 +183,17 @@ services:
       - ./loki/loki.yml:/etc/loki/loki.yml:ro
       - loki_data:/loki
     labels:
-      caddy: loki.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3100}}"
-      caddy.import: auth
+      # ForwardAuth-protected (admin only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`loki.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.loki.entrypoints=websecure"
+      - "traefik.http.routers.loki.tls=true"
+      - "traefik.http.routers.loki.middlewares=auth-admin@docker"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
     networks: [app_net]
 
   promtail:
+    <<: *dns-config
     image: grafana/promtail:latest
     container_name: promtail
     restart: unless-stopped
@@ -169,6 +205,7 @@ services:
     networks: [app_net]
 
   blackbox-exporter:
+    <<: *dns-config
     image: prom/blackbox-exporter:latest
     container_name: blackbox-exporter
     restart: unless-stopped
@@ -180,6 +217,7 @@ services:
     networks: [app_net]
 
   prometheus-script-exporter:
+    <<: *dns-config
     image: ghcr.io/ricoberger/script_exporter:latest
     container_name: prometheus-script-exporter
     restart: unless-stopped
@@ -190,6 +228,7 @@ services:
     networks: [app_net]
 
   grafana:
+    <<: *dns-config
     image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
@@ -201,15 +240,15 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=true
       - GF_SERVER_ROOT_URL=https://grafana.${BASE_DOMAIN}
       - GF_AUTH_GENERIC_OAUTH_ENABLED=true
-      - GF_AUTH_GENERIC_OAUTH_NAME=Authentik
+      - GF_AUTH_GENERIC_OAUTH_NAME=Dex
       - GF_AUTH_GENERIC_OAUTH_CLIENT_ID=grafana
-      - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=${OIDC_GRAFANA_CLIENT_SECRET}
+      - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=grafana_secret_change_me
       - GF_AUTH_GENERIC_OAUTH_SCOPES=openid profile email groups
-      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://id.${BASE_DOMAIN}/application/o/authorize/
-      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://authentik-server:9000/application/o/token/
-      - GF_AUTH_GENERIC_OAUTH_API_URL=http://authentik-server:9000/application/o/userinfo/
-      - GF_AUTH_SIGNOUT_REDIRECT_URL=https://id.${BASE_DOMAIN}/application/o/grafana/end-session/
-      - GF_AUTH_GENERIC_OAUTH_USE_PKCE=true
+      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://dex.${BASE_DOMAIN}/auth
+      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=https://dex.${BASE_DOMAIN}/token
+      - GF_AUTH_GENERIC_OAUTH_API_URL=https://dex.${BASE_DOMAIN}/userinfo
+      - GF_AUTH_SIGNOUT_REDIRECT_URL=https://dex.${BASE_DOMAIN}/
+      - GF_AUTH_GENERIC_OAUTH_USE_PKCE=false
       - GF_AUTH_GENERIC_OAUTH_USE_REFRESH_TOKEN=true
       - GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=email
       - GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name
@@ -226,11 +265,16 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     labels:
-      caddy: grafana.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
+      # OIDC-native: no ForwardAuth needed
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
     networks: [app_net]
 
   mariadb:
+    <<: *dns-config
     image: mariadb:latest
     container_name: mariadb
     restart: unless-stopped
@@ -246,6 +290,7 @@ services:
     networks: [app_net]
 
   clickhouse:
+    <<: *dns-config
     image: clickhouse/clickhouse-server:latest
     container_name: clickhouse
     restart: unless-stopped
@@ -263,6 +308,7 @@ services:
     networks: [app_net]
 
   localai:
+    <<: *dns-config
     image: quay.io/go-skynet/local-ai:latest
     container_name: localai
     restart: unless-stopped
@@ -275,12 +321,17 @@ services:
       - localai_models:/models
       - localai_data:/tmp/localai
     labels:
-      caddy: ai.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8080}}"
-      caddy.import: auth
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.localai.rule=Host(`ai.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.localai.entrypoints=websecure"
+      - "traefik.http.routers.localai.tls=true"
+      - "traefik.http.routers.localai.middlewares=auth-forward@docker"
+      - "traefik.http.services.localai.loadbalancer.server.port=8080"
     networks: [app_net]
 
   librechat:
+    <<: *dns-config
     image: ghcr.io/danny-avila/librechat:latest
     container_name: librechat
     restart: unless-stopped
@@ -293,23 +344,22 @@ services:
       - OPENAI_REVERSE_PROXY=http://localai:8080/v1
       - DOMAIN_SERVER=https://chat.${BASE_DOMAIN}
       - DOMAIN_CLIENT=https://chat.${BASE_DOMAIN}
-      # OIDC Authentication via Authentik
+      # OIDC Authentication via Dex
       - ALLOW_EMAIL_LOGIN=false
       - ALLOW_REGISTRATION=false
       - ALLOW_SOCIAL_LOGIN=true
-      - ALLOW_SOCIAL_REGISTRATION=true
-      - OPENID_ISSUER=https://id.${BASE_DOMAIN}/application/o/librechat
+      - ALLOW_SOCIAL_REGISTRATION=false
+      - OPENID_ISSUER=https://dex.${BASE_DOMAIN}
       - OPENID_CLIENT_ID=librechat
-      - OPENID_CLIENT_SECRET=${OIDC_LIBRECHAT_CLIENT_SECRET}
+      - OPENID_CLIENT_SECRET=librechat_secret_change_me
       - OPENID_CALLBACK_URL=/oauth/openid/callback
       - OPENID_SCOPE=openid profile email groups
-      - OPENID_LOGOUT_URL=https://id.${BASE_DOMAIN}/application/o/librechat/end-session/
+      - OPENID_LOGOUT_URL=https://dex.${BASE_DOMAIN}/
       - OPENID_SESSION_SECRET=librechat_oidc_session_secret_changeme
-      - OPENID_BUTTON_LABEL=Login with Authentik
+      - OPENID_BUTTON_LABEL=Login with Dex
       - OPENID_REQUIRED_ROLE=
       - OPENID_REQUIRED_ROLE_TOKEN_KIND=
       - OPENID_REQUIRED_ROLE_PARAMETER_PATH=
-      - NODE_EXTRA_CA_CERTS=/app/caddy-root-ca.crt
       - JWT_SECRET=librechat_jwt_secret_changeme123
       - JWT_REFRESH_SECRET=librechat_jwt_refresh_secret_changeme789
       - CREDS_KEY=librechat_creds_key_changeme456
@@ -320,14 +370,17 @@ services:
     volumes:
       - librechat_data:/app/client/public/images
       - ./librechat/librechat.yaml:/app/librechat.yaml:ro
-      - ./caddy-root-ca.crt:/app/caddy-root-ca.crt:ro
     labels:
-      caddy: chat.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3080}}"
-      # Remove forward auth - LibreChat handles its own auth via OIDC
+      # OIDC-native: no ForwardAuth needed
+      - "traefik.enable=true"
+      - "traefik.http.routers.librechat.rule=Host(`chat.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.librechat.entrypoints=websecure"
+      - "traefik.http.routers.librechat.tls=true"
+      - "traefik.http.services.librechat.loadbalancer.server.port=3080"
     networks: [app_net]
 
   librechat-mongo:
+    <<: *dns-config
     image: mongo:latest
     container_name: librechat-mongo
     restart: unless-stopped
@@ -336,6 +389,7 @@ services:
     networks: [app_net]
 
   benthos:
+    <<: *dns-config
     image: jeffail/benthos:latest
     container_name: benthos
     restart: unless-stopped
@@ -345,12 +399,17 @@ services:
       - ./benthos/pipelines:/pipelines:ro
     command: -c /benthos.yaml
     labels:
-      caddy: benthos.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 4195}}"
-      caddy.import: auth
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.benthos.rule=Host(`benthos.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.benthos.entrypoints=websecure"
+      - "traefik.http.routers.benthos.tls=true"
+      - "traefik.http.routers.benthos.middlewares=auth-forward@docker"
+      - "traefik.http.services.benthos.loadbalancer.server.port=4195"
     networks: [app_net]
 
   browserless:
+    <<: *dns-config
     image: browserless/chrome:latest
     container_name: browserless
     restart: unless-stopped
@@ -358,14 +417,20 @@ services:
     environment:
       - MAX_CONCURRENT_SESSIONS=3  # TODO: abstract
       - CONNECTION_TIMEOUT=60000  # TODO: abstract
-      - TOKEN=  # Disabled - using Authentik for auth
+      - TOKEN=  # Disabled - no auth needed for internal use
+      - CHROME_ARGS=--ignore-certificate-errors
     labels:
-      caddy: browser.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
-      caddy.import: auth
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.browserless.rule=Host(`browser.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.browserless.entrypoints=websecure"
+      - "traefik.http.routers.browserless.tls=true"
+      - "traefik.http.routers.browserless.middlewares=auth-forward@docker"
+      - "traefik.http.services.browserless.loadbalancer.server.port=3000"
     networks: [app_net]
 
   nextcloud:
+    <<: *dns-config
     build: ./nextcloud
     container_name: nextcloud
     restart: unless-stopped
@@ -388,11 +453,17 @@ services:
       - nextcloud_data:/var/www/html
       - ./nextcloud/hooks:/docker-entrypoint-hooks.d/post-installation:ro
     labels:
-      caddy: nextcloud.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 80}}"
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`nextcloud.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.nextcloud.entrypoints=websecure"
+      - "traefik.http.routers.nextcloud.tls=true"
+      - "traefik.http.routers.nextcloud.middlewares=auth-forward@docker"
+      - "traefik.http.services.nextcloud.loadbalancer.server.port=80"
     networks: [app_net]
 
   vaultwarden:
+    <<: *dns-config
     image: vaultwarden/server:latest
     container_name: vaultwarden
     restart: unless-stopped
@@ -404,12 +475,17 @@ services:
     volumes:
       - vaultwarden_data:/data
     labels:
-      caddy: vault.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 80}}"
-      caddy.import: auth
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.vaultwarden.rule=Host(`vault.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.vaultwarden.entrypoints=websecure"
+      - "traefik.http.routers.vaultwarden.tls=true"
+      - "traefik.http.routers.vaultwarden.middlewares=auth-forward@docker"
+      - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
     networks: [app_net]
 
   jupyterhub:
+    <<: *dns-config
     build: ./jupyterhub
     container_name: jupyterhub
     restart: unless-stopped
@@ -422,11 +498,16 @@ services:
       - jupyterhub_data:/srv/jupyterhub
       - ./jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
     labels:
-      caddy: jupyter.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8000}}"
+      # OIDC-native: no ForwardAuth needed
+      - "traefik.enable=true"
+      - "traefik.http.routers.jupyterhub.rule=Host(`jupyter.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.jupyterhub.entrypoints=websecure"
+      - "traefik.http.routers.jupyterhub.tls=true"
+      - "traefik.http.services.jupyterhub.loadbalancer.server.port=8000"
     networks: [app_net]
 
   planka-db:
+    <<: *dns-config
     image: postgres:16-alpine
     container_name: planka-db
     restart: unless-stopped
@@ -439,6 +520,7 @@ services:
     networks: [app_net]
 
   planka:
+    <<: *dns-config
     image: ghcr.io/plankanban/planka:latest
     container_name: planka
     restart: unless-stopped
@@ -448,30 +530,31 @@ services:
       - DATABASE_URL=postgresql://planka:plankapass123@planka-db/planka  # TODO: abstract (plaintext: planka:plankapass123)
       - SECRET_KEY=plankaSecretKeyChangeMe123456  # TODO: abstract (plaintext: plankaSecretKeyChangeMe123456)
       - TRUST_PROXY=true
-      - OIDC_ISSUER=https://id.${BASE_DOMAIN}
+      - OIDC_ISSUER=https://dex.${BASE_DOMAIN}
       - OIDC_CLIENT_ID=planka
-      - OIDC_CLIENT_SECRET=${OIDC_PLANKA_CLIENT_SECRET}
+      - OIDC_CLIENT_SECRET=planka_secret_change_me
       - OIDC_SCOPES=openid email profile groups
       - OIDC_ADMIN_ROLES=admins
       - OIDC_EMAIL_ATTRIBUTE=email
       - OIDC_NAME_ATTRIBUTE=name
       - OIDC_USERNAME_ATTRIBUTE=preferred_username
       - OIDC_ROLES_ATTRIBUTE=groups
-      - NODE_EXTRA_CA_CERTS=/app/caddy-root-ca.crt
     depends_on:
       - planka-db
     volumes:
       - planka_data:/app/public/user-avatars
       - planka_attachments:/app/private/attachments
-      - ./caddy-root-ca.crt:/app/caddy-root-ca.crt:ro
     labels:
-      caddy: tasks.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 1337}}"
-      caddy.reverse_proxy.transport: http
-      caddy.reverse_proxy.transport.versions: 1.1
+      # OIDC-native: no ForwardAuth needed
+      - "traefik.enable=true"
+      - "traefik.http.routers.planka.rule=Host(`tasks.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.planka.entrypoints=websecure"
+      - "traefik.http.routers.planka.tls=true"
+      - "traefik.http.services.planka.loadbalancer.server.port=1337"
     networks: [app_net]
 
   jellyfin:
+    <<: *dns-config
     build: ./jellyfin
     container_name: jellyfin
     restart: unless-stopped
@@ -486,11 +569,17 @@ services:
     volumes:
       - jellyfin_config:/config
     labels:
-      caddy: jellyfin.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8096}}"
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.jellyfin.rule=Host(`jellyfin.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.jellyfin.entrypoints=websecure"
+      - "traefik.http.routers.jellyfin.tls=true"
+      - "traefik.http.routers.jellyfin.middlewares=auth-forward@docker"
+      - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
     networks: [app_net]
 
   homeassistant:
+    <<: *dns-config
     build: ./homeassistant
     container_name: homeassistant
     restart: unless-stopped
@@ -500,14 +589,20 @@ services:
     volumes:
       - homeassistant_config:/config
     labels:
-      caddy: homeassistant.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8123}}"
-      caddy.reverse_proxy.header_up: "Connection {http.request.header.Connection}"
-      caddy.reverse_proxy.header_up_1: "Upgrade {http.request.header.Upgrade}"
-      caddy.import: auth
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.homeassistant.rule=Host(`homeassistant.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.homeassistant.entrypoints=websecure"
+      - "traefik.http.routers.homeassistant.tls=true"
+      - "traefik.http.routers.homeassistant.middlewares=homeassistant-ws,auth-forward@docker"
+      - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
+      # WebSocket support
+      - "traefik.http.middlewares.homeassistant-ws.headers.customrequestheaders.Connection=Upgrade"
+      - "traefik.http.middlewares.homeassistant-ws.headers.customrequestheaders.Upgrade=websocket"
     networks: [app_net]
 
   watchtower:
+    <<: *dns-config
     image: containrrr/watchtower:latest
     container_name: watchtower
     restart: unless-stopped
@@ -521,12 +616,17 @@ services:
     volumes:
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/docker.sock:/var/run/docker.sock:ro
     labels:
-      caddy: watchtower.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8080}}"
-      caddy.import: auth
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.watchtower.rule=Host(`watchtower.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.watchtower.entrypoints=websecure"
+      - "traefik.http.routers.watchtower.tls=true"
+      - "traefik.http.routers.watchtower.middlewares=auth-forward@docker"
+      - "traefik.http.services.watchtower.loadbalancer.server.port=8080"
     networks: [app_net]
 
   duplicati:
+    <<: *dns-config
     image: lscr.io/linuxserver/duplicati:latest
     container_name: duplicati
     restart: unless-stopped
@@ -540,12 +640,17 @@ services:
       - duplicati_backups:/backups
       - duplicati_source:/source:ro
     labels:
-      caddy: duplicati.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8200}}"
-      caddy.import: auth
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.duplicati.rule=Host(`duplicati.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.duplicati.entrypoints=websecure"
+      - "traefik.http.routers.duplicati.tls=true"
+      - "traefik.http.routers.duplicati.middlewares=auth-forward@docker"
+      - "traefik.http.services.duplicati.loadbalancer.server.port=8200"
     networks: [app_net]
 
   dockge:
+    <<: *dns-config
     image: louislam/dockge:latest
     container_name: dockge
     restart: unless-stopped
@@ -558,98 +663,79 @@ services:
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/docker.sock:/var/run/docker.sock:ro
       - ./dockge/stacks:/stacks
     labels:
-      caddy: dockge.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 5001}}"
-      caddy.import: auth
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.dockge.rule=Host(`dockge.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.dockge.entrypoints=websecure"
+      - "traefik.http.routers.dockge.tls=true"
+      - "traefik.http.routers.dockge.middlewares=auth-forward@docker"
+      - "traefik.http.services.dockge.loadbalancer.server.port=5001"
     networks: [app_net]
 
-  authentik-postgres:
-    image: postgres:16-alpine
-    container_name: authentik-postgres
+  # OpenLDAP - User Directory
+  openldap:
+    <<: *dns-config
+    image: osixia/openldap:latest
+    container_name: openldap
     restart: unless-stopped
+    expose: ["389", "636"]
     environment:
-      - POSTGRES_DB=authentik
-      - POSTGRES_USER=authentik
-      - POSTGRES_PASSWORD=authentik_db_pass_change_me  # TODO: abstract
+      - LDAP_ORGANISATION=Lab
+      - LDAP_DOMAIN=lab.localhost
+      - LDAP_ADMIN_PASSWORD=adminpass123
+      - LDAP_CONFIG_PASSWORD=configpass123
+      - LDAP_RFC2307BIS_SCHEMA=true
+      - LDAP_REMOVE_CONFIG_AFTER_SETUP=true
+      - LDAP_TLS=false
     volumes:
-      - authentik_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 5s
+      - openldap_data:/var/lib/ldap
+      - openldap_config:/etc/ldap/slapd.d
     networks: [app_net]
 
-  authentik-redis:
-    image: redis:7-alpine
-    container_name: authentik-redis
-    restart: unless-stopped
-    command: --save 60 1 --loglevel warning
+  # LDAP Bootstrap - Adds test users
+  openldap-bootstrap:
+    <<: *dns-config
+    image: osixia/openldap:latest
+    container_name: openldap-bootstrap
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        sleep 15
+        ldapadd -x -H ldap://openldap:389 -D "cn=admin,dc=lab,dc=localhost" -w adminpass123 -f /bootstrap.ldif || echo "Bootstrap entries may already exist"
     volumes:
-      - authentik_redis_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 3s
-    networks: [app_net]
-
-  authentik-server:
-    image: ghcr.io/goauthentik/server:latest
-    container_name: authentik-server
-    restart: unless-stopped
-    expose: ["9000", "9443"]
-    command: server
-    environment:
-      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
-      - AUTHENTIK_REDIS__HOST=authentik-redis
-      - AUTHENTIK_POSTGRESQL__HOST=authentik-postgres
-      - AUTHENTIK_POSTGRESQL__USER=authentik
-      - AUTHENTIK_POSTGRESQL__NAME=authentik
-      - AUTHENTIK_POSTGRESQL__PASSWORD=authentik_db_pass_change_me
-      - AUTHENTIK_ERROR_REPORTING__ENABLED=false
-      - AUTHENTIK_LOG_LEVEL=info
-      - AUTHENTIK_BOOTSTRAP_PASSWORD=${AUTHENTIK_BOOTSTRAP_PASSWORD:-admin}
-      - AUTHENTIK_BOOTSTRAP_TOKEN=${AUTHENTIK_BOOTSTRAP_TOKEN:-bootstrap-token-changeme}
-    volumes:
-      - authentik_media:/media
-      - authentik_templates:/templates
-      - ./authentik/blueprints:/blueprints/custom:ro
+      - ./openldap/bootstrap.ldif:/bootstrap.ldif:ro
     depends_on:
-      - authentik-postgres
-      - authentik-redis
+      - openldap
+    networks: [app_net]
+
+  # Dex - OIDC Provider
+  dex:
+    <<: *dns-config
+    image: ghcr.io/dexidp/dex:latest
+    container_name: dex
+    restart: unless-stopped
+    expose: ["5556", "5558"]
+    entrypoint: ["/entrypoint.sh"]
+    environment:
+      - BASE_DOMAIN=${BASE_DOMAIN}
+    volumes:
+      - ./dex/config.template.yaml:/etc/dex/config.template.yaml:ro
+      - ./dex/entrypoint.sh:/entrypoint.sh:ro
+      - dex_data:/var/dex
+    depends_on:
+      - openldap
     labels:
-      caddy: id.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 9000}}"
-    networks: [app_net]
-
-  authentik-worker:
-    image: ghcr.io/goauthentik/server:latest
-    container_name: authentik-worker
-    restart: unless-stopped
-    command: worker
-    environment:
-      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
-      - AUTHENTIK_REDIS__HOST=authentik-redis
-      - AUTHENTIK_POSTGRESQL__HOST=authentik-postgres
-      - AUTHENTIK_POSTGRESQL__USER=authentik
-      - AUTHENTIK_POSTGRESQL__NAME=authentik
-      - AUTHENTIK_POSTGRESQL__PASSWORD=authentik_db_pass_change_me
-      - AUTHENTIK_ERROR_REPORTING__ENABLED=false
-      - AUTHENTIK_LOG_LEVEL=info
-    volumes:
-      - authentik_media:/media
-      - authentik_templates:/templates
-      - ./authentik/blueprints:/blueprints/custom:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    depends_on:
-      - authentik-postgres
-      - authentik-redis
+      # Dex is public (no auth required for OIDC issuer)
+      - "traefik.enable=true"
+      - "traefik.http.routers.dex.rule=Host(`dex.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.dex.entrypoints=websecure"
+      - "traefik.http.routers.dex.tls=true"
+      - "traefik.http.services.dex.loadbalancer.server.port=5556"
     networks: [app_net]
 
   outline-postgres:
+    <<: *dns-config
     image: postgres:16-alpine
     container_name: outline-postgres
     restart: unless-stopped
@@ -662,6 +748,7 @@ services:
     networks: [app_net]
 
   outline-redis:
+    <<: *dns-config
     image: redis:7-alpine
     container_name: outline-redis
     restart: unless-stopped
@@ -670,6 +757,7 @@ services:
     networks: [app_net]
 
   outline:
+    <<: *dns-config
     image: outlinewiki/outline:latest
     container_name: outline
     restart: unless-stopped
@@ -686,14 +774,14 @@ services:
       - FILE_STORAGE=local
       - FILE_STORAGE_LOCAL_ROOT_DIR=/var/lib/outline/data
       - FILE_STORAGE_UPLOAD_MAX_SIZE=26214400
-      # OIDC Configuration
+      # OIDC Configuration (Dex)
       - OIDC_CLIENT_ID=outline
-      - OIDC_CLIENT_SECRET=${OIDC_OUTLINE_CLIENT_SECRET}
-      - OIDC_AUTH_URI=https://id.${BASE_DOMAIN}/application/o/authorize/
-      - OIDC_TOKEN_URI=http://authentik-server:9000/application/o/token/
-      - OIDC_USERINFO_URI=http://authentik-server:9000/application/o/userinfo/
+      - OIDC_CLIENT_SECRET=outline_secret_change_me
+      - OIDC_AUTH_URI=https://dex.${BASE_DOMAIN}/auth
+      - OIDC_TOKEN_URI=https://dex.${BASE_DOMAIN}/token
+      - OIDC_USERINFO_URI=https://dex.${BASE_DOMAIN}/userinfo
       - OIDC_USERNAME_CLAIM=preferred_username
-      - OIDC_DISPLAY_NAME=Authentik
+      - OIDC_DISPLAY_NAME=Dex
       - OIDC_SCOPES=openid profile email
     depends_on:
       - outline-postgres
@@ -701,19 +789,83 @@ services:
     volumes:
       - outline_data:/var/lib/outline/data
     labels:
-      caddy: outline.${BASE_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
+      # OIDC-native: no ForwardAuth needed
+      - "traefik.enable=true"
+      - "traefik.http.routers.outline.rule=Host(`outline.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.outline.entrypoints=websecure"
+      - "traefik.http.routers.outline.tls=true"
+      - "traefik.http.services.outline.loadbalancer.server.port=3000"
     networks: [app_net]
 
+  forward-auth:
+    <<: *dns-config
+    build: ./forward-auth
+    container_name: forward-auth
+    restart: unless-stopped
+    expose: ["4180"]
+    environment:
+      - PORT=4180
+      - BASE_DOMAIN=${BASE_DOMAIN}
+      - DEX_ISSUER=https://dex.${BASE_DOMAIN}
+      - CLIENT_ID=forward-auth
+      - CLIENT_SECRET=forward_auth_secret_change_me
+      - CALLBACK_URL=https://auth.${BASE_DOMAIN}/callback
+      - SESSION_SECRET=forward_auth_session_secret_change_me_min_32_chars
+    depends_on:
+      - dex
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+      # Router for auth.${BASE_DOMAIN}
+      - "traefik.http.routers.forward-auth.rule=Host(`auth.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.forward-auth.entrypoints=websecure"
+      - "traefik.http.routers.forward-auth.tls=true"
+      - "traefik.http.services.forward-auth.loadbalancer.server.port=4180"
+      # Define ForwardAuth middleware (used by other services)
+      - "traefik.http.middlewares.auth-forward.forwardauth.address=http://forward-auth:4180/validate"
+      - "traefik.http.middlewares.auth-forward.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.auth-forward.forwardauth.authResponseHeaders=Remote-User,Remote-Email,Remote-Name,Remote-Groups"
+      # Admin-only middleware (requires admins group)
+      - "traefik.http.middlewares.auth-admin.forwardauth.address=http://forward-auth:4180/validate?required_groups=admins"
+      - "traefik.http.middlewares.auth-admin.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.auth-admin.forwardauth.authResponseHeaders=Remote-User,Remote-Email,Remote-Name,Remote-Groups"
+    networks: [app_net]
 
+  auth-status-dashboard:
+    <<: *dns-config
+    build: ./auth-status
+    container_name: auth-status-dashboard
+    restart: unless-stopped
+    expose: ["3000"]
+    environment:
+      - PORT=3000
+      - BASE_DOMAIN=${BASE_DOMAIN}
+      - DEX_URL=https://dex.${BASE_DOMAIN}
+      - TEST_INTERVAL=30000  # 30 seconds
+      - BROWSERLESS_URL=http://browserless:3000
+      - TEST_USERNAME=authtest
+      - TEST_PASSWORD=TestAuth123!
+    depends_on:
+      - dex
+      - browserless
+    labels:
+      # ForwardAuth-protected (no native OIDC)
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-status-dashboard.rule=Host(`auth-status.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.auth-status-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.auth-status-dashboard.tls=true"
+      - "traefik.http.routers.auth-status-dashboard.middlewares=auth-status-dashboard-ws,auth-forward@docker"
+      - "traefik.http.services.auth-status-dashboard.loadbalancer.server.port=3000"
+      # WebSocket support
+      - "traefik.http.middlewares.auth-status-dashboard-ws.headers.customrequestheaders.Connection=Upgrade"
+      - "traefik.http.middlewares.auth-status-dashboard-ws.headers.customrequestheaders.Upgrade=websocket"
+    networks: [app_net]
 
 volumes:
-  caddy_data:
-  caddy_config:
-  authentik_postgres_data:
-  authentik_redis_data:
-  authentik_media:
-  authentik_templates:
+  traefik_certs:
+  openldap_data:
+  openldap_config:
+  dex_data:
   prometheus_data:
   alertmanager_data:
   loki_data:

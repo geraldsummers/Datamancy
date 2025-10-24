@@ -24,7 +24,7 @@ http:
 # Header Authentication Provider (requires hass-auth-header custom component)
 # Install via HACS: https://github.com/BeryJu/hass-auth-header
 auth_header:
-  # Use Remote-User header from Authentik
+  # Note: Header auth removed - now using Home Assistant's built-in auth
   username_header: Remote-User
   # Enable debug mode to troubleshoot header issues
   debug: false

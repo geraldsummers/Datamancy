@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Status Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🔐 Authentication Status Dashboard</h1>
+            <div class="header-info">
+                <span class="last-update">Last update: <span id="lastUpdate">Never</span></span>
+                <button id="refreshBtn" class="btn btn-primary">↻ Refresh Now</button>
+            </div>
+        </header>
+
+        <section class="dex-status">
+            <h2>Dex (OIDC Provider)</h2>
+            <div id="dexCard" class="status-card dex">
+                <div class="status-indicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+                <div class="status-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Web Interface:</span>
+                        <span class="detail-value" id="dex-web">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">OIDC Discovery:</span>
+                        <span class="detail-value" id="dex-oidc">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">LDAP Connector:</span>
+                        <span class="detail-value" id="dex-ldap">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Test Duration:</span>
+                        <span class="detail-value" id="dex-duration">-</span>
+                    </div>
+                </div>
+                <div class="status-message" id="dex-message"></div>
+            </div>
+        </section>
+
+        <section class="oidc-login-status">
+            <h2>🔐 OIDC Full Login Flow Test (Grafana)</h2>
+            <div id="oidcLoginCard" class="status-card oidc-login">
+                <div class="status-indicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+                <div class="status-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Steps Completed:</span>
+                        <span class="detail-value" id="oidc-steps">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Test Duration:</span>
+                        <span class="detail-value" id="oidc-duration">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Last Test:</span>
+                        <span class="detail-value" id="oidc-timestamp">-</span>
+                    </div>
+                </div>
+                <div id="oidc-steps-list" class="steps-list"></div>
+                <div class="status-message" id="oidc-message"></div>
+            </div>
+        </section>
+
+        <section class="services-section">
+            <h2>Services Authentication Status</h2>
+
+            <div class="filter-tabs">
+                <button class="tab active" data-filter="all">All (0)</button>
+                <button class="tab" data-filter="oidc">OIDC (0)</button>
+                <button class="tab" data-filter="forward_auth">Forward Auth (0)</button>
+                <button class="tab" data-filter="healthy">✓ Healthy (0)</button>
+                <button class="tab" data-filter="unhealthy">✗ Unhealthy (0)</button>
+            </div>
+
+            <div id="servicesGrid" class="services-grid">
+                <!-- Services will be dynamically inserted here -->
+            </div>
+        </section>
+
+        <section class="api-section">
+            <h2>API Endpoints</h2>
+            <div class="api-list">
+                <div class="api-item">
+                    <code>GET /api/status</code>
+                    <span>Get all service statuses</span>
+                </div>
+                <div class="api-item">
+                    <code>GET /api/status/:service</code>
+                    <span>Get specific service status</span>
+                </div>
+                <div class="api-item">
+                    <code>POST /api/test</code>
+                    <span>Trigger immediate test run</span>
+                </div>
+                <div class="api-item">
+                    <code>POST /api/test/:service</code>
+                    <span>Test specific service</span>
+                </div>
+                <div class="api-item">
+                    <code>POST /api/test/oidc/:service</code>
+                    <span>Test OIDC full login flow for service</span>
+                </div>
+                <div class="api-item">
+                    <code>GET /metrics</code>
+                    <span>Prometheus metrics</span>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <h2 id="modalTitle"></h2>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <div class="connection-status" id="connectionStatus">
+        <span class="status-dot"></span>
+        <span>WebSocket: <span id="wsStatus">Connecting...</span></span>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

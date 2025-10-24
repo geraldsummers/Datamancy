@@ -1,12 +1,8 @@
 services:
   # Step 1/2 bits
-  authentik-server:
+  dex:
     labels:
       caddy.tls: internal
-  caddy-config:
-    labels:
-      # the base-domain vhost uses numbered labels
-      caddy_2.tls: internal
 
   # Step 3: observability
   prometheus:
@@ -69,5 +65,8 @@ services:
     labels:
       caddy.tls: internal
   dockge:
+    labels:
+      caddy.tls: internal
+  auth-status-dashboard:
     labels:
       caddy.tls: internal

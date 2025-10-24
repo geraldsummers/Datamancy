@@ -1,0 +1,195 @@
+version: 1
+metadata:
+  name: All OIDC Providers
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: grafana-provider
+    identifiers:
+      name: Grafana OIDC
+    attrs:
+      name: Grafana OIDC
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      client_type: confidential
+      client_id: grafana
+      client_secret: grafana_oidc_secret_change_me
+      redirect_uris: |-
+        https://grafana.lab.localhost/login/generic_oauth
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+
+  - model: authentik_core.application
+    id: grafana-app
+    identifiers:
+      slug: grafana
+    attrs:
+      name: Grafana
+      slug: grafana
+      provider: !KeyOf grafana-provider
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: jupyterhub-provider
+    identifiers:
+      name: JupyterHub OIDC
+    attrs:
+      name: JupyterHub OIDC
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      client_type: confidential
+      client_id: jupyterhub
+      client_secret: jupyterhub_oidc_secret_change_me
+      redirect_uris: |-
+        https://jupyter.lab.localhost/hub/oauth_callback
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+
+  - model: authentik_core.application
+    id: jupyterhub-app
+    identifiers:
+      slug: jupyterhub
+    attrs:
+      name: JupyterHub
+      slug: jupyterhub
+      provider: !KeyOf jupyterhub-provider
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: librechat-provider
+    identifiers:
+      name: LibreChat OIDC
+    attrs:
+      name: LibreChat OIDC
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      client_type: confidential
+      client_id: librechat
+      client_secret: librechat_oidc_secret_change_me
+      redirect_uris: |-
+        https://chat.lab.localhost/oauth/openid/callback
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+
+  - model: authentik_core.application
+    id: librechat-app
+    identifiers:
+      slug: librechat
+    attrs:
+      name: LibreChat
+      slug: librechat
+      provider: !KeyOf librechat-provider
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: planka-provider
+    identifiers:
+      name: Planka OIDC
+    attrs:
+      name: Planka OIDC
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      client_type: confidential
+      client_id: planka
+      client_secret: planka_oidc_secret_change_me
+      redirect_uris: |-
+        https://tasks.lab.localhost/oidc/callback
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+
+  - model: authentik_core.application
+    id: planka-app
+    identifiers:
+      slug: planka
+    attrs:
+      name: Planka
+      slug: planka
+      provider: !KeyOf planka-provider
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: nextcloud-provider
+    identifiers:
+      name: Nextcloud OIDC
+    attrs:
+      name: Nextcloud OIDC
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      client_type: confidential
+      client_id: nextcloud
+      client_secret: nextcloud_oidc_secret_change_me
+      redirect_uris: |-
+        https://nextcloud.lab.localhost/apps/oidc_login/oidc
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+
+  - model: authentik_core.application
+    id: nextcloud-app
+    identifiers:
+      slug: nextcloud
+    attrs:
+      name: Nextcloud
+      slug: nextcloud
+      provider: !KeyOf nextcloud-provider
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: jellyfin-provider
+    identifiers:
+      name: Jellyfin OIDC
+    attrs:
+      name: Jellyfin OIDC
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      client_type: confidential
+      client_id: jellyfin
+      client_secret: jellyfin_oidc_secret_change_me
+      redirect_uris: |-
+        https://jellyfin.lab.localhost/sso/OID/redirect/Authentik
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+
+  - model: authentik_core.application
+    id: jellyfin-app
+    identifiers:
+      slug: jellyfin
+    attrs:
+      name: Jellyfin
+      slug: jellyfin
+      provider: !KeyOf jellyfin-provider
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: outline-provider
+    identifiers:
+      name: Outline OIDC
+    attrs:
+      name: Outline OIDC
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      client_type: confidential
+      client_id: outline
+      client_secret: outline_oidc_secret_change_me
+      redirect_uris: |-
+        https://outline.lab.localhost/auth/oidc.callback
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+
+  - model: authentik_core.application
+    id: outline-app
+    identifiers:
+      slug: outline
+    attrs:
+      name: Outline
+      slug: outline
+      provider: !KeyOf outline-provider

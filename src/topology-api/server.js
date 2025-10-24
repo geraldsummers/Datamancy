@@ -50,9 +50,9 @@ function getNodeType(containerName, labels) {
         containerName.includes('promtail')) {
         return 'monitoring';
     }
-    if (containerName.includes('caddy') || containerName.includes('authentik') ||
-        containerName.includes('proxy')) {
-        return 'proxy';
+    if (containerName.includes('caddy') || containerName.includes('dex') ||
+        containerName.includes('proxy') || containerName.includes('openldap')) {
+        return 'auth';
     }
     if (containerName.includes('watchtower') || containerName.includes('socket-proxy')) {
         return 'infrastructure';

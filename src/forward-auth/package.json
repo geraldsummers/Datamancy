@@ -1,0 +1,15 @@
+{
+  "name": "forward-auth",
+  "version": "1.0.0",
+  "description": "Forward authentication service for Dex OIDC",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "openid-client": "^5.6.1",
+    "cookie-parser": "^1.4.6"
+  }
+}
