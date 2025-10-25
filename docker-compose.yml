@@ -285,7 +285,7 @@ services:
       - "traefik.http.routers.prometheus.entrypoints=websecure"
       - "traefik.http.routers.prometheus.tls=true"
       - "traefik.http.routers.prometheus.priority=50"
-      - "traefik.http.routers.prometheus.middlewares=oauth2-proxy@docker"
+      - "traefik.http.routers.prometheus.middlewares=oauth2-proxy@docker,oauth2-errors@file"
       - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
       # Metadata for landing page
       - "datamancy.service.name=Prometheus"
@@ -344,7 +344,7 @@ services:
       - "traefik.http.routers.alertmanager.entrypoints=websecure"
       - "traefik.http.routers.alertmanager.tls=true"
       - "traefik.http.routers.alertmanager.priority=50"
-      - "traefik.http.routers.alertmanager.middlewares=oauth2-proxy@docker"
+      - "traefik.http.routers.alertmanager.middlewares=oauth2-proxy@docker,oauth2-errors@file"
       - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
       # Metadata for landing page
       - "datamancy.service.name=Alertmanager"
@@ -393,7 +393,7 @@ services:
       - "traefik.http.routers.loki.tls=true"
       - "traefik.http.routers.loki.priority=50"
       # REQUIRES AUTH (metrics/ready endpoints whitelisted in oauth2-proxy config)
-      - "traefik.http.routers.loki.middlewares=oauth2-proxy@docker"
+      - "traefik.http.routers.loki.middlewares=oauth2-proxy@docker,oauth2-errors@file"
       - "traefik.http.services.loki.loadbalancer.server.port=3100"
       # Metadata for landing page
       - "datamancy.service.name=Loki"
