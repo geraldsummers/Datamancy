@@ -1,0 +1,13 @@
+# Homepage Bookmarks
+# Provenance: https://gethomepage.dev/latest/configs/bookmarks/
+
+- Documentation:
+    - Traefik Docs:
+        - abbr: TR
+          href: https://doc.traefik.io/traefik/
+    - Grafana Docs:
+        - abbr: GR
+          href: https://grafana.com/docs/
+    - Docker Docs:
+        - abbr: DK
+          href: https://docs.docker.com/

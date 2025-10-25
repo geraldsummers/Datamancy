@@ -1,0 +1,70 @@
+{
+  "last_updated": "2025-10-25T07:33:46Z",
+  "version": "1.0.0",
+  "freshness_rule": "Service is 'functional' only when last passing test > last change",
+  "services": {
+    "alertmanager": {
+      "status": "untested",
+      "last_change": 1761374235,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "e2ed27f",
+      "staleness_seconds": null
+    }
+,
+    "browserless": {
+      "status": "needs_retest",
+      "last_change": 1761373033,
+      "last_test": 1761368865,
+      "last_test_result": "pass",
+      "change_source": "e2ed27f",
+      "staleness_seconds": 4168
+    }
+,
+    "grafana": {
+      "status": "test_failed",
+      "last_change": 1761372101,
+      "last_test": 1761377510,
+      "last_test_result": "fail",
+      "change_source": "e2ed27f",
+      "staleness_seconds": -5409
+    }
+,
+    "landing": {
+      "status": "untested",
+      "last_change": 1761372101,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "e2ed27f",
+      "staleness_seconds": null
+    }
+,
+    "loki": {
+      "status": "untested",
+      "last_change": 1761374327,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "e2ed27f",
+      "staleness_seconds": null
+    }
+,
+    "prometheus": {
+      "status": "untested",
+      "last_change": 1761374235,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "e2ed27f",
+      "staleness_seconds": null
+    }
+,
+    "promtail": {
+      "status": "untested",
+      "last_change": 1761373609,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "e2ed27f",
+      "staleness_seconds": null
+    }
+
+  }
+}

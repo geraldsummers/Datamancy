@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Freshness Status</title>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #e0e0e0; padding: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #444; }
+        th { background: #2a2a2a; }
+        .functional { color: #00ff00; }
+        .needs-retest { color: #ffaa00; }
+        .unknown { color: #888; }
+    </style>
+</head>
+<body>
+    <h2>Service Freshness Status</h2>
+    <table id="status-table">
+        <thead>
+            <tr>
+                <th>Service</th>
+                <th>Last Change</th>
+                <th>Last Test</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="status-body">
+            <tr><td colspan="4">Loading...</td></tr>
+        </tbody>
+    </table>
+    <script>
+        async function loadStatus() {
+            try {
+                const services = ['traefik', 'grafana', 'homepage'];
+                const tbody = document.getElementById('status-body');
+                tbody.innerHTML = '';
+                
+                for (const service of services) {
+                    const row = tbody.insertRow();
+                    row.insertCell(0).textContent = service;
+                    row.insertCell(1).textContent = '-';
+                    row.insertCell(2).textContent = '-';
+                    const statusCell = row.insertCell(3);
+                    statusCell.textContent = 'Unknown';
+                    statusCell.className = 'unknown';
+                }
+            } catch (e) {
+                document.getElementById('status-body').innerHTML = '<tr><td colspan="4">Error loading status</td></tr>';
+            }
+        }
+        
+        loadStatus();
+        setInterval(loadStatus, 30000);
+    </script>
+</body>
+</html>

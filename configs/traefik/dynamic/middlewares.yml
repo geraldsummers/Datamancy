@@ -1,0 +1,29 @@
+# Traefik Dynamic Configuration - Middlewares
+# Provenance: https://doc.traefik.io/traefik/middlewares/overview/
+
+http:
+  middlewares:
+    security-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customFrameOptionsValue: "SAMEORIGIN"
+
+    strip-prefix-grafana:
+      stripPrefix:
+        prefixes:
+          - "/grafana"
+
+    strip-prefix-browserless:
+      stripPrefix:
+        prefixes:
+          - "/browserless"
+
+    # Compression for better performance
+    compress:
+      compress: {}

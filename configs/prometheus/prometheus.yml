@@ -1,0 +1,51 @@
+# Provenance: Prometheus official configuration documentation
+# https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+# Purpose: Scrape metrics from Traefik and service endpoints
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'datamancy'
+    environment: 'local'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Rule files
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Traefik metrics
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['traefik:8082']
+        labels:
+          service: 'traefik'
+
+  # Node Exporter (future)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: []
+        labels:
+          service: 'node-exporter'
+
+  # Blackbox Exporter for endpoint monitoring (future)
+  - job_name: 'blackbox'
+    static_configs:
+      - targets: []
+        labels:
+          service: 'blackbox-exporter'

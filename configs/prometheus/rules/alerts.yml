@@ -1,0 +1,25 @@
+# Provenance: Prometheus alerting rules documentation
+# https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/
+# Purpose: Basic alerting rules for service health
+
+groups:
+  - name: service_health
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: sum(rate(traefik_service_requests_total{code=~"5.."}[5m])) by (service) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate for {{ $labels.service }}"
+          description: "Service {{ $labels.service }} has error rate above 5% for 2 minutes."

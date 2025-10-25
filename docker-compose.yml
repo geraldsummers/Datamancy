@@ -1,0 +1,523 @@
+# Datamancy Stack - Rootless Docker Compose
+# Provenance: Docker Compose v2 specification
+# Architecture: Single front door (Traefik), path-based routing, no custom DNS
+
+networks:
+  datamancy:
+    driver: bridge
+
+services:
+  # ============================================================================
+  # Phase 0 - CA Generator (One-shot certificate authority)
+  # Provenance: OpenSSL alpine image
+  # ============================================================================
+  ca-generator:
+    image: alpine:3.19
+    container_name: ca-generator
+    networks:
+      - datamancy
+    volumes:
+      - ./certs:/certs
+      - ./scripts/generate-ca.sh:/generate-ca.sh:ro
+    command: /bin/sh /generate-ca.sh
+    labels:
+      - "datamancy.oneshot=true"
+      - "datamancy.phase=0"
+    profiles:
+      - ca
+
+  # ============================================================================
+  # Infrastructure - Socket Proxy (Security boundary)
+  # ============================================================================
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.1.2
+    container_name: socket-proxy
+    restart: unless-stopped
+    networks:
+      - datamancy
+    volumes:
+      - /run/user/1000/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: 1
+      SERVICES: 1
+      TASKS: 1
+      NETWORKS: 1
+      INFO: 1
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2375/version"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - infra
+
+  # ============================================================================
+  # Infrastructure - Traefik (Single Front Door)
+  # ============================================================================
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    networks:
+      - datamancy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8082:8082"  # Prometheus metrics
+    volumes:
+      - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./configs/traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./certs:/certs:ro
+    environment:
+      TZ: UTC
+    labels:
+      - "traefik.enable=true"
+      # Dashboard UI router
+      - "traefik.http.routers.dashboard.rule=Host(`stack.local`) && PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.priority=10"
+      # Traefik API router (higher priority than Homepage)
+      - "traefik.http.routers.traefik-api.rule=Host(`stack.local`) && (PathPrefix(`/api/http`) || PathPrefix(`/api/tcp`) || PathPrefix(`/api/udp`) || PathPrefix(`/api/entrypoints`) || PathPrefix(`/api/overview`) || PathPrefix(`/api/version`) || PathPrefix(`/api/rawdata`))"
+      - "traefik.http.routers.traefik-api.entrypoints=websecure"
+      - "traefik.http.routers.traefik-api.service=api@internal"
+      - "traefik.http.routers.traefik-api.tls=true"
+      - "traefik.http.routers.traefik-api.priority=100"
+      # Metadata for landing page
+      - "datamancy.service.name=Traefik Dashboard"
+      - "datamancy.service.path=/dashboard/"
+      - "datamancy.service.description=Reverse proxy and load balancer"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      socket-proxy:
+        condition: service_healthy
+    profiles:
+      - infra
+
+  # ============================================================================
+  # Phase 1 - Grafana (Observability UI)
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - datamancy
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      GF_SERVER_ROOT_URL: https://stack.local/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_LOG_MODE: console
+      GF_LOG_LEVEL: info
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`stack.local`) && PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      # Metadata for landing page
+      - "datamancy.service.name=Grafana"
+      - "datamancy.service.path=/grafana/"
+      - "datamancy.service.description=Metrics and dashboards"
+      - "datamancy.service.category=observability"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      traefik:
+        condition: service_healthy
+    profiles:
+      - infra
+
+  # ============================================================================
+  # Phase 1 - Browserless (Headless browser for testing)
+  # ============================================================================
+  browserless:
+    image: browserless/chrome:1.61.1-chrome-stable
+    container_name: browserless
+    restart: unless-stopped
+    user: root
+    networks:
+      - datamancy
+    extra_hosts:
+      - "stack.local:host-gateway"
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/datamancy-ca.crt:ro
+      - ./scripts/browserless-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/entrypoint.sh"]
+    environment:
+      NODE_EXTRA_CA_CERTS: /usr/local/share/ca-certificates/datamancy-ca.crt
+      TOKEN: browserless-token-2024
+      CONCURRENT: 3
+      TIMEOUT: 30000
+      PREBOOT_CHROME: "true"
+    labels:
+      - "traefik.enable=false"
+      # Metadata for landing page (internal service, not publicly routed)
+      - "datamancy.service.name=Browserless"
+      - "datamancy.service.description=Headless Chrome for testing (internal only)"
+      - "datamancy.service.category=testing"
+      - "datamancy.service.internal=true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/?token=browserless-token-2024"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      traefik:
+        condition: service_healthy
+    profiles:
+      - infra
+
+  # ============================================================================
+  # Phase 1 - Homepage (Landing page)
+  # ============================================================================
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v0.9.2
+    container_name: homepage
+    restart: unless-stopped
+    networks:
+      - datamancy
+    extra_hosts:
+      - "stack.local:host-gateway"
+    volumes:
+      - ./configs/homepage:/app/config:ro
+      - ./data/tests:/app/tests:ro
+    environment:
+      TZ: UTC
+      DOCKER_HOST: tcp://socket-proxy:2375
+    labels:
+      - "traefik.enable=true"
+      # Landing at root path - catch all remaining requests
+      - "traefik.http.routers.homepage.rule=Host(`stack.local`)"
+      - "traefik.http.routers.homepage.entrypoints=websecure"
+      - "traefik.http.routers.homepage.tls=true"
+      - "traefik.http.routers.homepage.priority=1"
+      - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+      # Metadata
+      - "datamancy.service.name=Landing"
+      - "datamancy.service.path=/"
+      - "datamancy.service.description=Service dashboard"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      traefik:
+        condition: service_healthy
+      socket-proxy:
+        condition: service_healthy
+    profiles:
+      - infra
+
+  # ============================================================================
+  # Phase 2 - Prometheus (Metrics collection and alerting)
+  # Provenance: https://prometheus.io/docs/prometheus/latest/installation/
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - datamancy
+    extra_hosts:
+      - "stack.local:host-gateway"
+    volumes:
+      - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./configs/prometheus/rules:/etc/prometheus/rules:ro
+      - ./data/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.route-prefix=/prometheus'
+      - '--web.external-url=https://stack.local/prometheus'
+    environment:
+      TZ: UTC
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=datamancy_datamancy"
+      - "traefik.http.routers.prometheus.rule=Host(`stack.local`) && PathPrefix(`/prometheus`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.priority=50"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      # Metadata for landing page
+      - "datamancy.service.name=Prometheus"
+      - "datamancy.service.path=/prometheus/"
+      - "datamancy.service.description=Metrics collection and time-series database"
+      - "datamancy.service.category=observability"
+      # Prometheus metrics exposure
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=9090"
+      - "prometheus.io/path=/prometheus/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/prometheus/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      traefik:
+        condition: service_healthy
+    profiles:
+      - infra
+      - phase2
+
+  # ============================================================================
+  # Phase 2 - Alertmanager (Alert routing and notification)
+  # Provenance: https://prometheus.io/docs/alerting/latest/alertmanager/
+  # ============================================================================
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    restart: unless-stopped
+    networks:
+      - datamancy
+    extra_hosts:
+      - "stack.local:host-gateway"
+    volumes:
+      - ./configs/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./data/alertmanager:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.route-prefix=/alertmanager'
+      - '--web.external-url=https://stack.local/alertmanager'
+    environment:
+      TZ: UTC
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=datamancy_datamancy"
+      - "traefik.http.routers.alertmanager.rule=Host(`stack.local`) && PathPrefix(`/alertmanager`)"
+      - "traefik.http.routers.alertmanager.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager.tls=true"
+      - "traefik.http.routers.alertmanager.priority=50"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
+      # Metadata for landing page
+      - "datamancy.service.name=Alertmanager"
+      - "datamancy.service.path=/alertmanager/"
+      - "datamancy.service.description=Alert routing and notification management"
+      - "datamancy.service.category=observability"
+      # Prometheus metrics exposure
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=9093"
+      - "prometheus.io/path=/alertmanager/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/alertmanager/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      traefik:
+        condition: service_healthy
+    profiles:
+      - infra
+      - phase2
+
+  # ============================================================================
+  # Phase 2 - Loki (Log aggregation)
+  # Provenance: https://grafana.com/docs/loki/latest/
+  # ============================================================================
+  loki:
+    image: grafana/loki:2.9.6
+    container_name: loki
+    restart: unless-stopped
+    networks:
+      - datamancy
+    extra_hosts:
+      - "stack.local:host-gateway"
+    volumes:
+      - ./configs/loki/loki.yml:/etc/loki/local-config.yaml:ro
+      - ./data/loki:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    environment:
+      TZ: UTC
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=datamancy_datamancy"
+      - "traefik.http.routers.loki.rule=Host(`stack.local`) && PathPrefix(`/loki`)"
+      - "traefik.http.routers.loki.entrypoints=websecure"
+      - "traefik.http.routers.loki.tls=true"
+      - "traefik.http.routers.loki.priority=50"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
+      # Metadata for landing page
+      - "datamancy.service.name=Loki"
+      - "datamancy.service.path=/loki/"
+      - "datamancy.service.description=Log aggregation system"
+      - "datamancy.service.category=observability"
+      # Prometheus metrics exposure
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=3100"
+      - "prometheus.io/path=/loki/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      traefik:
+        condition: service_healthy
+    profiles:
+      - infra
+      - phase2
+
+  # ============================================================================
+  # Phase 2 - Promtail (Log shipping agent)
+  # Provenance: https://grafana.com/docs/loki/latest/send-data/promtail/
+  # ============================================================================
+  promtail:
+    image: grafana/promtail:2.9.6
+    container_name: promtail
+    restart: unless-stopped
+    networks:
+      - datamancy
+    volumes:
+      - ./configs/promtail/promtail.yml:/etc/promtail/config.yml:ro
+      - ${HOME}/.local/share/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    environment:
+      TZ: UTC
+    labels:
+      # Metadata for landing page (internal service, not publicly routed)
+      - "datamancy.service.name=Promtail"
+      - "datamancy.service.description=Log shipping agent for Loki (internal only)"
+      - "datamancy.service.category=observability"
+      - "datamancy.service.internal=true"
+    depends_on:
+      loki:
+        condition: service_healthy
+    profiles:
+      - infra
+      - phase2
+
+  # ============================================================================
+  # Phase 1 - Change Tracker (Freshness Rule - Change detection)
+  # Provenance: Alpine with git
+  # ============================================================================
+  change-tracker:
+    image: alpine:3.19
+    container_name: change-tracker
+    restart: "no"
+    networks:
+      - datamancy
+    volumes:
+      - .:/repo
+      - ./.git:/repo/.git:ro
+      - ./scripts/update-freshness-status.sh:/update-freshness-status.sh:ro
+    environment:
+      REPO_ROOT: /repo
+      DOCKER_HOST: tcp://socket-proxy:2375
+    working_dir: /repo
+    command: >
+      sh -c "
+      apk add --no-cache git docker-cli jq bash coreutils &&
+      echo '✓ Change tracker initialized' &&
+      /update-freshness-status.sh
+      "
+    labels:
+      - "datamancy.service.name=Change Tracker"
+      - "datamancy.service.description=Tracks file changes for Freshness Rule"
+      - "datamancy.service.category=testing"
+      - "datamancy.oneshot=true"
+    depends_on:
+      socket-proxy:
+        condition: service_healthy
+    profiles:
+      - infra
+
+  # ============================================================================
+  # Phase 1 - Test Runner (Playwright agent for UI validation)
+  # Provenance: mcr.microsoft.com/playwright
+  # ============================================================================
+  test-runner:
+    image: mcr.microsoft.com/playwright:v1.56.1-jammy
+    container_name: test-runner
+    restart: "no"
+    networks:
+      - datamancy
+    volumes:
+      - ./tests:/tests
+      - ./data/tests:/results
+      - ./data/firefox-profile:/firefox-profile
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/datamancy-ca.crt:ro
+    environment:
+      NODE_EXTRA_CA_CERTS: /usr/local/share/ca-certificates/datamancy-ca.crt
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      BASE_URL: https://stack.local
+      CI: "true"
+    working_dir: /tests
+    user: root
+    entrypoint: ["/tests/entrypoint.sh"]
+    command: ["npx", "playwright", "test", "specs/phase1-smoke.spec.js", "--reporter=junit,list"]
+    labels:
+      - "datamancy.service.name=Test Runner"
+      - "datamancy.service.description=Playwright UI test automation"
+      - "datamancy.service.category=testing"
+      - "datamancy.oneshot=true"
+    depends_on:
+      traefik:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+      browserless:
+        condition: service_healthy
+      change-tracker:
+        condition: service_completed_successfully
+    profiles:
+      - infra
+
+  # ============================================================================
+  # Phase 1 - Status Aggregator (Post-test freshness update)
+  # ============================================================================
+  status-aggregator:
+    image: alpine:3.19
+    container_name: status-aggregator
+    restart: "no"
+    networks:
+      - datamancy
+    volumes:
+      - .:/repo
+      - ./.git:/repo/.git:ro
+      - ./scripts/update-freshness-status.sh:/update-freshness-status.sh:ro
+    environment:
+      REPO_ROOT: /repo
+      DOCKER_HOST: tcp://socket-proxy:2375
+    working_dir: /repo
+    command: >
+      sh -c "
+      apk add --no-cache git docker-cli jq bash coreutils &&
+      echo '==> Aggregating final freshness status after tests' &&
+      /update-freshness-status.sh &&
+      echo '' &&
+      echo '==> Final Status:' &&
+      cat /repo/data/freshness-status.json | jq -r '.services | to_entries[] | \"\(.key): \(.value.status)\"'
+      "
+    labels:
+      - "datamancy.service.name=Status Aggregator"
+      - "datamancy.service.description=Aggregates freshness status post-test"
+      - "datamancy.service.category=testing"
+      - "datamancy.oneshot=true"
+    depends_on:
+      test-runner:
+        condition: service_completed_successfully
+      socket-proxy:
+        condition: service_healthy
+    profiles:
+      - infra

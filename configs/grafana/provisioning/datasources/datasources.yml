@@ -1,0 +1,27 @@
+# Grafana Datasources Provisioning
+# Provenance: https://grafana.com/docs/grafana/latest/administration/provisioning/
+# Phase 2: Prometheus and Loki datasources
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
+    version: 1
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false
+    jsonData:
+      maxLines: 1000
+    version: 1
