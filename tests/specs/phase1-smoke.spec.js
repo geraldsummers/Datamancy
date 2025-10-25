@@ -26,12 +26,21 @@ test.describe('Phase 1 - Agent Autonomy Smoke', () => {
     // Navigate to Grafana
     await page.goto('/grafana/');
 
-    // Wait for Grafana to render
+    // Wait for page load
     await page.waitForLoadState('networkidle');
 
-    // Wait for Grafana logo or header
-    const grafanaLogo = page.locator('[aria-label*="Grafana"], .sidemenu, [class*="navbar"]');
-    await expect(grafanaLogo).toBeVisible({ timeout: 20000 });
+    // Check if we're on login page and log in
+    const loginButton = page.locator('button:has-text("Log in")');
+    if (await loginButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await page.fill('input[name="user"]', 'admin');
+      await page.fill('input[name="password"]', 'admin');
+      await loginButton.click();
+      await page.waitForLoadState('networkidle');
+    }
+
+    // Wait for Grafana UI elements
+    const grafanaElement = page.locator('[data-testid="data-testid Skip link to main content"], nav, [class*="sidemenu"], h1:has-text("Welcome to Grafana")');
+    await expect(grafanaElement.first()).toBeVisible({ timeout: 20000 });
 
     // Verify we're on HTTPS
     expect(page.url()).toContain('https://');

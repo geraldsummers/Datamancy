@@ -29,8 +29,9 @@ if [ -f "$JUNIT_FILE" ]; then
 
     # Check Grafana test
     if grep -q 'name=".*Grafana.*"' "$JUNIT_FILE" 2>/dev/null; then
-        if grep -q 'name=".*Grafana.*".*failures="0"' "$JUNIT_FILE" 2>/dev/null || \
-           grep -A1 'name=".*Grafana.*"' "$JUNIT_FILE" | grep -q '<testcase.*time=' | grep -v 'failure'; then
+        # Check if this specific testcase has a failure child element
+        if grep 'name=".*Grafana.*"' "$JUNIT_FILE" | grep -q '<testcase' && \
+           ! grep -A5 'name=".*Grafana.*"' "$JUNIT_FILE" | grep -q '<failure'; then
             GRAFANA_STATUS="pass"
         else
             GRAFANA_STATUS="fail"
@@ -49,8 +50,9 @@ EOF
 
     # Check Traefik test
     if grep -q 'name=".*Traefik.*"' "$JUNIT_FILE" 2>/dev/null; then
-        if grep -q 'name=".*Traefik.*".*failures="0"' "$JUNIT_FILE" 2>/dev/null || \
-           grep -A1 'name=".*Traefik.*"' "$JUNIT_FILE" | grep -q '<testcase.*time=' | grep -v 'failure'; then
+        # Check if this specific testcase has a failure child element
+        if grep 'name=".*Traefik.*"' "$JUNIT_FILE" | grep -q '<testcase' && \
+           ! grep -A5 'name=".*Traefik.*"' "$JUNIT_FILE" | grep -q '<failure'; then
             TRAEFIK_STATUS="pass"
         else
             TRAEFIK_STATUS="fail"
@@ -69,8 +71,9 @@ EOF
 
     # Check Landing page test
     if grep -q 'name=".*Landing.*"' "$JUNIT_FILE" 2>/dev/null; then
-        if grep -q 'name=".*Landing.*".*failures="0"' "$JUNIT_FILE" 2>/dev/null || \
-           grep -A1 'name=".*Landing.*"' "$JUNIT_FILE" | grep -q '<testcase.*time=' | grep -v 'failure'; then
+        # Check if this specific testcase has a failure child element
+        if grep 'name=".*Landing.*"' "$JUNIT_FILE" | grep -q '<testcase' && \
+           ! grep -A5 'name=".*Landing.*"' "$JUNIT_FILE" | grep -q '<failure'; then
             HOMEPAGE_STATUS="pass"
         else
             HOMEPAGE_STATUS="fail"
