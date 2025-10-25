@@ -768,3 +768,157 @@ services:
         condition: service_healthy
     profiles:
       - infra
+
+  # ============================================================================
+  # Phase 4 - MariaDB (Relational datastore)
+  # Provenance: https://hub.docker.com/_/mariadb
+  # ============================================================================
+  mariadb:
+    image: mariadb@sha256:e101f9db31916a5d4d7d594dd0dd092fb23ab4f499f1d7a7425d1afd4162c4bc  # 11.3
+    container_name: mariadb
+    restart: unless-stopped
+    networks:
+      - datamancy
+    # Note: Running as root for DB initialization (standard for MariaDB)
+    volumes:
+      - ./data/mariadb:/var/lib/mysql
+      - ./configs/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password_change_me}
+      MYSQL_DATABASE: datamancy
+      MYSQL_USER: datamancy
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-datamancy_password_change_me}
+      TZ: UTC
+    labels:
+      - "traefik.enable=false"
+      - "datamancy.service.name=MariaDB"
+      - "datamancy.service.description=Relational database (internal only)"
+      - "datamancy.service.category=database"
+      - "datamancy.service.internal=true"
+      # Prometheus mysqld-exporter will scrape metrics
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - db
+
+  # ============================================================================
+  # Phase 4 - ClickHouse (Analytics/OLAP datastore)
+  # Provenance: https://hub.docker.com/r/clickhouse/clickhouse-server
+  # ============================================================================
+  clickhouse:
+    image: clickhouse/clickhouse-server@sha256:44caeed7c81f7934c28a8ffa3a422a4ca96cf3bccc486d21311e5133ce88d49f  # 24.1
+    container_name: clickhouse
+    restart: unless-stopped
+    networks:
+      - datamancy
+    # Note: Running as default user (ClickHouse handles permissions internally)
+    volumes:
+      - ./data/clickhouse:/var/lib/clickhouse
+      - ./configs/clickhouse/config.xml:/etc/clickhouse-server/config.d/custom.xml:ro
+    environment:
+      CLICKHOUSE_DB: datamancy
+      CLICKHOUSE_USER: datamancy
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse_password_change_me}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      TZ: UTC
+    labels:
+      - "traefik.enable=false"
+      - "datamancy.service.name=ClickHouse"
+      - "datamancy.service.description=Analytics database (internal only)"
+      - "datamancy.service.category=database"
+      - "datamancy.service.internal=true"
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=9363"
+      - "prometheus.io/path=/metrics"
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - db
+
+  # ============================================================================
+  # Phase 4 - MongoDB (Document store for LibreChat)
+  # Provenance: https://hub.docker.com/_/mongo
+  # ============================================================================
+  mongodb:
+    image: mongo@sha256:a814f930db8c4514f5fe5dc3e489f58637fb7ee32a7b9bb0b7064d3274e90b8e  # 7.0
+    container_name: mongodb
+    restart: unless-stopped
+    networks:
+      - datamancy
+    volumes:
+      - ./data/mongodb:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-mongo_root_password_change_me}
+      MONGO_INITDB_DATABASE: librechat
+      TZ: UTC
+    labels:
+      - "traefik.enable=false"
+      - "datamancy.service.name=MongoDB"
+      - "datamancy.service.description=Document database for LibreChat (internal only)"
+      - "datamancy.service.category=database"
+      - "datamancy.service.internal=true"
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - db
+
+  # ============================================================================
+  # Phase 4 - Duplicati (Backup solution)
+  # Provenance: https://hub.docker.com/r/duplicati/duplicati
+  # ============================================================================
+  duplicati:
+    image: duplicati/duplicati@sha256:c928bba99739e9702d7590a9c869980d343feee537e6494b7c8323ce897f7270  # latest
+    container_name: duplicati
+    restart: unless-stopped
+    networks:
+      - datamancy
+    volumes:
+      - ./data/duplicati:/data
+      - ./data:/backups/datamancy:ro  # Read-only access to all data dirs
+      - ./backups:/backups/output  # Backup destination
+    environment:
+      PUID: "${UID:-1000}"
+      PGID: "${GID:-1000}"
+      TZ: UTC
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=datamancy_datamancy"
+      - "traefik.http.routers.duplicati.rule=Host(`stack.local`) && PathPrefix(`/duplicati`)"
+      - "traefik.http.routers.duplicati.entrypoints=websecure"
+      - "traefik.http.routers.duplicati.tls=true"
+      - "traefik.http.routers.duplicati.priority=50"
+      # AUTH DISABLED FOR INITIAL SETUP - Re-enable after configuration
+      # - "traefik.http.routers.duplicati.middlewares=oauth2-proxy@docker"
+      - "traefik.http.services.duplicati.loadbalancer.server.port=8200"
+      - "datamancy.service.name=Duplicati"
+      - "datamancy.service.path=/duplicati/"
+      - "datamancy.service.description=Backup management"
+      - "datamancy.service.category=ops"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8200/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      traefik:
+        condition: service_healthy
+    profiles:
+      - ops
+

@@ -1,5 +1,5 @@
 {
-  "last_updated": "2025-10-25T10:54:38Z",
+  "last_updated": "2025-10-25T20:48:10Z",
   "version": "1.0.0",
   "freshness_rule": "Service is 'functional' only when last passing test > last change",
   "services": {
@@ -8,7 +8,7 @@
       "last_change": 1761389506,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "a167e6c",
+      "change_source": "462585a",
       "staleness_seconds": null
     }
 ,
@@ -17,34 +17,52 @@
       "last_change": 1761389675,
       "last_test": 1761388117,
       "last_test_result": "pass",
-      "change_source": "a167e6c",
+      "change_source": "462585a",
       "staleness_seconds": 1558
+    }
+,
+    "clickhouse": {
+      "status": "untested",
+      "last_change": 1761425288,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "462585a",
+      "staleness_seconds": null
     }
 ,
     "dex": {
       "status": "untested",
-      "last_change": 1761384803,
+      "last_change": 1761425288,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "a167e6c",
+      "change_source": "462585a",
+      "staleness_seconds": null
+    }
+,
+    "duplicati": {
+      "status": "untested",
+      "last_change": 1761425288,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "462585a",
       "staleness_seconds": null
     }
 ,
     "grafana": {
-      "status": "needs_retest",
+      "status": "functional",
       "last_change": 1761389675,
-      "last_test": 1761389284,
-      "last_test_result": "fail",
-      "change_source": "a167e6c",
-      "staleness_seconds": 391
+      "last_test": 1761389703,
+      "last_test_result": "pass",
+      "change_source": "462585a",
+      "staleness_seconds": -28
     }
 ,
     "landing": {
       "status": "untested",
-      "last_change": 1761388053,
+      "last_change": 1761425288,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "a167e6c",
+      "change_source": "462585a",
       "staleness_seconds": null
     }
 ,
@@ -53,25 +71,43 @@
       "last_change": 1761389506,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "a167e6c",
+      "change_source": "462585a",
       "staleness_seconds": null
     }
 ,
     "mailpit": {
       "status": "untested",
-      "last_change": 1761384803,
+      "last_change": 1761425288,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "a167e6c",
+      "change_source": "462585a",
+      "staleness_seconds": null
+    }
+,
+    "mariadb": {
+      "status": "untested",
+      "last_change": 1761425288,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "462585a",
+      "staleness_seconds": null
+    }
+,
+    "mongodb": {
+      "status": "untested",
+      "last_change": 1761425288,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "462585a",
       "staleness_seconds": null
     }
 ,
     "openldap": {
       "status": "untested",
-      "last_change": 1761386632,
+      "last_change": 1761425288,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "a167e6c",
+      "change_source": "462585a",
       "staleness_seconds": null
     }
 ,
@@ -80,16 +116,16 @@
       "last_change": 1761389506,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "a167e6c",
+      "change_source": "462585a",
       "staleness_seconds": null
     }
 ,
     "promtail": {
       "status": "untested",
-      "last_change": 1761384961,
+      "last_change": 1761425288,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "a167e6c",
+      "change_source": "462585a",
       "staleness_seconds": null
     }
 
