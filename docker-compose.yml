@@ -122,8 +122,8 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_LOG_MODE: console
       GF_LOG_LEVEL: info
-      # OIDC Configuration (disabled for Phase 1 testing)
-      GF_AUTH_GENERIC_OAUTH_ENABLED: "false"
+      # OIDC Configuration via Dex
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
       GF_AUTH_GENERIC_OAUTH_NAME: "Dex"
       GF_AUTH_GENERIC_OAUTH_CLIENT_ID: "grafana"
       GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: "grafana-client-secret-change-me"
@@ -280,12 +280,12 @@ services:
       - "traefik.http.routers.prometheus-api.tls=true"
       - "traefik.http.routers.prometheus-api.priority=90"
       - "traefik.http.routers.prometheus-api.service=prometheus"
-      # UI endpoint - AUTH DISABLED FOR TESTING
+      # UI endpoint - REQUIRES AUTH (metrics/api endpoints above are whitelisted)
       - "traefik.http.routers.prometheus.rule=Host(`stack.local`) && PathPrefix(`/prometheus`)"
       - "traefik.http.routers.prometheus.entrypoints=websecure"
       - "traefik.http.routers.prometheus.tls=true"
       - "traefik.http.routers.prometheus.priority=50"
-      # - "traefik.http.routers.prometheus.middlewares=oauth2-proxy@docker"
+      - "traefik.http.routers.prometheus.middlewares=oauth2-proxy@docker"
       - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
       # Metadata for landing page
       - "datamancy.service.name=Prometheus"
@@ -339,12 +339,12 @@ services:
       - "traefik.http.routers.alertmanager-metrics.tls=true"
       - "traefik.http.routers.alertmanager-metrics.priority=100"
       - "traefik.http.routers.alertmanager-metrics.service=alertmanager"
-      # UI endpoint - AUTH DISABLED FOR TESTING
+      # UI endpoint - REQUIRES AUTH (metrics endpoint above is whitelisted)
       - "traefik.http.routers.alertmanager.rule=Host(`stack.local`) && PathPrefix(`/alertmanager`)"
       - "traefik.http.routers.alertmanager.entrypoints=websecure"
       - "traefik.http.routers.alertmanager.tls=true"
       - "traefik.http.routers.alertmanager.priority=50"
-      # - "traefik.http.routers.alertmanager.middlewares=oauth2-proxy@docker"
+      - "traefik.http.routers.alertmanager.middlewares=oauth2-proxy@docker"
       - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
       # Metadata for landing page
       - "datamancy.service.name=Alertmanager"
@@ -392,8 +392,8 @@ services:
       - "traefik.http.routers.loki.entrypoints=websecure"
       - "traefik.http.routers.loki.tls=true"
       - "traefik.http.routers.loki.priority=50"
-      # AUTH DISABLED FOR TESTING
-      # - "traefik.http.routers.loki.middlewares=oauth2-proxy@docker"
+      # REQUIRES AUTH (metrics/ready endpoints whitelisted in oauth2-proxy config)
+      - "traefik.http.routers.loki.middlewares=oauth2-proxy@docker"
       - "traefik.http.services.loki.loadbalancer.server.port=3100"
       # Metadata for landing page
       - "datamancy.service.name=Loki"
@@ -817,7 +817,7 @@ services:
     restart: unless-stopped
     networks:
       - datamancy
-    # Note: Running as default user (ClickHouse handles permissions internally)
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./data/clickhouse:/var/lib/clickhouse
       - ./configs/clickhouse/config.xml:/etc/clickhouse-server/config.d/custom.xml:ro
