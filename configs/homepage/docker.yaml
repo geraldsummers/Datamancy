@@ -1,8 +1,0 @@
----
-# Docker provider via socket proxy
-# Provenance: Homepage Docker integration docs
-# Source: https://gethomepage.dev/configs/docker/
-
-my-docker:
-  host: docker-socket-proxy
-  port: 2375
