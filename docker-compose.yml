@@ -12,7 +12,7 @@ services:
   # Provenance: OpenSSL alpine image
   # ============================================================================
   ca-generator:
-    image: alpine:3.19
+    image: alpine@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1  # alpine:3.19
     container_name: ca-generator
     networks:
       - datamancy
@@ -30,7 +30,7 @@ services:
   # Infrastructure - Socket Proxy (Security boundary)
   # ============================================================================
   socket-proxy:
-    image: tecnativa/docker-socket-proxy:0.1.2
+    image: tecnativa/docker-socket-proxy@sha256:dc8ec925b1360c54e6bf350602d6faac4e33c5d8d809118e4c000c0b14a4529a  # 0.1.2
     container_name: socket-proxy
     restart: unless-stopped
     networks:
@@ -55,7 +55,7 @@ services:
   # Infrastructure - Traefik (Single Front Door)
   # ============================================================================
   traefik:
-    image: traefik:v3.0
+    image: traefik@sha256:a208c74fd80a566d4ea376053bff73d31616d7af3f1465a7747b8b89ee34d97e  # v3.0
     container_name: traefik
     restart: unless-stopped
     networks:
@@ -105,7 +105,7 @@ services:
   # Phase 1 - Grafana (Observability UI)
   # ============================================================================
   grafana:
-    image: grafana/grafana:11.0.0
+    image: grafana/grafana@sha256:0dc5a246ab16bb2c38a349fb588174e832b4c6c2db0981d0c3e6cd774ba66a54  # 11.0.0
     container_name: grafana
     restart: unless-stopped
     networks:
@@ -122,8 +122,8 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_LOG_MODE: console
       GF_LOG_LEVEL: info
-      # OIDC Configuration
-      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      # OIDC Configuration (disabled for Phase 1 testing)
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "false"
       GF_AUTH_GENERIC_OAUTH_NAME: "Dex"
       GF_AUTH_GENERIC_OAUTH_CLIENT_ID: "grafana"
       GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: "grafana-client-secret-change-me"
@@ -159,7 +159,7 @@ services:
   # Phase 1 - Browserless (Headless browser for testing)
   # ============================================================================
   browserless:
-    image: browserless/chrome:1.61.1-chrome-stable
+    image: browserless/chrome@sha256:efac47cfff3830d9a50b27d29f8bbb61949058ae336c823fbe9bd3c0d1debcc8  # 1.61.1-chrome-stable
     container_name: browserless
     restart: unless-stopped
     user: root
@@ -199,7 +199,7 @@ services:
   # Phase 1 - Homepage (Landing page)
   # ============================================================================
   homepage:
-    image: ghcr.io/gethomepage/homepage:v0.9.2
+    image: ghcr.io/gethomepage/homepage@sha256:5356c97b51e3cc817bed93612b4e57b39d28048ab9e4e3b346e827160cf0923e  # v0.9.2
     container_name: homepage
     restart: unless-stopped
     networks:
@@ -244,7 +244,7 @@ services:
   # Provenance: https://prometheus.io/docs/prometheus/latest/installation/
   # ============================================================================
   prometheus:
-    image: prom/prometheus:v2.51.0
+    image: prom/prometheus@sha256:5ccad477d0057e62a7cd1981ffcc43785ac10c5a35522dc207466ff7e7ec845f  # v2.51.0
     container_name: prometheus
     restart: unless-stopped
     networks:
@@ -313,7 +313,7 @@ services:
   # Provenance: https://prometheus.io/docs/alerting/latest/alertmanager/
   # ============================================================================
   alertmanager:
-    image: prom/alertmanager:v0.27.0
+    image: prom/alertmanager@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5  # v0.27.0
     container_name: alertmanager
     restart: unless-stopped
     networks:
@@ -372,7 +372,7 @@ services:
   # Provenance: https://grafana.com/docs/loki/latest/
   # ============================================================================
   loki:
-    image: grafana/loki:2.9.6
+    image: grafana/loki@sha256:6ca6e2cd3b6f45e0eb298da2920610fde63ecd8ab6c595d9c941c8559d1d9407  # 2.9.6
     container_name: loki
     restart: unless-stopped
     networks:
@@ -420,7 +420,7 @@ services:
   # Provenance: https://grafana.com/docs/loki/latest/send-data/promtail/
   # ============================================================================
   promtail:
-    image: grafana/promtail:2.9.6
+    image: grafana/promtail@sha256:c0e57ee03512475e982893622544d76da4e3c3671a72425c670ccfc0024a4187  # 2.9.6
     container_name: promtail
     restart: unless-stopped
     networks:
@@ -454,7 +454,7 @@ services:
   # Provenance: https://github.com/osixia/docker-openldap
   # ============================================================================
   openldap:
-    image: osixia/openldap:1.5.0
+    image: osixia/openldap@sha256:18742e9c449c9c1afe129d3f2f3ee15fb34cc43e5f940a20f3399728f41d7c28  # 1.5.0
     container_name: openldap
     restart: unless-stopped
     networks:
@@ -498,7 +498,7 @@ services:
   # Provenance: https://dexidp.io/docs/
   # ============================================================================
   dex:
-    image: ghcr.io/dexidp/dex:v2.37.0
+    image: ghcr.io/dexidp/dex@sha256:f579d00721b0d842328c43a562f50343c54b0048ef2d58d6b54e750c21fc7938  # v2.37.0
     container_name: dex
     restart: unless-stopped
     networks:
@@ -545,7 +545,7 @@ services:
   # Provenance: https://github.com/axllent/mailpit
   # ============================================================================
   mailpit:
-    image: axllent/mailpit:v1.13
+    image: axllent/mailpit@sha256:5ce3cb2f8963bb5a48d0c6d87f8290cd9a531f9c02a63c84f8dc4de1ef541708  # v1.13
     container_name: mailpit
     restart: unless-stopped
     networks:
@@ -587,7 +587,7 @@ services:
   # Provenance: https://oauth2-proxy.github.io/oauth2-proxy/
   # ============================================================================
   oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    image: quay.io/oauth2-proxy/oauth2-proxy@sha256:dcb6ff8dd21bf3058f6a22c6fa385fa5b897a9cd3914c88a2cc2bb0a85f8065d  # v7.6.0
     container_name: oauth2-proxy
     restart: unless-stopped
     networks:
@@ -658,7 +658,7 @@ services:
   # Provenance: Alpine with git
   # ============================================================================
   change-tracker:
-    image: alpine:3.19
+    image: alpine@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1  # alpine:3.19
     container_name: change-tracker
     restart: "no"
     networks:
@@ -693,7 +693,7 @@ services:
   # Provenance: mcr.microsoft.com/playwright
   # ============================================================================
   test-runner:
-    image: mcr.microsoft.com/playwright:v1.56.1-jammy
+    image: mcr.microsoft.com/playwright@sha256:d518367161e599b64e4e8b83ff180be45bfe22efb78dde77fc4c2942340fe8ca  # v1.56.1-jammy
     container_name: test-runner
     restart: "no"
     networks:
@@ -733,7 +733,7 @@ services:
   # Phase 1 - Status Aggregator (Post-test freshness update)
   # ============================================================================
   status-aggregator:
-    image: alpine:3.19
+    image: alpine@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1  # alpine:3.19
     container_name: status-aggregator
     restart: "no"
     networks:
