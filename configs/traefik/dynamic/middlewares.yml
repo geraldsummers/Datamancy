@@ -27,3 +27,11 @@ http:
     # Compression for better performance
     compress:
       compress: {}
+
+    # OAuth2 Proxy error handling - redirect 401 to sign-in page
+    oauth2-errors:
+      errors:
+        status:
+          - "401-403"
+        service: oauth2-proxy
+        query: "/oauth2/sign_in?rd={url}"

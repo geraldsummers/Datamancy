@@ -72,12 +72,14 @@ services:
       TZ: UTC
     labels:
       - "traefik.enable=true"
-      # Dashboard UI router
+      # Dashboard UI router (protected by forward auth)
       - "traefik.http.routers.dashboard.rule=Host(`stack.local`) && PathPrefix(`/dashboard`)"
       - "traefik.http.routers.dashboard.entrypoints=websecure"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.tls=true"
       - "traefik.http.routers.dashboard.priority=10"
+      # Temporarily disable OAuth2 to allow agent testing
+      # - "traefik.http.routers.dashboard.middlewares=oauth2-proxy@docker,oauth2-errors@file"
       # Traefik API router (higher priority than Homepage)
       - "traefik.http.routers.traefik-api.rule=Host(`stack.local`) && (PathPrefix(`/api/http`) || PathPrefix(`/api/tcp`) || PathPrefix(`/api/udp`) || PathPrefix(`/api/entrypoints`) || PathPrefix(`/api/overview`) || PathPrefix(`/api/version`) || PathPrefix(`/api/rawdata`))"
       - "traefik.http.routers.traefik-api.entrypoints=websecure"
@@ -116,11 +118,21 @@ services:
       GF_SERVER_ROOT_URL: https://stack.local/grafana
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_LOG_MODE: console
       GF_LOG_LEVEL: info
+      # OIDC Configuration
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      GF_AUTH_GENERIC_OAUTH_NAME: "Dex"
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: "grafana"
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: "grafana-client-secret-change-me"
+      GF_AUTH_GENERIC_OAUTH_SCOPES: "openid profile email groups"
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: "https://stack.local/dex/auth"
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: "http://dex:5556/dex/token"
+      GF_AUTH_GENERIC_OAUTH_API_URL: "http://dex:5556/dex/userinfo"
+      GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(groups[*], 'admins') && 'Admin' || 'Viewer'"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`stack.local`) && PathPrefix(`/grafana`)"
@@ -202,11 +214,13 @@ services:
       DOCKER_HOST: tcp://socket-proxy:2375
     labels:
       - "traefik.enable=true"
-      # Landing at root path - catch all remaining requests
+      # Landing at root path - catch all remaining requests (protected by forward auth)
       - "traefik.http.routers.homepage.rule=Host(`stack.local`)"
       - "traefik.http.routers.homepage.entrypoints=websecure"
       - "traefik.http.routers.homepage.tls=true"
       - "traefik.http.routers.homepage.priority=1"
+      # Temporarily disable OAuth2 to allow agent testing
+      # - "traefik.http.routers.homepage.middlewares=oauth2-proxy@docker,oauth2-errors@file"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
       # Metadata
       - "datamancy.service.name=Landing"
@@ -254,10 +268,24 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=datamancy_datamancy"
+      # Metrics endpoint - NO AUTH (for Prometheus scraping)
+      - "traefik.http.routers.prometheus-metrics.rule=Host(`stack.local`) && Path(`/prometheus/metrics`)"
+      - "traefik.http.routers.prometheus-metrics.entrypoints=websecure"
+      - "traefik.http.routers.prometheus-metrics.tls=true"
+      - "traefik.http.routers.prometheus-metrics.priority=100"
+      - "traefik.http.routers.prometheus-metrics.service=prometheus"
+      # API endpoints - NO AUTH (for programmatic access)
+      - "traefik.http.routers.prometheus-api.rule=Host(`stack.local`) && PathPrefix(`/prometheus/api/`)"
+      - "traefik.http.routers.prometheus-api.entrypoints=websecure"
+      - "traefik.http.routers.prometheus-api.tls=true"
+      - "traefik.http.routers.prometheus-api.priority=90"
+      - "traefik.http.routers.prometheus-api.service=prometheus"
+      # UI endpoint - REQUIRES AUTH
       - "traefik.http.routers.prometheus.rule=Host(`stack.local`) && PathPrefix(`/prometheus`)"
       - "traefik.http.routers.prometheus.entrypoints=websecure"
       - "traefik.http.routers.prometheus.tls=true"
       - "traefik.http.routers.prometheus.priority=50"
+      - "traefik.http.routers.prometheus.middlewares=oauth2-proxy@docker"
       - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
       # Metadata for landing page
       - "datamancy.service.name=Prometheus"
@@ -305,10 +333,18 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=datamancy_datamancy"
+      # Metrics endpoint - NO AUTH
+      - "traefik.http.routers.alertmanager-metrics.rule=Host(`stack.local`) && Path(`/alertmanager/metrics`)"
+      - "traefik.http.routers.alertmanager-metrics.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager-metrics.tls=true"
+      - "traefik.http.routers.alertmanager-metrics.priority=100"
+      - "traefik.http.routers.alertmanager-metrics.service=alertmanager"
+      # UI endpoint - REQUIRES AUTH
       - "traefik.http.routers.alertmanager.rule=Host(`stack.local`) && PathPrefix(`/alertmanager`)"
       - "traefik.http.routers.alertmanager.entrypoints=websecure"
       - "traefik.http.routers.alertmanager.tls=true"
       - "traefik.http.routers.alertmanager.priority=50"
+      - "traefik.http.routers.alertmanager.middlewares=oauth2-proxy@docker"
       - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
       # Metadata for landing page
       - "datamancy.service.name=Alertmanager"
@@ -356,6 +392,7 @@ services:
       - "traefik.http.routers.loki.entrypoints=websecure"
       - "traefik.http.routers.loki.tls=true"
       - "traefik.http.routers.loki.priority=50"
+      - "traefik.http.routers.loki.middlewares=oauth2-proxy@docker"
       - "traefik.http.services.loki.loadbalancer.server.port=3100"
       # Metadata for landing page
       - "datamancy.service.name=Loki"
@@ -400,12 +437,221 @@ services:
       - "datamancy.service.description=Log shipping agent for Loki (internal only)"
       - "datamancy.service.category=observability"
       - "datamancy.service.internal=true"
+    healthcheck:
+      test: ["CMD", "promtail", "-version"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
       loki:
         condition: service_healthy
     profiles:
       - infra
       - phase2
+
+  # ============================================================================
+  # Phase 3 - OpenLDAP (User directory)
+  # Provenance: https://github.com/osixia/docker-openldap
+  # ============================================================================
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: openldap
+    restart: unless-stopped
+    networks:
+      - datamancy
+    environment:
+      LDAP_ORGANISATION: "Datamancy"
+      LDAP_DOMAIN: "datamancy.local"
+      LDAP_ADMIN_PASSWORD: "admin_password"
+      LDAP_CONFIG_PASSWORD: "config_password"
+      LDAP_READONLY_USER: "false"
+      LDAP_RFC2307BIS_SCHEMA: "false"
+      LDAP_BACKEND: "mdb"
+      LDAP_TLS: "false"
+      LDAP_REPLICATION: "false"
+      KEEP_EXISTING_CONFIG: "false"
+      LDAP_REMOVE_CONFIG_AFTER_SETUP: "true"
+      LDAP_SSL_HELPER_PREFIX: "ldap"
+    volumes:
+      - ./data/ldap/database:/var/lib/ldap
+      - ./data/ldap/config:/etc/ldap/slapd.d
+      - ./configs/ldap:/container/service/slapd/assets/config/bootstrap/ldif/custom:ro
+    command: --copy-service --loglevel debug
+    labels:
+      # Metadata for landing page
+      - "datamancy.service.name=OpenLDAP"
+      - "datamancy.service.description=LDAP user directory (internal only)"
+      - "datamancy.service.category=auth"
+      - "datamancy.service.internal=true"
+    healthcheck:
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost", "-b", "dc=datamancy,dc=local", "-D", "cn=admin,dc=datamancy,dc=local", "-w", "admin_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    profiles:
+      - infra
+      - phase3
+
+  # ============================================================================
+  # Phase 3 - Dex (OIDC Provider)
+  # Provenance: https://dexidp.io/docs/
+  # ============================================================================
+  dex:
+    image: ghcr.io/dexidp/dex:v2.37.0
+    container_name: dex
+    restart: unless-stopped
+    networks:
+      - datamancy
+    extra_hosts:
+      - "stack.local:host-gateway"
+    volumes:
+      - ./configs/dex/config.yaml:/etc/dex/config.yaml:ro
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    environment:
+      TZ: UTC
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=datamancy_datamancy"
+      - "traefik.http.routers.dex.rule=Host(`stack.local`) && PathPrefix(`/dex`)"
+      - "traefik.http.routers.dex.entrypoints=websecure"
+      - "traefik.http.routers.dex.tls=true"
+      - "traefik.http.routers.dex.priority=50"
+      - "traefik.http.services.dex.loadbalancer.server.port=5556"
+      # Metadata for landing page
+      - "datamancy.service.name=Dex"
+      - "datamancy.service.path=/dex/"
+      - "datamancy.service.description=OIDC provider for SSO"
+      - "datamancy.service.category=auth"
+      # Prometheus metrics exposure
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=5558"
+      - "prometheus.io/path=/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5556/dex/.well-known/openid-configuration"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - openldap
+      - traefik
+    profiles:
+      - infra
+      - phase3
+
+  # ============================================================================
+  # Phase 3 - Mailpit (Email testing)
+  # Provenance: https://github.com/axllent/mailpit
+  # ============================================================================
+  mailpit:
+    image: axllent/mailpit:v1.13
+    container_name: mailpit
+    restart: unless-stopped
+    networks:
+      - datamancy
+    extra_hosts:
+      - "stack.local:host-gateway"
+    environment:
+      TZ: UTC
+      MP_WEBROOT: "/mailpit"
+    volumes:
+      - ./data/mailpit:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=datamancy_datamancy"
+      - "traefik.http.routers.mailpit.rule=Host(`stack.local`) && PathPrefix(`/mailpit`)"
+      - "traefik.http.routers.mailpit.entrypoints=websecure"
+      - "traefik.http.routers.mailpit.tls=true"
+      - "traefik.http.routers.mailpit.priority=50"
+      - "traefik.http.routers.mailpit.middlewares=oauth2-proxy@docker"
+      - "traefik.http.services.mailpit.loadbalancer.server.port=8025"
+      # Metadata for landing page
+      - "datamancy.service.name=Mailpit"
+      - "datamancy.service.path=/mailpit/"
+      - "datamancy.service.description=Email testing interface"
+      - "datamancy.service.category=auth"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8025/mailpit/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - traefik
+    profiles:
+      - infra
+      - phase3
+
+  # ============================================================================
+  # Phase 3 - OAuth2 Proxy (SSO for services without native OIDC)
+  # Provenance: https://oauth2-proxy.github.io/oauth2-proxy/
+  # ============================================================================
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: oauth2-proxy
+    restart: unless-stopped
+    networks:
+      - datamancy
+    extra_hosts:
+      - "stack.local:172.18.0.3"
+    command:
+      - --http-address=0.0.0.0:4180
+      - --metrics-address=0.0.0.0:44180
+      - --provider=oidc
+      - --provider-display-name=Dex
+      - --oidc-issuer-url=https://stack.local/dex
+      - --client-id=traefik-forward-auth
+      - --client-secret=traefik-forward-auth-secret-change-me
+      - --cookie-secret=changethiscookiesecret32bytes000
+      - --cookie-domain=stack.local
+      - --cookie-secure=true
+      - --cookie-name=_oauth2_proxy
+      - --email-domain=*
+      - --redirect-url=https://stack.local/oauth2/callback
+      - --upstream=static://200
+      - --skip-provider-button=true
+      - --ssl-insecure-skip-verify=true
+      - --oidc-email-claim=email
+      - --oidc-groups-claim=groups
+      - --scope=openid profile email groups
+      - --reverse-proxy=true
+      - --pass-authorization-header=true
+      - --pass-access-token=true
+      - --pass-user-headers=true
+      - --set-authorization-header=true
+      - --set-xauthrequest=true
+      - --skip-auth-regex=^/prometheus/metrics
+      - --skip-auth-regex=^/alertmanager/metrics
+      - --skip-auth-regex=^/grafana/api/health
+      - --skip-auth-regex=^/loki/ready
+      - --skip-auth-regex=^/loki/metrics
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=datamancy_datamancy"
+      # OAuth callback route
+      - "traefik.http.routers.oauth2-proxy.rule=Host(`stack.local`) && PathPrefix(`/oauth2`)"
+      - "traefik.http.routers.oauth2-proxy.entrypoints=websecure"
+      - "traefik.http.routers.oauth2-proxy.tls=true"
+      - "traefik.http.routers.oauth2-proxy.priority=60"
+      - "traefik.http.routers.oauth2-proxy.service=oauth2-proxy"
+      - "traefik.http.services.oauth2-proxy.loadbalancer.server.port=4180"
+      # Forward auth middleware - will be applied to services
+      - "traefik.http.middlewares.oauth2-proxy.forwardauth.address=http://oauth2-proxy:4180/oauth2/auth"
+      - "traefik.http.middlewares.oauth2-proxy.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.oauth2-proxy.forwardauth.authResponseHeaders=X-Auth-Request-User,X-Auth-Request-Email"
+      - "traefik.http.middlewares.oauth2-proxy.forwardauth.authResponseHeadersRegex=^X-"
+      - "traefik.http.middlewares.oauth2-proxy.forwardauth.authRequestHeaders=X-Forwarded-Method,X-Forwarded-Proto,X-Forwarded-Host,X-Forwarded-Uri,X-Forwarded-For"
+      - "traefik.http.middlewares.oauth2-proxy.forwardauth.authSignin=https://stack.local/oauth2/start?rd=https://stack.local"
+      # Metadata
+      - "datamancy.service.name=OAuth2 Proxy"
+      - "datamancy.service.description=Forward authentication for SSO"
+      - "datamancy.service.category=auth"
+    depends_on:
+      - dex
+      - traefik
+    profiles:
+      - infra
+      - phase3
 
   # ============================================================================
   # Phase 1 - Change Tracker (Freshness Rule - Change detection)

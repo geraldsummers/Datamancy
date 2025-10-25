@@ -22,30 +22,54 @@ rule_files:
 
 # Scrape configurations
 scrape_configs:
-  # Prometheus self-monitoring
+  # Infrastructure services
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
         labels:
           service: 'prometheus'
+          tier: 'observability'
 
-  # Traefik metrics
   - job_name: 'traefik'
     static_configs:
       - targets: ['traefik:8082']
         labels:
           service: 'traefik'
+          tier: 'infrastructure'
 
-  # Node Exporter (future)
-  - job_name: 'node-exporter'
+  # Phase 2 - Observability stack
+  - job_name: 'alertmanager'
     static_configs:
-      - targets: []
+      - targets: ['alertmanager:9093']
         labels:
-          service: 'node-exporter'
+          service: 'alertmanager'
+          tier: 'observability'
 
-  # Blackbox Exporter for endpoint monitoring (future)
-  - job_name: 'blackbox'
+  - job_name: 'loki'
     static_configs:
-      - targets: []
+      - targets: ['loki:3100']
         labels:
-          service: 'blackbox-exporter'
+          service: 'loki'
+          tier: 'observability'
+
+  # Phase 3 - Auth services
+  - job_name: 'dex'
+    static_configs:
+      - targets: ['dex:5558']
+        labels:
+          service: 'dex'
+          tier: 'auth'
+
+  - job_name: 'oauth2-proxy'
+    static_configs:
+      - targets: ['oauth2-proxy:44180']
+        labels:
+          service: 'oauth2-proxy'
+          tier: 'auth'
+
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          service: 'grafana'
+          tier: 'observability'

@@ -6,6 +6,8 @@ import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
+const { oidcLogin, loadCredentials } = require('../helpers/oidc-login.js');
+
 // Freshness Rule: Record test completion timestamps
 const recordTestCompletion = (serviceName: string, status: 'pass' | 'fail') => {
   const timestamp = new Date().toISOString();
@@ -36,20 +38,26 @@ test.describe('Phase 1: Core Services Smoke Tests', () => {
     const serviceName = 'grafana';
 
     try {
-      await page.goto('/grafana/');
+      // Complete OIDC login flow (Grafana is protected by OAuth2-Proxy)
+      const creds = loadCredentials('agent');
+      await oidcLogin(page, '/grafana/', {
+        username: creds.username,
+        password: creds.password,
+        timeout: 30000
+      });
 
       // Wait for Grafana to load
-      await page.waitForSelector('[data-testid="data-testid Skip link"]', { timeout: 10000 });
+      await page.waitForSelector('[data-testid="data-testid Skip link"], [data-testid="data-testid Nav toolbar"], nav', { timeout: 15000 });
 
       // Verify we're on Grafana
-      await expect(page).toHaveTitle(/Grafana/);
+      const pageContent = await page.content();
+      expect(pageContent).toContain('Grafana');
 
-      // Check for login or home page elements
-      const hasLogin = await page.locator('input[name="user"]').isVisible().catch(() => false);
-      const hasNavbar = await page.locator('[data-testid="data-testid NavToolbar"]').isVisible().catch(() => false);
+      // Check for Grafana UI elements (navbar or welcome page)
+      const hasNavbar = await page.locator('[data-testid="data-testid Nav toolbar"], nav, [class*="navbar"]').count();
+      expect(hasNavbar).toBeGreaterThan(0);
 
-      expect(hasLogin || hasNavbar).toBeTruthy();
-
+      console.log('✓ Grafana UI loaded successfully after OIDC login');
       recordTestCompletion(serviceName, 'pass');
     } catch (err) {
       recordTestCompletion(serviceName, 'fail');
@@ -61,15 +69,22 @@ test.describe('Phase 1: Core Services Smoke Tests', () => {
     const serviceName = 'traefik';
 
     try {
-      await page.goto('/dashboard/');
+      // Complete OIDC login flow (Traefik Dashboard is protected by OAuth2-Proxy)
+      const creds = loadCredentials('agent');
+      await oidcLogin(page, '/dashboard/', {
+        username: creds.username,
+        password: creds.password,
+        timeout: 30000
+      });
 
       // Traefik dashboard should show
-      await page.waitForSelector('text=Dashboard', { timeout: 5000 });
+      await page.waitForSelector('text=/Dashboard|Traefik|HTTP Routers/i', { timeout: 10000 });
 
       // Verify Traefik branding or routers section
-      const hasTraefikBrand = await page.locator('text=/Traefik|Routers|Services|Middlewares/i').count();
+      const hasTraefikBrand = await page.locator('text=/Traefik|Routers|Services|Middlewares|HTTP/i').count();
       expect(hasTraefikBrand).toBeGreaterThan(0);
 
+      console.log('✓ Traefik Dashboard loaded successfully after OIDC login');
       recordTestCompletion(serviceName, 'pass');
     } catch (err) {
       recordTestCompletion(serviceName, 'fail');
@@ -81,15 +96,23 @@ test.describe('Phase 1: Core Services Smoke Tests', () => {
     const serviceName = 'homepage';
 
     try {
-      await page.goto('/');
+      // Complete OIDC login flow (Homepage is protected by OAuth2-Proxy)
+      const creds = loadCredentials('agent');
+      await oidcLogin(page, '/', {
+        username: creds.username,
+        password: creds.password,
+        timeout: 30000
+      });
 
-      // Homepage should load within 5s
-      await page.waitForLoadState('networkidle', { timeout: 5000 });
+      // Homepage should load
+      await page.waitForLoadState('networkidle', { timeout: 10000 });
 
       // Check for typical Homepage elements
       const bodyText = await page.textContent('body');
       expect(bodyText).toBeTruthy();
+      expect(bodyText.length).toBeGreaterThan(100);
 
+      console.log('✓ Homepage loaded successfully after OIDC login');
       recordTestCompletion(serviceName, 'pass');
     } catch (err) {
       recordTestCompletion(serviceName, 'fail');

@@ -30,7 +30,25 @@
         description: Alert routing and notification management
         container: alertmanager
 
+- Identity & Access:
+    - Dex:
+        icon: https://dexidp.io/img/logos/dex-glyph-color.png
+        href: https://stack.local/dex/.well-known/openid-configuration
+        description: OIDC provider for SSO
+        container: dex
+
+    - Mailpit:
+        icon: email
+        href: https://stack.local/mailpit/
+        description: Email testing interface
+        container: mailpit
+
 - Backend Services:
+    - OpenLDAP:
+        icon: ldap
+        description: LDAP user directory (internal only)
+        container: openldap
+
     - Loki:
         icon: loki
         description: Log aggregation system (API only)

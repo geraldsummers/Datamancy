@@ -1,68 +1,95 @@
 {
-  "last_updated": "2025-10-25T07:33:46Z",
+  "last_updated": "2025-10-25T10:25:06Z",
   "version": "1.0.0",
   "freshness_rule": "Service is 'functional' only when last passing test > last change",
   "services": {
     "alertmanager": {
       "status": "untested",
-      "last_change": 1761374235,
+      "last_change": 1761382341,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "e2ed27f",
+      "change_source": "365a7a0",
       "staleness_seconds": null
     }
 ,
     "browserless": {
-      "status": "needs_retest",
+      "status": "functional",
       "last_change": 1761373033,
-      "last_test": 1761368865,
+      "last_test": 1761386975,
       "last_test_result": "pass",
-      "change_source": "e2ed27f",
-      "staleness_seconds": 4168
+      "change_source": "365a7a0",
+      "staleness_seconds": -13942
+    }
+,
+    "dex": {
+      "status": "untested",
+      "last_change": 1761384803,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "365a7a0",
+      "staleness_seconds": null
     }
 ,
     "grafana": {
       "status": "test_failed",
-      "last_change": 1761372101,
-      "last_test": 1761377510,
+      "last_change": 1761384961,
+      "last_test": 1761387085,
       "last_test_result": "fail",
-      "change_source": "e2ed27f",
-      "staleness_seconds": -5409
+      "change_source": "365a7a0",
+      "staleness_seconds": -2124
     }
 ,
     "landing": {
       "status": "untested",
-      "last_change": 1761372101,
+      "last_change": 1761381801,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "e2ed27f",
+      "change_source": "365a7a0",
       "staleness_seconds": null
     }
 ,
     "loki": {
       "status": "untested",
-      "last_change": 1761374327,
+      "last_change": 1761384803,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "e2ed27f",
+      "change_source": "365a7a0",
+      "staleness_seconds": null
+    }
+,
+    "mailpit": {
+      "status": "untested",
+      "last_change": 1761384803,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "365a7a0",
+      "staleness_seconds": null
+    }
+,
+    "openldap": {
+      "status": "untested",
+      "last_change": 1761386632,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "365a7a0",
       "staleness_seconds": null
     }
 ,
     "prometheus": {
       "status": "untested",
-      "last_change": 1761374235,
+      "last_change": 1761384803,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "e2ed27f",
+      "change_source": "365a7a0",
       "staleness_seconds": null
     }
 ,
     "promtail": {
       "status": "untested",
-      "last_change": 1761373609,
+      "last_change": 1761384961,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "e2ed27f",
+      "change_source": "365a7a0",
       "staleness_seconds": null
     }
 

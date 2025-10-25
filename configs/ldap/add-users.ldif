@@ -1,0 +1,50 @@
+# Add organizational units and test users to LDAP directory
+
+dn: ou=people,dc=datamancy,dc=local
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=datamancy,dc=local
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=admin,ou=people,dc=datamancy,dc=local
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: admin
+cn: Admin User
+sn: User
+givenName: Admin
+mail: admin@datamancy.local
+uidNumber: 10000
+gidNumber: 10000
+homeDirectory: /home/admin
+loginShell: /bin/bash
+userPassword: {SSHA}MJRCh2kf/sy61zIEztHVPloNrJ6+llwr
+
+dn: uid=testuser,ou=people,dc=datamancy,dc=local
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: testuser
+cn: Test User
+sn: User
+givenName: Test
+mail: testuser@datamancy.local
+uidNumber: 10001
+gidNumber: 10001
+homeDirectory: /home/testuser
+loginShell: /bin/bash
+userPassword: {SSHA}MJRCh2kf/sy61zIEztHVPloNrJ6+llwr
+
+dn: cn=admins,ou=groups,dc=datamancy,dc=local
+objectClass: groupOfNames
+cn: admins
+member: uid=admin,ou=people,dc=datamancy,dc=local
+
+dn: cn=users,ou=groups,dc=datamancy,dc=local
+objectClass: groupOfNames
+cn: users
+member: uid=testuser,ou=people,dc=datamancy,dc=local
+member: uid=admin,ou=people,dc=datamancy,dc=local
