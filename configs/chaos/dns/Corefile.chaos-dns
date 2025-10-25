@@ -1,0 +1,33 @@
+# Chaos DNS Configuration - Returns NXDOMAIN for all *.test.local queries
+# Purpose: Test DNS failure detection in test-runner
+
+# Health endpoint (required for CoreDNS to start)
+.:8080 {
+    health
+}
+
+# test.local zone - Always return NXDOMAIN
+test.local:53 {
+    log
+    errors
+
+    # Return NXDOMAIN for all queries
+    template IN A test.local {
+        rcode NXDOMAIN
+    }
+}
+
+# svc.local zone - Forward normally (containers need internal comms)
+svc.local:53 {
+    log
+    errors
+    forward . 127.0.0.11
+}
+
+# Default - Forward upstream
+.:53 {
+    log
+    errors
+    forward . 1.1.1.1 1.0.0.1
+    cache 30
+}

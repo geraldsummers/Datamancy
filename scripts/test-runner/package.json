@@ -1,0 +1,11 @@
+{
+  "name": "datamancy-tests",
+  "version": "1.0.0",
+  "description": "Playwright-based integration tests for Datamancy",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.42.0"
+  }
+}

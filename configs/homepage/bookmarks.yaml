@@ -1,0 +1,10 @@
+---
+- Documentation:
+    - GitHub Repo:
+        - icon: github
+          href: https://github.com/anthropics/claude-code
+          description: Claude Code Documentation
+    - Playwright Docs:
+        - icon: playwright
+          href: https://playwright.dev
+          description: Test Framework

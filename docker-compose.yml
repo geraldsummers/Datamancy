@@ -1,0 +1,311 @@
+networks:
+  infra:
+    name: infra
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+  apps:
+    name: apps
+    driver: bridge
+  auth:
+    name: auth
+    driver: bridge
+
+volumes:
+  grafana-data:
+
+services:
+  # ============================================================================
+  # Phase 0: CA Generation (one-shot)
+  # ============================================================================
+  ca-gen:
+    image: alpine:3.19
+    volumes:
+      - ./certs:/certs
+      - ./scripts/generate-ca.sh:/generate-ca.sh:ro
+    entrypoint: ["/bin/sh", "/generate-ca.sh"]
+    environment:
+      - DOMAIN=test.local
+
+  # ============================================================================
+  # Phase 1: Core Infrastructure
+  # ============================================================================
+
+  # CoreDNS - Authoritative DNS for *.test.local and *.svc.local
+  # Internal-only DNS server on static IP 172.28.0.53
+  coredns:
+    image: coredns/coredns:1.11.1
+    container_name: coredns
+    networks:
+      infra:
+        ipv4_address: 172.28.0.53
+        aliases:
+          - coredns.svc.local
+    volumes:
+      - ./configs/coredns:/etc/coredns:ro
+    command: ["-conf", "/etc/coredns/Corefile"]
+    restart: unless-stopped
+
+  # Docker Socket Proxy - Least-privilege access to Docker API
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.1
+    container_name: docker-socket-proxy
+    networks:
+      - infra
+    volumes:
+      - /run/user/1000/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: 1
+      NETWORKS: 1
+      SERVICES: 1
+      TASKS: 1
+      INFO: 1  # Homepage needs system info
+      VERSION: 1  # Homepage needs Docker version
+    restart: unless-stopped
+
+  # Traefik - Reverse Proxy with TLS termination
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    networks:
+      infra:
+        ipv4_address: 172.28.0.5
+      apps:
+      auth:
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Dashboard (will be protected later)
+    volumes:
+      - ./configs/traefik:/etc/traefik:ro
+      - ./certs:/certs:ro
+    environment:
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+    dns:
+      - 172.28.0.53
+    dns_search:
+      - test.local
+      - svc.local
+    restart: unless-stopped
+    depends_on:
+      - coredns
+      - docker-socket-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.test.local`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
+  # Grafana - Observability UI
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    networks:
+      infra:
+        aliases:
+          - grafana.svc.local
+      apps:
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./configs/grafana:/etc/grafana/provisioning:ro
+      - ./certs/ca.crt:/etc/ssl/certs/test-ca.crt:ro
+    environment:
+      - GF_SERVER_DOMAIN=grafana.test.local
+      - GF_SERVER_ROOT_URL=https://grafana.test.local
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    dns:
+      - 172.28.0.53
+    restart: unless-stopped
+    depends_on:
+      - coredns
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.test.local`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.docker.network=apps"
+      - "homepage.group=Observability"
+      - "homepage.name=Grafana"
+      - "homepage.icon=grafana.png"
+      - "homepage.href=https://grafana.test.local"
+      - "homepage.description=Metrics and Dashboards"
+      - "homepage.server=my-docker"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Browserless - Headless browser for testing
+  browserless:
+    image: browserless/chrome:latest
+    container_name: browserless
+    networks:
+      infra:
+        aliases:
+          - browserless.svc.local
+    environment:
+      - MAX_CONCURRENT_SESSIONS=5
+      - MAX_QUEUE_LENGTH=10
+      - CONNECTION_TIMEOUT=60000
+      - PREBOOT_CHROME=true
+      - ENABLE_CORS=true
+      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/test-ca.crt
+    volumes:
+      - ./certs/ca.crt:/etc/ssl/certs/test-ca.crt:ro
+    dns:
+      - 172.28.0.53
+    restart: unless-stopped
+    depends_on:
+      - coredns
+    shm_size: 2gb
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN  # Required for Chrome sandbox
+    security_opt:
+      - seccomp=unconfined  # Required for Chrome
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Test Runner - Playwright-based integration tests
+  # Acts as external agent using host network (like a real user on localhost)
+  test-runner:
+    image: mcr.microsoft.com/playwright:v1.42.0-focal
+    container_name: test-runner
+    network_mode: "host"  # Access services via localhost:80/443 like external user
+    volumes:
+      - ./scripts/test-runner:/tests
+      - ./data/tests:/results
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/test-ca.crt:ro
+    environment:
+      - BROWSERLESS_URL=ws://localhost:3000  # Browserless exposed on host
+      - TEST_BASE_URL=https://grafana.test.local
+      - RESULTS_DIR=/results
+      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/test-ca.crt
+      - TEST_RUN_ID=test-${TEST_RUN_ID:-1}
+    # /etc/hosts on host must have: 127.0.0.1 grafana.test.local home.test.local
+    # Or use system DNS if test.local is configured
+    working_dir: /tests
+    entrypoint: ["/bin/bash", "-c", "update-ca-certificates 2>&1 && npm install 2>&1 && npx playwright test"]
+    # Note: depends_on doesn't work with network_mode: host
+    # Ensure services are up before running tests
+
+  # Homepage - Dashboard for all services
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    networks:
+      infra:
+        aliases:
+          - homepage.svc.local
+      apps:
+    volumes:
+      - ./configs/homepage:/app/config
+    environment:
+      - HOMEPAGE_VAR_TITLE=Datamancy
+      - HOMEPAGE_VAR_SEARCH_PROVIDER=duckduckgo
+      - HOMEPAGE_VAR_HEADER_STYLE=boxed
+      - HOMEPAGE_VAR_STATUS_STYLE=dot
+      - HOMEPAGE_ALLOWED_HOSTS=home.test.local,localhost,127.0.0.1,grafana.test.local
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+    dns:
+      - 172.28.0.53
+    dns_search:
+      - test.local
+      - svc.local
+    restart: unless-stopped
+    depends_on:
+      - coredns
+      - docker-socket-proxy
+    healthcheck:
+      test: ["CMD", "nc", "-zv", "127.0.0.1", "3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homepage.rule=Host(`home.test.local`)"
+      - "traefik.http.routers.homepage.entrypoints=websecure"
+      - "traefik.http.routers.homepage.tls=true"
+      - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+      - "traefik.docker.network=apps"
+      - "homepage.group=Infrastructure"
+      - "homepage.name=Homepage"
+      - "homepage.icon=homepage.png"
+      - "homepage.href=https://home.test.local"
+      - "homepage.description=Dashboard"
+
+  # ============================================================================
+  # Chaos Engineering - Failure Injection for Test Validation
+  # ============================================================================
+  # NOTE: Chaos services replace normal ones by using same container_name
+  # Start with --scale grafana=0 to avoid conflicts
+
+  # Chaos TLS - Serves self-signed cert (not from CA)
+  grafana-chaos-tls:
+    image: nginx:alpine
+    profiles: ["chaos-tls"]
+    container_name: grafana-chaos-tls
+    networks:
+      infra:
+        aliases:
+          - grafana.svc.local
+      apps:
+    volumes:
+      - ./configs/chaos/tls/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./configs/chaos/tls/selfsigned.crt:/etc/nginx/ssl/cert.crt:ro
+      - ./configs/chaos/tls/selfsigned.key:/etc/nginx/ssl/cert.key:ro
+    dns:
+      - 172.28.0.53
+    dns_search:
+      - test.local
+      - svc.local
+    restart: "no"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.test.local`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.services.grafana.loadbalancer.server.port=443"
+      - "traefik.http.services.grafana.loadbalancer.server.scheme=https"
+      - "traefik.docker.network=apps"
+
+  # Chaos Timeout - Delays service startup beyond readiness timeout
+  grafana-chaos-timeout:
+    image: grafana/grafana:10.4.0
+    profiles: ["chaos-timeout"]
+    container_name: grafana-chaos-timeout
+    networks:
+      infra:
+        aliases:
+          - grafana.svc.local
+      apps:
+    environment:
+      - GF_SERVER_DOMAIN=grafana.test.local
+      - GF_SERVER_ROOT_URL=https://grafana.test.local
+    dns:
+      - 172.28.0.53
+    dns_search:
+      - test.local
+      - svc.local
+    entrypoint: ["/bin/sh", "-c", "sleep 90 && /run.sh"]  # 90s delay
+    restart: "no"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.test.local`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.docker.network=apps"

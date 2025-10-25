@@ -2,7 +2,7 @@
 /.old/
 
 # Python virtual environment
-.venv/
+../.venv/
 __pycache__/
 *.py[cod]
 *$py.class
@@ -15,11 +15,6 @@ __pycache__/
 certs/*.key
 certs/*.crt
 certs/*.pem
-
-# Test results and artifacts
-data/tests/results/
-data/tests/artifacts/
-data/tests/screenshots/
 
 # Ephemeral runtime data (volumes)
 data/*/

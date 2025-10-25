@@ -1,0 +1,38 @@
+http:
+  routers:
+    grafana:
+      rule: "Host(`grafana.test.local`)"
+      service: grafana
+      entryPoints:
+        - websecure
+      tls: {}
+
+    homepage:
+      rule: "Host(`home.test.local`)"
+      service: homepage
+      entryPoints:
+        - websecure
+      tls: {}
+
+    traefik:
+      rule: "Host(`traefik.test.local`)"
+      service: traefik
+      entryPoints:
+        - websecure
+      tls: {}
+
+  services:
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana.svc.local:3000"
+
+    homepage:
+      loadBalancer:
+        servers:
+          - url: "http://homepage.svc.local:3000"
+
+    traefik:
+      loadBalancer:
+        servers:
+          - url: "http://traefik.svc.local:8080"

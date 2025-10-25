@@ -1,0 +1,50 @@
+# CoreDNS Corefile - Authoritative DNS for internal services
+# Provenance: Based on CoreDNS official examples + Docker Compose networking patterns
+# Sources:
+#   - https://coredns.io/manual/toc/#setups (official setup guide)
+#   - https://github.com/coredns/coredns/blob/master/Corefile.example
+#   - Docker DNS: https://docs.docker.com/config/containers/container-networking/#dns-services
+#
+# Purpose: Provide container-to-container and agent-to-service DNS resolution
+# for *.test.local (user-facing) and *.svc.local (internal service mesh)
+
+# Health endpoint for Prometheus scraping
+.:8080 {
+    health
+    prometheus
+}
+
+# test.local zone - User-facing services via Traefik ingress
+test.local:53 {
+    log
+    errors
+
+    # All *.test.local queries resolve to Traefik's infra network IP
+    # Traefik handles TLS termination and routing based on Host header
+    template IN A test.local {
+        match ".*\.test\.local\.$"
+        answer "{{ .Name }} 60 IN A 172.28.0.5"
+        fallthrough
+    }
+
+    # Optional: explicit records from zone file (template above handles all)
+    file /etc/coredns/db.test.local
+}
+
+# svc.local zone - Internal container-to-container discovery
+svc.local:53 {
+    log
+    errors
+
+    # Docker Compose creates network aliases like grafana.svc.local automatically
+    # Forward to Docker's embedded DNS resolver (always at 127.0.0.11 in containers)
+    forward . 127.0.0.11
+}
+
+# Default zone - Forward external queries to public DNS
+.:53 {
+    log
+    errors
+    forward . 1.1.1.1 1.0.0.1  # Cloudflare DNS
+    cache 30
+}

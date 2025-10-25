@@ -1,0 +1,3 @@
+---
+# Docker-discovered services appear automatically
+# No manual configuration needed - services read from container labels
