@@ -61,4 +61,10 @@ nav:
       - Caddy: spokes/caddy.md
       - Docker Socket Proxy: spokes/docker-socket-proxy.md
       - Docs Indexer: spokes/docs-indexer.md
+      - Grafana: spokes/grafana.md
+      - Prometheus: spokes/prometheus.md
+      - Loki: spokes/loki.md
+      - Promtail: spokes/promtail.md
+      - OpenLDAP: spokes/ldap.md
+      - Authelia: spokes/authelia.md
       - Spoke Template: spokes/_TEMPLATE.md

@@ -132,6 +132,10 @@ services:
     labels:
       caddy: grafana.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 3000}}"
+      caddy.forward_auth: "authelia:9091 {
+        uri /api/verify?rd=https://auth.stack.local/
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }"
     profiles:
       - observability
 
@@ -202,6 +206,10 @@ services:
     labels:
       caddy: prometheus.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 9090}}"
+      caddy.forward_auth: "authelia:9091 {
+        uri /api/verify?rd=https://auth.stack.local/
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }"
     profiles:
       - observability
 
