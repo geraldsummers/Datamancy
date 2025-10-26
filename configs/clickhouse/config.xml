@@ -1,8 +1,8 @@
 <!-- ClickHouse Configuration -->
 <!-- Provenance: Phase 4 - Datastores -->
 <clickhouse>
-    <!-- Listen on all interfaces -->
-    <listen_host>::</listen_host>
+    <!-- Listen on all interfaces (IPv4 only to avoid IPv6 binding issues) -->
+    <listen_host>0.0.0.0</listen_host>
 
     <!-- HTTP interface -->
     <http_port>8123</http_port>

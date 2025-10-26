@@ -67,4 +67,7 @@ nav:
       - Promtail: spokes/promtail.md
       - OpenLDAP: spokes/ldap.md
       - Authelia: spokes/authelia.md
+      - MariaDB: spokes/mariadb.md
+      - MongoDB: spokes/mongodb.md
+      - ClickHouse: spokes/clickhouse.md
       - Spoke Template: spokes/_TEMPLATE.md
