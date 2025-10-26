@@ -19,10 +19,13 @@ echo "$CADDY_IP prometheus.stack.local" >> /etc/hosts
 echo "$CADDY_IP loki.stack.local" >> /etc/hosts
 echo "$CADDY_IP auth.stack.local" >> /etc/hosts
 echo "$CADDY_IP clickhouse.stack.local" >> /etc/hosts
+echo "$CADDY_IP adminer.stack.local" >> /etc/hosts
+echo "$CADDY_IP mongo-express.stack.local" >> /etc/hosts
+echo "$CADDY_IP portainer.stack.local" >> /etc/hosts
 echo "$CADDY_IP stack.local" >> /etc/hosts
 
 echo "==> Hostname resolution configured"
-cat /etc/hosts | tail -6
+cat /etc/hosts | tail -9
 
 # Run tests
 npx playwright test "$@"
@@ -34,12 +37,12 @@ if [ $TEST_EXIT_CODE -eq 0 ]; then
   TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
 
   # Record for all tested services
-  for service in grafana prometheus loki authelia clickhouse; do
+  for service in grafana prometheus loki authelia clickhouse adminer mongo-express portainer; do
     mkdir -p /tests/artifacts/$service
     echo "{\"timestamp\": \"$TIMESTAMP\"}" > /tests/artifacts/$service/last_pass.json
   done
 
-  echo "✓ Test pass recorded for grafana, prometheus, loki, authelia, clickhouse"
+  echo "✓ Test pass recorded for all services"
 fi
 
 exit $TEST_EXIT_CODE
