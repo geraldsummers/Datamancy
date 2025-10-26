@@ -20,6 +20,8 @@ volumes:
   caddy_data:
   caddy_config:
   grafana_data:
+  prometheus_data:
+  loki_data:
 
 services:
   # --- Docker Socket Proxy (least privilege) ---
@@ -173,5 +175,64 @@ services:
       GRAFANA_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
       NODE_EXTRA_CA_CERTS: /usr/local/share/ca-certificates/datamancy-ca.crt
     # Note: Hostname resolution handled by entrypoint.sh dynamically
+    profiles:
+      - observability
+
+  # --- Prometheus (metrics collection) ---
+  # Provenance: Phase 2 - observability metrics
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - prometheus_data:/prometheus
+      - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    labels:
+      caddy: prometheus.${STACK_HOST:-stack.local}
+      caddy.reverse_proxy: "{{upstreams 9090}}"
+    profiles:
+      - observability
+
+  # --- Loki (log aggregation) ---
+  # Provenance: Phase 2 - observability logs
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: loki
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - loki_data:/loki
+      - ./configs/loki/loki.yml:/etc/loki/loki.yml:ro
+    command: -config.file=/etc/loki/loki.yml
+    labels:
+      caddy: loki.${STACK_HOST:-stack.local}
+      caddy.reverse_proxy: "{{upstreams 3100}}"
+    profiles:
+      - observability
+
+  # --- Promtail (log collector with docker_sd) ---
+  # Provenance: Phase 2 - docker service discovery log collection
+  promtail:
+    image: grafana/promtail:3.2.1
+    container_name: promtail
+    restart: unless-stopped
+    networks:
+      - backend
+      - socket
+    volumes:
+      - ./configs/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/log:/var/log:ro
+      - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/promtail.yml
     profiles:
       - observability
