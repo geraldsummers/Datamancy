@@ -60,6 +60,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "2019:2019"  # Admin API for metrics
     networks:
       - frontend
       - backend
@@ -72,6 +73,7 @@ services:
     environment:
       CADDY_DOCKER_CADDYFILE_PATH: /etc/caddy/Caddyfile
       CADDY_DOCKER_LABEL_PREFIX: caddy
+      CADDY_ADMIN: "0.0.0.0:2019"  # Enable admin API
     labels:
       caddy: "*.${STACK_HOST:-stack.local}"
       caddy.tls: "/certs/wildcard.crt /certs/wildcard.key"
@@ -136,10 +138,6 @@ services:
     labels:
       caddy: grafana.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 3000}}"
-      caddy.forward_auth: "authelia:9091 {
-        uri /api/verify?rd=https://auth.stack.local/
-        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }"
     profiles:
       - observability
 
@@ -210,10 +208,6 @@ services:
     labels:
       caddy: prometheus.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 9090}}"
-      caddy.forward_auth: "authelia:9091 {
-        uri /api/verify?rd=https://auth.stack.local/
-        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }"
     profiles:
       - observability
 
@@ -232,10 +226,6 @@ services:
     labels:
       caddy: loki.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 3100}}"
-      caddy.forward_auth: "authelia:9091 {
-        uri /api/verify?rd=https://auth.stack.local/
-        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }"
     profiles:
       - observability
 
@@ -364,10 +354,6 @@ services:
     labels:
       caddy: clickhouse.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 8123}}"
-      caddy.forward_auth: "authelia:9091 {
-        uri /api/verify?rd=https://auth.stack.local/
-        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }"
     profiles:
       - datastores
 
@@ -386,10 +372,6 @@ services:
     labels:
       caddy: adminer.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 8080}}"
-      caddy.forward_auth: "authelia:9091 {
-        uri /api/verify?rd=https://auth.stack.local/
-        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }"
     profiles:
       - management
 
@@ -414,10 +396,6 @@ services:
     labels:
       caddy: mongo-express.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 8081}}"
-      caddy.forward_auth: "authelia:9091 {
-        uri /api/verify?rd=https://auth.stack.local/
-        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }"
     profiles:
       - management
 
@@ -436,9 +414,5 @@ services:
     labels:
       caddy: portainer.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 9000}}"
-      caddy.forward_auth: "authelia:9091 {
-        uri /api/verify?rd=https://auth.stack.local/
-        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }"
     profiles:
       - management
