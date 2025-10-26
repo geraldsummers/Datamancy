@@ -1,35 +1,31 @@
-# Benthos Data Pipeline Configuration
-# Provenance: Phase 4 - Data Plumbing
+# Benthos Configuration
+# Provenance: Phase 8 - Data Integration Layer
+# Purpose: Data streaming and transformation pipeline
 
 http:
   enabled: true
   address: 0.0.0.0:4195
-  root_path: /benthos
-  debug_endpoints: false
+  debug_endpoints: true
 
-# Example pipeline: Pass-through (no-op for now)
 input:
-  stdin: {}
+  label: "generate_input"
+  generate:
+    mapping: 'root = ""'
+    interval: 1h
+    count: 0
 
 pipeline:
+  threads: 1
   processors: []
 
 output:
-  stdout: {}
+  label: "drop_output"
+  drop: {}
 
-# Metrics
 metrics:
-  prometheus:
-    use_histogram_timing: false
-    histogram_buckets: []
-    push_url: ""
-    push_interval: ""
-    push_job_name: benthos_push
+  prometheus: {}
 
-# Logging
 logger:
   level: INFO
   format: json
   add_timestamp: true
-  timestamp_name: time
-  message_name: msg

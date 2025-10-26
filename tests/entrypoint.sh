@@ -29,10 +29,15 @@ echo "$CADDY_IP nextcloud.stack.local" >> /etc/hosts
 echo "$CADDY_IP vault.stack.local" >> /etc/hosts
 echo "$CADDY_IP paperless.stack.local" >> /etc/hosts
 echo "$CADDY_IP pdf.stack.local" >> /etc/hosts
+echo "$CADDY_IP planka.stack.local" >> /etc/hosts
+echo "$CADDY_IP wiki.stack.local" >> /etc/hosts
+echo "$CADDY_IP jellyfin.stack.local" >> /etc/hosts
+echo "$CADDY_IP home.stack.local" >> /etc/hosts
+echo "$CADDY_IP benthos.stack.local" >> /etc/hosts
 echo "$CADDY_IP stack.local" >> /etc/hosts
 
 echo "==> Hostname resolution configured"
-cat /etc/hosts | tail -16
+cat /etc/hosts | tail -21
 
 # Run tests
 npx playwright test "$@"
@@ -43,8 +48,8 @@ if [ $TEST_EXIT_CODE -eq 0 ]; then
   echo "==> Recording test pass timestamps"
   TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
 
-  # Record for all tested services (including Phase 0.5 tooling, Phase 4-5, and Phase 7 additions)
-  for service in caddy grafana prometheus loki promtail authelia ldap mariadb mongodb clickhouse adminer mongo-express portainer docs-indexer mkdocs localai librechat kopia nextcloud vaultwarden paperless redis stirling-pdf; do
+  # Record for all tested services (including Phase 0.5 tooling, Phase 4-5, Phase 7, and Phase 8 additions)
+  for service in caddy grafana prometheus loki promtail authelia ldap mariadb mongodb clickhouse adminer mongo-express portainer docs-indexer mkdocs localai librechat kopia nextcloud vaultwarden paperless redis stirling-pdf planka outline jellyfin homeassistant benthos watchtower; do
     mkdir -p /tests/artifacts/$service
     echo "{\"timestamp\": \"$TIMESTAMP\"}" > /tests/artifacts/$service/last_pass.json
   done

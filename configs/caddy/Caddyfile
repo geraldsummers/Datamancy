@@ -157,9 +157,47 @@ pdf.stack.local {
 	reverse_proxy stirling-pdf:8080
 }
 
+# Phase 8: Extended Apps and Services
+planka.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy planka:3000
+}
+
+wiki.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy outline:3000
+}
+
+jellyfin.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy jellyfin:8096
+}
+
+home.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy homeassistant:8123
+
+	# WebSocket support for Home Assistant
+	@websocket {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @websocket homeassistant:8123
+}
+
+benthos.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy benthos:4195
+}
+
 # Stack root
 stack.local {
 	import tls_config
 	import security_headers
-	respond "Datamancy Stack - Phase 7: Apps Layer (Apps: Nextcloud, Vaultwarden, Paperless, Stirling-PDF)" 200
+	respond "Datamancy Stack - Phase 8 Complete: Full Application Suite" 200
 }

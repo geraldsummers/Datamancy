@@ -39,6 +39,16 @@ volumes:
   redis_data:
   stirling_data:
   stirling_logs:
+  benthos_data:
+  jellyfin_config:
+  jellyfin_cache:
+  jellyfin_media:
+  homeassistant_config:
+  planka_postgres_data:
+  planka_attachments:
+  outline_postgres_data:
+  outline_redis_data:
+  outline_storage:
 
 services:
 
@@ -757,5 +767,216 @@ services:
       UI_APPNAME: "Stirling PDF"
       UI_HOMEDESCRIPTION: "PDF manipulation toolbox"
     # Phase 6: No security hardening due to image design requirements
+    profiles:
+      - apps
+
+  # --- Benthos (Data streaming platform) ---
+  # Provenance: Phase 8 - Data Integration Layer
+  # Phase 6: Runs as benthos user (non-root)
+  benthos:
+    image: ghcr.io/redpanda-data/connect:latest
+    container_name: benthos
+    restart: unless-stopped
+    user: "1000"
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - benthos_data:/benthos
+      - ./configs/benthos:/benthos/config:ro
+    command: -c /benthos/config/benthos.yaml
+    cap_drop:
+      - ALL
+    profiles:
+      - tools
+
+  # --- Jellyfin (Media server) ---
+  # Provenance: Phase 8 - Media Layer
+  # Note: Runs as root (required for hardware transcoding and device access)
+  jellyfin:
+    image: jellyfin/jellyfin:10.10.3
+    container_name: jellyfin
+    restart: unless-stopped
+    networks:
+      - frontend
+    volumes:
+      - jellyfin_config:/config
+      - jellyfin_cache:/cache
+      - jellyfin_media:/media
+      - ./data/jellyfin/media:/media/library:ro
+    environment:
+      JELLYFIN_PublishedServerUrl: https://jellyfin.stack.local
+    # Phase 6: No security hardening due to media transcoding requirements
+    profiles:
+      - media
+
+  # --- Home Assistant (Home automation platform) ---
+  # Provenance: Phase 8 - Home Automation Layer
+  # Note: Runs as root (required for device access and network operations)
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2024.10.4
+    container_name: homeassistant
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - homeassistant_config:/config
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      TZ: UTC
+    # Phase 6: No security hardening due to IoT device access requirements
+    privileged: true
+    profiles:
+      - automation
+
+  # --- Watchtower (Automatic container updates) ---
+  # Provenance: Phase 8 - Maintenance Layer
+  # Note: Runs as root (required for Docker socket access)
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: watchtower
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
+      WATCHTOWER_SCHEDULE: "0 0 4 * * *"  # 4 AM daily (cron format)
+      WATCHTOWER_NOTIFICATIONS: "shoutrrr"
+      WATCHTOWER_NOTIFICATION_URL: ${WATCHTOWER_NOTIFICATION_URL:-}
+    # Phase 6: No security hardening due to Docker socket requirement
+    profiles:
+      - maintenance
+
+  # --- PostgreSQL (Database for Planka) ---
+  # Provenance: Phase 8 - Apps Layer dependency
+  planka-postgres:
+    image: postgres:17-alpine
+    container_name: planka-postgres
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - planka_postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${PLANKA_DB:-planka}
+      POSTGRES_USER: ${PLANKA_DB_USER:-planka}
+      POSTGRES_PASSWORD: ${PLANKA_DB_PASSWORD:-planka_password_change_me}
+    profiles:
+      - apps
+
+  # --- Planka (Kanban board / Project management) ---
+  # Provenance: Phase 8 - Apps Layer
+  # Phase 6: Runs as node user (1000) for security
+  planka:
+    image: ghcr.io/plankanban/planka:1.24.1
+    container_name: planka
+    restart: unless-stopped
+    user: "1000"
+    depends_on:
+      - planka-postgres
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - planka_attachments:/app/public/user-avatars
+      - planka_attachments:/app/public/project-background-images
+      - planka_attachments:/app/private/attachments
+    environment:
+      BASE_URL: https://planka.stack.local
+      DATABASE_URL: postgresql://${PLANKA_DB_USER:-planka}:${PLANKA_DB_PASSWORD:-planka_password_change_me}@planka-postgres/${PLANKA_DB:-planka}
+      SECRET_KEY: ${PLANKA_SECRET_KEY:-change_me_secret_key_min_32_chars}
+      DEFAULT_ADMIN_EMAIL: ${PLANKA_ADMIN_EMAIL:-admin@stack.local}
+      DEFAULT_ADMIN_PASSWORD: ${PLANKA_ADMIN_PASSWORD:-admin_password_change_me}
+      DEFAULT_ADMIN_NAME: ${PLANKA_ADMIN_NAME:-Admin}
+      DEFAULT_ADMIN_USERNAME: ${PLANKA_ADMIN_USERNAME:-admin}
+      TRUST_PROXY: "1"
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    profiles:
+      - apps
+
+  # --- PostgreSQL (Database for Outline) ---
+  # Provenance: Phase 8 - Apps Layer dependency
+  outline-postgres:
+    image: postgres:17-alpine
+    container_name: outline-postgres
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - outline_postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${OUTLINE_DB:-outline}
+      POSTGRES_USER: ${OUTLINE_DB_USER:-outline}
+      POSTGRES_PASSWORD: ${OUTLINE_DB_PASSWORD:-outline_password_change_me}
+    profiles:
+      - apps
+
+  # --- Redis (Cache for Outline) ---
+  # Provenance: Phase 8 - Apps Layer dependency
+  # Phase 6: Runs as redis user (999) for security
+  outline-redis:
+    image: redis:7.4-alpine
+    container_name: outline-redis
+    restart: unless-stopped
+    user: "999"
+    networks:
+      - backend
+    volumes:
+      - outline_redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+    profiles:
+      - apps
+
+  # --- Outline (Wiki / Knowledge base) ---
+  # Provenance: Phase 8 - Apps Layer
+  # Note: Runs as node user (1001) for security
+  outline:
+    image: outlinewiki/outline:0.81.0
+    container_name: outline
+    restart: unless-stopped
+    user: "1001"
+    depends_on:
+      - outline-postgres
+      - outline-redis
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - outline_storage:/var/lib/outline/data
+    environment:
+      NODE_ENV: production
+      SECRET_KEY: ${OUTLINE_SECRET_KEY:-change_me_secret_key_min_32_chars}
+      UTILS_SECRET: ${OUTLINE_UTILS_SECRET:-change_me_utils_secret_min_32_chars}
+      DATABASE_URL: postgres://${OUTLINE_DB_USER:-outline}:${OUTLINE_DB_PASSWORD:-outline_password_change_me}@outline-postgres:5432/${OUTLINE_DB:-outline}
+      PGSSLMODE: disable
+      REDIS_URL: redis://outline-redis:6379
+      URL: https://wiki.stack.local
+      PORT: 3000
+      FILE_STORAGE: local
+      FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
+      FILE_STORAGE_UPLOAD_MAX_SIZE: 26214400
+      ENABLE_UPDATES: "false"
+      # Authentication - can be extended with OIDC later
+      FORCE_HTTPS: "false"  # Caddy handles HTTPS
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
     profiles:
       - apps
