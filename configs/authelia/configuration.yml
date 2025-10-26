@@ -1,0 +1,87 @@
+# Authelia Configuration
+# Provenance: Phase 3 - Access Control with LDAP backend
+
+server:
+  host: 0.0.0.0
+  port: 9091
+  path: ""
+  read_buffer_size: 4096
+  write_buffer_size: 4096
+
+log:
+  level: info
+  format: text
+
+theme: light
+
+jwt_secret: a_very_important_secret_change_in_production
+
+default_redirection_url: https://stack.local
+
+totp:
+  issuer: datamancy.local
+  period: 30
+  skew: 1
+
+authentication_backend:
+  password_reset:
+    disable: false
+  refresh_interval: 5m
+  ldap:
+    implementation: custom
+    url: ldap://ldap:389
+    timeout: 5s
+    start_tls: false
+    base_dn: dc=datamancy,dc=local
+    username_attribute: uid
+    additional_users_dn: ou=users
+    users_filter: (&({username_attribute}={input})(objectClass=inetOrgPerson))
+    additional_groups_dn: ou=groups
+    groups_filter: (&(uniqueMember={dn})(objectClass=groupOfUniqueNames))
+    group_name_attribute: cn
+    mail_attribute: mail
+    display_name_attribute: displayName
+    user: uid=authelia,ou=users,dc=datamancy,dc=local
+    password: authelia_password_change_me
+
+access_control:
+  default_policy: deny
+  rules:
+    # Admin access to everything
+    - domain: "*.stack.local"
+      policy: two_factor
+      subject:
+        - "group:admins"
+
+    # Viewer access to Grafana only
+    - domain: "grafana.stack.local"
+      policy: one_factor
+      subject:
+        - "group:viewers"
+
+    # Public access to Authelia portal itself
+    - domain: "auth.stack.local"
+      policy: bypass
+
+session:
+  name: authelia_session
+  secret: unsecure_session_secret_change_in_production
+  expiration: 1h
+  inactivity: 5m
+  remember_me_duration: 1M
+  domain: stack.local
+
+regulation:
+  max_retries: 3
+  find_time: 2m
+  ban_time: 5m
+
+storage:
+  encryption_key: you_must_generate_a_random_string_of_more_than_twenty_chars_and_configure_this
+  local:
+    path: /config/db.sqlite3
+
+notifier:
+  disable_startup_check: true
+  filesystem:
+    filename: /config/notification.txt

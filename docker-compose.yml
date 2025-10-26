@@ -22,6 +22,9 @@ volumes:
   grafana_data:
   prometheus_data:
   loki_data:
+  ldap_data:
+  ldap_config:
+  authelia_data:
 
 services:
   # --- Docker Socket Proxy (least privilege) ---
@@ -236,3 +239,48 @@ services:
     command: -config.file=/etc/promtail/promtail.yml
     profiles:
       - observability
+
+  # --- OpenLDAP (user directory) ---
+  # Provenance: Phase 3 - Access Control
+  ldap:
+    image: osixia/openldap:1.5.0
+    container_name: ldap
+    restart: unless-stopped
+    networks:
+      - backend
+    environment:
+      LDAP_ORGANISATION: "Datamancy"
+      LDAP_DOMAIN: "datamancy.local"
+      LDAP_ADMIN_PASSWORD: "admin_password_change_me"
+      LDAP_CONFIG_PASSWORD: "config_password_change_me"
+      LDAP_RFC2307BIS_SCHEMA: "true"
+      LDAP_REMOVE_CONFIG_AFTER_SETUP: "true"
+      LDAP_TLS: "false"
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+      - ./configs/ldap:/container/service/slapd/assets/config/bootstrap/ldif/custom:ro
+    command: --copy-service --loglevel info
+    profiles:
+      - auth
+
+  # --- Authelia (SSO & authentication portal) ---
+  # Provenance: Phase 3 - Access Control
+  authelia:
+    image: authelia/authelia:4.38
+    container_name: authelia
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - authelia_data:/config
+      - ./configs/authelia:/config/authelia:ro
+    environment:
+      TZ: UTC
+    command: --config /config/authelia/configuration.yml
+    labels:
+      caddy: auth.${STACK_HOST:-stack.local}
+      caddy.reverse_proxy: "{{upstreams 9091}}"
+    profiles:
+      - auth

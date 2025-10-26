@@ -1,0 +1,36 @@
+# Bootstrap LDIF for Datamancy LDAP
+# Provenance: Phase 3 - Access Control
+# Creates organizational units and initial admin user
+
+# Base organization
+dn: dc=datamancy,dc=local
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: Datamancy
+dc: datamancy
+
+# Organizational Units
+dn: ou=users,dc=datamancy,dc=local
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,dc=datamancy,dc=local
+objectClass: organizationalUnit
+ou: groups
+
+# Admin user
+dn: cn=admin,dc=datamancy,dc=local
+objectClass: simpleSecurityObject
+objectClass: organizationalRole
+cn: admin
+userPassword: {SSHA}AdminPasswordWillBeSetViaEnvironment
+description: LDAP administrator
+
+# Service account for Authelia
+dn: cn=authelia,ou=users,dc=datamancy,dc=local
+objectClass: simpleSecurityObject
+objectClass: organizationalRole
+cn: authelia
+userPassword: {SSHA}ServiceAccountPassword
+description: Authelia service account for LDAP queries

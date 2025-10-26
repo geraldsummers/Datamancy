@@ -1,0 +1,46 @@
+# Test Users for Datamancy
+# Provenance: Phase 3 - Access Control
+
+# Test user 1: admin
+dn: uid=admin,ou=users,dc=datamancy,dc=local
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: admin
+cn: Admin User
+sn: User
+givenName: Admin
+mail: admin@datamancy.local
+userPassword: {SSHA}changeme
+uidNumber: 10000
+gidNumber: 10000
+homeDirectory: /home/admin
+loginShell: /bin/bash
+
+# Test user 2: viewer
+dn: uid=viewer,ou=users,dc=datamancy,dc=local
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: viewer
+cn: Viewer User
+sn: User
+givenName: Viewer
+mail: viewer@datamancy.local
+userPassword: {SSHA}changeme
+uidNumber: 10001
+gidNumber: 10001
+homeDirectory: /home/viewer
+loginShell: /bin/bash
+
+# Admin group
+dn: cn=admins,ou=groups,dc=datamancy,dc=local
+objectClass: groupOfUniqueNames
+cn: admins
+uniqueMember: uid=admin,ou=users,dc=datamancy,dc=local
+
+# Viewers group
+dn: cn=viewers,ou=groups,dc=datamancy,dc=local
+objectClass: groupOfUniqueNames
+cn: viewers
+uniqueMember: uid=viewer,ou=users,dc=datamancy,dc=local
