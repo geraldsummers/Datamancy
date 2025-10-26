@@ -148,3 +148,6 @@ docker exec -i mariadb mariadb -u root -proot_password_change_me datamancy < bac
 
 **Last updated:** 2025-10-26
 **Last change fingerprint:** TBD
+
+**Update 2025-10-26:** Added automated test coverage. Service verified functional via integration tests.
+

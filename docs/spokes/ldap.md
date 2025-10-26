@@ -188,3 +188,6 @@ docker exec ldap ldapmodify -x -H ldap://localhost -D "cn=admin,dc=datamancy,dc=
 
 **Last updated:** 2025-10-26
 **Last change fingerprint:** TBD
+
+**Update 2025-10-26:** Added automated test coverage. Service verified functional via integration tests.
+

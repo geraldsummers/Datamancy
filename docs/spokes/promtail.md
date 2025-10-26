@@ -118,3 +118,6 @@ No manual configuration needed when adding new services to docker-compose.yml!
 
 **Last updated:** 2025-10-26
 **Last change fingerprint:** TBD (run docs-indexer)
+
+**Update 2025-10-26:** Added automated test coverage. Service verified functional via integration tests.
+

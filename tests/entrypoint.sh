@@ -37,7 +37,7 @@ if [ $TEST_EXIT_CODE -eq 0 ]; then
   TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
 
   # Record for all tested services
-  for service in grafana prometheus loki authelia clickhouse adminer mongo-express portainer; do
+  for service in caddy grafana prometheus loki promtail authelia ldap mariadb mongodb clickhouse adminer mongo-express portainer; do
     mkdir -p /tests/artifacts/$service
     echo "{\"timestamp\": \"$TIMESTAMP\"}" > /tests/artifacts/$service/last_pass.json
   done
