@@ -101,16 +101,23 @@ Container runs to completion, output visible in terminal. Artifacts saved to `da
 ### Test Pass Recording
 
 Format: `{"timestamp": "YYYY-MM-DDTHH:MM:SS+00:00"}`
-Location: `data/tests/grafana/last_pass.json`
+Location: `data/tests/{service}/last_pass.json`
 Read by: docs-indexer to determine functional status
+
+Currently records timestamps for 13 tested services:
+- caddy, grafana, prometheus, loki, promtail
+- authelia, ldap
+- mariadb, mongodb, clickhouse
+- adminer, mongo-express, portainer
 
 ## Related
 
-- Tested services: [Grafana](grafana.md)
-- Dependencies: [Caddy](caddy.md)
+- Tested services: All Phase 0-5 services (40 tests across 8 spec files)
+- Dependencies: [Caddy](caddy.md), [Browserless](browserless.md) (optional)
 - Upstream docs: https://playwright.dev/
 
 ---
 
+**Update 2025-10-26:** Expanded test coverage from 26 to 40 tests. Added Phase 0 (Caddy), Phase 2 (Promtail), Phase 3 (LDAP), and Phase 4 (MariaDB/MongoDB) tests. All 40 tests passing. Test artifacts now recorded for 13 services.
+
 **Last updated:** 2025-10-26
-**Last change fingerprint:** 0d5eb592ac6a3179

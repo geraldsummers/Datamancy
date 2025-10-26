@@ -91,3 +91,5 @@ const browser = await chromium.connect({
 ## Provenance
 
 Added Phase 1 as foundation for agent-driven browser testing. Enables autonomous functional validation without manual browser interaction. Custom CA trust critical for testing internal `*.stack.local` services with self-signed certificates. Puppeteer 21.4.1 chosen for Playwright compatibility.
+
+**Update 2025-10-26:** Service operational and integrated with test-runner. Currently backend-only (no edge exposure). Test coverage to be added for Browserless API availability checks.

@@ -81,16 +81,31 @@ cat docs/_data/status.json | jq '.'
 ## Testing
 
 **Smoke test:** Run indexer; verify `status.json` generated with all services present.
-**Last pass:** 2025-10-26 (Phase 0.5 implementation)
+**Last pass:** 2025-10-26 (Phase 0-5 tracking active)
 **Artifacts:** `docs/_data/status.json`
+
+## Current Status Tracking
+
+As of 2025-10-26:
+- **17 services tracked**
+- **13 services with test coverage** (caddy, grafana, prometheus, loki, promtail, authelia, ldap, mariadb, mongodb, clickhouse, adminer, mongo-express, portainer)
+- **13 services functional** (tested + documented)
+- **4 services untested** (browserless, test-runner, docs-indexer, mkdocs)
+
+Status breakdown:
+- `functional`: last_test_pass > last_change AND spoke_updated >= last_change
+- `stale`: last_test_pass > last_change BUT spoke_updated < last_change
+- `untested`: no last_test_pass
+- `undocumented`: no Spoke file
 
 ## Related
 
 - **ADR:** [ADR-001: Freshness Rules + Fingerprints](../adr/ADR-001-freshness-fingerprints.md)
-- **CI:** `.github/workflows/freshness-check.yml`
-- **Next phase:** Phase 1 browser tests will write `data/tests/<service>/last_pass.json`
+- **CI:** `.github/workflows/freshness-check.yml` (placeholder)
+- **Consumers:** MkDocs site, landing page badges
 
 ---
 
+**Update 2025-10-26:** Successfully tracking 13 functional services across Phases 0-5. Freshness automation working as designed. All test artifacts properly consumed from `data/tests/{service}/last_pass.json`. Git commit times correctly parsed for Spoke documentation timestamps.
+
 **Last updated:** 2025-10-26
-**Last change fingerprint:** `658f49f4ed69e572`
