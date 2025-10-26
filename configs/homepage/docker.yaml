@@ -1,7 +1,0 @@
-# Homepage Docker Integration
-# Provenance: https://gethomepage.dev/latest/configs/docker/
-# Uses socket-proxy for secure Docker API access
-
-my-docker:
-  host: socket-proxy
-  port: 2375
