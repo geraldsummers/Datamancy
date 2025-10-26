@@ -80,3 +80,6 @@ Docker management UI for container orchestration, image management, network conf
 ## Provenance
 
 Added Phase 5 for visual Docker management. Complements CLI workflow for exploration, troubleshooting, and learning. Read-only socket access maintains security posture while enabling observation and safe operations.
+
+**Update 2025-10-26:** Migrated from caddy-docker-proxy labels to static Caddyfile routing. Service route configured in `configs/caddy/Caddyfile`.
+

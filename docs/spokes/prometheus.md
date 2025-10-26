@@ -103,3 +103,6 @@ caddy_http_requests_total
 
 **Last updated:** 2025-10-26
 **Last change fingerprint:** TBD (run docs-indexer)
+
+**Update 2025-10-26:** Migrated from caddy-docker-proxy labels to static Caddyfile routing. Service route configured in `configs/caddy/Caddyfile`.
+

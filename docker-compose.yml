@@ -5,16 +5,12 @@
 # Networks:
 #   - frontend: Public-facing services (Caddy, exposed UIs)
 #   - backend: Internal services (metrics, logs, datastores)
-#   - socket: Restricted Docker socket access
 
 networks:
   frontend:
     name: datamancy_frontend
   backend:
     name: datamancy_backend
-  socket:
-    name: datamancy_socket
-    internal: true
 
 volumes:
   caddy_data:
@@ -31,30 +27,11 @@ volumes:
   portainer_data:
 
 services:
-  # --- Docker Socket Proxy (least privilege) ---
-  # Provenance: Caddy needs container discovery; restrict socket access
-  docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:0.1.2
-    container_name: docker-socket-proxy
-    restart: unless-stopped
-    networks:
-      - socket
-    volumes:
-      - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro
-    environment:
-      # Only allow read operations needed by caddy-docker-proxy
-      CONTAINERS: 1
-      NETWORKS: 1
-      SERVICES: 0
-      TASKS: 0
-      POST: 0
-    profiles:
-      - core
 
   # --- Caddy Reverse Proxy (front door) ---
-  # Provenance: Multi-hostname *.stack.local, automatic label-based routing
+  # Provenance: Multi-hostname *.stack.local, static Caddyfile (vanilla, no plugins)
   caddy:
-    image: lucaslorentz/caddy-docker-proxy:2.9
+    image: caddy:2.9-alpine
     container_name: caddy
     restart: unless-stopped
     ports:
@@ -64,19 +41,11 @@ services:
     networks:
       - frontend
       - backend
-      - socket
     volumes:
-      - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro  # Label discovery
       - caddy_data:/data
       - caddy_config:/config
       - ./certs:/certs:ro
-    environment:
-      CADDY_DOCKER_CADDYFILE_PATH: /etc/caddy/Caddyfile
-      CADDY_DOCKER_LABEL_PREFIX: caddy
-      CADDY_ADMIN: "0.0.0.0:2019"  # Enable admin API
-    labels:
-      caddy: "*.${STACK_HOST:-stack.local}"
-      caddy.tls: "/certs/wildcard.crt /certs/wildcard.key"
+      - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     profiles:
       - core
 
@@ -135,9 +104,6 @@ services:
       GF_SERVER_DOMAIN: ${GF_SERVER_DOMAIN}
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
-    labels:
-      caddy: grafana.${STACK_HOST:-stack.local}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
     profiles:
       - observability
 
@@ -157,9 +123,6 @@ services:
       PREBOOT_CHROME: "true"
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/datamancy-ca.crt:ro
-    labels:
-      caddy: browserless.${STACK_HOST:-stack.local}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
     profiles:
       - observability
 
@@ -205,9 +168,6 @@ services:
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
-    labels:
-      caddy: prometheus.${STACK_HOST:-stack.local}
-      caddy.reverse_proxy: "{{upstreams 9090}}"
     profiles:
       - observability
 
@@ -223,9 +183,6 @@ services:
       - loki_data:/loki
       - ./configs/loki/loki.yml:/etc/loki/loki.yml:ro
     command: -config.file=/etc/loki/loki.yml
-    labels:
-      caddy: loki.${STACK_HOST:-stack.local}
-      caddy.reverse_proxy: "{{upstreams 3100}}"
     profiles:
       - observability
 
@@ -237,7 +194,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-      - socket
     volumes:
       - ./configs/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
       - /var/log:/var/log:ro
@@ -285,9 +241,6 @@ services:
     environment:
       TZ: UTC
     command: --config /config/authelia/configuration.yml
-    labels:
-      caddy: auth.${STACK_HOST:-stack.local}
-      caddy.reverse_proxy: "{{upstreams 9091}}"
     profiles:
       - auth
 
@@ -351,9 +304,6 @@ services:
       nofile:
         soft: 262144
         hard: 262144
-    labels:
-      caddy: clickhouse.${STACK_HOST:-stack.local}
-      caddy.reverse_proxy: "{{upstreams 8123}}"
     profiles:
       - datastores
 
@@ -369,9 +319,6 @@ services:
     environment:
       ADMINER_DEFAULT_SERVER: mariadb
       ADMINER_DESIGN: dracula
-    labels:
-      caddy: adminer.${STACK_HOST:-stack.local}
-      caddy.reverse_proxy: "{{upstreams 8080}}"
     profiles:
       - management
 
@@ -393,9 +340,6 @@ services:
       ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:-admin_password_change_me}
       ME_CONFIG_SITE_BASEURL: /
       ME_CONFIG_MONGODB_URL: mongodb://root:root_password_change_me@mongodb:27017/
-    labels:
-      caddy: mongo-express.${STACK_HOST:-stack.local}
-      caddy.reverse_proxy: "{{upstreams 8081}}"
     profiles:
       - management
 
@@ -407,12 +351,8 @@ services:
     restart: unless-stopped
     networks:
       - frontend
-      - socket
     volumes:
       - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro
       - portainer_data:/data
-    labels:
-      caddy: portainer.${STACK_HOST:-stack.local}
-      caddy.reverse_proxy: "{{upstreams 9000}}"
     profiles:
       - management

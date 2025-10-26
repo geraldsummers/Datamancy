@@ -1,19 +1,64 @@
-# Caddy Configuration for Authelia Forward Auth
-# Provenance: Phase 3 - Access Control
+# Datamancy Stack Caddyfile
+# Provenance: Phase 5 - Static config replacing caddy-docker-proxy
+# Auth enforcement deferred to Phase 6 (Traefik or Caddy plugin)
 
 # Global options
 {
-	# Enable admin API for metrics
 	admin 0.0.0.0:2019
+	auto_https off  # Using custom wildcard cert
 }
 
-# Snippet for Authelia forward auth
-(authelia) {
-	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.stack.local
-		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-	}
+# Wildcard TLS snippet
+(tls_config) {
+	tls /certs/wildcard.crt /certs/wildcard.key
 }
 
-# Import docker-proxy generated config
-import /config/caddy/Caddyfile.autogen
+# Authelia portal
+auth.stack.local {
+	import tls_config
+	reverse_proxy authelia:9091
+}
+
+# Observability services
+grafana.stack.local {
+	import tls_config
+	reverse_proxy grafana:3000
+}
+
+prometheus.stack.local {
+	import tls_config
+	reverse_proxy prometheus:9090
+}
+
+loki.stack.local {
+	import tls_config
+	reverse_proxy loki:3100
+}
+
+# Datastores
+clickhouse.stack.local {
+	import tls_config
+	reverse_proxy clickhouse:8123
+}
+
+# Management UIs
+adminer.stack.local {
+	import tls_config
+	reverse_proxy adminer:8080
+}
+
+mongo-express.stack.local {
+	import tls_config
+	reverse_proxy mongo-express:8081
+}
+
+portainer.stack.local {
+	import tls_config
+	reverse_proxy portainer:9000
+}
+
+# Stack root
+stack.local {
+	import tls_config
+	respond "Datamancy Stack - Phase 5 Complete" 200
+}

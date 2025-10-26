@@ -103,5 +103,6 @@ docker exec authelia authelia crypto hash generate pbkdf2 --password changeme
 
 ---
 
+**Update 2025-10-26:** Migrated from caddy-docker-proxy labels to static Caddyfile routing. Forward_auth temporarily removed due to RBAC complexity; services now use application-level authentication. Static route configured in `configs/caddy/Caddyfile:17`.
+
 **Last updated:** 2025-10-26
-**Last change fingerprint:** TBD

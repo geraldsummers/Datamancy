@@ -226,3 +226,6 @@ docker exec clickhouse clickhouse-client \
 
 **Last updated:** 2025-10-26
 **Last change fingerprint:** TBD
+
+**Update 2025-10-26:** Migrated from caddy-docker-proxy labels to static Caddyfile routing. Service route configured in `configs/caddy/Caddyfile`.
+

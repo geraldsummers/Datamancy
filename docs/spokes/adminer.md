@@ -12,7 +12,7 @@ Web-based database management UI supporting multiple database systems (MariaDB, 
 
 - **Network:** `frontend`, `backend`
 - **Upstream:** MariaDB (default), ClickHouse, MongoDB (via plugins)
-- **Authentication:** Authelia forward_auth via Caddy
+- **Routing:** Static Caddyfile (no caddy-docker-proxy)
 
 ## Configuration
 
@@ -61,3 +61,5 @@ Web-based database management UI supporting multiple database systems (MariaDB, 
 ## Provenance
 
 Added Phase 5 for multi-database management. Replaces need for database-specific admin tools (phpMyAdmin, pgAdmin). Dracula theme chosen for consistency with dark mode preference.
+
+**Update 2025-10-26:** Migrated from caddy-docker-proxy labels to static Caddyfile routing. Authentication moved to application-level (Adminer's own login) rather than edge auth to avoid RBAC complexity.

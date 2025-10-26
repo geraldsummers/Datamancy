@@ -62,3 +62,6 @@ Web-based MongoDB admin interface for database management, collection browsing, 
 ## Provenance
 
 Added Phase 5 for MongoDB management. Alternative to MongoDB Compass for browser-based access. LibreChat (Phase 5 AI) will use MongoDB; this provides admin interface for chat history/config management.
+
+**Update 2025-10-26:** Migrated from caddy-docker-proxy labels to static Caddyfile routing. Service route configured in `configs/caddy/Caddyfile`.
+

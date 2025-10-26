@@ -84,3 +84,6 @@ docker compose logs -f grafana
 
 **Last updated:** 2025-10-26
 **Last change fingerprint:** e50e0b0e73abb0a5
+
+**Update 2025-10-26:** Migrated from caddy-docker-proxy labels to static Caddyfile routing. Service route configured in `configs/caddy/Caddyfile`.
+
