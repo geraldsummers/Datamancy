@@ -40,3 +40,6 @@ site/
 
 # Freshness status (generated)
 docs/_data/status.json
+# Backup data (Kopia repository contents)
+backups/*
+!backups/.gitkeep

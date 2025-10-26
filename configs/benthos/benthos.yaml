@@ -1,0 +1,35 @@
+# Benthos Data Pipeline Configuration
+# Provenance: Phase 4 - Data Plumbing
+
+http:
+  enabled: true
+  address: 0.0.0.0:4195
+  root_path: /benthos
+  debug_endpoints: false
+
+# Example pipeline: Pass-through (no-op for now)
+input:
+  stdin: {}
+
+pipeline:
+  processors: []
+
+output:
+  stdout: {}
+
+# Metrics
+metrics:
+  prometheus:
+    use_histogram_timing: false
+    histogram_buckets: []
+    push_url: ""
+    push_interval: ""
+    push_job_name: benthos_push
+
+# Logging
+logger:
+  level: INFO
+  format: json
+  add_timestamp: true
+  timestamp_name: time
+  message_name: msg

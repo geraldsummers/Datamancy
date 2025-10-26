@@ -22,10 +22,13 @@ echo "$CADDY_IP clickhouse.stack.local" >> /etc/hosts
 echo "$CADDY_IP adminer.stack.local" >> /etc/hosts
 echo "$CADDY_IP mongo-express.stack.local" >> /etc/hosts
 echo "$CADDY_IP portainer.stack.local" >> /etc/hosts
+echo "$CADDY_IP librechat.stack.local" >> /etc/hosts
+echo "$CADDY_IP kopia.stack.local" >> /etc/hosts
+echo "$CADDY_IP docs.stack.local" >> /etc/hosts
 echo "$CADDY_IP stack.local" >> /etc/hosts
 
 echo "==> Hostname resolution configured"
-cat /etc/hosts | tail -9
+cat /etc/hosts | tail -12
 
 # Run tests
 npx playwright test "$@"
@@ -36,8 +39,8 @@ if [ $TEST_EXIT_CODE -eq 0 ]; then
   echo "==> Recording test pass timestamps"
   TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
 
-  # Record for all tested services (including Phase 0.5 tooling)
-  for service in caddy grafana prometheus loki promtail authelia ldap mariadb mongodb clickhouse adminer mongo-express portainer docs-indexer mkdocs; do
+  # Record for all tested services (including Phase 0.5 tooling and Phase 4-5 additions)
+  for service in caddy grafana prometheus loki promtail authelia ldap mariadb mongodb clickhouse adminer mongo-express portainer docs-indexer mkdocs localai librechat kopia; do
     mkdir -p /tests/artifacts/$service
     echo "{\"timestamp\": \"$TIMESTAMP\"}" > /tests/artifacts/$service/last_pass.json
   done

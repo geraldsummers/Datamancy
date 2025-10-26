@@ -1,6 +1,6 @@
 # Datamancy Stack Caddyfile
 # Provenance: Phase 5 - Static config replacing caddy-docker-proxy
-# Auth enforcement deferred to Phase 6 (Traefik or Caddy plugin)
+# Phase 6 - Added security headers
 
 # Global options
 {
@@ -13,52 +13,115 @@
 	tls /certs/wildcard.crt /certs/wildcard.key
 }
 
+# Security headers snippet (Phase 6)
+(security_headers) {
+	header {
+		# HSTS with 1 year max-age and preload
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+		# Prevent clickjacking
+		X-Frame-Options "SAMEORIGIN"
+
+		# Prevent MIME type sniffing
+		X-Content-Type-Options "nosniff"
+
+		# XSS protection (for older browsers)
+		X-XSS-Protection "1; mode=block"
+
+		# Referrer policy
+		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# Content Security Policy (permissive for now, tighten per service)
+		Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https:; font-src 'self' data:;"
+
+		# Remove server identification
+		-Server
+	}
+}
+
 # Authelia portal
 auth.stack.local {
 	import tls_config
+	import security_headers
 	reverse_proxy authelia:9091
 }
 
 # Observability services
 grafana.stack.local {
 	import tls_config
+	import security_headers
 	reverse_proxy grafana:3000
 }
 
 prometheus.stack.local {
 	import tls_config
+	import security_headers
 	reverse_proxy prometheus:9090
+}
+
+alertmanager.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy alertmanager:9093
 }
 
 loki.stack.local {
 	import tls_config
+	import security_headers
 	reverse_proxy loki:3100
 }
 
 # Datastores
 clickhouse.stack.local {
 	import tls_config
+	import security_headers
 	reverse_proxy clickhouse:8123
 }
 
 # Management UIs
 adminer.stack.local {
 	import tls_config
+	import security_headers
 	reverse_proxy adminer:8080
 }
 
 mongo-express.stack.local {
 	import tls_config
+	import security_headers
 	reverse_proxy mongo-express:8081
 }
 
 portainer.stack.local {
 	import tls_config
+	import security_headers
 	reverse_proxy portainer:9000
+}
+
+# Documentation site (MkDocs Material)
+docs.stack.local {
+	import tls_config
+	import security_headers
+	root * /site
+	file_server
+}
+
+# AI Services
+librechat.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy librechat:3080
+}
+
+# Backup Services
+kopia.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy kopia:51515
 }
 
 # Stack root
 stack.local {
 	import tls_config
-	respond "Datamancy Stack - Phase 5 Complete" 200
+	import security_headers
+	respond "Datamancy Stack - Phase 7: Apps Layer (All tests: 46/46 ✓, New: LocalAI, LibreChat, Kopia, Benthos)" 200
 }

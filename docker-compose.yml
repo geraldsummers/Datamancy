@@ -17,6 +17,7 @@ volumes:
   caddy_config:
   grafana_data:
   prometheus_data:
+  alertmanager_data:
   loki_data:
   ldap_data:
   ldap_config:
@@ -25,15 +26,21 @@ volumes:
   mongodb_data:
   clickhouse_data:
   portainer_data:
+  localai_data:
+  librechat_data:
+  kopia_data:
+  kopia_cache:
 
 services:
 
   # --- Caddy Reverse Proxy (front door) ---
   # Provenance: Multi-hostname *.stack.local, static Caddyfile (vanilla, no plugins)
+  # Phase 6: Runs as nobody (65534) for security
   caddy:
     image: caddy:2.9-alpine
     container_name: caddy
     restart: unless-stopped
+    user: "nobody"  # Phase 6: non-root user
     ports:
       - "80:80"
       - "443:443"
@@ -46,6 +53,11 @@ services:
       - caddy_config:/config
       - ./certs:/certs:ro
       - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/site:ro  # Phase 7: MkDocs built site
+    cap_drop:  # Phase 6: drop capabilities
+      - ALL
+    cap_add:  # Only add what's needed for port binding
+      - NET_BIND_SERVICE
     profiles:
       - core
 
@@ -86,11 +98,11 @@ services:
 
   # --- Grafana (observability UI) ---
   # Provenance: Phase 1 agent autonomy smoke test
+  # Phase 6: Runs as root (required for volume permissions)
   grafana:
     image: grafana/grafana:11.0.0
     container_name: grafana
     restart: unless-stopped
-    user: "${UID:-1000}:${GID:-1000}"
     networks:
       - frontend
       - backend
@@ -104,15 +116,18 @@ services:
       GF_SERVER_DOMAIN: ${GF_SERVER_DOMAIN}
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    # Phase 6: No cap_drop due to volume permission requirements
     profiles:
       - observability
 
   # --- Browserless (headless browser service) ---
   # Provenance: Phase 1 agent autonomy smoke test
+  # Phase 6: Runs as blessuser (999) for security
   browserless:
     image: browserless/chrome:1.61.0-puppeteer-21.4.1
     container_name: browserless
     restart: unless-stopped
+    user: "999"  # Phase 6: blessuser (non-root)
     networks:
       - backend
     environment:
@@ -123,6 +138,10 @@ services:
       PREBOOT_CHROME: "true"
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/datamancy-ca.crt:ro
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
+    cap_add:  # Required for Chrome sandbox
+      - SYS_ADMIN
     profiles:
       - observability
 
@@ -152,42 +171,74 @@ services:
 
   # --- Prometheus (metrics collection) ---
   # Provenance: Phase 2 - observability metrics
+  # Phase 6: Runs as nobody (65534) for security
   prometheus:
     image: prom/prometheus:v3.0.1
     container_name: prometheus
     restart: unless-stopped
+    user: "nobody"  # Phase 6: non-root user
     networks:
       - frontend
       - backend
     volumes:
       - prometheus_data:/prometheus
       - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./configs/prometheus/rules:/etc/prometheus/rules:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
+    profiles:
+      - observability
+
+  # --- Alertmanager (alert routing) ---
+  # Provenance: Phase 6 - Security hardening
+  # Phase 6: Runs as nobody (65534) for security
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: alertmanager
+    restart: unless-stopped
+    user: "nobody"  # Phase 6: non-root user
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - alertmanager_data:/alertmanager
+      - ./configs/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
     profiles:
       - observability
 
   # --- Loki (log aggregation) ---
   # Provenance: Phase 2 - observability logs
+  # Phase 6: Runs as UID 10001 (loki user)
   loki:
     image: grafana/loki:3.2.1
     container_name: loki
     restart: unless-stopped
+    user: "10001"  # Phase 6: non-root user (built-in loki user)
     networks:
       - backend
     volumes:
       - loki_data:/loki
       - ./configs/loki/loki.yml:/etc/loki/loki.yml:ro
     command: -config.file=/etc/loki/loki.yml
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
     profiles:
       - observability
 
   # --- Promtail (log collector with docker_sd) ---
   # Provenance: Phase 2 - docker service discovery log collection
+  # Phase 6: Runs as root (required for docker socket access)
   promtail:
     image: grafana/promtail:3.2.1
     container_name: promtail
@@ -199,11 +250,17 @@ services:
       - /var/log:/var/log:ro
       - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro
     command: -config.file=/etc/promtail/promtail.yml
+    cap_drop:  # Phase 6: drop unnecessary capabilities
+      - ALL
+    cap_add:  # Required for docker socket access
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
     profiles:
       - observability
 
   # --- OpenLDAP (user directory) ---
   # Provenance: Phase 3 - Access Control
+  # Phase 6: Runs as root (required by osixia/openldap image design)
   ldap:
     image: osixia/openldap:1.5.0
     container_name: ldap
@@ -223,15 +280,26 @@ services:
       - ldap_config:/etc/ldap/slapd.d
       - ./configs/ldap:/container/service/slapd/assets/config/bootstrap/ldif/custom:ro
     command: --copy-service --loglevel info
+    cap_drop:  # Phase 6: drop unnecessary capabilities
+      - ALL
+    cap_add:  # Required for LDAP operations
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - KILL
+      - FOWNER
     profiles:
       - auth
 
   # --- Authelia (SSO & authentication portal) ---
   # Provenance: Phase 3 - Access Control
+  # Phase 6: Runs as UID 1000 (non-root)
   authelia:
     image: authelia/authelia:4.38
     container_name: authelia
     restart: unless-stopped
+    user: "1000"  # Phase 6: non-root user
     networks:
       - frontend
       - backend
@@ -241,15 +309,19 @@ services:
     environment:
       TZ: UTC
     command: --config /config/authelia/configuration.yml
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
     profiles:
       - auth
 
   # --- MariaDB (relational database) ---
   # Provenance: Phase 4 - Datastores
+  # Phase 6: Runs as mysql user (999) for security
   mariadb:
     image: mariadb:11.2
     container_name: mariadb
     restart: unless-stopped
+    user: "999"  # Phase 6: mysql user (non-root)
     networks:
       - backend
     volumes:
@@ -260,15 +332,23 @@ services:
       MYSQL_DATABASE: ${MARIADB_DATABASE:-datamancy}
       MYSQL_USER: ${MARIADB_USER:-datamancy}
       MYSQL_PASSWORD: ${MARIADB_PASSWORD:-datamancy_password_change_me}
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
+    cap_add:  # Required for database operations
+      - CHOWN
+      - SETUID
+      - SETGID
     profiles:
       - datastores
 
   # --- MongoDB (document database) ---
   # Provenance: Phase 4 - Datastores
+  # Phase 6: Runs as mongodb user (999) for security
   mongodb:
     image: mongo:7.0
     container_name: mongodb
     restart: unless-stopped
+    user: "999"  # Phase 6: mongodb user (non-root)
     networks:
       backend:
         aliases:
@@ -280,15 +360,23 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USER:-root}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-root_password_change_me}
       MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-datamancy}
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
+    cap_add:  # Required for database operations
+      - CHOWN
+      - SETUID
+      - SETGID
     profiles:
       - datastores
 
   # --- ClickHouse (analytics database) ---
   # Provenance: Phase 4 - Datastores
+  # Phase 6: Runs as clickhouse user (101) for security
   clickhouse:
     image: clickhouse/clickhouse-server:23.12
     container_name: clickhouse
     restart: unless-stopped
+    user: "101"  # Phase 6: clickhouse user (non-root)
     networks:
       - backend
       - frontend
@@ -304,11 +392,17 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
+    cap_add:  # Required for database operations
+      - SYS_NICE
+      - NET_ADMIN
     profiles:
       - datastores
 
   # --- Adminer (database management UI) ---
   # Provenance: Phase 5 - Management Tools
+  # Phase 6: Runs as root (required by adminer image design)
   adminer:
     image: adminer:4.8.1
     container_name: adminer
@@ -319,15 +413,18 @@ services:
     environment:
       ADMINER_DEFAULT_SERVER: mariadb
       ADMINER_DESIGN: dracula
+    # Phase 6: No cap_drop due to image design requirements
     profiles:
       - management
 
   # --- Mongo Express (MongoDB management UI) ---
   # Provenance: Phase 5 - Management Tools
+  # Phase 6: Runs as node user (1000) for security
   mongo-express:
     image: mongo-express:1.0.2
     container_name: mongo-express
     restart: unless-stopped
+    user: "1000"  # Phase 6: node user (non-root)
     networks:
       - frontend
       - backend
@@ -340,11 +437,14 @@ services:
       ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:-admin_password_change_me}
       ME_CONFIG_SITE_BASEURL: /
       ME_CONFIG_MONGODB_URL: mongodb://root:root_password_change_me@mongodb:27017/
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
     profiles:
       - management
 
   # --- Portainer (Docker management UI) ---
   # Provenance: Phase 5 - Management Tools
+  # Phase 6: Runs as root (required for docker socket access)
   portainer:
     image: portainer/portainer-ce:2.19.4
     container_name: portainer
@@ -354,5 +454,121 @@ services:
     volumes:
       - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro
       - portainer_data:/data
+    cap_drop:  # Phase 6: drop unnecessary capabilities
+      - ALL
+    cap_add:  # Required for docker socket operations
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
     profiles:
       - management
+
+  # --- LocalAI (Local AI inference server) ---
+  # Provenance: Phase 5 - AI Tools
+  # Note: Runs as root inside container (expected by LocalAI image)
+  localai:
+    image: quay.io/go-skynet/local-ai:v2.21.1-ffmpeg-core
+    container_name: localai
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - localai_data:/build/models
+      - ./configs/localai:/build/config:ro
+    environment:
+      THREADS: 4
+      CONTEXT_SIZE: 512
+      MODELS_PATH: /build/models
+      DEBUG: "false"
+      # Disable telemetry
+      DISABLE_TELEMETRY: "true"
+    # Phase 6: No security hardening due to root requirement and resource-intensive nature
+    profiles:
+      - ai
+
+  # --- LibreChat (AI chat UI) ---
+  # Provenance: Phase 5 - AI Tools
+  # Phase 6: Runs as node user (1000) for security
+  librechat:
+    image: ghcr.io/danny-avila/librechat:v0.7.5
+    container_name: librechat
+    restart: unless-stopped
+    user: "1000"  # Phase 6: node user (non-root)
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - librechat_data:/app/client/public/images
+      - ./configs/librechat/librechat.yaml:/app/librechat.yaml:ro
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3080
+      MONGO_URI: mongodb://root:${MONGODB_ROOT_PASSWORD:-root_password_change_me}@mongodb:27017/LibreChat?authSource=admin
+      CREDS_KEY: ${LIBRECHAT_CREDS_KEY:-f34be427ebb29de8d88c107a71546019685ed8b241d8f2ed00c3df97ad2566f0}
+      CREDS_IV: ${LIBRECHAT_CREDS_IV:-e2341419ec3dd3d19b13a1a87fafcbfb}
+      JWT_SECRET: ${LIBRECHAT_JWT_SECRET:-16f8c0ef4a5d391b26034086c628469d3f9f497f08163ab9b40137092f2909ef}
+      JWT_REFRESH_SECRET: ${LIBRECHAT_JWT_REFRESH_SECRET:-eaa5191f2914e30b9387fd84e254e4ba6fc51b4654968a9b0803b456a54b8418}
+      ENDPOINTS: localai
+      LOCALAI_API_KEY: local
+      LOCALAI_BASE_URL: http://localai:8080/v1
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
+    profiles:
+      - ai
+
+  # --- Kopia (Backup and restore) ---
+  # Provenance: Phase 4 - Datastores & Backups
+  # Phase 6: Runs as root (required for broad filesystem access)
+  kopia:
+    image: kopia/kopia:0.18.1
+    container_name: kopia
+    restart: unless-stopped
+    hostname: datamancy-kopia
+    networks:
+      - backend
+      - frontend
+    volumes:
+      - kopia_data:/app/config
+      - kopia_cache:/app/cache
+      - ./data:/data:ro  # Backup source (read-only)
+      - ./configs:/configs:ro  # Backup source (read-only)
+      - mariadb_data:/backup-sources/mariadb:ro
+      - mongodb_data:/backup-sources/mongodb:ro
+      - clickhouse_data:/backup-sources/clickhouse:ro
+      - grafana_data:/backup-sources/grafana:ro
+      - prometheus_data:/backup-sources/prometheus:ro
+      - loki_data:/backup-sources/loki:ro
+      - ./backups:/app/backups  # Local backup destination
+    environment:
+      KOPIA_PASSWORD: ${KOPIA_PASSWORD:-changeme_kopia_password}
+      KOPIA_CHECK_FOR_UPDATES: "false"
+      USER: root
+    command: server start --insecure --address=0.0.0.0:51515 --server-username=admin --server-password=${KOPIA_SERVER_PASSWORD:-changeme_admin_password}
+    cap_drop:  # Phase 6: drop unnecessary capabilities
+      - ALL
+    cap_add:  # Required for filesystem access
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
+      - CHOWN
+      - FOWNER
+    profiles:
+      - backup
+
+  # --- Benthos (Data streaming and transformation) ---
+  # Provenance: Phase 4 - Data Plumbing
+  # Note: Temporarily disabled - image tag issues, will be added in follow-up
+  # benthos:
+  #   image: ghcr.io/benthosdev/benthos:latest
+  #   container_name: benthos
+  #   restart: unless-stopped
+  #   networks:
+  #     - backend
+  #   volumes:
+  #     - ./configs/benthos:/benthos/config:ro
+  #     - ./data/benthos:/benthos/data:rw
+  #   command: -c /benthos/config/benthos.yaml
+  #   cap_drop:  # Phase 6: drop all capabilities
+  #     - ALL
+  #   profiles:
+  #     - data

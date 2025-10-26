@@ -56,18 +56,36 @@ nav:
       - ADRs: adr/README.md
       - ADR-000 (Caddy Multi-Hostname): adr/ADR-000-caddy-multi-hostname.md
       - ADR-001 (Freshness Rules): adr/ADR-001-freshness-fingerprints.md
+      - ADR-002 (Observer RBAC): adr/ADR-002-observer-rbac.md
   - Services:
       - Spokes Index: spokes/README.md
-      - Caddy: spokes/caddy.md
-      - Docker Socket Proxy: spokes/docker-socket-proxy.md
-      - Docs Indexer: spokes/docs-indexer.md
-      - Grafana: spokes/grafana.md
-      - Prometheus: spokes/prometheus.md
-      - Loki: spokes/loki.md
-      - Promtail: spokes/promtail.md
-      - OpenLDAP: spokes/ldap.md
-      - Authelia: spokes/authelia.md
-      - MariaDB: spokes/mariadb.md
-      - MongoDB: spokes/mongodb.md
-      - ClickHouse: spokes/clickhouse.md
+      - Infrastructure:
+        - Caddy: spokes/caddy.md
+        - Docker Socket Proxy: spokes/docker-socket-proxy.md
+      - Observability:
+        - Grafana: spokes/grafana.md
+        - Prometheus: spokes/prometheus.md
+        - Loki: spokes/loki.md
+        - Promtail: spokes/promtail.md
+        - Browserless: spokes/browserless.md
+      - Access Control:
+        - OpenLDAP: spokes/ldap.md
+        - Authelia: spokes/authelia.md
+      - Datastores:
+        - MariaDB: spokes/mariadb.md
+        - MongoDB: spokes/mongodb.md
+        - ClickHouse: spokes/clickhouse.md
+      - Management:
+        - Adminer: spokes/adminer.md
+        - Mongo Express: spokes/mongo-express.md
+        - Portainer: spokes/portainer.md
+      - AI Services:
+        - LocalAI: spokes/localai.md
+        - LibreChat: spokes/librechat.md
+      - Backup:
+        - Kopia: spokes/kopia.md
+      - Automation:
+        - Docs Indexer: spokes/docs-indexer.md
+        - MkDocs: spokes/mkdocs.md
+        - Test Runner: spokes/test-runner.md
       - Spoke Template: spokes/_TEMPLATE.md
