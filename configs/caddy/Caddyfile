@@ -119,9 +119,47 @@ kopia.stack.local {
 	reverse_proxy kopia:51515
 }
 
+# Phase 7: Apps Layer
+nextcloud.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy nextcloud:80
+
+	# Additional headers for Nextcloud
+	header {
+		# Remove CSP from security_headers for Nextcloud
+		-Content-Security-Policy
+	}
+}
+
+vault.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy vaultwarden:80
+
+	# WebSocket support for Vaultwarden notifications
+	@websocket {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @websocket vaultwarden:3012
+}
+
+paperless.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy paperless:8000
+}
+
+pdf.stack.local {
+	import tls_config
+	import security_headers
+	reverse_proxy stirling-pdf:8080
+}
+
 # Stack root
 stack.local {
 	import tls_config
 	import security_headers
-	respond "Datamancy Stack - Phase 7: Apps Layer (All tests: 46/46 ✓, New: LocalAI, LibreChat, Kopia, Benthos)" 200
+	respond "Datamancy Stack - Phase 7: Apps Layer (Apps: Nextcloud, Vaultwarden, Paperless, Stirling-PDF)" 200
 }

@@ -30,6 +30,14 @@ volumes:
   librechat_data:
   kopia_data:
   kopia_cache:
+  nextcloud_data:
+  vaultwarden_data:
+  paperless_data:
+  paperless_media:
+  paperless_export:
+  redis_data:
+  stirling_data:
+  stirling_logs:
 
 services:
 
@@ -572,3 +580,159 @@ services:
   #     - ALL
   #   profiles:
   #     - data
+
+  # =========================================================================
+  # PHASE 7: Apps Layer
+  # =========================================================================
+
+  # --- Nextcloud (File sync and collaboration) ---
+  # Provenance: Phase 7 - Apps Layer
+  # Phase 6: Runs as www-data (33) for security
+  nextcloud:
+    image: nextcloud:30-apache
+    container_name: nextcloud
+    restart: unless-stopped
+    user: "33"  # www-data user (non-root)
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - nextcloud_data:/var/www/html
+    environment:
+      MYSQL_HOST: mariadb
+      MYSQL_DATABASE: ${NEXTCLOUD_DB:-nextcloud}
+      MYSQL_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-nextcloud_password_change_me}
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-admin_password_change_me}
+      NEXTCLOUD_TRUSTED_DOMAINS: nextcloud.stack.local
+      OVERWRITEPROTOCOL: https
+      OVERWRITEHOST: nextcloud.stack.local
+      TRUSTED_PROXIES: caddy
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
+    cap_add:  # Required for Apache
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    profiles:
+      - apps
+
+  # --- Vaultwarden (Password manager) ---
+  # Provenance: Phase 7 - Apps Layer
+  # Note: Runs as root (image requires root for initial setup and key generation)
+  vaultwarden:
+    image: vaultwarden/server:1.32.5-alpine
+    container_name: vaultwarden
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - vaultwarden_data:/data
+    environment:
+      DATABASE_URL: "mysql://${VAULTWARDEN_DB_USER:-vaultwarden}:${VAULTWARDEN_DB_PASSWORD:-vaultwarden_password_change_me}@mariadb/${VAULTWARDEN_DB:-vaultwarden}"
+      SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-true}
+      INVITATIONS_ALLOWED: ${VAULTWARDEN_INVITATIONS_ALLOWED:-true}
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN:-change_me_admin_token}
+      DOMAIN: https://vault.stack.local
+      WEBSOCKET_ENABLED: "true"
+      LOG_LEVEL: warn
+      SHOW_PASSWORD_HINT: "false"
+    cap_drop:  # Phase 6: drop unnecessary capabilities
+      - ALL
+    cap_add:  # Required for file operations
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    profiles:
+      - apps
+
+  # --- Paperless-ngx (Document management) ---
+  # Provenance: Phase 7 - Apps Layer
+  # Note: Runs as root (s6-overlay requires root, uses USERMAP_UID/GID for file ownership)
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:2.15.1
+    container_name: paperless
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - paperless_data:/usr/src/paperless/data
+      - paperless_media:/usr/src/paperless/media
+      - paperless_export:/usr/src/paperless/export
+      - ./data/paperless/consume:/usr/src/paperless/consume
+    environment:
+      PAPERLESS_REDIS: redis://redis:6379
+      PAPERLESS_DBHOST: mariadb
+      PAPERLESS_DBNAME: ${PAPERLESS_DB:-paperless}
+      PAPERLESS_DBUSER: ${PAPERLESS_DB_USER:-paperless}
+      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD:-paperless_password_change_me}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:-change_me_secret_key_min_32_chars}
+      PAPERLESS_URL: https://paperless.stack.local
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:-admin_password_change_me}
+      PAPERLESS_TIME_ZONE: UTC
+      PAPERLESS_OCR_LANGUAGE: eng
+      USERMAP_UID: 1000
+      USERMAP_GID: 1000
+    cap_drop:  # Phase 6: drop unnecessary capabilities
+      - ALL
+    cap_add:  # Required for s6-overlay and document processing
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    profiles:
+      - apps
+
+  # --- Redis (In-memory cache for Paperless) ---
+  # Provenance: Phase 7 - Apps Layer dependency
+  # Phase 6: Runs as redis user (999) for security
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis
+    restart: unless-stopped
+    user: "999"  # redis user (non-root)
+    networks:
+      - backend
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    cap_drop:  # Phase 6: drop all capabilities
+      - ALL
+    cap_add:  # Required for persistence
+      - SETGID
+      - SETUID
+    profiles:
+      - apps
+
+  # --- Stirling-PDF (PDF toolbox) ---
+  # Provenance: Phase 7 - Apps Layer
+  # Note: Runs as root without capability restrictions (image requires setgroups for user switching)
+  stirling-pdf:
+    image: frooodle/s-pdf:0.37.1
+    container_name: stirling-pdf
+    restart: unless-stopped
+    networks:
+      - frontend
+    volumes:
+      - stirling_data:/configs
+      - stirling_logs:/logs
+    environment:
+      DOCKER_ENABLE_SECURITY: "true"
+      SECURITY_ENABLELOGIN: "true"
+      SECURITY_INITIALLOGIN_USERNAME: ${STIRLING_ADMIN_USER:-admin}
+      SECURITY_INITIALLOGIN_PASSWORD: ${STIRLING_ADMIN_PASSWORD:-admin_password_change_me}
+      SYSTEM_DEFAULTLOCALE: en-US
+      UI_APPNAME: "Stirling PDF"
+      UI_HOMEDESCRIPTION: "PDF manipulation toolbox"
+    # Phase 6: No security hardening due to image design requirements
+    profiles:
+      - apps

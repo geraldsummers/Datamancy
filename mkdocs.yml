@@ -84,6 +84,11 @@ nav:
         - LibreChat: spokes/librechat.md
       - Backup:
         - Kopia: spokes/kopia.md
+      - Apps (Phase 7):
+        - Nextcloud: spokes/nextcloud.md
+        - Vaultwarden: spokes/vaultwarden.md
+        - Paperless-ngx: spokes/paperless.md
+        - Stirling-PDF: spokes/stirling-pdf.md
       - Automation:
         - Docs Indexer: spokes/docs-indexer.md
         - MkDocs: spokes/mkdocs.md
