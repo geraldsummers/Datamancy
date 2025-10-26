@@ -35,6 +35,7 @@ volumes:
   paperless_data:
   paperless_media:
   paperless_export:
+  paperless_postgres_data:
   redis_data:
   stirling_data:
   stirling_logs:
@@ -652,6 +653,25 @@ services:
     profiles:
       - apps
 
+  # --- PostgreSQL (Database for Paperless) ---
+  # Provenance: Phase 7 - Apps Layer dependency
+  # Note: Runs as root without capability restrictions (image requires full capabilities)
+  paperless-postgres:
+    image: postgres:17-alpine
+    container_name: paperless-postgres
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - paperless_postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${PAPERLESS_DB:-paperless}
+      POSTGRES_USER: ${PAPERLESS_DB_USER:-paperless}
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD:-paperless_password_change_me}
+    # Phase 6: No security hardening due to image design requirements
+    profiles:
+      - apps
+
   # --- Paperless-ngx (Document management) ---
   # Provenance: Phase 7 - Apps Layer
   # Note: Runs as root (s6-overlay requires root, uses USERMAP_UID/GID for file ownership)
@@ -659,6 +679,9 @@ services:
     image: ghcr.io/paperless-ngx/paperless-ngx:2.15.1
     container_name: paperless
     restart: unless-stopped
+    depends_on:
+      - paperless-postgres
+      - redis
     networks:
       - frontend
       - backend
@@ -669,7 +692,7 @@ services:
       - ./data/paperless/consume:/usr/src/paperless/consume
     environment:
       PAPERLESS_REDIS: redis://redis:6379
-      PAPERLESS_DBHOST: mariadb
+      PAPERLESS_DBHOST: paperless-postgres
       PAPERLESS_DBNAME: ${PAPERLESS_DB:-paperless}
       PAPERLESS_DBUSER: ${PAPERLESS_DB_USER:-paperless}
       PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD:-paperless_password_change_me}
