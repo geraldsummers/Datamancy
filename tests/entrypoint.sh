@@ -21,4 +21,15 @@ echo "==> Hostname resolution configured"
 cat /etc/hosts | tail -3
 
 # Run tests
-exec npx playwright test "$@"
+npx playwright test "$@"
+TEST_EXIT_CODE=$?
+
+# Record test pass timestamp if tests succeeded
+if [ $TEST_EXIT_CODE -eq 0 ]; then
+  echo "==> Recording test pass timestamp"
+  mkdir -p /tests/artifacts/grafana
+  echo "{\"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")\"}" > /tests/artifacts/grafana/last_pass.json
+  echo "✓ Test pass recorded"
+fi
+
+exit $TEST_EXIT_CODE

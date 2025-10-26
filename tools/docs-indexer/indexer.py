@@ -114,10 +114,13 @@ def get_last_test_pass(service_name: str, base_path: Path) -> Optional[str]:
     if not test_dir.exists():
         return None
 
-    # Look for most recent last_pass.json
-    last_pass_files = sorted(test_dir.glob("*/last_pass.json"), reverse=True)
+    # Look for last_pass.json (in subdirs or direct)
+    last_pass_files = list(test_dir.glob("*/last_pass.json")) + list(test_dir.glob("last_pass.json"))
     if not last_pass_files:
         return None
+
+    # Get most recent
+    last_pass_files = sorted(last_pass_files, key=lambda p: p.stat().st_mtime, reverse=True)
 
     try:
         with open(last_pass_files[0]) as f:
@@ -214,8 +217,15 @@ def main():
         print(f"Warning: Could not initialize git repo: {e}")
         repo = None
 
-    # Track fingerprints (in real impl, would load previous state)
-    # For Phase 0.5, we'll just compute current fingerprints
+    # Load previous status to track fingerprint changes
+    previous_status = {}
+    if output_file.exists():
+        try:
+            with open(output_file) as f:
+                previous_status = json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not load previous status: {e}")
+
     status_data = {}
 
     for service_name, service_config in services.items():
@@ -225,9 +235,18 @@ def main():
         fingerprint = compute_service_fingerprint(
             service_name, service_config, base_path
         )
+        fingerprint_short = fingerprint[:16]
 
-        # For Phase 0.5, last_change = now (no history yet)
-        last_change = datetime.now().astimezone().isoformat()
+        # Get previous data
+        prev = previous_status.get(service_name, {})
+        prev_fingerprint = prev.get("fingerprint", "")
+        prev_last_change = prev.get("last_change")
+
+        # Update last_change only if fingerprint changed
+        if fingerprint_short != prev_fingerprint:
+            last_change = datetime.now().astimezone().isoformat()
+        else:
+            last_change = prev_last_change or datetime.now().astimezone().isoformat()
 
         # Get test and spoke timestamps
         last_test_pass = get_last_test_pass(service_name, base_path)
@@ -240,7 +259,7 @@ def main():
 
         status_data[service_name] = {
             "status": status,
-            "fingerprint": fingerprint[:16],  # Truncate for readability
+            "fingerprint": fingerprint_short,
             "last_change": last_change,
             "last_test_pass": last_test_pass,
             "spoke_updated": spoke_updated,
