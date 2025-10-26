@@ -15,6 +15,8 @@ echo "==> Caddy IP: $CADDY_IP"
 
 # Add hostname mappings
 echo "$CADDY_IP grafana.stack.local" >> /etc/hosts
+echo "$CADDY_IP prometheus.stack.local" >> /etc/hosts
+echo "$CADDY_IP loki.stack.local" >> /etc/hosts
 echo "$CADDY_IP stack.local" >> /etc/hosts
 
 echo "==> Hostname resolution configured"
@@ -26,10 +28,16 @@ TEST_EXIT_CODE=$?
 
 # Record test pass timestamp if tests succeeded
 if [ $TEST_EXIT_CODE -eq 0 ]; then
-  echo "==> Recording test pass timestamp"
-  mkdir -p /tests/artifacts/grafana
-  echo "{\"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")\"}" > /tests/artifacts/grafana/last_pass.json
-  echo "✓ Test pass recorded"
+  echo "==> Recording test pass timestamps"
+  TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
+
+  # Record for all tested services
+  for service in grafana prometheus loki; do
+    mkdir -p /tests/artifacts/$service
+    echo "{\"timestamp\": \"$TIMESTAMP\"}" > /tests/artifacts/$service/last_pass.json
+  done
+
+  echo "✓ Test pass recorded for grafana, prometheus, loki"
 fi
 
 exit $TEST_EXIT_CODE
