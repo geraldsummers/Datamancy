@@ -19,6 +19,7 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  grafana_data:
 
 services:
   # --- Docker Socket Proxy (least privilege) ---
@@ -102,3 +103,75 @@ services:
     command: build
     profiles:
       - tools
+
+  # --- Grafana (observability UI) ---
+  # Provenance: Phase 1 agent autonomy smoke test
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: grafana
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL}
+      GF_SERVER_DOMAIN: ${GF_SERVER_DOMAIN}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    labels:
+      caddy: grafana.${STACK_HOST:-stack.local}
+      caddy.reverse_proxy: "{{upstreams 3000}}"
+    profiles:
+      - observability
+
+  # --- Browserless (headless browser service) ---
+  # Provenance: Phase 1 agent autonomy smoke test
+  browserless:
+    image: browserless/chrome:1.61.0-puppeteer-21.4.1
+    container_name: browserless
+    restart: unless-stopped
+    networks:
+      - backend
+    environment:
+      TOKEN: ${BROWSERLESS_TOKEN}
+      MAX_CONCURRENT_SESSIONS: 2
+      CONNECTION_TIMEOUT: 60000
+      ENABLE_CORS: "true"
+      PREBOOT_CHROME: "true"
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/datamancy-ca.crt:ro
+    labels:
+      caddy: browserless.${STACK_HOST:-stack.local}
+      caddy.reverse_proxy: "{{upstreams 3000}}"
+    profiles:
+      - observability
+
+  # --- Test Runner (Playwright browser tests) ---
+  # Provenance: Phase 1 agent autonomy smoke test
+  test-runner:
+    build:
+      context: ./tests
+      dockerfile: Dockerfile
+    container_name: test-runner
+    networks:
+      - frontend
+      - backend
+    volumes:
+      - ./data/tests:/tests/artifacts:rw
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/datamancy-ca.crt:ro
+    environment:
+      BROWSERLESS_URL: http://browserless:3000
+      BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN}
+      GRAFANA_URL: https://grafana.stack.local
+      GRAFANA_USER: ${GF_SECURITY_ADMIN_USER}
+      GRAFANA_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      NODE_EXTRA_CA_CERTS: /usr/local/share/ca-certificates/datamancy-ca.crt
+    # Note: Hostname resolution handled by entrypoint.sh dynamically
+    profiles:
+      - observability
