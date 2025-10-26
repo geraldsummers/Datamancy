@@ -57,7 +57,7 @@ curl -sk https://stack.local/grafana/api/health
 ## Services Overview
 
 ### Phase 1 - Infrastructure
-- **Traefik** - Reverse proxy at `/dashboard/`
+- **Caddy** - Reverse proxy and TLS termination (ports 80/443)
 - **Homepage** - Landing page at `/`
 - **Browserless** - Headless Chrome (internal)
 - **Test Runner** - Playwright tests (internal)
@@ -71,19 +71,17 @@ curl -sk https://stack.local/grafana/api/health
 
 ### Phase 3 - Authentication
 - **OpenLDAP** - User directory (internal, port 389)
-- **Dex** - OIDC provider at `/dex/`
-- **oauth2-proxy** - Forward auth at `/oauth2/`
+- **Authelia** - SSO and OIDC provider at `/authelia/`
 - **Mailpit** - Email testing at `/mailpit/`
 
 ## Prometheus Targets
 
 All services expose metrics:
 - `prometheus` - Self metrics
-- `traefik` - HTTP request metrics
+- `caddy` - HTTP request metrics (via admin API)
 - `alertmanager` - Alert metrics
 - `loki` - Log ingestion metrics
-- `dex` - Auth metrics (port 5558)
-- `oauth2-proxy` - SSO metrics (port 4180)
+- `authelia` - Auth and SSO metrics (port 9091)
 - `grafana` - Dashboard metrics
 
 ## Alert Rules
@@ -106,18 +104,19 @@ Active alerts configured:
 ## Architecture Notes
 
 **SSO Flow:**
-- Services without native OIDC → oauth2-proxy → Dex → LDAP
-- Grafana has native OIDC → Dex → LDAP (no double auth)
+- All services with native OIDC support → Authelia → LDAP (Grafana, LibreChat)
+- Services without native OIDC → Authelia forward-auth → LDAP
 
 **Authentication Bypass:**
 - `/metrics` endpoints - No auth (for Prometheus scraping)
 - `/api/health` endpoints - No auth (for healthchecks)
-- All other endpoints - Require SSO
+- `/authelia/api/health` - No auth (for healthchecks)
+- All other endpoints - Require SSO via Authelia
 
 **Network:**
 - External: All via `https://stack.local/...`
 - Internal: Docker service names (e.g., `prometheus:9090`)
-- Traefik network: `datamancy_datamancy`
+- Caddy network: `datamancy_datamancy`
 
 ## Testing
 

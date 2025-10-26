@@ -1,18 +1,12 @@
 #!/bin/bash
 # Provenance: Docker DNS resolution for single front door testing
-# Purpose: Resolve traefik service to stack.local hostname and configure TLS trust
+# Purpose: Configure TLS trust for stack.local hostname
 
 set -e
 
-# Resolve traefik container IP and add to /etc/hosts
-TRAEFIK_IP=$(getent hosts traefik | awk '{ print $1 }')
-
-if [ -n "$TRAEFIK_IP" ]; then
-    echo "$TRAEFIK_IP stack.local" >> /etc/hosts
-    echo "✓ Mapped stack.local -> $TRAEFIK_IP"
-else
-    echo "⚠ Warning: Could not resolve traefik service"
-fi
+# Note: When using host network mode, stack.local is already mapped via extra_hosts
+# No need to resolve Caddy service IP - we're on the host network
+echo "✓ Using host network mode - stack.local resolves via extra_hosts"
 
 # Trust CA certificate in system store (for Node.js and curl)
 if [ -f "/usr/local/share/ca-certificates/datamancy-ca.crt" ]; then

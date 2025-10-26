@@ -58,9 +58,10 @@ O=Datamancy
 CN=stack.local
 
 [v3_req]
-keyUsage = keyEncipherment, dataEncipherment
-extendedKeyUsage = serverAuth
+keyUsage = critical, digitalSignature, keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth, clientAuth
 subjectAltName = @alt_names
+basicConstraints = CA:FALSE
 
 [alt_names]
 DNS.1 = stack.local

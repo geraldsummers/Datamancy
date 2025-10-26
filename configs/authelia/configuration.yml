@@ -1,0 +1,264 @@
+# Authelia Configuration
+# Provenance: https://www.authelia.com/configuration/prologue/introduction/
+
+server:
+  host: 0.0.0.0
+  port: 9091
+  path: "authelia"
+  enable_pprof: false
+  enable_expvars: false
+  buffers:
+    read: 8192
+    write: 8192
+  endpoints:
+    authz:
+      forward-auth:
+        implementation: ForwardAuth
+
+log:
+  level: info
+  format: json
+
+theme: dark
+
+# External URL for redirect
+default_redirection_url: https://stack.local/
+
+totp:
+  disable: false
+  issuer: stack.local
+  algorithm: sha1
+  digits: 6
+  period: 30
+  skew: 1
+
+webauthn:
+  disable: true
+
+duo_api:
+  disable: true
+
+authentication_backend:
+  password_reset:
+    disable: false
+  refresh_interval: 5m
+  ldap:
+    implementation: custom
+    url: ldap://openldap:389
+    timeout: 5s
+    start_tls: false
+    tls:
+      skip_verify: true
+    base_dn: dc=datamancy,dc=local
+    username_attribute: uid
+    additional_users_dn: ou=people
+    users_filter: "(&(|({username_attribute}={input})(mail={input}))(|(ou=people)(ou=service-accounts))(objectClass=inetOrgPerson))"
+    additional_groups_dn: ou=groups
+    groups_filter: "(member={dn})"
+    group_name_attribute: cn
+    mail_attribute: mail
+    display_name_attribute: displayName
+    user: cn=admin,dc=datamancy,dc=local
+    password: admin_password
+
+access_control:
+  default_policy: deny
+  rules:
+    # Bypass auth for health/metrics endpoints (for Prometheus scraping)
+    - domain: stack.local
+      policy: bypass
+      resources:
+        - "^/prometheus/metrics.*$"
+        - "^/prometheus/-/healthy.*$"
+        - "^/alertmanager/metrics.*$"
+        - "^/alertmanager/-/healthy.*$"
+        - "^/loki/metrics.*$"
+        - "^/loki/ready.*$"
+        - "^/grafana/api/health.*$"
+        - "^/authelia/api/health.*$"
+
+    # Admin-only services (full observability stack)
+    - domain: stack.local
+      policy: one_factor
+      subject:
+        - "group:admins"
+      resources:
+        - "^/prometheus($|/.*)$"
+        - "^/alertmanager($|/.*)$"
+        - "^/loki($|/.*)$"
+        - "^/duplicati($|/.*)$"
+
+    # AI/LLM services - admins and users
+    - domain: stack.local
+      policy: one_factor
+      subject:
+        - "group:admins"
+        - "group:users"
+      resources:
+        - "^/librechat($|/.*)$"
+        - "^/localai($|/.*)$"
+
+    # Observability UIs - admins, users, and observers (read-only via service account)
+    - domain: stack.local
+      policy: one_factor
+      subject:
+        - "group:admins"
+        - "group:users"
+        - "group:observers"
+      resources:
+        - "^/grafana($|/.*)$"
+
+    # General services - all authenticated users
+    - domain: stack.local
+      policy: one_factor
+      subject:
+        - "group:admins"
+        - "group:users"
+      resources:
+        - "^/($|mailpit($|/.*))$"
+        - "^/($|[^/]+)$"
+
+    # Authelia portal itself - everyone who can authenticate
+    - domain: stack.local
+      policy: one_factor
+      resources:
+        - "^/authelia($|/.*)$"
+
+session:
+  name: authelia_session
+  domain: stack.local
+  same_site: lax
+  secret: insecure_session_secret_change_in_production
+  expiration: 1h
+  inactivity: 15m
+  remember_me_duration: 1M
+
+regulation:
+  max_retries: 3
+  find_time: 2m
+  ban_time: 5m
+
+storage:
+  encryption_key: insecure_encryption_key_change_in_production
+  local:
+    path: /config/db.sqlite3
+
+notifier:
+  disable_startup_check: true
+  filesystem:
+    filename: /config/notification.txt
+
+identity_providers:
+  oidc:
+    hmac_secret: insecure_oidc_hmac_secret_change_in_production
+    issuer_private_key: |
+      -----BEGIN PRIVATE KEY-----
+      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
+      0NZsJyWTF10d428C0jk6o8LzlRasWmE=
+      -----END PRIVATE KEY-----
+    access_token_lifespan: 1h
+    authorize_code_lifespan: 1m
+    id_token_lifespan: 1h
+    refresh_token_lifespan: 90m
+    enable_client_debug_messages: false
+    enforce_pkce: public_clients_only
+    cors:
+      endpoints:
+        - authorization
+        - token
+        - revocation
+        - introspection
+      allowed_origins_from_client_redirect_uris: true
+    clients:
+      - id: grafana
+        description: Grafana Observability Platform
+        secret: "$pbkdf2-sha512$310000$c8p78n7pUMln0jzvd4aK4Q$JNRBzwAo0ek5qKn50cFzzvE9RXV88h1wJn5KGiHrD0YKtZaR5lW0Q1PvWpEI6qWjm9c8qALI8kqBsEqsLMD6Qw"  # grafana-client-secret-change-me
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://stack.local/grafana/login/generic_oauth
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+          - refresh_token
+        response_types:
+          - code
+        response_modes:
+          - form_post
+          - query
+          - fragment
+        userinfo_signing_algorithm: none
+      - id: librechat
+        description: LibreChat AI Interface
+        secret: "$pbkdf2-sha512$310000$c8p78n7pUMln0jzvd4aK4Q$JNRBzwAo0ek5qKn50cFzzvE9RXV88h1wJn5KGiHrD0YKtZaR5lW0Q1PvWpEI6qWjm9c8qALI8kqBsEqsLMD6Qw"  # librechat-client-secret-change-me
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://stack.local/librechat/oauth/openid/callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+          - refresh_token
+        response_types:
+          - code
+        response_modes:
+          - form_post
+          - query
+          - fragment
+        userinfo_signing_algorithm: none

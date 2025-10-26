@@ -1,131 +1,140 @@
 {
-  "last_updated": "2025-10-25T21:36:09Z",
+  "last_updated": "2025-10-26T03:45:26Z",
   "version": "1.0.0",
   "freshness_rule": "Service is 'functional' only when last passing test > last change",
   "services": {
-    "alertmanager": {
+    "authelia": {
       "status": "untested",
-      "last_change": 1761426297,
+      "last_change": 1761448865,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 ,
     "browserless": {
       "status": "needs_retest",
-      "last_change": 1761389675,
+      "last_change": 1761448865,
       "last_test": 1761388117,
       "last_test_result": "pass",
-      "change_source": "b0cbb86",
-      "staleness_seconds": 1558
+      "change_source": "aed9b37",
+      "staleness_seconds": 60748
+    }
+,
+    "caddy": {
+      "status": "untested",
+      "last_change": 1761448865,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "aed9b37",
+      "staleness_seconds": null
     }
 ,
     "clickhouse": {
       "status": "untested",
-      "last_change": 1761425371,
+      "last_change": 1761448865,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
-      "staleness_seconds": null
-    }
-,
-    "dex": {
-      "status": "untested",
-      "last_change": 1761425288,
-      "last_test": null,
-      "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 ,
     "duplicati": {
       "status": "untested",
-      "last_change": 1761425288,
+      "last_change": 1761448865,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 ,
     "grafana": {
       "status": "needs_retest",
-      "last_change": 1761426297,
+      "last_change": 1761448865,
       "last_test": 1761425295,
       "last_test_result": "pass",
-      "change_source": "b0cbb86",
-      "staleness_seconds": 1002
+      "change_source": "aed9b37",
+      "staleness_seconds": 23570
     }
 ,
     "landing": {
       "status": "untested",
-      "last_change": 1761425288,
+      "last_change": 1761448865,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
+      "staleness_seconds": null
+    }
+,
+    "librechat": {
+      "status": "untested",
+      "last_change": 1761448865,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "aed9b37",
+      "staleness_seconds": null
+    }
+,
+    "localai": {
+      "status": "untested",
+      "last_change": 1761448865,
+      "last_test": null,
+      "last_test_result": "no_test",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 ,
     "loki": {
       "status": "untested",
-      "last_change": 1761426297,
+      "last_change": 1761448865,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 ,
     "mailpit": {
       "status": "untested",
-      "last_change": 1761425288,
+      "last_change": 1761450266,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 ,
     "mariadb": {
       "status": "untested",
-      "last_change": 1761425371,
+      "last_change": 1761448865,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 ,
     "mongodb": {
       "status": "untested",
-      "last_change": 1761425288,
+      "last_change": 1761448865,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 ,
     "openldap": {
       "status": "untested",
-      "last_change": 1761427698,
+      "last_change": 1761448865,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
-      "staleness_seconds": null
-    }
-,
-    "prometheus": {
-      "status": "untested",
-      "last_change": 1761426297,
-      "last_test": null,
-      "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 ,
     "promtail": {
       "status": "untested",
-      "last_change": 1761425288,
+      "last_change": 1761448865,
       "last_test": null,
       "last_test_result": "no_test",
-      "change_source": "b0cbb86",
+      "change_source": "aed9b37",
       "staleness_seconds": null
     }
 
