@@ -28,6 +28,7 @@ volumes:
   mariadb_data:
   mongodb_data:
   clickhouse_data:
+  portainer_data:
 
 services:
   # --- Docker Socket Proxy (least privilege) ---
@@ -322,7 +323,9 @@ services:
     container_name: mongodb
     restart: unless-stopped
     networks:
-      - backend
+      backend:
+        aliases:
+          - mongo
     volumes:
       - mongodb_data:/data/db
       - ./configs/mongodb:/docker-entrypoint-initdb.d:ro
@@ -359,3 +362,63 @@ services:
       caddy.reverse_proxy: "{{upstreams 8123}}"
     profiles:
       - datastores
+
+  # --- Adminer (database management UI) ---
+  # Provenance: Phase 5 - Management Tools
+  adminer:
+    image: adminer:4.8.1
+    container_name: adminer
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    environment:
+      ADMINER_DEFAULT_SERVER: mariadb
+      ADMINER_DESIGN: dracula
+    labels:
+      caddy: adminer.${STACK_HOST:-stack.local}
+      caddy.reverse_proxy: "{{upstreams 8080}}"
+    profiles:
+      - management
+
+  # --- Mongo Express (MongoDB management UI) ---
+  # Provenance: Phase 5 - Management Tools
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: mongo-express
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_ROOT_USER:-root}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_ROOT_PASSWORD:-root_password_change_me}
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USER:-admin}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:-admin_password_change_me}
+      ME_CONFIG_SITE_BASEURL: /
+      ME_CONFIG_MONGODB_URL: mongodb://root:root_password_change_me@mongodb:27017/
+    labels:
+      caddy: mongo-express.${STACK_HOST:-stack.local}
+      caddy.reverse_proxy: "{{upstreams 8081}}"
+    profiles:
+      - management
+
+  # --- Portainer (Docker management UI) ---
+  # Provenance: Phase 5 - Management Tools
+  portainer:
+    image: portainer/portainer-ce:2.19.4
+    container_name: portainer
+    restart: unless-stopped
+    networks:
+      - frontend
+      - socket
+    volumes:
+      - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    labels:
+      caddy: portainer.${STACK_HOST:-stack.local}
+      caddy.reverse_proxy: "{{upstreams 9000}}"
+    profiles:
+      - management
