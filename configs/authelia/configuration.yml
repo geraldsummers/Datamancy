@@ -41,8 +41,8 @@ authentication_backend:
     group_name_attribute: cn
     mail_attribute: mail
     display_name_attribute: displayName
-    user: uid=authelia,ou=users,dc=datamancy,dc=local
-    password: authelia_password_change_me
+    user: cn=admin,dc=datamancy,dc=local
+    password: admin_password_change_me
 
 access_control:
   default_policy: deny
