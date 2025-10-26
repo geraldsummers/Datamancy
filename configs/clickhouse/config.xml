@@ -1,0 +1,42 @@
+<!-- ClickHouse Configuration -->
+<!-- Provenance: Phase 4 - Datastores -->
+<clickhouse>
+    <!-- Listen on all interfaces -->
+    <listen_host>::</listen_host>
+
+    <!-- HTTP interface -->
+    <http_port>8123</http_port>
+
+    <!-- Native protocol (TCP) -->
+    <tcp_port>9000</tcp_port>
+
+    <!-- Logging -->
+    <logger>
+        <level>information</level>
+        <console>true</console>
+    </logger>
+
+    <!-- User configuration -->
+    <users>
+        <datamancy>
+            <password_sha256_hex><!-- Will be set via environment --></password_sha256_hex>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>default</profile>
+            <quota>default</quota>
+        </datamancy>
+    </users>
+
+    <!-- Allow remote connections -->
+    <remote_servers>
+        <datamancy_cluster>
+            <shard>
+                <replica>
+                    <host>clickhouse</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </datamancy_cluster>
+    </remote_servers>
+</clickhouse>

@@ -25,6 +25,9 @@ volumes:
   ldap_data:
   ldap_config:
   authelia_data:
+  mariadb_data:
+  mongodb_data:
+  clickhouse_data:
 
 services:
   # --- Docker Socket Proxy (least privilege) ---
@@ -292,3 +295,67 @@ services:
       caddy.reverse_proxy: "{{upstreams 9091}}"
     profiles:
       - auth
+
+  # --- MariaDB (relational database) ---
+  # Provenance: Phase 4 - Datastores
+  mariadb:
+    image: mariadb:11.2
+    container_name: mariadb
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./configs/mariadb:/docker-entrypoint-initdb.d:ro
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-root_password_change_me}
+      MYSQL_DATABASE: ${MARIADB_DATABASE:-datamancy}
+      MYSQL_USER: ${MARIADB_USER:-datamancy}
+      MYSQL_PASSWORD: ${MARIADB_PASSWORD:-datamancy_password_change_me}
+    profiles:
+      - datastores
+
+  # --- MongoDB (document database) ---
+  # Provenance: Phase 4 - Datastores
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - mongodb_data:/data/db
+      - ./configs/mongodb:/docker-entrypoint-initdb.d:ro
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-root_password_change_me}
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-datamancy}
+    profiles:
+      - datastores
+
+  # --- ClickHouse (analytics database) ---
+  # Provenance: Phase 4 - Datastores
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.12
+    container_name: clickhouse
+    restart: unless-stopped
+    networks:
+      - backend
+      - frontend
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./configs/clickhouse:/etc/clickhouse-server/config.d:ro
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-datamancy}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-datamancy}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-datamancy_password_change_me}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    labels:
+      caddy: clickhouse.${STACK_HOST:-stack.local}
+      caddy.reverse_proxy: "{{upstreams 8123}}"
+    profiles:
+      - datastores
