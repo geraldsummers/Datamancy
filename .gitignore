@@ -34,3 +34,9 @@ backups/*.sql
 
 # Logs
 *.log
+
+# MkDocs site output
+site/
+
+# Freshness status (generated)
+docs/_data/status.json

@@ -1,6 +1,6 @@
-# Datamancy Stack — Phase 0 Scaffolding
+# Datamancy Stack — Phase 0.5 Complete
 # Provenance: Caddy + docker-socket-proxy + multi-hostname no-DNS architecture
-# Architecture: Caddy front door, local CA, rootless Docker
+# Architecture: Caddy front door, local CA, rootless Docker, freshness automation
 #
 # Networks:
 #   - frontend: Public-facing services (Caddy, exposed UIs)
@@ -67,3 +67,38 @@ services:
       caddy.tls: "/certs/wildcard.crt /certs/wildcard.key"
     profiles:
       - core
+
+  # --- Docs Indexer (fingerprint tracker) ---
+  # Provenance: Phase 0.5 freshness automation
+  docs-indexer:
+    build:
+      context: ./tools/docs-indexer
+      dockerfile: Dockerfile
+    container_name: docs-indexer
+    volumes:
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
+      - ./configs:/app/configs:ro
+      - ./docs:/app/docs:rw
+      - ./data:/app/data:ro
+      - ./.git:/app/.git:ro
+      - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+    profiles:
+      - tools
+
+  # --- MkDocs Material Site Builder ---
+  # Provenance: Phase 0.5 documentation site
+  mkdocs:
+    build:
+      context: ./tools/mkdocs
+      dockerfile: Dockerfile
+    container_name: mkdocs
+    volumes:
+      - ./docs:/docs/docs:ro
+      - ./mkdocs.yml:/docs/mkdocs.yml:ro
+      - ./site:/docs/site:rw
+    working_dir: /docs
+    command: build
+    profiles:
+      - tools
