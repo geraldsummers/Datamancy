@@ -47,21 +47,30 @@ authentication_backend:
 access_control:
   default_policy: deny
   rules:
-    # Admin access to everything
+    # Public access to Authelia portal itself
+    - domain: "auth.stack.local"
+      policy: bypass
+
+    # AI Observer: read-only access to all services (one_factor for automation)
+    - domain: "*.stack.local"
+      policy: one_factor
+      subject:
+        - "group:observers"
+
+    # Admin access to everything (two_factor for security)
     - domain: "*.stack.local"
       policy: two_factor
       subject:
         - "group:admins"
 
-    # Viewer access to Grafana only
-    - domain: "grafana.stack.local"
+    # Viewer access to observability services only
+    - domain:
+        - "grafana.stack.local"
+        - "prometheus.stack.local"
+        - "loki.stack.local"
       policy: one_factor
       subject:
         - "group:viewers"
-
-    # Public access to Authelia portal itself
-    - domain: "auth.stack.local"
-      policy: bypass
 
 session:
   name: authelia_session

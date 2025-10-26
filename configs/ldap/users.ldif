@@ -11,7 +11,7 @@ cn: Admin User
 sn: User
 givenName: Admin
 mail: admin@datamancy.local
-userPassword: {SSHA}changeme
+userPassword: {SSHA}BRSmo9YFk13W+BaG8F7ktPNr5QlYGLlm
 uidNumber: 10000
 gidNumber: 10000
 homeDirectory: /home/admin
@@ -27,11 +27,29 @@ cn: Viewer User
 sn: User
 givenName: Viewer
 mail: viewer@datamancy.local
-userPassword: {SSHA}changeme
+userPassword: {SSHA}BRSmo9YFk13W+BaG8F7ktPNr5QlYGLlm
 uidNumber: 10001
 gidNumber: 10001
 homeDirectory: /home/viewer
 loginShell: /bin/bash
+
+# AI Observer: read-only automation account
+dn: uid=observer,ou=users,dc=datamancy,dc=local
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: observer
+cn: AI Observer
+sn: Observer
+givenName: AI
+displayName: AI Observer (Read-Only)
+mail: observer@datamancy.local
+userPassword: {SSHA}BRSmo9YFk13W+BaG8F7ktPNr5QlYGLlm
+uidNumber: 10002
+gidNumber: 10002
+homeDirectory: /home/observer
+loginShell: /bin/bash
+description: Autonomous observer account with read-only access to all services
 
 # Admin group
 dn: cn=admins,ou=groups,dc=datamancy,dc=local
@@ -44,3 +62,10 @@ dn: cn=viewers,ou=groups,dc=datamancy,dc=local
 objectClass: groupOfUniqueNames
 cn: viewers
 uniqueMember: uid=viewer,ou=users,dc=datamancy,dc=local
+
+# Observers group (read-only automation)
+dn: cn=observers,ou=groups,dc=datamancy,dc=local
+objectClass: groupOfUniqueNames
+cn: observers
+uniqueMember: uid=observer,ou=users,dc=datamancy,dc=local
+description: Read-only access to all services for autonomous monitoring

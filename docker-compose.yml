@@ -232,6 +232,10 @@ services:
     labels:
       caddy: loki.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 3100}}"
+      caddy.forward_auth: "authelia:9091 {
+        uri /api/verify?rd=https://auth.stack.local/
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }"
     profiles:
       - observability
 
@@ -360,6 +364,10 @@ services:
     labels:
       caddy: clickhouse.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 8123}}"
+      caddy.forward_auth: "authelia:9091 {
+        uri /api/verify?rd=https://auth.stack.local/
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }"
     profiles:
       - datastores
 
@@ -378,6 +386,10 @@ services:
     labels:
       caddy: adminer.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 8080}}"
+      caddy.forward_auth: "authelia:9091 {
+        uri /api/verify?rd=https://auth.stack.local/
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }"
     profiles:
       - management
 
@@ -402,6 +414,10 @@ services:
     labels:
       caddy: mongo-express.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 8081}}"
+      caddy.forward_auth: "authelia:9091 {
+        uri /api/verify?rd=https://auth.stack.local/
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }"
     profiles:
       - management
 
@@ -420,5 +436,9 @@ services:
     labels:
       caddy: portainer.${STACK_HOST:-stack.local}
       caddy.reverse_proxy: "{{upstreams 9000}}"
+      caddy.forward_auth: "authelia:9091 {
+        uri /api/verify?rd=https://auth.stack.local/
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }"
     profiles:
       - management
