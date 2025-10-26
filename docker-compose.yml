@@ -1,0 +1,69 @@
+# Datamancy Stack — Phase 0 Scaffolding
+# Provenance: Caddy + docker-socket-proxy + multi-hostname no-DNS architecture
+# Architecture: Caddy front door, local CA, rootless Docker
+#
+# Networks:
+#   - frontend: Public-facing services (Caddy, exposed UIs)
+#   - backend: Internal services (metrics, logs, datastores)
+#   - socket: Restricted Docker socket access
+
+networks:
+  frontend:
+    name: datamancy_frontend
+  backend:
+    name: datamancy_backend
+  socket:
+    name: datamancy_socket
+    internal: true
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+services:
+  # --- Docker Socket Proxy (least privilege) ---
+  # Provenance: Caddy needs container discovery; restrict socket access
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.1.2
+    container_name: docker-socket-proxy
+    restart: unless-stopped
+    networks:
+      - socket
+    volumes:
+      - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # Only allow read operations needed by caddy-docker-proxy
+      CONTAINERS: 1
+      NETWORKS: 1
+      SERVICES: 0
+      TASKS: 0
+      POST: 0
+    profiles:
+      - core
+
+  # --- Caddy Reverse Proxy (front door) ---
+  # Provenance: Multi-hostname *.stack.local, automatic label-based routing
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.9
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - frontend
+      - backend
+      - socket
+    volumes:
+      - /run/user/${UID:-1000}/docker.sock:/var/run/docker.sock:ro  # Label discovery
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./certs:/certs:ro
+    environment:
+      CADDY_DOCKER_CADDYFILE_PATH: /etc/caddy/Caddyfile
+      CADDY_DOCKER_LABEL_PREFIX: caddy
+    labels:
+      caddy: "*.${STACK_HOST:-stack.local}"
+      caddy.tls: "/certs/wildcard.crt /certs/wildcard.key"
+    profiles:
+      - core
