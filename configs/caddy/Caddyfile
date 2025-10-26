@@ -4,7 +4,7 @@
 
 # Global options
 {
-	admin 0.0.0.0:2019
+	admin 127.0.0.1:2019  # Localhost only for security
 	auto_https off  # Using custom wildcard cert
 }
 

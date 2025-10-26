@@ -117,11 +117,12 @@ services:
 
   # --- Grafana (observability UI) ---
   # Provenance: Phase 1 agent autonomy smoke test
-  # Phase 6: Runs as root (required for volume permissions)
+  # Phase 6: Runs as grafana user (472, non-root)
   grafana:
     image: grafana/grafana:11.0.0
     container_name: grafana
     restart: unless-stopped
+    user: "472"  # Phase 6: grafana user (non-root, image default)
     networks:
       - frontend
       - backend
@@ -155,12 +156,11 @@ services:
       CONNECTION_TIMEOUT: 60000
       ENABLE_CORS: "true"
       PREBOOT_CHROME: "true"
+      CHROME_ARGS: "--no-sandbox --disable-setuid-sandbox"  # Avoid SYS_ADMIN requirement
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/datamancy-ca.crt:ro
     cap_drop:  # Phase 6: drop all capabilities
       - ALL
-    cap_add:  # Required for Chrome sandbox
-      - SYS_ADMIN
     profiles:
       - observability
 
@@ -415,7 +415,6 @@ services:
       - ALL
     cap_add:  # Required for database operations
       - SYS_NICE
-      - NET_ADMIN
     profiles:
       - datastores
 
@@ -546,7 +545,7 @@ services:
     hostname: datamancy-kopia
     networks:
       - backend
-      - frontend
+      - frontend  # Required for Caddy proxy; MUST be behind Authelia
     volumes:
       - kopia_data:/app/config
       - kopia_cache:/app/cache
@@ -773,6 +772,7 @@ services:
   # --- Benthos (Data streaming platform) ---
   # Provenance: Phase 8 - Data Integration Layer
   # Phase 6: Runs as benthos user (non-root)
+  # Note: Using Redpanda Connect (Benthos fork) - compatible with Benthos configs
   benthos:
     image: ghcr.io/redpanda-data/connect:latest
     container_name: benthos
