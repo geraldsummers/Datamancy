@@ -1,27 +1,35 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Phase 4: Datastores Tests', () => {
-  test('MariaDB should be accessible and contain test data', async ({ request }) => {
-    // Test MariaDB via direct connection check
-    // We'll verify it's running and has initialized data
+  test('MariaDB should be accessible via Adminer', async ({ page }) => {
+    // Test MariaDB connectivity through Adminer UI
+    await page.goto('https://adminer.stack.local');
+    await page.waitForLoadState('networkidle');
 
-    // Note: Playwright doesn't have native MySQL client, so we test via a simple service check
-    // In a real scenario, we'd use a sidecar container or API endpoint that queries MariaDB
+    // Adminer login page should load
+    const content = await page.textContent('body');
+    expect(content?.toLowerCase().includes('server') ||
+           content?.toLowerCase().includes('login') ||
+           content?.toLowerCase().includes('adminer')).toBeTruthy();
 
-    // For now, verify the container is healthy by checking if metrics table has data
-    // This will be done via a future API endpoint or we can verify via docker exec in CI
-
-    // Placeholder: Verify MariaDB is running (we know it is from previous checks)
-    expect(true).toBeTruthy();
+    // Verify mariadb is pre-selected as default server
+    const serverInput = page.locator('input[name="auth[server]"]');
+    if (await serverInput.count() > 0) {
+      const serverValue = await serverInput.inputValue();
+      expect(serverValue).toBe('mariadb');
+    }
   });
 
-  test('MongoDB should be accessible', async ({ request }) => {
-    // Test MongoDB connectivity
-    // Similar to MariaDB, Playwright doesn't have native MongoDB driver
-    // We'd typically test this via an API endpoint that queries MongoDB
+  test('MongoDB should be accessible via Mongo Express', async ({ page }) => {
+    // Test MongoDB connectivity through Mongo Express UI
+    await page.goto('https://mongo-express.stack.local');
+    await page.waitForLoadState('networkidle');
 
-    // Placeholder: Verify MongoDB is running
-    expect(true).toBeTruthy();
+    // Should see database list or basic auth prompt
+    const content = await page.textContent('body');
+    expect(content?.toLowerCase().includes('mongo') ||
+           content?.toLowerCase().includes('database') ||
+           content?.toLowerCase().includes('unauthorized')).toBeTruthy();
   });
 
   test('ClickHouse HTTP interface should respond', async ({ request }) => {
