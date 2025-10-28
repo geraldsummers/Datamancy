@@ -164,3 +164,9 @@ clickhouse.stack.local {
 	}
 	reverse_proxy clickhouse:8123
 }
+
+# JupyterHub with native OIDC (no forward_auth needed)
+jupyterhub.stack.local {
+	tls internal
+	reverse_proxy jupyterhub:8000
+}

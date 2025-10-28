@@ -30,6 +30,7 @@ volumes:
   planka_data:
   outline_data:
   benthos_data:
+  jupyterhub_data:
 
 services:
 
@@ -58,6 +59,7 @@ services:
           - planka.stack.local
           - outline.stack.local
           - kopia.stack.local
+          - jupyterhub.stack.local
     ports:
       - "80:80"
       - "443:443"
@@ -483,6 +485,68 @@ services:
       - FILE_STORAGE_LOCAL_ROOT_DIR=/var/lib/outline/data
     volumes:
       - outline_data:/var/lib/outline/data
+
+  # ======================
+  # Docker Socket Proxy
+  # ======================
+  # Docker Socket Proxy - provides controlled API access
+  # Uses rootless socket in dev, standard socket in prod
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: docker-proxy
+    restart: unless-stopped
+    networks:
+      - stack
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - VOLUMES=1
+      - POST=1
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - DISTRIBUTION=0
+      - EXEC=0
+      - GRPC=0
+      - INFO=1
+      - PLUGINS=0
+      - SERVICES=0
+      - SESSION=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0
+      - VERSION=1
+    volumes:
+      # Rootless Docker (dev): /run/user/1000/docker.sock
+      # Root Docker (prod): /var/run/docker.sock
+      - ${DOCKER_SOCKET:-/run/user/1000/docker.sock}:/var/run/docker.sock:ro
+
+  # ======================
+  # JupyterHub
+  # ======================
+  jupyterhub:
+    build:
+      context: ./configs/jupyterhub
+      dockerfile: Dockerfile
+    container_name: jupyterhub
+    restart: unless-stopped
+    networks:
+      - stack
+    depends_on:
+      - authelia
+      - docker-proxy
+    environment:
+      - JUPYTERHUB_OAUTH_SECRET=${JUPYTERHUB_OAUTH_SECRET}
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+      - DOCKER_HOST=tcp://docker-proxy:2375
+    volumes:
+      - jupyterhub_data:/srv/jupyterhub
+      - ./configs/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
+      - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
+    command: sh -c "update-ca-certificates && jupyterhub -f /srv/jupyterhub/jupyterhub_config.py"
 
 
   # ======================

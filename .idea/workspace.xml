@@ -4,101 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="fixed pycharm stuff">
-      <change afterPath="$PROJECT_DIR$/SSO_Notes.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/cleandocker.sh" afterDir="false" />
+    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="looking promising">
       <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ARCHITECTURE_PROMPT_V2.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/CURRENT_STATUS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/PHASE_7_COMPLETION_SUMMARY.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/PHASE_7_IMPLEMENTATION_SUMMARY.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/PHASE_8_COMPLETION_SUMMARY.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/SECURITY_HARDENING_FIXES.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backups/.gitkeep" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/certs/ca.srl" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/certs/san.cnf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/certs/wildcard.csr" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/alertmanager/alertmanager.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/authelia/configuration.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/benthos/benthos.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/caddy/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/clickhouse/config.xml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/clickhouse/config.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/grafana/provisioning/datasources/datasources.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/ldap/bootstrap.ldif" beforeDir="false" afterPath="$PROJECT_DIR$/configs/ldap/bootstrap.ldif" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/ldap/users.ldif" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/librechat/librechat.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/localai/.keep" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/loki/loki.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/mariadb/init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/configs/mariadb/init.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/mongodb/init.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/prometheus/prometheus.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/prometheus/rules/basic-alerts.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/promtail/promtail.yml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/adr/ADR-000-caddy-multi-hostname.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/adr/ADR-001-freshness-fingerprints.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/adr/ADR-002-observer-rbac.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/adr/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/_TEMPLATE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/adminer.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/authelia.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/benthos.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/browserless.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/caddy.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/clickhouse.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/docker-socket-proxy.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/docs-indexer.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/grafana.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/homeassistant.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/jellyfin.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/kopia.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/ldap.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/librechat.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/localai.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/loki.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/mariadb.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/mkdocs.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/mongo-express.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/mongodb.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/nextcloud.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/outline.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/paperless.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/planka.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/portainer.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/prometheus.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/promtail.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/stirling-pdf.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/test-runner.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/vaultwarden.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/spokes/watchtower.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/mkdocs.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/generate-ca.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/tests/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/tests/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/playwright.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tests/playwright.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/grafana-smoke.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/observability-stack.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase0-caddy.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase0.5-docs.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase2-promtail.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase3-auth.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase3-ldap.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase4-backup.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase4-datastores.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase5-ai.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase5-management.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase7-apps.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/specs/phase8-extended-apps.spec.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/docs-indexer/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/docs-indexer/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/docs-indexer/indexer.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/docs-indexer/requirements.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/mkdocs/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/playwright-report/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/tests/playwright-report/index.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -106,7 +18,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="6792" />
+    <option name="cachedIndexableFilesCount" value="6098" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="FileTemplateManagerImpl">
@@ -304,7 +216,7 @@
       <workItem from="1761617652024" duration="3247000" />
       <workItem from="1761621072216" duration="15312000" />
       <workItem from="1761644901486" duration="2298000" />
-      <workItem from="1761647377308" duration="9752000" />
+      <workItem from="1761647377308" duration="16353000" />
     </task>
     <task id="LOCAL-00001" summary="Remove unused services, configurations, and dependencies from project">
       <option name="closed" value="true" />
@@ -418,7 +330,15 @@
       <option name="project" value="LOCAL" />
       <updated>1761518800761</updated>
     </task>
-    <option name="localTasksCounter" value="15" />
+    <task id="LOCAL-00015" summary="looking promising">
+      <option name="closed" value="true" />
+      <created>1761688890599</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1761688890599</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -439,7 +359,8 @@
     <MESSAGE value="rebuild 2 - sso" />
     <MESSAGE value="rebuild - caddy security plugin" />
     <MESSAGE value="fixed pycharm stuff" />
-    <option name="LAST_COMMIT_MESSAGE" value="fixed pycharm stuff" />
+    <MESSAGE value="looking promising" />
+    <option name="LAST_COMMIT_MESSAGE" value="looking promising" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

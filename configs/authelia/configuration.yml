@@ -281,3 +281,22 @@ identity_providers:
           - authorization_code
         response_types:
           - code
+
+      # JupyterHub
+      - client_id: jupyterhub
+        client_name: JupyterHub
+        client_secret: '$pbkdf2-sha512$310000$TfK96.U2ZxeoDXe5txMcTw$MqxrLDShlt3/MXo5W.VNX4jVNv5GXVYOT5DTP/ZnRx6iocUeAeJFR5OV8Z8DsNTdWUqEnkAJIHg2XZLhJ54XCg'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://jupyterhub.stack.local/hub/oauth_callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+        token_endpoint_auth_method: client_secret_post
