@@ -4,34 +4,28 @@ export default defineConfig({
   testDir: './specs',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: [
-    ['html', { outputFolder: 'artifacts/html-report', open: 'never' }],
-    ['junit', { outputFile: 'artifacts/junit.xml' }],
+    ['html'],
     ['list']
   ],
   use: {
-    baseURL: process.env.GRAFANA_URL || 'https://grafana.stack.local',
+    baseURL: 'http://localhost',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    ignoreHTTPSErrors: true, // Custom CA not recognized by Chromium
+    ignoreHTTPSErrors: true,
+    actionTimeout: 10000,
   },
   projects: [
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        // Direct browser launch (no Browserless for now—simpler)
-        // connectOptions: {
-        //   wsEndpoint: `ws://browserless:3000/chromium/playwright?token=${process.env.BROWSERLESS_TOKEN}`,
-        // },
+        viewport: { width: 1920, height: 1080 }
       },
     },
   ],
-  timeout: 30000,
-  expect: {
-    timeout: 10000,
-  },
+  outputDir: 'test-results',
 });

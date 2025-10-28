@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="fixed pycharm stuff">
+      <change afterPath="$PROJECT_DIR$/SSO_Notes.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/cleandocker.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ARCHITECTURE_PROMPT_V2.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/CURRENT_STATUS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/PHASE_7_COMPLETION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/PHASE_7_IMPLEMENTATION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/PHASE_8_COMPLETION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/SECURITY_HARDENING_FIXES.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backups/.gitkeep" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/certs/ca.srl" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/certs/san.cnf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/certs/wildcard.csr" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/alertmanager/alertmanager.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/benthos/benthos.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/caddy/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/clickhouse/config.xml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/clickhouse/config.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/grafana/provisioning/datasources/datasources.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/ldap/bootstrap.ldif" beforeDir="false" afterPath="$PROJECT_DIR$/configs/ldap/bootstrap.ldif" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/ldap/users.ldif" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/librechat/librechat.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/localai/.keep" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/loki/loki.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mariadb/init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/configs/mariadb/init.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mongodb/init.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/prometheus/prometheus.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/prometheus/rules/basic-alerts.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/promtail/promtail.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/adr/ADR-000-caddy-multi-hostname.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/adr/ADR-001-freshness-fingerprints.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/adr/ADR-002-observer-rbac.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/adr/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/_TEMPLATE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/adminer.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/authelia.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/benthos.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/browserless.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/caddy.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/clickhouse.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/docker-socket-proxy.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/docs-indexer.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/grafana.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/homeassistant.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/jellyfin.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/kopia.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/ldap.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/librechat.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/localai.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/loki.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/mariadb.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/mkdocs.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/mongo-express.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/mongodb.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/nextcloud.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/outline.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/paperless.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/planka.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/portainer.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/prometheus.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/promtail.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/stirling-pdf.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/test-runner.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/vaultwarden.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/spokes/watchtower.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mkdocs.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/generate-ca.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/tests/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/tests/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/playwright.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tests/playwright.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/grafana-smoke.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/observability-stack.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase0-caddy.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase0.5-docs.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase2-promtail.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase3-auth.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase3-ldap.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase4-backup.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase4-datastores.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase5-ai.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase5-management.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase7-apps.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/specs/phase8-extended-apps.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/docs-indexer/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/docs-indexer/entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/docs-indexer/indexer.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/docs-indexer/requirements.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/mkdocs/Dockerfile" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="6792" />
+    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+        <option value="Dockerfile" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;geraldsummers&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/geraldsummers/Datamancy.git&quot;,
+    &quot;accountId&quot;: &quot;c43c497a-84d0-4c12-8c3f-88ed21487185&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 2
+}</component>
+  <component name="ProjectId" id="2zOLpsPU4lAjlSWgkYaSRtaElsu" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Docker.docker-compose.yml.ca-generator: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
+    "Docker.src.caddy: Compose Deployment.executor": "Run",
+    "Docker.src.docker-socket-proxy: Compose Deployment.executor": "Run",
+    "Docker.src.ragserve: Compose Deployment.executor": "Run",
+    "Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor": "Run",
+    "Docker.src: Compose Deployment (1).executor": "Run",
+    "Docker.src: Compose Deployment.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SHELLCHECK.PATH": "/home/gerald/.local/share/JetBrains/PyCharmCE2025.2/Shell Script/shellcheck",
+    "git-widget-placeholder": "master",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/home/gerald/Documents/IdeaProjects/Datamancy",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "/home/gerald/.config/JetBrains/PyCharm2025.2/node/versions/22.21.0/bin/node",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "ml.llm.LLMTrustedDomainsConfigurableProvider",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/src" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/.old" />
+      <recent name="$PROJECT_DIR$/.old/older" />
+      <recent name="$PROJECT_DIR$/.old/src" />
+      <recent name="$PROJECT_DIR$/src/grafana/provisioning/dashboards" />
+      <recent name="$PROJECT_DIR$/src" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Docker.docker-compose.yml: Compose Deployment">
+    <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
+      <deployment type="docker-compose.yml">
+        <settings />
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="docker-compose.yml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="sourceFilePath" value="docker-compose.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="docker-compose.yml.ca-generator: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="services">
+            <list>
+              <option value="ca-generator" />
+            </list>
+          </option>
+          <option name="sourceFilePath" value="docker-compose.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="src: Compose Deployment (1)" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="sourceFilePath" value="src/docker-compose.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="src.caddy: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="services">
+            <list>
+              <option value="caddy" />
+            </list>
+          </option>
+          <option name="sourceFilePath" value="src/docker-compose.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="src.docker-socket-proxy: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="services">
+            <list>
+              <option value="docker-socket-proxy" />
+            </list>
+          </option>
+          <option name="sourceFilePath" value="src/docker-compose.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Docker.docker-compose.yml: Compose Deployment" />
+        <item itemvalue="Docker.docker-compose.yml.ca-generator: Compose Deployment" />
+        <item itemvalue="Docker.src: Compose Deployment (1)" />
+        <item itemvalue="Docker.src.docker-socket-proxy: Compose Deployment" />
+        <item itemvalue="Docker.src.caddy: Compose Deployment" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-75c7c973e13d-JavaScript-PY-253.27642.35" />
+        <option value="bundled-python-sdk-8ea801f113e6-30684d0e00d4-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.27642.35" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="" />
+      <created>1751597361578</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1751597361578</updated>
+      <workItem from="1751773090805" duration="109000" />
+      <workItem from="1751773207809" duration="230000" />
+      <workItem from="1751773478739" duration="7000" />
+      <workItem from="1751773502710" duration="13756000" />
+      <workItem from="1752981618907" duration="19113000" />
+      <workItem from="1753693644938" duration="22000" />
+      <workItem from="1761031754797" duration="842000" />
+      <workItem from="1761074745675" duration="4165000" />
+      <workItem from="1761086191831" duration="9513000" />
+      <workItem from="1761105398481" duration="6700000" />
+      <workItem from="1761166172579" duration="23980000" />
+      <workItem from="1761250021885" duration="14853000" />
+      <workItem from="1761289022130" duration="328000" />
+      <workItem from="1761289693856" duration="19650000" />
+      <workItem from="1761354579810" duration="4430000" />
+      <workItem from="1761359169494" duration="70000" />
+      <workItem from="1761359355348" duration="19582000" />
+      <workItem from="1761384204536" duration="4838000" />
+      <workItem from="1761425002122" duration="8437000" />
+      <workItem from="1761435675424" duration="13116000" />
+      <workItem from="1761455188234" duration="30256000" />
+      <workItem from="1761518547942" duration="90000" />
+      <workItem from="1761518646569" duration="97000" />
+      <workItem from="1761518770182" duration="44250000" />
+      <workItem from="1761617652024" duration="3247000" />
+      <workItem from="1761621072216" duration="15312000" />
+      <workItem from="1761644901486" duration="2298000" />
+      <workItem from="1761647377308" duration="9752000" />
+    </task>
+    <task id="LOCAL-00001" summary="Remove unused services, configurations, and dependencies from project">
+      <option name="closed" value="true" />
+      <created>1759101500858</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1759101500858</updated>
+    </task>
+    <task id="LOCAL-00002" summary="holy claude">
+      <option name="closed" value="true" />
+      <created>1760999708466</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1760999708466</updated>
+    </task>
+    <task id="LOCAL-00003" summary="holy claude">
+      <option name="closed" value="true" />
+      <created>1761011198524</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1761011198524</updated>
+    </task>
+    <task id="LOCAL-00004" summary="holy claude">
+      <option name="closed" value="true" />
+      <created>1761032282433</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1761032282433</updated>
+    </task>
+    <task id="LOCAL-00005" summary="holy claude">
+      <option name="closed" value="true" />
+      <created>1761032292591</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1761032292591</updated>
+    </task>
+    <task id="LOCAL-00006" summary="holy claude">
+      <option name="closed" value="true" />
+      <created>1761114682882</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1761114682882</updated>
+    </task>
+    <task id="LOCAL-00007" summary="rebuild">
+      <option name="closed" value="true" />
+      <created>1761278906341</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1761278906341</updated>
+    </task>
+    <task id="LOCAL-00008" summary="rebuild">
+      <option name="closed" value="true" />
+      <created>1761286293615</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1761286293615</updated>
+    </task>
+    <task id="LOCAL-00009" summary="rebuild">
+      <option name="closed" value="true" />
+      <created>1761355915644</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1761355915644</updated>
+    </task>
+    <task id="LOCAL-00010" summary="rebuild 2 - no dns">
+      <option name="closed" value="true" />
+      <created>1761359436395</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1761359436395</updated>
+    </task>
+    <task id="LOCAL-00011" summary="rebuild 2 - sso">
+      <option name="closed" value="true" />
+      <created>1761378179342</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1761378179342</updated>
+    </task>
+    <task id="LOCAL-00012" summary="rebuild 2 - sso">
+      <option name="closed" value="true" />
+      <created>1761388075273</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1761388075273</updated>
+    </task>
+    <task id="LOCAL-00013" summary="rebuild - caddy security plugin">
+      <option name="closed" value="true" />
+      <created>1761452591920</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1761452591920</updated>
+    </task>
+    <task id="LOCAL-00014" summary="fixed pycharm stuff">
+      <option name="closed" value="true" />
+      <created>1761518800761</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1761518800761</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+    <option name="exactExcludedFiles">
+      <list>
+        <option value="$PROJECT_DIR$/scripts/test-runner/playwright.config.js" />
+        <option value="$PROJECT_DIR$/tests/playwright.config.js" />
+        <option value="$PROJECT_DIR$/tests/specs/phase1-smoke.spec.js" />
+      </list>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Remove unused services, configurations, and dependencies from project" />
+    <MESSAGE value="holy claude" />
+    <MESSAGE value="rebuild" />
+    <MESSAGE value="rebuild 2 - no dns" />
+    <MESSAGE value="rebuild 2 - sso" />
+    <MESSAGE value="rebuild - caddy security plugin" />
+    <MESSAGE value="fixed pycharm stuff" />
+    <option name="LAST_COMMIT_MESSAGE" value="fixed pycharm stuff" />
+  </component>
+  <component name="XSLT-Support.FileAssociations.UIState">
+    <expand />
+    <select />
+  </component>
+</project>

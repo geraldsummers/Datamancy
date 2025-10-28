@@ -1,203 +1,166 @@
-# Datamancy Stack Caddyfile
-# Provenance: Phase 5 - Static config replacing caddy-docker-proxy
-# Phase 6 - Added security headers
-
-# Global options
 {
-	admin 127.0.0.1:2019  # Localhost only for security
-	auto_https off  # Using custom wildcard cert
+	admin off
+	local_certs
 }
 
-# Wildcard TLS snippet
-(tls_config) {
-	tls /certs/wildcard.crt /certs/wildcard.key
-}
-
-# Security headers snippet (Phase 6)
-(security_headers) {
-	header {
-		# HSTS with 1 year max-age and preload
-		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-
-		# Prevent clickjacking
-		X-Frame-Options "SAMEORIGIN"
-
-		# Prevent MIME type sniffing
-		X-Content-Type-Options "nosniff"
-
-		# XSS protection (for older browsers)
-		X-XSS-Protection "1; mode=block"
-
-		# Referrer policy
-		Referrer-Policy "strict-origin-when-cross-origin"
-
-		# Content Security Policy (permissive for now, tighten per service)
-		Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https:; font-src 'self' data:;"
-
-		# Remove server identification
-		-Server
-	}
-}
-
-# Authelia portal
+# Authentication endpoint (no SSO protection)
 auth.stack.local {
-	import tls_config
-	import security_headers
+	tls internal
 	reverse_proxy authelia:9091
 }
 
-# Observability services
+# Grafana (OAuth via application, not forward_auth)
 grafana.stack.local {
-	import tls_config
-	import security_headers
+	tls internal
 	reverse_proxy grafana:3000
 }
 
-prometheus.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy prometheus:9090
-}
-
-alertmanager.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy alertmanager:9093
-}
-
-loki.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy loki:3100
-}
-
-# Datastores
-clickhouse.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy clickhouse:8123
-}
-
-# Management UIs
+# Adminer with SSO
 adminer.stack.local {
-	import tls_config
-	import security_headers
+	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://adminer.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
 	reverse_proxy adminer:8080
 }
 
-mongo-express.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy mongo-express:8081
+# pgAdmin with SSO
+pgadmin.stack.local {
+	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://pgadmin.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+	reverse_proxy pgadmin:80
 }
 
+# Portainer with SSO
 portainer.stack.local {
-	import tls_config
-	import security_headers
+	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://portainer.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
 	reverse_proxy portainer:9000
 }
 
-# Documentation site (MkDocs Material)
-docs.stack.local {
-	import tls_config
-	import security_headers
-	root * /site
-	file_server
+# LocalAI with SSO
+localai.stack.local {
+	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://localai.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+	reverse_proxy localai:8080
 }
 
-# AI Services
-librechat.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy librechat:3080
+# Open WebUI with native OIDC (no forward_auth needed)
+open-webui.stack.local {
+	tls internal
+	reverse_proxy open-webui:8080
 }
 
-# Backup Services
+# Kopia with SSO
 kopia.stack.local {
-	import tls_config
-	import security_headers
+	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://kopia.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
 	reverse_proxy kopia:51515
 }
 
-# Phase 7: Apps Layer
+# Nextcloud with native OIDC (no forward_auth needed)
 nextcloud.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy nextcloud:80
+	tls internal
+	reverse_proxy nextcloud:80 {
+		# Increase timeouts for large file uploads
+		transport http {
+			read_timeout 3600s
+			write_timeout 3600s
+		}
+	}
 
-	# Additional headers for Nextcloud
+	# Nextcloud specific headers
 	header {
-		# Remove CSP from security_headers for Nextcloud
-		-Content-Security-Policy
+		Strict-Transport-Security "max-age=15552000;"
 	}
 }
 
-vault.stack.local {
-	import tls_config
-	import security_headers
+# Vaultwarden with native OIDC (no forward_auth needed)
+vaultwarden.stack.local {
+	tls internal
 	reverse_proxy vaultwarden:80
 
-	# WebSocket support for Vaultwarden notifications
-	@websocket {
-		header Connection *Upgrade*
-		header Upgrade websocket
+	# Security headers for password manager
+	header {
+		Strict-Transport-Security "max-age=31536000;"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
 	}
-	reverse_proxy @websocket vaultwarden:3012
 }
 
-paperless.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy paperless:8000
-}
-
-pdf.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy stirling-pdf:8080
-}
-
-# Phase 8: Extended Apps and Services
-planka.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy planka:3000
-}
-
-wiki.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy outline:3000
-}
-
-jellyfin.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy jellyfin:8096
-}
-
-home.stack.local {
-	import tls_config
-	import security_headers
-	reverse_proxy homeassistant:8123
-
-	# WebSocket support for Home Assistant
-	@websocket {
-		header Connection *Upgrade*
-		header Upgrade websocket
-	}
-	reverse_proxy @websocket homeassistant:8123
-}
-
+# Benthos with SSO
 benthos.stack.local {
-	import tls_config
-	import security_headers
+	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://benthos.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
 	reverse_proxy benthos:4195
 }
 
-# Stack root
-stack.local {
-	import tls_config
-	import security_headers
-	respond "Datamancy Stack - Phase 8 Complete: Full Application Suite" 200
+# Jellyfin with native OIDC (no forward_auth needed)
+jellyfin.stack.local {
+	tls internal
+	reverse_proxy jellyfin:8096
+}
+
+# Home Assistant with native OIDC (no forward_auth needed)
+homeassistant.stack.local {
+	tls internal
+	reverse_proxy homeassistant:8123
+}
+
+# Planka with native OIDC (no forward_auth needed)
+planka.stack.local {
+	tls internal
+	reverse_proxy planka:1337
+}
+
+# Outline with native OIDC (no forward_auth needed)
+outline.stack.local {
+	tls internal
+	reverse_proxy outline:3000
+}
+
+# Browserless with SSO
+browserless.stack.local {
+	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://browserless.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+	reverse_proxy browserless:3000
+}
+
+# CouchDB with SSO
+couchdb.stack.local {
+	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://couchdb.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+	reverse_proxy couchdb:5984
+}
+
+# ClickHouse with SSO
+clickhouse.stack.local {
+	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://clickhouse.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+	reverse_proxy clickhouse:8123
 }

@@ -1,92 +1,73 @@
-# Authelia Configuration
-# Provenance: Phase 3 - Access Control with LDAP backend
-
+---
+theme: dark
 server:
   host: 0.0.0.0
   port: 9091
-  path: ""
-  read_buffer_size: 4096
-  write_buffer_size: 4096
 
 log:
   level: info
   format: text
 
-theme: light
-
-jwt_secret: a_very_important_secret_change_in_production
-
-default_redirection_url: https://stack.local
+telemetry:
+  metrics:
+    enabled: true
+    address: tcp://0.0.0.0:9959
 
 totp:
-  issuer: datamancy.local
+  issuer: stack.local
   period: 30
   skew: 1
 
 authentication_backend:
+  refresh_interval: 5m
   password_reset:
     disable: false
-  refresh_interval: 5m
   ldap:
     implementation: custom
     url: ldap://ldap:389
     timeout: 5s
     start_tls: false
-    base_dn: dc=datamancy,dc=local
+    base_dn: dc=stack,dc=local
     username_attribute: uid
     additional_users_dn: ou=users
     users_filter: (&({username_attribute}={input})(objectClass=inetOrgPerson))
     additional_groups_dn: ou=groups
-    groups_filter: (&(uniqueMember={dn})(objectClass=groupOfUniqueNames))
+    groups_filter: (&(member={dn})(objectClass=groupOfNames))
     group_name_attribute: cn
     mail_attribute: mail
     display_name_attribute: displayName
-    user: cn=admin,dc=datamancy,dc=local
-    password: admin_password_change_me
+    user: cn=admin,dc=stack,dc=local
 
 access_control:
   default_policy: deny
   rules:
-    # Public access to Authelia portal itself
-    - domain: "auth.stack.local"
+    - domain: auth.stack.local
       policy: bypass
-
-    # AI Observer: read-only access to all services (one_factor for automation)
     - domain: "*.stack.local"
       policy: one_factor
-      subject:
-        - "group:observers"
-
-    # Admin access to everything (two_factor for security)
-    - domain: "*.stack.local"
-      policy: two_factor
       subject:
         - "group:admins"
-
-    # Viewer access to observability services only
-    - domain:
-        - "grafana.stack.local"
-        - "prometheus.stack.local"
-        - "loki.stack.local"
-      policy: one_factor
-      subject:
-        - "group:viewers"
+        - "group:users"
 
 session:
   name: authelia_session
-  secret: unsecure_session_secret_change_in_production
+  domain: stack.local
+  same_site: lax
   expiration: 1h
   inactivity: 5m
   remember_me_duration: 1M
-  domain: stack.local
+  redis:
+    host: redis
+    port: 6379
+    database_index: 0
 
 regulation:
-  max_retries: 3
+  max_retries: 5
   find_time: 2m
   ban_time: 5m
 
 storage:
-  encryption_key: you_must_generate_a_random_string_of_more_than_twenty_chars_and_configure_this
+  encryption_key: a_very_important_secret # Will be overridden by env var
   local:
     path: /config/db.sqlite3
 
@@ -94,3 +75,209 @@ notifier:
   disable_startup_check: true
   filesystem:
     filename: /config/notification.txt
+
+identity_providers:
+  oidc:
+    hmac_secret: another_very_important_secret # Will be overridden by env var
+    issuer_private_key: |
+      # Will be overridden by env var
+    access_token_lifespan: 1h
+    authorize_code_lifespan: 1m
+    id_token_lifespan: 1h
+    refresh_token_lifespan: 90m
+    enable_client_debug_messages: false
+    enforce_pkce: public_clients_only
+    cors:
+      endpoints:
+        - authorization
+        - token
+        - revocation
+        - introspection
+      allowed_origins_from_client_redirect_uris: true
+
+    clients:
+      # Grafana
+      - client_id: grafana
+        client_name: Grafana
+        client_secret: '$pbkdf2-sha512$310000$sdc15.QdoAQO5WaI34.SIA$9/Rzr6h4VD1dfMgwcJ3oguW5CPXpieD8bpgoNTuL980Cwl1qRXmpXVpwNVU7T1e4IfebEO/bjG.FDTYy2evieA'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://grafana.stack.local/login/generic_oauth
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+        token_endpoint_auth_method: client_secret_basic
+
+      # pgAdmin
+      - client_id: pgadmin
+        client_name: pgAdmin
+        client_secret: '$pbkdf2-sha512$310000$hGULPsGTpdhUaJArnFQw1w$DTGHhG8IH1MKr/CBtF4SyfYz0ShKwYLHhmaplEkRoQjGlUS8w41j.8haBv4YFEnMkTMm9ssWRyHk.VqwN1hZ.A'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://pgadmin.stack.local/oauth2/authorize
+        scopes:
+          - openid
+          - profile
+          - email
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+
+      # Portainer
+      - client_id: portainer
+        client_name: Portainer
+        client_secret: '$pbkdf2-sha512$310000$xjrtm1exLKsKtYqhd87hmw$k6Ovf7uY0UrNmqb2C2UdOuET9jQBgrSL3MSAxJmn.NrejoZC0fxEZBOTJaIvRkAO.QkVwAX09m1005DccL2DMA'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://portainer.stack.local/
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+
+      # Open WebUI
+      - client_id: open-webui
+        client_name: Open WebUI
+        client_secret: '$pbkdf2-sha512$310000$l1hLi5YZi6aUcZrwt33IjA$hetxpKIsg4VcjN/yx7QgwMf5aAHu76WhirCGOTMJW4p4ePOx5OiTtqyM.39snwLcHE6cR4JAExVsnAkJR.n4Ng'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://open-webui.stack.local/oauth/oidc/callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+
+      # Nextcloud
+      - client_id: nextcloud
+        client_name: Nextcloud
+        client_secret: '$pbkdf2-sha512$310000$rxb1/DG60ybksyZZBllrkQ$L/G5aC852AnxXBTGD3rVtqXT3QWYFvfeVKyWNLwmIFXb/Xkt.09CRbsjGdooX9qc7alqlrpqVweZqoanlVHfSw'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://nextcloud.stack.local/apps/oidc_login/oidc
+          - https://nextcloud.stack.local/apps/user_oidc/code
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+        token_endpoint_auth_method: client_secret_post
+
+      # Vaultwarden
+      - client_id: vaultwarden
+        client_name: Vaultwarden
+        client_secret: '$pbkdf2-sha512$310000$rUoGUpLCvzh/QGh9kr/.OA$I2pa0SG.7KUcwOE/k1O8JWdYOstYQYmguzkLonGszpqrUPkSA2DXz.cQYEXyS/wEaT8hkWbHgX.bfdVrJ1wXaQ'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://vaultwarden.stack.local/identity/connect/oidc-signin
+        scopes:
+          - openid
+          - profile
+          - email
+          - offline_access
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+
+      # Jellyfin
+      - client_id: jellyfin
+        client_name: Jellyfin
+        client_secret: '$pbkdf2-sha512$310000$mtRWWM6rKQX2xKHXjXZ7jA$3gIN6Y2Zlg5W9U1H50bvRrh6335PtoPKgepQkSVQ5vp7bnXbONPtycolpHtgGeXiH5UfhHHFQda0N3FkTI2eWw'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://jellyfin.stack.local/sso/OID/redirect/authelia
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+
+      # Planka
+      - client_id: planka
+        client_name: Planka
+        client_secret: '$pbkdf2-sha512$310000$TGYuFojCMUJkeHtll1uIbA$6vo1/Tf4KclfPPHUMogBprbrV.9Wydb8i3yJwzovTYsuWPIPux083f1.SdJOLbTbwJMWUGPEEndUs3BN8Z04ow'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://planka.stack.local/oidc-callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+        response_modes:
+          - query
+          - fragment
+          - form_post
+
+      # Outline
+      - client_id: outline
+        client_name: Outline
+        client_secret: '$pbkdf2-sha512$310000$kILu7MxfIWpSRJYeWbBF2w$96vDQRgHjA/ico12uDh4GJiNEJZQL2SbmQuQrBoOL1a7Fa5Bt/H8hqH3HMny.y5f/otCmxOuZ5tUW0y5fcOuyA'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://outline.stack.local/auth/oidc.callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - offline_access
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+
+      # Home Assistant
+      - client_id: home-assistant
+        client_name: Home Assistant
+        client_secret: '$pbkdf2-sha512$310000$nFwKGC1LCgUVzGjhK.769g$BQ83aKaFDJ5ljHjiWyVV2du/TS6yRanKPf0jYNpczttbZdpCg/56pLx1FtR.7Gqswti.SWHFnRi/cyR1pI5qBA'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://homeassistant.stack.local/auth/external/callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code

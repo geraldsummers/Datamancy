@@ -1,36 +1,63 @@
-# Bootstrap LDIF for Datamancy LDAP
-# Provenance: Phase 3 - Access Control
-# Creates organizational units and initial admin user
-
-# Base organization
-dn: dc=datamancy,dc=local
-objectClass: top
-objectClass: dcObject
-objectClass: organization
-o: Datamancy
-dc: datamancy
-
-# Organizational Units
-dn: ou=users,dc=datamancy,dc=local
+dn: ou=users,dc=stack,dc=local
 objectClass: organizationalUnit
 ou: users
 
-dn: ou=groups,dc=datamancy,dc=local
+dn: ou=groups,dc=stack,dc=local
 objectClass: organizationalUnit
 ou: groups
 
-# Admin user
-dn: cn=admin,dc=datamancy,dc=local
-objectClass: simpleSecurityObject
-objectClass: organizationalRole
-cn: admin
-userPassword: {SSHA}AdminPasswordWillBeSetViaEnvironment
-description: LDAP administrator
+# Default admin user
+dn: uid=admin,ou=users,dc=stack,dc=local
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: admin
+cn: Administrator
+sn: Admin
+mail: admin@stack.local
+displayName: System Administrator
+uidNumber: 10000
+gidNumber: 10000
+homeDirectory: /home/admin
+loginShell: /bin/bash
+userPassword: {SSHA}A4sZ0WCVIh31L2evNVDixyENUf35b2+P
 
-# Service account for Authelia
-dn: cn=authelia,ou=users,dc=datamancy,dc=local
-objectClass: simpleSecurityObject
-objectClass: organizationalRole
-cn: authelia
-userPassword: {SSHA}ServiceAccountPassword
-description: Authelia service account for LDAP queries
+# Default regular user
+dn: uid=user,ou=users,dc=stack,dc=local
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: user
+cn: User
+sn: Regular
+mail: user@stack.local
+displayName: Regular User
+uidNumber: 10001
+gidNumber: 10001
+homeDirectory: /home/user
+loginShell: /bin/bash
+userPassword: {SSHA}A4sZ0WCVIh31L2evNVDixyENUf35b2+P
+
+# Admins group
+dn: cn=admins,ou=groups,dc=stack,dc=local
+objectClass: groupOfNames
+cn: admins
+member: uid=admin,ou=users,dc=stack,dc=local
+
+# Users group
+dn: cn=users,ou=groups,dc=stack,dc=local
+objectClass: groupOfNames
+cn: users
+member: uid=admin,ou=users,dc=stack,dc=local
+member: uid=user,ou=users,dc=stack,dc=local
+
+# Service-specific groups
+dn: cn=openwebui-admin,ou=groups,dc=stack,dc=local
+objectClass: groupOfNames
+cn: openwebui-admin
+member: uid=admin,ou=users,dc=stack,dc=local
+
+dn: cn=planka-admin,ou=groups,dc=stack,dc=local
+objectClass: groupOfNames
+cn: planka-admin
+member: uid=admin,ou=users,dc=stack,dc=local

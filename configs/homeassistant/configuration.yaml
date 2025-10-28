@@ -1,0 +1,40 @@
+default_config:
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 10.0.0.0/8
+
+homeassistant:
+  name: Home
+  latitude: 0
+  longitude: 0
+  elevation: 0
+  unit_system: metric
+  time_zone: UTC
+
+frontend:
+  themes: !include_dir_merge_named themes
+
+# OIDC Authentication (requires custom component)
+# Install via HACS: https://github.com/psyciknz/authelia_hass
+auth_providers:
+  - type: homeassistant
+  # OIDC provider would be configured here if using custom component
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+logger:
+  default: info
+
+# Example configuration for OIDC (requires custom integration)
+# authelia:
+#   auth_url: https://auth.stack.local
+#   token_url: https://auth.stack.local/api/oidc/token
+#   userinfo_url: https://auth.stack.local/api/oidc/userinfo
+#   client_id: home-assistant
+#   client_secret: !secret homeassistant_oauth_secret

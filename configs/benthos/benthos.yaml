@@ -1,29 +1,33 @@
-# Benthos Configuration
-# Provenance: Phase 8 - Data Integration Layer
-# Purpose: Data streaming and transformation pipeline
-
 http:
-  enabled: true
   address: 0.0.0.0:4195
+  enabled: true
+  root_path: /benthos
   debug_endpoints: true
 
 input:
-  label: "generate_input"
-  generate:
-    mapping: 'root = ""'
-    interval: 1h
-    count: 0
+  http_server:
+    address: 0.0.0.0:4196
+    path: /post
+    allowed_verbs:
+      - POST
 
 pipeline:
-  threads: 1
-  processors: []
+  processors:
+    - log:
+        level: INFO
+        message: "Processing message: ${!content()}"
 
 output:
-  label: "drop_output"
-  drop: {}
+  http_server:
+    address: 0.0.0.0:4197
+    path: /get
+    stream_path: /get/stream
+    ws_path: /get/ws
 
 metrics:
-  prometheus: {}
+  prometheus:
+    push_url: ""
+    push_interval: 1m
 
 logger:
   level: INFO
