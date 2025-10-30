@@ -1,0 +1,15 @@
+{
+  "ts": "2025-10-30T02:52:43.270Z",
+  "kind": "service_result",
+  "service": "kopia",
+  "status": "fail",
+  "phases": [
+    "reachability",
+    "authelia-activation",
+    "authelia-authentication",
+    "redirection"
+  ],
+  "errors": [
+    "[05-login] Non-OIDC service did not show a recognizable login form"
+  ]
+}

@@ -4,6 +4,11 @@ networks:
     ipam:
       config:
         - subnet: 172.18.0.0/16
+  test:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
 
 volumes:
   caddy_data:
@@ -16,7 +21,7 @@ volumes:
   postgres_data:
   couchdb_data:
   clickhouse_data:
-  portainer_data:
+  dockge_data:
   localai_models:
   open_webui_data:
   kopia_data:
@@ -24,8 +29,9 @@ volumes:
   nextcloud_data:
   vaultwarden_data:
   redis_data:
-  jellyfin_config:
-  jellyfin_media:
+  filebrowser_config:
+  filebrowser_database:
+  shared_media:
   homeassistant_config:
   planka_data:
   outline_data:
@@ -54,7 +60,25 @@ services:
           - browserless.stack.local
           - nextcloud.stack.local
           - vaultwarden.stack.local
-          - jellyfin.stack.local
+          - filebrowser.stack.local
+          - homeassistant.stack.local
+          - planka.stack.local
+          - outline.stack.local
+          - kopia.stack.local
+          - jupyterhub.stack.local
+      test:
+        aliases:
+          - grafana.stack.local
+          - auth.stack.local
+          - adminer.stack.local
+          - pgadmin.stack.local
+          - portainer.stack.local
+          - localai.stack.local
+          - open-webui.stack.local
+          - browserless.stack.local
+          - nextcloud.stack.local
+          - vaultwarden.stack.local
+          - filebrowser.stack.local
           - homeassistant.stack.local
           - planka.stack.local
           - outline.stack.local
@@ -92,6 +116,12 @@ services:
       - ldap_config:/etc/ldap/slapd.d
       - ./configs/ldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap.ldif:ro
     command: --copy-service --loglevel debug
+    healthcheck:
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=stack,dc=local", "-D", "cn=admin,dc=stack,dc=local", "-w", "${LDAP_ADMIN_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # ======================
   # SSO - Authelia
@@ -103,8 +133,10 @@ services:
     networks:
       - stack
     depends_on:
-      - ldap
-      - redis
+      ldap:
+        condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - authelia_data:/config
       - ./configs/authelia/configuration.yml:/config/configuration.yml:ro
@@ -162,8 +194,12 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_USER=postgres
       - POSTGRES_DB=postgres
+      - NEXTCLOUD_DB_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+      - PLANKA_DB_PASSWORD=${PLANKA_DB_PASSWORD}
+      - OUTLINE_DB_PASSWORD=${OUTLINE_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./configs/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     command: postgres -c 'max_connections=200'
 
   couchdb:
@@ -177,7 +213,14 @@ services:
       - COUCHDB_PASSWORD=${COUCHDB_PASSWORD}
     volumes:
       - couchdb_data:/opt/couchdb/data
-      - ./configs/couchdb/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./configs/couchdb/init-wrapper.sh:/usr/local/bin/init-wrapper.sh:ro
+    entrypoint: ["/bin/bash", "/usr/local/bin/init-wrapper.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:5984/_up | grep -q '\"status\":\"ok\"' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest
@@ -208,6 +251,7 @@ services:
     networks:
       - stack
     environment:
+      - GF_DEFAULT_LOCALE=en-US
       - GF_SERVER_ROOT_URL=https://grafana.stack.local
       - GF_SERVER_DOMAIN=grafana.stack.local
       - GF_AUTH_GENERIC_OAUTH_ENABLED=true
@@ -216,8 +260,8 @@ services:
       - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=${GRAFANA_OAUTH_SECRET}
       - GF_AUTH_GENERIC_OAUTH_SCOPES=openid profile email groups
       - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://auth.stack.local/api/oidc/authorization
-      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=https://auth.stack.local/api/oidc/token
-      - GF_AUTH_GENERIC_OAUTH_API_URL=https://auth.stack.local/api/oidc/userinfo
+      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://authelia:9091/api/oidc/token
+      - GF_AUTH_GENERIC_OAUTH_API_URL=http://authelia:9091/api/oidc/userinfo
       - GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=email
       - GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH=email
       - GF_AUTH_GENERIC_OAUTH_GROUPS_ATTRIBUTE_PATH=groups
@@ -237,40 +281,24 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./configs/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
-    command: sh -c "update-ca-certificates && /run.sh"
-
-  # ======================
-  # Browser Automation
-  # ======================
-  browserless:
-    image: browserless/chrome:latest
-    container_name: browserless
-    restart: unless-stopped
-    networks:
-      - stack
-    dns:
-      - 172.18.0.100
-      - 8.8.8.8
-    environment:
-      - TOKEN=${BROWSERLESS_TOKEN}
-      - MAX_CONCURRENT_SESSIONS=5
-      - CONNECTION_TIMEOUT=60000
 
   # ======================
   # Container Management
   # ======================
-  portainer:
-    image: portainer/portainer-ce:latest
-    container_name: portainer
+  dockge:
+    image: louislam/dockge:latest
+    container_name: dockge
     restart: unless-stopped
     networks:
       - stack
+    depends_on:
+      - docker-proxy
     volumes:
-      - portainer_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - dockge_data:/app/data
+      - /home/gerald/Documents/IdeaProjects/Datamancy:/opt/stacks
     environment:
-      - PORTAINER_HTTP_ENABLED=true
+      - DOCKGE_STACKS_DIR=/opt/stacks
+      - DOCKER_HOST=tcp://docker-proxy:2375
 
   # ======================
   # AI Services
@@ -288,7 +316,10 @@ services:
       - CONTEXT_SIZE=2048
 
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main
+    build:
+      context: ./configs/openwebui/docker-build
+      dockerfile: Dockerfile
+    image: datamancy/open-webui:latest
     container_name: open-webui
     restart: unless-stopped
     networks:
@@ -301,14 +332,13 @@ services:
       - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
       - OAUTH_CLIENT_ID=open-webui
       - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
-      - OPENID_PROVIDER_URL=https://auth.stack.local/.well-known/openid-configuration
+      - OPENID_PROVIDER_URL=http://authelia:9091/.well-known/openid-configuration
       - OAUTH_PROVIDER_NAME=Authelia
       - OAUTH_SCOPES=openid email profile groups
-      - ENABLE_OAUTH_ROLE_MANAGEMENT=true
-      - OAUTH_ALLOWED_ROLES=openwebui,openwebui-admin
-      - OAUTH_ADMIN_ROLES=openwebui-admin
-      - OAUTH_ROLES_CLAIM=groups
-      - OLLAMA_BASE_URL=http://localai:8080
+      - OLLAMA_BASE_URL=http://localai:8080/v1
+      - ENABLE_OPENAI_API=true
+      - OPENAI_API_BASE_URL=http://localai:8080/v1
+      - OPENAI_API_KEY=dummy
     volumes:
       - open_webui_data:/app/backend/data
 
@@ -330,31 +360,6 @@ services:
       - USER=kopia
     command: server start --insecure --address=0.0.0.0:51515
 
-  # ======================
-  # Cloud Storage
-  # ======================
-  nextcloud:
-    image: nextcloud:latest
-    container_name: nextcloud
-    restart: unless-stopped
-    networks:
-      - stack
-    depends_on:
-      - postgres
-      - redis
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_DB=nextcloud
-      - POSTGRES_USER=nextcloud
-      - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
-      - REDIS_HOST=redis
-      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
-      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
-      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.stack.local
-      - OVERWRITEPROTOCOL=https
-      - OVERWRITEHOST=nextcloud.stack.local
-    volumes:
-      - nextcloud_data:/var/www/html
 
   # ======================
   # Password Manager
@@ -380,6 +385,40 @@ services:
       - vaultwarden_data:/data
 
   # ======================
+  # Cloud Storage - Nextcloud
+  # ======================
+  nextcloud:
+    build:
+      context: ./configs/nextcloud/docker-build
+      dockerfile: Dockerfile
+    image: datamancy/nextcloud:latest
+    container_name: nextcloud
+    restart: unless-stopped
+    networks:
+      - stack
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=nextcloud
+      - POSTGRES_USER=nextcloud
+      - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.stack.local
+      - OVERWRITEPROTOCOL=https
+      - OVERWRITEHOST=nextcloud.stack.local
+      - OVERWRITECLIURL=https://nextcloud.stack.local
+      - REDIS_HOST=redis
+      - REDIS_HOST_PORT=6379
+      - TRUSTED_PROXIES=172.18.0.0/16
+    volumes:
+      - nextcloud_data:/var/www/html
+      - ./configs/nextcloud/oidc-setup.sh:/docker-entrypoint-hooks.d/pre-installation/oidc-setup.sh:ro
+      - ./configs/nextcloud/post-installation-oidc.sh:/docker-entrypoint-hooks.d/post-installation/configure-oidc.sh:ro
+
+  # ======================
   # Data Processing
   # ======================
   benthos:
@@ -394,26 +433,32 @@ services:
     command: -c /benthos.yaml
 
   # ======================
-  # Media Server
+  # File Server - FileBrowser
   # ======================
-  jellyfin:
-    image: jellyfin/jellyfin:latest
-    container_name: jellyfin
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: filebrowser
     restart: unless-stopped
     networks:
       - stack
-    environment:
-      - JELLYFIN_PublishedServerUrl=https://jellyfin.stack.local
     volumes:
-      - jellyfin_config:/config
-      - jellyfin_media:/media
-      - ./configs/jellyfin/SSO-Auth.xml:/config/plugins/configurations/SSO-Auth.xml:ro
+      - filebrowser_config:/config
+      - filebrowser_database:/database
+      - shared_media:/srv/media
+      - ./configs/filebrowser/entrypoint.sh:/entrypoint.sh:ro
+    environment:
+      - FB_NOAUTH=false
+      - FB_BASEURL=/
+    entrypoint: ["/entrypoint.sh"]
 
   # ======================
   # Home Automation
   # ======================
   homeassistant:
-    image: homeassistant/home-assistant:latest
+    build:
+      context: ./configs/homeassistant/docker-build
+      dockerfile: Dockerfile
+    image: datamancy/homeassistant:latest
     container_name: homeassistant
     restart: unless-stopped
     networks:
@@ -422,6 +467,10 @@ services:
     volumes:
       - homeassistant_config:/config
       - ./configs/homeassistant/configuration.yaml:/config/configuration.yaml:ro
+      - ./configs/homeassistant/automations.yaml:/config/automations.yaml:rw
+      - ./configs/homeassistant/scripts.yaml:/config/scripts.yaml:rw
+      - ./configs/homeassistant/scenes.yaml:/config/scenes.yaml:rw
+      - ./configs/homeassistant/themes:/config/themes:ro
       - /etc/localtime:/etc/localtime:ro
 
   # ======================
@@ -447,11 +496,8 @@ services:
       - OIDC_EMAIL_ATTRIBUTE=email
       - OIDC_NAME_ATTRIBUTE=name
       - OIDC_USERNAME_ATTRIBUTE=preferred_username
-      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/caddy-ca.crt
-      - NODE_TLS_REJECT_UNAUTHORIZED=0
     volumes:
       - planka_data:/app/public/user-avatars
-      - ./configs/grafana/caddy-ca.crt:/etc/ssl/certs/caddy-ca.crt:ro
 
   # ======================
   # Wiki / Docs
@@ -470,14 +516,15 @@ services:
       - SECRET_KEY=${OUTLINE_SECRET_KEY}
       - UTILS_SECRET=${OUTLINE_UTILS_SECRET}
       - DATABASE_URL=postgres://outline:${OUTLINE_DB_PASSWORD}@postgres:5432/outline
+      - PGSSLMODE=disable
       - REDIS_URL=redis://redis:6379
       - URL=https://outline.stack.local
       - PORT=3000
       - OIDC_CLIENT_ID=outline
       - OIDC_CLIENT_SECRET=${OUTLINE_OAUTH_SECRET}
       - OIDC_AUTH_URI=https://auth.stack.local/api/oidc/authorization
-      - OIDC_TOKEN_URI=https://auth.stack.local/api/oidc/token
-      - OIDC_USERINFO_URI=https://auth.stack.local/api/oidc/userinfo
+      - OIDC_TOKEN_URI=http://authelia:9091/api/oidc/token
+      - OIDC_USERINFO_URI=http://authelia:9091/api/oidc/userinfo
       - OIDC_USERNAME_CLAIM=preferred_username
       - OIDC_DISPLAY_NAME=Authelia
       - OIDC_SCOPES=openid offline_access profile email
@@ -538,32 +585,38 @@ services:
       - docker-proxy
     environment:
       - JUPYTERHUB_OAUTH_SECRET=${JUPYTERHUB_OAUTH_SECRET}
-      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-      - CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
       - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
       - jupyterhub_data:/srv/jupyterhub
       - ./configs/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
-      - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
-    command: sh -c "update-ca-certificates && jupyterhub -f /srv/jupyterhub/jupyterhub_config.py"
-
 
   # ======================
-  # Test Runner
+  # Test Runner Container
   # ======================
+  # Isolated on test network - routes ALL traffic through Caddy like a real client
+  # DNS resolution handled by Docker network aliases on Caddy
   test-runner:
     build:
       context: ./tests
       dockerfile: Dockerfile
     container_name: test-runner
-    networks:
-      - stack
-    volumes:
-      - ./tests:/tests
-    environment:
-      - BASE_URL=https://stack.local
-      - HEADLESS=true
     profiles:
       - testing
-    command: ["sleep", "infinity"]
+    networks:
+      - test
+    depends_on:
+      - caddy
+    volumes:
+      - ./test_web_ui.js:/tests/webui.e2e.js:ro
+      - ./screenshots:/tests/screenshots:rw
+      - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
+    environment:
+      - NODE_ENV=test
+      - CI=true
+      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
+    restart: "no"
+    command: >
+      sh -c 'set -eu &&
+      update-ca-certificates 2>/dev/null || true &&
+      printf "%s test-runner: starting webui.e2e\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" &&
+      node /tests/webui.e2e.js'

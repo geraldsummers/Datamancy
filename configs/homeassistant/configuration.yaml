@@ -18,11 +18,18 @@ homeassistant:
 frontend:
   themes: !include_dir_merge_named themes
 
-# OIDC Authentication (requires custom component)
-# Install via HACS: https://github.com/psyciknz/authelia_hass
+# Authentication: Forward Auth + Trusted Networks
+# Caddy forward_auth requires Authelia authentication before allowing access
+# Note: True per-user OIDC SSO requires HACS + custom integration
+# See docs/HOME_ASSISTANT_SSO.md for full OIDC setup instructions
 auth_providers:
   - type: homeassistant
-  # OIDC provider would be configured here if using custom component
+  - type: trusted_networks
+    trusted_networks:
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 10.0.0.0/8
+    allow_bypass_login: true
 
 automation: !include automations.yaml
 script: !include scripts.yaml

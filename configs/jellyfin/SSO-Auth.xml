@@ -5,7 +5,7 @@
     <config>
       <OidEndpoint>https://auth.stack.local</OidEndpoint>
       <OidClientId>jellyfin</OidClientId>
-      <OidSecret>JELLYFIN_OAUTH_SECRET_PLACEHOLDER</OidSecret>
+      <OidSecret>changeme_jellyfin_oauth</OidSecret>
       <Enabled>true</Enabled>
       <EnableAuthorization>true</EnableAuthorization>
       <EnableAllFolders>true</EnableAllFolders>

@@ -35,14 +35,14 @@ pgadmin.stack.local {
 	reverse_proxy pgadmin:80
 }
 
-# Portainer with SSO
-portainer.stack.local {
+# Dockge with SSO
+dockge.stack.local {
 	tls internal
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.stack.local/?rd=https://portainer.stack.local
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://dockge.stack.local
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
-	reverse_proxy portainer:9000
+	reverse_proxy dockge:5001
 }
 
 # LocalAI with SSO
@@ -111,15 +111,23 @@ benthos.stack.local {
 	reverse_proxy benthos:4195
 }
 
-# Jellyfin with native OIDC (no forward_auth needed)
-jellyfin.stack.local {
+# FileBrowser with SSO via forward_auth
+filebrowser.stack.local {
 	tls internal
-	reverse_proxy jellyfin:8096
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://filebrowser.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+	reverse_proxy filebrowser:8080
 }
 
-# Home Assistant with native OIDC (no forward_auth needed)
+# Home Assistant with SSO via forward_auth
 homeassistant.stack.local {
 	tls internal
+	forward_auth authelia:9091 {
+		uri /api/verify?rd=https://auth.stack.local/?rd=https://homeassistant.stack.local
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
 	reverse_proxy homeassistant:8123
 }
 

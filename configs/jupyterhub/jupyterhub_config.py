@@ -42,6 +42,10 @@ c.DockerSpawner.start_timeout = 120
 # Format container names
 c.DockerSpawner.name_template = 'jupyter-{username}-{servername}'
 
+# Ensure compatible jupyterhub version in spawned containers
+# Install the correct jupyterhub version to match the hub
+c.DockerSpawner.cmd = ['sh', '-c', 'pip install --upgrade jupyterhub==5.4.2 && jupyterhub-singleuser']
+
 # Authentication: GenericOAuthenticator for Authelia OIDC
 c.JupyterHub.authenticator_class = 'oauthenticator.generic.GenericOAuthenticator'
 
@@ -51,9 +55,11 @@ c.GenericOAuthenticator.client_secret = os.environ.get('JUPYTERHUB_OAUTH_SECRET'
 c.GenericOAuthenticator.oauth_callback_url = 'https://jupyterhub.stack.local/hub/oauth_callback'
 
 # Authelia OIDC endpoints
+# authorize_url: External HTTPS URL (used by browser, goes through Caddy)
 c.GenericOAuthenticator.authorize_url = 'https://auth.stack.local/api/oidc/authorization'
-c.GenericOAuthenticator.token_url = 'https://auth.stack.local/api/oidc/token'
-c.GenericOAuthenticator.userdata_url = 'https://auth.stack.local/api/oidc/userinfo'
+# token_url & userdata_url: Internal HTTP URL (server-to-server, direct to Authelia)
+c.GenericOAuthenticator.token_url = 'http://authelia:9091/api/oidc/token'
+c.GenericOAuthenticator.userdata_url = 'http://authelia:9091/api/oidc/userinfo'
 
 # User info mapping
 c.GenericOAuthenticator.username_claim = 'preferred_username'
@@ -67,10 +73,8 @@ c.GenericOAuthenticator.admin_users = set()
 # OAuth scopes
 c.GenericOAuthenticator.scope = ['openid', 'profile', 'email', 'groups']
 
-# Disable TLS verification (running behind Caddy proxy in internal network)
-# This is safe as all external TLS is terminated at Caddy
-c.GenericOAuthenticator.tls_verify = False
-c.GenericOAuthenticator.validate_server_cert = False
+# TLS verification not needed - token/userinfo endpoints use internal HTTP
+# Only authorize_url (browser redirect) uses external HTTPS
 
 # Logging
 c.JupyterHub.log_level = 'INFO'

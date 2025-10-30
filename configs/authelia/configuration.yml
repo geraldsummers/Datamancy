@@ -3,6 +3,12 @@ theme: dark
 server:
   host: 0.0.0.0
   port: 9091
+  read_buffer_size: 8192
+  write_buffer_size: 8192
+  timeouts:
+    read: 30s
+    write: 30s
+    idle: 120s
 
 log:
   level: info
@@ -43,6 +49,12 @@ access_control:
   rules:
     - domain: auth.stack.local
       policy: bypass
+    # Container management requires admin access
+    - domain: dockge.stack.local
+      policy: one_factor
+      subject:
+        - "group:admins"
+    # All other services accessible to admins and users
     - domain: "*.stack.local"
       policy: one_factor
       subject:
@@ -132,14 +144,14 @@ identity_providers:
         response_types:
           - code
 
-      # Portainer
-      - client_id: portainer
-        client_name: Portainer
+      # Dockge (Container Management)
+      - client_id: dockge
+        client_name: Dockge
         client_secret: '$pbkdf2-sha512$310000$xjrtm1exLKsKtYqhd87hmw$k6Ovf7uY0UrNmqb2C2UdOuET9jQBgrSL3MSAxJmn.NrejoZC0fxEZBOTJaIvRkAO.QkVwAX09m1005DccL2DMA'
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://portainer.stack.local/
+          - https://dockge.stack.local/
         scopes:
           - openid
           - profile
@@ -206,14 +218,14 @@ identity_providers:
         response_types:
           - code
 
-      # Jellyfin
-      - client_id: jellyfin
-        client_name: Jellyfin
+      # Dim Media Server
+      - client_id: dim
+        client_name: Dim
         client_secret: '$pbkdf2-sha512$310000$mtRWWM6rKQX2xKHXjXZ7jA$3gIN6Y2Zlg5W9U1H50bvRrh6335PtoPKgepQkSVQ5vp7bnXbONPtycolpHtgGeXiH5UfhHHFQda0N3FkTI2eWw'
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://jellyfin.stack.local/sso/OID/redirect/authelia
+          - https://dim.stack.local/api/v1/auth/oidc/callback
         scopes:
           - openid
           - profile
@@ -263,6 +275,7 @@ identity_providers:
           - authorization_code
         response_types:
           - code
+        token_endpoint_auth_method: client_secret_post
 
       # Home Assistant
       - client_id: home-assistant

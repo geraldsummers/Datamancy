@@ -1,0 +1,118 @@
+[
+  {
+    "service": "outline",
+    "status": "pass",
+    "phases": [
+      "reachability",
+      "authelia-activation",
+      "authelia-authentication",
+      "redirection",
+      "login",
+      "homepage-display"
+    ],
+    "errors": []
+  },
+  {
+    "service": "jupyterhub",
+    "status": "fail",
+    "phases": [
+      "reachability",
+      "authelia-activation",
+      "authelia-authentication",
+      "redirection",
+      "login"
+    ],
+    "errors": [
+      "[06-homepage-display] Expected UI markers not found for jupyterhub"
+    ]
+  },
+  {
+    "service": "grafana",
+    "status": "fail",
+    "phases": [
+      "reachability"
+    ],
+    "errors": [
+      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+    ]
+  },
+  {
+    "service": "open-webui",
+    "status": "fail",
+    "phases": [
+      "reachability"
+    ],
+    "errors": [
+      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+    ]
+  },
+  {
+    "service": "filebrowser",
+    "status": "fail",
+    "phases": [
+      "reachability",
+      "authelia-activation",
+      "authelia-authentication",
+      "redirection"
+    ],
+    "errors": [
+      "[05-login] Non-OIDC service did not show a recognizable login form"
+    ]
+  },
+  {
+    "service": "homeassistant",
+    "status": "fail",
+    "phases": [
+      "reachability",
+      "authelia-activation",
+      "authelia-authentication",
+      "redirection"
+    ],
+    "errors": [
+      "[05-login] Non-OIDC service did not show a recognizable login form"
+    ]
+  },
+  {
+    "service": "kopia",
+    "status": "fail",
+    "phases": [
+      "reachability",
+      "authelia-activation",
+      "authelia-authentication",
+      "redirection"
+    ],
+    "errors": [
+      "[05-login] Non-OIDC service did not show a recognizable login form"
+    ]
+  },
+  {
+    "service": "nextcloud",
+    "status": "fail",
+    "phases": [
+      "reachability"
+    ],
+    "errors": [
+      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+    ]
+  },
+  {
+    "service": "vaultwarden",
+    "status": "fail",
+    "phases": [
+      "reachability"
+    ],
+    "errors": [
+      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+    ]
+  },
+  {
+    "service": "planka",
+    "status": "fail",
+    "phases": [
+      "reachability"
+    ],
+    "errors": [
+      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+    ]
+  }
+]

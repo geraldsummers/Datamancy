@@ -7,6 +7,8 @@ objectClass: organizationalUnit
 ou: groups
 
 # Default admin user
+# Username: admin
+# Password: DatamancyTest2025!
 dn: uid=admin,ou=users,dc=stack,dc=local
 objectClass: inetOrgPerson
 objectClass: posixAccount
@@ -20,9 +22,11 @@ uidNumber: 10000
 gidNumber: 10000
 homeDirectory: /home/admin
 loginShell: /bin/bash
-userPassword: {SSHA}A4sZ0WCVIh31L2evNVDixyENUf35b2+P
+userPassword: {SSHA}Hx05qT5oLuUe6bJDJAJE7EONzJfNndew
 
 # Default regular user
+# Username: user
+# Password: DatamancyTest2025!
 dn: uid=user,ou=users,dc=stack,dc=local
 objectClass: inetOrgPerson
 objectClass: posixAccount
@@ -36,7 +40,7 @@ uidNumber: 10001
 gidNumber: 10001
 homeDirectory: /home/user
 loginShell: /bin/bash
-userPassword: {SSHA}A4sZ0WCVIh31L2evNVDixyENUf35b2+P
+userPassword: {SSHA}Hx05qT5oLuUe6bJDJAJE7EONzJfNndew
 
 # Admins group
 dn: cn=admins,ou=groups,dc=stack,dc=local

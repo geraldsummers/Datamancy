@@ -16,13 +16,23 @@ pipeline:
     - log:
         level: INFO
         message: "Processing message: ${!content()}"
+    - mapping: |
+        root.timestamp = now().ts_parse("2006-01-02T15:04:05.999Z07:00")
+        root.event_type = this.type.or("unknown")
+        root.data = this.string()
 
 output:
-  http_server:
-    address: 0.0.0.0:4197
-    path: /get
-    stream_path: /get/stream
-    ws_path: /get/ws
+  sql_insert:
+    driver: clickhouse
+    dsn: clickhouse://default:changeme_clickhouse@clickhouse:9000/benthos_data
+    table: events
+    columns: ["timestamp", "event_type", "data"]
+    args_mapping: |
+      root = [
+        this.timestamp,
+        this.event_type,
+        this.data
+      ]
 
 metrics:
   prometheus:

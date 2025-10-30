@@ -1,0 +1,12 @@
+{
+  "ts": "2025-10-30T02:53:28.921Z",
+  "kind": "service_result",
+  "service": "planka",
+  "status": "fail",
+  "phases": [
+    "reachability"
+  ],
+  "errors": [
+    "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+  ]
+}
