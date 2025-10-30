@@ -251,7 +251,7 @@ services:
     networks:
       - stack
     environment:
-      - GF_DEFAULT_LOCALE=en-US
+      - GF_DEFAULT_LOCALE=en_US
       - GF_SERVER_ROOT_URL=https://grafana.stack.local
       - GF_SERVER_DOMAIN=grafana.stack.local
       - GF_AUTH_GENERIC_OAUTH_ENABLED=true
@@ -496,8 +496,10 @@ services:
       - OIDC_EMAIL_ATTRIBUTE=email
       - OIDC_NAME_ATTRIBUTE=name
       - OIDC_USERNAME_ATTRIBUTE=preferred_username
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
     volumes:
       - planka_data:/app/public/user-avatars
+      - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
 
   # ======================
   # Wiki / Docs
@@ -607,12 +609,14 @@ services:
     depends_on:
       - caddy
     volumes:
-      - ./test_web_ui.js:/tests/webui.e2e.js:ro
+      - ./tests/test_web_ui.js:/tests/webui.e2e.js:ro
       - ./screenshots:/tests/screenshots:rw
       - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
     environment:
       - NODE_ENV=test
       - CI=true
+      - LANG=en_US.UTF-8
+      - LC_ALL=en_US.UTF-8
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
     restart: "no"
     command: >

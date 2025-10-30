@@ -1,39 +1,12 @@
 [
   {
-    "service": "outline",
-    "status": "pass",
-    "phases": [
-      "reachability",
-      "authelia-activation",
-      "authelia-authentication",
-      "redirection",
-      "login",
-      "homepage-display"
-    ],
-    "errors": []
-  },
-  {
-    "service": "jupyterhub",
-    "status": "fail",
-    "phases": [
-      "reachability",
-      "authelia-activation",
-      "authelia-authentication",
-      "redirection",
-      "login"
-    ],
-    "errors": [
-      "[06-homepage-display] Expected UI markers not found for jupyterhub"
-    ]
-  },
-  {
     "service": "grafana",
     "status": "fail",
     "phases": [
       "reachability"
     ],
     "errors": [
-      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+      "[02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)"
     ]
   },
   {
@@ -43,7 +16,61 @@
       "reachability"
     ],
     "errors": [
-      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+      "[02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)"
+    ]
+  },
+  {
+    "service": "jupyterhub",
+    "status": "fail",
+    "phases": [
+      "reachability",
+      "authelia-activation",
+      "authelia-authentication"
+    ],
+    "errors": [
+      "[04-redirection] Did not return to jupyterhub after auth"
+    ]
+  },
+  {
+    "service": "outline",
+    "status": "fail",
+    "phases": [
+      "reachability",
+      "authelia-activation",
+      "authelia-authentication"
+    ],
+    "errors": [
+      "[04-redirection] Did not return to outline after auth"
+    ]
+  },
+  {
+    "service": "planka",
+    "status": "fail",
+    "phases": [
+      "reachability"
+    ],
+    "errors": [
+      "[02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)"
+    ]
+  },
+  {
+    "service": "vaultwarden",
+    "status": "fail",
+    "phases": [
+      "reachability"
+    ],
+    "errors": [
+      "[02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)"
+    ]
+  },
+  {
+    "service": "nextcloud",
+    "status": "fail",
+    "phases": [
+      "reachability"
+    ],
+    "errors": [
+      "[02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)"
     ]
   },
   {
@@ -83,36 +110,6 @@
     ],
     "errors": [
       "[05-login] Non-OIDC service did not show a recognizable login form"
-    ]
-  },
-  {
-    "service": "nextcloud",
-    "status": "fail",
-    "phases": [
-      "reachability"
-    ],
-    "errors": [
-      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
-    ]
-  },
-  {
-    "service": "vaultwarden",
-    "status": "fail",
-    "phases": [
-      "reachability"
-    ],
-    "errors": [
-      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
-    ]
-  },
-  {
-    "service": "planka",
-    "status": "fail",
-    "phases": [
-      "reachability"
-    ],
-    "errors": [
-      "page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
     ]
   }
 ]

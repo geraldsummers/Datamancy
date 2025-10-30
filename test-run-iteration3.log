@@ -1,0 +1,1311 @@
+ Container caddy  Running
+ Container test-runner  Creating
+ Container test-runner  Created
+Attaching to test-runner
+test-runner  | Updating certificates in /etc/ssl/certs...
+test-runner  | 1 added, 0 removed; done.
+test-runner  | Running hooks in /etc/ca-certificates/update.d...
+test-runner  | done.
+test-runner  | 2025-10-30T03:11:23Z test-runner: starting webui.e2e
+test-runner  | 2025-10-30T03:11:23.475Z Starting WebUI phase tests…
+test-runner  | 2025-10-30T03:11:23.475Z Auth: Authelia/LDAP. User=admin, headless=true, timeout=30000ms
+test-runner  | 2025-10-30T03:11:23.528Z 
+test-runner  | ================= GRAFANA =================
+test-runner  | 2025-10-30T03:11:23.528Z [grafana] Target: https://grafana.stack.local | OIDC=yes
+test-runner  | 2025-10-30T03:11:23.544Z ▶️  PHASE START: 01-reachability
+test-runner  | 2025-10-30T03:11:23.547Z [grafana] → GET https://grafana.stack.local/
+test-runner  | 2025-10-30T03:11:23.559Z [grafana] ← 302 GET https://grafana.stack.local/
+test-runner  | 2025-10-30T03:11:23.559Z [grafana] → GET https://grafana.stack.local/login
+test-runner  | 2025-10-30T03:11:23.561Z [grafana] ← 200 GET https://grafana.stack.local/login
+test-runner  | 2025-10-30T03:11:23.564Z [grafana] → GET https://grafana.stack.local/public/build/grafana.app.1f6473bb54b1e1647be8.css
+test-runner  | 2025-10-30T03:11:23.565Z [grafana] → GET https://grafana.stack.local/public/build/grafana.dark.23c5425b7a9e1580d499.css
+test-runner  | 2025-10-30T03:11:23.565Z [grafana] → GET https://grafana.stack.local/public/build/runtime.096f54fb57134b758e0f.js
+test-runner  | 2025-10-30T03:11:23.565Z [grafana] → GET https://grafana.stack.local/public/build/6029.bdcbf27bcdd36812f646.js
+test-runner  | 2025-10-30T03:11:23.565Z [grafana] → GET https://grafana.stack.local/public/build/758.31a4ad4733d36ad00476.js
+test-runner  | 2025-10-30T03:11:23.565Z [grafana] → GET https://grafana.stack.local/public/build/5524.fe38a12f76ca4f420c75.js
+test-runner  | 2025-10-30T03:11:23.566Z [grafana] → GET https://grafana.stack.local/public/build/5923.8612bccc09ea7d26e01c.js
+test-runner  | 2025-10-30T03:11:23.566Z [grafana] → GET https://grafana.stack.local/public/build/9414.f776a554b2e64f6ceae0.js
+test-runner  | 2025-10-30T03:11:23.566Z [grafana] → GET https://grafana.stack.local/public/build/app.8ddec8fd9eba0898ee99.js
+test-runner  | 2025-10-30T03:11:23.566Z [grafana] ← 200 GET https://grafana.stack.local/public/build/grafana.dark.23c5425b7a9e1580d499.css
+test-runner  | 2025-10-30T03:11:23.566Z [grafana] ← 200 GET https://grafana.stack.local/public/build/grafana.app.1f6473bb54b1e1647be8.css
+test-runner  | 2025-10-30T03:11:23.569Z [grafana] ← 200 GET https://grafana.stack.local/public/build/runtime.096f54fb57134b758e0f.js
+test-runner  | 2025-10-30T03:11:23.575Z [grafana] → GET https://grafana.stack.local/public/img/grafana_icon.svg
+test-runner  | 2025-10-30T03:11:23.576Z [grafana] ← 200 GET https://grafana.stack.local/public/img/grafana_icon.svg
+test-runner  | 2025-10-30T03:11:23.577Z [grafana] ← 200 GET https://grafana.stack.local/public/build/6029.bdcbf27bcdd36812f646.js
+test-runner  | 2025-10-30T03:11:23.578Z [grafana] ← 200 GET https://grafana.stack.local/public/build/5923.8612bccc09ea7d26e01c.js
+test-runner  | 2025-10-30T03:11:23.579Z [grafana] ← 200 GET https://grafana.stack.local/public/build/app.8ddec8fd9eba0898ee99.js
+test-runner  | 2025-10-30T03:11:23.585Z [grafana] ← 200 GET https://grafana.stack.local/public/build/758.31a4ad4733d36ad00476.js
+test-runner  | 2025-10-30T03:11:23.610Z [grafana] ← 200 GET https://grafana.stack.local/public/build/9414.f776a554b2e64f6ceae0.js
+test-runner  | 2025-10-30T03:11:23.616Z [grafana] ← 200 GET https://grafana.stack.local/public/build/5524.fe38a12f76ca4f420c75.js
+test-runner  | 2025-10-30T03:11:23.779Z [grafana] [BROWSER ERROR] Error bootstrapping Grafana RangeError: Invalid language tag: en-US@posix
+test-runner  |     at new NumberFormat (<anonymous>)
+test-runner  |     at 36613 (https://grafana.stack.local/public/build/5524.fe38a12f76ca4f420c75.js:192:30258)
+test-runner  |     at S (https://grafana.stack.local/public/build/runtime.096f54fb57134b758e0f.js:1:141)
+test-runner  |     at 92790 (https://grafana.stack.local/public/build/9414.f776a554b2e64f6ceae0.js:1586:78980)
+test-runner  |     at S (https://grafana.stack.local/public/build/runtime.096f54fb57134b758e0f.js:1:141)
+test-runner  |     at 53431 (https://grafana.stack.local/public/build/9414.f776a554b2e64f6ceae0.js:165:43272)
+test-runner  |     at S (https://grafana.stack.local/public/build/runtime.096f54fb57134b758e0f.js:1:141)
+test-runner  |     at 93948 (https://grafana.stack.local/public/build/9414.f776a554b2e64f6ceae0.js:1586:119885)
+test-runner  |     at S (https://grafana.stack.local/public/build/runtime.096f54fb57134b758e0f.js:1:141)
+test-runner  |     at 74198 (https://grafana.stack.local/public/build/9414.f776a554b2e64f6ceae0.js:233:311901)
+test-runner  | 2025-10-30T03:11:23.811Z [grafana] [BROWSER WARNING] [GroupMarkerNotSet(crbug.com/242999)!:A0B02000A4210000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.
+test-runner  | 2025-10-30T03:11:26.144Z 📸 01-reachability.png → /tests/screenshots/grafana/01-reachability.png
+test-runner  | 2025-10-30T03:11:26.144Z ✅ PHASE OK: 01-reachability (+2.60s, t=2.7s)
+test-runner  | 2025-10-30T03:11:26.144Z ▶️  PHASE START: 02-authelia-activation
+test-runner  | 2025-10-30T03:11:26.176Z 📸 02-authelia-activation-landing.png → /tests/screenshots/grafana/02-authelia-activation-landing.png
+test-runner  | 2025-10-30T03:11:26.210Z 📸 02-authelia-activation-no-oidc.png → /tests/screenshots/grafana/02-authelia-activation-no-oidc.png
+test-runner  | 2025-10-30T03:11:38.476Z 💓 heartbeat t=15.0s
+test-runner  | 2025-10-30T03:11:53.476Z 💓 heartbeat t=30.0s
+test-runner  | 2025-10-30T03:12:08.476Z 💓 heartbeat t=45.0s
+test-runner  | 2025-10-30T03:12:11.225Z 📸 02-authelia-activation-on-auth.png → /tests/screenshots/grafana/02-authelia-activation-on-auth.png
+test-runner  | 2025-10-30T03:12:11.241Z 📸 02-authelia-activation-ERROR.png → /tests/screenshots/grafana/02-authelia-activation-ERROR.png
+test-runner  | 2025-10-30T03:12:11.241Z [ERROR] [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | 2025-10-30T03:12:11.241Z [ERROR] ❌ PHASE FAIL: 02-authelia-activation (+45.10s, t=47.8s) :: [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | 2025-10-30T03:12:11.241Z [ERROR] ❌ [grafana] FAIL — [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | {"ts":"2025-10-30T03:12:11.242Z","kind":"service_result","service":"grafana","status":"fail","phases":["reachability"],"errors":["[02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)"]}
+test-runner  | 2025-10-30T03:12:11.242Z [grafana] DONE status=fail phases=reachability
+test-runner  | 2025-10-30T03:12:12.445Z 
+test-runner  | ================= OPEN-WEBUI =================
+test-runner  | 2025-10-30T03:12:12.445Z [open-webui] Target: https://open-webui.stack.local | OIDC=yes
+test-runner  | 2025-10-30T03:12:12.470Z ▶️  PHASE START: 01-reachability
+test-runner  | 2025-10-30T03:12:12.471Z [open-webui] → GET https://open-webui.stack.local/
+test-runner  | 2025-10-30T03:12:12.476Z [open-webui] ← 200 GET https://open-webui.stack.local/
+test-runner  | 2025-10-30T03:12:12.479Z [open-webui] → GET https://open-webui.stack.local/static/loader.js
+test-runner  | 2025-10-30T03:12:12.479Z [open-webui] → GET https://open-webui.stack.local/static/custom.css
+test-runner  | 2025-10-30T03:12:12.479Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/entry/start.D5s5YTUb.js
+test-runner  | 2025-10-30T03:12:12.479Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BYfvXhfD.js
+test-runner  | 2025-10-30T03:12:12.479Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BsAB9Z30.js
+test-runner  | 2025-10-30T03:12:12.480Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/entry/app.C3jjZZTv.js
+test-runner  | 2025-10-30T03:12:12.480Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/C1FmrZbK.js
+test-runner  | 2025-10-30T03:12:12.480Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/IHki7fMi.js
+test-runner  | 2025-10-30T03:12:12.480Z [open-webui] → GET https://open-webui.stack.local/static/splash.png
+test-runner  | 2025-10-30T03:12:12.486Z [open-webui] ← 200 GET https://open-webui.stack.local/static/loader.js
+test-runner  | 2025-10-30T03:12:12.487Z [open-webui] ← 200 GET https://open-webui.stack.local/static/splash.png
+test-runner  | 2025-10-30T03:12:12.487Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/entry/start.D5s5YTUb.js
+test-runner  | 2025-10-30T03:12:12.488Z [open-webui] ← 200 GET https://open-webui.stack.local/static/custom.css
+test-runner  | 2025-10-30T03:12:12.489Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BsAB9Z30.js
+test-runner  | 2025-10-30T03:12:12.489Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/C1FmrZbK.js
+test-runner  | 2025-10-30T03:12:12.492Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/IHki7fMi.js
+test-runner  | 2025-10-30T03:12:12.492Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/entry/app.C3jjZZTv.js
+test-runner  | 2025-10-30T03:12:12.492Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BYfvXhfD.js
+test-runner  | 2025-10-30T03:12:12.495Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/nodes/0.BYf56vT4.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/D0QH3NT1.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CGwCSIWv.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DmTNmOsd.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/D0VT4zI9.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/D2VKnAEk.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BjVHJN9o.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/cMkWkffq.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BFmuJLeH.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DQjSdZ1e.js
+test-runner  | 2025-10-30T03:12:12.496Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/Toaster.DQwrSZtH.css
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DSJSuBFl.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Be40uvcO.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/I1CDPYOB.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DJHKAnWW.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BFK-koEx.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BHRBYxmF.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CL0EuV-A.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/B1Cj3nBs.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BT28bLwl.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/QjJsDpFa.js
+test-runner  | 2025-10-30T03:12:12.497Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DGw7pOW4.js
+test-runner  | 2025-10-30T03:12:12.498Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CbQmQGdd.js
+test-runner  | 2025-10-30T03:12:12.498Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/0.Bkw602pf.css
+test-runner  | 2025-10-30T03:12:12.498Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/nodes/1.DjgqQPnk.js
+test-runner  | 2025-10-30T03:12:12.503Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/nodes/2.COXCK1_-.js
+test-runner  | 2025-10-30T03:12:12.503Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/5-chS5bE.js
+test-runner  | 2025-10-30T03:12:12.503Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CCuVEwBR.js
+test-runner  | 2025-10-30T03:12:12.503Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Ccw7PXcW.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DxJz99V8.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/uGiGrDOH.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CtZb9aXP.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BNk9ADfP.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/C_R67QgC.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/g5t9vw8M.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BqxbSdYI.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/Modal.CyLKLEmt.css
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/FMLTfk-j.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CubwYUHd.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CgqN014N.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/fl9Qo3pM.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/ozVhkuYd.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/C-kqD5vK.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BrJK0JaC.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DmxdQp_j.js
+test-runner  | 2025-10-30T03:12:12.505Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/kgdPJmrw.js
+test-runner  | 2025-10-30T03:12:12.506Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CU2r43ac.js
+test-runner  | 2025-10-30T03:12:12.506Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/D9KdRKiL.js
+test-runner  | 2025-10-30T03:12:12.506Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/C0iDKsId.js
+test-runner  | 2025-10-30T03:12:12.506Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DdHy0twy.js
+test-runner  | 2025-10-30T03:12:12.506Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/D1EfUlPX.js
+test-runner  | 2025-10-30T03:12:12.506Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/638BPrjF.js
+test-runner  | 2025-10-30T03:12:12.506Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BW7wCiOr.js
+test-runner  | 2025-10-30T03:12:12.506Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/cj8VJLhq.js
+test-runner  | 2025-10-30T03:12:12.506Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BozS3sJL.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/ConfirmDialog.kaSBQ3kP.css
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/LNJKunkS.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Cbzj8oLO.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BjfKCu6r.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CTQ19wv-.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BqKrh9kf.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CWlaJreh.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CfstUa2o.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Dd8rmAoC.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/38eJHLMs.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/D2YARiY4.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/4WLmODPH.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CoiS0ZBL.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DTQqZwhl.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BO0KuA--.js
+test-runner  | 2025-10-30T03:12:12.509Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/Skeleton.Cr25vAl_.css
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CgtMQgO5.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BXP-4RTu.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BQWQRICs.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CHERwNdF.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Vcq4gwWv.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Bp-Vukyc.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/Collapsible.BSTcku12.css
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CRPU72Cg.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/C8iviNoy.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/HNTRN4uT.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/C5K_OTdC.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BNJXXAzR.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CPRxkh2D.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/Messages.Bbuu_qma.css
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/6bX91EV5.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/HJqR3EwY.js
+test-runner  | 2025-10-30T03:12:12.510Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Ov9pFsd3.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/2fPayoST.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DKy_K7mo.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/m23BgZW6.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BDV35Fwe.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BsaRaYkz.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/_G01qdEX.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Drl34F7E.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/N3GU-DtH.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DhOJMFGK.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BfJ33jvc.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/C83syoBY.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DQfRr7yB.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/2.123V3CJ9.css
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/nodes/8.BFaHbkWP.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/eG_gxts2.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CRUGFvdf.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/B9gJLFWI.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DR9EKaEX.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DDlVWxFG.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Nx2xTy3H.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CvyCbeyv.js
+test-runner  | 2025-10-30T03:12:12.511Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/BlrBIox9.js
+test-runner  | 2025-10-30T03:12:12.512Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/Drawer.Bz8t_RYw.css
+test-runner  | 2025-10-30T03:12:12.512Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/Bp3mZZin.js
+test-runner  | 2025-10-30T03:12:12.512Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CdHStLu8.js
+test-runner  | 2025-10-30T03:12:12.512Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/F23C_MCE.js
+test-runner  | 2025-10-30T03:12:12.512Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CIz3seMp.js
+test-runner  | 2025-10-30T03:12:12.512Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DkWXCM6m.js
+test-runner  | 2025-10-30T03:12:12.512Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/CdxBF-wH.js
+test-runner  | 2025-10-30T03:12:12.512Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DJCGIHjZ.js
+test-runner  | 2025-10-30T03:12:12.512Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/EmojiPicker.Behhsett.css
+test-runner  | 2025-10-30T03:12:12.529Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DmTNmOsd.js
+test-runner  | 2025-10-30T03:12:12.530Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/D2VKnAEk.js
+test-runner  | 2025-10-30T03:12:12.530Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DQjSdZ1e.js
+test-runner  | 2025-10-30T03:12:12.530Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/Toaster.DQwrSZtH.css
+test-runner  | 2025-10-30T03:12:12.531Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/nodes/0.BYf56vT4.js
+test-runner  | 2025-10-30T03:12:12.532Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BjVHJN9o.js
+test-runner  | 2025-10-30T03:12:12.533Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/nodes/1.DjgqQPnk.js
+test-runner  | 2025-10-30T03:12:12.533Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/D0QH3NT1.js
+test-runner  | 2025-10-30T03:12:12.535Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DJHKAnWW.js
+test-runner  | 2025-10-30T03:12:12.536Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BT28bLwl.js
+test-runner  | 2025-10-30T03:12:12.536Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BFmuJLeH.js
+test-runner  | 2025-10-30T03:12:12.536Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/D0VT4zI9.js
+test-runner  | 2025-10-30T03:12:12.541Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BHRBYxmF.js
+test-runner  | 2025-10-30T03:12:12.543Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/I1CDPYOB.js
+test-runner  | 2025-10-30T03:12:12.543Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CGwCSIWv.js
+test-runner  | 2025-10-30T03:12:12.546Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DGw7pOW4.js
+test-runner  | 2025-10-30T03:12:12.546Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CL0EuV-A.js
+test-runner  | 2025-10-30T03:12:12.547Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/B1Cj3nBs.js
+test-runner  | 2025-10-30T03:12:12.547Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BFK-koEx.js
+test-runner  | 2025-10-30T03:12:12.550Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/cMkWkffq.js
+test-runner  | 2025-10-30T03:12:12.552Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/QjJsDpFa.js
+test-runner  | 2025-10-30T03:12:12.553Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/0.Bkw602pf.css
+test-runner  | 2025-10-30T03:12:12.555Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CbQmQGdd.js
+test-runner  | 2025-10-30T03:12:12.559Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DxJz99V8.js
+test-runner  | 2025-10-30T03:12:12.560Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BNk9ADfP.js
+test-runner  | 2025-10-30T03:12:12.560Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DSJSuBFl.js
+test-runner  | 2025-10-30T03:12:12.560Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Ccw7PXcW.js
+test-runner  | 2025-10-30T03:12:12.561Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/C_R67QgC.js
+test-runner  | 2025-10-30T03:12:12.561Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/uGiGrDOH.js
+test-runner  | 2025-10-30T03:12:12.565Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CtZb9aXP.js
+test-runner  | 2025-10-30T03:12:12.566Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CCuVEwBR.js
+test-runner  | 2025-10-30T03:12:12.568Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/5-chS5bE.js
+test-runner  | 2025-10-30T03:12:12.573Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/Drawer.Bz8t_RYw.css
+test-runner  | 2025-10-30T03:12:12.573Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/2.123V3CJ9.css
+test-runner  | 2025-10-30T03:12:12.573Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/Modal.CyLKLEmt.css
+test-runner  | 2025-10-30T03:12:12.573Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/ozVhkuYd.js
+test-runner  | 2025-10-30T03:12:12.575Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BqxbSdYI.js
+test-runner  | 2025-10-30T03:12:12.578Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/Skeleton.Cr25vAl_.css
+test-runner  | 2025-10-30T03:12:12.578Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/ConfirmDialog.kaSBQ3kP.css
+test-runner  | 2025-10-30T03:12:12.583Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/EmojiPicker.Behhsett.css
+test-runner  | 2025-10-30T03:12:12.583Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/Messages.Bbuu_qma.css
+test-runner  | 2025-10-30T03:12:12.584Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/g5t9vw8M.js
+test-runner  | 2025-10-30T03:12:12.584Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CubwYUHd.js
+test-runner  | 2025-10-30T03:12:12.586Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/Collapsible.BSTcku12.css
+test-runner  | 2025-10-30T03:12:12.586Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/FMLTfk-j.js
+test-runner  | 2025-10-30T03:12:12.590Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DmxdQp_j.js
+test-runner  | 2025-10-30T03:12:12.590Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BrJK0JaC.js
+test-runner  | 2025-10-30T03:12:12.595Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CgqN014N.js
+test-runner  | 2025-10-30T03:12:12.596Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/C-kqD5vK.js
+test-runner  | 2025-10-30T03:12:12.597Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/D9KdRKiL.js
+test-runner  | 2025-10-30T03:12:12.598Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CU2r43ac.js
+test-runner  | 2025-10-30T03:12:12.599Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/fl9Qo3pM.js
+test-runner  | 2025-10-30T03:12:12.602Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DR9EKaEX.js
+test-runner  | 2025-10-30T03:12:12.605Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/m23BgZW6.js
+test-runner  | 2025-10-30T03:12:12.606Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Nx2xTy3H.js
+test-runner  | 2025-10-30T03:12:12.606Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DTQqZwhl.js
+test-runner  | 2025-10-30T03:12:12.608Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CPRxkh2D.js
+test-runner  | 2025-10-30T03:12:12.608Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Bp3mZZin.js
+test-runner  | 2025-10-30T03:12:12.611Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BQWQRICs.js
+test-runner  | 2025-10-30T03:12:12.611Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Bp-Vukyc.js
+test-runner  | 2025-10-30T03:12:12.611Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/kgdPJmrw.js
+test-runner  | 2025-10-30T03:12:12.612Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CTQ19wv-.js
+test-runner  | 2025-10-30T03:12:12.617Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/nodes/2.COXCK1_-.js
+test-runner  | 2025-10-30T03:12:12.619Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CfstUa2o.js
+test-runner  | 2025-10-30T03:12:12.621Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/F23C_MCE.js
+test-runner  | 2025-10-30T03:12:12.621Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/D2YARiY4.js
+test-runner  | 2025-10-30T03:12:12.622Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CWlaJreh.js
+test-runner  | 2025-10-30T03:12:12.622Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/6bX91EV5.js
+test-runner  | 2025-10-30T03:12:12.626Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/nodes/8.BFaHbkWP.js
+test-runner  | 2025-10-30T03:12:12.627Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CoiS0ZBL.js
+test-runner  | 2025-10-30T03:12:12.627Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Vcq4gwWv.js
+test-runner  | 2025-10-30T03:12:12.628Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/C0iDKsId.js
+test-runner  | 2025-10-30T03:12:12.629Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DDlVWxFG.js
+test-runner  | 2025-10-30T03:12:12.632Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BfJ33jvc.js
+test-runner  | 2025-10-30T03:12:12.633Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BDV35Fwe.js
+test-runner  | 2025-10-30T03:12:12.633Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CvyCbeyv.js
+test-runner  | 2025-10-30T03:12:12.634Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Cbzj8oLO.js
+test-runner  | 2025-10-30T03:12:12.635Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Be40uvcO.js
+test-runner  | 2025-10-30T03:12:12.665Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BjfKCu6r.js
+test-runner  | 2025-10-30T03:12:12.666Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CgtMQgO5.js
+test-runner  | 2025-10-30T03:12:12.666Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/C83syoBY.js
+test-runner  | 2025-10-30T03:12:12.666Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CRPU72Cg.js
+test-runner  | 2025-10-30T03:12:12.667Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BsaRaYkz.js
+test-runner  | 2025-10-30T03:12:12.667Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BozS3sJL.js
+test-runner  | 2025-10-30T03:12:12.667Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Drl34F7E.js
+test-runner  | 2025-10-30T03:12:12.667Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/_G01qdEX.js
+test-runner  | 2025-10-30T03:12:12.667Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DJCGIHjZ.js
+test-runner  | 2025-10-30T03:12:12.668Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DdHy0twy.js
+test-runner  | 2025-10-30T03:12:12.668Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BW7wCiOr.js
+test-runner  | 2025-10-30T03:12:12.668Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/HJqR3EwY.js
+test-runner  | 2025-10-30T03:12:12.668Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Dd8rmAoC.js
+test-runner  | 2025-10-30T03:12:12.668Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/cj8VJLhq.js
+test-runner  | 2025-10-30T03:12:12.668Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/C8iviNoy.js
+test-runner  | 2025-10-30T03:12:12.668Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/B9gJLFWI.js
+test-runner  | 2025-10-30T03:12:12.668Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/2fPayoST.js
+test-runner  | 2025-10-30T03:12:12.669Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BqKrh9kf.js
+test-runner  | 2025-10-30T03:12:12.669Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/638BPrjF.js
+test-runner  | 2025-10-30T03:12:12.669Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/Ov9pFsd3.js
+test-runner  | 2025-10-30T03:12:12.669Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CdxBF-wH.js
+test-runner  | 2025-10-30T03:12:12.669Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/LNJKunkS.js
+test-runner  | 2025-10-30T03:12:12.669Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/C5K_OTdC.js
+test-runner  | 2025-10-30T03:12:12.669Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BXP-4RTu.js
+test-runner  | 2025-10-30T03:12:12.669Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CdHStLu8.js
+test-runner  | 2025-10-30T03:12:12.669Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DQfRr7yB.js
+test-runner  | 2025-10-30T03:12:12.670Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/D1EfUlPX.js
+test-runner  | 2025-10-30T03:12:12.670Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/HNTRN4uT.js
+test-runner  | 2025-10-30T03:12:12.670Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/N3GU-DtH.js
+test-runner  | 2025-10-30T03:12:12.670Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DKy_K7mo.js
+test-runner  | 2025-10-30T03:12:12.673Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/4WLmODPH.js
+test-runner  | 2025-10-30T03:12:12.673Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DkWXCM6m.js
+test-runner  | 2025-10-30T03:12:12.676Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BO0KuA--.js
+test-runner  | 2025-10-30T03:12:12.677Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DhOJMFGK.js
+test-runner  | 2025-10-30T03:12:12.677Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BNJXXAzR.js
+test-runner  | 2025-10-30T03:12:12.678Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CIz3seMp.js
+test-runner  | 2025-10-30T03:12:12.680Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/eG_gxts2.js
+test-runner  | 2025-10-30T03:12:12.680Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CRUGFvdf.js
+test-runner  | 2025-10-30T03:12:12.683Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/38eJHLMs.js
+test-runner  | 2025-10-30T03:12:12.690Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/BlrBIox9.js
+test-runner  | 2025-10-30T03:12:12.691Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/CHERwNdF.js
+test-runner  | 2025-10-30T03:12:12.705Z [open-webui] → GET https://open-webui.stack.local/api/config
+test-runner  | 2025-10-30T03:12:12.709Z [open-webui] ← 200 GET https://open-webui.stack.local/api/config
+test-runner  | 2025-10-30T03:12:12.710Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/aLger7-v.js
+test-runner  | 2025-10-30T03:12:12.711Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/chunks/DwgCNU7V.js
+test-runner  | 2025-10-30T03:12:12.713Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/aLger7-v.js
+test-runner  | 2025-10-30T03:12:12.715Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/nodes/42.47ycli03.js
+test-runner  | 2025-10-30T03:12:12.715Z [open-webui] → GET https://open-webui.stack.local/_app/immutable/assets/42.DUP86x5U.css
+test-runner  | 2025-10-30T03:12:12.716Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/chunks/DwgCNU7V.js
+test-runner  | 2025-10-30T03:12:12.718Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/assets/42.DUP86x5U.css
+test-runner  | 2025-10-30T03:12:12.719Z [open-webui] ← 200 GET https://open-webui.stack.local/_app/immutable/nodes/42.47ycli03.js
+test-runner  | 2025-10-30T03:12:12.725Z [open-webui] → GET https://open-webui.stack.local/assets/fonts/Inter-Variable.ttf
+test-runner  | 2025-10-30T03:12:12.725Z [open-webui] → GET https://open-webui.stack.local/static/favicon.png
+test-runner  | 2025-10-30T03:12:12.731Z [open-webui] → GET https://open-webui.stack.local/assets/images/adam.jpg
+test-runner  | 2025-10-30T03:12:12.731Z [open-webui] → GET https://open-webui.stack.local/assets/images/galaxy.jpg
+test-runner  | 2025-10-30T03:12:12.731Z [open-webui] → GET https://open-webui.stack.local/assets/images/earth.jpg
+test-runner  | 2025-10-30T03:12:12.731Z [open-webui] → GET https://open-webui.stack.local/assets/images/space.jpg
+test-runner  | 2025-10-30T03:12:12.731Z [open-webui] → GET https://open-webui.stack.local/assets/fonts/Archivo-Variable.ttf
+test-runner  | 2025-10-30T03:12:12.731Z [open-webui] → GET https://open-webui.stack.local/assets/fonts/InstrumentSerif-Regular.ttf
+test-runner  | 2025-10-30T03:12:12.734Z [open-webui] [BROWSER WARNING] No token found in localStorage, user-join event not emitted
+test-runner  | 2025-10-30T03:12:12.737Z [open-webui] ← 200 GET https://open-webui.stack.local/assets/images/earth.jpg
+test-runner  | 2025-10-30T03:12:12.737Z [open-webui] ← 200 GET https://open-webui.stack.local/assets/images/space.jpg
+test-runner  | 2025-10-30T03:12:12.737Z [open-webui] ← 200 GET https://open-webui.stack.local/assets/images/adam.jpg
+test-runner  | 2025-10-30T03:12:12.738Z [open-webui] ← 200 GET https://open-webui.stack.local/static/favicon.png
+test-runner  | 2025-10-30T03:12:12.740Z [open-webui] ← 200 GET https://open-webui.stack.local/assets/images/galaxy.jpg
+test-runner  | 2025-10-30T03:12:12.743Z [open-webui] ← 200 GET https://open-webui.stack.local/assets/fonts/InstrumentSerif-Regular.ttf
+test-runner  | 2025-10-30T03:12:12.757Z [open-webui] ← 200 GET https://open-webui.stack.local/assets/fonts/Archivo-Variable.ttf
+test-runner  | 2025-10-30T03:12:12.759Z [open-webui] ← 200 GET https://open-webui.stack.local/assets/fonts/Inter-Variable.ttf
+test-runner  | 2025-10-30T03:12:12.766Z [open-webui] → GET https://open-webui.stack.local/assets/fonts/Vazirmatn-Variable.ttf
+test-runner  | 2025-10-30T03:12:12.772Z [open-webui] ← 200 GET https://open-webui.stack.local/assets/fonts/Vazirmatn-Variable.ttf
+test-runner  | 2025-10-30T03:12:15.416Z 📸 01-reachability.png → /tests/screenshots/open-webui/01-reachability.png
+test-runner  | 2025-10-30T03:12:15.416Z ✅ PHASE OK: 01-reachability (+2.95s, t=51.9s)
+test-runner  | 2025-10-30T03:12:15.416Z ▶️  PHASE START: 02-authelia-activation
+test-runner  | 2025-10-30T03:12:15.551Z 📸 02-authelia-activation-landing.png → /tests/screenshots/open-webui/02-authelia-activation-landing.png
+test-runner  | 2025-10-30T03:12:23.161Z 📸 02-authelia-activation-no-oidc.png → /tests/screenshots/open-webui/02-authelia-activation-no-oidc.png
+test-runner  | 2025-10-30T03:12:23.476Z 💓 heartbeat t=60.0s
+test-runner  | 2025-10-30T03:12:38.477Z 💓 heartbeat t=75.0s
+test-runner  | 2025-10-30T03:12:53.477Z 💓 heartbeat t=90.0s
+test-runner  | 2025-10-30T03:13:08.248Z 📸 02-authelia-activation-on-auth.png → /tests/screenshots/open-webui/02-authelia-activation-on-auth.png
+test-runner  | 2025-10-30T03:13:08.328Z 📸 02-authelia-activation-ERROR.png → /tests/screenshots/open-webui/02-authelia-activation-ERROR.png
+test-runner  | 2025-10-30T03:13:08.328Z [ERROR] [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | 2025-10-30T03:13:08.328Z [ERROR] ❌ PHASE FAIL: 02-authelia-activation (+52.91s, t=104.9s) :: [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | 2025-10-30T03:13:08.328Z [ERROR] ❌ [open-webui] FAIL — [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | {"ts":"2025-10-30T03:13:08.328Z","kind":"service_result","service":"open-webui","status":"fail","phases":["reachability"],"errors":["[02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)"]}
+test-runner  | 2025-10-30T03:13:08.328Z [open-webui] DONE status=fail phases=reachability
+test-runner  | 2025-10-30T03:13:08.478Z 💓 heartbeat t=105.0s
+test-runner  | 2025-10-30T03:13:09.531Z 
+test-runner  | ================= JUPYTERHUB =================
+test-runner  | 2025-10-30T03:13:09.531Z [jupyterhub] Target: https://jupyterhub.stack.local | OIDC=yes
+test-runner  | 2025-10-30T03:13:09.542Z ▶️  PHASE START: 01-reachability
+test-runner  | 2025-10-30T03:13:09.543Z [jupyterhub] → GET https://jupyterhub.stack.local/
+test-runner  | 2025-10-30T03:13:09.552Z [jupyterhub] ← 302 GET https://jupyterhub.stack.local/
+test-runner  | 2025-10-30T03:13:09.552Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/
+test-runner  | 2025-10-30T03:13:09.554Z [jupyterhub] ← 302 GET https://jupyterhub.stack.local/hub/
+test-runner  | 2025-10-30T03:13:09.554Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/login?next=%2Fhub%2F
+test-runner  | 2025-10-30T03:13:09.568Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/login?next=%2Fhub%2F
+test-runner  | 2025-10-30T03:13:09.571Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/static/css/style.min.css?v=1169d53348a10b2020fa67f02516a65c955f1483603703fdb5d65653c099dc66f2a52246ae0856c6f1ebcc5e1c5f527a3fa9210d12e6d8ec77e0e095d9b2c734
+test-runner  | 2025-10-30T03:13:09.571Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/static/components/bootstrap/dist/js/bootstrap.bundle.min.js?v=1ef3a326b7703690db9062481b664da83955a8ca3beea6ece0c7b871a8741e80eb7e1adb03ef12065667d4aaef010c3b7082cb3c526f770220a61cd098c9be3f
+test-runner  | 2025-10-30T03:13:09.571Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/static/components/requirejs/require.js?v=1ff44af658602d913b22fca97c78f98945f47e76dacf9800f32f35350f05e9acda6dc710b8501579076f3980de02f02c97f5994ce1a9864c21865a42262d79ec
+test-runner  | 2025-10-30T03:13:09.571Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/static/components/jquery/dist/jquery.min.js?v=bf6089ed4698cb8270a8b0c8ad9508ff886a7a842278e98064d5c1790ca3a36d5d69d9f047ef196882554fc104da2c88eb5395f1ee8cf0f3f6ff8869408350fe
+test-runner  | 2025-10-30T03:13:09.571Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/static/js/darkmode.js?v=2fd9a7d11ad78df9351fed40ab35eab52e1e6a3d516f188b652120e6faf57b8e387a30aae8f52a6fb51563d06d04545c7005da0b77a98c21b0bd28f6d1cdfa11
+test-runner  | 2025-10-30T03:13:09.571Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/logo
+test-runner  | 2025-10-30T03:13:09.577Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/static/js/darkmode.js?v=2fd9a7d11ad78df9351fed40ab35eab52e1e6a3d516f188b652120e6faf57b8e387a30aae8f52a6fb51563d06d04545c7005da0b77a98c21b0bd28f6d1cdfa11
+test-runner  | 2025-10-30T03:13:09.578Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/logo
+test-runner  | 2025-10-30T03:13:09.578Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/static/css/style.min.css?v=1169d53348a10b2020fa67f02516a65c955f1483603703fdb5d65653c099dc66f2a52246ae0856c6f1ebcc5e1c5f527a3fa9210d12e6d8ec77e0e095d9b2c734
+test-runner  | 2025-10-30T03:13:09.578Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/static/components/bootstrap/dist/js/bootstrap.bundle.min.js?v=1ef3a326b7703690db9062481b664da83955a8ca3beea6ece0c7b871a8741e80eb7e1adb03ef12065667d4aaef010c3b7082cb3c526f770220a61cd098c9be3f
+test-runner  | 2025-10-30T03:13:09.580Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/static/components/@fortawesome/fontawesome-free/css/fontawesome.css
+test-runner  | 2025-10-30T03:13:09.580Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/static/components/@fortawesome/fontawesome-free/css/solid.css
+test-runner  | 2025-10-30T03:13:09.580Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/static/components/jquery/dist/jquery.min.js?v=bf6089ed4698cb8270a8b0c8ad9508ff886a7a842278e98064d5c1790ca3a36d5d69d9f047ef196882554fc104da2c88eb5395f1ee8cf0f3f6ff8869408350fe
+test-runner  | 2025-10-30T03:13:09.580Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/static/components/requirejs/require.js?v=1ff44af658602d913b22fca97c78f98945f47e76dacf9800f32f35350f05e9acda6dc710b8501579076f3980de02f02c97f5994ce1a9864c21865a42262d79ec
+test-runner  | 2025-10-30T03:13:09.581Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/static/components/@fortawesome/fontawesome-free/css/fontawesome.css
+test-runner  | 2025-10-30T03:13:09.582Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/static/components/@fortawesome/fontawesome-free/css/solid.css
+test-runner  | 2025-10-30T03:13:09.594Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/static/components/@fortawesome/fontawesome-free/webfonts/fa-solid-900.woff2
+test-runner  | 2025-10-30T03:13:09.599Z [jupyterhub] ← 200 GET https://jupyterhub.stack.local/hub/static/components/@fortawesome/fontawesome-free/webfonts/fa-solid-900.woff2
+test-runner  | 2025-10-30T03:13:12.122Z 📸 01-reachability.png → /tests/screenshots/jupyterhub/01-reachability.png
+test-runner  | 2025-10-30T03:13:12.122Z ✅ PHASE OK: 01-reachability (+2.58s, t=108.6s)
+test-runner  | 2025-10-30T03:13:12.122Z ▶️  PHASE START: 02-authelia-activation
+test-runner  | 2025-10-30T03:13:12.154Z 📸 02-authelia-activation-landing.png → /tests/screenshots/jupyterhub/02-authelia-activation-landing.png
+test-runner  | 2025-10-30T03:13:12.182Z [jupyterhub] → GET https://jupyterhub.stack.local/hub/oauth_login?next=%2Fhub%2F
+test-runner  | 2025-10-30T03:13:12.185Z [jupyterhub] ← 302 GET https://jupyterhub.stack.local/hub/oauth_login?next=%2Fhub%2F
+test-runner  | 2025-10-30T03:13:12.185Z [jupyterhub] → GET https://auth.stack.local/api/oidc/authorization?response_type=code&redirect_uri=https%3A%2F%2Fjupyterhub.stack.local%2Fhub%2Foauth_callback&client_id=jupyterhub&code_challenge=mEZ6qTqhgsOIYj_0lx441IlVGTT_vnVOZldB_UfEXlg&code_challenge_method=S256&state=eyJzdGF0ZV9pZCI6ICI5NmM4ZDg0ZTljN2Y0ZWU5YWViNzU3M2UwMGE3Nzc5NCJ9&scope=openid+profile+email+groups
+test-runner  | 2025-10-30T03:13:12.199Z [jupyterhub] ← 302 GET https://auth.stack.local/api/oidc/authorization?response_type=code&redirect_uri=https%3A%2F%2Fjupyterhub.stack.local%2Fhub%2Foauth_callback&client_id=jupyterhub&code_challenge=mEZ6qTqhgsOIYj_0lx441IlVGTT_vnVOZldB_UfEXlg&code_challenge_method=S256&state=eyJzdGF0ZV9pZCI6ICI5NmM4ZDg0ZTljN2Y0ZWU5YWViNzU3M2UwMGE3Nzc5NCJ9&scope=openid+profile+email+groups
+test-runner  | 2025-10-30T03:13:12.199Z [jupyterhub] → GET https://auth.stack.local/?flow=openid_connect&flow_id=ba797505-bb06-4bf7-87cd-8a1be950b4cc
+test-runner  | 2025-10-30T03:13:12.200Z [jupyterhub] ← 200 GET https://auth.stack.local/?flow=openid_connect&flow_id=ba797505-bb06-4bf7-87cd-8a1be950b4cc
+test-runner  | 2025-10-30T03:13:12.203Z [jupyterhub] → GET https://auth.stack.local/static/js/index.SABuPJxD.js
+test-runner  | 2025-10-30T03:13:12.203Z [jupyterhub] → GET https://auth.stack.local/static/css/index.BetP_OVW.css
+test-runner  | 2025-10-30T03:13:12.203Z [jupyterhub] ← 200 GET https://auth.stack.local/static/css/index.BetP_OVW.css
+test-runner  | 2025-10-30T03:13:12.204Z [jupyterhub] OIDC click: a:has-text("Sign in with")
+test-runner  | 2025-10-30T03:13:12.213Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/index.SABuPJxD.js
+test-runner  | 2025-10-30T03:13:12.240Z [jupyterhub] → GET https://auth.stack.local/locales/en-US@posix/consent.json
+test-runner  | 2025-10-30T03:13:12.240Z [jupyterhub] → GET https://auth.stack.local/locales/en-US@posix/portal.json
+test-runner  | 2025-10-30T03:13:12.240Z [jupyterhub] → GET https://auth.stack.local/locales/en-US@posix/settings.json
+test-runner  | 2025-10-30T03:13:12.240Z [jupyterhub] → GET https://auth.stack.local/locales/en/consent.json
+test-runner  | 2025-10-30T03:13:12.240Z [jupyterhub] → GET https://auth.stack.local/locales/en/portal.json
+test-runner  | 2025-10-30T03:13:12.241Z [jupyterhub] → GET https://auth.stack.local/locales/en/settings.json
+test-runner  | 2025-10-30T03:13:12.244Z [jupyterhub] ← 404 GET https://auth.stack.local/locales/en-US@posix/consent.json
+test-runner  | 2025-10-30T03:13:12.244Z [jupyterhub] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:12.244Z [jupyterhub] ← 200 GET https://auth.stack.local/locales/en/settings.json
+test-runner  | 2025-10-30T03:13:12.244Z [jupyterhub] ← 200 GET https://auth.stack.local/locales/en/consent.json
+test-runner  | 2025-10-30T03:13:12.244Z [jupyterhub] ← 404 GET https://auth.stack.local/locales/en-US@posix/settings.json
+test-runner  | 2025-10-30T03:13:12.244Z [jupyterhub] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:12.244Z [jupyterhub] ← 200 GET https://auth.stack.local/locales/en/portal.json
+test-runner  | 2025-10-30T03:13:12.244Z [jupyterhub] ← 404 GET https://auth.stack.local/locales/en-US@posix/portal.json
+test-runner  | 2025-10-30T03:13:12.244Z [jupyterhub] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:12.258Z [jupyterhub] → GET https://auth.stack.local/api/state
+test-runner  | 2025-10-30T03:13:12.260Z [jupyterhub] ← 200 GET https://auth.stack.local/api/state
+test-runner  | 2025-10-30T03:13:12.263Z [jupyterhub] → GET https://auth.stack.local/static/js/portal.FirstFactorForm.DarUOJ_Y.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/mui.VisibilityOff.DFCWT7lf.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/mui.TextField.dTT6LMd5.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/constants.constants.B0d6k4-7.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/hooks.OpenIDConnect.DItE9H1y.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/layouts.Login.KmeSSUQd.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/components.TypographyWithTooltip.BG5skFpy.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/services.Password.C6VIlfw0.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/hooks.Mounted.BqdVWEcI.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/services.WebAuthn.IhnshK-R.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/browserSupportsWebAuthn.Bhlk1eaM.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/broadcast-channel.XmTr5BGe.js
+test-runner  | 2025-10-30T03:13:12.264Z [jupyterhub] → GET https://auth.stack.local/static/js/mui.FormControlLabel.Cp9jMggM.js
+test-runner  | 2025-10-30T03:13:12.266Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/hooks.Mounted.BqdVWEcI.js
+test-runner  | 2025-10-30T03:13:12.266Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/layouts.Login.KmeSSUQd.js
+test-runner  | 2025-10-30T03:13:12.266Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/mui.VisibilityOff.DFCWT7lf.js
+test-runner  | 2025-10-30T03:13:12.266Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/hooks.OpenIDConnect.DItE9H1y.js
+test-runner  | 2025-10-30T03:13:12.267Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/portal.FirstFactorForm.DarUOJ_Y.js
+test-runner  | 2025-10-30T03:13:12.267Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/services.Password.C6VIlfw0.js
+test-runner  | 2025-10-30T03:13:12.267Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/browserSupportsWebAuthn.Bhlk1eaM.js
+test-runner  | 2025-10-30T03:13:12.268Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/mui.FormControlLabel.Cp9jMggM.js
+test-runner  | 2025-10-30T03:13:12.268Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/broadcast-channel.XmTr5BGe.js
+test-runner  | 2025-10-30T03:13:12.268Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/mui.TextField.dTT6LMd5.js
+test-runner  | 2025-10-30T03:13:12.268Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/services.WebAuthn.IhnshK-R.js
+test-runner  | 2025-10-30T03:13:12.268Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/components.TypographyWithTooltip.BG5skFpy.js
+test-runner  | 2025-10-30T03:13:12.268Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/constants.constants.B0d6k4-7.js
+test-runner  | 2025-10-30T03:13:12.288Z 📸 02-authelia-activation-oidc-clicked.png → /tests/screenshots/jupyterhub/02-authelia-activation-oidc-clicked.png
+test-runner  | 2025-10-30T03:13:12.569Z [jupyterhub] → GET https://auth.stack.local/locales
+test-runner  | 2025-10-30T03:13:12.579Z [jupyterhub] ← 200 GET https://auth.stack.local/locales
+test-runner  | 2025-10-30T03:13:13.305Z 📸 02-authelia-activation-on-auth.png → /tests/screenshots/jupyterhub/02-authelia-activation-on-auth.png
+test-runner  | 2025-10-30T03:13:13.305Z ✅ PHASE OK: 02-authelia-activation (+1.18s, t=109.8s)
+test-runner  | 2025-10-30T03:13:13.305Z ▶️  PHASE START: 03-authelia-authentication
+test-runner  | 2025-10-30T03:13:13.338Z 📸 03-authelia-authentication-login-form.png → /tests/screenshots/jupyterhub/03-authelia-authentication-login-form.png
+test-runner  | 2025-10-30T03:13:13.373Z 📸 03-authelia-authentication-credentials-filled.png → /tests/screenshots/jupyterhub/03-authelia-authentication-credentials-filled.png
+test-runner  | 2025-10-30T03:13:13.408Z [jupyterhub] → POST https://auth.stack.local/api/firstfactor
+test-runner  | 2025-10-30T03:13:13.440Z 📸 03-authelia-authentication-no-consent.png → /tests/screenshots/jupyterhub/03-authelia-authentication-no-consent.png
+test-runner  | 2025-10-30T03:13:13.440Z ✅ PHASE OK: 03-authelia-authentication (+0.14s, t=110.0s)
+test-runner  | 2025-10-30T03:13:13.440Z ▶️  PHASE START: 04-redirection
+test-runner  | 2025-10-30T03:13:14.486Z [jupyterhub] ← 200 POST https://auth.stack.local/api/firstfactor
+test-runner  | 2025-10-30T03:13:14.486Z [jupyterhub] → GET https://auth.stack.local/api/oidc/authorization?client_id=jupyterhub&code_challenge=mEZ6qTqhgsOIYj_0lx441IlVGTT_vnVOZldB_UfEXlg&code_challenge_method=S256&consent_id=ba797505-bb06-4bf7-87cd-8a1be950b4cc&redirect_uri=https%3A%2F%2Fjupyterhub.stack.local%2Fhub%2Foauth_callback&response_type=code&scope=openid+profile+email+groups&state=eyJzdGF0ZV9pZCI6ICI5NmM4ZDg0ZTljN2Y0ZWU5YWViNzU3M2UwMGE3Nzc5NCJ9
+test-runner  | 2025-10-30T03:13:14.490Z [jupyterhub] ← 302 GET https://auth.stack.local/api/oidc/authorization?client_id=jupyterhub&code_challenge=mEZ6qTqhgsOIYj_0lx441IlVGTT_vnVOZldB_UfEXlg&code_challenge_method=S256&consent_id=ba797505-bb06-4bf7-87cd-8a1be950b4cc&redirect_uri=https%3A%2F%2Fjupyterhub.stack.local%2Fhub%2Foauth_callback&response_type=code&scope=openid+profile+email+groups&state=eyJzdGF0ZV9pZCI6ICI5NmM4ZDg0ZTljN2Y0ZWU5YWViNzU3M2UwMGE3Nzc5NCJ9
+test-runner  | 2025-10-30T03:13:14.490Z [jupyterhub] → GET https://auth.stack.local/consent/openid/decision?flow=openid_connect&flow_id=ba797505-bb06-4bf7-87cd-8a1be950b4cc
+test-runner  | 2025-10-30T03:13:14.491Z [jupyterhub] ← 200 GET https://auth.stack.local/consent/openid/decision?flow=openid_connect&flow_id=ba797505-bb06-4bf7-87cd-8a1be950b4cc
+test-runner  | 2025-10-30T03:13:14.494Z [jupyterhub] → GET https://auth.stack.local/static/js/index.SABuPJxD.js
+test-runner  | 2025-10-30T03:13:14.494Z [jupyterhub] → GET https://auth.stack.local/static/css/index.BetP_OVW.css
+test-runner  | 2025-10-30T03:13:14.494Z [jupyterhub] ← 304 GET https://auth.stack.local/static/css/index.BetP_OVW.css
+test-runner  | 2025-10-30T03:13:14.494Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/index.SABuPJxD.js
+test-runner  | 2025-10-30T03:13:14.500Z [jupyterhub] → GET https://auth.stack.local/locales/en-US@posix/consent.json
+test-runner  | 2025-10-30T03:13:14.500Z [jupyterhub] → GET https://auth.stack.local/locales/en-US@posix/portal.json
+test-runner  | 2025-10-30T03:13:14.500Z [jupyterhub] → GET https://auth.stack.local/locales/en-US@posix/settings.json
+test-runner  | 2025-10-30T03:13:14.500Z [jupyterhub] → GET https://auth.stack.local/locales/en/consent.json
+test-runner  | 2025-10-30T03:13:14.500Z [jupyterhub] → GET https://auth.stack.local/locales/en/portal.json
+test-runner  | 2025-10-30T03:13:14.500Z [jupyterhub] → GET https://auth.stack.local/locales/en/settings.json
+test-runner  | 2025-10-30T03:13:14.506Z [jupyterhub] ← 200 GET https://auth.stack.local/locales/en/portal.json
+test-runner  | 2025-10-30T03:13:14.506Z [jupyterhub] ← 200 GET https://auth.stack.local/locales/en/settings.json
+test-runner  | 2025-10-30T03:13:14.506Z [jupyterhub] ← 404 GET https://auth.stack.local/locales/en-US@posix/consent.json
+test-runner  | 2025-10-30T03:13:14.506Z [jupyterhub] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:14.506Z [jupyterhub] ← 404 GET https://auth.stack.local/locales/en-US@posix/portal.json
+test-runner  | 2025-10-30T03:13:14.506Z [jupyterhub] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:14.506Z [jupyterhub] ← 404 GET https://auth.stack.local/locales/en-US@posix/settings.json
+test-runner  | 2025-10-30T03:13:14.506Z [jupyterhub] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:14.506Z [jupyterhub] ← 200 GET https://auth.stack.local/locales/en/consent.json
+test-runner  | 2025-10-30T03:13:14.510Z [jupyterhub] → GET https://auth.stack.local/static/js/views.ConsentPortal.BWqrstU8.js
+test-runner  | 2025-10-30T03:13:14.511Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/views.ConsentPortal.BWqrstU8.js
+test-runner  | 2025-10-30T03:13:14.811Z [jupyterhub] → GET https://auth.stack.local/api/state
+test-runner  | 2025-10-30T03:13:14.812Z [jupyterhub] ← 200 GET https://auth.stack.local/api/state
+test-runner  | 2025-10-30T03:13:14.814Z [jupyterhub] → GET https://auth.stack.local/api/user/info
+test-runner  | 2025-10-30T03:13:14.816Z [jupyterhub] ← 200 GET https://auth.stack.local/api/user/info
+test-runner  | 2025-10-30T03:13:14.818Z [jupyterhub] → GET https://auth.stack.local/static/js/views.ConsentPortal.qRZ3Wh7Z.js
+test-runner  | 2025-10-30T03:13:14.818Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/views.ConsentPortal.qRZ3Wh7Z.js
+test-runner  | 2025-10-30T03:13:14.819Z [jupyterhub] → GET https://auth.stack.local/static/js/views.DecisionFormView.DY_5fWYr.js
+test-runner  | 2025-10-30T03:13:14.819Z [jupyterhub] → GET https://auth.stack.local/static/js/components.LogoutButton.z2dOUqcj.js
+test-runner  | 2025-10-30T03:13:14.820Z [jupyterhub] → GET https://auth.stack.local/static/js/components.TypographyWithTooltip.BG5skFpy.js
+test-runner  | 2025-10-30T03:13:14.820Z [jupyterhub] → GET https://auth.stack.local/static/js/constants.constants.B0d6k4-7.js
+test-runner  | 2025-10-30T03:13:14.820Z [jupyterhub] → GET https://auth.stack.local/static/js/components.SwitchUserButton.LAJu7Z4B.js
+test-runner  | 2025-10-30T03:13:14.820Z [jupyterhub] → GET https://auth.stack.local/static/js/hooks.OpenIDConnect.DItE9H1y.js
+test-runner  | 2025-10-30T03:13:14.820Z [jupyterhub] → GET https://auth.stack.local/static/js/layouts.Login.KmeSSUQd.js
+test-runner  | 2025-10-30T03:13:14.820Z [jupyterhub] → GET https://auth.stack.local/static/js/services.Password.C6VIlfw0.js
+test-runner  | 2025-10-30T03:13:14.821Z [jupyterhub] → GET https://auth.stack.local/static/js/mui.FormControlLabel.Cp9jMggM.js
+test-runner  | 2025-10-30T03:13:14.821Z [jupyterhub] → GET https://auth.stack.local/static/js/mui.TextField.dTT6LMd5.js
+test-runner  | 2025-10-30T03:13:14.821Z [jupyterhub] → GET https://auth.stack.local/static/js/broadcast-channel.XmTr5BGe.js
+test-runner  | 2025-10-30T03:13:14.821Z [jupyterhub] → GET https://auth.stack.local/static/js/mui.ListItem.D-LbqNI6.js
+test-runner  | 2025-10-30T03:13:14.821Z [jupyterhub] → GET https://auth.stack.local/static/js/mui.VisibilityOff.DFCWT7lf.js
+test-runner  | 2025-10-30T03:13:14.821Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/hooks.OpenIDConnect.DItE9H1y.js
+test-runner  | 2025-10-30T03:13:14.821Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/mui.FormControlLabel.Cp9jMggM.js
+test-runner  | 2025-10-30T03:13:14.821Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/mui.TextField.dTT6LMd5.js
+test-runner  | 2025-10-30T03:13:14.821Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/broadcast-channel.XmTr5BGe.js
+test-runner  | 2025-10-30T03:13:14.822Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/mui.VisibilityOff.DFCWT7lf.js
+test-runner  | 2025-10-30T03:13:14.822Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/constants.constants.B0d6k4-7.js
+test-runner  | 2025-10-30T03:13:14.822Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/components.LogoutButton.z2dOUqcj.js
+test-runner  | 2025-10-30T03:13:14.822Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/components.SwitchUserButton.LAJu7Z4B.js
+test-runner  | 2025-10-30T03:13:14.822Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/layouts.Login.KmeSSUQd.js
+test-runner  | 2025-10-30T03:13:14.822Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/services.Password.C6VIlfw0.js
+test-runner  | 2025-10-30T03:13:14.822Z [jupyterhub] ← 304 GET https://auth.stack.local/static/js/components.TypographyWithTooltip.BG5skFpy.js
+test-runner  | 2025-10-30T03:13:14.823Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/mui.ListItem.D-LbqNI6.js
+test-runner  | 2025-10-30T03:13:14.823Z [jupyterhub] ← 200 GET https://auth.stack.local/static/js/views.DecisionFormView.DY_5fWYr.js
+test-runner  | 2025-10-30T03:13:15.119Z [jupyterhub] → GET https://auth.stack.local/api/oidc/consent?flow_id=ba797505-bb06-4bf7-87cd-8a1be950b4cc
+test-runner  | 2025-10-30T03:13:15.121Z [jupyterhub] ← 200 GET https://auth.stack.local/api/oidc/consent?flow_id=ba797505-bb06-4bf7-87cd-8a1be950b4cc
+test-runner  | 2025-10-30T03:13:15.136Z [jupyterhub] → GET https://auth.stack.local/locales
+test-runner  | 2025-10-30T03:13:15.139Z [jupyterhub] ← 200 GET https://auth.stack.local/locales
+test-runner  | 2025-10-30T03:13:23.478Z 💓 heartbeat t=120.0s
+test-runner  | 2025-10-30T03:13:38.478Z 💓 heartbeat t=135.0s
+test-runner  | 2025-10-30T03:13:43.472Z 📸 04-redirection.png → /tests/screenshots/jupyterhub/04-redirection.png
+test-runner  | 2025-10-30T03:13:43.505Z 📸 04-redirection-ERROR.png → /tests/screenshots/jupyterhub/04-redirection-ERROR.png
+test-runner  | 2025-10-30T03:13:43.505Z [ERROR] [04-redirection] Did not return to jupyterhub after auth
+test-runner  | 2025-10-30T03:13:43.505Z [ERROR] ❌ PHASE FAIL: 04-redirection (+30.07s, t=140.0s) :: [04-redirection] Did not return to jupyterhub after auth
+test-runner  | 2025-10-30T03:13:43.505Z [ERROR] ❌ [jupyterhub] FAIL — [04-redirection] Did not return to jupyterhub after auth
+test-runner  | {"ts":"2025-10-30T03:13:43.505Z","kind":"service_result","service":"jupyterhub","status":"fail","phases":["reachability","authelia-activation","authelia-authentication"],"errors":["[04-redirection] Did not return to jupyterhub after auth"]}
+test-runner  | 2025-10-30T03:13:43.505Z [jupyterhub] DONE status=fail phases=reachability>authelia-activation>authelia-authentication
+test-runner  | 2025-10-30T03:13:44.708Z 
+test-runner  | ================= OUTLINE =================
+test-runner  | 2025-10-30T03:13:44.708Z [outline] Target: https://outline.stack.local | OIDC=yes
+test-runner  | 2025-10-30T03:13:44.719Z ▶️  PHASE START: 01-reachability
+test-runner  | 2025-10-30T03:13:44.719Z [outline] → GET https://outline.stack.local/
+test-runner  | 2025-10-30T03:13:44.736Z [outline] ← 200 GET https://outline.stack.local/
+test-runner  | 2025-10-30T03:13:44.739Z [outline] → GET https://outline.stack.local/static/assets/index.CYpHilJt.js
+test-runner  | 2025-10-30T03:13:44.740Z [outline] → GET https://outline.stack.local/static/assets/index.CYpHilJt.js
+test-runner  | 2025-10-30T03:13:44.740Z [outline] → GET https://outline.stack.local/static/assets/editor.DviNYJFS.js
+test-runner  | 2025-10-30T03:13:44.740Z [outline] → GET https://outline.stack.local/static/assets/sections.D6RDW0CA.js
+test-runner  | 2025-10-30T03:13:44.740Z [outline] → GET https://outline.stack.local/static/assets/Actions.B2c46nzr.js
+test-runner  | 2025-10-30T03:13:44.741Z [outline] → GET https://outline.stack.local/static/assets/Breadcrumb.CulyYUKC.js
+test-runner  | 2025-10-30T03:13:44.741Z [outline] → GET https://outline.stack.local/static/assets/Header.qmc7Rabl.js
+test-runner  | 2025-10-30T03:13:44.741Z [outline] → GET https://outline.stack.local/static/assets/Separator.QQdOe2Ij.js
+test-runner  | 2025-10-30T03:13:44.741Z [outline] → GET https://outline.stack.local/static/assets/CopyToClipboard.2G3njO6K.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/DocumentBreadcrumb.CKq9-id2.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/Header.CWNKbNy9.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/ArrowIcon.Dze2cMwj.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/CollectionIcon.BfsCXcXa.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/LoadingIndicator.Bv-PXiWY.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/useMenuAction.CrRxtfLa.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/ResizingHeightContainer.QL2ixv57.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/Drawer.DQgqJ08b.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/useBoolean.9XFRF55m.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/useCurrentUser.CH8nmKSw.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/useEmbeds.DptrVsJf.js
+test-runner  | 2025-10-30T03:13:44.742Z [outline] → GET https://outline.stack.local/static/assets/useIdle.D4z5j0sg.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/useLocationSidebarContext.D804rG6y.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/useMenuContext.C7LMkRbB.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/usePolicy.PTfXnD0B.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/useRequest.CYh_YGkB.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/dist.hPveV9-q.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/dist.Cni3lsXo.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/dist.CnQg5nuW.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/resolve-value.iB4t0Pxm.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/PortalCompat.6MU-wQgB.js
+test-runner  | 2025-10-30T03:13:44.743Z [outline] → GET https://outline.stack.local/static/assets/time.D05ktYTh.js
+test-runner  | 2025-10-30T03:13:44.750Z [outline] ← 200 GET https://outline.stack.local/static/assets/DocumentBreadcrumb.CKq9-id2.js
+test-runner  | 2025-10-30T03:13:44.752Z [outline] ← 200 GET https://outline.stack.local/static/assets/Breadcrumb.CulyYUKC.js
+test-runner  | 2025-10-30T03:13:44.752Z [outline] ← 200 GET https://outline.stack.local/static/assets/Separator.QQdOe2Ij.js
+test-runner  | 2025-10-30T03:13:44.753Z [outline] ← 200 GET https://outline.stack.local/static/assets/CopyToClipboard.2G3njO6K.js
+test-runner  | 2025-10-30T03:13:44.754Z [outline] ← 200 GET https://outline.stack.local/static/assets/sections.D6RDW0CA.js
+test-runner  | 2025-10-30T03:13:44.755Z [outline] ← 200 GET https://outline.stack.local/static/assets/Header.CWNKbNy9.js
+test-runner  | 2025-10-30T03:13:44.755Z [outline] ← 200 GET https://outline.stack.local/static/assets/Actions.B2c46nzr.js
+test-runner  | 2025-10-30T03:13:44.756Z [outline] ← 200 GET https://outline.stack.local/static/assets/useIdle.D4z5j0sg.js
+test-runner  | 2025-10-30T03:13:44.757Z [outline] ← 200 GET https://outline.stack.local/static/assets/ArrowIcon.Dze2cMwj.js
+test-runner  | 2025-10-30T03:13:44.758Z [outline] ← 200 GET https://outline.stack.local/static/assets/Header.qmc7Rabl.js
+test-runner  | 2025-10-30T03:13:44.762Z [outline] ← 200 GET https://outline.stack.local/static/assets/editor.DviNYJFS.js
+test-runner  | 2025-10-30T03:13:44.762Z [outline] ← 200 GET https://outline.stack.local/static/assets/usePolicy.PTfXnD0B.js
+test-runner  | 2025-10-30T03:13:44.763Z [outline] ← 200 GET https://outline.stack.local/static/assets/dist.Cni3lsXo.js
+test-runner  | 2025-10-30T03:13:44.764Z [outline] ← 200 GET https://outline.stack.local/static/assets/dist.hPveV9-q.js
+test-runner  | 2025-10-30T03:13:44.765Z [outline] ← 200 GET https://outline.stack.local/static/assets/CollectionIcon.BfsCXcXa.js
+test-runner  | 2025-10-30T03:13:44.765Z [outline] ← 200 GET https://outline.stack.local/static/assets/LoadingIndicator.Bv-PXiWY.js
+test-runner  | 2025-10-30T03:13:44.766Z [outline] ← 200 GET https://outline.stack.local/static/assets/Drawer.DQgqJ08b.js
+test-runner  | 2025-10-30T03:13:44.769Z [outline] ← 200 GET https://outline.stack.local/static/assets/PortalCompat.6MU-wQgB.js
+test-runner  | 2025-10-30T03:13:44.770Z [outline] ← 200 GET https://outline.stack.local/static/assets/useMenuAction.CrRxtfLa.js
+test-runner  | 2025-10-30T03:13:44.770Z [outline] ← 200 GET https://outline.stack.local/static/assets/useBoolean.9XFRF55m.js
+test-runner  | 2025-10-30T03:13:44.771Z [outline] ← 200 GET https://outline.stack.local/static/assets/dist.CnQg5nuW.js
+test-runner  | 2025-10-30T03:13:44.773Z [outline] ← 200 GET https://outline.stack.local/static/assets/useMenuContext.C7LMkRbB.js
+test-runner  | 2025-10-30T03:13:44.773Z [outline] ← 200 GET https://outline.stack.local/static/assets/useEmbeds.DptrVsJf.js
+test-runner  | 2025-10-30T03:13:44.774Z [outline] ← 200 GET https://outline.stack.local/static/assets/time.D05ktYTh.js
+test-runner  | 2025-10-30T03:13:44.774Z [outline] ← 200 GET https://outline.stack.local/static/assets/resolve-value.iB4t0Pxm.js
+test-runner  | 2025-10-30T03:13:44.775Z [outline] ← 200 GET https://outline.stack.local/static/assets/ResizingHeightContainer.QL2ixv57.js
+test-runner  | 2025-10-30T03:13:44.775Z [outline] ← 200 GET https://outline.stack.local/static/assets/useRequest.CYh_YGkB.js
+test-runner  | 2025-10-30T03:13:44.776Z [outline] ← 200 GET https://outline.stack.local/static/assets/useCurrentUser.CH8nmKSw.js
+test-runner  | 2025-10-30T03:13:44.782Z [outline] ← 200 GET https://outline.stack.local/static/assets/useLocationSidebarContext.D804rG6y.js
+test-runner  | 2025-10-30T03:13:44.825Z [outline] ← 200 GET https://outline.stack.local/static/assets/index.CYpHilJt.js
+test-runner  | 2025-10-30T03:13:44.844Z [outline] ← 200 GET https://outline.stack.local/static/assets/index.CYpHilJt.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → POST https://outline.stack.local/api/auth.info
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/client.D0e97pwK.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/LazyLoad.Cdu7iNfb.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/Icon.BEm7S7O5.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/client.B-s7pFzs.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/client.YBhqnZzO.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/Icon.BAXBUPN6.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/client.BikNrCKD.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/Icon.D_V4YzXG.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/client.DuCaNKgO.js
+test-runner  | 2025-10-30T03:13:44.936Z [outline] → GET https://outline.stack.local/static/assets/InputSelect.DbIKFP3p.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/dist.e2F3i8-h.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/dist.lI1TekH9.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/InputSelectPermission.Dt2iaReD.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/useCurrentTeam.D2WCT_f1.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/routeHelpers.ClOq_0gI.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/client.bdXNgKmM.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/Icon.DXZcIaV6.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/client.DzHZJnJu.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/Icon.Dr_wdUa_.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/client.DkHQLFX1.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/client.DjdW_I4p.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/Icon.CtqjyDtA.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/client.BGZqGK_7.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/client.C-nz0RFp.js
+test-runner  | 2025-10-30T03:13:44.937Z [outline] → GET https://outline.stack.local/static/assets/client.DEEwQFlO.js
+test-runner  | 2025-10-30T03:13:44.938Z [outline] → GET https://outline.stack.local/locales/en_US.json
+test-runner  | 2025-10-30T03:13:44.939Z [outline] ← 401 POST https://outline.stack.local/api/auth.info
+test-runner  | 2025-10-30T03:13:44.939Z [outline] [BROWSER ERROR] Failed to load resource: the server responded with a status of 401 ()
+test-runner  | 2025-10-30T03:13:44.946Z [outline] → GET https://outline.stack.local/static/assets/Login.C1OR2Gi0.js
+test-runner  | 2025-10-30T03:13:44.946Z [outline] → GET https://outline.stack.local/static/assets/Avatar.Cjy2uSth.js
+test-runner  | 2025-10-30T03:13:44.947Z [outline] → GET https://outline.stack.local/static/assets/ButtonLarge.BhzSo5v-.js
+test-runner  | 2025-10-30T03:13:44.947Z [outline] → GET https://outline.stack.local/static/assets/Login.iDU9l8tJ.js
+test-runner  | 2025-10-30T03:13:44.947Z [outline] → GET https://outline.stack.local/static/assets/OutlineIcon.CzI1YuZL.js
+test-runner  | 2025-10-30T03:13:44.947Z [outline] → GET https://outline.stack.local/static/assets/Notice.DGQNaQkE.js
+test-runner  | 2025-10-30T03:13:44.947Z [outline] → GET https://outline.stack.local/static/assets/PluginIcon.BCaLUG8C.js
+test-runner  | 2025-10-30T03:13:44.947Z [outline] → GET https://outline.stack.local/static/assets/TeamLogo.nyc7p79e.js
+test-runner  | 2025-10-30T03:13:44.947Z [outline] → GET https://outline.stack.local/static/assets/urls.BJ0ohw7Q.js
+test-runner  | 2025-10-30T03:13:44.947Z [outline] → GET https://outline.stack.local/static/assets/language.SXOgdx6R.js
+test-runner  | 2025-10-30T03:13:44.947Z [outline] → GET https://outline.stack.local/static/assets/Login.DHt2yqxx.js
+test-runner  | 2025-10-30T03:13:44.948Z [outline] ← 200 GET https://outline.stack.local/static/assets/LazyLoad.Cdu7iNfb.js
+test-runner  | 2025-10-30T03:13:44.948Z [ERROR] [outline] [BROWSER PAGEERROR] Vv
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/routeHelpers.ClOq_0gI.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/dist.e2F3i8-h.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/dist.lI1TekH9.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/useCurrentTeam.D2WCT_f1.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/InputSelectPermission.Dt2iaReD.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/Icon.Dr_wdUa_.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.YBhqnZzO.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.BikNrCKD.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/Icon.BAXBUPN6.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/Icon.BEm7S7O5.js
+test-runner  | 2025-10-30T03:13:44.952Z [outline] ← 200 GET https://outline.stack.local/static/assets/Icon.D_V4YzXG.js
+test-runner  | 2025-10-30T03:13:44.953Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.B-s7pFzs.js
+test-runner  | 2025-10-30T03:13:44.953Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.DuCaNKgO.js
+test-runner  | 2025-10-30T03:13:44.953Z [outline] ← 200 GET https://outline.stack.local/static/assets/Icon.DXZcIaV6.js
+test-runner  | 2025-10-30T03:13:44.953Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.bdXNgKmM.js
+test-runner  | 2025-10-30T03:13:44.953Z [outline] ← 200 GET https://outline.stack.local/static/assets/InputSelect.DbIKFP3p.js
+test-runner  | 2025-10-30T03:13:44.953Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.D0e97pwK.js
+test-runner  | 2025-10-30T03:13:44.954Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.DjdW_I4p.js
+test-runner  | 2025-10-30T03:13:44.954Z [outline] ← 200 GET https://outline.stack.local/static/assets/Icon.CtqjyDtA.js
+test-runner  | 2025-10-30T03:13:44.954Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.DkHQLFX1.js
+test-runner  | 2025-10-30T03:13:44.954Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.DEEwQFlO.js
+test-runner  | 2025-10-30T03:13:44.954Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.BGZqGK_7.js
+test-runner  | 2025-10-30T03:13:44.954Z [outline] → GET https://outline.stack.local/static/assets/motion.CH9c2UeQ.js
+test-runner  | 2025-10-30T03:13:44.954Z [outline] → GET https://outline.stack.local/static/assets/VisualElementDragControls.BfvcqMNO.js
+test-runner  | 2025-10-30T03:13:44.954Z [outline] → GET https://outline.stack.local/static/assets/SharedLayoutContext.jfe1Bl2W.js
+test-runner  | 2025-10-30T03:13:44.954Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.C-nz0RFp.js
+test-runner  | 2025-10-30T03:13:44.955Z [outline] ← 200 GET https://outline.stack.local/static/assets/client.DzHZJnJu.js
+test-runner  | 2025-10-30T03:13:44.955Z [outline] ← 200 GET https://outline.stack.local/locales/en_US.json
+test-runner  | 2025-10-30T03:13:44.955Z [outline] → GET https://outline.stack.local/static/assets/resolve-value.iB4t0Pxm.js
+test-runner  | 2025-10-30T03:13:44.955Z [outline] → GET https://outline.stack.local/static/assets/Drawer.DQgqJ08b.js
+test-runner  | 2025-10-30T03:13:44.955Z [outline] → GET https://outline.stack.local/static/assets/useBoolean.9XFRF55m.js
+test-runner  | 2025-10-30T03:13:44.955Z [outline] → GET https://outline.stack.local/static/assets/Separator.QQdOe2Ij.js
+test-runner  | 2025-10-30T03:13:44.955Z [outline] → GET https://outline.stack.local/static/assets/dist.hPveV9-q.js
+test-runner  | 2025-10-30T03:13:44.960Z [outline] ← 200 GET https://outline.stack.local/static/assets/Login.C1OR2Gi0.js
+test-runner  | 2025-10-30T03:13:44.960Z [outline] ← 200 GET https://outline.stack.local/static/assets/ButtonLarge.BhzSo5v-.js
+test-runner  | 2025-10-30T03:13:44.960Z [outline] ← 200 GET https://outline.stack.local/static/assets/Notice.DGQNaQkE.js
+test-runner  | 2025-10-30T03:13:44.960Z [outline] → GET https://outline.stack.local/static/assets/useCurrentUser.CH8nmKSw.js
+test-runner  | 2025-10-30T03:13:44.960Z [outline] → GET https://outline.stack.local/static/assets/LoadingIndicator.Bv-PXiWY.js
+test-runner  | 2025-10-30T03:13:44.960Z [outline] → GET https://outline.stack.local/static/assets/dist.Cni3lsXo.js
+test-runner  | 2025-10-30T03:13:44.960Z [outline] ← 200 GET https://outline.stack.local/static/assets/PluginIcon.BCaLUG8C.js
+test-runner  | 2025-10-30T03:13:44.960Z [outline] ← 200 GET https://outline.stack.local/static/assets/TeamLogo.nyc7p79e.js
+test-runner  | 2025-10-30T03:13:44.961Z [outline] ← 200 GET https://outline.stack.local/static/assets/urls.BJ0ohw7Q.js
+test-runner  | 2025-10-30T03:13:44.961Z [outline] ← 200 GET https://outline.stack.local/static/assets/language.SXOgdx6R.js
+test-runner  | 2025-10-30T03:13:44.961Z [outline] ← 200 GET https://outline.stack.local/static/assets/Login.DHt2yqxx.js
+test-runner  | 2025-10-30T03:13:44.961Z [outline] ← 200 GET https://outline.stack.local/static/assets/OutlineIcon.CzI1YuZL.js
+test-runner  | 2025-10-30T03:13:44.962Z [outline] ← 200 GET https://outline.stack.local/static/assets/Avatar.Cjy2uSth.js
+test-runner  | 2025-10-30T03:13:44.962Z [outline] ← 200 GET https://outline.stack.local/static/assets/useBoolean.9XFRF55m.js
+test-runner  | 2025-10-30T03:13:44.963Z [outline] ← 200 GET https://outline.stack.local/static/assets/Login.iDU9l8tJ.js
+test-runner  | 2025-10-30T03:13:44.963Z [outline] ← 200 GET https://outline.stack.local/static/assets/dist.hPveV9-q.js
+test-runner  | 2025-10-30T03:13:44.963Z [outline] ← 200 GET https://outline.stack.local/static/assets/motion.CH9c2UeQ.js
+test-runner  | 2025-10-30T03:13:44.963Z [outline] ← 200 GET https://outline.stack.local/static/assets/resolve-value.iB4t0Pxm.js
+test-runner  | 2025-10-30T03:13:44.964Z [outline] [BROWSER ERROR] An SSL certificate error occurred when fetching the script.
+test-runner  | 2025-10-30T03:13:44.965Z [outline] ← 200 GET https://outline.stack.local/static/assets/VisualElementDragControls.BfvcqMNO.js
+test-runner  | 2025-10-30T03:13:44.965Z [outline] ← 200 GET https://outline.stack.local/static/assets/Separator.QQdOe2Ij.js
+test-runner  | 2025-10-30T03:13:44.965Z [outline] ← 200 GET https://outline.stack.local/static/assets/SharedLayoutContext.jfe1Bl2W.js
+test-runner  | 2025-10-30T03:13:44.966Z [outline] ← 200 GET https://outline.stack.local/static/assets/Drawer.DQgqJ08b.js
+test-runner  | 2025-10-30T03:13:44.968Z [outline] ← 200 GET https://outline.stack.local/static/assets/useCurrentUser.CH8nmKSw.js
+test-runner  | 2025-10-30T03:13:44.968Z [outline] ← 200 GET https://outline.stack.local/static/assets/LoadingIndicator.Bv-PXiWY.js
+test-runner  | 2025-10-30T03:13:44.968Z [outline] ← 200 GET https://outline.stack.local/static/assets/dist.Cni3lsXo.js
+test-runner  | 2025-10-30T03:13:44.971Z [outline] → POST https://outline.stack.local/api/auth.config
+test-runner  | 2025-10-30T03:13:44.978Z [outline] ← 200 POST https://outline.stack.local/api/auth.config
+test-runner  | 2025-10-30T03:13:44.981Z [outline] → GET https://outline.stack.local/auth/oidc
+test-runner  | 2025-10-30T03:13:44.984Z [outline] ← 302 GET https://outline.stack.local/auth/oidc
+test-runner  | 2025-10-30T03:13:44.984Z [outline] → GET https://auth.stack.local/api/oidc/authorization?response_type=code&redirect_uri=https%3A%2F%2Foutline.stack.local%2Fauth%2Foidc.callback&scope=openid%20offline_access%20profile%20email&state=8aad8bef2990f578&client_id=outline
+test-runner  | 2025-10-30T03:13:44.989Z [outline] ← 302 GET https://auth.stack.local/api/oidc/authorization?response_type=code&redirect_uri=https%3A%2F%2Foutline.stack.local%2Fauth%2Foidc.callback&scope=openid%20offline_access%20profile%20email&state=8aad8bef2990f578&client_id=outline
+test-runner  | 2025-10-30T03:13:44.989Z [outline] → GET https://auth.stack.local/?flow=openid_connect&flow_id=0b28e87d-6ee4-4577-8a7e-808b932c519a
+test-runner  | 2025-10-30T03:13:44.991Z [outline] ← 200 GET https://auth.stack.local/?flow=openid_connect&flow_id=0b28e87d-6ee4-4577-8a7e-808b932c519a
+test-runner  | 2025-10-30T03:13:44.994Z [outline] → GET https://auth.stack.local/static/js/index.SABuPJxD.js
+test-runner  | 2025-10-30T03:13:44.994Z [outline] → GET https://auth.stack.local/static/css/index.BetP_OVW.css
+test-runner  | 2025-10-30T03:13:44.994Z [outline] ← 200 GET https://auth.stack.local/static/css/index.BetP_OVW.css
+test-runner  | 2025-10-30T03:13:45.005Z [outline] ← 200 GET https://auth.stack.local/static/js/index.SABuPJxD.js
+test-runner  | 2025-10-30T03:13:45.029Z [outline] → GET https://auth.stack.local/locales/en-US@posix/consent.json
+test-runner  | 2025-10-30T03:13:45.029Z [outline] → GET https://auth.stack.local/locales/en-US@posix/portal.json
+test-runner  | 2025-10-30T03:13:45.029Z [outline] → GET https://auth.stack.local/locales/en-US@posix/settings.json
+test-runner  | 2025-10-30T03:13:45.029Z [outline] → GET https://auth.stack.local/locales/en/consent.json
+test-runner  | 2025-10-30T03:13:45.029Z [outline] → GET https://auth.stack.local/locales/en/portal.json
+test-runner  | 2025-10-30T03:13:45.029Z [outline] → GET https://auth.stack.local/locales/en/settings.json
+test-runner  | 2025-10-30T03:13:45.031Z [outline] ← 404 GET https://auth.stack.local/locales/en-US@posix/consent.json
+test-runner  | 2025-10-30T03:13:45.031Z [outline] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:45.031Z [outline] ← 404 GET https://auth.stack.local/locales/en-US@posix/portal.json
+test-runner  | 2025-10-30T03:13:45.032Z [outline] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:45.032Z [outline] ← 404 GET https://auth.stack.local/locales/en-US@posix/settings.json
+test-runner  | 2025-10-30T03:13:45.032Z [outline] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:45.032Z [outline] ← 200 GET https://auth.stack.local/locales/en/consent.json
+test-runner  | 2025-10-30T03:13:45.032Z [outline] ← 200 GET https://auth.stack.local/locales/en/portal.json
+test-runner  | 2025-10-30T03:13:45.032Z [outline] ← 200 GET https://auth.stack.local/locales/en/settings.json
+test-runner  | 2025-10-30T03:13:45.048Z [outline] → GET https://auth.stack.local/api/state
+test-runner  | 2025-10-30T03:13:45.051Z [outline] ← 200 GET https://auth.stack.local/api/state
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/portal.FirstFactorForm.DarUOJ_Y.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/mui.VisibilityOff.DFCWT7lf.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/mui.TextField.dTT6LMd5.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/constants.constants.B0d6k4-7.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/hooks.OpenIDConnect.DItE9H1y.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/layouts.Login.KmeSSUQd.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/components.TypographyWithTooltip.BG5skFpy.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/services.Password.C6VIlfw0.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/hooks.Mounted.BqdVWEcI.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/services.WebAuthn.IhnshK-R.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/browserSupportsWebAuthn.Bhlk1eaM.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/broadcast-channel.XmTr5BGe.js
+test-runner  | 2025-10-30T03:13:45.057Z [outline] → GET https://auth.stack.local/static/js/mui.FormControlLabel.Cp9jMggM.js
+test-runner  | 2025-10-30T03:13:45.061Z [outline] ← 200 GET https://auth.stack.local/static/js/portal.FirstFactorForm.DarUOJ_Y.js
+test-runner  | 2025-10-30T03:13:45.062Z [outline] ← 200 GET https://auth.stack.local/static/js/mui.VisibilityOff.DFCWT7lf.js
+test-runner  | 2025-10-30T03:13:45.064Z [outline] ← 200 GET https://auth.stack.local/static/js/hooks.OpenIDConnect.DItE9H1y.js
+test-runner  | 2025-10-30T03:13:45.065Z [outline] ← 200 GET https://auth.stack.local/static/js/mui.TextField.dTT6LMd5.js
+test-runner  | 2025-10-30T03:13:45.065Z [outline] ← 200 GET https://auth.stack.local/static/js/layouts.Login.KmeSSUQd.js
+test-runner  | 2025-10-30T03:13:45.066Z [outline] ← 200 GET https://auth.stack.local/static/js/browserSupportsWebAuthn.Bhlk1eaM.js
+test-runner  | 2025-10-30T03:13:45.066Z [outline] ← 200 GET https://auth.stack.local/static/js/components.TypographyWithTooltip.BG5skFpy.js
+test-runner  | 2025-10-30T03:13:45.066Z [outline] ← 200 GET https://auth.stack.local/static/js/services.Password.C6VIlfw0.js
+test-runner  | 2025-10-30T03:13:45.066Z [outline] ← 200 GET https://auth.stack.local/static/js/services.WebAuthn.IhnshK-R.js
+test-runner  | 2025-10-30T03:13:45.066Z [outline] ← 200 GET https://auth.stack.local/static/js/hooks.Mounted.BqdVWEcI.js
+test-runner  | 2025-10-30T03:13:45.066Z [outline] ← 200 GET https://auth.stack.local/static/js/mui.FormControlLabel.Cp9jMggM.js
+test-runner  | 2025-10-30T03:13:45.067Z [outline] ← 200 GET https://auth.stack.local/static/js/broadcast-channel.XmTr5BGe.js
+test-runner  | 2025-10-30T03:13:45.067Z [outline] ← 200 GET https://auth.stack.local/static/js/constants.constants.B0d6k4-7.js
+test-runner  | 2025-10-30T03:13:45.361Z [outline] → GET https://auth.stack.local/locales
+test-runner  | 2025-10-30T03:13:45.372Z [outline] ← 200 GET https://auth.stack.local/locales
+test-runner  | 2025-10-30T03:13:47.904Z 📸 01-reachability.png → /tests/screenshots/outline/01-reachability.png
+test-runner  | 2025-10-30T03:13:47.904Z ✅ PHASE OK: 01-reachability (+3.19s, t=144.4s)
+test-runner  | 2025-10-30T03:13:47.904Z ▶️  PHASE START: 02-authelia-activation
+test-runner  | 2025-10-30T03:13:47.936Z 📸 02-authelia-activation-on-auth.png → /tests/screenshots/outline/02-authelia-activation-on-auth.png
+test-runner  | 2025-10-30T03:13:47.936Z ✅ PHASE OK: 02-authelia-activation (+0.03s, t=144.5s)
+test-runner  | 2025-10-30T03:13:47.936Z ▶️  PHASE START: 03-authelia-authentication
+test-runner  | 2025-10-30T03:13:47.969Z 📸 03-authelia-authentication-login-form.png → /tests/screenshots/outline/03-authelia-authentication-login-form.png
+test-runner  | 2025-10-30T03:13:48.004Z 📸 03-authelia-authentication-credentials-filled.png → /tests/screenshots/outline/03-authelia-authentication-credentials-filled.png
+test-runner  | 2025-10-30T03:13:48.040Z [outline] → POST https://auth.stack.local/api/firstfactor
+test-runner  | 2025-10-30T03:13:48.072Z 📸 03-authelia-authentication-no-consent.png → /tests/screenshots/outline/03-authelia-authentication-no-consent.png
+test-runner  | 2025-10-30T03:13:48.072Z ✅ PHASE OK: 03-authelia-authentication (+0.14s, t=144.6s)
+test-runner  | 2025-10-30T03:13:48.072Z ▶️  PHASE START: 04-redirection
+test-runner  | 2025-10-30T03:13:49.015Z [outline] ← 200 POST https://auth.stack.local/api/firstfactor
+test-runner  | 2025-10-30T03:13:49.015Z [outline] → GET https://auth.stack.local/api/oidc/authorization?client_id=outline&consent_id=0b28e87d-6ee4-4577-8a7e-808b932c519a&redirect_uri=https%3A%2F%2Foutline.stack.local%2Fauth%2Foidc.callback&response_type=code&scope=openid+offline_access+profile+email&state=8aad8bef2990f578
+test-runner  | 2025-10-30T03:13:49.017Z [outline] ← 302 GET https://auth.stack.local/api/oidc/authorization?client_id=outline&consent_id=0b28e87d-6ee4-4577-8a7e-808b932c519a&redirect_uri=https%3A%2F%2Foutline.stack.local%2Fauth%2Foidc.callback&response_type=code&scope=openid+offline_access+profile+email&state=8aad8bef2990f578
+test-runner  | 2025-10-30T03:13:49.017Z [outline] → GET https://auth.stack.local/consent/openid/decision?flow=openid_connect&flow_id=0b28e87d-6ee4-4577-8a7e-808b932c519a
+test-runner  | 2025-10-30T03:13:49.018Z [outline] ← 200 GET https://auth.stack.local/consent/openid/decision?flow=openid_connect&flow_id=0b28e87d-6ee4-4577-8a7e-808b932c519a
+test-runner  | 2025-10-30T03:13:49.020Z [outline] → GET https://auth.stack.local/static/js/index.SABuPJxD.js
+test-runner  | 2025-10-30T03:13:49.020Z [outline] → GET https://auth.stack.local/static/css/index.BetP_OVW.css
+test-runner  | 2025-10-30T03:13:49.021Z [outline] ← 304 GET https://auth.stack.local/static/css/index.BetP_OVW.css
+test-runner  | 2025-10-30T03:13:49.021Z [outline] ← 304 GET https://auth.stack.local/static/js/index.SABuPJxD.js
+test-runner  | 2025-10-30T03:13:49.026Z [outline] → GET https://auth.stack.local/locales/en-US@posix/consent.json
+test-runner  | 2025-10-30T03:13:49.026Z [outline] → GET https://auth.stack.local/locales/en-US@posix/portal.json
+test-runner  | 2025-10-30T03:13:49.027Z [outline] → GET https://auth.stack.local/locales/en-US@posix/settings.json
+test-runner  | 2025-10-30T03:13:49.027Z [outline] → GET https://auth.stack.local/locales/en/consent.json
+test-runner  | 2025-10-30T03:13:49.027Z [outline] → GET https://auth.stack.local/locales/en/portal.json
+test-runner  | 2025-10-30T03:13:49.027Z [outline] → GET https://auth.stack.local/locales/en/settings.json
+test-runner  | 2025-10-30T03:13:49.032Z [outline] ← 200 GET https://auth.stack.local/locales/en/portal.json
+test-runner  | 2025-10-30T03:13:49.032Z [outline] ← 404 GET https://auth.stack.local/locales/en-US@posix/consent.json
+test-runner  | 2025-10-30T03:13:49.032Z [outline] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:49.032Z [outline] ← 404 GET https://auth.stack.local/locales/en-US@posix/portal.json
+test-runner  | 2025-10-30T03:13:49.032Z [outline] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:49.032Z [outline] ← 404 GET https://auth.stack.local/locales/en-US@posix/settings.json
+test-runner  | 2025-10-30T03:13:49.032Z [outline] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:13:49.032Z [outline] ← 200 GET https://auth.stack.local/locales/en/consent.json
+test-runner  | 2025-10-30T03:13:49.032Z [outline] ← 200 GET https://auth.stack.local/locales/en/settings.json
+test-runner  | 2025-10-30T03:13:49.036Z [outline] → GET https://auth.stack.local/static/js/views.ConsentPortal.BWqrstU8.js
+test-runner  | 2025-10-30T03:13:49.037Z [outline] ← 200 GET https://auth.stack.local/static/js/views.ConsentPortal.BWqrstU8.js
+test-runner  | 2025-10-30T03:13:49.337Z [outline] → GET https://auth.stack.local/api/state
+test-runner  | 2025-10-30T03:13:49.338Z [outline] ← 200 GET https://auth.stack.local/api/state
+test-runner  | 2025-10-30T03:13:49.339Z [outline] → GET https://auth.stack.local/api/user/info
+test-runner  | 2025-10-30T03:13:49.341Z [outline] ← 200 GET https://auth.stack.local/api/user/info
+test-runner  | 2025-10-30T03:13:49.342Z [outline] → GET https://auth.stack.local/static/js/views.ConsentPortal.qRZ3Wh7Z.js
+test-runner  | 2025-10-30T03:13:49.343Z [outline] ← 200 GET https://auth.stack.local/static/js/views.ConsentPortal.qRZ3Wh7Z.js
+test-runner  | 2025-10-30T03:13:49.344Z [outline] → GET https://auth.stack.local/static/js/views.DecisionFormView.DY_5fWYr.js
+test-runner  | 2025-10-30T03:13:49.344Z [outline] → GET https://auth.stack.local/static/js/components.LogoutButton.z2dOUqcj.js
+test-runner  | 2025-10-30T03:13:49.344Z [outline] → GET https://auth.stack.local/static/js/components.TypographyWithTooltip.BG5skFpy.js
+test-runner  | 2025-10-30T03:13:49.344Z [outline] → GET https://auth.stack.local/static/js/constants.constants.B0d6k4-7.js
+test-runner  | 2025-10-30T03:13:49.344Z [outline] → GET https://auth.stack.local/static/js/components.SwitchUserButton.LAJu7Z4B.js
+test-runner  | 2025-10-30T03:13:49.344Z [outline] → GET https://auth.stack.local/static/js/hooks.OpenIDConnect.DItE9H1y.js
+test-runner  | 2025-10-30T03:13:49.344Z [outline] → GET https://auth.stack.local/static/js/layouts.Login.KmeSSUQd.js
+test-runner  | 2025-10-30T03:13:49.344Z [outline] → GET https://auth.stack.local/static/js/services.Password.C6VIlfw0.js
+test-runner  | 2025-10-30T03:13:49.345Z [outline] → GET https://auth.stack.local/static/js/mui.FormControlLabel.Cp9jMggM.js
+test-runner  | 2025-10-30T03:13:49.345Z [outline] → GET https://auth.stack.local/static/js/mui.TextField.dTT6LMd5.js
+test-runner  | 2025-10-30T03:13:49.345Z [outline] → GET https://auth.stack.local/static/js/broadcast-channel.XmTr5BGe.js
+test-runner  | 2025-10-30T03:13:49.345Z [outline] → GET https://auth.stack.local/static/js/mui.ListItem.D-LbqNI6.js
+test-runner  | 2025-10-30T03:13:49.345Z [outline] → GET https://auth.stack.local/static/js/mui.VisibilityOff.DFCWT7lf.js
+test-runner  | 2025-10-30T03:13:49.345Z [outline] ← 304 GET https://auth.stack.local/static/js/services.Password.C6VIlfw0.js
+test-runner  | 2025-10-30T03:13:49.345Z [outline] ← 304 GET https://auth.stack.local/static/js/mui.FormControlLabel.Cp9jMggM.js
+test-runner  | 2025-10-30T03:13:49.345Z [outline] ← 304 GET https://auth.stack.local/static/js/hooks.OpenIDConnect.DItE9H1y.js
+test-runner  | 2025-10-30T03:13:49.346Z [outline] ← 200 GET https://auth.stack.local/static/js/components.LogoutButton.z2dOUqcj.js
+test-runner  | 2025-10-30T03:13:49.346Z [outline] ← 304 GET https://auth.stack.local/static/js/components.TypographyWithTooltip.BG5skFpy.js
+test-runner  | 2025-10-30T03:13:49.346Z [outline] ← 200 GET https://auth.stack.local/static/js/views.DecisionFormView.DY_5fWYr.js
+test-runner  | 2025-10-30T03:13:49.346Z [outline] ← 304 GET https://auth.stack.local/static/js/mui.VisibilityOff.DFCWT7lf.js
+test-runner  | 2025-10-30T03:13:49.346Z [outline] ← 200 GET https://auth.stack.local/static/js/components.SwitchUserButton.LAJu7Z4B.js
+test-runner  | 2025-10-30T03:13:49.346Z [outline] ← 304 GET https://auth.stack.local/static/js/layouts.Login.KmeSSUQd.js
+test-runner  | 2025-10-30T03:13:49.346Z [outline] ← 304 GET https://auth.stack.local/static/js/mui.TextField.dTT6LMd5.js
+test-runner  | 2025-10-30T03:13:49.347Z [outline] ← 304 GET https://auth.stack.local/static/js/broadcast-channel.XmTr5BGe.js
+test-runner  | 2025-10-30T03:13:49.347Z [outline] ← 304 GET https://auth.stack.local/static/js/constants.constants.B0d6k4-7.js
+test-runner  | 2025-10-30T03:13:49.347Z [outline] ← 200 GET https://auth.stack.local/static/js/mui.ListItem.D-LbqNI6.js
+test-runner  | 2025-10-30T03:13:49.643Z [outline] → GET https://auth.stack.local/api/oidc/consent?flow_id=0b28e87d-6ee4-4577-8a7e-808b932c519a
+test-runner  | 2025-10-30T03:13:49.645Z [outline] ← 200 GET https://auth.stack.local/api/oidc/consent?flow_id=0b28e87d-6ee4-4577-8a7e-808b932c519a
+test-runner  | 2025-10-30T03:13:49.657Z [outline] → GET https://auth.stack.local/locales
+test-runner  | 2025-10-30T03:13:49.659Z [outline] ← 200 GET https://auth.stack.local/locales
+test-runner  | 2025-10-30T03:13:53.478Z 💓 heartbeat t=150.0s
+test-runner  | 2025-10-30T03:14:08.478Z 💓 heartbeat t=165.0s
+test-runner  | 2025-10-30T03:14:18.104Z 📸 04-redirection.png → /tests/screenshots/outline/04-redirection.png
+test-runner  | 2025-10-30T03:14:18.137Z 📸 04-redirection-ERROR.png → /tests/screenshots/outline/04-redirection-ERROR.png
+test-runner  | 2025-10-30T03:14:18.137Z [ERROR] [04-redirection] Did not return to outline after auth
+test-runner  | 2025-10-30T03:14:18.137Z [ERROR] ❌ PHASE FAIL: 04-redirection (+30.07s, t=174.7s) :: [04-redirection] Did not return to outline after auth
+test-runner  | 2025-10-30T03:14:18.137Z [ERROR] ❌ [outline] FAIL — [04-redirection] Did not return to outline after auth
+test-runner  | {"ts":"2025-10-30T03:14:18.137Z","kind":"service_result","service":"outline","status":"fail","phases":["reachability","authelia-activation","authelia-authentication"],"errors":["[04-redirection] Did not return to outline after auth"]}
+test-runner  | 2025-10-30T03:14:18.137Z [outline] DONE status=fail phases=reachability>authelia-activation>authelia-authentication
+test-runner  | 2025-10-30T03:14:19.340Z 
+test-runner  | ================= PLANKA =================
+test-runner  | 2025-10-30T03:14:19.340Z [planka] Target: https://planka.stack.local | OIDC=yes
+test-runner  | 2025-10-30T03:14:19.351Z ▶️  PHASE START: 01-reachability
+test-runner  | 2025-10-30T03:14:19.352Z [planka] → GET https://planka.stack.local/
+test-runner  | 2025-10-30T03:14:19.357Z [planka] ← 200 GET https://planka.stack.local/
+test-runner  | 2025-10-30T03:14:19.359Z [planka] → GET https://planka.stack.local/static/js/main.3a0e7303.js
+test-runner  | 2025-10-30T03:14:19.360Z [planka] → GET https://planka.stack.local/static/css/main.609d3ed8.css
+test-runner  | 2025-10-30T03:14:19.364Z [planka] ← 200 GET https://planka.stack.local/static/css/main.609d3ed8.css
+test-runner  | 2025-10-30T03:14:19.416Z [planka] ← 200 GET https://planka.stack.local/static/js/main.3a0e7303.js
+test-runner  | 2025-10-30T03:14:19.534Z [planka] → GET https://planka.stack.local/api/config
+test-runner  | 2025-10-30T03:14:19.540Z [planka] ← 500 GET https://planka.stack.local/api/config
+test-runner  | 2025-10-30T03:14:19.541Z [planka] [BROWSER ERROR] Failed to load resource: the server responded with a status of 500 ()
+test-runner  | 2025-10-30T03:14:19.542Z [planka] [BROWSER ERROR] SyntaxError: Unexpected token 'I', "Internal S"... is not valid JSON
+test-runner  |     at parse (<anonymous>)
+test-runner  | 2025-10-30T03:14:19.542Z [planka] [BROWSER ERROR] The above error occurred in task initializeLogin
+test-runner  |     created by Af
+test-runner  |     created by anonymous
+test-runner  | Tasks cancelled due to error:
+test-runner  | Af
+test-runner  | anonymous
+test-runner  | anonymous
+test-runner  | 2025-10-30T03:14:19.544Z [planka] → GET https://planka.stack.local/static/media/Nunitoga-Medium.bae369ea6c0c9ad31db6.woff2
+test-runner  | 2025-10-30T03:14:19.547Z [planka] ← 200 GET https://planka.stack.local/static/media/Nunitoga-Medium.bae369ea6c0c9ad31db6.woff2
+test-runner  | 2025-10-30T03:14:22.068Z 📸 01-reachability.png → /tests/screenshots/planka/01-reachability.png
+test-runner  | 2025-10-30T03:14:22.068Z ✅ PHASE OK: 01-reachability (+2.72s, t=178.6s)
+test-runner  | 2025-10-30T03:14:22.068Z ▶️  PHASE START: 02-authelia-activation
+test-runner  | 2025-10-30T03:14:22.101Z 📸 02-authelia-activation-landing.png → /tests/screenshots/planka/02-authelia-activation-landing.png
+test-runner  | 2025-10-30T03:14:22.134Z 📸 02-authelia-activation-no-oidc.png → /tests/screenshots/planka/02-authelia-activation-no-oidc.png
+test-runner  | 2025-10-30T03:14:23.478Z 💓 heartbeat t=180.0s
+test-runner  | 2025-10-30T03:14:38.478Z 💓 heartbeat t=195.0s
+test-runner  | 2025-10-30T03:14:53.478Z 💓 heartbeat t=210.0s
+test-runner  | 2025-10-30T03:15:07.149Z 📸 02-authelia-activation-on-auth.png → /tests/screenshots/planka/02-authelia-activation-on-auth.png
+test-runner  | 2025-10-30T03:15:07.183Z 📸 02-authelia-activation-ERROR.png → /tests/screenshots/planka/02-authelia-activation-ERROR.png
+test-runner  | 2025-10-30T03:15:07.183Z [ERROR] [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | 2025-10-30T03:15:07.183Z [ERROR] ❌ PHASE FAIL: 02-authelia-activation (+45.12s, t=223.7s) :: [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | 2025-10-30T03:15:07.183Z [ERROR] ❌ [planka] FAIL — [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | {"ts":"2025-10-30T03:15:07.183Z","kind":"service_result","service":"planka","status":"fail","phases":["reachability"],"errors":["[02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)"]}
+test-runner  | 2025-10-30T03:15:07.183Z [planka] DONE status=fail phases=reachability
+test-runner  | 2025-10-30T03:15:08.385Z 
+test-runner  | ================= VAULTWARDEN =================
+test-runner  | 2025-10-30T03:15:08.385Z [vaultwarden] Target: https://vaultwarden.stack.local | OIDC=yes
+test-runner  | 2025-10-30T03:15:08.396Z ▶️  PHASE START: 01-reachability
+test-runner  | 2025-10-30T03:15:08.396Z [vaultwarden] → GET https://vaultwarden.stack.local/
+test-runner  | 2025-10-30T03:15:08.400Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/
+test-runner  | 2025-10-30T03:15:08.401Z [vaultwarden] [BROWSER WARNING] Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'.
+test-runner  | 2025-10-30T03:15:08.401Z [vaultwarden] [BROWSER WARNING] Error with Permissions-Policy header: Unrecognized feature: 'battery'.
+test-runner  | 2025-10-30T03:15:08.401Z [vaultwarden] [BROWSER WARNING] Error with Permissions-Policy header: Unrecognized feature: 'document-domain'.
+test-runner  | 2025-10-30T03:15:08.401Z [vaultwarden] [BROWSER WARNING] Error with Permissions-Policy header: Unrecognized feature: 'execution-while-not-rendered'.
+test-runner  | 2025-10-30T03:15:08.401Z [vaultwarden] [BROWSER WARNING] Error with Permissions-Policy header: Unrecognized feature: 'execution-while-out-of-viewport'.
+test-runner  | 2025-10-30T03:15:08.401Z [vaultwarden] [BROWSER WARNING] Error with Permissions-Policy header: Unrecognized feature: 'web-share'.
+test-runner  | 2025-10-30T03:15:08.403Z [vaultwarden] → GET https://vaultwarden.stack.local/theme_head.4cb181fc19f2a308ba73.js
+test-runner  | 2025-10-30T03:15:08.403Z [vaultwarden] → GET https://vaultwarden.stack.local/styles.21d804f738b1b7df84a2.css
+test-runner  | 2025-10-30T03:15:08.403Z [vaultwarden] → GET https://vaultwarden.stack.local/css/vaultwarden.css
+test-runner  | 2025-10-30T03:15:08.403Z [vaultwarden] → GET https://vaultwarden.stack.local/app/polyfills.46638eb63c4af620055f.js
+test-runner  | 2025-10-30T03:15:08.403Z [vaultwarden] → GET https://vaultwarden.stack.local/app/vendor.ae5e09e48144faa504d3.js
+test-runner  | 2025-10-30T03:15:08.403Z [vaultwarden] → GET https://vaultwarden.stack.local/app/main.e6cdea516f91ca208db2.js
+test-runner  | 2025-10-30T03:15:08.403Z [vaultwarden] → GET https://vaultwarden.stack.local/styles.31d6cfe0d16ae931b73c.js
+test-runner  | 2025-10-30T03:15:08.404Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/styles.21d804f738b1b7df84a2.css
+test-runner  | 2025-10-30T03:15:08.404Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/theme_head.4cb181fc19f2a308ba73.js
+test-runner  | 2025-10-30T03:15:08.405Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/css/vaultwarden.css
+test-runner  | 2025-10-30T03:15:08.408Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/styles.31d6cfe0d16ae931b73c.js
+test-runner  | 2025-10-30T03:15:08.415Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/app/polyfills.46638eb63c4af620055f.js
+test-runner  | 2025-10-30T03:15:08.455Z [vaultwarden] → GET https://vaultwarden.stack.local/images/logo.svg
+test-runner  | 2025-10-30T03:15:08.455Z [vaultwarden] → GET https://vaultwarden.stack.local/fonts/bwi-font.c53459659794d90d0237.ttf
+test-runner  | 2025-10-30T03:15:08.455Z [vaultwarden] → GET https://vaultwarden.stack.local/fonts/roboto.aeb7bb13ebdc02705164.woff2
+test-runner  | 2025-10-30T03:15:08.456Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/images/logo.svg
+test-runner  | 2025-10-30T03:15:08.456Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/app/vendor.ae5e09e48144faa504d3.js
+test-runner  | 2025-10-30T03:15:08.456Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/app/main.e6cdea516f91ca208db2.js
+test-runner  | 2025-10-30T03:15:08.457Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/fonts/bwi-font.c53459659794d90d0237.ttf
+test-runner  | 2025-10-30T03:15:08.478Z 💓 heartbeat t=225.0s
+test-runner  | 2025-10-30T03:15:08.679Z [vaultwarden] → GET https://vaultwarden.stack.local/502.af431eed90b0dc798454.js
+test-runner  | 2025-10-30T03:15:08.680Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/fonts/roboto.aeb7bb13ebdc02705164.woff2
+test-runner  | 2025-10-30T03:15:08.681Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/502.af431eed90b0dc798454.js
+test-runner  | 2025-10-30T03:15:08.683Z [vaultwarden] → GET https://vaultwarden.stack.local/c1a70ad7e4e8a335980b.module.wasm
+test-runner  | 2025-10-30T03:15:08.684Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/c1a70ad7e4e8a335980b.module.wasm
+test-runner  | 2025-10-30T03:15:08.696Z [vaultwarden] [BROWSER LOG] No state version found, assuming empty state.
+test-runner  | 2025-10-30T03:15:08.697Z [vaultwarden] [BROWSER LOG] Migrator Ud (to version 3) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.697Z [vaultwarden] [BROWSER LOG] Migrator Va (to version 4) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.697Z [vaultwarden] [BROWSER LOG] Migrator Ol (to version 5) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.697Z [vaultwarden] [BROWSER LOG] Migrator yc (to version 6) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator Sd (to version 7) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator Ad (to version 8) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator Dd (to version 9) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator Xr (to version 10) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator _r (to version 11) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator Zr (to version 12) should migrate: false - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator io (to version 13) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator io (to version 13) migrated - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator io (to version 13) updated version - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator ro (to version 14) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator ro (to version 14) migrated - up
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.698Z [vaultwarden] [BROWSER LOG] Migrator ro (to version 14) updated version - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator lo (to version 15) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator lo (to version 15) migrated - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator lo (to version 15) updated version - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator ho (to version 16) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator ho (to version 16) migrated - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator ho (to version 16) updated version - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator fo (to version 17) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator fo (to version 17) migrated - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator fo (to version 17) updated version - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator yo (to version 18) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator yo (to version 18) migrated - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator yo (to version 18) updated version - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator So (to version 19) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator So (to version 19) migrated - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator So (to version 19) updated version - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator Co (to version 20) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.699Z [vaultwarden] [BROWSER LOG] Migrator Co (to version 20) migrated - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Co (to version 20) updated version - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Fo (to version 21) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Fo (to version 21) migrated - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Fo (to version 21) updated version - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator $o (to version 22) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator $o (to version 22) migrated - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator $o (to version 22) updated version - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Do (to version 23) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Do (to version 23) migrated - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Do (to version 23) updated version - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Go (to version 24) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Go (to version 24) migrated - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Go (to version 24) updated version - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Vo (to version 25) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Vo (to version 25) migrated - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Vo (to version 25) updated version - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Lo (to version 26) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Lo (to version 26) migrated - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Lo (to version 26) updated version - up
+test-runner  | 2025-10-30T03:15:08.700Z [vaultwarden] [BROWSER LOG] Migrator Yo (to version 27) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator Yo (to version 27) migrated - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator Yo (to version 27) updated version - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator Ho (to version 28) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator Ho (to version 28) migrated - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator Ho (to version 28) updated version - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator Wo (to version 29) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator Wo (to version 29) migrated - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator Wo (to version 29) updated version - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator ta (to version 30) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator ta (to version 30) migrated - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator ta (to version 30) updated version - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator sa (to version 31) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator sa (to version 31) migrated - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator sa (to version 31) updated version - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator aa (to version 32) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator aa (to version 32) migrated - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator aa (to version 32) updated version - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator pa (to version 33) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Migrator pa (to version 33) migrated - up
+test-runner  | 2025-10-30T03:15:08.701Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator pa (to version 33) updated version - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator ya (to version 34) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator ya (to version 34) migrated - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator ya (to version 34) updated version - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator Sa (to version 35) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator Sa (to version 35) migrated - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator Sa (to version 35) updated version - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator Ca (to version 36) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator Ca (to version 36) migrated - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator Ca (to version 36) updated version - up
+test-runner  | 2025-10-30T03:15:08.702Z [vaultwarden] [BROWSER LOG] Migrator Fa (to version 37) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Fa (to version 37) migrated - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Fa (to version 37) updated version - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Ma (to version 38) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Setting global_tokenDiskLocal_emailTwoFactorTokenRecord
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Setting global
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Ma (to version 38) migrated - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Ma (to version 38) updated version - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Na (to version 39) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Na (to version 39) migrated - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Na (to version 39) updated version - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator qa (to version 40) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator qa (to version 40) migrated - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator qa (to version 40) updated version - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Ja (to version 41) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.703Z [vaultwarden] [BROWSER LOG] Migrator Ja (to version 41) migrated - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator Ja (to version 41) updated version - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator Za (to version 42) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator Za (to version 42) migrated - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator Za (to version 42) updated version - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator il (to version 43) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator il (to version 43) migrated - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator il (to version 43) updated version - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator rl (to version 44) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator rl (to version 44) migrated - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator rl (to version 44) updated version - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator ul (to version 45) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator ul (to version 45) migrated - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator ul (to version 45) updated version - up
+test-runner  | 2025-10-30T03:15:08.704Z [vaultwarden] [BROWSER LOG] Migrator ml (to version 46) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator ml (to version 46) migrated - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator ml (to version 46) updated version - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Tl (to version 47) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Tl (to version 47) migrated - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Tl (to version 47) updated version - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Pl (to version 48) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Pl (to version 48) migrated - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Pl (to version 48) updated version - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator El (to version 49) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator El (to version 49) migrated - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator El (to version 49) updated version - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Gl (to version 50) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Gl (to version 50) migrated - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Gl (to version 50) updated version - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Vl (to version 51) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Setting global
+test-runner  | 2025-10-30T03:15:08.705Z [vaultwarden] [BROWSER LOG] Migrator Vl (to version 51) migrated - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator Vl (to version 51) updated version - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator zl (to version 52) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator zl (to version 52) migrated - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator zl (to version 52) updated version - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator Yl (to version 53) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator Yl (to version 53) migrated - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator Yl (to version 53) updated version - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator Jl (to version 54) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator Jl (to version 54) migrated - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator Jl (to version 54) updated version - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator tc (to version 55) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator tc (to version 55) migrated - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator tc (to version 55) updated version - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator rc (to version 56) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.706Z [vaultwarden] [BROWSER LOG] Migrator rc (to version 56) migrated - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator rc (to version 56) updated version - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator cc (to version 57) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator cc (to version 57) migrated - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator cc (to version 57) updated version - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator hc (to version 58) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator hc (to version 58) migrated - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator hc (to version 58) updated version - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator vc (to version 59) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator vc (to version 59) migrated - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator vc (to version 59) updated version - up
+test-runner  | 2025-10-30T03:15:08.707Z [vaultwarden] [BROWSER LOG] Migrator kc (to version 60) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Setting global_account_accounts
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Removing authenticatedAccounts
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Setting global_account_activeAccountId
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Removing activeUserId
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Setting global_account_activity
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Removing accountActivity
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator kc (to version 60) migrated - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator kc (to version 60) updated version - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator xc (to version 61) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator xc (to version 61) migrated - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator xc (to version 61) updated version - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator Gc (to version 62) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Setting global
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Removing global\.vaultTimeout
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Removing global\.vaultTimeoutAction
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator Gc (to version 62) migrated - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator Gc (to version 62) updated version - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator zc (to version 63) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator zc (to version 63) migrated - up
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.708Z [vaultwarden] [BROWSER LOG] Migrator zc (to version 63) updated version - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator Xc (to version 64) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator Xc (to version 64) migrated - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator Xc (to version 64) updated version - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator nd (to version 65) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator nd (to version 65) migrated - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator nd (to version 65) updated version - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator cd (to version 66) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator cd (to version 66) migrated - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator cd (to version 66) updated version - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator hd (to version 67) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator hd (to version 67) migrated - up
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.709Z [vaultwarden] [BROWSER LOG] Migrator hd (to version 67) updated version - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator fd (to version 68) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator fd (to version 68) migrated - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator fd (to version 68) updated version - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator bd (to version 69) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator bd (to version 69) migrated - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator bd (to version 69) updated version - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator Cd (to version 70) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator Cd (to version 70) migrated - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator Cd (to version 70) updated version - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator Fd (to version 71) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator Fd (to version 71) migrated - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator Fd (to version 71) updated version - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator $d (to version 72) should migrate: true - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator $d (to version 72) migrated - up
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Setting stateVersion
+test-runner  | 2025-10-30T03:15:08.710Z [vaultwarden] [BROWSER LOG] Migrator $d (to version 72) updated version - up
+test-runner  | 2025-10-30T03:15:08.712Z [vaultwarden] [BROWSER LOG] Retrieving application id
+test-runner  | 2025-10-30T03:15:08.713Z [vaultwarden] → GET https://vaultwarden.stack.local/locales/en/messages.json?cache=j6vwl9
+test-runner  | 2025-10-30T03:15:08.713Z [vaultwarden] → GET https://vaultwarden.stack.local/api/config
+test-runner  | 2025-10-30T03:15:08.714Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/locales/en/messages.json?cache=j6vwl9
+test-runner  | 2025-10-30T03:15:08.714Z [vaultwarden] ← 200 GET https://vaultwarden.stack.local/api/config
+test-runner  | 2025-10-30T03:15:11.251Z 📸 01-reachability.png → /tests/screenshots/vaultwarden/01-reachability.png
+test-runner  | 2025-10-30T03:15:11.251Z ✅ PHASE OK: 01-reachability (+2.85s, t=227.8s)
+test-runner  | 2025-10-30T03:15:11.251Z ▶️  PHASE START: 02-authelia-activation
+test-runner  | 2025-10-30T03:15:11.284Z 📸 02-authelia-activation-landing.png → /tests/screenshots/vaultwarden/02-authelia-activation-landing.png
+test-runner  | 2025-10-30T03:15:13.811Z [vaultwarden] OIDC click: text=/sso/i
+test-runner  | 2025-10-30T03:15:13.835Z 📸 02-authelia-activation-oidc-clicked.png → /tests/screenshots/vaultwarden/02-authelia-activation-oidc-clicked.png
+test-runner  | 2025-10-30T03:15:23.479Z 💓 heartbeat t=240.0s
+test-runner  | 2025-10-30T03:15:38.479Z 💓 heartbeat t=255.0s
+test-runner  | 2025-10-30T03:15:53.479Z 💓 heartbeat t=270.0s
+test-runner  | 2025-10-30T03:15:59.849Z 📸 02-authelia-activation-on-auth.png → /tests/screenshots/vaultwarden/02-authelia-activation-on-auth.png
+test-runner  | 2025-10-30T03:15:59.881Z 📸 02-authelia-activation-ERROR.png → /tests/screenshots/vaultwarden/02-authelia-activation-ERROR.png
+test-runner  | 2025-10-30T03:15:59.881Z [ERROR] [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | 2025-10-30T03:15:59.881Z [ERROR] ❌ PHASE FAIL: 02-authelia-activation (+48.63s, t=276.4s) :: [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | 2025-10-30T03:15:59.881Z [ERROR] ❌ [vaultwarden] FAIL — [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
+test-runner  | {"ts":"2025-10-30T03:15:59.882Z","kind":"service_result","service":"vaultwarden","status":"fail","phases":["reachability"],"errors":["[02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)"]}
+test-runner  | 2025-10-30T03:15:59.882Z [vaultwarden] DONE status=fail phases=reachability
+test-runner  | 2025-10-30T03:16:01.084Z 
+test-runner  | ================= NEXTCLOUD =================
+test-runner  | 2025-10-30T03:16:01.084Z [nextcloud] Target: https://nextcloud.stack.local | OIDC=yes
+test-runner  | 2025-10-30T03:16:01.096Z ▶️  PHASE START: 01-reachability
+test-runner  | 2025-10-30T03:16:01.097Z [nextcloud] → GET https://nextcloud.stack.local/
+test-runner  | 2025-10-30T03:16:01.299Z [nextcloud] ← 302 GET https://nextcloud.stack.local/
+test-runner  | 2025-10-30T03:16:01.299Z [nextcloud] → GET https://nextcloud.stack.local/login
+test-runner  | 2025-10-30T03:16:01.395Z [nextcloud] ← 200 GET https://nextcloud.stack.local/login
+test-runner  | 2025-10-30T03:16:01.397Z [nextcloud] → GET https://nextcloud.stack.local/core/css/server.css?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:01.398Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/css/default.css?v=57df30d5-0
+test-runner  | 2025-10-30T03:16:01.398Z [nextcloud] → GET https://nextcloud.stack.local/core/css/guest.css?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:01.398Z [nextcloud] → GET https://nextcloud.stack.local/dist/core-common.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:01.398Z [nextcloud] → GET https://nextcloud.stack.local/dist/core-main.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:01.398Z [nextcloud] → GET https://nextcloud.stack.local/dist/core-login.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:01.399Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/js/theming.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:01.399Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/default.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.399Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/light.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.399Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/light.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.399Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/dark.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.399Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/light-highcontrast.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.399Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/dark-highcontrast.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.399Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/opendyslexic.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.399Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/css/default.css?v=57df30d5-0
+test-runner  | 2025-10-30T03:16:01.419Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/light-highcontrast.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.428Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/light.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.439Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/dark.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.451Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/dark-highcontrast.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:01.968Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/default.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:02.955Z [nextcloud] ← 200 GET https://nextcloud.stack.local/core/css/server.css?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:02.956Z [nextcloud] → GET https://nextcloud.stack.local/dist/icons.css
+test-runner  | 2025-10-30T03:16:02.959Z [nextcloud] ← 200 GET https://nextcloud.stack.local/dist/icons.css
+test-runner  | 2025-10-30T03:16:02.972Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/light.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:03.956Z [nextcloud] ← 200 GET https://nextcloud.stack.local/core/css/guest.css?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:03.956Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/dark.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:03.956Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/light-highcontrast.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:03.956Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/dark-highcontrast.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:03.958Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/js/theming.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:03.965Z [nextcloud] ← 200 GET https://nextcloud.stack.local/dist/core-login.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:03.979Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/dark.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:03.982Z [nextcloud] ← 200 GET https://nextcloud.stack.local/dist/core-main.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:03.988Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/opendyslexic.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:03.992Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/img/background/jenna-kim-the-globe.webp
+test-runner  | 2025-10-30T03:16:03.992Z [nextcloud] → GET https://nextcloud.stack.local/core/img/logo/logo.svg
+test-runner  | 2025-10-30T03:16:03.993Z [nextcloud] ← 200 GET https://nextcloud.stack.local/core/img/logo/logo.svg
+test-runner  | 2025-10-30T03:16:03.994Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/img/background/jenna-kim-the-globe.webp
+test-runner  | 2025-10-30T03:16:03.998Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/dark-highcontrast.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:04.007Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/light-highcontrast.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:04.032Z [nextcloud] ← 200 GET https://nextcloud.stack.local/dist/core-common.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:04.160Z [nextcloud] → GET https://nextcloud.stack.local/core/img/loading-dark.gif
+test-runner  | 2025-10-30T03:16:04.160Z [nextcloud] ← 200 GET https://nextcloud.stack.local/core/img/loading-dark.gif
+test-runner  | 2025-10-30T03:16:06.729Z 📸 01-reachability.png → /tests/screenshots/nextcloud/01-reachability.png
+test-runner  | 2025-10-30T03:16:06.729Z ✅ PHASE OK: 01-reachability (+5.63s, t=283.3s)
+test-runner  | 2025-10-30T03:16:06.729Z ▶️  PHASE START: 02-authelia-activation
+test-runner  | 2025-10-30T03:16:06.795Z 📸 02-authelia-activation-landing.png → /tests/screenshots/nextcloud/02-authelia-activation-landing.png
+test-runner  | 2025-10-30T03:16:06.826Z [nextcloud] → GET https://nextcloud.stack.local/apps/user_oidc/login/1
+test-runner  | 2025-10-30T03:16:07.054Z [nextcloud] ← 404 GET https://nextcloud.stack.local/apps/user_oidc/login/1
+test-runner  | 2025-10-30T03:16:07.055Z [nextcloud] [BROWSER ERROR] Failed to load resource: the server responded with a status of 404 ()
+test-runner  | 2025-10-30T03:16:07.057Z [nextcloud] → GET https://nextcloud.stack.local/core/css/server.css?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.057Z [nextcloud] ← 200 GET https://nextcloud.stack.local/core/css/server.css?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/css/default.css?v=57df30d5-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/css/default.css?v=57df30d5-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/core/css/guest.css?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] ← 200 GET https://nextcloud.stack.local/core/css/guest.css?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/dist/core-common.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] ← 200 GET https://nextcloud.stack.local/dist/core-common.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/dist/core-main.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] ← 200 GET https://nextcloud.stack.local/dist/core-main.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/js/theming.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/js/theming.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/dist/files_sharing-main.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/default.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/default.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/light.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/light.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/light.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/light.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/dark.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.058Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/dark.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.059Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/light-highcontrast.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.059Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/light-highcontrast.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.059Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/dark-highcontrast.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.059Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/dark-highcontrast.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.059Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/opendyslexic.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.059Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/opendyslexic.css?plain=0&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.059Z [nextcloud] OIDC click: a:has-text("Authelia")
+test-runner  | 2025-10-30T03:16:07.060Z [nextcloud] → GET https://nextcloud.stack.local/dist/icons.css
+test-runner  | 2025-10-30T03:16:07.060Z [nextcloud] ← 200 GET https://nextcloud.stack.local/dist/icons.css
+test-runner  | 2025-10-30T03:16:07.060Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/dark.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.060Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/dark.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.060Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/light-highcontrast.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.060Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/light-highcontrast.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.060Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/theme/dark-highcontrast.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.060Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/theme/dark-highcontrast.css?plain=1&v=d9006fa8
+test-runner  | 2025-10-30T03:16:07.062Z [nextcloud] → GET https://nextcloud.stack.local/apps/theming/img/background/jenna-kim-the-globe.webp
+test-runner  | 2025-10-30T03:16:07.062Z [nextcloud] ← 200 GET https://nextcloud.stack.local/apps/theming/img/background/jenna-kim-the-globe.webp
+test-runner  | 2025-10-30T03:16:07.062Z [nextcloud] → GET https://nextcloud.stack.local/core/img/logo/logo.svg
+test-runner  | 2025-10-30T03:16:07.062Z [nextcloud] ← 200 GET https://nextcloud.stack.local/core/img/logo/logo.svg
+test-runner  | 2025-10-30T03:16:07.062Z [nextcloud] ← 200 GET https://nextcloud.stack.local/dist/files_sharing-main.js?v=d788ad16-0
+test-runner  | 2025-10-30T03:16:07.269Z 📸 02-authelia-activation-oidc-clicked.png → /tests/screenshots/nextcloud/02-authelia-activation-oidc-clicked.png
+test-runner  | 2025-10-30T03:16:08.479Z 💓 heartbeat t=285.0s

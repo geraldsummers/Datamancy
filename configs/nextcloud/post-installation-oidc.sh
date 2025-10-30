@@ -30,11 +30,11 @@ EXISTING_PROVIDER=$(php occ user_oidc:provider 2>&1 || true)
 if echo "$EXISTING_PROVIDER" | grep -q "Authelia"; then
     echo "OIDC provider already configured, skipping..."
 else
-    # Create OIDC provider
+    # Create OIDC provider (use internal authelia URL for discovery)
     PROVIDER_ID=$(php occ user_oidc:provider Authelia \
       --clientid="nextcloud" \
       --clientsecret="f99eab7b5e43e7e0ac03f2cbdcc0a02b849a38fdfe9458097c4f1c1708df6399" \
-      --discoveryuri="https://auth.stack.local/.well-known/openid-configuration" \
+      --discoveryuri="http://authelia:9091/.well-known/openid-configuration" \
       --scope="openid profile email groups" \
       --unique-uid=1 \
       2>&1 | grep -oP 'Provider .* created with id \K\d+' || echo "1")

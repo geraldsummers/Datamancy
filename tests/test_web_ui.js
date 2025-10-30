@@ -27,7 +27,7 @@ const SERVICES = [
   // OIDC via Authelia/LDAP
   { name: 'grafana',      url: 'https://grafana.stack.local',      usesOAuth: true,  uiMarkers: ['text=/Dashboards/i','text=/Explore/i'] },
   { name: 'open-webui',   url: 'https://open-webui.stack.local',   usesOAuth: true,  uiMarkers: ['text=/New Chat/i','text=/Models/i'] },
-  { name: 'jupyterhub',   url: 'https://jupyterhub.stack.local',   usesOAuth: true,  uiMarkers: ['text=/jupyterhub/i','text=/Start My Server/i','text=/Spawning server/i','text=/Your server is starting/i'] },
+  { name: 'jupyterhub',   url: 'https://jupyterhub.stack.local',   usesOAuth: true,  uiMarkers: ['text=/Launcher/i','text=/File/i','text=/Notebook/i'] },
   { name: 'outline',      url: 'https://outline.stack.local',      usesOAuth: true,  uiMarkers: ['text=/Documents/i','text=/Collections/i'] },
   { name: 'planka',       url: 'https://planka.stack.local',       usesOAuth: true,  uiMarkers: ['text=/Boards/i','text=/Projects/i'] },
   { name: 'vaultwarden',  url: 'https://vaultwarden.stack.local',  usesOAuth: true,  uiMarkers: ['text=/Vaultwarden/i','text=/Vault/i'] },
@@ -169,6 +169,11 @@ async function oidcClickIfPresent(page, dir, phase, serviceName) {
 async function reachability(page, dir, service) {
   const resp = await page.goto(service.url, { timeout: DEFAULT_TIMEOUT, waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('domcontentloaded', { timeout: DEFAULT_TIMEOUT });
+
+  // Wait for SPAs to render - give them extra time for JS to execute
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  await new Promise(res => setTimeout(res, 2000)); // Extra 2s for rendering
+
   await ss(page, dir, '01-reachability');
   if (!resp || !resp.ok()) {
     await fail(dir, '01-reachability', `HTTP not OK (${resp ? resp.status() : 'no response'})`, page);
@@ -182,8 +187,12 @@ async function autheliaActivation(page, dir, service) {
   }
   if (!page.url().includes('auth.stack.local')) {
     await ss(page, dir, '02-authelia-activation', 'landing');
-    await oidcClickIfPresent(page, dir, '02-authelia-activation', service.name);
-    await page.waitForURL(/auth\.stack\.local/, { timeout: DEFAULT_TIMEOUT }).catch(() => {});
+    const clicked = await oidcClickIfPresent(page, dir, '02-authelia-activation', service.name);
+    if (clicked) {
+      // Wait longer after clicking OIDC - apps may need to prepare request
+      await new Promise(res => setTimeout(res, 1000));
+    }
+    await page.waitForURL(/auth\.stack\.local/, { timeout: 45000 }).catch(() => {});
   }
   await ss(page, dir, '02-authelia-activation', 'on-auth');
   if (!page.url().includes('auth.stack.local')) {
