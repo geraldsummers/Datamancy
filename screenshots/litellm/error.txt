@@ -1,0 +1,3 @@
+Error: No Authelia OIDC button found
+    at proveAuth (/tests/prove.js:42:15)
+    at async /tests/prove.js:85:14

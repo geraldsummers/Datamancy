@@ -1,3 +1,3 @@
 Service: grafana
-Error: [02-authelia-activation] Did not reach Authelia (no redirect and no SSO control)
-Phases completed: reachability
+Error: [04-redirection] Did not return to grafana after auth (current URL: https://auth.project-saturn.com/?flow=openid_connect&flow_id=1a6ff93c-dbf6-49b6-96e1-77c2511353ee)
+Phases completed: reachability, oidc-activation, authelia-auth

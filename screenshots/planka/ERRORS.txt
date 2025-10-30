@@ -1,0 +1,3 @@
+Service: planka
+Error: page.screenshot: options.quality is unsupported for the png screenshots
+Phases completed: 

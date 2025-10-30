@@ -1,4 +1,9 @@
 ---
+# ==============================================
+# PRODUCTION DOMAIN: project-saturn.com
+# All domains, session cookies, and redirect URIs
+# use project-saturn.com for production deployment.
+# ==============================================
 theme: dark
 server:
   host: 0.0.0.0
@@ -20,7 +25,7 @@ telemetry:
     address: tcp://0.0.0.0:9959
 
 totp:
-  issuer: stack.local
+  issuer: project-saturn.com
   period: 30
   skew: 1
 
@@ -47,15 +52,15 @@ authentication_backend:
 access_control:
   default_policy: deny
   rules:
-    - domain: auth.stack.local
+    - domain: auth.project-saturn.com
       policy: bypass
     # Container management requires admin access
-    - domain: dockge.stack.local
+    - domain: dockge.project-saturn.com
       policy: one_factor
       subject:
         - "group:admins"
     # All other services accessible to admins and users
-    - domain: "*.stack.local"
+    - domain: "*.project-saturn.com"
       policy: one_factor
       subject:
         - "group:admins"
@@ -63,7 +68,7 @@ access_control:
 
 session:
   name: authelia_session
-  domain: stack.local
+  domain: project-saturn.com
   same_site: lax
   expiration: 1h
   inactivity: 5m
@@ -115,7 +120,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://grafana.stack.local/login/generic_oauth
+          - https://grafana.project-saturn.com/login/generic_oauth
         scopes:
           - openid
           - profile
@@ -134,7 +139,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://pgadmin.stack.local/oauth2/authorize
+          - https://pgadmin.project-saturn.com/oauth2/authorize
         scopes:
           - openid
           - profile
@@ -151,7 +156,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://dockge.stack.local/
+          - https://dockge.project-saturn.com/
         scopes:
           - openid
           - profile
@@ -169,7 +174,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://open-webui.stack.local/oauth/oidc/callback
+          - https://open-webui.project-saturn.com/oauth/oidc/callback
         scopes:
           - openid
           - profile
@@ -187,8 +192,8 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://nextcloud.stack.local/apps/oidc_login/oidc
-          - https://nextcloud.stack.local/apps/user_oidc/code
+          - https://nextcloud.project-saturn.com/apps/oidc_login/oidc
+          - https://nextcloud.project-saturn.com/apps/user_oidc/code
         scopes:
           - openid
           - profile
@@ -207,7 +212,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://vaultwarden.stack.local/identity/connect/oidc-signin
+          - https://vaultwarden.project-saturn.com/identity/connect/oidc-signin
         scopes:
           - openid
           - profile
@@ -225,7 +230,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://dim.stack.local/api/v1/auth/oidc/callback
+          - https://dim.project-saturn.com/api/v1/auth/oidc/callback
         scopes:
           - openid
           - profile
@@ -243,7 +248,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://planka.stack.local/oidc-callback
+          - https://planka.project-saturn.com/oidc-callback
         scopes:
           - openid
           - profile
@@ -265,7 +270,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://outline.stack.local/auth/oidc.callback
+          - https://outline.project-saturn.com/auth/oidc.callback
         scopes:
           - openid
           - profile
@@ -284,7 +289,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://homeassistant.stack.local/auth/external/callback
+          - https://homeassistant.project-saturn.com/auth/external/callback
         scopes:
           - openid
           - profile
@@ -302,7 +307,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://jupyterhub.stack.local/hub/oauth_callback
+          - https://jupyterhub.project-saturn.com/hub/oauth_callback
         scopes:
           - openid
           - profile

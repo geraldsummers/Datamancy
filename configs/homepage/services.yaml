@@ -1,0 +1,101 @@
+---
+- Management:
+    - Grafana:
+        href: https://grafana.project-saturn.com
+        description: Monitoring Dashboard
+        icon: grafana.png
+
+    - Dockge:
+        href: https://dockge.project-saturn.com
+        description: Docker Manager
+        icon: dockge.png
+
+    - Authelia:
+        href: https://auth.project-saturn.com
+        description: SSO Authentication
+        icon: authelia.png
+
+- AI Services:
+    - Open WebUI:
+        href: https://open-webui.project-saturn.com
+        description: AI Chat Interface
+        icon: openwebui.png
+
+    - LocalAI:
+        href: https://localai.project-saturn.com
+        description: Local AI Models
+        icon: localai.png
+
+    - JupyterHub:
+        href: https://jupyterhub.project-saturn.com
+        description: Data Science
+        icon: jupyter.png
+
+- Collaboration:
+    - Nextcloud:
+        href: https://nextcloud.project-saturn.com
+        description: File Storage
+        icon: nextcloud.png
+
+    - Outline:
+        href: https://outline.project-saturn.com
+        description: Team Wiki
+        icon: outline.png
+
+    - Planka:
+        href: https://planka.project-saturn.com
+        description: Project Board
+        icon: planka.png
+
+    - Vaultwarden:
+        href: https://vaultwarden.project-saturn.com
+        description: Password Manager
+        icon: vaultwarden.png
+
+- Data & Storage:
+    - FileBrowser:
+        href: https://filebrowser.project-saturn.com
+        description: File Manager
+        icon: filebrowser.png
+
+    - Kopia:
+        href: https://kopia.project-saturn.com
+        description: Backups
+        icon: kopia.png
+
+- Databases:
+    - pgAdmin:
+        href: https://pgadmin.project-saturn.com
+        description: PostgreSQL
+        icon: si-postgresql
+
+    - Adminer:
+        href: https://adminer.project-saturn.com
+        description: DB Admin
+        icon: adminer.png
+
+    - CouchDB:
+        href: https://couchdb.project-saturn.com
+        description: NoSQL DB
+        icon: couchdb.png
+
+    - ClickHouse:
+        href: https://clickhouse.project-saturn.com
+        description: Analytics DB
+        icon: si-clickhouse
+
+- Infrastructure:
+    - Caddy:
+        href: https://homepage.project-saturn.com
+        description: Reverse Proxy
+        icon: caddy.png
+
+    - Benthos:
+        href: https://benthos.project-saturn.com
+        description: Data Pipeline
+        icon: si-databricks
+
+    - Home Assistant:
+        href: https://homeassistant.project-saturn.com
+        description: Home Automation
+        icon: home-assistant.png

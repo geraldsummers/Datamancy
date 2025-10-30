@@ -37,6 +37,8 @@ volumes:
   outline_data:
   benthos_data:
   jupyterhub_data:
+  litellm_config:
+  homepage_config:
 
 services:
 
@@ -50,40 +52,44 @@ services:
     networks:
       stack:
         aliases:
-          - grafana.stack.local
-          - auth.stack.local
-          - adminer.stack.local
-          - pgadmin.stack.local
-          - portainer.stack.local
-          - localai.stack.local
-          - open-webui.stack.local
-          - browserless.stack.local
-          - nextcloud.stack.local
-          - vaultwarden.stack.local
-          - filebrowser.stack.local
-          - homeassistant.stack.local
-          - planka.stack.local
-          - outline.stack.local
-          - kopia.stack.local
-          - jupyterhub.stack.local
+          - grafana.${DOMAIN}
+          - auth.${DOMAIN}
+          - adminer.${DOMAIN}
+          - pgadmin.${DOMAIN}
+          - portainer.${DOMAIN}
+          - localai.${DOMAIN}
+          - litellm.${DOMAIN}
+          - open-webui.${DOMAIN}
+          - browserless.${DOMAIN}
+          - nextcloud.${DOMAIN}
+          - vaultwarden.${DOMAIN}
+          - filebrowser.${DOMAIN}
+          - homeassistant.${DOMAIN}
+          - planka.${DOMAIN}
+          - outline.${DOMAIN}
+          - kopia.${DOMAIN}
+          - jupyterhub.${DOMAIN}
+          - homepage.${DOMAIN}
       test:
         aliases:
-          - grafana.stack.local
-          - auth.stack.local
-          - adminer.stack.local
-          - pgadmin.stack.local
-          - portainer.stack.local
-          - localai.stack.local
-          - open-webui.stack.local
-          - browserless.stack.local
-          - nextcloud.stack.local
-          - vaultwarden.stack.local
-          - filebrowser.stack.local
-          - homeassistant.stack.local
-          - planka.stack.local
-          - outline.stack.local
-          - kopia.stack.local
-          - jupyterhub.stack.local
+          - grafana.${DOMAIN}
+          - auth.${DOMAIN}
+          - adminer.${DOMAIN}
+          - pgadmin.${DOMAIN}
+          - portainer.${DOMAIN}
+          - localai.${DOMAIN}
+          - litellm.${DOMAIN}
+          - open-webui.${DOMAIN}
+          - browserless.${DOMAIN}
+          - nextcloud.${DOMAIN}
+          - vaultwarden.${DOMAIN}
+          - filebrowser.${DOMAIN}
+          - homeassistant.${DOMAIN}
+          - planka.${DOMAIN}
+          - outline.${DOMAIN}
+          - kopia.${DOMAIN}
+          - jupyterhub.${DOMAIN}
+          - homepage.${DOMAIN}
     ports:
       - "80:80"
       - "443:443"
@@ -252,14 +258,14 @@ services:
       - stack
     environment:
       - GF_DEFAULT_LOCALE=en_US
-      - GF_SERVER_ROOT_URL=https://grafana.stack.local
-      - GF_SERVER_DOMAIN=grafana.stack.local
+      - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN}
+      - GF_SERVER_DOMAIN=grafana.${DOMAIN}
       - GF_AUTH_GENERIC_OAUTH_ENABLED=true
       - GF_AUTH_GENERIC_OAUTH_NAME=Authelia
       - GF_AUTH_GENERIC_OAUTH_CLIENT_ID=grafana
       - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=${GRAFANA_OAUTH_SECRET}
       - GF_AUTH_GENERIC_OAUTH_SCOPES=openid profile email groups
-      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://auth.stack.local/api/oidc/authorization
+      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://auth.${DOMAIN}/api/oidc/authorization
       - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://authelia:9091/api/oidc/token
       - GF_AUTH_GENERIC_OAUTH_API_URL=http://authelia:9091/api/oidc/userinfo
       - GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=email
@@ -268,7 +274,7 @@ services:
       - GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name
       - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'users') && 'Editor' || 'Viewer'
       - GF_AUTH_GENERIC_OAUTH_USE_PKCE=true
-      - GF_AUTH_SIGNOUT_REDIRECT_URL=https://auth.stack.local/logout
+      - GF_AUTH_SIGNOUT_REDIRECT_URL=https://auth.${DOMAIN}/logout
       - GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC=false
       - GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=false
       - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=true
@@ -315,6 +321,38 @@ services:
       - THREADS=4
       - CONTEXT_SIZE=2048
 
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: litellm
+    restart: unless-stopped
+    networks:
+      - stack
+    depends_on:
+      - localai
+      - postgres
+      - authelia
+    volumes:
+      - litellm_config:/app/config
+      - ./configs/litellm/config.yaml:/app/config.yaml:ro
+    environment:
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      - LITELLM_SALT_KEY=${AUTHELIA_JWT_SECRET}
+      - GENERIC_CLIENT_ID=litellm
+      - GENERIC_CLIENT_SECRET=${LITELLM_OAUTH_SECRET}
+      - GENERIC_AUTHORIZATION_ENDPOINT=https://auth.${DOMAIN}/api/oidc/authorization
+      - GENERIC_TOKEN_ENDPOINT=http://authelia:9091/api/oidc/token
+      - GENERIC_USERINFO_ENDPOINT=http://authelia:9091/api/oidc/userinfo
+      - PROXY_BASE_URL=https://litellm.${DOMAIN}
+      - GENERIC_SCOPE=openid profile email groups
+      - GENERIC_USER_ID_ATTRIBUTE=preferred_username
+      - GENERIC_USER_EMAIL_ATTRIBUTE=email
+      - GENERIC_USER_ROLE_ATTRIBUTE=groups
+      - GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=name
+      - UI_USERNAME=admin
+      - UI_PASSWORD=${LITELLM_MASTER_KEY}
+    command: --config /app/config.yaml --port 4000 --num_workers 4 --detailed_debug
+
   open-webui:
     build:
       context: ./configs/openwebui/docker-build
@@ -325,20 +363,25 @@ services:
     networks:
       - stack
     depends_on:
-      - localai
+      - litellm
     environment:
-      - WEBUI_URL=https://open-webui.stack.local
+      - WEBUI_URL=https://open-webui.${DOMAIN}
       - ENABLE_OAUTH_SIGNUP=true
       - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
       - OAUTH_CLIENT_ID=open-webui
       - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
-      - OPENID_PROVIDER_URL=http://authelia:9091/.well-known/openid-configuration
+      - OPENID_PROVIDER_URL=https://auth.${DOMAIN}/.well-known/openid-configuration
       - OAUTH_PROVIDER_NAME=Authelia
       - OAUTH_SCOPES=openid email profile groups
-      - OLLAMA_BASE_URL=http://localai:8080/v1
+      - ENABLE_OAUTH_ROLE_MANAGEMENT=true
+      - OAUTH_GROUPS_CLAIM=groups
+      - OAUTH_ADMIN_ROLES=admins,openwebui-admin
+      - OAUTH_ALLOWED_ROLES=admins,users,openwebui-admin
+      - DEFAULT_USER_ROLE=user
+      - OLLAMA_BASE_URL=http://litellm:4000
       - ENABLE_OPENAI_API=true
-      - OPENAI_API_BASE_URL=http://localai:8080/v1
-      - OPENAI_API_KEY=dummy
+      - OPENAI_API_BASE_URL=http://litellm:4000
+      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
     volumes:
       - open_webui_data:/app/backend/data
 
@@ -371,10 +414,10 @@ services:
     networks:
       - stack
     environment:
-      - DOMAIN=https://vaultwarden.stack.local
+      - DOMAIN=https://vaultwarden.${DOMAIN}
       - SSO_ENABLED=true
       - SSO_ONLY=false
-      - SSO_AUTHORITY=https://auth.stack.local
+      - SSO_AUTHORITY=https://auth.${DOMAIN}
       - SSO_CLIENT_ID=vaultwarden
       - SSO_CLIENT_SECRET=${VAULTWARDEN_OAUTH_SECRET}
       - SSO_SCOPES=openid profile email offline_access
@@ -406,10 +449,10 @@ services:
       - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
       - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
       - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
-      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.stack.local
+      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.${DOMAIN}
       - OVERWRITEPROTOCOL=https
-      - OVERWRITEHOST=nextcloud.stack.local
-      - OVERWRITECLIURL=https://nextcloud.stack.local
+      - OVERWRITEHOST=nextcloud.${DOMAIN}
+      - OVERWRITECLIURL=https://nextcloud.${DOMAIN}
       - REDIS_HOST=redis
       - REDIS_HOST_PORT=6379
       - TRUSTED_PROXIES=172.18.0.0/16
@@ -485,10 +528,10 @@ services:
     depends_on:
       - postgres
     environment:
-      - BASE_URL=https://planka.stack.local
+      - BASE_URL=https://planka.${DOMAIN}
       - DATABASE_URL=postgresql://planka:${PLANKA_DB_PASSWORD}@postgres:5432/planka
       - SECRET_KEY=${PLANKA_SECRET_KEY}
-      - OIDC_ISSUER=https://auth.stack.local
+      - OIDC_ISSUER=https://auth.${DOMAIN}
       - OIDC_CLIENT_ID=planka
       - OIDC_CLIENT_SECRET=${PLANKA_OAUTH_SECRET}
       - OIDC_SCOPES=openid profile email groups
@@ -520,11 +563,11 @@ services:
       - DATABASE_URL=postgres://outline:${OUTLINE_DB_PASSWORD}@postgres:5432/outline
       - PGSSLMODE=disable
       - REDIS_URL=redis://redis:6379
-      - URL=https://outline.stack.local
+      - URL=https://outline.${DOMAIN}
       - PORT=3000
       - OIDC_CLIENT_ID=outline
       - OIDC_CLIENT_SECRET=${OUTLINE_OAUTH_SECRET}
-      - OIDC_AUTH_URI=https://auth.stack.local/api/oidc/authorization
+      - OIDC_AUTH_URI=https://auth.${DOMAIN}/api/oidc/authorization
       - OIDC_TOKEN_URI=http://authelia:9091/api/oidc/token
       - OIDC_USERINFO_URI=http://authelia:9091/api/oidc/userinfo
       - OIDC_USERNAME_CLAIM=preferred_username
@@ -593,6 +636,27 @@ services:
       - ./configs/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
 
   # ======================
+  # Dashboard - Homepage
+  # ======================
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    networks:
+      - stack
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - HOMEPAGE_ALLOWED_HOSTS=homepage.${DOMAIN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./configs/homepage/services.yaml:/app/config/services.yaml:ro
+      - ./configs/homepage/settings.yaml:/app/config/settings.yaml:ro
+      - ./configs/homepage/widgets.yaml:/app/config/widgets.yaml:ro
+      - ./configs/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
+      - ./configs/homepage/docker.yaml:/app/config/docker.yaml:ro
+
+  # ======================
   # Test Runner Container
   # ======================
   # Isolated on test network - routes ALL traffic through Caddy like a real client
@@ -610,7 +674,8 @@ services:
       - caddy
     volumes:
       - ./tests/test_web_ui.js:/tests/webui.e2e.js:ro
-      - ./screenshots:/tests/screenshots:rw
+      - ./tests/test_ai_services.js:/tests/test_ai_services.js:ro
+      - ./screenshots:/screenshots:rw
       - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
     environment:
       - NODE_ENV=test
@@ -618,6 +683,9 @@ services:
       - LANG=en_US.UTF-8
       - LC_ALL=en_US.UTF-8
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
+      - TEST_USERNAME=admin
+      - TEST_PASSWORD=DatamancyTest2025!
+      - SCREEN_DIR=/screenshots
     restart: "no"
     command: >
       sh -c 'set -eu &&

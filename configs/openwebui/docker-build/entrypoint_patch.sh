@@ -29,17 +29,25 @@ else
     echo "Using built-in CA certificate from build time"
 fi
 
-# Verify certificate is in place
+# Export SSL environment variables for Python httpx/requests
+export SSL_CERT_FILE=$(python -c "import certifi; print(certifi.where())")
+export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"
+echo "SSL_CERT_FILE set to: $SSL_CERT_FILE"
+
+# Verify and fix certificate in certifi bundle
 if [ -f /usr/local/share/ca-certificates/caddy-ca.crt ]; then
     echo "Caddy CA certificate is installed in system store"
     certifi_path=$(python -c "import certifi; print(certifi.where())")
     echo "Certifi bundle location: $certifi_path"
 
-    # Verify it's also in certifi bundle by checking the tail (where we append it)
+    # Always ensure it's in certifi bundle by checking and adding if missing
     if tail -100 "$certifi_path" | grep -q "Caddy Local Authority" 2>/dev/null; then
-        echo "✓ Caddy CA certificate is present in certifi bundle"
+        echo "✓ Caddy CA certificate already in certifi bundle"
     else
-        echo "⚠ Caddy CA certificate NOT found in certifi bundle"
+        echo "⚠ Caddy CA certificate NOT found in certifi bundle - adding it now"
+        echo "" >> "$certifi_path"
+        cat /usr/local/share/ca-certificates/caddy-ca.crt >> "$certifi_path"
+        echo "✓ Caddy CA certificate added to certifi bundle"
     fi
 else
     echo "WARNING: No Caddy CA certificate found!"

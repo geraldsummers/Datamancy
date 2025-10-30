@@ -1,4 +1,22 @@
 {
+  "name": "datamancy-tests",
+  "version": "2.0.0",
+  "description": "Standardized, atomic test suite for Datamancy SSO/Auth verification",
+  "scripts": {
+    "test": "node runners/test-multi.js",
+    "test:all": "node runners/test-multi.js",
+    "test:oidc": "node runners/test-multi.js --oidc-only",
+    "test:non-oidc": "node runners/test-multi.js --non-oidc-only",
+    "test:ai": "node runners/test-ai-stack.js",
+    "test:single": "node runners/test-single.js",
+    "test:grafana": "node runners/test-single.js grafana",
+    "test:openwebui": "node runners/test-single.js open-webui",
+    "test:jupyterhub": "node runners/test-single.js jupyterhub",
+    "test:outline": "node runners/test-single.js outline",
+    "test:planka": "node runners/test-single.js planka",
+    "test:vaultwarden": "node runners/test-single.js vaultwarden",
+    "test:nextcloud": "node runners/test-single.js nextcloud"
+  },
   "dependencies": {
     "playwright": "^1.56.1"
   }
