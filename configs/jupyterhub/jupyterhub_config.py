@@ -52,11 +52,12 @@ c.JupyterHub.authenticator_class = 'oauthenticator.generic.GenericOAuthenticator
 # OAuth configuration for Authelia
 c.GenericOAuthenticator.client_id = 'jupyterhub'
 c.GenericOAuthenticator.client_secret = os.environ.get('JUPYTERHUB_OAUTH_SECRET', '')
-c.GenericOAuthenticator.oauth_callback_url = 'https://jupyterhub.stack.local/hub/oauth_callback'
+domain = os.environ.get('DOMAIN', 'project-saturn.com')
+c.GenericOAuthenticator.oauth_callback_url = f'https://jupyterhub.{domain}/hub/oauth_callback'
 
 # Authelia OIDC endpoints
 # authorize_url: External HTTPS URL (used by browser, goes through Caddy)
-c.GenericOAuthenticator.authorize_url = 'https://auth.stack.local/api/oidc/authorization'
+c.GenericOAuthenticator.authorize_url = f'https://auth.{domain}/api/oidc/authorization'
 # token_url & userdata_url: Internal HTTP URL (server-to-server, direct to Authelia)
 c.GenericOAuthenticator.token_url = 'http://authelia:9091/api/oidc/token'
 c.GenericOAuthenticator.userdata_url = 'http://authelia:9091/api/oidc/userinfo'

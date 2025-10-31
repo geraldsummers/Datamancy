@@ -4,130 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/tests/lib/playwright-utils.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="gettin testy">
+      <change beforePath="$PROJECT_DIR$/.idea/Datamancy.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Datamancy.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SSO_VERIFICATION_REPORT.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/authelia/configuration.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/caddy/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/dnsmasq/dnsmasq.conf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/dnsmasq/update-dns.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/openwebui/docker-build/entrypoint_patch.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/openwebui/docker-build/entrypoint_patch.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/manual_verify.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/01-reachability.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/02-authelia-activation-skipped.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/03-authelia-authentication-skipped.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/04-redirection-skipped.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/05-login-ERROR.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/05-login-non-oidc-login-page.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/ERRORS.txt" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/filebrowser/ERRORS.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/grafana/01-reachability.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/grafana/02-authelia-activation-ERROR.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/grafana/02-authelia-activation-landing.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/grafana/02-authelia-activation-no-oidc.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/grafana/02-authelia-activation-on-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/grafana/ERRORS.txt" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/grafana/ERRORS.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/01-reachability.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/02-authelia-activation-skipped.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/03-authelia-authentication-skipped.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/04-redirection-skipped.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/05-login-ERROR.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/05-login-non-oidc-login-page.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/ERRORS.txt" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/homeassistant/ERRORS.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/01-reachability.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/02-authelia-activation-landing.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/02-authelia-activation-oidc-clicked.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/02-authelia-activation-on-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/03-authelia-authentication-credentials-filled.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/03-authelia-authentication-login-form.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/03-authelia-authentication-no-consent.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/04-redirection-ERROR.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/04-redirection.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/ERRORS.txt" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/jupyterhub/ERRORS.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/kopia/01-reachability.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/kopia/02-authelia-activation-skipped.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/kopia/03-authelia-authentication-skipped.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/kopia/04-redirection-skipped.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/kopia/05-login-ERROR.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/kopia/05-login-non-oidc-login-page.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/kopia/ERRORS.txt" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/kopia/ERRORS.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/01-reachability.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/02-authelia-activation-ERROR.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/02-authelia-activation-landing.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/02-authelia-activation-oidc-clicked.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/02-authelia-activation-on-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/ERRORS.txt" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/nextcloud/ERRORS.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/01-reachability.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/02-authelia-activation-ERROR.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/02-authelia-activation-landing.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/02-authelia-activation-no-oidc.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/02-authelia-activation-on-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/ERRORS.txt" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/open-webui/ERRORS.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/outline/01-reachability.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/outline/02-authelia-activation-on-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/outline/03-authelia-authentication-credentials-filled.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/outline/03-authelia-authentication-login-form.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/outline/03-authelia-authentication-no-consent.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/outline/04-redirection-ERROR.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/outline/04-redirection.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/outline/ERRORS.txt" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/outline/ERRORS.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/01-landing.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/02-oidc-clicked.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/03-after-potential-redirect.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/04-authelia-login.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/05-credentials-filled.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/06-after-submit.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/07-consent-page.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/08-planka-dashboard.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/99-error.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/99-success-logged-in.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/planka/PLANKA_OIDC_VERIFICATION.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/test-results.json" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/test-results.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/01-reachability.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/02-authelia-activation-ERROR.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/02-authelia-activation-landing.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/02-authelia-activation-oidc-clicked.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/02-authelia-activation-on-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/ERRORS.txt" beforeDir="false" afterPath="$PROJECT_DIR$/screenshots/vaultwarden/ERRORS.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test-run-iteration2.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/test-run-iteration3.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_planka_only.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/tests/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/tests/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/tests/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_web_ui.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/grafana/1-initial.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/grafana/2-after-click.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/grafana/3-creds-filled.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/grafana/4-after-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/grafana/5-usage.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/jupyterhub/1-initial.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/jupyterhub/2-after-click.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/jupyterhub/3-creds-filled.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/jupyterhub/4-after-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/jupyterhub/5-usage.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/nextcloud/1-initial.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/nextcloud/2-after-click.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/nextcloud/5-usage.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/open-webui/1-initial.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/open-webui/2-after-click.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/open-webui/5-usage.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/outline/1-initial.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/outline/2-after-click.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/outline/3-creds-filled.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/outline/4-after-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/outline/5-usage.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/planka/1-initial.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/planka/2-after-click.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/planka/3-creds-filled.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/planka/4-after-auth.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/planka/5-usage.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/vaultwarden/1-initial.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/vaultwarden/2-after-click.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/usage_screenshots/vaultwarden/5-usage.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/verify_one_service.js" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -135,7 +15,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="6178" />
+    <option name="cachedIndexableFilesCount" value="141" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="FileTemplateManagerImpl">
@@ -155,12 +35,15 @@
     &quot;assignee&quot;: &quot;geraldsummers&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/geraldsummers/Datamancy.git&quot;,
-    &quot;accountId&quot;: &quot;c43c497a-84d0-4c12-8c3f-88ed21487185&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/geraldsummers/Datamancy.git",
+    "accountId": "b1194927-1ac2-494c-b5aa-2c2419a54fb7"
   }
-}</component>
+}]]></component>
+  <component name="PackageJsonUpdateNotifier">
+    <dismissed value="$PROJECT_DIR$/tests/package.json" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 2
 }</component>
@@ -172,54 +55,54 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Docker.docker-compose.yml.ca-generator: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.docker-compose.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src.caddy: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src.docker-socket-proxy: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src.ragserve: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src: Compose Deployment (1).executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;SHELLCHECK.PATH&quot;: &quot;/home/gerald/.local/share/JetBrains/PyCharmCE2025.2/Shell Script/shellcheck&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/gerald/Documents/IdeaProjects/Datamancy&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_interpreter_path&quot;: &quot;/home/gerald/.config/JetBrains/PyCharm2025.2/node/versions/22.21.0/bin/node&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMConfigurable&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Docker.docker-compose.yml.ca-generator: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
+    "Docker.src.caddy: Compose Deployment.executor": "Run",
+    "Docker.src.docker-socket-proxy: Compose Deployment.executor": "Run",
+    "Docker.src.ragserve: Compose Deployment.executor": "Run",
+    "Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor": "Run",
+    "Docker.src: Compose Deployment (1).executor": "Run",
+    "Docker.src: Compose Deployment.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SHELLCHECK.PATH": "/home/gerald/.local/share/JetBrains/PyCharmCE2025.2/Shell Script/shellcheck",
+    "git-widget-placeholder": "master",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/home/gerald/Documents/IdeaProjects/Datamancy",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "node",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "ml.llm.LLMConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
       <recent name="$PROJECT_DIR$/src" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/tests/old" />
       <recent name="$PROJECT_DIR$/.old" />
       <recent name="$PROJECT_DIR$/.old/older" />
       <recent name="$PROJECT_DIR$/.old/src" />
       <recent name="$PROJECT_DIR$/src/grafana/provisioning/dashboards" />
-      <recent name="$PROJECT_DIR$/src" />
     </key>
   </component>
-  <component name="RunManager" selected="Docker.docker-compose.yml: Compose Deployment">
+  <component name="RunManager" selected="Docker.docker-compose.yml.ca-generator: Compose Deployment">
     <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
       <deployment type="docker-compose.yml">
         <settings />
@@ -281,21 +164,12 @@
       </deployment>
       <method v="2" />
     </configuration>
-    <recent_temporary>
-      <list>
-        <item itemvalue="Docker.docker-compose.yml: Compose Deployment" />
-        <item itemvalue="Docker.docker-compose.yml.ca-generator: Compose Deployment" />
-        <item itemvalue="Docker.src: Compose Deployment (1)" />
-        <item itemvalue="Docker.src.docker-socket-proxy: Compose Deployment" />
-        <item itemvalue="Docker.src.caddy: Compose Deployment" />
-      </list>
-    </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-75c7c973e13d-JavaScript-PY-253.27864.50" />
-        <option value="bundled-python-sdk-a9a34e35382e-30684d0e00d4-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.27864.50" />
+        <option value="bundled-js-predefined-d6986cc7102b-3aa1da707db6-JavaScript-PY-252.27397.106" />
+        <option value="bundled-python-sdk-4e2b1448bda8-9a97661f3031-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.27397.106" />
       </set>
     </attachedChunks>
   </component>
@@ -342,7 +216,8 @@
       <workItem from="1761786736553" duration="286000" />
       <workItem from="1761787066806" duration="13000" />
       <workItem from="1761787088502" duration="18453000" />
-      <workItem from="1761808250055" duration="6612000" />
+      <workItem from="1761808250055" duration="7996000" />
+      <workItem from="1761824210747" duration="29549000" />
     </task>
     <task id="LOCAL-00001" summary="Remove unused services, configurations, and dependencies from project">
       <option name="closed" value="true" />
@@ -488,18 +363,19 @@
       <option name="project" value="LOCAL" />
       <updated>1761797003333</updated>
     </task>
-    <option name="localTasksCounter" value="19" />
+    <task id="LOCAL-00019" summary="gettin testy">
+      <option name="closed" value="true" />
+      <created>1761816179156</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1761816179156</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
-    <option name="exactExcludedFiles">
-      <list>
-        <option value="$PROJECT_DIR$/scripts/test-runner/playwright.config.js" />
-        <option value="$PROJECT_DIR$/tests/playwright.config.js" />
-        <option value="$PROJECT_DIR$/tests/specs/phase1-smoke.spec.js" />
-      </list>
-    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Remove unused services, configurations, and dependencies from project" />

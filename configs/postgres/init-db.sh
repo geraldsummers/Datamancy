@@ -15,6 +15,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     CREATE DATABASE nextcloud;
     CREATE DATABASE planka;
     CREATE DATABASE outline;
+    CREATE DATABASE langgraph;
+    CREATE DATABASE litellm;
 
     -- Create users with passwords from environment
     CREATE USER nextcloud WITH PASSWORD '$NEXTCLOUD_DB_PASSWORD';
@@ -25,6 +27,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE nextcloud TO nextcloud;
     GRANT ALL PRIVILEGES ON DATABASE planka TO planka;
     GRANT ALL PRIVILEGES ON DATABASE outline TO outline;
+    GRANT ALL PRIVILEGES ON DATABASE langgraph TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE litellm TO postgres;
 EOSQL
 
 # Grant schema privileges (PostgreSQL 15+)

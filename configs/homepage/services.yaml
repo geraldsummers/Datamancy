@@ -47,11 +47,6 @@
         description: Project Board
         icon: planka.png
 
-    - Vaultwarden:
-        href: https://vaultwarden.project-saturn.com
-        description: Password Manager
-        icon: vaultwarden.png
-
 - Data & Storage:
     - FileBrowser:
         href: https://filebrowser.project-saturn.com

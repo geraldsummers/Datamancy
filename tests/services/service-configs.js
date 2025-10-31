@@ -13,9 +13,9 @@
  */
 
 /**
- * Main services (OIDC via Authelia/LDAP)
+ * OIDC services (OAuth via Authelia/LDAP)
  */
-const mainServices = [
+const oidcServices = [
   {
     name: 'grafana',
     url: 'https://grafana.project-saturn.com',
@@ -49,14 +49,7 @@ const mainServices = [
     url: 'https://planka.project-saturn.com',
     usesOAuth: true,
     authType: 'oidc',
-    uiMarkers: ['text=/Boards/i', 'text=/Projects/i'],
-  },
-  {
-    name: 'vaultwarden',
-    url: 'https://vaultwarden.project-saturn.com',
-    usesOAuth: true,
-    authType: 'oidc',
-    uiMarkers: ['text=/Vaultwarden/i', 'text=/Vault/i'],
+    uiMarkers: ['text=/Create project/i', 'text=/System Administrator/i', 'text=/PLANKA/i'],
   },
   {
     name: 'nextcloud',
@@ -69,26 +62,45 @@ const mainServices = [
 ];
 
 /**
- * Non-OIDC services (reachability-only or manual login)
+ * Forward-auth services (protected by Authelia forward-auth)
  */
-const nonOidcServices = [
+const forwardAuthServices = [
   {
     name: 'filebrowser',
     url: 'https://filebrowser.project-saturn.com',
-    usesOAuth: false,
-    uiMarkers: ['text=/File Browser/i', 'text=/Sign in/i'],
+    authType: 'forward-auth',
+    uiMarkers: ['text=/My Files/i', 'text=/Settings/i'],
   },
   {
     name: 'homeassistant',
     url: 'https://homeassistant.project-saturn.com',
-    usesOAuth: false,
-    uiMarkers: ['text=/Home Assistant/i', 'text=/Overview/i'],
+    authType: 'forward-auth',
+    uiMarkers: ['text=/Overview/i', 'text=/Energy/i', 'text=/Map/i'],
   },
   {
     name: 'kopia',
     url: 'https://kopia.project-saturn.com',
-    usesOAuth: false,
-    uiMarkers: ['text=/Kopia/i', 'text=/Repository/i', 'text=/Snapshots/i'],
+    authType: 'forward-auth',
+    uiMarkers: ['text=/Repository/i', 'text=/Snapshots/i', 'text=/Policies/i'],
+  },
+  {
+    name: 'dockge',
+    url: 'https://dockge.project-saturn.com',
+    authType: 'forward-auth',
+    hasFirstRunSetup: true,
+    uiMarkers: ['text=/Stacks/i', 'text=/Dockge/i'],
+  },
+  {
+    name: 'homepage',
+    url: 'https://homepage.project-saturn.com',
+    authType: 'forward-auth',
+    uiMarkers: ['text=/Services/i', 'text=/Bookmarks/i'],
+  },
+  {
+    name: 'lam',
+    url: 'https://lam.project-saturn.com',
+    authType: 'forward-auth',
+    uiMarkers: ['text=/LDAP Account Manager/i', 'text=/Users/i', 'text=/Groups/i'],
   },
 ];
 
@@ -123,8 +135,8 @@ const aiServices = [
  * All services combined
  */
 const allServices = [
-  ...mainServices,
-  ...nonOidcServices,
+  ...oidcServices,
+  ...forwardAuthServices,
 ];
 
 /**
@@ -137,18 +149,27 @@ function getService(name) {
 }
 
 /**
+ * Get OIDC service by name
+ */
+function getOidcService(name) {
+  return oidcServices.find(s => s.name === name) || null;
+}
+
+/**
+ * Get forward-auth service by name
+ */
+function getForwardAuthService(name) {
+  return forwardAuthServices.find(s => s.name === name) || null;
+}
+
+/**
  * Get services by filter criteria
  * @param {Object} filters
- * @param {boolean} [filters.usesOAuth] - Filter by OAuth usage
  * @param {string} [filters.authType] - Filter by auth type
  * @returns {ServiceConfig[]}
  */
 function getServices(filters = {}) {
   let services = [...allServices];
-
-  if (filters.usesOAuth !== undefined) {
-    services = services.filter(s => s.usesOAuth === filters.usesOAuth);
-  }
 
   if (filters.authType) {
     services = services.filter(s => s.authType === filters.authType);
@@ -158,10 +179,12 @@ function getServices(filters = {}) {
 }
 
 module.exports = {
-  mainServices,
-  nonOidcServices,
+  oidcServices,
+  forwardAuthServices,
   aiServices,
   allServices,
   getService,
+  getOidcService,
+  getForwardAuthService,
   getServices,
 };

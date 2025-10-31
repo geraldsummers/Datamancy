@@ -67,18 +67,17 @@ async function autheliaAuth(page, screenshotDir) {
     );
   }
 
-  // Wait for page to load after sign in
+  // Wait for navigation after sign in (either to consent page or back to service)
   await page.waitForLoadState('networkidle', {
-    timeout: config.timeouts.selector
+    timeout: config.timeouts.authRedirect
   }).catch(() => {
     // networkidle timeout is OK
   });
 
-  // Handle consent/authorization page (first-time per client)
-  await page.waitForLoadState('domcontentloaded', {
-    timeout: config.timeouts.default
-  }).catch(() => {});
+  // Additional wait for page to stabilize
+  await page.waitForTimeout(config.timeouts.shortWait);
 
+  // Handle consent/authorization page (first-time per client)
   const consentClicked = await clickFirst(
     page,
     authelia.consentButtons,

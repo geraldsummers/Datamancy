@@ -16,7 +16,7 @@ grafana.project-saturn.com {
 # Adminer with SSO
 adminer.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://adminer.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy adminer:8080
@@ -25,7 +25,7 @@ adminer.project-saturn.com {
 # pgAdmin with SSO
 pgadmin.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://pgadmin.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy pgadmin:80
@@ -34,16 +34,25 @@ pgadmin.project-saturn.com {
 # Dockge with SSO
 dockge.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://dockge.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy dockge:5001
 }
 
+# LDAP Account Manager with SSO
+lam.project-saturn.com {
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+	reverse_proxy ldap-account-manager:80
+}
+
 # LocalAI with SSO
 localai.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://localai.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy localai:8080
@@ -62,7 +71,7 @@ open-webui.project-saturn.com {
 # Kopia with SSO
 kopia.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://kopia.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy kopia:51515
@@ -84,22 +93,10 @@ nextcloud.project-saturn.com {
 	}
 }
 
-# Vaultwarden with native OIDC (no forward_auth needed)
-vaultwarden.project-saturn.com {
-	reverse_proxy vaultwarden:80
-
-	# Security headers for password manager
-	header {
-		Strict-Transport-Security "max-age=31536000;"
-		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
-	}
-}
-
 # Benthos with SSO
 benthos.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://benthos.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy benthos:4195
@@ -108,7 +105,7 @@ benthos.project-saturn.com {
 # FileBrowser with SSO via forward_auth
 filebrowser.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://filebrowser.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy filebrowser:8080
@@ -117,7 +114,7 @@ filebrowser.project-saturn.com {
 # Home Assistant with SSO via forward_auth
 homeassistant.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://homeassistant.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy homeassistant:8123
@@ -136,7 +133,7 @@ outline.project-saturn.com {
 # Browserless with SSO
 browserless.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://browserless.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy browserless:3000
@@ -145,7 +142,7 @@ browserless.project-saturn.com {
 # CouchDB with SSO
 couchdb.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://couchdb.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy couchdb:5984
@@ -154,7 +151,7 @@ couchdb.project-saturn.com {
 # ClickHouse with SSO
 clickhouse.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://clickhouse.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy clickhouse:8123
@@ -168,8 +165,9 @@ jupyterhub.project-saturn.com {
 # Homepage Dashboard with SSO
 homepage.project-saturn.com {
 	forward_auth authelia:9091 {
-		uri /api/verify?rd=https://auth.project-saturn.com/?rd=https://homepage.project-saturn.com
+		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy homepage:3000
 }
+

@@ -11,30 +11,80 @@ sleep 5
 
 # Install and enable the user_oidc app
 echo "Installing user_oidc app..."
-php occ app:install user_oidc 2>/dev/null || true
-php occ app:enable user_oidc
+
+# Check if already installed
+if php occ app:list 2>/dev/null | grep -q "user_oidc"; then
+    echo "user_oidc app already installed"
+    php occ app:enable user_oidc 2>&1 || echo "user_oidc already enabled"
+else
+    # Retry logic for app installation (may fail due to app store connectivity)
+    INSTALLED=false
+    for i in 1 2 3 4 5; do
+        echo "Attempt $i: Installing user_oidc app..."
+        if php occ app:install user_oidc 2>&1; then
+            echo "✓ user_oidc app installed successfully"
+            INSTALLED=true
+            break
+        else
+            echo "⚠ Installation attempt $i failed, waiting 10 seconds before retry..."
+            sleep 10
+        fi
+    done
+
+    # If all attempts failed, check if app is actually available despite errors
+    if [ "$INSTALLED" = false ]; then
+        echo "⚠ App store download failed after 5 attempts"
+        echo "⚠ Checking if user_oidc is available anyway..."
+        if php occ app:list 2>/dev/null | grep -q "user_oidc"; then
+            echo "✓ user_oidc app found in app list, proceeding..."
+        else
+            echo "❌ CRITICAL: user_oidc app not available!"
+            echo "❌ OIDC login will not work. Manual installation required:"
+            echo "   docker exec -u www-data nextcloud php occ app:install user_oidc"
+            echo "   docker exec -u www-data nextcloud php occ app:enable user_oidc"
+        fi
+    fi
+
+    php occ app:enable user_oidc 2>&1 || true
+fi
 
 # Configure reverse proxy settings (already done by env vars, but ensure they're set)
 echo "Configuring reverse proxy settings..."
 php occ config:system:set overwriteprotocol --value="https"
-php occ config:system:set overwritehost --value="nextcloud.stack.local"
-php occ config:system:set overwrite.cli.url --value="https://nextcloud.stack.local"
+php occ config:system:set overwritehost --value="nextcloud.project-saturn.com"
+php occ config:system:set overwrite.cli.url --value="https://nextcloud.project-saturn.com"
 php occ config:system:set trusted_proxies 0 --value="172.18.0.0/16"
+
+# Allow Nextcloud to connect to internal IPs (needed because external domain resolves to internal Caddy IP)
+echo "Allowing connections to local servers for OIDC discovery..."
+php occ config:system:set allow_local_remote_servers --value=true --type=boolean
 
 # Configure OIDC provider
 echo "Configuring OIDC provider..."
 
-# Check if provider already exists
+# Check if provider already exists with correct URL
 EXISTING_PROVIDER=$(php occ user_oidc:provider 2>&1 || true)
+CORRECT_URL="https://auth.project-saturn.com/.well-known/openid-configuration"
 
-if echo "$EXISTING_PROVIDER" | grep -q "Authelia"; then
-    echo "OIDC provider already configured, skipping..."
+if echo "$EXISTING_PROVIDER" | grep -q "$CORRECT_URL"; then
+    echo "OIDC provider already configured with correct URL, skipping..."
+    PROVIDER_ID=$(echo "$EXISTING_PROVIDER" | grep -oP '^\|\s+\K\d+' | head -1)
 else
-    # Create OIDC provider (use internal authelia URL for discovery)
+    # Delete old provider if it exists with wrong URL
+    if echo "$EXISTING_PROVIDER" | grep -q "Authelia"; then
+        echo "Removing old OIDC provider with incorrect URL..."
+        OLD_ID=$(echo "$EXISTING_PROVIDER" | grep -oP '^\|\s+\K\d+' | head -1)
+        if [ -n "$OLD_ID" ]; then
+            # Direct database deletion since CLI doesn't have delete command
+            PGPASSWORD="${NEXTCLOUD_DB_PASSWORD}" psql -h postgres -U nextcloud -d nextcloud -c "DELETE FROM oc_user_oidc_providers WHERE id = $OLD_ID;" 2>/dev/null || true
+        fi
+    fi
+
+    # Create OIDC provider (use external authelia URL for proper session handling)
     PROVIDER_ID=$(php occ user_oidc:provider Authelia \
       --clientid="nextcloud" \
       --clientsecret="f99eab7b5e43e7e0ac03f2cbdcc0a02b849a38fdfe9458097c4f1c1708df6399" \
-      --discoveryuri="http://authelia:9091/.well-known/openid-configuration" \
+      --discoveryuri="$CORRECT_URL" \
       --scope="openid profile email groups" \
       --unique-uid=1 \
       2>&1 | grep -oP 'Provider .* created with id \K\d+' || echo "1")

@@ -30,8 +30,13 @@ async function oidcActivation(page, screenshotDir, service) {
   // Landing page - need to click OIDC button
   await screenshot(page, screenshotDir, '02-oidc-activation', 'landing');
 
+  // Wait for page to stabilize (SPAs need time to render)
+  await page.waitForLoadState('networkidle', {
+    timeout: config.timeouts.networkIdle
+  }).catch(() => {});
+
   const selectors = getOidcSelectors(service.name);
-  const clicked = await clickFirst(page, selectors, 2500);
+  const clicked = await clickFirst(page, selectors, config.timeouts.oidcClick);
 
   if (clicked) {
     log(`[${service.name}] OIDC button clicked: ${clicked}`);
@@ -47,6 +52,15 @@ async function oidcActivation(page, screenshotDir, service) {
     ).catch(() => {
       // Timeout is OK if URL didn't change - check manually below
     });
+
+    // Fallback: If still not on Authelia, SPA button may need direct navigation
+    if (!page.url().includes(config.domains.authelia)) {
+      log(`[${service.name}] Button click didn't redirect, trying direct OAuth URL`);
+      const currentDomain = new URL(page.url()).hostname.split('.')[0];
+      const oauthUrl = `https://${currentDomain}.${config.domains.base}/oauth/oidc/login`;
+      await page.goto(oauthUrl, { timeout: config.timeouts.navigation }).catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   } else {
     await screenshot(page, screenshotDir, '02-oidc-activation', 'no-oidc-button');
   }

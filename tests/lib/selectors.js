@@ -59,10 +59,13 @@ const oidcByService = {
   ],
 
   'open-webui': [
-    'text=/Continue with Authelia/i',  // Not a button tag - styled div/span
-    'button:has-text("Continue with Authelia")',
-    'button:has-text("Login with OIDC")',
-    'text=/Login with OIDC/i',
+    'text=/continue.*authelia/i',  // Flexible regex match
+    'text=Continue with Authelia',
+    '*:has-text("Continue with Authelia")',  // Any element
+    'button:has-text("Continue")',
+    '[role="button"]',  // Try any button-role element
+    'text=/oauth/i',
+    'text=/sso/i',
   ],
 
   jupyterhub: [
@@ -76,16 +79,17 @@ const oidcByService = {
   ],
 
   planka: [
+    'button:has-text("Log in with SSO")',  // Actual button text
+    'text=Log in with SSO',
     'button:has-text("Sign in with OpenID")',
     'button:has-text("Sign in with Authelia")',
   ],
 
-  vaultwarden: [
-    'button:has-text("Single Sign-On")',
-    'button:has-text("Enterprise Single Sign-On")',
-  ],
 
   nextcloud: [
+    'text=Login with Authelia',  // Exact match - no "Log" in "Login"
+    'a:has-text("Login with Authelia")',
+    'a:has-text("Authelia")',
     'button:has-text("Log in with OpenID")',
     'button:has-text("Log in with Authelia")',
   ],

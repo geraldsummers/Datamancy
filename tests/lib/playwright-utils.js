@@ -134,11 +134,18 @@ async function clickFirst(page, selectors, timeout = 2500) {
   for (const selector of selectors) {
     const locator = page.locator(selector).first();
     try {
-      const count = await locator.count({ timeout });
-      if (count > 0) {
-        await locator.click({ timeout });
-        return selector;
+      // Wait for element to be visible
+      await locator.waitFor({ state: 'visible', timeout });
+      // Scroll into view if needed
+      await locator.scrollIntoViewIfNeeded({ timeout });
+      // Try normal click first
+      try {
+        await locator.click({ timeout: timeout / 2 });
+      } catch (clickErr) {
+        // Fallback to force click for stubborn elements
+        await locator.click({ force: true, timeout });
       }
+      return selector;
     } catch (e) {
       // Try next selector
     }

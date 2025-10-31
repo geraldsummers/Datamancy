@@ -47,5 +47,6 @@ module.exports = {
   // Auth domains - PRODUCTION DOMAIN: project-saturn.com
   domains: {
     authelia: 'auth.project-saturn.com',
+    base: 'project-saturn.com',
   },
 };
