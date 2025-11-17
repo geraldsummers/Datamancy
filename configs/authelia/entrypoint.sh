@@ -10,5 +10,11 @@ if [ -n "$AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY" ]; then
     fi
 fi
 
+# Ensure the database file exists with correct permissions (only if we can write)
+if [ ! -f /config/db.sqlite3 ] && [ -w /config ]; then
+    touch /config/db.sqlite3
+    chmod 600 /config/db.sqlite3
+fi
+
 # Run the original authelia command
 exec authelia "$@"

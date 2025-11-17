@@ -86,7 +86,6 @@ volumes:
   kopia_repository:
   redis_data:
   shared_media:
-  homeassistant_config:
   planka_data:
   outline_data:
   benthos_data:
@@ -104,6 +103,7 @@ volumes:
   sogo_data:
   akkoma_uploads:
   vaultwarden_data:
+  homeassistant_config:
 
 services:
 
@@ -257,6 +257,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    labels:
+      caddy: grafana.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 3000}}"
     depends_on:
       authelia:
         condition: service_healthy
@@ -331,6 +334,9 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
+    labels:
+      caddy: open-webui.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 8080}}"
     depends_on:
       litellm:
         condition: service_healthy
@@ -402,6 +408,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    labels:
+      caddy: vaultwarden.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 80}}"
     depends_on:
       authelia:
         condition: service_healthy
@@ -472,6 +481,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    labels:
+      caddy: planka.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 1337}}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -529,6 +541,9 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+    labels:
+      caddy: outline.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 3000}}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -649,7 +664,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_SEAFILE_ROOT_PASSWORD}"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_SEAFILE_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -667,6 +682,9 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+    labels:
+      caddy: seafile.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 80}}"
     depends_on:
       memcached:
         condition: service_healthy
@@ -707,6 +725,9 @@ services:
         reservations:
           cpus: '1.0'
           memory: 2G
+    labels:
+      caddy: onlyoffice.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 80}}"
     environment:
       - TZ=UTC
       - JWT_ENABLED=true
@@ -790,6 +811,9 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+    labels:
+      caddy: matrix.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 8008}}"
     depends_on:
       redis-synapse:
         condition: service_healthy
@@ -867,6 +891,9 @@ services:
         reservations:
           cpus: '0.25'
           memory: 128M
+    labels:
+      caddy: mail.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 80}}"
     env_file:
       - ./configs/mailu/mailu.env
     ports:
@@ -907,7 +934,10 @@ services:
           cpus: '0.1'
           memory: 64M
     networks:
-      - mail
+      mail:
+        aliases:
+          - redis
+          - mailu-redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -1121,6 +1151,9 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
+    labels:
+      caddy: sogo.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 20000}}"
     environment:
       - SOGO_WORKERS=1
       - SOGO_SIEVE_SCRIPTS_ENABLED=YES
@@ -1184,6 +1217,9 @@ services:
     image: teslamint/akkoma:v3.16.0
     container_name: akkoma
     restart: unless-stopped
+    labels:
+      caddy: akkoma.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 4000}}"
     environment:
       - MIX_ENV=prod
       - INSTANCE_NAME=${AKKOMA_INSTANCE_NAME}
@@ -1219,86 +1255,6 @@ services:
       retries: 3
       start_period: 60s
 
-
-  # ======================
-  # Home Automation - Home Assistant
-  # ======================
-  # Auth: ✅ NATIVE OIDC (via custom integration) OR 🔒 FORWARD AUTH
-  #       Option A - OIDC (Recommended): Custom integration hass-auth-header + Authelia
-  #         Install: https://github.com/BeryJu/hass-auth-header
-  #         Provides proper OIDC login flow with native HA user mapping
-  #       Option B - Forward Auth: Caddy forward_auth → Authelia → trusted headers
-  #         Configure trusted_networks auth provider in configuration.yaml
-  #         Pass X-Remote-User header from Authelia
-  #       Current: Using Option B (forward-auth) for simplicity
-  #
-  # Home Assistant OIDC Configuration (Option A - if switching to custom integration):
-  #   Install hass-auth-header via HACS
-  #   Add to configuration.yaml:
-  #     http:
-  #       use_x_forwarded_for: true
-  #       trusted_proxies:
-  #         - 172.18.0.0/16
-  #     auth_header:
-  #       oidc:
-  #         enabled: true
-  #         issuer: https://auth.${DOMAIN}
-  #         client_id: homeassistant
-  #         client_secret: ${HOMEASSISTANT_OAUTH_SECRET}
-  #         redirect_uri: https://homeassistant.${DOMAIN}/auth/external/callback
-  #
-  # Authelia Client Config Required (for OIDC):
-  #   client_id: homeassistant
-  #   client_secret: ${HOMEASSISTANT_OAUTH_SECRET}
-  #   redirect_uris: https://homeassistant.${DOMAIN}/auth/external/callback
-  #   scopes: openid email profile
-  #
-  # Current Forward-Auth Config (Option B):
-  #   Caddy injects Remote-User header from Authelia
-  #   HA trusted_networks provider trusts 172.18.0.0/16 (Caddy proxy)
-  #   Works but less elegant than native OIDC
-  homeassistant:
-    image: homeassistant/home-assistant:2025.11.2
-    container_name: homeassistant
-    restart: unless-stopped
-    user: "1000:1000"
-    networks:
-      - backend
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - NET_BIND_SERVICE
-    security_opt:
-      - seccomp=./configs/homeassistant/seccomp-profile.json
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-    volumes:
-      - homeassistant_config:/config
-      - ./configs/homeassistant/configuration.yaml:/config/configuration.yaml:ro
-      - ./configs/homeassistant/automations.yaml:/config/automations.yaml:rw
-      - ./configs/homeassistant/scripts.yaml:/config/scripts.yaml:rw
-      - ./configs/homeassistant/scenes.yaml:/config/scenes.yaml:rw
-      - ./configs/homeassistant/themes:/config/themes:ro
-      - ./scripts/init-homeassistant.sh:/init-homeassistant.sh:ro
-      - ./scripts/init-homeassistant-user.py:/init-homeassistant-user.py:ro
-      - ./scripts/ha-entrypoint.sh:/ha-entrypoint.sh:ro
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      - HA_ADMIN_USER=${STACK_ADMIN_USER}
-      - HA_ADMIN_NAME=Administrator
-    entrypoint: /ha-entrypoint.sh
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8123/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
 
   # ======================
@@ -1342,6 +1298,12 @@ services:
         reservations:
           cpus: '0.1'
           memory: 128M
+    labels:
+      caddy: homepage.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 3000}}"
     environment:
       - PUID=1000
       - PGID=1000
@@ -1385,6 +1347,9 @@ services:
       - backend
       - admin
       - admin-jupyterhub
+    labels:
+      caddy: jupyterhub.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 8000}}"
     depends_on:
       authelia:
         condition: service_healthy
@@ -1434,7 +1399,7 @@ services:
     image: louislam/dockge:1
     container_name: dockge
     restart: unless-stopped
-    user: "1000:1000"
+#    user: "1000:1000"
     networks:
       - admin
       - admin-dockge
@@ -1446,6 +1411,12 @@ services:
         reservations:
           cpus: '0.1'
           memory: 128M
+    labels:
+      caddy: dockge.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 5001}}"
     depends_on:
       - docker-proxy
     volumes:
@@ -1524,6 +1495,12 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+    labels:
+      caddy: kopia.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 51515}}"
     volumes:
       - kopia_data:/app/config
       - kopia_cache:/app/cache
@@ -1576,6 +1553,9 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+    labels:
+      caddy: litellm.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 4000}}"
     depends_on:
       localai:
         condition: service_healthy
@@ -1622,13 +1602,16 @@ services:
     networks:
       - auth
       - backend
+    labels:
+      caddy: auth.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 9091}}"
     depends_on:
       ldap:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      - authelia_data:/config
+      - ./volumes/authelia:/config
       - ./configs/authelia/configuration.yml:/config/configuration.yml:ro
       - ./configs/authelia/issuer.key:/config/issuer.key:ro
       - ./configs/authelia/entrypoint.sh:/entrypoint.sh:ro
@@ -1651,13 +1634,12 @@ services:
       start_period: 30s
 
   # ======================
-  # Reverse Proxy - Caddy (reverse proxy / TLS edge)
+  # Reverse Proxy - Caddy Docker Proxy (auto-generated config from labels)
   # ======================
   caddy:
-    image: caddy:2.8.4-alpine
+    image: lucaslorentz/caddy-docker-proxy:2.8
     container_name: caddy
     restart: unless-stopped
-    user: "1000:1000"
     deploy:
       resources:
         limits:
@@ -1725,10 +1707,12 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     environment:
+      - CADDY_INGRESS_NETWORKS=frontend backend auth admin mail test
       - ACME_AGREE=true
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
@@ -1803,6 +1787,12 @@ services:
     networks:
       - auth
       - admin
+    labels:
+      caddy: lam.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 80}}"
     depends_on:
       ldap:
         condition: service_healthy
@@ -1883,7 +1873,7 @@ services:
       - ./configs/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_ROOT_PASSWORD}"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1926,6 +1916,12 @@ services:
     restart: unless-stopped
     networks:
       - database
+    labels:
+      caddy: couchdb.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 5984}}"
     environment:
       - COUCHDB_USER=admin
       - COUCHDB_PASSWORD=${COUCHDB_PASSWORD}
@@ -1946,6 +1942,12 @@ services:
     restart: unless-stopped
     networks:
       - database
+    labels:
+      caddy: clickhouse.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 8123}}"
     environment:
       - CLICKHOUSE_DB=default
       - CLICKHOUSE_USER=default
@@ -1977,6 +1979,12 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    labels:
+      caddy: localai.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 8080}}"
     volumes:
       - localai_models:/build/models
     environment:
@@ -2003,6 +2011,12 @@ services:
     networks:
       - backend
       - database
+    labels:
+      caddy: benthos.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 4195}}"
     volumes:
       - ./configs/benthos/benthos.yaml:/benthos.yaml:ro
       - benthos_data:/data
@@ -2099,3 +2113,95 @@ services:
       update-ca-certificates 2>/dev/null || true &&
       printf "%s test-runner: starting webui.e2e\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" &&
       node /tests/webui.e2e.js'
+
+  # ======================
+  # Home Automation - Home Assistant
+  # ======================
+  # Auth: ✅ NATIVE OIDC via hass-oidc-auth + Authelia (PREFERRED)
+  #       Identity source: LDAP (via Authelia backend)
+  #
+  # Why this pattern (2025 best practice):
+  #   - Home Assistant has no native OIDC, so we use the community
+  #     "OpenID Connect for Home Assistant" integration (hass-oidc-auth, via HACS). :contentReference[oaicite:0]{index=0}
+  #   - Authelia acts as OIDC provider backed by OpenLDAP, so HA logins
+  #     inherit LDAP users, groups and MFA from Authelia. :contentReference[oaicite:1]{index=1}
+  #   - No Caddy forward_auth here: HA talks OIDC directly to Authelia.
+  #     This keeps mobile apps and WebSockets happy.
+  #
+  # OIDC callback URL (hass-oidc-auth):
+  #   https://homeassistant.${DOMAIN}/auth/oidc/callback
+  #
+  # Authelia client (configuration.yml – example):
+  #   identity_providers:
+  #     oidc:
+  #       clients:
+  #         - client_id: 'home-assistant'
+  #           client_name: 'Home Assistant'
+  #           client_secret: <hashed or env-derived secret>
+  #           public: false
+  #           require_pkce: true
+  #           pkce_challenge_method: S256
+  #           authorization_policy: two_factor
+  #           redirect_uris:
+  #             - https://homeassistant.${DOMAIN}/auth/oidc/callback
+  #           scopes: [openid, profile, groups]
+  #           grant_types: [authorization_code]
+  #
+  # HA configuration.yaml (minimal OIDC + proxy hardening):
+  #   auth_oidc:
+  #     client_id: "home-assistant"
+  #     client_secret: !secret authelia_homeassistant_client_secret
+  #     discovery_url: "https://auth.${DOMAIN}/.well-known/openid-configuration"
+  #     display_name: "Authelia"
+  #     roles:
+  #       admin: "admins"   # LDAP 'admins' group → HA admin role :contentReference[oaicite:2]{index=2}
+  #
+  #   http:
+  #     use_x_forwarded_for: true
+  #     trusted_proxies:
+  #       - 172.21.0.0/24   # Caddy on backend network
+  #
+  #   homeassistant:
+  #     external_url: "https://homeassistant.${DOMAIN}"
+  #     internal_url: "http://homeassistant:8123"
+  #
+  # Security notes:
+  #   - Admin access controlled by Authelia group mapping (admins/users).
+  #   - Keep at least one local HA owner account as break-glass login.
+  #   - Rely on Authelia for MFA; you can still enable HA’s own 2FA if you like.
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    labels:
+      caddy: homeassistant.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 8123}}"
+    depends_on:
+      authelia:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - TZ=UTC        # or your local TZ, e.g. Australia/Hobart
+    volumes:
+      - homeassistant_config:/config
+      - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s

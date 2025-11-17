@@ -4,26 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="gettin testy">
+    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="towards llm">
       <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cleandocker.sh" beforeDir="false" afterPath="$PROJECT_DIR$/cleandocker.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/authelia/entrypoint.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/caddy/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/homeassistant/automations.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/homeassistant/configuration.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/homeassistant/custom_auth/auth_script.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/homeassistant/docker-build/.dockerignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/homeassistant/docker-build/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/homeassistant/scenes.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/homeassistant/scripts.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/homeassistant/themes/.gitkeep" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/openwebui/docker-build/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/openwebui/docker-build/caddy-ca.crt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/openwebui/docker-build/entrypoint_patch.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/openwebui/docker-build/install_cert.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/openwebui/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mailu/mailu.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs/mailu/mailu.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -251,7 +237,7 @@
       <workItem from="1763238783751" duration="417000" />
       <workItem from="1763239208773" duration="8638000" />
       <workItem from="1763270444174" duration="3558000" />
-      <workItem from="1763334504154" duration="7169000" />
+      <workItem from="1763334504154" duration="15100000" />
     </task>
     <task id="LOCAL-00001" summary="Remove unused services, configurations, and dependencies from project">
       <option name="closed" value="true" />
@@ -405,7 +391,15 @@
       <option name="project" value="LOCAL" />
       <updated>1761816179156</updated>
     </task>
-    <option name="localTasksCounter" value="20" />
+    <task id="LOCAL-00020" summary="towards llm">
+      <option name="closed" value="true" />
+      <created>1763344629279</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1763344629279</updated>
+    </task>
+    <option name="localTasksCounter" value="21" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -422,7 +416,8 @@
     <MESSAGE value="looking promising" />
     <MESSAGE value="jupter working" />
     <MESSAGE value="gettin testy" />
-    <option name="LAST_COMMIT_MESSAGE" value="gettin testy" />
+    <MESSAGE value="towards llm" />
+    <option name="LAST_COMMIT_MESSAGE" value="towards llm" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
