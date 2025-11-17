@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+
 echo "===> Stopping all running containers..."
 if [ -n "$(docker ps -q)" ]; then
   docker ps -q | xargs -r docker stop

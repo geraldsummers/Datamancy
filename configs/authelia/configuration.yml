@@ -60,6 +60,11 @@ access_control:
   rules:
     - domain: auth.project-saturn.com
       policy: bypass
+    # Home Assistant webhooks need bypass
+    - domain: homeassistant.project-saturn.com
+      policy: bypass
+      resources:
+        - "^/api/webhook/.*$"
     # Container management requires admin access
     - domain: dockge.project-saturn.com
       policy: one_factor
@@ -105,8 +110,6 @@ notifier:
 identity_providers:
   oidc:
     hmac_secret: another_very_important_secret # Will be overridden by env var
-    issuer_private_key: |
-      # Will be overridden by env var
     access_token_lifespan: 1h
     authorize_code_lifespan: 1m
     id_token_lifespan: 1h

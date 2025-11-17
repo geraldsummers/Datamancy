@@ -5,9 +5,26 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="gettin testy">
-      <change beforePath="$PROJECT_DIR$/.idea/Datamancy.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Datamancy.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cleandocker.sh" beforeDir="false" afterPath="$PROJECT_DIR$/cleandocker.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/caddy/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homeassistant/automations.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homeassistant/configuration.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homeassistant/custom_auth/auth_script.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homeassistant/docker-build/.dockerignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homeassistant/docker-build/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homeassistant/scenes.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homeassistant/scripts.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homeassistant/themes/.gitkeep" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/openwebui/docker-build/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/openwebui/docker-build/caddy-ca.crt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/openwebui/docker-build/entrypoint_patch.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/openwebui/docker-build/install_cert.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/openwebui/entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,12 +52,12 @@
     &quot;assignee&quot;: &quot;geraldsummers&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/geraldsummers/Datamancy.git",
-    "accountId": "b1194927-1ac2-494c-b5aa-2c2419a54fb7"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/geraldsummers/Datamancy.git&quot;,
+    &quot;accountId&quot;: &quot;9b7da7b4-b425-409b-8cfd-07b62b07f200&quot;
   }
-}]]></component>
+}</component>
   <component name="PackageJsonUpdateNotifier">
     <dismissed value="$PROJECT_DIR$/tests/package.json" />
   </component>
@@ -55,40 +72,42 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Docker.docker-compose.yml.ca-generator: Compose Deployment.executor": "Run",
-    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
-    "Docker.src.caddy: Compose Deployment.executor": "Run",
-    "Docker.src.docker-socket-proxy: Compose Deployment.executor": "Run",
-    "Docker.src.ragserve: Compose Deployment.executor": "Run",
-    "Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor": "Run",
-    "Docker.src: Compose Deployment (1).executor": "Run",
-    "Docker.src: Compose Deployment.executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "SHELLCHECK.PATH": "/home/gerald/.local/share/JetBrains/PyCharmCE2025.2/Shell Script/shellcheck",
-    "git-widget-placeholder": "master",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/gerald/Documents/IdeaProjects/Datamancy",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_interpreter_path": "node",
-    "nodejs_package_manager_path": "npm",
-    "project.structure.last.edited": "Modules",
-    "project.structure.proportion": "0.15",
-    "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "ml.llm.LLMConfigurable",
-    "to.speed.mode.migration.done": "true",
-    "ts.external.directory.path": "/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Docker.docker-compose.yml.ca-generator: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.docker-compose.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src.caddy: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src.docker-socket-proxy: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src.ragserve: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src: Compose Deployment (1).executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SHELLCHECK.PATH&quot;: &quot;/home/gerald/.local/share/JetBrains/PyCharmCE2025.2/Shell Script/shellcheck&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/gerald/Documents/IdeaProjects/Datamancy&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMThirdPartyAiProvidersConfigurable&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
@@ -102,7 +121,7 @@
       <recent name="$PROJECT_DIR$/src/grafana/provisioning/dashboards" />
     </key>
   </component>
-  <component name="RunManager" selected="Docker.docker-compose.yml.ca-generator: Compose Deployment">
+  <component name="RunManager" selected="Docker.docker-compose.yml: Compose Deployment">
     <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
       <deployment type="docker-compose.yml">
         <settings />
@@ -164,6 +183,11 @@
       </deployment>
       <method v="2" />
     </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Docker.docker-compose.yml: Compose Deployment" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
@@ -218,6 +242,16 @@
       <workItem from="1761787088502" duration="18453000" />
       <workItem from="1761808250055" duration="7996000" />
       <workItem from="1761824210747" duration="29549000" />
+      <workItem from="1762748250907" duration="102000" />
+      <workItem from="1762748380353" duration="10872000" />
+      <workItem from="1762813713545" duration="153000" />
+      <workItem from="1762814519918" duration="7653000" />
+      <workItem from="1762892557596" duration="3911000" />
+      <workItem from="1762896700340" duration="11168000" />
+      <workItem from="1763238783751" duration="417000" />
+      <workItem from="1763239208773" duration="8638000" />
+      <workItem from="1763270444174" duration="3558000" />
+      <workItem from="1763334504154" duration="7169000" />
     </task>
     <task id="LOCAL-00001" summary="Remove unused services, configurations, and dependencies from project">
       <option name="closed" value="true" />

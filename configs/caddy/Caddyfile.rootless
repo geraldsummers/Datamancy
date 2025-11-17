@@ -1,20 +1,22 @@
 {
 	admin off
-	email admin@project-saturn.com
+	auto_https off
 }
 
-# Authentication endpoint (no SSO protection)
-auth.project-saturn.com {
+# HTTP-only sites for local/rootless development. Use with docker-compose.rootless.override.yml
+
+# Auth endpoint
+http://auth.${DOMAIN}:8080 {
 	reverse_proxy authelia:9091
 }
 
-# Grafana (OAuth via application, not forward_auth)
-grafana.project-saturn.com {
+# Grafana
+http://grafana.${DOMAIN}:8080 {
 	reverse_proxy grafana:3000
 }
 
-# Adminer with SSO
-adminer.project-saturn.com {
+# Adminer
+http://adminer.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -22,8 +24,8 @@ adminer.project-saturn.com {
 	reverse_proxy adminer:8080
 }
 
-# pgAdmin with SSO
-pgadmin.project-saturn.com {
+# pgAdmin
+http://pgadmin.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -31,8 +33,8 @@ pgadmin.project-saturn.com {
 	reverse_proxy pgadmin:80
 }
 
-# Dockge with SSO
-dockge.project-saturn.com {
+# Dockge
+http://dockge.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -40,8 +42,8 @@ dockge.project-saturn.com {
 	reverse_proxy dockge:5001
 }
 
-# LDAP Account Manager with SSO
-lam.project-saturn.com {
+# LAM
+http://lam.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -49,8 +51,8 @@ lam.project-saturn.com {
 	reverse_proxy ldap-account-manager:80
 }
 
-# LocalAI with SSO
-localai.project-saturn.com {
+# LocalAI
+http://localai.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -58,18 +60,18 @@ localai.project-saturn.com {
 	reverse_proxy localai:8080
 }
 
-# LiteLLM with native OAuth (no forward_auth needed)
-litellm.project-saturn.com {
+# LiteLLM
+http://litellm.${DOMAIN}:8080 {
 	reverse_proxy litellm:4000
 }
 
-# Open WebUI with native OIDC (no forward_auth needed)
-open-webui.project-saturn.com {
+# Open WebUI
+http://open-webui.${DOMAIN}:8080 {
 	reverse_proxy open-webui:8080
 }
 
-# Kopia with SSO
-kopia.project-saturn.com {
+# Kopia
+http://kopia.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -78,47 +80,37 @@ kopia.project-saturn.com {
 }
 
 # Seafile
-seafile.project-saturn.com {
+http://seafile.${DOMAIN}:8080 {
 	reverse_proxy seafile:80
 }
 
-# OnlyOffice Document Server
-onlyoffice.project-saturn.com {
+# OnlyOffice
+http://onlyoffice.${DOMAIN}:8080 {
 	reverse_proxy onlyoffice:80
 }
 
 # Matrix Synapse
-matrix.project-saturn.com {
+http://matrix.${DOMAIN}:8080 {
 	reverse_proxy synapse:8008
 }
 
-# Well-known for Matrix (served here for apex convenience if needed)
-project-saturn.com {
-	@matrixServer path /.well-known/matrix/server
-	respond @matrixServer {"m.server":"matrix.project-saturn.com:443"}
-
-	@matrixClient path /.well-known/matrix/client
-	header @matrixClient Access-Control-Allow-Origin "*"
-	respond @matrixClient {"m.homeserver":{"base_url":"https://matrix.project-saturn.com"}}
-}
-
 # SOGo
-sogo.project-saturn.com {
+http://sogo.${DOMAIN}:8080 {
 	reverse_proxy sogo:20000
 }
 
-# Mailu web (admin/webmail through front)
-mail.project-saturn.com {
+# Mailu web
+http://mail.${DOMAIN}:8080 {
 	reverse_proxy mailu-front:80
 }
 
 # Akkoma
-akkoma.project-saturn.com {
+http://akkoma.${DOMAIN}:8080 {
 	reverse_proxy akkoma:4000
 }
 
-# Benthos with SSO
-benthos.project-saturn.com {
+# Benthos
+http://benthos.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -126,9 +118,8 @@ benthos.project-saturn.com {
 	reverse_proxy benthos:4195
 }
 
-
-# Home Assistant with SSO via forward_auth
-homeassistant.project-saturn.com {
+# Home Assistant
+http://homeassistant.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -136,18 +127,18 @@ homeassistant.project-saturn.com {
 	reverse_proxy homeassistant:8123
 }
 
-# Planka with native OIDC (no forward_auth needed)
-planka.project-saturn.com {
+# Planka
+http://planka.${DOMAIN}:8080 {
 	reverse_proxy planka:1337
 }
 
-# Outline with native OIDC (no forward_auth needed)
-outline.project-saturn.com {
+# Outline
+http://outline.${DOMAIN}:8080 {
 	reverse_proxy outline:3000
 }
 
-# Browserless with SSO
-browserless.project-saturn.com {
+# Browserless
+http://browserless.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -155,8 +146,8 @@ browserless.project-saturn.com {
 	reverse_proxy browserless:3000
 }
 
-# CouchDB with SSO
-couchdb.project-saturn.com {
+# CouchDB
+http://couchdb.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -164,8 +155,8 @@ couchdb.project-saturn.com {
 	reverse_proxy couchdb:5984
 }
 
-# ClickHouse with SSO
-clickhouse.project-saturn.com {
+# ClickHouse
+http://clickhouse.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -173,17 +164,16 @@ clickhouse.project-saturn.com {
 	reverse_proxy clickhouse:8123
 }
 
-# JupyterHub with native OIDC (no forward_auth needed)
-jupyterhub.project-saturn.com {
+# JupyterHub
+http://jupyterhub.${DOMAIN}:8080 {
 	reverse_proxy jupyterhub:8000
 }
 
-# Homepage Dashboard with SSO
-homepage.project-saturn.com {
+# Homepage
+http://homepage.${DOMAIN}:8080 {
 	forward_auth authelia:9091 {
 		uri /api/authz/forward-auth
 		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
 	}
 	reverse_proxy homepage:3000
 }
-

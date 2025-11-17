@@ -1,33 +1,65 @@
-# ================================================================================
-# Datamancy Stack - Docker Compose
-# ================================================================================
-#
-# PHILOSOPHY: Documentation as Infrastructure
-#
-# This compose file treats *intention* and *mechanics* as equally important to
-# the composition itself. Comments explain:
-#   - WHY each service exists (its role in the stack)
-#   - HOW it authenticates (auth method, callbacks, scopes)
-#   - WHERE it fits architecturally (client UI / API edge / internal backing)
-#
-# When debugging SSO flows, tracing dependencies, or onboarding new maintainers,
-# these inline annotations are often MORE valuable than external docs, because:
-#   1. They stay in sync with the actual config
-#   2. They're visible exactly where changes are made
-#   3. They form a living architectural record
-#   4. Documentation can be inaccurate; code + comments show ground truth
-#
-# Keep this documentation discipline as rigorously as you maintain the services.
-# Treat stale comments as bugs—they mislead as much as broken code.
-#
-# ================================================================================
 
 networks:
-  stack:
+  # Network Segmentation Strategy:
+  # - frontend: Public-facing reverse proxy (Caddy only)
+  # - backend: Application services (web apps, APIs)
+  # - database: Database services only (isolated)
+  # - auth: Authentication layer (Authelia, LDAP, Redis)
+  # - admin: Admin tools (Dockge, Kopia, LAM)
+  # - mail: Mail services (Mailu stack)
+  # - test: Testing infrastructure
+
+  frontend:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.18.0.0/16
+        - subnet: 172.20.0.0/24
+
+  backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+  database:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
+
+  auth:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/24
+
+  admin:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.24.0.0/24
+
+  admin-dockge:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.26.0.0/24
+
+  admin-jupyterhub:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.27.0.0/24
+
+  mail:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/24
+
+
   test:
     driver: bridge
     ipam:
@@ -52,10 +84,7 @@ volumes:
   kopia_data:
   kopia_cache:
   kopia_repository:
-  nextcloud_data:
   redis_data:
-  filebrowser_config:
-  filebrowser_database:
   shared_media:
   homeassistant_config:
   planka_data:
@@ -64,9 +93,128 @@ volumes:
   jupyterhub_data:
   litellm_config:
   homepage_config:
+  seafile_data:
+  seafile_mysql_data:
+  onlyoffice_data:
+  synapse_data:
+  mailu_data:
+  mailu_filter:
+  mailu_cert:
+  mailu_dkim:
+  sogo_data:
+  akkoma_uploads:
+  vaultwarden_data:
 
 services:
 
+  # ========================================
+  # AUTHENTICATION & AUTHORIZATION GUIDE
+  # ========================================
+  #
+  # ARCHITECTURE:
+  # ┌─────────┐    ┌─────────┐    ┌──────────┐    ┌─────────┐
+  # │  User   │───▶│  Caddy  │───▶│ Authelia │───▶│  LDAP   │
+  # └─────────┘    └─────────┘    └──────────┘    └─────────┘
+  #                     │               │
+  #                     ▼               ▼
+  #              ┌────────────┐   ┌──────────┐
+  #              │   Apps     │   │  OIDC    │
+  #              │ (Forward   │   │  Clients │
+  #              │   Auth)    │   │ (Native) │
+  #              └────────────┘   └──────────┘
+  #
+  # COMPONENTS:
+  # - LDAP (OpenLDAP): Centralized user directory (users, groups, passwords)
+  # - Authelia: OIDC Provider + SSO gateway + MFA enforcement + Forward-auth endpoint
+  # - Caddy: Reverse proxy with forward_auth middleware
+  # - Redis: Session storage for Authelia
+  #
+  # AUTHENTICATION METHODS (Priority Order):
+  #
+  # 1. ✅ NATIVE OIDC/OAuth2 (PREFERRED)
+  #    When: App has built-in OIDC/OAuth2 support
+  #    How: Configure OIDC client in Authelia configuration.yml
+  #    Pros: Native integration, role/group mapping, proper logout, token refresh
+  #    Apps: Grafana, Open-WebUI, Planka, Outline, JupyterHub, LiteLLM, Vaultwarden
+  #          Seafile, Synapse, Mailu (header-auth), Home Assistant, Akkoma
+  #
+  # 2. 🔒 FORWARD AUTH (Caddy → Authelia)
+  #    When: App lacks OIDC but trusts reverse proxy headers (X-Remote-User, X-Email)
+  #    How: Caddy forward_auth block → Authelia validates → passes headers to app
+  #    Pros: Simple setup, works with legacy apps, centralized policy enforcement
+  #    Cons: App must trust proxy headers, no native role mapping, logout requires Authelia
+  #    Apps: Dockge, Kopia, Homepage, LDAP Account Manager
+  #
+  # 3. 🔐 LDAP DIRECT (DEPRECATED)
+  #    When: Legacy apps with LDAP auth module but no OIDC
+  #    How: App binds directly to OpenLDAP for authentication
+  #    Cons: No SSO, credentials sent to each app, no MFA enforcement, harder to audit
+  #    Note: Prefer OIDC or forward-auth even for LDAP-capable apps
+  #
+  # 4. 🔓 SELF-CONTAINED AUTH (No SSO)
+  #    When: App requires independent identity for federation/protocol reasons
+  #    Why: Federation protocols (ActivityPub, Matrix), mail protocols (SMTP/IMAP)
+  #    Apps: Synapse (Matrix), Akkoma (ActivityPub), Mailu (mail), SOGo (groupware)
+  #    Note: Some support OIDC for web UI login but maintain separate identity layer
+  #
+  # 5. ⛔ NO AUTH (Internal Services)
+  #    When: Backend service with no user-facing interface
+  #    Security: Network isolation, not exposed via Caddy, credential-based API access
+  #    Apps: postgres, mariadb, redis, couchdb, clickhouse, memcached, docker-proxy, benthos
+  #
+  # OIDC-ENABLED SERVICES (Register these in Authelia):
+  # ┌──────────────────┬────────────────────────────────────────┬─────────────────────────┐
+  # │ Service          │ Callback URL                           │ Scopes                  │
+  # ├──────────────────┼────────────────────────────────────────┼─────────────────────────┤
+  # │ Grafana          │ /login/generic_oauth                   │ openid profile email    │
+  # │ Open-WebUI       │ /oauth/oidc/callback                   │ openid profile email    │
+  # │ Planka           │ /oidc-callback                         │ openid profile email    │
+  # │ Outline          │ /auth/oidc.callback                    │ openid profile email    │
+  # │ JupyterHub       │ /hub/oauth_callback                    │ openid email groups     │
+  # │ LiteLLM          │ /sso/callback                          │ openid profile email    │
+  # │ Vaultwarden      │ /identity/connect/oidc-signin          │ openid email profile    │
+  # │ Seafile          │ /oauth/callback/                       │ openid email profile    │
+  # │ Synapse          │ /_synapse/client/oidc/callback         │ openid                  │
+  # │ Mailu            │ N/A (header auth)                      │ N/A                     │
+  # │ Home Assistant   │ /auth/external/callback                │ openid email profile    │
+  # │ Akkoma           │ /oauth/local/callback                  │ openid email profile    │
+  # └──────────────────┴────────────────────────────────────────┴─────────────────────────┘
+  #
+  # FORWARD-AUTH SERVICES (Protect in Caddyfile):
+  # - Dockge: Admin tool, restrict to 'admins' group
+  # - Kopia: Backup admin, restrict to 'admins' group
+  # - Homepage: Dashboard, allow 'users' + 'admins'
+  # - LDAP Account Manager: User management, restrict to 'admins'
+  #
+  # LDAP STRUCTURE:
+  # dc=stack,dc=local
+  # ├── ou=users
+  # │   ├── cn=admin (admin user)
+  # │   ├── cn=user1
+  # │   └── cn=user2
+  # └── ou=groups
+  #     ├── cn=admins (full access)
+  #     └── cn=users (standard access)
+  #
+  # SECURITY BEST PRACTICES:
+  # ✅ Enable MFA in Authelia for all users (especially admins)
+  # ✅ Use unique OIDC client secrets per app (generated, stored in .env)
+  # ✅ Configure Authelia ACL policies to restrict admin routes
+  # ✅ Never expose internal services (databases, redis) to Caddy
+  # ✅ Use PKCE for OIDC flows where supported
+  # ✅ Enable HTTPS-only cookies in Authelia session config
+  # ✅ Rotate OIDC secrets periodically
+  # ✅ Review Authelia audit logs for suspicious activity
+  # ✅ Use strong LDAP admin password
+  # ✅ Implement rate limiting in Authelia to prevent brute force
+  #
+  # TROUBLESHOOTING:
+  # - OIDC redirect errors: Check callback URL in app config matches Authelia client
+  # - Forward-auth 401: Verify Caddy forward_auth config points to authelia:9091
+  # - Group mapping issues: Check LDAP groups membership and Authelia claims mapping
+  # - MFA problems: Verify TOTP time sync, check Authelia logs
+  # - Session timeout: Adjust session expiration in Authelia configuration.yml
+  #
   # ========================================
   # Client UI (human-facing apps)
   # ========================================
@@ -74,15 +222,44 @@ services:
   # ======================
   # Monitoring - Grafana
   # ======================
-  # Auth: Generic OAuth with Authelia (issuer/auth/token/userinfo)
-  #       Redirect: https://grafana.${DOMAIN}/login/generic_oauth
+  # Auth: ✅ NATIVE OIDC (PREFERRED METHOD)
+  #       OIDC Provider: Authelia via Generic OAuth (GF_AUTH_GENERIC_OAUTH_*)
+  #       Callback: https://grafana.${DOMAIN}/login/generic_oauth
   #       Scopes: openid email profile groups
+  #       Role Mapping: groups claim → Admin/Editor/Viewer based on LDAP groups
+  #         - admins group → Grafana Admin
+  #         - users group → Grafana Editor
+  #         - Others → Grafana Viewer
+  #
+  # Authelia Client Config Required:
+  #   client_id: grafana
+  #   client_secret: ${GRAFANA_OAUTH_SECRET}
+  #   redirect_uris: https://grafana.${DOMAIN}/login/generic_oauth
+  #   scopes: openid profile email groups
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.6.7
     container_name: grafana
     restart: unless-stopped
     networks:
-      - stack
+      - backend
+      - database
+    user: "472:472"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      authelia:
+        condition: service_healthy
     environment:
       - GF_DEFAULT_LOCALE=en_US
       - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN}
@@ -114,24 +291,51 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./configs/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ======================
   # AI Services
   # ======================
-  # Auth: OIDC env vars pointing to Authelia
+  # Auth: ✅ NATIVE OIDC (PREFERRED METHOD)
+  #       OIDC Provider: Authelia (OAUTH_CLIENT_ID, OPENID_PROVIDER_URL)
   #       Callback: https://open-webui.${DOMAIN}/oauth/oidc/callback
   #       Scopes: openid email profile groups
+  #       Role Mapping: OAUTH_ADMIN_ROLES + OAUTH_ALLOWED_ROLES
+  #         - admins, openwebui-admin → Admin access
+  #         - users → User access
+  #
+  # Authelia Client Config Required:
+  #   client_id: open-webui
+  #   client_secret: ${OPENWEBUI_OAUTH_SECRET}
+  #   redirect_uris: https://open-webui.${DOMAIN}/oauth/oidc/callback
+  #   scopes: openid email profile groups
   open-webui:
-    build:
-      context: ./configs/openwebui/docker-build
-      dockerfile: Dockerfile
-    image: datamancy/open-webui:latest
+    image: ghcr.io/open-webui/open-webui:0.3.32
     container_name: open-webui
     restart: unless-stopped
     networks:
-      - stack
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
-      - litellm
+      litellm:
+        condition: service_healthy
+      authelia:
+        condition: service_healthy
     environment:
       - WEBUI_URL=https://open-webui.${DOMAIN}
       - ENABLE_OAUTH_SIGNUP=true
@@ -152,58 +356,127 @@ services:
       - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
     volumes:
       - open_webui_data:/app/backend/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 
   # ======================
-  # Cloud Storage - Nextcloud
+  # Password Manager - Vaultwarden
   # ======================
-  # Auth: "OpenID Connect Login" app, issuer Authelia
-  #       Redirect: https://nextcloud.${DOMAIN}/index.php/apps/oidc_login/redirect_uri
+  # Auth: ✅ NATIVE OIDC (PREFERRED METHOD)
+  #       OIDC Provider: Authelia (SSO_AUTHORITY, SSO_CLIENT_ID, SSO_CLIENT_SECRET)
+  #       Callback: https://vaultwarden.${DOMAIN}/identity/connect/oidc-signin
   #       Scopes: openid email profile
-  nextcloud:
-    build:
-      context: ./configs/nextcloud/docker-build
-      dockerfile: Dockerfile
-    image: datamancy/nextcloud:latest
-    container_name: nextcloud
+  #       Role Mapping: N/A (Vaultwarden manages vault access internally)
+  #
+  # IMPORTANT: Master password still required for vault encryption (E2E security)
+  #            SSO only handles authentication, not vault decryption
+  #            SSO_ONLY=false allows local accounts as backup
+  #
+  # Authelia Client Config Required:
+  #   client_id: vaultwarden
+  #   client_secret: ${VAULTWARDEN_OAUTH_SECRET}
+  #   redirect_uris: https://vaultwarden.${DOMAIN}/identity/connect/oidc-signin
+  #   scopes: openid email profile
+  vaultwarden:
+    image: vaultwarden/server:1.34.3
+    container_name: vaultwarden
     restart: unless-stopped
+    user: "1000:1000"
     networks:
-      - stack
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
-      - postgres
-      - redis
+      authelia:
+        condition: service_healthy
+      mailu-smtp:
+        condition: service_healthy
     environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_DB=nextcloud
-      - POSTGRES_USER=nextcloud
-      - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
-      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
-      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
-      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.${DOMAIN}
-      - OVERWRITEPROTOCOL=https
-      - OVERWRITEHOST=nextcloud.${DOMAIN}
-      - OVERWRITECLIURL=https://nextcloud.${DOMAIN}
-      - REDIS_HOST=redis
-      - REDIS_HOST_PORT=6379
-      - TRUSTED_PROXIES=172.18.0.0/16
+      - DOMAIN=https://vaultwarden.${DOMAIN}
+      - SIGNUPS_ALLOWED=false
+      - SIGNUPS_VERIFY=true
+      - SIGNUPS_DOMAINS_WHITELIST=${MAIL_DOMAIN}
+      - INVITATIONS_ALLOWED=true
+      - SHOW_PASSWORD_HINT=false
+      - SSO_ENABLED=true
+      - SSO_ONLY=false
+      - SSO_SIGNUPS_MATCH_EMAIL=true
+      - SSO_AUTHORITY=https://auth.${DOMAIN}
+      - SSO_ISSUER=https://auth.${DOMAIN}
+      - SSO_CLIENT_ID=vaultwarden
+      - SSO_CLIENT_SECRET=${VAULTWARDEN_OAUTH_SECRET}
+      - SSO_SCOPES=openid email profile
+      - SSO_CALLBACK_PATH=/identity/connect/oidc-signin
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
+      - SMTP_HOST=mailu-smtp
+      - SMTP_FROM=vaultwarden@${MAIL_DOMAIN}
+      - SMTP_PORT=587
+      - SMTP_SECURITY=starttls
+      - SMTP_USERNAME=vaultwarden@${MAIL_DOMAIN}
+      - SMTP_PASSWORD=${VAULTWARDEN_SMTP_PASSWORD}
     volumes:
-      - nextcloud_data:/var/www/html
-      - ./configs/nextcloud/oidc-setup.sh:/docker-entrypoint-hooks.d/pre-installation/oidc-setup.sh:ro
-      - ./configs/nextcloud/post-installation-oidc.sh:/docker-entrypoint-hooks.d/post-installation/configure-oidc.sh:ro
+      - vaultwarden_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/alive"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ======================
   # Project Management
   # ======================
-  # Auth: Built-in OIDC (OIDC_* envs) to Authelia
-  #       Redirect: https://planka.${DOMAIN}/oidc-callback
-  #       Scopes: openid profile email groups, map groups → roles
+  # Auth: ✅ NATIVE OIDC (PREFERRED METHOD)
+  #       OIDC Provider: Authelia (OIDC_* envs)
+  #       Callback: https://planka.${DOMAIN}/oidc-callback
+  #       Scopes: openid profile email groups
+  #       Role Mapping: OIDC_ADMIN_ROLES='planka-admin' → Admin access
+  #
+  # Authelia Client Config Required:
+  #   client_id: planka
+  #   client_secret: ${PLANKA_OAUTH_SECRET}
+  #   redirect_uris: https://planka.${DOMAIN}/oidc-callback
+  #   scopes: openid profile email groups
   planka:
-    image: ghcr.io/plankanban/planka:latest
+    image: ghcr.io/plankanban/planka:1.26.3
     container_name: planka
     restart: unless-stopped
     networks:
-      - stack
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      authelia:
+        condition: service_healthy
     environment:
       - BASE_URL=https://planka.${DOMAIN}
       - DATABASE_URL=postgresql://planka:${PLANKA_DB_PASSWORD}@postgres:5432/planka
@@ -220,22 +493,49 @@ services:
     volumes:
       - planka_data:/app/public/user-avatars
       - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1337/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ======================
-  # Wiki / Docs
+  # Wiki / Docs - Outline
   # ======================
-  # Auth: OIDC to Authelia
-  #       Redirect: https://outline.${DOMAIN}/auth/oidc.callback
+  # Auth: ✅ NATIVE OIDC (PREFERRED METHOD)
+  #       OIDC Provider: Authelia (OIDC_CLIENT_ID, OIDC_*_URI)
+  #       Callback: https://outline.${DOMAIN}/auth/oidc.callback
   #       Scopes: openid profile email offline_access
+  #       Role Mapping: First user becomes admin, subsequent users need invite/permission
+  #
+  # Authelia Client Config Required:
+  #   client_id: outline
+  #   client_secret: ${OUTLINE_OAUTH_SECRET}
+  #   redirect_uris: https://outline.${DOMAIN}/auth/oidc.callback
+  #   scopes: openid offline_access profile email
   outline:
-    image: outlinewiki/outline:latest
+    image: outlinewiki/outline:0.87.3
     container_name: outline
     restart: unless-stopped
+    user: "1000:1000"
     networks:
-      - stack
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      authelia:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
       - SECRET_KEY=${OUTLINE_SECRET_KEY}
@@ -257,44 +557,727 @@ services:
       - FILE_STORAGE_LOCAL_ROOT_DIR=/var/lib/outline/data
     volumes:
       - outline_data:/var/lib/outline/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ======================
-  # File Server - FileBrowser
+  # Files - Seafile + OnlyOffice
   # ======================
-  # Auth: OIDC, issuer Authelia
-  #       Callback: https://filebrowser.${DOMAIN}/api/auth/oidc/callback
-  #       Scopes: openid profile email groups, set groups claim name
-  filebrowser:
-    image: filebrowser/filebrowser:latest
-    container_name: filebrowser
+  # Auth: ✅ NATIVE OIDC (SEAFILE) + JWT (ONLYOFFICE)
+  #       Seafile OIDC: Configured via seahub_settings.py (OAUTH_* envs)
+  #         Provider: Authelia
+  #         Callback: https://seafile.${DOMAIN}/oauth/callback/
+  #         Scopes: openid email profile
+  #         Note: Mount seahub_settings.py with OAUTH config or use env vars
+  #       OnlyOffice: JWT-based integration with Seafile, no direct user login
+  #       Memcached: Cache service for Seafile, no authentication
+  #       MariaDB-Seafile: Dedicated database, password-protected, network isolated
+  #
+  # Seafile OIDC Configuration (add to configs/seafile/seahub_settings.py):
+  #   ENABLE_OAUTH = True
+  #   OAUTH_ENABLE_INSECURE_TRANSPORT = False
+  #   OAUTH_CLIENT_ID = "seafile"
+  #   OAUTH_CLIENT_SECRET = "${SEAFILE_OAUTH_SECRET}"
+  #   OAUTH_REDIRECT_URL = "https://seafile.${DOMAIN}/oauth/callback/"
+  #   OAUTH_PROVIDER_DOMAIN = "auth.${DOMAIN}"
+  #   OAUTH_AUTHORIZATION_URL = "https://auth.${DOMAIN}/api/oidc/authorization"
+  #   OAUTH_TOKEN_URL = "https://auth.${DOMAIN}/api/oidc/token"
+  #   OAUTH_USER_INFO_URL = "https://auth.${DOMAIN}/api/oidc/userinfo"
+  #   OAUTH_SCOPE = ["openid", "email", "profile"]
+  #   OAUTH_ATTRIBUTE_MAP = {
+  #       "email": (True, "email"),
+  #       "name": (False, "name"),
+  #       "id": (False, "sub"),
+  #   }
+  #
+  # Authelia Client Config Required:
+  #   client_id: seafile
+  #   client_secret: ${SEAFILE_OAUTH_SECRET}
+  #   redirect_uris: https://seafile.${DOMAIN}/oauth/callback/
+  #   scopes: openid email profile
+  #
+  # ⛔ NO AUTH (Supporting Services):
+  #   - Memcached: Backend cache, no user interface
+  #   - MariaDB-Seafile: Database backend, network isolated
+  #   - OnlyOffice: Document editor, accessed via Seafile JWT
+  memcached:
+    image: memcached:1.6.39-alpine
+    container_name: seafile-memcached
     restart: unless-stopped
+    user: "11211:11211"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
     networks:
-      - stack
-    volumes:
-      - filebrowser_config:/config
-      - filebrowser_database:/database
-      - shared_media:/srv/media
-      - ./configs/filebrowser/entrypoint.sh:/entrypoint.sh:ro
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "echo stats | nc localhost 11211"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mariadb-seafile:
+    image: mariadb:11.6.2
+    container_name: mariadb-seafile
+    restart: unless-stopped
+    user: "999:999"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     environment:
-      - FB_NOAUTH=false
-      - FB_BASEURL=/
-    entrypoint: ["/entrypoint.sh"]
+      - MYSQL_ROOT_PASSWORD=${MARIADB_SEAFILE_ROOT_PASSWORD}
+      - MYSQL_DATABASE=seafile
+      - MYSQL_USER=seafile
+      - MYSQL_PASSWORD=${MARIADB_SEAFILE_PASSWORD}
+    volumes:
+      - seafile_mysql_data:/var/lib/mysql
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_SEAFILE_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  seafile:
+    image: seafileltd/seafile-mc:13.0.12
+    container_name: seafile
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    depends_on:
+      memcached:
+        condition: service_healthy
+      mariadb-seafile:
+        condition: service_healthy
+      authelia:
+        condition: service_healthy
+    environment:
+      - TZ=UTC
+      - DB_HOST=mariadb-seafile
+      - DB_ROOT_PASSWD=${MARIADB_SEAFILE_ROOT_PASSWORD}
+      - SEAFILE_SERVER_HOSTNAME=seafile.${DOMAIN}
+      - SEAFILE_ADMIN_EMAIL=${SEAFILE_ADMIN_EMAIL}
+      - SEAFILE_ADMIN_PASSWORD=${SEAFILE_ADMIN_PASSWORD}
+      - TIME_ZONE=UTC
+    volumes:
+      - seafile_data:/shared
+      - ./configs/seafile/seahub_settings.py:/opt/seafile/conf/seahub_settings.py:ro
+    networks:
+      - backend
+      - test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  onlyoffice:
+    image: onlyoffice/documentserver:8.2.2
+    container_name: onlyoffice
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    environment:
+      - TZ=UTC
+      - JWT_ENABLED=true
+      - JWT_SECRET=${ONLYOFFICE_JWT_SECRET}
+      - JWT_HEADER=Authorization
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+    networks:
+      - backend
+      - test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/healthcheck"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 2m
 
   # ======================
-  # Home Automation
+  # Matrix (Synapse)
   # ======================
-  # Auth: Caddy forward-auth to Authelia (trusted proxy)
-  #       Pass Remote-User/email headers; HA's own external auth disabled
+  # Auth: ✅ NATIVE OIDC (WEB LOGIN) + 🔓 SELF-CONTAINED (FEDERATION)
+  #       OIDC: Optional for web/Element login via Authelia (oidc_providers in homeserver.yaml)
+  #       Callback: https://matrix.${DOMAIN}/_synapse/client/oidc/callback
+  #       Scopes: openid
+  #       Federation: Matrix protocol requires local user accounts (@user:matrix.${DOMAIN})
+  #       Note: OIDC authenticates web access, but Matrix ID remains on local server
+  #       Redis-synapse: Session cache for Synapse, no authentication
+  #
+  # Synapse OIDC Configuration (add to configs/synapse/homeserver.yaml):
+  #   oidc_providers:
+  #     - idp_id: authelia
+  #       idp_name: "Authelia SSO"
+  #       issuer: "https://auth.${DOMAIN}"
+  #       client_id: "synapse"
+  #       client_secret: "${SYNAPSE_OAUTH_SECRET}"
+  #       scopes: ["openid"]
+  #       user_mapping_provider:
+  #         config:
+  #           localpart_template: "{{ user.preferred_username }}"
+  #           display_name_template: "{{ user.name }}"
+  #
+  # Authelia Client Config Required:
+  #   client_id: synapse
+  #   client_secret: ${SYNAPSE_OAUTH_SECRET}
+  #   redirect_uris: https://matrix.${DOMAIN}/_synapse/client/oidc/callback
+  #   scopes: openid
+  #
+  # ⛔ NO AUTH (Supporting Services):
+  #   - Redis-synapse: Backend cache, no user interface
+  redis-synapse:
+    image: redis:7.4.7-alpine
+    container_name: redis-synapse
+    restart: unless-stopped
+    user: "999:999"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  synapse:
+    image: matrixdotorg/synapse:v1.141.0
+    container_name: synapse
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    depends_on:
+      redis-synapse:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - SYNAPSE_SERVER_NAME=matrix.${DOMAIN}
+      - SYNAPSE_REPORT_STATS=yes
+      - SYNAPSE_ENABLE_REGISTRATION=${MATRIX_ENABLE_REGISTRATION:-false}
+      - SYNAPSE_TRUSTED_PROXIES=172.18.0.0/16,172.21.0.0/24
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=synapse
+      - POSTGRES_USER=synapse
+      - POSTGRES_PASSWORD=${SYNAPSE_DB_PASSWORD}
+      - REDIS_HOST=redis-synapse
+    volumes:
+      - synapse_data:/data
+      - ./configs/synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./configs/synapse/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/entrypoint.sh"]
+    networks:
+      - backend
+      - test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ======================
+  # Mail - Mailu stack
+  # ======================
+  # Auth: ✅ OIDC HEADER AUTH (ADMIN UI) + 🔓 SELF-CONTAINED (MAIL PROTOCOLS)
+  #       Admin UI: OIDC via reverse proxy header authentication (Mailu 2024.06+)
+  #         Configure Caddy to inject authentication headers from Authelia
+  #         Mailu reads X-Remote-User header for SSO authentication
+  #       SMTP/IMAP/POP3: Direct username+password authentication (no SSO possible)
+  #       Webmail (Roundcube): Authenticates against Mailu IMAP backend
+  #       Redis: Internal cache for Mailu services
+  #
+  # Mailu Header Auth Configuration (mailu.env):
+  #   PROXY_AUTH_HEADER=X-Remote-User
+  #   PROXY_AUTH_CREATE=True
+  #   PROXY_AUTH_WHITELIST=172.18.0.0/16
+  #
+  # Caddy Configuration (add forward_auth to mail.${DOMAIN} route):
+  #   forward_auth authelia:9091 {
+  #     uri /api/verify?rd=https://auth.${DOMAIN}
+  #     copy_headers Remote-User Remote-Email
+  #   }
+  #
+  # Note: Mail protocols (SMTP/IMAP) CANNOT use SSO due to protocol limitations
+  #       Users must use traditional email+password for mail clients
+  #       SSO only applies to web admin UI and webmail via browser
+  #
+  # Authelia ACL Policy Required:
+  #   - domain: mail.${DOMAIN}
+  #     policy: two_factor
+  #     subject: group:admins
+  #
+  # ⛔ NO AUTH (Supporting Services):
+  #   - Mailu-redis: Backend cache, no user interface
+  #   - Mailu-antivirus, antispam: Mail processing, no direct access
+  mailu-front:
+    image: ghcr.io/mailu/nginx:2024.06.45
+    container_name: mailu-front
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    env_file:
+      - ./configs/mailu/mailu.env
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "110:110"
+      - "995:995"
+      - "143:143"
+      - "993:993"
+    volumes:
+      - mailu_cert:/certs
+      - mailu_dkim:/dkim
+    networks:
+      - mail
+      - test
+    depends_on:
+      mailu-admin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  mailu-redis:
+    image: redis:7.4.7-alpine
+    container_name: mailu-redis
+    restart: unless-stopped
+    user: "999:999"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    networks:
+      - mail
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  mailu-antispam:
+    image: ghcr.io/mailu/rspamd:2024.06.45
+    container_name: mailu-antispam
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    env_file:
+      - ./configs/mailu/mailu.env
+    volumes:
+      - mailu_filter:/var/lib/rspamd
+    networks:
+      - mail
+    depends_on:
+      mailu-admin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "rspamc", "stat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  mailu-antivirus:
+    image: ghcr.io/mailu/clamav:2.0.43
+    container_name: mailu-antivirus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    env_file:
+      - ./configs/mailu/mailu.env
+    networks:
+      - mail
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 5m
+
+  mailu-imap:
+    image: ghcr.io/mailu/dovecot:2024.06.45
+    container_name: mailu-imap
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    env_file:
+      - ./configs/mailu/mailu.env
+    volumes:
+      - mailu_data:/data
+    networks:
+      - mail
+    depends_on:
+      mailu-admin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "doveadm", "director", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  mailu-smtp:
+    image: ghcr.io/mailu/postfix:2024.06.45
+    container_name: mailu-smtp
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    env_file:
+      - ./configs/mailu/mailu.env
+    volumes:
+      - mailu_data:/data
+      - mailu_dkim:/dkim
+    networks:
+      - mail
+      - backend
+    depends_on:
+      mailu-admin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "postfix", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  mailu-admin:
+    image: ghcr.io/mailu/admin:2024.06.45
+    container_name: mailu-admin
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    env_file:
+      - ./configs/mailu/mailu.env
+    volumes:
+      - mailu_data:/data
+    networks:
+      - mail
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailu-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-L", "http://localhost:8080/admin/ui"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mailu-webmail:
+    image: ghcr.io/mailu/webmail:2024.06.45
+    container_name: mailu-webmail
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    env_file:
+      - ./configs/mailu/mailu.env
+    volumes:
+      - ./configs/mailu/nginx-override.conf:/overrides/nginx/roundcube.conf:ro
+    networks:
+      - mail
+    depends_on:
+      mailu-admin:
+        condition: service_healthy
+      mailu-imap:
+        condition: service_healthy
+      mailu-front:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ======================
+  # Groupware - SOGo
+  # ======================
+  # Auth: 🔓 SELF-CONTAINED (IMAP/SMTP AUTH) - ⚠️ NO OIDC SUPPORT
+  #       SOGo: Authenticates users against Mailu IMAP backend
+  #       SOGO_MAIL_SERVER: mailu-imap (SOGo proxies login to mail server)
+  #       No separate user database - uses Mailu user accounts
+  #       SAML: SOGo supports SAML SSO (not OIDC), but complex config required
+  #       Why not OIDC: SOGo does NOT support OpenID Connect (SAML only)
+  #       User management: Create users in Mailu, SOGo recognizes them automatically
+  #
+  # Alternative: Could configure SOGo SAML with Authelia (requires authelia SAML support)
+  #   But SAML config is complex and provides minimal benefit for groupware use case
+  #   Prefer: Protect SOGo route with Caddy forward-auth for extra security layer
+  #
+  # Recommended Caddy Config (optional extra auth):
+  #   forward_auth authelia:9091 {
+  #     uri /api/verify?rd=https://auth.${DOMAIN}
+  #   }
+  #   Then SOGo still requires IMAP credentials after SSO gate
+  #
+  # ⛔ NO AUTH (Supporting Services):
+  #   - SOGo data volume: File storage, no interface
+  sogo:
+    image: pmietlicki/sogo:v5
+    container_name: sogo
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    environment:
+      - SOGO_WORKERS=1
+      - SOGO_SIEVE_SCRIPTS_ENABLED=YES
+      - SOGO_DOMAIN=${MAIL_DOMAIN}
+      - SOGO_WEB_LOGIN_ENABLE_EMAIL_LOGIN=YES
+      - SOGO_MAIL_SERVER=mailu-imap
+      - SOGO_SOGOIMAPSERVERS=mailu-imap:143
+      - SOGO_SOGOSMTPSERVERS=mailu-smtp:587
+      - SOGO_SOGoSMTPAuthenticationType=PLAIN
+      - SOGO_SOGoIMAPServer=imap
+      - TZ=UTC
+    volumes:
+      - sogo_data:/var/lib/sogo
+    depends_on:
+      mailu-imap:
+        condition: service_healthy
+      mailu-smtp:
+        condition: service_healthy
+    networks:
+      - backend
+      - mail
+      - test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:20000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ======================
+  # Microblog - Akkoma
+  # ======================
+  # Auth: ✅ NATIVE OAUTH (OPTIONAL SSO) + 🔓 SELF-CONTAINED (FEDERATION)
+  #       OAuth: Akkoma supports OAuth consumer for web login (oauth_consumer_strategies)
+  #       OIDC: Can configure generic OIDC provider in config.exs
+  #       Federation: ActivityPub requires local user accounts (@user@akkoma.${DOMAIN})
+  #       Note: OIDC for initial signup/login, but Akkoma maintains local identity
+  #
+  # Akkoma OAuth Configuration (add to configs/akkoma/config.exs):
+  #   config :ueberauth, Ueberauth,
+  #     providers: [
+  #       authelia: {Ueberauth.Strategy.OIDC, [
+  #         client_id: "akkoma",
+  #         client_secret: "${AKKOMA_OAUTH_SECRET}",
+  #         discovery_document_uri: "https://auth.${DOMAIN}/.well-known/openid-configuration",
+  #         scopes: "openid email profile",
+  #         uid_field: "sub"
+  #       ]}
+  #     ]
+  #   config :pleroma, :oauth_consumer_strategies, ["authelia"]
+  #
+  # Authelia Client Config Required:
+  #   client_id: akkoma
+  #   client_secret: ${AKKOMA_OAUTH_SECRET}
+  #   redirect_uris: https://akkoma.${DOMAIN}/oauth/local/callback
+  #   scopes: openid email profile
+  #
+  # Note: Most admins prefer local Akkoma accounts for federation simplicity
+  #       OIDC optional for centralized user management in closed instances
+  akkoma:
+    image: teslamint/akkoma:v3.16.0
+    container_name: akkoma
+    restart: unless-stopped
+    environment:
+      - MIX_ENV=prod
+      - INSTANCE_NAME=${AKKOMA_INSTANCE_NAME}
+      - INSTANCE_HOST=akkoma.${DOMAIN}
+      - PORT=4000
+      - DB_HOST=db
+      - DB_NAME=akkoma
+      - DB_USER=akkoma
+      - DB_PASS=${AKKOMA_DB_PASSWORD}
+      - DATABASE_HOST=postgres
+      - DATABASE_NAME=akkoma
+      - DATABASE_USER=akkoma
+      - DATABASE_PASSWORD=${AKKOMA_DB_PASSWORD}
+      - SECRET_KEY_BASE=${AKKOMA_SECRET_KEY}
+      - SIGNING_SALT=${AKKOMA_SIGNING_SALT}
+      - UPLOADS_DIR=/var/lib/akkoma/uploads
+      - AKKOMA_UPLOAD_BASE_URL=https://akkoma.${DOMAIN}/media
+    volumes:
+      - akkoma_uploads:/var/lib/akkoma/uploads
+      - ./configs/akkoma/config.exs:/opt/akkoma/config/prod.secret.exs:ro
+      - ./configs/akkoma/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/entrypoint.sh"]
+    networks:
+      - backend
+      - test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/v1/instance"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+
+  # ======================
+  # Home Automation - Home Assistant
+  # ======================
+  # Auth: ✅ NATIVE OIDC (via custom integration) OR 🔒 FORWARD AUTH
+  #       Option A - OIDC (Recommended): Custom integration hass-auth-header + Authelia
+  #         Install: https://github.com/BeryJu/hass-auth-header
+  #         Provides proper OIDC login flow with native HA user mapping
+  #       Option B - Forward Auth: Caddy forward_auth → Authelia → trusted headers
+  #         Configure trusted_networks auth provider in configuration.yaml
+  #         Pass X-Remote-User header from Authelia
+  #       Current: Using Option B (forward-auth) for simplicity
+  #
+  # Home Assistant OIDC Configuration (Option A - if switching to custom integration):
+  #   Install hass-auth-header via HACS
+  #   Add to configuration.yaml:
+  #     http:
+  #       use_x_forwarded_for: true
+  #       trusted_proxies:
+  #         - 172.18.0.0/16
+  #     auth_header:
+  #       oidc:
+  #         enabled: true
+  #         issuer: https://auth.${DOMAIN}
+  #         client_id: homeassistant
+  #         client_secret: ${HOMEASSISTANT_OAUTH_SECRET}
+  #         redirect_uri: https://homeassistant.${DOMAIN}/auth/external/callback
+  #
+  # Authelia Client Config Required (for OIDC):
+  #   client_id: homeassistant
+  #   client_secret: ${HOMEASSISTANT_OAUTH_SECRET}
+  #   redirect_uris: https://homeassistant.${DOMAIN}/auth/external/callback
+  #   scopes: openid email profile
+  #
+  # Current Forward-Auth Config (Option B):
+  #   Caddy injects Remote-User header from Authelia
+  #   HA trusted_networks provider trusts 172.18.0.0/16 (Caddy proxy)
+  #   Works but less elegant than native OIDC
   homeassistant:
-    build:
-      context: ./configs/homeassistant/docker-build
-      dockerfile: Dockerfile
-    image: datamancy/homeassistant:latest
+    image: homeassistant/home-assistant:2025.11.2
     container_name: homeassistant
     restart: unless-stopped
+    user: "1000:1000"
     networks:
-      - stack
-    privileged: true
+      - backend
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BIND_SERVICE
+    security_opt:
+      - seccomp=./configs/homeassistant/seccomp-profile.json
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     volumes:
       - homeassistant_config:/config
       - ./configs/homeassistant/configuration.yaml:/config/configuration.yaml:ro
@@ -310,19 +1293,55 @@ services:
       - HA_ADMIN_USER=${STACK_ADMIN_USER}
       - HA_ADMIN_NAME=Administrator
     entrypoint: /ha-entrypoint.sh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 
   # ======================
   # Dashboard - Homepage
   # ======================
-  # Auth: Caddy forward-auth to Authelia (native OIDC is limited)
-  #       Or front with oauth2-proxy pointing at Authelia
+  # Auth: 🔒 FORWARD AUTH (NO NATIVE OIDC)
+  #       Homepage: Does NOT support native OIDC (feature requested but not implemented)
+  #       Solution: Caddy forward_auth → Authelia protects entire route
+  #       Access Control: Configure Authelia ACL policy to allow 'users' + 'admins' groups
+  #
+  # Caddy Configuration Required:
+  #   homepage.${DOMAIN} {
+  #     forward_auth authelia:9091 {
+  #       uri /api/verify?rd=https://auth.${DOMAIN}
+  #       copy_headers Remote-User Remote-Email
+  #     }
+  #     reverse_proxy homepage:3000
+  #   }
+  #
+  # Authelia ACL Policy Required:
+  #   - domain: homepage.${DOMAIN}
+  #     policy: one_factor
+  #     subject:
+  #       - group:users
+  #       - group:admins
+  #
+  # Note: Homepage has no concept of logged-in user, it's a dashboard
+  #       Forward-auth simply gates access, doesn't provide personalization
   homepage:
-    image: ghcr.io/gethomepage/homepage:latest
+    image: ghcr.io/gethomepage/homepage:v1.7.0
     container_name: homepage
     restart: unless-stopped
     networks:
-      - stack
+      - backend
+      - admin
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
     environment:
       - PUID=1000
       - PGID=1000
@@ -334,13 +1353,28 @@ services:
       - ./configs/homepage/widgets.yaml:/app/config/widgets.yaml:ro
       - ./configs/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
       - ./configs/homepage/docker.yaml:/app/config/docker.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # ======================
   # JupyterHub
   # ======================
-  # Auth: GenericOAuthenticator with Authelia (auth/token/userinfo)
+  # Auth: ✅ NATIVE OIDC (PREFERRED METHOD)
+  #       OIDC Provider: Authelia via GenericOAuthenticator
   #       Callback: https://jupyterhub.${DOMAIN}/hub/oauth_callback
   #       Scopes: openid email groups
+  #       Role Mapping: groups claim → admin_users list in jupyterhub_config.py
+  #         - admins group → JupyterHub admin access
+  #
+  # Authelia Client Config Required:
+  #   client_id: jupyterhub
+  #   client_secret: ${JUPYTERHUB_OAUTH_SECRET}
+  #   redirect_uris: https://jupyterhub.${DOMAIN}/hub/oauth_callback
+  #   scopes: openid email groups
   jupyterhub:
     build:
       context: ./configs/jupyterhub
@@ -348,10 +1382,14 @@ services:
     container_name: jupyterhub
     restart: unless-stopped
     networks:
-      - stack
+      - backend
+      - admin
+      - admin-jupyterhub
     depends_on:
-      - authelia
-      - docker-proxy
+      authelia:
+        condition: service_healthy
+      docker-proxy:
+        condition: service_started
     environment:
       - DOMAIN=${DOMAIN}
       - JUPYTERHUB_OAUTH_SECRET=${JUPYTERHUB_OAUTH_SECRET}
@@ -359,17 +1397,55 @@ services:
     volumes:
       - jupyterhub_data:/srv/jupyterhub
       - ./configs/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/hub/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ======================
-  # Container Management
+  # Container Management - Dockge
   # ======================
-  # Auth: No native OIDC — protect via Caddy forward-auth to Authelia
+  # Auth: 🔒 FORWARD AUTH (NO NATIVE OIDC) - ADMIN ONLY
+  #       Dockge: Does NOT support native OIDC authentication
+  #       Solution: Caddy forward_auth → Authelia protects route (admin access only)
+  #       Dockge User: Still create local admin account (DOCKGE_ADMIN_USER)
+  #         Forward-auth acts as outer security gate
+  #         Dockge login acts as inner security confirmation
+  #
+  # Caddy Configuration Required:
+  #   dockge.${DOMAIN} {
+  #     forward_auth authelia:9091 {
+  #       uri /api/verify?rd=https://auth.${DOMAIN}
+  #       copy_headers Remote-User Remote-Email
+  #     }
+  #     reverse_proxy dockge:5001
+  #   }
+  #
+  # Authelia ACL Policy Required (RESTRICT TO ADMINS):
+  #   - domain: dockge.${DOMAIN}
+  #     policy: two_factor
+  #     subject: group:admins
+  #
+  # Security: Two-layer auth (Authelia SSO + Dockge local login)
+  #           Prevents unauthorized container manipulation
   dockge:
-    image: louislam/dockge:latest
+    image: louislam/dockge:1
     container_name: dockge
     restart: unless-stopped
+    user: "1000:1000"
     networks:
-      - stack
+      - admin
+      - admin-dockge
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
     depends_on:
       - docker-proxy
     volumes:
@@ -383,15 +1459,16 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
+      start_period: 10s
 
   # ======================
   # Dockge Init - Auto-create admin account
   # ======================
   dockge-init:
-    image: node:20-alpine
+    image: node:20.18.1-alpine
     container_name: dockge-init
     networks:
-      - stack
+      - admin
     depends_on:
       dockge:
         condition: service_healthy
@@ -408,13 +1485,45 @@ services:
   # ======================
   # Backup - Kopia
   # ======================
-  # Auth: Caddy forward-auth to Authelia; restrict to admin group via policy
+  # Auth: 🔒 FORWARD AUTH (NO NATIVE OIDC) - ADMIN ONLY
+  #       Kopia: Does NOT support OIDC (uses HTTP Basic Auth by default)
+  #       Solution: Caddy forward_auth → Authelia protects route (admin access only)
+  #       Kopia Server: Configure with --server-username/--server-password
+  #         Forward-auth acts as outer SSO gate
+  #         Kopia Basic Auth acts as inner security layer
+  #
+  # Caddy Configuration Required:
+  #   kopia.${DOMAIN} {
+  #     forward_auth authelia:9091 {
+  #       uri /api/verify?rd=https://auth.${DOMAIN}
+  #       copy_headers Remote-User Remote-Email
+  #     }
+  #     reverse_proxy kopia:51515
+  #   }
+  #
+  # Authelia ACL Policy Required (RESTRICT TO ADMINS):
+  #   - domain: kopia.${DOMAIN}
+  #     policy: two_factor
+  #     subject: group:admins
+  #
+  # Security: Backup access should be heavily restricted
+  #           Two-factor auth + admin group required
+  #           Consider disabling Kopia UI entirely for production
   kopia:
-    image: kopia/kopia:latest
+    image: kopia/kopia:0.18.2
     container_name: kopia
     restart: unless-stopped
+    user: "1000:1000"
     networks:
-      - stack
+      - admin
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     volumes:
       - kopia_data:/app/config
       - kopia_cache:/app/cache
@@ -426,6 +1535,12 @@ services:
       - KOPIA_REPO_PATH=/repository
       - USER=kopia
     entrypoint: /init-kopia.sh
+    healthcheck:
+      test: ["CMD", "kopia", "repository", "status"]
+      interval: 5m
+      timeout: 30s
+      retries: 3
+      start_period: 1m
 
 
   # ========================================
@@ -435,16 +1550,39 @@ services:
   # ======================
   # AI Gateway - LiteLLM (OpenAI-compatible API)
   # ======================
+  # Auth: ✅ NATIVE OIDC (UI LOGIN) + 🔑 API KEY (PROGRAMMATIC)
+  #       UI Auth: OIDC via Generic provider (GENERIC_CLIENT_ID, GENERIC_*_ENDPOINT)
+  #       API Auth: LITELLM_MASTER_KEY for OpenAI-compatible endpoints
+  #       Callback: https://litellm.${DOMAIN}/sso/callback
+  #       Scopes: openid profile email groups
+  #       Role Mapping: groups claim → admin/user access in LiteLLM
+  #
+  # Authelia Client Config Required:
+  #   client_id: litellm
+  #   client_secret: ${LITELLM_OAUTH_SECRET}
+  #   redirect_uris: https://litellm.${DOMAIN}/sso/callback
+  #   scopes: openid profile email groups
   litellm:
-    image: ghcr.io/berriai/litellm:main-latest
+    image: ghcr.io/berriai/litellm:v1.74.9-stable.patch.1
     container_name: litellm
     restart: unless-stopped
     networks:
-      - stack
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     depends_on:
-      - localai
-      - postgres
-      - authelia
+      localai:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      authelia:
+        condition: service_healthy
     volumes:
       - litellm_config:/app/config
       - ./configs/litellm/config.yaml:/app/config.yaml:ro
@@ -465,25 +1603,34 @@ services:
       - GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=name
       - UI_USERNAME=admin
       - UI_PASSWORD=${LITELLM_MASTER_KEY}
-    command: --config /app/config.yaml --port 4000 --num_workers 4 --detailed_debug
+    command: --config /app/config.yaml --port 4000 --num_workers 4
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ======================
   # SSO - Authelia (OIDC/OAuth endpoints; has a login UI)
   # ======================
   authelia:
-    image: authelia/authelia:latest
+    image: authelia/authelia:4.39.13
     container_name: authelia
     restart: unless-stopped
+    user: "1000:1000"
     networks:
-      - stack
+      - auth
+      - backend
     depends_on:
       ldap:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - authelia_data:/config
       - ./configs/authelia/configuration.yml:/config/configuration.yml:ro
+      - ./configs/authelia/issuer.key:/config/issuer.key:ro
       - ./configs/authelia/entrypoint.sh:/entrypoint.sh:ro
     entrypoint: ["/entrypoint.sh"]
     command: ["--config", "/config/configuration.yml"]
@@ -493,37 +1640,62 @@ services:
       - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET}
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_OIDC_HMAC_SECRET}
-      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${AUTHELIA_OIDC_ISSUER_PRIVATE_KEY}
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY_FILE=/config/issuer.key
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER=https://auth.${DOMAIN}
       - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ======================
   # Reverse Proxy - Caddy (reverse proxy / TLS edge)
   # ======================
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.8.4-alpine
     container_name: caddy
     restart: unless-stopped
+    user: "1000:1000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
     networks:
-      stack:
+      frontend:
+      backend:
         aliases:
           - grafana.${DOMAIN}
+          - open-webui.${DOMAIN}
+          - vaultwarden.${DOMAIN}
+          - planka.${DOMAIN}
+          - outline.${DOMAIN}
+          - jupyterhub.${DOMAIN}
+          - homepage.${DOMAIN}
+          - seafile.${DOMAIN}
+          - onlyoffice.${DOMAIN}
+          - matrix.${DOMAIN}
+          - sogo.${DOMAIN}
+          - homeassistant.${DOMAIN}
+          - akkoma.${DOMAIN}
+          - litellm.${DOMAIN}
+      auth:
+        aliases:
           - auth.${DOMAIN}
+      admin:
+        aliases:
+          - kopia.${DOMAIN}
           - adminer.${DOMAIN}
           - pgadmin.${DOMAIN}
           - portainer.${DOMAIN}
-          - localai.${DOMAIN}
-          - litellm.${DOMAIN}
-          - open-webui.${DOMAIN}
-          - browserless.${DOMAIN}
-          - nextcloud.${DOMAIN}
-          - filebrowser.${DOMAIN}
-          - homeassistant.${DOMAIN}
-          - planka.${DOMAIN}
-          - outline.${DOMAIN}
-          - kopia.${DOMAIN}
-          - jupyterhub.${DOMAIN}
-          - homepage.${DOMAIN}
+      mail:
+        aliases:
+          - mail.${DOMAIN}
       test:
         aliases:
           - grafana.${DOMAIN}
@@ -535,14 +1707,19 @@ services:
           - litellm.${DOMAIN}
           - open-webui.${DOMAIN}
           - browserless.${DOMAIN}
-          - nextcloud.${DOMAIN}
-          - filebrowser.${DOMAIN}
           - homeassistant.${DOMAIN}
+          - vaultwarden.${DOMAIN}
           - planka.${DOMAIN}
           - outline.${DOMAIN}
           - kopia.${DOMAIN}
           - jupyterhub.${DOMAIN}
           - homepage.${DOMAIN}
+          - seafile.${DOMAIN}
+          - onlyoffice.${DOMAIN}
+          - matrix.${DOMAIN}
+          - sogo.${DOMAIN}
+          - mail.${DOMAIN}
+          - akkoma.${DOMAIN}
     ports:
       - "80:80"
       - "443:443"
@@ -553,6 +1730,12 @@ services:
       - caddy_config:/config
     environment:
       - ACME_AGREE=true
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 
   # ========================================
@@ -562,12 +1745,24 @@ services:
   # ======================
   # LDAP Directory
   # ======================
+  # Auth: N/A - Backend service, no user-facing UI
+  #       Authelia binds as cn=admin to authenticate users
+  #       LDAP Account Manager provides admin UI (protected by Caddy forward-auth)
+  #       Direct LDAP binding by apps discouraged; use Authelia OIDC instead
   ldap:
     image: osixia/openldap:1.5.0
     container_name: ldap
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
     networks:
-      - stack
+      - auth
     environment:
       - LDAP_ORGANISATION=Datamancy
       - LDAP_DOMAIN=stack.local
@@ -590,12 +1785,24 @@ services:
   # ======================
   # LDAP Account Manager
   # ======================
+  # Auth: Caddy forward-auth to Authelia (restrict to 'admins' group)
+  #       LAM_PASSWORD protects config pages (separate from user auth)
+  #       Manages LDAP users/groups that Authelia uses for authentication
   ldap-account-manager:
-    image: ghcr.io/ldapaccountmanager/lam:stable
+    image: ghcr.io/ldapaccountmanager/lam:9.3
     container_name: ldap-account-manager
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
     networks:
-      - stack
+      - auth
+      - admin
     depends_on:
       ldap:
         condition: service_healthy
@@ -613,30 +1820,59 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
   # ======================
   # Redis (Session Store)
   # ======================
+  # Auth: N/A - Backend service, no user access
+  #       Used by Authelia, Outline, Synapse for session/cache storage
+  #       Network isolated, no authentication required
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.7-alpine
     container_name: redis
     restart: unless-stopped
     networks:
-      - stack
+      - auth
+      - backend
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ======================
   # Databases
   # ======================
+  # Auth: ⛔ NO AUTH (BACKEND SERVICES)
+  #       MariaDB, PostgreSQL: Database servers, no user interface
+  #       Authentication: Username+password per database (set in .env)
+  #       Network Security: Isolated to 'stack' network, not exposed via Caddy
+  #       Access: Applications connect with service-specific credentials
+  #       Admin Access: Use database clients (Adminer, pgAdmin) with credentials
+  #       Data: May contain user accounts for self-contained apps (Seafile, Mailu, etc.)
+  #
+  # Security Notes:
+  #   - Never expose database ports publicly
+  #   - Use strong passwords for root/admin accounts
+  #   - Regularly backup database volumes
+  #   - Consider encryption at rest for sensitive data
+  #
+  # ⛔ NO AUTH (Supporting Databases):
+  #   - CouchDB: Document store for internal use, admin credentials in .env
+  #   - ClickHouse: Analytics database, password-protected but not SSO-enabled
+  #   - Redis: In-memory cache/session store, no authentication (network isolated)
 
   mariadb:
-    image: mariadb:11
+    image: mariadb:11.6.2
     container_name: mariadb
     restart: unless-stopped
     networks:
-      - stack
+      - database
     environment:
       - MYSQL_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
       - MYSQL_DATABASE=datamancy
@@ -646,31 +1882,50 @@ services:
       - mariadb_data:/var/lib/mysql
       - ./configs/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.11-alpine
     container_name: postgres
     restart: unless-stopped
     networks:
-      - stack
+      database:
+        aliases:
+          - db
+      backend:
+      mail:
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_USER=postgres
       - POSTGRES_DB=postgres
-      - NEXTCLOUD_DB_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
       - PLANKA_DB_PASSWORD=${PLANKA_DB_PASSWORD}
       - OUTLINE_DB_PASSWORD=${OUTLINE_DB_PASSWORD}
+      - SYNAPSE_DB_PASSWORD=${SYNAPSE_DB_PASSWORD}
+      - AKKOMA_DB_PASSWORD=${AKKOMA_DB_PASSWORD}
+      - MAILU_DB_PASSWORD=${MAILU_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./configs/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./configs/postgres/init-mailu-schema.sql:/docker-entrypoint-initdb.d/init-mailu-schema.sql:ro
     command: postgres -c 'max_connections=200'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   couchdb:
-    image: couchdb:3
+    image: couchdb:3.5.1
     container_name: couchdb
     restart: unless-stopped
     networks:
-      - stack
+      - database
     environment:
       - COUCHDB_USER=admin
       - COUCHDB_PASSWORD=${COUCHDB_PASSWORD}
@@ -686,11 +1941,11 @@ services:
       start_period: 30s
 
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:24.8
     container_name: clickhouse
     restart: unless-stopped
     networks:
-      - stack
+      - database
     environment:
       - CLICKHOUSE_DB=default
       - CLICKHOUSE_USER=default
@@ -702,55 +1957,86 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ======================
   # AI Services (Internal)
   # ======================
+  # Auth: N/A - Backend inference service, no direct user access
+  #       Accessed via LiteLLM proxy which handles auth via OIDC
+  #       API key authentication enforced at LiteLLM gateway layer
 
   localai:
-    image: localai/localai:latest-aio-cpu
+    image: localai/localai:v3.7.0-aio-gpu-nvidia-cuda-12
     container_name: localai
     restart: unless-stopped
     networks:
-      - stack
+      - backend
     volumes:
       - localai_models:/build/models
     environment:
       - THREADS=4
       - CONTEXT_SIZE=2048
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/readyz"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 2m
 
   # ======================
   # Data Processing
   # ======================
+  # Auth: N/A - Internal data pipeline, no user interface
+  #       Configuration-driven ETL, no authentication layer
+  #       Not exposed externally, operates on internal events/streams
 
   benthos:
-    image: jeffail/benthos:latest
+    image: jeffail/benthos:4.27.0
     container_name: benthos
     restart: unless-stopped
     networks:
-      - stack
+      - backend
+      - database
     volumes:
       - ./configs/benthos/benthos.yaml:/benthos.yaml:ro
       - benthos_data:/data
     command: -c /benthos.yaml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4195/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # ======================
   # Docker Socket Proxy
   # ======================
+  # Auth: N/A - Internal service, network-level access control
+  #       Provides limited Docker API access to Dockge/JupyterHub
+  #       No authentication, relies on network isolation (stack network only)
+  #       Environment variables restrict allowed operations (read-only where possible)
   # Docker Socket Proxy - provides controlled API access
   # Uses rootless socket in dev, standard socket in prod
   docker-proxy:
-    image: tecnativa/docker-socket-proxy:latest
+    image: tecnativa/docker-socket-proxy:v0.4.1
     container_name: docker-proxy
     restart: unless-stopped
     networks:
-      - stack
+      - admin
+      - admin-dockge
+      - admin-jupyterhub
     environment:
       - CONTAINERS=1
       - IMAGES=1
       - NETWORKS=1
       - VOLUMES=1
-      - POST=1
+      - POST=0
       - BUILD=0
       - COMMIT=0
       - CONFIGS=0
@@ -769,6 +2055,12 @@ services:
       # Rootless Docker (dev): /run/user/1000/docker.sock
       # Root Docker (prod): /var/run/docker.sock
       - ${DOCKER_SOCKET:-/run/user/1000/docker.sock}:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2375/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # ======================
   # Test Runner Container
@@ -784,9 +2076,10 @@ services:
       - testing
     networks:
       - test
-      - stack
+      - backend
     depends_on:
-      - caddy
+      caddy:
+        condition: service_healthy
     volumes:
       - ./tests:/tests:ro
       - ./screenshots:/screenshots:rw
