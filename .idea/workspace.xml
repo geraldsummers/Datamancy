@@ -5,12 +5,246 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="towards llm">
-      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Applications/configs/mastodon/mastodon.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/authelia/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/authelia/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/caddy/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/mailu/mailu.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs/mailu/mailu.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/MIGRATION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/akkoma/config.exs" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/akkoma/config.exs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/akkoma/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/akkoma/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/dev-issuer.key" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/authelia/dev-issuer.key" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/authelia/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/issuer.key" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/authelia/issuer.key" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/benthos/benthos.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/caddy/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile.backup" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/caddy/Caddyfile.backup" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile.rootless" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/caddy/Caddyfile.rootless" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/caddy/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/caddy/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/clickhouse/config.xml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/clickhouse/config.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/couchdb/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/couchdb/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/couchdb/init-wrapper.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/couchdb/init-wrapper.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/couchdb/local.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/couchdb/local.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/filebrowser/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/filebrowser/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/grafana/caddy-ca.crt" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/grafana/caddy-ca.crt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/grafana/grafana.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/grafana/grafana.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/bookmarks.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/homepage/bookmarks.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/docker.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/homepage/docker.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/services.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/homepage/services.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/settings.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/homepage/settings.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/widgets.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/homepage/widgets.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/jellyfin/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/jellyfin/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/jellyfin/SSO-Auth.xml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/jellyfin/SSO-Auth.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/jellyfin/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/jellyfin/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/jupyterhub/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/jupyterhub/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/jupyterhub/caddy-ca.crt" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/jupyterhub/caddy-ca.crt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/jupyterhub/jupyterhub_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/jupyterhub/jupyterhub_config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/langgraph-gui/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/langgraph-gui/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/ldap/bootstrap.ldif" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/ldap/bootstrap.ldif" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/litellm/config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/LLM/configs/litellm/config.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mailu/mailu.env" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/mailu/mailu.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mailu/nginx-override.conf" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/mailu/nginx-override.conf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mariadb/init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/mariadb/init.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/configure-oidc.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/configure-oidc.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/delayed-oidc-install.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/delayed-oidc-install.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/add-cert-runtime.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/add-cert-runtime.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/caddy-ca.crt" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/caddy-ca.crt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/delayed-oidc-install.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/delayed-oidc-install.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/entrypoint-wrapper.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/entrypoint-wrapper.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/oidc-setup.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/oidc-setup.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/post-installation-oidc.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/nextcloud/post-installation-oidc.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/postgres/init-mailu-schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/postgres/init-mailu-schema.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/synapse/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/synapse/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/synapse/homeserver.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/configs/synapse/homeserver.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/Applications/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/dockge/01-after-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/dockge/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/dockge/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/dockge/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/dockge/03-authelia-auth-no-consent.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/dockge/03-post-auth.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/dockge/04-ui-verified.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/dockge/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/01-after-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/01-reachability-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/03-authelia-auth-no-consent.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/03-post-auth.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/04-ui-verified.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/filebrowser/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/02-oidc-activation-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/02-oidc-activation-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/02-oidc-activation-landing.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/02-oidc-activation-oidc-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/03-authelia-auth-consent-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/03-authelia-auth-no-consent.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/04-redirection-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/04-redirection.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/05-login-no-oidc.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/06-homepage-display.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/grafana/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/01-after-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/01-reachability-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/03-authelia-auth-no-consent.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/03-post-auth.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homeassistant/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homepage/01-after-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homepage/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homepage/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homepage/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homepage/03-authelia-auth-no-consent.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homepage/03-post-auth.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homepage/04-ui-verified.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/homepage/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/02-oidc-activation-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/02-oidc-activation-landing.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/02-oidc-activation-oidc-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/03-authelia-auth-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/03-authelia-auth-consent-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/04-redirection.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/05-login-no-oidc.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/06-homepage-display.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/jupyterhub/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/kopia/01-after-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/kopia/01-reachability-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/kopia/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/kopia/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/kopia/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/kopia/03-authelia-auth-no-consent.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/kopia/03-post-auth.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/kopia/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/lam/01-after-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/lam/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/lam/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/lam/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/lam/03-authelia-auth-no-consent.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/lam/03-post-auth.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/lam/04-ui-verified.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/lam/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/litellm/error.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/02-oidc-activation-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/02-oidc-activation-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/02-oidc-activation-landing.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/02-oidc-activation-no-oidc-button.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/02-oidc-activation-oidc-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/03-authelia-auth-consent-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/04-redirection.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/05-login-no-oidc.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/06-homepage-display.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/nextcloud/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/02-oidc-activation-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/02-oidc-activation-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/02-oidc-activation-landing.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/02-oidc-activation-no-oidc-button.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/02-oidc-activation-oidc-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/03-authelia-auth-consent-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/04-redirection.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/05-login-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/05-login-post-oidc-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/06-homepage-display.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/open-webui/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/02-oidc-activation-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/02-oidc-activation-auto-redirected.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/02-oidc-activation-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/02-oidc-activation-landing.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/02-oidc-activation-oidc-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/03-authelia-auth-consent-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/04-redirection.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/05-login-no-oidc.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/06-homepage-display.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/outline/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/02-oidc-activation-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/02-oidc-activation-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/02-oidc-activation-landing.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/02-oidc-activation-oidc-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/03-authelia-auth-consent-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/03-authelia-auth-credentials-filled.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/03-authelia-auth-login-form.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/04-redirection.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/05-login-no-oidc.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/06-homepage-display.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/99-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/planka/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/test-results.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/01-reachability.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/02-oidc-activation-ERROR.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/02-oidc-activation-final.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/02-oidc-activation-landing.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/02-oidc-activation-oidc-clicked.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/screenshots/vaultwarden/ERRORS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/dev-rootless-up.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/ha-entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/init-dockge.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/init-homeassistant-user.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/init-homeassistant.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/init-kopia.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-authelia.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/manual_openwebui_test.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/manual_verify.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/prove_ai_auth.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/test_ai_services.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/test_homepage.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/test_openwebui_final.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/test_openwebui_oidc.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/test_openwebui_only.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/test_openwebui_only_final.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/test_planka_only.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/test_web_ui.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/legacy/verify_one_service.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/lib/config.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/lib/playwright-utils.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/lib/selectors.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/old/test-ai-stack.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/old/test-forward-auth.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/old/test-homeassistant.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/old/test-multi.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/package-lock.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/package.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/phases/authelia-auth.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/phases/homeassistant.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/phases/oidc-activation.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/phases/reachability.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/phases/redirection.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/phases/verification.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/runners/test-ai-stack.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/runners/test-forwardauth-single.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/runners/test-multi.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/runners/test-oidc-single.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/runners/test-single.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/services/service-configs.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/volumes/authelia/configuration.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/volumes/authelia/db.sqlite3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/volumes/authelia/issuer.key" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,9 +278,6 @@
     &quot;accountId&quot;: &quot;9b7da7b4-b425-409b-8cfd-07b62b07f200&quot;
   }
 }</component>
-  <component name="PackageJsonUpdateNotifier">
-    <dismissed value="$PROJECT_DIR$/tests/package.json" />
-  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 2
 }</component>
@@ -108,6 +339,19 @@
     </key>
   </component>
   <component name="RunManager" selected="Docker.docker-compose.yml: Compose Deployment">
+    <configuration name="Applications.ca-generator: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="services">
+            <list>
+              <option value="ca-generator" />
+            </list>
+          </option>
+          <option name="sourceFilePath" value="Applications/docker-compose.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
     <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
       <deployment type="docker-compose.yml">
         <settings />
@@ -117,19 +361,6 @@
     <configuration name="docker-compose.yml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
-          <option name="sourceFilePath" value="docker-compose.yml" />
-        </settings>
-      </deployment>
-      <method v="2" />
-    </configuration>
-    <configuration name="docker-compose.yml.ca-generator: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
-      <deployment type="docker-compose.yml">
-        <settings>
-          <option name="services">
-            <list>
-              <option value="ca-generator" />
-            </list>
-          </option>
           <option name="sourceFilePath" value="docker-compose.yml" />
         </settings>
       </deployment>
@@ -237,7 +468,8 @@
       <workItem from="1763238783751" duration="417000" />
       <workItem from="1763239208773" duration="8638000" />
       <workItem from="1763270444174" duration="3558000" />
-      <workItem from="1763334504154" duration="15100000" />
+      <workItem from="1763334504154" duration="15161000" />
+      <workItem from="1763412238402" duration="7412000" />
     </task>
     <task id="LOCAL-00001" summary="Remove unused services, configurations, and dependencies from project">
       <option name="closed" value="true" />
@@ -399,7 +631,15 @@
       <option name="project" value="LOCAL" />
       <updated>1763344629279</updated>
     </task>
-    <option name="localTasksCounter" value="21" />
+    <task id="LOCAL-00021" summary="towards llm">
+      <option name="closed" value="true" />
+      <created>1763357633105</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1763357633105</updated>
+    </task>
+    <option name="localTasksCounter" value="22" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

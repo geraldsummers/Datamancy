@@ -1,3 +1,0 @@
-Service: kopia
-Error: Expected UI markers not found for kopia
-Phases completed: reachability, authelia-login

@@ -1,0 +1,199 @@
+# ========================================
+# AI Services Compose File (Separate VM)
+# ========================================
+# This compose file contains LiteLLM and LocalAI services
+# Designed to run on a separate VM from the main stack
+# Auth: Protected via Authelia on main VM (cross-VM OIDC)
+#
+# IMPORTANT:
+# - Main VM must run: Caddy (reverse proxy) + Authelia (OIDC provider)
+# - This VM needs: .env file with secrets + network connectivity to main VM
+# - LiteLLM authenticates users via Authelia OIDC endpoints (HTTPS)
+# - LocalAI is accessed internally by LiteLLM only
+#
+# Network Strategy:
+# - Services communicate with main VM via public domains (e.g., https://auth.${DOMAIN})
+# - Caddy on main VM reverse proxies to this VM's IP
+# - No Docker overlay networks required - uses standard HTTP(S) routing
+#
+# Setup on AI VM:
+# 1. Copy this file + .env + configs/litellm/ to AI VM
+# 2. Ensure AI VM can reach main VM (firewall rules)
+# 3. Update Caddy on main VM to proxy litellm.${DOMAIN} → AI_VM_IP:4000
+# 4. Update Caddy on main VM to proxy localai.${DOMAIN} → AI_VM_IP:8080
+# 5. docker-compose -f docker-compose.ai.yml up -d
+#
+# Required .env variables:
+# - DOMAIN
+# - LITELLM_MASTER_KEY
+# - LITELLM_OAUTH_SECRET
+# - AUTHELIA_JWT_SECRET
+# - POSTGRES_PASSWORD (or use remote postgres on main VM)
+# ========================================
+
+networks:
+  ai:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  localai_models:
+  litellm_config:
+  # Optional: postgres_data if running local postgres for litellm
+
+services:
+  # ======================
+  # AI Backend - LocalAI
+  # ======================
+  # Auth: N/A - Internal service, accessed only by LiteLLM
+  #       No direct external access - LiteLLM acts as gateway
+  #       Protected via Authelia forward-auth on Caddy (main VM)
+  localai:
+    image: localai/localai:v3.7.0-aio-gpu-nvidia-cuda-12
+    container_name: localai
+    restart: unless-stopped
+    networks:
+      - ai
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ports:
+      # Expose for Caddy on main VM to reverse proxy
+      # Alternative: Use internal network if using Docker overlay
+      - "8080:8080"
+    volumes:
+      - localai_models:/build/models
+    environment:
+      # Needed for Llama 3 etc (HF gated models)
+      HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/readyz"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 2m
+
+  # ======================
+  # AI Gateway - LiteLLM (OpenAI-compatible API)
+  # ======================
+  # Auth: ✅ NATIVE OIDC (UI LOGIN) + 🔑 API KEY (PROGRAMMATIC)
+  #       UI Auth: OIDC via Authelia on main VM (remote HTTPS endpoints)
+  #       API Auth: LITELLM_MASTER_KEY for OpenAI-compatible endpoints
+  #       Callback: https://litellm.${DOMAIN}/sso/callback
+  #       Scopes: openid profile email groups
+  #
+  # Security:
+  #   - Authelia on main VM provides OIDC
+  #   - Caddy on main VM reverse proxies to this service
+  #   - All OIDC endpoints use HTTPS URLs pointing to main VM
+  #   - API access requires LITELLM_MASTER_KEY
+  #
+  # Database options:
+  #   1. Connect to postgres on main VM (via postgres.${DOMAIN} or main VM IP)
+  #   2. Run local postgres on AI VM (add service below)
+  #   3. Use SQLite for simple deployments
+  #
+  # Authelia Client Config (on main VM):
+  #   client_id: litellm
+  #   client_secret: ${LITELLM_OAUTH_SECRET}
+  #   redirect_uris: https://litellm.${DOMAIN}/sso/callback
+  #   scopes: openid profile email groups
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.74.9-stable.patch.1
+    container_name: litellm
+    restart: unless-stopped
+    networks:
+      - ai
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      # Expose for Caddy on main VM to reverse proxy
+      - "4000:4000"
+    depends_on:
+      localai:
+        condition: service_healthy
+    volumes:
+      - litellm_config:/app/config
+      - ./configs/litellm/config.yaml:/app/config.yaml:ro
+    environment:
+      # API Key for programmatic access
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+
+      # Database - Choose one option:
+      # Option 1: Remote postgres on main VM
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@${MAIN_VM_IP}:5432/litellm
+      # Option 2: Local postgres (uncomment postgres service below)
+      # - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      # Option 3: SQLite (simplest, but no HA)
+      # - DATABASE_URL=sqlite:////app/config/litellm.db
+
+      - LITELLM_SALT_KEY=${AUTHELIA_JWT_SECRET}
+
+      # OIDC Configuration - All endpoints point to main VM via HTTPS
+      - GENERIC_CLIENT_ID=litellm
+      - GENERIC_CLIENT_SECRET=${LITELLM_OAUTH_SECRET}
+      - GENERIC_AUTHORIZATION_ENDPOINT=https://auth.${DOMAIN}/api/oidc/authorization
+      - GENERIC_TOKEN_ENDPOINT=https://auth.${DOMAIN}/api/oidc/token
+      - GENERIC_USERINFO_ENDPOINT=https://auth.${DOMAIN}/api/oidc/userinfo
+      - PROXY_BASE_URL=https://litellm.${DOMAIN}
+      - GENERIC_SCOPE=openid profile email groups
+      - GENERIC_USER_ID_ATTRIBUTE=preferred_username
+      - GENERIC_USER_EMAIL_ATTRIBUTE=email
+      - GENERIC_USER_ROLE_ATTRIBUTE=groups
+      - GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=name
+
+      # Fallback UI credentials (if OIDC unavailable)
+      - UI_USERNAME=admin
+      - UI_PASSWORD=${LITELLM_MASTER_KEY}
+    command: --config /app/config.yaml --port 4000 --num_workers 4
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ======================
+  # Optional: Local PostgreSQL for LiteLLM
+  # ======================
+  # Uncomment if you want LiteLLM to use a local database on AI VM
+  # instead of connecting to postgres on main VM
+  #
+  # postgres:
+  #   image: postgres:16.11-alpine
+  #   container_name: postgres-ai
+  #   restart: unless-stopped
+  #   networks:
+  #     - ai
+  #   environment:
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_DB=litellm
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   command: postgres -c 'max_connections=100'
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s

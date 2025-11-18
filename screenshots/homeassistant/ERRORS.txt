@@ -1,3 +1,0 @@
-Service: homeassistant
-Error: Expected UI markers not found for homeassistant
-Phases completed: reachability, authelia-login

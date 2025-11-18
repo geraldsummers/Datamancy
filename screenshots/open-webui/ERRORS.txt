@@ -1,3 +1,0 @@
-Service: open-webui
-Error: page.screenshot: options.quality is unsupported for the png screenshots
-Phases completed: 
