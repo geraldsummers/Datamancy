@@ -1,0 +1,108 @@
+# Shared Networks and Volumes
+# This file must be included first when composing the stack
+
+networks:
+  # Network Segmentation Strategy:
+  # - frontend: Public-facing reverse proxy (Caddy only)
+  # - backend: Application services (web apps, APIs)
+  # - database: Database services only (isolated)
+  # - auth: Authentication layer (Authelia, LDAP, Redis)
+  # - admin: Admin tools (Dockge, Kopia, LAM)
+  # - mail: Mail services (Mailu stack)
+  # - test: Testing infrastructure
+
+  frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+  backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+  database:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
+
+  auth:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/24
+
+  admin:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.24.0.0/24
+
+  admin-dockge:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.26.0.0/24
+
+  admin-jupyterhub:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.27.0.0/24
+
+  mail:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/24
+
+
+  test:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
+
+volumes:
+  caddy_data:
+  caddy_config:
+  grafana_data:
+  ldap_data:
+  ldap_config:
+  lam_config:
+  authelia_data:
+  mariadb_data:
+  postgres_data:
+  couchdb_data:
+  clickhouse_data:
+  dockge_data:
+  localai_models:
+  open_webui_data:
+  kopia_data:
+  kopia_cache:
+  kopia_repository:
+  redis_data:
+  shared_media:
+  planka_data:
+  outline_data:
+  benthos_data:
+  jupyterhub_data:
+  litellm_config:
+  homepage_config:
+  seafile_data:
+  seafile_mysql_data:
+  onlyoffice_data:
+  synapse_data:
+  mailu_data:
+  mailu_filter:
+  mailu_cert:
+  mailu_dkim:
+  sogo_data:
+  mastodon_data:
+  vaultwarden_data:
+  homeassistant_config:

@@ -1,0 +1,5 @@
+name: whisper-medium
+backend: whisper
+parameters:
+  model: ggml-medium.en.bin
+id: ggerganov/whisper.cpp

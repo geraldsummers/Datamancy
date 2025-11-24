@@ -1,0 +1,162 @@
+# Infrastructure Services
+# Caddy (reverse proxy), Benthos (data processing), test-runner
+
+services:
+
+  # ======================
+  # Reverse Proxy - Caddy Docker Proxy (auto-generated config from labels)
+  # ======================
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.8
+    container_name: caddy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    networks:
+      frontend:
+      backend:
+        aliases:
+          - grafana.${DOMAIN}
+          - open-webui.${DOMAIN}
+          - vaultwarden.${DOMAIN}
+          - planka.${DOMAIN}
+          - outline.${DOMAIN}
+          - jupyterhub.${DOMAIN}
+          - homepage.${DOMAIN}
+          - seafile.${DOMAIN}
+          - onlyoffice.${DOMAIN}
+          - matrix.${DOMAIN}
+          - sogo.${DOMAIN}
+          - homeassistant.${DOMAIN}
+          - akkoma.${DOMAIN}
+          - litellm.${DOMAIN}
+      auth:
+        aliases:
+          - auth.${DOMAIN}
+      admin:
+        aliases:
+          - kopia.${DOMAIN}
+          - adminer.${DOMAIN}
+          - pgadmin.${DOMAIN}
+          - portainer.${DOMAIN}
+      mail:
+        aliases:
+          - mail.${DOMAIN}
+      test:
+        aliases:
+          - grafana.${DOMAIN}
+          - auth.${DOMAIN}
+          - adminer.${DOMAIN}
+          - pgadmin.${DOMAIN}
+          - portainer.${DOMAIN}
+          - localai.${DOMAIN}
+          - litellm.${DOMAIN}
+          - open-webui.${DOMAIN}
+          - browserless.${DOMAIN}
+          - homeassistant.${DOMAIN}
+          - vaultwarden.${DOMAIN}
+          - planka.${DOMAIN}
+          - outline.${DOMAIN}
+          - kopia.${DOMAIN}
+          - jupyterhub.${DOMAIN}
+          - homepage.${DOMAIN}
+          - seafile.${DOMAIN}
+          - onlyoffice.${DOMAIN}
+          - matrix.${DOMAIN}
+          - sogo.${DOMAIN}
+          - mail.${DOMAIN}
+          - akkoma.${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - CADDY_INGRESS_NETWORKS=frontend backend auth admin mail test
+      - ACME_AGREE=true
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+
+  # ======================
+  # Data Processing
+  # ======================
+  # Auth: N/A - Internal data pipeline, no user interface
+  #       Configuration-driven ETL, no authentication layer
+  #       Not exposed externally, operates on internal events/streams
+
+  benthos:
+    image: jeffail/benthos:4.27.0
+    container_name: benthos
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    labels:
+      caddy: benthos.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 4195}}"
+    volumes:
+      - ./configs/benthos/benthos.yaml:/benthos.yaml:ro
+      - benthos_data:/data
+    command: -c /benthos.yaml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4195/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ======================
+  # Test Runner Container
+  # ======================
+  # Isolated on test network - routes ALL traffic through Caddy like a real client
+  # DNS resolution handled by Docker network aliases on Caddy
+  test-runner:
+    build:
+      context: ./tests
+      dockerfile: Dockerfile
+    container_name: test-runner
+    profiles:
+      - testing
+    networks:
+      - test
+      - backend
+    depends_on:
+      caddy:
+        condition: service_healthy
+    volumes:
+      - ./tests:/tests:ro
+      - ./screenshots:/screenshots:rw
+      - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
+    environment:
+      - NODE_ENV=test
+      - CI=true
+      - LANG=en_US.UTF-8
+      - LC_ALL=en_US.UTF-8
+      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
+      - TEST_USERNAME=admin
+      - TEST_PASSWORD=DatamancyTest2025!
+      - SCREEN_DIR=/screenshots
+    restart: "no"
+    command: >
+      sh -c 'set -eu &&
+      update-ca-certificates 2>/dev/null || true &&
+      printf "%s test-runner: starting webui.e2e\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" &&
+      node /tests/webui.e2e.js'

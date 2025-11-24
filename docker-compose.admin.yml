@@ -1,0 +1,203 @@
+# Admin Tools
+# Dockge, Kopia, Docker-proxy
+
+services:
+
+  # ======================
+  # Container Management - Dockge
+  # ======================
+  # Auth: 🔒 FORWARD AUTH (NO NATIVE OIDC) - ADMIN ONLY
+  #       Dockge: Does NOT support native OIDC authentication
+  #       Solution: Caddy forward_auth → Authelia protects route (admin access only)
+  #       Dockge User: Still create local admin account (DOCKGE_ADMIN_USER)
+  #         Forward-auth acts as outer security gate
+  #         Dockge login acts as inner security confirmation
+  #
+  # Caddy Configuration Required:
+  #   dockge.${DOMAIN} {
+  #     forward_auth authelia:9091 {
+  #       uri /api/verify?rd=https://auth.${DOMAIN}
+  #       copy_headers Remote-User Remote-Email
+  #     }
+  #     reverse_proxy dockge:5001
+  #   }
+  #
+  # Authelia ACL Policy Required (RESTRICT TO ADMINS):
+  #   - domain: dockge.${DOMAIN}
+  #     policy: two_factor
+  #     subject: group:admins
+  #
+  # Security: Two-layer auth (Authelia SSO + Dockge local login)
+  #           Prevents unauthorized container manipulation
+  dockge:
+    image: louislam/dockge:1
+    container_name: dockge
+    restart: unless-stopped
+#    user: "1000:1000"
+    networks:
+      - admin
+      - admin-dockge
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    labels:
+      caddy: dockge.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 5001}}"
+    depends_on:
+      - docker-proxy
+    volumes:
+      - dockge_data:/app/data
+      - /home/gerald/Documents/IdeaProjects/Datamancy:/opt/stacks
+    environment:
+      - DOCKGE_STACKS_DIR=/opt/stacks
+      - DOCKER_HOST=tcp://docker-proxy:2375
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  # ======================
+  # Dockge Init - Auto-create admin account
+  # ======================
+  dockge-init:
+    image: node:20.18.1-alpine
+    container_name: dockge-init
+    networks:
+      - admin
+    depends_on:
+      dockge:
+        condition: service_healthy
+    volumes:
+      - ./scripts/init-dockge.js:/init-dockge.js:ro
+    environment:
+      - DOCKGE_HOST=dockge
+      - DOCKGE_PORT=5001
+      - DOCKGE_ADMIN_USER=${STACK_ADMIN_USER}
+      - DOCKGE_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
+    command: node /init-dockge.js
+    restart: "no"
+
+  # ======================
+  # Backup - Kopia
+  # ======================
+  # Auth: 🔒 FORWARD AUTH (NO NATIVE OIDC) - ADMIN ONLY
+  #       Kopia: Does NOT support OIDC (uses HTTP Basic Auth by default)
+  #       Solution: Caddy forward_auth → Authelia protects route (admin access only)
+  #       Kopia Server: Configure with --server-username/--server-password
+  #         Forward-auth acts as outer SSO gate
+  #         Kopia Basic Auth acts as inner security layer
+  #
+  # Caddy Configuration Required:
+  #   kopia.${DOMAIN} {
+  #     forward_auth authelia:9091 {
+  #       uri /api/verify?rd=https://auth.${DOMAIN}
+  #       copy_headers Remote-User Remote-Email
+  #     }
+  #     reverse_proxy kopia:51515
+  #   }
+  #
+  # Authelia ACL Policy Required (RESTRICT TO ADMINS):
+  #   - domain: kopia.${DOMAIN}
+  #     policy: two_factor
+  #     subject: group:admins
+  #
+  # Security: Backup access should be heavily restricted
+  #           Two-factor auth + admin group required
+  #           Consider disabling Kopia UI entirely for production
+  kopia:
+    image: kopia/kopia:0.18.2
+    container_name: kopia
+    restart: unless-stopped
+    user: "1000:1000"
+    networks:
+      - admin
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      caddy: kopia.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 51515}}"
+    volumes:
+      - kopia_data:/app/config
+      - kopia_cache:/app/cache
+      - kopia_data:/data:ro
+      - kopia_repository:/repository
+      - ./scripts/init-kopia.sh:/init-kopia.sh:ro
+    environment:
+      - KOPIA_PASSWORD=${KOPIA_PASSWORD}
+      - KOPIA_REPO_PATH=/repository
+      - USER=kopia
+    entrypoint: /init-kopia.sh
+    healthcheck:
+      test: ["CMD", "kopia", "repository", "status"]
+      interval: 5m
+      timeout: 30s
+      retries: 3
+      start_period: 1m
+
+
+  # ======================
+  # Docker Socket Proxy
+  # ======================
+  # Auth: N/A - Internal service, network-level access control
+  #       Provides limited Docker API access to Dockge/JupyterHub
+  #       No authentication, relies on network isolation (stack network only)
+  #       Environment variables restrict allowed operations (read-only where possible)
+  # Docker Socket Proxy - provides controlled API access
+  # Uses rootless socket in dev, standard socket in prod
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.1
+    container_name: docker-proxy
+    restart: unless-stopped
+    networks:
+      - admin
+      - admin-dockge
+      - admin-jupyterhub
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - VOLUMES=1
+      - POST=0
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - DISTRIBUTION=0
+      - EXEC=0
+      - GRPC=0
+      - INFO=1
+      - PLUGINS=0
+      - SERVICES=0
+      - SESSION=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0
+      - VERSION=1
+    volumes:
+      # Rootless Docker (dev): /run/user/1000/docker.sock
+      # Root Docker (prod): /var/run/docker.sock
+      - ${DOCKER_SOCKET:-/run/user/1000/docker.sock}:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2375/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

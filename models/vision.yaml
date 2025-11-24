@@ -1,0 +1,5 @@
+name: vision
+backend: llava
+parameters:
+  model: llava-v1.5-7b-q4_k.gguf
+id: llava-hf/llava-v1.5-7b-GGUF

@@ -1606,7 +1606,7 @@ services:
   # ======================
   # AI Gateway - LiteLLM (OpenAI-compatible API)
   # ======================
-  # MOVED TO: docker-compose.ai.yml (runs on separate AI VM)
+  # MOVED TO: docker-compose.yml (runs on separate AI VM)
   #
   # Caddy still proxies litellm.${DOMAIN} → AI_VM_IP:4000
   # Authelia still provides OIDC for litellm (via HTTPS endpoints)
@@ -1995,7 +1995,7 @@ services:
   # ======================
   # AI Services (Internal)
   # ======================
-  # MOVED TO: docker-compose.ai.yml (runs on separate AI VM)
+  # MOVED TO: docker-compose.yml (runs on separate AI VM)
   #
   # LocalAI runs on AI VM, accessed by LiteLLM internally
   # For direct access (debugging), Caddy can proxy localai.${DOMAIN} → AI_VM_IP:8080

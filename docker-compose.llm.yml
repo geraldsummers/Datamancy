@@ -21,7 +21,7 @@
 # 2. Ensure AI VM can reach main VM (firewall rules)
 # 3. Update Caddy on main VM to proxy litellm.${DOMAIN} → AI_VM_IP:4000
 # 4. Update Caddy on main VM to proxy localai.${DOMAIN} → AI_VM_IP:8080
-# 5. docker-compose -f docker-compose.ai.yml up -d
+# 5. docker-compose -f docker-compose.yml up -d
 #
 # Required .env variables:
 # - DOMAIN
@@ -74,9 +74,12 @@ services:
       - "8080:8080"
     volumes:
       - localai_models:/build/models
+      - ./models:/models
     environment:
       # Needed for Llama 3 etc (HF gated models)
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+      # Preload models on startup
+      PRELOAD_MODELS: '[{"id": "/models/llama3.yaml"},{"id": "/models/router.yaml"},{"id": "/models/qwen-coder.yaml"},{"id": "/models/embed.yaml"},{"id": "/models/whisper-medium.yaml"},{"id": "/models/whisper-small.yaml"},{"id": "/models/sd15.yaml"},{"id": "/models/vision.yaml"}]'
 
 
     healthcheck:

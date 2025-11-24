@@ -1,0 +1,7 @@
+name: qwen-code
+backend: llama-cpp
+parameters:
+  model: qwen2.5-coder-7b-instruct-q4_k_m.gguf
+  context_size: 4096
+  gpu_layers: 35
+id: Qwen/Qwen2.5-Coder-7B-Instruct-GGUF

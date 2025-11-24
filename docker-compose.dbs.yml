@@ -1,0 +1,219 @@
+# Database Services
+# MariaDB, PostgreSQL, CouchDB, ClickHouse, Redis instances, Memcached
+
+services:
+
+  # ======================
+  # Databases
+  # ======================
+  # Auth: ⛔ NO AUTH (BACKEND SERVICES)
+  #       MariaDB, PostgreSQL: Database servers, no user interface
+  #       Authentication: Username+password per database (set in .env)
+  #       Network Security: Isolated to 'stack' network, not exposed via Caddy
+  #       Access: Applications connect with service-specific credentials
+  #       Admin Access: Use database clients (Adminer, pgAdmin) with credentials
+  #       Data: May contain user accounts for self-contained apps (Seafile, Mailu, etc.)
+  #
+  # Security Notes:
+  #   - Never expose database ports publicly
+  #   - Use strong passwords for root/admin accounts
+  #   - Regularly backup database volumes
+  #   - Consider encryption at rest for sensitive data
+  #
+  # ⛔ NO AUTH (Supporting Databases):
+  #   - CouchDB: Document store for internal use, admin credentials in .env
+  #   - ClickHouse: Analytics database, password-protected but not SSO-enabled
+  #   - Redis: In-memory cache/session store, no authentication (network isolated)
+
+  mariadb:
+    image: mariadb:11.6.2
+    container_name: mariadb
+    restart: unless-stopped
+    networks:
+      - database
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=datamancy
+      - MYSQL_USER=datamancy
+      - MYSQL_PASSWORD=${MARIADB_PASSWORD}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./configs/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  postgres:
+    image: postgres:16.11-alpine
+    container_name: postgres
+    restart: unless-stopped
+    networks:
+      database:
+        aliases:
+          - db
+      backend:
+      mail:
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=postgres
+      - PLANKA_DB_PASSWORD=${PLANKA_DB_PASSWORD}
+      - OUTLINE_DB_PASSWORD=${OUTLINE_DB_PASSWORD}
+      - SYNAPSE_DB_PASSWORD=${SYNAPSE_DB_PASSWORD}
+      - AKKOMA_DB_PASSWORD=${AKKOMA_DB_PASSWORD}
+      - MAILU_DB_PASSWORD=${MAILU_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./configs/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./configs/postgres/init-mailu-schema.sql:/docker-entrypoint-initdb.d/init-mailu-schema.sql:ro
+    command: postgres -c 'max_connections=200'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  couchdb:
+    image: couchdb:3.5.1
+    container_name: couchdb
+    restart: unless-stopped
+    networks:
+      - database
+    labels:
+      caddy: couchdb.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 5984}}"
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=${COUCHDB_PASSWORD}
+    volumes:
+      - couchdb_data:/opt/couchdb/data
+      - ./configs/couchdb/init-wrapper.sh:/usr/local/bin/init-wrapper.sh:ro
+    entrypoint: ["/bin/bash", "/usr/local/bin/init-wrapper.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:5984/_up | grep -q '\"status\":\"ok\"' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: clickhouse
+    restart: unless-stopped
+    networks:
+      - database
+    labels:
+      caddy: clickhouse.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 8123}}"
+    environment:
+      - CLICKHOUSE_DB=default
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./configs/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ======================
+  # Seafile Database
+  # ======================
+  # ⛔ NO AUTH (Supporting Services):
+  #   - MariaDB-Seafile: Database backend, network isolated
+  #   - Memcached: Backend cache, no user interface
+  memcached:
+    image: memcached:1.6.39-alpine
+    container_name: seafile-memcached
+    restart: unless-stopped
+    user: "11211:11211"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "echo stats | nc localhost 11211"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mariadb-seafile:
+    image: mariadb:11.6.2
+    container_name: mariadb-seafile
+    restart: unless-stopped
+    user: "999:999"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MARIADB_SEAFILE_ROOT_PASSWORD}
+      - MYSQL_DATABASE=seafile
+      - MYSQL_USER=seafile
+      - MYSQL_PASSWORD=${MARIADB_SEAFILE_PASSWORD}
+    volumes:
+      - seafile_mysql_data:/var/lib/mysql
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_SEAFILE_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ======================
+  # Matrix Redis
+  # ======================
+  # ⛔ NO AUTH (Supporting Services):
+  #   - Redis-synapse: Backend cache, no user interface
+  redis-synapse:
+    image: redis:7.4.7-alpine
+    container_name: redis-synapse
+    restart: unless-stopped
+    user: "999:999"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

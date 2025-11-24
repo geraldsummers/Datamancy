@@ -1,0 +1,5 @@
+name: whisper-small
+backend: whisper
+parameters:
+  model: ggml-small.en.bin
+id: ggerganov/whisper.cpp

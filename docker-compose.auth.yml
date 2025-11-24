@@ -1,0 +1,155 @@
+# Authentication & Authorization Services
+# LDAP, Authelia, Redis for session storage
+
+services:
+
+  # ======================
+  # LDAP Directory
+  # ======================
+  # Auth: N/A - Backend service, no user-facing UI
+  #       Authelia binds as cn=admin to authenticate users
+  #       LDAP Account Manager provides admin UI (protected by Caddy forward-auth)
+  #       Direct LDAP binding by apps discouraged; use Authelia OIDC instead
+  ldap:
+    image: osixia/openldap:1.5.0
+    container_name: ldap
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    networks:
+      - auth
+    environment:
+      - LDAP_ORGANISATION=Datamancy
+      - LDAP_DOMAIN=stack.local
+      - LDAP_BASE_DN=dc=stack,dc=local
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
+      - LDAP_CONFIG_PASSWORD=${LDAP_CONFIG_PASSWORD}
+      - LDAP_TLS=false
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+      - ./configs/ldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap.ldif:ro
+    command: --copy-service --loglevel debug
+    healthcheck:
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=stack,dc=local", "-D", "cn=admin,dc=stack,dc=local", "-w", "${LDAP_ADMIN_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ======================
+  # LDAP Account Manager
+  # ======================
+  # Auth: Caddy forward-auth to Authelia (restrict to 'admins' group)
+  #       LAM_PASSWORD protects config pages (separate from user auth)
+  #       Manages LDAP users/groups that Authelia uses for authentication
+  ldap-account-manager:
+    image: ghcr.io/ldapaccountmanager/lam:9.3
+    container_name: ldap-account-manager
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    networks:
+      - auth
+      - admin
+    labels:
+      caddy: lam.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 80}}"
+    depends_on:
+      ldap:
+        condition: service_healthy
+    environment:
+      - LDAP_DOMAIN=stack.local
+      - LDAP_BASE_DN=dc=stack,dc=local
+      - LDAP_USER=cn=admin,dc=stack,dc=local
+      - LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
+      - LAM_PASSWORD=${LAM_PASSWORD:-lam}
+      - LAM_LANG=en_US
+    volumes:
+      - lam_config:/var/lib/ldap-account-manager
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/lam/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ======================
+  # Redis (Session Store)
+  # ======================
+  # Auth: N/A - Backend service, no user access
+  #       Used by Authelia, Outline, Synapse for session/cache storage
+  #       Network isolated, no authentication required
+  redis:
+    image: redis:7.4.7-alpine
+    container_name: redis
+    restart: unless-stopped
+    networks:
+      - auth
+      - backend
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ======================
+  # SSO - Authelia (OIDC/OAuth endpoints; has a login UI)
+  # ======================
+  authelia:
+    image: authelia/authelia:4.39.13
+    container_name: authelia
+    restart: unless-stopped
+    user: "1000:1000"
+    networks:
+      - auth
+      - backend
+    labels:
+      caddy: auth.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 9091}}"
+    depends_on:
+      ldap:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./volumes/authelia:/config
+      - ./configs/authelia/configuration.yml:/config/configuration.yml:ro
+      - ./configs/authelia/issuer.key:/config/issuer.key:ro
+      - ./configs/authelia/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/entrypoint.sh"]
+    command: ["--config", "/config/configuration.yml"]
+    environment:
+      - TZ=UTC
+      - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET}
+      - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET}
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_OIDC_HMAC_SECRET}
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY_FILE=/config/issuer.key
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER=https://auth.${DOMAIN}
+      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
