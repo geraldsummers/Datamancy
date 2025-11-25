@@ -102,58 +102,58 @@ services:
   #   client_secret: ${LITELLM_OAUTH_SECRET}
   #   redirect_uris: https://litellm.${DOMAIN}/sso/callback
   #   scopes: openid profile email groups
-  litellm:
-    image: ghcr.io/berriai/litellm:v1.74.9-stable.patch.1
-    container_name: litellm
-    restart: unless-stopped
-    networks:
-      - ai
-    ports:
-      # Expose for Caddy on main VM to reverse proxy
-      - "4000:4000"
-    depends_on:
-      localai:
-        condition: service_healthy
-    volumes:
-      - litellm_config:/app/config
-      - ./configs/litellm/config.yaml:/app/config.yaml:ro
-    environment:
-      # API Key for programmatic access
-      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-
-      # Database - Choose one option:
-      # Option 1: Remote postgres on main VM
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@${MAIN_VM_IP}:5432/litellm
-      # Option 2: Local postgres (uncomment postgres service below)
-      # - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/litellm
-      # Option 3: SQLite (simplest, but no HA)
-      # - DATABASE_URL=sqlite:////app/config/litellm.db
-
-      - LITELLM_SALT_KEY=${AUTHELIA_JWT_SECRET}
-
-      # OIDC Configuration - All endpoints point to main VM via HTTPS
-      - GENERIC_CLIENT_ID=litellm
-      - GENERIC_CLIENT_SECRET=${LITELLM_OAUTH_SECRET}
-      - GENERIC_AUTHORIZATION_ENDPOINT=https://auth.${DOMAIN}/api/oidc/authorization
-      - GENERIC_TOKEN_ENDPOINT=https://auth.${DOMAIN}/api/oidc/token
-      - GENERIC_USERINFO_ENDPOINT=https://auth.${DOMAIN}/api/oidc/userinfo
-      - PROXY_BASE_URL=https://litellm.${DOMAIN}
-      - GENERIC_SCOPE=openid profile email groups
-      - GENERIC_USER_ID_ATTRIBUTE=preferred_username
-      - GENERIC_USER_EMAIL_ATTRIBUTE=email
-      - GENERIC_USER_ROLE_ATTRIBUTE=groups
-      - GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=name
-
-      # Fallback UI credentials (if OIDC unavailable)
-      - UI_USERNAME=admin
-      - UI_PASSWORD=${LITELLM_MASTER_KEY}
-    command: --config /app/config.yaml --port 4000 --num_workers 4
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+#  litellm:
+#    image: ghcr.io/berriai/litellm:v1.74.9-stable.patch.1
+#    container_name: litellm
+#    restart: unless-stopped
+#    networks:
+#      - ai
+#    ports:
+#      # Expose for Caddy on main VM to reverse proxy
+#      - "4000:4000"
+#    depends_on:
+#      localai:
+#        condition: service_healthy
+#    volumes:
+#      - litellm_config:/app/config
+#      - ./configs/litellm/config.yaml:/app/config.yaml:ro
+#    environment:
+#      # API Key for programmatic access
+#      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+#
+#      # Database - Choose one option:
+#      # Option 1: Remote postgres on main VM
+#      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@${MAIN_VM_IP}:5432/litellm
+#      # Option 2: Local postgres (uncomment postgres service below)
+#      # - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/litellm
+#      # Option 3: SQLite (simplest, but no HA)
+#      # - DATABASE_URL=sqlite:////app/config/litellm.db
+#
+#      - LITELLM_SALT_KEY=${AUTHELIA_JWT_SECRET}
+#
+#      # OIDC Configuration - All endpoints point to main VM via HTTPS
+#      - GENERIC_CLIENT_ID=litellm
+#      - GENERIC_CLIENT_SECRET=${LITELLM_OAUTH_SECRET}
+#      - GENERIC_AUTHORIZATION_ENDPOINT=https://auth.${DOMAIN}/api/oidc/authorization
+#      - GENERIC_TOKEN_ENDPOINT=https://auth.${DOMAIN}/api/oidc/token
+#      - GENERIC_USERINFO_ENDPOINT=https://auth.${DOMAIN}/api/oidc/userinfo
+#      - PROXY_BASE_URL=https://litellm.${DOMAIN}
+#      - GENERIC_SCOPE=openid profile email groups
+#      - GENERIC_USER_ID_ATTRIBUTE=preferred_username
+#      - GENERIC_USER_EMAIL_ATTRIBUTE=email
+#      - GENERIC_USER_ROLE_ATTRIBUTE=groups
+#      - GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=name
+#
+#      # Fallback UI credentials (if OIDC unavailable)
+#      - UI_USERNAME=admin
+#      - UI_PASSWORD=${LITELLM_MASTER_KEY}
+#    command: --config /app/config.yaml --port 4000 --num_workers 4
+#    healthcheck:
+#      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 30s
 
   # ======================
   # Optional: Local PostgreSQL for LiteLLM
