@@ -144,15 +144,6 @@ services:
     image: memcached:1.6.39-alpine
     container_name: seafile-memcached
     restart: unless-stopped
-    user: "11211:11211"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
     networks:
       - backend
     healthcheck:
@@ -166,15 +157,6 @@ services:
     image: mariadb:11.6.2
     container_name: mariadb-seafile
     restart: unless-stopped
-    user: "999:999"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     environment:
       - MYSQL_ROOT_PASSWORD=${MARIADB_SEAFILE_ROOT_PASSWORD}
       - MYSQL_DATABASE=seafile
@@ -200,15 +182,6 @@ services:
     image: redis:7.4.7-alpine
     container_name: redis-synapse
     restart: unless-stopped
-    user: "999:999"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
     networks:
       - backend
     healthcheck:

@@ -56,18 +56,6 @@ services:
     restart: unless-stopped
     networks:
       - ai
-    deploy:
-      resources:
-        limits:
-          cpus: '4.0'
-          memory: 8G
-        reservations:
-          cpus: '2.0'
-          memory: 4G
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     ports:
       # Expose for Caddy on main VM to reverse proxy
       # Alternative: Use internal network if using Docker overlay
@@ -120,14 +108,6 @@ services:
     restart: unless-stopped
     networks:
       - ai
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     ports:
       # Expose for Caddy on main VM to reverse proxy
       - "4000:4000"

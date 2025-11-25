@@ -108,15 +108,6 @@ services:
     networks:
       - backend
       - database
-    user: "472:472"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     logging:
       driver: "json-file"
       options:
@@ -188,14 +179,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -256,17 +239,8 @@ services:
     image: vaultwarden/server:1.34.3
     container_name: vaultwarden
     restart: unless-stopped
-    user: "1000:1000"
     networks:
       - backend
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
     logging:
       driver: "json-file"
       options:
@@ -332,14 +306,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
     logging:
       driver: "json-file"
       options:
@@ -394,17 +360,8 @@ services:
     image: outlinewiki/outline:0.87.3
     container_name: outline
     restart: unless-stopped
-    user: "1000:1000"
     networks:
       - backend
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     labels:
       caddy: outline.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 3000}}"
@@ -463,14 +420,6 @@ services:
     image: seafileltd/seafile-mc:13.0.12
     container_name: seafile
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     labels:
       caddy: seafile.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 80}}"
@@ -506,14 +455,6 @@ services:
     image: onlyoffice/documentserver:8.2.2
     container_name: onlyoffice
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          cpus: '1.0'
-          memory: 2G
     labels:
       caddy: onlyoffice.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 80}}"
@@ -553,14 +494,6 @@ services:
     image: matrixdotorg/synapse:v1.141.0
     container_name: synapse
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 3G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     labels:
       caddy: matrix.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 8008}}"
@@ -619,14 +552,6 @@ services:
     image: ghcr.io/mastodon/mastodon:v4.3.3
     container_name: mastodon-web
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     networks:
       - backend
       - test
@@ -658,14 +583,6 @@ services:
     image: ghcr.io/mastodon/mastodon:v4.3.3
     container_name: mastodon-streaming
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
     networks:
       - backend
       - test
@@ -690,14 +607,6 @@ services:
     image: ghcr.io/mastodon/mastodon:v4.3.3
     container_name: mastodon-sidekiq
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 256M
     networks:
       - backend
     depends_on:
@@ -762,14 +671,6 @@ services:
     networks:
       - backend
       - admin
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
     labels:
       caddy: homepage.${DOMAIN}
       caddy.forward_auth: "authelia:9091"
@@ -874,14 +775,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    deploy:
-      resources:
-        limits:
-          cpus: "2.0"
-          memory: 2G
-        reservations:
-          cpus: "0.5"
-          memory: 512M
     labels:
       caddy: homeassistant.${DOMAIN}
       caddy.forward_auth: "authelia:9091"

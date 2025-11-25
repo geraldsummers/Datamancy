@@ -37,14 +37,6 @@ services:
     networks:
       - admin
       - admin-dockge
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
     labels:
       caddy: dockge.${DOMAIN}
       caddy.forward_auth: "authelia:9091"
@@ -118,17 +110,8 @@ services:
     image: kopia/kopia:0.18.2
     container_name: kopia
     restart: unless-stopped
-    user: "1000:1000"
     networks:
       - admin
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     labels:
       caddy: kopia.${DOMAIN}
       caddy.forward_auth: "authelia:9091"

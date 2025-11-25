@@ -41,14 +41,6 @@ services:
     image: ghcr.io/mailu/nginx:2024.06.45
     container_name: mailu-front
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
     labels:
       caddy: mail.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 80}}"
@@ -82,15 +74,6 @@ services:
     image: redis:7.4.7-alpine
     container_name: mailu-redis
     restart: unless-stopped
-    user: "999:999"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
     networks:
       mail:
         aliases:
@@ -107,14 +90,6 @@ services:
     image: ghcr.io/mailu/rspamd:2024.06.45
     container_name: mailu-antispam
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
     env_file:
       - configs/mailu/mailu.env
     volumes:
@@ -135,14 +110,6 @@ services:
     image: ghcr.io/mailu/clamav:2.0.43
     container_name: mailu-antivirus
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
     env_file:
       - configs/mailu/mailu.env
     networks:
@@ -158,14 +125,6 @@ services:
     image: ghcr.io/mailu/dovecot:2024.06.45
     container_name: mailu-imap
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
     env_file:
       - configs/mailu/mailu.env
     volumes:
@@ -186,14 +145,6 @@ services:
     image: ghcr.io/mailu/postfix:2024.06.45
     container_name: mailu-smtp
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
     env_file:
       - configs/mailu/mailu.env
     volumes:
@@ -216,14 +167,6 @@ services:
     image: ghcr.io/mailu/admin:2024.06.45
     container_name: mailu-admin
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
     env_file:
       - configs/mailu/mailu.env
     volumes:
@@ -246,14 +189,6 @@ services:
     image: ghcr.io/mailu/webmail:2024.06.45
     container_name: mailu-webmail
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
     env_file:
       - configs/mailu/mailu.env
     volumes:
@@ -301,14 +236,6 @@ services:
     image: pmietlicki/sogo:v5
     container_name: sogo
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
     labels:
       caddy: sogo.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 20000}}"

@@ -6,59 +6,13 @@
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="towards llm">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/akkoma/config.exs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/akkoma/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/authelia/configuration.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/authelia/dev-issuer.key" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/authelia/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/authelia/issuer.key" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/benthos/benthos.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/caddy/Caddyfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/caddy/Caddyfile.backup" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/caddy/Caddyfile.rootless" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/caddy/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/clickhouse/config.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/couchdb/init-db.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/couchdb/init-wrapper.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/couchdb/local.ini" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/filebrowser/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/grafana/caddy-ca.crt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/grafana/grafana.ini" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/homepage/bookmarks.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/homepage/docker.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/homepage/services.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/homepage/settings.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/homepage/widgets.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/jellyfin/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/jellyfin/SSO-Auth.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/jellyfin/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/jupyterhub/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/jupyterhub/caddy-ca.crt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/jupyterhub/jupyterhub_config.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/langgraph-gui/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/ldap/bootstrap.ldif" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/mailu/mailu.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/mailu/nginx-override.conf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/mariadb/init.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/mastodon/mastodon.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/configure-oidc.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/delayed-oidc-install.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/add-cert-runtime.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/caddy-ca.crt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/delayed-oidc-install.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/docker-build/entrypoint-wrapper.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/oidc-setup.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/nextcloud/post-installation-oidc.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/postgres/init-db.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/postgres/init-mailu-schema.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/synapse/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/configs/synapse/homeserver.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Applications/docker-compose.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/LLM/configs/litellm/config.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/LLM/docker-compose.ai.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.admin.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.admin.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.auth.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.auth.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.dbs.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.dbs.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.infra.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.infra.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.llm.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.llm.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.mail.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.mail.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -145,14 +99,14 @@
       <recent name="$PROJECT_DIR$/src" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/.old" />
       <recent name="$PROJECT_DIR$/Applications" />
       <recent name="$PROJECT_DIR$/LLM" />
       <recent name="$PROJECT_DIR$/LLM/configs" />
       <recent name="$PROJECT_DIR$/tests/old" />
-      <recent name="$PROJECT_DIR$/.old" />
     </key>
   </component>
-  <component name="RunManager" selected="Docker.docker-compose.yml: Compose Deployment">
+  <component name="RunManager" selected="Docker..old: Compose Deployment">
     <configuration name="Applications.ca-generator: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
@@ -166,17 +120,17 @@
       </deployment>
       <method v="2" />
     </configuration>
-    <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
+    <configuration name=".old: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
-        <settings />
+        <settings>
+          <option name="sourceFilePath" value=".old/docker-compose.yml" />
+        </settings>
       </deployment>
       <method v="2" />
     </configuration>
-    <configuration name="docker-compose.yml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+    <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
       <deployment type="docker-compose.yml">
-        <settings>
-          <option name="sourceFilePath" value="docker-compose.yml" />
-        </settings>
+        <settings />
       </deployment>
       <method v="2" />
     </configuration>
@@ -216,7 +170,7 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Docker.docker-compose.yml: Compose Deployment" />
+        <item itemvalue="Docker..old: Compose Deployment" />
       </list>
     </recent_temporary>
   </component>
@@ -287,6 +241,7 @@
       <workItem from="1763588175105" duration="4923000" />
       <workItem from="1763765928758" duration="6715000" />
       <workItem from="1763979230531" duration="8000" />
+      <workItem from="1764013916310" duration="2608000" />
     </task>
     <task id="LOCAL-00001" summary="Remove unused services, configurations, and dependencies from project">
       <option name="closed" value="true" />
@@ -464,7 +419,15 @@
       <option name="project" value="LOCAL" />
       <updated>1763428005008</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="towards llm">
+      <option name="closed" value="true" />
+      <created>1764013950401</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1764013950401</updated>
+    </task>
+    <option name="localTasksCounter" value="24" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
