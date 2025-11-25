@@ -67,7 +67,8 @@ services:
       # Needed for Llama 3 etc (HF gated models)
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
       # Preload models on startup
-      PRELOAD_MODELS: '[{"id": "/models/llama3.yaml"},{"id": "/models/router.yaml"},{"id": "/models/qwen-coder.yaml"},{"id": "/models/embed.yaml"},{"id": "/models/whisper-medium.yaml"},{"id": "/models/whisper-small.yaml"},{"id": "/models/sd15.yaml"},{"id": "/models/vision.yaml"}]'
+      PRELOAD_MODELS: '[{"id":"llama3"},{"id":"router"},{"id":"qwen-coder"},{"id":"embed"},{"id":"whisper-medium"},{"id":"whisper-small"},{"id":"sd15"},{"id":"vision"}]'
+
 
 
     healthcheck:
