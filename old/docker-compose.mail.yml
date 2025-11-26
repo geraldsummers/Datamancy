@@ -45,7 +45,7 @@ services:
       caddy: mail.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 80}}"
     env_file:
-      - configs/mailu/mailu.env
+      - ../configs/mailu/mailu.env
     ports:
       - "25:25"
       - "465:465"
@@ -91,7 +91,7 @@ services:
     container_name: mailu-antispam
     restart: unless-stopped
     env_file:
-      - configs/mailu/mailu.env
+      - ../configs/mailu/mailu.env
     volumes:
       - mailu_filter:/var/lib/rspamd
     networks:
@@ -111,7 +111,7 @@ services:
     container_name: mailu-antivirus
     restart: unless-stopped
     env_file:
-      - configs/mailu/mailu.env
+      - ../configs/mailu/mailu.env
     networks:
       - mail
     healthcheck:
@@ -126,7 +126,7 @@ services:
     container_name: mailu-imap
     restart: unless-stopped
     env_file:
-      - configs/mailu/mailu.env
+      - ../configs/mailu/mailu.env
     volumes:
       - mailu_data:/data
     networks:
@@ -146,7 +146,7 @@ services:
     container_name: mailu-smtp
     restart: unless-stopped
     env_file:
-      - configs/mailu/mailu.env
+      - ../configs/mailu/mailu.env
     volumes:
       - mailu_data:/data
       - mailu_dkim:/dkim
@@ -168,7 +168,7 @@ services:
     container_name: mailu-admin
     restart: unless-stopped
     env_file:
-      - configs/mailu/mailu.env
+      - ../configs/mailu/mailu.env
     volumes:
       - mailu_data:/data
     networks:
@@ -190,7 +190,7 @@ services:
     container_name: mailu-webmail
     restart: unless-stopped
     env_file:
-      - configs/mailu/mailu.env
+      - ../configs/mailu/mailu.env
     volumes:
       - ./configs/mailu/nginx-override.conf:/overrides/nginx/roundcube.conf:ro
     networks:

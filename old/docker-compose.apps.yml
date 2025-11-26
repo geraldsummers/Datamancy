@@ -568,7 +568,7 @@ services:
       mailu-smtp:
         condition: service_healthy
     env_file:
-      - configs/mastodon/mastodon.env
+      - ../configs/mastodon/mastodon.env
     command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 3000 -b 0.0.0.0"
     volumes:
       - mastodon_data:/mastodon/public/system
@@ -594,7 +594,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - configs/mastodon/mastodon.env
+      - ../configs/mastodon/mastodon.env
     command: node ./streaming
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1"]
@@ -617,7 +617,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - configs/mastodon/mastodon.env
+      - ../configs/mastodon/mastodon.env
     command: bundle exec sidekiq
     volumes:
       - mastodon_data:/mastodon/public/system
@@ -712,7 +712,7 @@ services:
   #   scopes: openid email groups
   jupyterhub:
     build:
-      context: configs/jupyterhub
+      context: ../configs/jupyterhub
       dockerfile: configs/jupyterhub/Dockerfile
     container_name: jupyterhub
     restart: unless-stopped

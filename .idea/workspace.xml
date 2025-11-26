@@ -6,7 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="towards llm">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.llm.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.llm.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -93,11 +92,11 @@
       <recent name="$PROJECT_DIR$/src" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/old" />
+      <recent name="$PROJECT_DIR$" />
       <recent name="$PROJECT_DIR$/.old" />
       <recent name="$PROJECT_DIR$/Applications" />
       <recent name="$PROJECT_DIR$/LLM" />
-      <recent name="$PROJECT_DIR$/LLM/configs" />
-      <recent name="$PROJECT_DIR$/tests/old" />
     </key>
   </component>
   <component name="RunManager" selected="Docker..old: Compose Deployment">
@@ -236,6 +235,7 @@
       <workItem from="1763765928758" duration="6715000" />
       <workItem from="1763979230531" duration="8000" />
       <workItem from="1764013916310" duration="3785000" />
+      <workItem from="1764197823454" duration="901000" />
     </task>
     <task id="LOCAL-00001" summary="Remove unused services, configurations, and dependencies from project">
       <option name="closed" value="true" />
@@ -442,6 +442,17 @@
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Remove unused services, configurations, and dependencies from project" />
