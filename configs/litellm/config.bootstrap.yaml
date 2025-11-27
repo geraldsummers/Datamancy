@@ -15,3 +15,6 @@ router_settings:
 
 general_settings:
   master_key: ${LITELLM_MASTER_KEY}
+
+litellm_settings:
+  drop_params: true

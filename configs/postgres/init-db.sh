@@ -9,7 +9,6 @@ set -e
 PLANKA_DB_PASSWORD="${PLANKA_DB_PASSWORD:-changeme_planka_db}"
 OUTLINE_DB_PASSWORD="${OUTLINE_DB_PASSWORD:-changeme_outline_db}"
 SYNAPSE_DB_PASSWORD="${SYNAPSE_DB_PASSWORD:-changeme_synapse_db}"
-AKKOMA_DB_PASSWORD="${AKKOMA_DB_PASSWORD:-changeme_akkoma_db}"
 MAILU_DB_PASSWORD="${MAILU_DB_PASSWORD:-changeme_mailu_db}"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
@@ -17,7 +16,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     CREATE USER planka WITH PASSWORD '$PLANKA_DB_PASSWORD';
     CREATE USER outline WITH PASSWORD '$OUTLINE_DB_PASSWORD';
     CREATE USER synapse WITH PASSWORD '$SYNAPSE_DB_PASSWORD';
-    CREATE USER akkoma WITH PASSWORD '$AKKOMA_DB_PASSWORD';
     CREATE USER mailu WITH PASSWORD '$MAILU_DB_PASSWORD';
 
     -- Create databases with correct owners
@@ -26,7 +24,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     CREATE DATABASE langgraph OWNER postgres;
     CREATE DATABASE litellm OWNER postgres;
     CREATE DATABASE synapse OWNER synapse;
-    CREATE DATABASE akkoma OWNER akkoma;
     CREATE DATABASE mailu OWNER mailu;
 
     -- Grant privileges
@@ -35,7 +32,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE langgraph TO postgres;
     GRANT ALL PRIVILEGES ON DATABASE litellm TO postgres;
     GRANT ALL PRIVILEGES ON DATABASE synapse TO synapse;
-    GRANT ALL PRIVILEGES ON DATABASE akkoma TO akkoma;
     GRANT ALL PRIVILEGES ON DATABASE mailu TO mailu;
 EOSQL
 
@@ -43,7 +39,6 @@ EOSQL
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "planka" -c "GRANT ALL ON SCHEMA public TO planka;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "outline" -c "GRANT ALL ON SCHEMA public TO outline;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "synapse" -c "GRANT ALL ON SCHEMA public TO synapse;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "akkoma" -c "GRANT ALL ON SCHEMA public TO akkoma;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -c "GRANT ALL ON SCHEMA public TO mailu;"
 
 # Create Mailu application schema
