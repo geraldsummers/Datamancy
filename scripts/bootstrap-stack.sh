@@ -6,7 +6,7 @@
 #
 # Commands:
 #   init           Ensure repo env for bootstrap (.env.bootstrap)
-#   up-bootstrap   Start docker-compose.bootstrap.yml
+#   up-bootstrap   Start bootstrap (singletons from docker-compose.yml)
 #   down-bootstrap Stop bootstrap stack
 #   switch-to-full Stop bootstrap and start docker-compose.yml (requires .env)
 #   status         Show docker ps summary
@@ -17,7 +17,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
 compose_bootstrap() {
-  docker compose -f "$repo_root/docker-compose.bootstrap.yml" --env-file "$repo_root/.env.bootstrap" "$@"
+  docker compose -f "$repo_root/docker-compose.yml" --env-file "$repo_root/.env.bootstrap" "$@"
 }
 
 compose_full() {
@@ -39,6 +39,12 @@ ensure_env_bootstrap() {
 LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-$key}
 # Optional: if you have a HuggingFace token, uncomment and set it
 # HUGGINGFACEHUB_API_TOKEN=
+
+# Open WebUI bootstrap behavior
+OPENWEBUI_WEBUI_URL=http://localhost:8080
+OPENWEBUI_ENABLE_OAUTH_SIGNUP=false
+OPENWEBUI_DEFAULT_USER_ROLE=admin
+OPENWEBUI_OPENAI_API_BASE_URL=http://localhost:4000
 EOF
     chmod 0640 "$repo_root/.env.bootstrap" || true
   fi
@@ -62,13 +68,19 @@ case "${1:-}" in
     ;;
   up-bootstrap)
     ensure_env_bootstrap
-    compose_bootstrap up -d --pull=missing
+    # Start only the core singletons needed for local use
+    compose_bootstrap up -d --pull=missing localai litellm open-webui kfuncdb
     ;;
   down-bootstrap)
-    compose_bootstrap down
+    # Stop and remove only bootstrap singletons to avoid impacting full stack
+    ensure_env_bootstrap
+    bs_services=(open-webui litellm localai kfuncdb)
+    docker compose -f "$repo_root/docker-compose.yml" --env-file "$repo_root/.env.bootstrap" stop "${bs_services[@]}" || true
+    docker compose -f "$repo_root/docker-compose.yml" --env-file "$repo_root/.env.bootstrap" rm -f "${bs_services[@]}" || true
     ;;
   switch-to-full)
-    compose_bootstrap down || true
+    # Bring down bootstrap services first, then start full stack
+    "$0" down-bootstrap || true
     if [[ ! -f "$repo_root/.env" ]]; then
       echo "ERROR: $repo_root/.env not found. Create it first, then re-run." >&2
       exit 1

@@ -4,60 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="towards llm">
-      <change afterPath="$PROJECT_DIR$/agent/bringup.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/litellm/config.bootstrap.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docker-compose.bootstrap.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/.idea/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/.idea/codeStyles/Project.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/.idea/codeStyles/codeStyleConfig.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/.idea/gradle.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/.idea/kotlinc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/build.gradle.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/gradle.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/gradlew" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/gradlew.bat" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/settings.gradle.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/Main.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/api/LlmTool.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/api/Plugin.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/host/CapabilityPolicy.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/host/HostConfig.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/host/PluginManager.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/host/ToolRegistry.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/http/HttpServer.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/manifest/Manifest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/manifest/Version.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/plugins/CoreToolsPlugin.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/util/Json.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/host/CapabilityPolicyTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/host/PluginManagerTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/host/ToolRegistryTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/http/HttpServerTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/manifest/VersionTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/plugins/CoreToolsPluginTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/testplugins/TestPlugin.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/setup-host.sh" afterDir="false" />
+    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="bootstrapping">
+      <change afterPath="$PROJECT_DIR$/scripts/install-nvidia-containers.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile.backup" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/caddy/Caddyfile.rootless" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/caddy/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/litellm/config.bootstrap.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/litellm/config.bootstrap.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.bootstrap.yml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/old/docker-compose.admin.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old/docker-compose.apps.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old/docker-compose.auth.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old/docker-compose.dbs.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old/docker-compose.infra.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old/docker-compose.llm.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old/docker-compose.mail.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old/docker-compose.networks.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -587,7 +540,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764198972348</updated>
     </task>
-    <option name="localTasksCounter" value="27" />
+    <task id="LOCAL-00027" summary="bootstrapping">
+      <option name="closed" value="true" />
+      <created>1764211983256</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1764211983256</updated>
+    </task>
+    <option name="localTasksCounter" value="28" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -616,7 +577,8 @@
     <MESSAGE value="jupter working" />
     <MESSAGE value="gettin testy" />
     <MESSAGE value="towards llm" />
-    <option name="LAST_COMMIT_MESSAGE" value="towards llm" />
+    <MESSAGE value="bootstrapping" />
+    <option name="LAST_COMMIT_MESSAGE" value="bootstrapping" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
