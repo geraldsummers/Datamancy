@@ -1,0 +1,3 @@
+# Ignore local volumes directory (containers data, models, databases, etc.)
+# Anchored to the repository root to avoid matching similarly named paths elsewhere.
+/volumes/

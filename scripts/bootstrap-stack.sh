@@ -26,6 +26,11 @@ compose_full() {
   docker compose -f "$repo_root/docker-compose.yml" --env-file "$repo_root/.env" --profile bootstrap "$@"
 }
 
+compose_vectors() {
+  # Vector DB bootstrap-only profile now lives in main docker-compose.yml
+  docker compose -f "$repo_root/docker-compose.yml" --env-file "$repo_root/.env.bootstrap" --profile bootstrap_vector_dbs "$@"
+}
+
 random_hex() {
   # 16 bytes -> 32 hex chars
   openssl rand -hex 16
@@ -56,17 +61,19 @@ EOF
   fi
 }
 
-usage() {
-  cat <<USAGE
+  usage() {
+    cat <<USAGE
 Usage: $(basename "$0") <command>
 Commands:
   init            Create .env.bootstrap if missing
   up-bootstrap    Start bootstrap stack (Open WebUI @ http://localhost:8080)
   down-bootstrap  Stop bootstrap stack and remove containers (volumes preserved)
   switch-to-full  Stop bootstrap and start full stack (requires .env)
+  bootstrap-vectors  Start Qdrant and initialize vector DB collections
+  up-benthos      Start Qdrant, ClickHouse and Benthos (vector profile)
   status          Show container status summary
 USAGE
-}
+  }
 
 case "${1:-}" in
   init)
@@ -74,15 +81,37 @@ case "${1:-}" in
     ;;
   up-bootstrap)
     ensure_env_bootstrap
+    # Ensure authelia volume directory exists
+    mkdir -p "$repo_root/volumes/authelia"
+    mkdir -p "$repo_root/screenshots"
     # Start only bootstrap services explicitly to avoid bringing up default stack
     # which would require full secrets (.env). Dependencies (e.g., localai-init)
     # are started automatically by Compose.
-    compose_bootstrap up -d --pull=missing open-webui litellm localai kfuncdb
+    # Start order: Caddy -> LDAP -> Redis -> Authelia -> AI services -> Admin tools -> Test runner
+    compose_bootstrap up -d --pull=missing \
+      caddy-docker-proxy \
+      ldap redis authelia \
+      localai litellm open-webui kfuncdb ldap-account-manager \
+      portainer-agent portainer \
+      test-runner
+    ;;
+  bootstrap-vectors)
+    ensure_env_bootstrap
+    # Bring up Qdrant and run the one-shot bootstrap container
+    compose_vectors up -d qdrant
+    compose_vectors up --no-deps vector-bootstrap || true
+    ;;
+  up-benthos)
+    ensure_env_bootstrap
+    # Bring up Qdrant, ClickHouse and Benthos in the vector profile
+    compose_vectors up -d qdrant clickhouse
+    compose_vectors up --no-deps vector-bootstrap || true
+    compose_vectors up -d benthos
     ;;
   down-bootstrap)
     # Stop and remove only bootstrap services to avoid impacting full stack
     ensure_env_bootstrap
-    bs_services=(open-webui litellm localai kfuncdb)
+    bs_services=(test-runner portainer portainer-agent open-webui litellm localai kfuncdb ldap-account-manager authelia redis ldap caddy-docker-proxy)
     docker compose -f "$repo_root/docker-compose.yml" --env-file "$repo_root/.env.bootstrap" stop "${bs_services[@]}" || true
     docker compose -f "$repo_root/docker-compose.yml" --env-file "$repo_root/.env.bootstrap" rm -f "${bs_services[@]}" || true
     ;;

@@ -1,0 +1,6 @@
+target_collection: stack_exchange
+required_env:
+  - STACKEXCHANGE_DUMP_URL
+notes:
+  - Parse Posts.xml, synthesize Q&A contexts
+  - Strip HTML, chunk -> embed (LocalAI) -> upsert to Qdrant

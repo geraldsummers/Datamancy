@@ -15,6 +15,12 @@ router_settings:
 
 general_settings:
   master_key: ${LITELLM_MASTER_KEY}
+  # Disable database requirement for bootstrap
+  database_url: null
+  store_model_in_db: false
 
 litellm_settings:
   drop_params: true
+  # Disable features that require database
+  success_callback: []
+  failure_callback: []

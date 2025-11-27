@@ -1,0 +1,19 @@
+vector_size: 384
+distance: Cosine
+
+# Collections to initialize in Qdrant for vectorized knowledge bases
+collections:
+  - name: wiki_projects
+    description: Wikimedia projects (Wikipedia, Wiktionary, etc.) extracts
+  - name: rss_aggregation
+    description: Aggregated RSS/Atom feeds from selected sources
+  - name: stack_exchange
+    description: Stack Exchange network Q&A exports
+  - name: macroeconomics_data
+    description: IMF, World Bank, OECD, and FRED datasets and documentation
+  - name: yahoo_finance
+    description: Yahoo Finance symbols, news, and fundamentals
+  - name: linux_debian_docs
+    description: Linux and Debian documentation, manpages, and guides
+  - name: torrents_csv
+    description: Torrents-csv dataset (metadata descriptions)

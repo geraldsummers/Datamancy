@@ -1,0 +1,53 @@
+http:
+  address: 0.0.0.0:4205
+  enabled: true
+
+resources:
+  caches:
+    dedupe_mem:
+      memory: {}
+
+input:
+  http_client:
+    url: ${STACKEXCHANGE_NDJSON_URL:https://example.com/stackexchange.ndjson}
+    verb: GET
+
+pipeline:
+  processors:
+    - mapping: |
+        root = content().string().split("\n").filter(x -> x.trim() != "").map_each(x -> x.parse_json())
+    - unarchive:
+        format: json_array
+    - mapping: |
+        root.collection = env("TARGET_COLLECTION", "stack_exchange")
+        root.id = this.id.or(uuid_v4())
+        root.text = this.text.or("")
+        root.payload = this.payload.or({})
+        root.payload.text = root.text
+    - bloblang: 'root = if this.text == "" { deleted() } else { this }'
+    - dedupe:
+        cache: dedupe_mem
+        hash: "${! this.id }"
+    - branch:
+        processors:
+          - http:
+              url: ${LOCALAI_URL:http://localai:8080/v1}/embeddings
+              verb: POST
+              headers:
+                Content-Type: application/json
+              body: 'root = {"input":[ this.text ],"model": env("EMBED_MODEL","embed-small") }'
+          - mapping: 'root = {"vector": this.data.0.embedding }'
+        result_map: 'root.vector = this.vector'
+
+output:
+  http_client:
+    url: ${QDRANT_URL:http://qdrant:6333}/collections/${TARGET_COLLECTION:stack_exchange}/points?wait=true
+    verb: PUT
+    headers:
+      Content-Type: application/json
+      api-key: ${QDRANT_API_KEY:}
+    body: 'root = {"points":[{"id": this.id, "vector": this.vector, "payload": this.payload}]}'
+
+logger:
+  level: INFO
+  format: json

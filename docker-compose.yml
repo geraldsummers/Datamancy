@@ -1,3 +1,16 @@
+###############################################
+# Datamancy — docker-compose.yml
+#
+# Documentation:
+# - Overview and Quickstart: README.md
+# - Bootstrap guide: docs/BOOTSTRAP.md
+# - Architecture overview: docs/ARCHITECTURE.md
+# - App catalog (all services): docs/APP_CATALOG.md
+# - Data ingestion & RAG: docs/DATA_AND_RAG.md
+# - Operations & Security: docs/OPERATIONS.md, docs/SECURITY.md
+#
+# Tip: Services are grouped by profiles (bootstrap, bootstrap_vector_dbs, full).
+###############################################
 networks:
   frontend:
     driver: bridge
@@ -38,12 +51,13 @@ volumes:
   postgres_data:
   couchdb_data:
   clickhouse_data:
+  qdrant_data:
+  benthos_data:
   dockge_data:
   kopia_data:
   kopia_cache:
   kopia_repository:
   redis_data:
-  benthos_data:
   seafile_mysql_data:
   mailu_data:
   mailu_filter:
@@ -59,6 +73,8 @@ services:
     image: lucaslorentz/caddy-docker-proxy:2.8
     container_name: caddy
     restart: unless-stopped
+    profiles:
+      - bootstrap
     networks:
       frontend: {}
       backend:
@@ -87,6 +103,7 @@ services:
           - localrecall.${DOMAIN}
           - browserless.${DOMAIN}
           - kfuncdb.${DOMAIN}
+          - lam.${DOMAIN}
     ports:
       - "80:80"
       - "443:443"
@@ -105,43 +122,25 @@ services:
       retries: 3
       start_period: 10s
 
-  benthos:
-    image: jeffail/benthos:4.27.0
-    container_name: benthos
-    restart: unless-stopped
-    networks:
-      - backend
-      - database
-    labels:
-      caddy: benthos.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 4195}}"
-    volumes:
-      - ./configs/benthos/benthos.yaml:/benthos.yaml:ro
-      - benthos_data:/data
-    command: -c /benthos.yaml
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4195/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   test-runner:
     build:
-      context: ./tests
+      context: src/tests
       dockerfile: Dockerfile
     container_name: test-runner
     profiles:
-      - testing
+      - bootstrap
     networks:
       - backend
+      - frontend
     depends_on:
       caddy-docker-proxy:
         condition: service_healthy
       authelia:
+        condition: service_healthy
+      localai:
+        condition: service_healthy
+      open-webui:
         condition: service_healthy
     volumes:
       - ./tests:/tests:ro
@@ -157,12 +156,15 @@ services:
       - TEST_PASSWORD=DatamancyTest2025!
       - SCREEN_DIR=/screenshots
       - DOMAIN=${DOMAIN}
+      - LOCALAI_URL=http://localai:8080
+      - LITELLM_URL=http://litellm:4000
+      - LITELLM_API_KEY=${LITELLM_MASTER_KEY}
     restart: "no"
     command: >
       sh -c 'set -eu &&
       update-ca-certificates 2>/dev/null || true &&
-      printf "%s test-runner: starting webui.e2e\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" &&
-      node /tests/webui.e2e.js'
+      printf "%s test-runner: starting screenshot analysis loop\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" &&
+      node /tests/screenshot-loop.js'
 
   ldap:
     image: osixia/openldap:1.5.0
@@ -170,6 +172,8 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    profiles:
+      - bootstrap
     environment:
       - LDAP_ORGANISATION=Datamancy
       - LDAP_DOMAIN=stack.local
@@ -195,6 +199,9 @@ services:
     restart: unless-stopped
     networks:
       - backend
+      - frontend
+    profiles:
+      - bootstrap
     labels:
       caddy: lam.${DOMAIN}
       caddy.forward_auth: "authelia:9091"
@@ -203,6 +210,8 @@ services:
       caddy.reverse_proxy: "{{upstreams 80}}"
     depends_on:
       ldap:
+        condition: service_healthy
+      authelia:
         condition: service_healthy
     environment:
       - LDAP_DOMAIN=stack.local
@@ -226,6 +235,8 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    profiles:
+      - bootstrap
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -242,6 +253,9 @@ services:
     restart: unless-stopped
     networks:
       - backend
+      - frontend
+    profiles:
+      - bootstrap
     labels:
       caddy: auth.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 9091}}"
@@ -252,19 +266,13 @@ services:
         condition: service_healthy
     volumes:
       - ./volumes/authelia:/config
-      - ./configs/authelia/configuration.yml:/config/configuration.yml:ro
-      - ./configs/authelia/issuer.key:/config/issuer.key:ro
-      - ./configs/authelia/entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/entrypoint.sh"]
+      - ./configs/authelia/configuration.bootstrap.yml:/config/configuration.yml:ro
     command: ["--config", "/config/configuration.yml"]
     environment:
       - TZ=UTC
       - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET}
       - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET}
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
-      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_OIDC_HMAC_SECRET}
-      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY_FILE=/config/issuer.key
-      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER=https://auth.${DOMAIN}
       - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/api/health"]
@@ -350,35 +358,6 @@ services:
       retries: 5
       start_period: 30s
 
-  clickhouse:
-    image: clickhouse/clickhouse-server:24.8
-    container_name: clickhouse
-    restart: unless-stopped
-    networks:
-      - database
-    labels:
-      caddy: clickhouse.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 8123}}"
-    environment:
-      - CLICKHOUSE_DB=default
-      - CLICKHOUSE_USER=default
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
-    volumes:
-      - clickhouse_data:/var/lib/clickhouse
-      - ./configs/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
-    ulimits:
-      nofile:
-        soft: 262144
-        hard: 262144
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
   memcached:
     image: memcached:1.6.39-alpine
@@ -666,7 +645,7 @@ services:
       dockge:
         condition: service_healthy
     volumes:
-      - ./scripts/init-dockge.js:/init-dockge.js:ro
+      - ./configs/dockge/init-dockge.js:/init-dockge.js:ro
     environment:
       - DOCKGE_HOST=dockge
       - DOCKGE_PORT=5001
@@ -692,12 +671,12 @@ services:
       - kopia_cache:/app/cache
       - kopia_data:/data:ro
       - kopia_repository:/repository
-      - ./scripts/init-kopia.sh:/init-kopia.sh:ro
+      - ./configs/kopia/init-kopia.sh:/init-kopia.sh:ro
     environment:
       - KOPIA_PASSWORD=${KOPIA_PASSWORD}
       - KOPIA_REPO_PATH=/repository
       - USER=kopia
-    entrypoint: /init-kopia.sh
+    entrypoint: ["sh", "/init-kopia.sh"]
     healthcheck:
       test: ["CMD", "kopia", "repository", "status"]
       interval: 5m
@@ -745,7 +724,7 @@ services:
     container_name: portainer-agent
     restart: unless-stopped
     profiles:
-      - admin
+      - bootstrap
     networks:
       - backend
     volumes:
@@ -763,11 +742,14 @@ services:
     container_name: portainer
     restart: unless-stopped
     profiles:
-      - admin
+      - bootstrap
     networks:
       - backend
+      - frontend
     depends_on:
       portainer-agent:
+        condition: service_healthy
+      authelia:
         condition: service_healthy
     volumes:
       - portainer_data:/data
@@ -846,6 +828,7 @@ services:
     restart: unless-stopped
     networks:
       - backend
+      - frontend
     profiles:
       - bootstrap
     dns:
@@ -853,26 +836,21 @@ services:
       - 1.1.1.1
     labels:
       caddy: open-webui.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
       caddy.reverse_proxy: "{{upstreams 8080}}"
     depends_on:
       litellm:
         condition: service_healthy
+      authelia:
+        condition: service_healthy
     environment:
-      - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
-      - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-true}
-      - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
-      - OAUTH_CLIENT_ID=${OPENWEBUI_OAUTH_CLIENT_ID:-open-webui}
-      - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
-      - OPENID_PROVIDER_URL=${OPENWEBUI_OPENID_PROVIDER_URL:-https://auth.${DOMAIN}/.well-known/openid-configuration}
-      - OAUTH_PROVIDER_NAME=Authelia
-      - OAUTH_SCOPES=openid email profile groups
-      - ENABLE_OAUTH_ROLE_MANAGEMENT=true
-      - OAUTH_GROUPS_CLAIM=groups
-      - OAUTH_ADMIN_ROLES=admins,openwebui-admin
-      - OAUTH_ALLOWED_ROLES=admins,users,openwebui-admin
-      - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-user}
+      - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-http://open-webui.${DOMAIN}}
+      - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-false}
+      - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
       - ENABLE_OPENAI_API=true
-      - OPENAI_API_BASE_URL=${OPENWEBUI_OPENAI_API_BASE_URL:-https://litellm.${DOMAIN}}
+      - OPENAI_API_BASE_URL=${OPENWEBUI_OPENAI_API_BASE_URL:-http://localai:8080/v1}
       - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
     volumes:
       - open_webui_data:/app/backend/data
@@ -882,8 +860,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    ports:
-      - "127.0.0.1:8080:8080"
 
   vaultwarden:
     image: vaultwarden/server:1.34.3
@@ -1204,7 +1180,7 @@ services:
         condition: service_healthy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./scripts/init-mastodon.sh:/init-mastodon.sh:ro
+      - ./configs/mastodon/init-mastodon.sh:/init-mastodon.sh:ro
     command: sh /init-mastodon.sh
     restart: "no"
 
@@ -1302,8 +1278,8 @@ services:
     image: alpine:latest
     container_name: localai-init
     volumes:
-      - ./models:/source:ro
-      - /var/lib/localai/models:/dest
+      - ./configs/localai/models:/source:ro
+      - ./volumes/localai/models:/dest
     command: sh -c "cp -n /source/*.yaml /dest/ 2>/dev/null || true"
     restart: "no"
     profiles:
@@ -1315,17 +1291,23 @@ services:
     restart: unless-stopped
     networks:
       - backend
+      - frontend
     profiles:
       - bootstrap
     labels:
       caddy: localai.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
       caddy.reverse_proxy: "{{upstreams 8080}}"
     depends_on:
       localai-init:
         condition: service_completed_successfully
+      authelia:
+        condition: service_healthy
     volumes:
       - localai_models:/build/models
-      - /var/lib/localai/models:/models
+      - ./volumes/localai/models:/models
     environment:
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
     healthcheck:
@@ -1334,8 +1316,6 @@ services:
       timeout: 30s
       retries: 5
       start_period: 5m
-    ports:
-      - "127.0.0.1:18080:8080"
 
   litellm:
     image: ghcr.io/berriai/litellm:v1.74.9-stable.patch.1
@@ -1343,30 +1323,25 @@ services:
     restart: unless-stopped
     networks:
       - backend
+      - frontend
     profiles:
       - bootstrap
     labels:
       caddy: litellm.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
       caddy.reverse_proxy: "{{upstreams 4000}}"
     depends_on:
       localai:
+        condition: service_healthy
+      authelia:
         condition: service_healthy
     volumes:
       - litellm_config:/app/config
       - ./configs/litellm/config.bootstrap.yaml:/app/config.yaml:ro
     environment:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      - GENERIC_CLIENT_ID=litellm
-      - GENERIC_CLIENT_SECRET=${LITELLM_OAUTH_SECRET}
-      - GENERIC_AUTHORIZATION_ENDPOINT=https://auth.${DOMAIN}/api/oidc/authorization
-      - GENERIC_TOKEN_ENDPOINT=https://auth.${DOMAIN}/api/oidc/token
-      - GENERIC_USERINFO_ENDPOINT=https://auth.${DOMAIN}/api/oidc/userinfo
-      - PROXY_BASE_URL=https://litellm.${DOMAIN}
-      - GENERIC_SCOPE=openid profile email groups
-      - GENERIC_USER_ID_ATTRIBUTE=preferred_username
-      - GENERIC_USER_EMAIL_ATTRIBUTE=email
-      - GENERIC_USER_ROLE_ATTRIBUTE=groups
-      - GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=name
       - UI_USERNAME=admin
       - UI_PASSWORD=${LITELLM_MASTER_KEY}
     command: --config /app/config.yaml --port 4000 --num_workers 4
@@ -1376,8 +1351,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
-    ports:
-      - "127.0.0.1:4000:4000"
 
 
   localagi:
@@ -1427,11 +1400,12 @@ services:
       start_period: 30s
 
   kfuncdb:
-    build: ./kfuncdb
+    build: ./src/kfuncdb
     container_name: kfuncdb
     restart: unless-stopped
     networks:
       - backend
+      - frontend
     profiles:
       - bootstrap
     user: "1000:1000"
@@ -1441,6 +1415,9 @@ services:
       caddy.forward_auth.uri: "/api/authz/forward-auth"
       caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
       caddy.reverse_proxy: "{{upstreams 8081}}"
+    depends_on:
+      authelia:
+        condition: service_healthy
     environment:
       - KFUNCDB_PORT=8081
       - KFUNCDB_PLUGINS_DIR=/app/plugins
@@ -1453,5 +1430,119 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+
+  ###############################################
+  # Vector Stack (profile: bootstrap_vector_dbs)
+  ###############################################
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: unless-stopped
+    networks:
+      - database
+      - backend
+    profiles:
+      - bootstrap_vector_dbs
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
     ports:
-      - "127.0.0.1:18081:8081"
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6333/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: clickhouse
+    restart: unless-stopped
+    networks:
+      - database
+    labels:
+      caddy: clickhouse.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 8123}}"
+    profiles:
+      - bootstrap_vector_dbs
+    environment:
+      - CLICKHOUSE_DB=default
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./configs/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
+      - ./configs/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "9000:9000" # native TCP for clients (e.g., Benthos)
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  vector-bootstrap:
+    image: python:3.12-alpine
+    container_name: vector-bootstrap
+    profiles:
+      - bootstrap_vector_dbs
+    restart: "no"
+    networks:
+      - backend
+      - database
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - VECTOR_SIZE=${VECTOR_EMBED_SIZE:-384}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+    volumes:
+      - ./configs/vectors/collections.yaml:/configs/collections.yaml:ro
+      - ./configs/vectors/bootstrap_vectors.py:/scripts/bootstrap_vectors.py:ro
+    command: sh -c "python /scripts/bootstrap_vectors.py /configs/collections.yaml"
+
+  benthos:
+    image: jeffail/benthos:4.27.0
+    container_name: benthos
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    profiles:
+      - bootstrap_vector_dbs
+    volumes:
+      - ./configs/benthos/benthos.yaml:/benthos.yaml:ro
+      - benthos_data:/data
+    command: -c /benthos.yaml
+    environment:
+      - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - LOCALAI_URL=${LOCALAI_URL:-http://localai:8080/v1}
+      - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://default:${CLICKHOUSE_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
+      - EMBED_MODEL=${EMBED_MODEL:-embed-small}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4195/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

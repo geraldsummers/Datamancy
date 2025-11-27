@@ -1,0 +1,8 @@
+target_collection: macroeconomics_data
+required_env:
+  - FRED_API_KEY
+  - IMF_API_KEY
+  - OECD_APP_KEY
+notes:
+  - Pull series metadata/descriptions from providers
+  - Build text contexts, embed (LocalAI), upsert to Qdrant
