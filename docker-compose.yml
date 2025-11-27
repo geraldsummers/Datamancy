@@ -14,38 +14,6 @@ networks:
     ipam:
       config:
         - subnet: 172.22.0.0/24
-  auth:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.23.0.0/24
-  admin:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.24.0.0/24
-  admin-dockge:
-    driver: bridge
-    internal: true
-    ipam:
-      config:
-        - subnet: 172.26.0.0/24
-  admin-jupyterhub:
-    driver: bridge
-    internal: true
-    ipam:
-      config:
-        - subnet: 172.27.0.0/24
-  mail:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.25.0.0/24
-  test:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.19.0.0/16
 
 volumes:
   caddy_data:
@@ -82,6 +50,9 @@ volumes:
   mailu_cert:
   mailu_dkim:
   sogo_data:
+  localagi_data:
+  localrecall_data:
+  portainer_data:
 
 services:
   caddy:
@@ -106,42 +77,17 @@ services:
           - homeassistant.${DOMAIN}
           - akkoma.${DOMAIN}
           - litellm.${DOMAIN}
-      auth:
-        aliases:
           - auth.${DOMAIN}
-      admin:
-        aliases:
           - kopia.${DOMAIN}
           - adminer.${DOMAIN}
           - pgadmin.${DOMAIN}
           - portainer.${DOMAIN}
-      mail:
-        aliases:
           - mail.${DOMAIN}
-      test:
-        aliases:
-          - grafana.${DOMAIN}
-          - auth.${DOMAIN}
-          - adminer.${DOMAIN}
-          - pgadmin.${DOMAIN}
-          - portainer.${DOMAIN}
           - localai.${DOMAIN}
-          - litellm.${DOMAIN}
-          - open-webui.${DOMAIN}
+          - localagi.${DOMAIN}
+          - localrecall.${DOMAIN}
           - browserless.${DOMAIN}
-          - homeassistant.${DOMAIN}
-          - vaultwarden.${DOMAIN}
-          - planka.${DOMAIN}
-          - outline.${DOMAIN}
-          - kopia.${DOMAIN}
-          - jupyterhub.${DOMAIN}
-          - homepage.${DOMAIN}
-          - seafile.${DOMAIN}
-          - onlyoffice.${DOMAIN}
-          - matrix.${DOMAIN}
-          - sogo.${DOMAIN}
-          - mail.${DOMAIN}
-          - akkoma.${DOMAIN}
+          - kfuncdb.${DOMAIN}
     ports:
       - "80:80"
       - "443:443"
@@ -152,7 +98,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     environment:
-      - CADDY_INGRESS_NETWORKS=frontend backend auth admin mail test
+      - CADDY_INGRESS_NETWORKS=frontend backend
       - ACME_AGREE=true
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
@@ -193,10 +139,11 @@ services:
     profiles:
       - testing
     networks:
-      - test
       - backend
     depends_on:
       caddy:
+        condition: service_healthy
+      authelia:
         condition: service_healthy
     volumes:
       - ./tests:/tests:ro
@@ -211,6 +158,7 @@ services:
       - TEST_USERNAME=admin
       - TEST_PASSWORD=DatamancyTest2025!
       - SCREEN_DIR=/screenshots
+      - DOMAIN=${DOMAIN}
     restart: "no"
     command: >
       sh -c 'set -eu &&
@@ -223,7 +171,7 @@ services:
     container_name: ldap
     restart: unless-stopped
     networks:
-      - auth
+      - backend
     environment:
       - LDAP_ORGANISATION=Datamancy
       - LDAP_DOMAIN=stack.local
@@ -248,8 +196,7 @@ services:
     container_name: ldap-account-manager
     restart: unless-stopped
     networks:
-      - auth
-      - admin
+      - backend
     labels:
       caddy: lam.${DOMAIN}
       caddy.forward_auth: "authelia:9091"
@@ -280,7 +227,6 @@ services:
     container_name: redis
     restart: unless-stopped
     networks:
-      - auth
       - backend
     volumes:
       - redis_data:/data
@@ -297,7 +243,6 @@ services:
     container_name: authelia
     restart: unless-stopped
     networks:
-      - auth
       - backend
     labels:
       caddy: auth.${DOMAIN}
@@ -361,7 +306,6 @@ services:
         aliases:
           - db
       backend: {}
-      mail: {}
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_USER=postgres
@@ -506,8 +450,7 @@ services:
       - mailu_cert:/certs
       - mailu_dkim:/dkim
     networks:
-      - mail
-      - test
+      - backend
     depends_on:
       mailu-admin:
         condition: service_healthy
@@ -523,7 +466,7 @@ services:
     container_name: mailu-redis
     restart: unless-stopped
     networks:
-      mail:
+      backend:
         aliases:
           - redis
           - mailu-redis
@@ -543,7 +486,7 @@ services:
     volumes:
       - mailu_filter:/var/lib/rspamd
     networks:
-      - mail
+      - backend
     depends_on:
       mailu-admin:
         condition: service_healthy
@@ -561,7 +504,7 @@ services:
     env_file:
       - configs/mailu/mailu.env
     networks:
-      - mail
+      - backend
     healthcheck:
       test: ["CMD", "clamdscan", "--ping", "1"]
       interval: 60s
@@ -578,7 +521,7 @@ services:
     volumes:
       - mailu_data:/data
     networks:
-      - mail
+      - backend
     depends_on:
       mailu-admin:
         condition: service_healthy
@@ -599,7 +542,6 @@ services:
       - mailu_data:/data
       - mailu_dkim:/dkim
     networks:
-      - mail
       - backend
     depends_on:
       mailu-admin:
@@ -620,7 +562,7 @@ services:
     volumes:
       - mailu_data:/data
     networks:
-      - mail
+      - backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -642,7 +584,7 @@ services:
     volumes:
       - ./configs/mailu/nginx-override.conf:/overrides/nginx/roundcube.conf:ro
     networks:
-      - mail
+      - backend
     depends_on:
       mailu-admin:
         condition: service_healthy
@@ -684,8 +626,6 @@ services:
         condition: service_healthy
     networks:
       - backend
-      - mail
-      - test
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:20000/"]
       interval: 30s
@@ -698,8 +638,7 @@ services:
     container_name: dockge
     restart: unless-stopped
     networks:
-      - admin
-      - admin-dockge
+      - backend
     labels:
       caddy: dockge.${DOMAIN}
       caddy.forward_auth: "authelia:9091"
@@ -725,7 +664,7 @@ services:
     image: node:20.18.1-alpine
     container_name: dockge-init
     networks:
-      - admin
+      - backend
     depends_on:
       dockge:
         condition: service_healthy
@@ -744,7 +683,7 @@ services:
     container_name: kopia
     restart: unless-stopped
     networks:
-      - admin
+      - backend
     labels:
       caddy: kopia.${DOMAIN}
       caddy.forward_auth: "authelia:9091"
@@ -774,9 +713,7 @@ services:
     container_name: docker-proxy
     restart: unless-stopped
     networks:
-      - admin
-      - admin-dockge
-      - admin-jupyterhub
+      - backend
     environment:
       - CONTAINERS=1
       - IMAGES=1
@@ -805,6 +742,50 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  portainer-agent:
+    image: portainer/agent:latest
+    container_name: portainer-agent
+    restart: unless-stopped
+    profiles:
+      - admin
+    networks:
+      - backend
+    volumes:
+      - ${DOCKER_SOCKET:-/run/user/1000/docker.sock}:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9001/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    profiles:
+      - admin
+    networks:
+      - backend
+    depends_on:
+      portainer-agent:
+        condition: service_healthy
+    volumes:
+      - portainer_data:/data
+    labels:
+      caddy: portainer.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 9000}}"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/api/system/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   grafana:
     image: grafana/grafana:11.6.7
@@ -1068,7 +1049,6 @@ services:
       - ./configs/seafile/seahub_settings.py:/opt/seafile/conf/seahub_settings.py:ro
     networks:
       - backend
-      - test
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
@@ -1092,7 +1072,6 @@ services:
       - onlyoffice_data:/var/www/onlyoffice/Data
     networks:
       - backend
-      - test
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/healthcheck"]
       interval: 60s
@@ -1130,7 +1109,6 @@ services:
     entrypoint: ["/entrypoint.sh"]
     networks:
       - backend
-      - test
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
       interval: 30s
@@ -1144,7 +1122,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-      - test
     labels:
       caddy: mastodon.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 3000}}"
@@ -1175,7 +1152,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-      - test
     depends_on:
       mastodon-web:
         condition: service_healthy
@@ -1238,7 +1214,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-      - admin
     labels:
       caddy: homepage.${DOMAIN}
       caddy.forward_auth: "authelia:9091"
@@ -1271,8 +1246,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-      - admin
-      - admin-jupyterhub
     labels:
       caddy: jupyterhub.${DOMAIN}
       caddy.reverse_proxy: "{{upstreams 8000}}"
@@ -1386,3 +1359,76 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+
+  localagi:
+    image: ghcr.io/open-webui/local-agi:latest
+    container_name: localagi
+    restart: unless-stopped
+    networks:
+      - backend
+    labels:
+      caddy: localagi.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 3000}}"
+    depends_on:
+      litellm:
+        condition: service_healthy
+    environment:
+      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
+      - OPENAI_API_BASE=https://litellm.${DOMAIN}
+      - WEB_CONCURRENCY=1
+    volumes:
+      - localagi_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  localrecall:
+    image: ghcr.io/open-webui/local-recall:latest
+    container_name: localrecall
+    restart: unless-stopped
+    networks:
+      - backend
+    labels:
+      caddy: localrecall.${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 3000}}"
+    environment:
+      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
+      - OPENAI_API_BASE=https://litellm.${DOMAIN}
+    volumes:
+      - localrecall_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  kfuncdb:
+    build: ./kfuncdb
+    container_name: kfuncdb
+    restart: unless-stopped
+    networks:
+      - backend
+    user: "1000:1000"
+    labels:
+      caddy: kfuncdb.${DOMAIN}
+      caddy.forward_auth: "authelia:9091"
+      caddy.forward_auth.uri: "/api/authz/forward-auth"
+      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
+      caddy.reverse_proxy: "{{upstreams 8081}}"
+    environment:
+      - KFUNCDB_PORT=8081
+      - KFUNCDB_PLUGINS_DIR=/app/plugins
+      - KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.inspect
+    volumes:
+      - ${DOCKER_SOCKET:-/run/user/1000/docker.sock}:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

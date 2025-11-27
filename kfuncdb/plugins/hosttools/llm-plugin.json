@@ -1,0 +1,14 @@
+{
+  "id": "hosttools",
+  "version": "1.0.0",
+  "apiVersion": "1.0.0",
+  "implementation": "org.example.plugins.HostToolsPlugin",
+  "capabilities": [
+    "host.shell.read",
+    "host.docker.inspect"
+  ],
+  "requires": {
+    "host": ">=1.0.0",
+    "api": "1.0.0"
+  }
+}

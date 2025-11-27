@@ -1,0 +1,8 @@
+# Ignore generated screenshots from Puppeteer test-runner
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*
+!.gitignore

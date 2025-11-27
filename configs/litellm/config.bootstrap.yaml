@@ -1,0 +1,27 @@
+# LiteLLM bootstrap configuration
+# Purpose: expose a local OpenAI-compatible endpoint at http://localhost:4000
+# that proxies to the LocalAI container started by docker-compose.bootstrap.yml.
+
+model_list:
+  - model_name: local/llama3
+    litellm_params:
+      # Use OpenAI-compatible routes but point base to LocalAI
+      model: openai/gpt-4o-mini
+      api_base: http://localai:8080
+      api_key: ${LITELLM_MASTER_KEY}
+  - model_name: local/qwen-coder
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_base: http://localai:8080
+      api_key: ${LITELLM_MASTER_KEY}
+  - model_name: local/embed
+    litellm_params:
+      model: text-embedding-3-small
+      api_base: http://localai:8080
+      api_key: ${LITELLM_MASTER_KEY}
+
+router_settings:
+  num_retries: 1
+
+general_settings:
+  master_key: ${LITELLM_MASTER_KEY}
