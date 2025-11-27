@@ -5,123 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="bootstrapping">
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/authelia/configuration.bootstrap.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/benthos/fred_meta_to_qdrant.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/benthos/fred_values_to_clickhouse.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/benthos/linux_debian_ndjson_to_qdrant.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/benthos/rss_to_qdrant.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/benthos/stackexchange_ndjson_to_qdrant.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/benthos/torrents_csv_to_qdrant.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/benthos/wiki_ndjson_to_qdrant.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/benthos/yahoo_news_to_qdrant.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/clickhouse/init.sql" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/dockge/init-dockge.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/ingestion/linux_debian.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/ingestion/macro.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/ingestion/stackexchange.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/ingestion/wiki.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/ingestion/yahoo_finance.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/kopia/init-kopia.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/mastodon/init-mastodon.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/vectors/bootstrap_vectors.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs/vectors/collections.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/APP_CATALOG.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/BOOTSTRAP.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/OPERATIONS.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/SECURITY.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/bootstrap_vectors.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/rss_to_qdrant.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/NEEDED" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/tests/screenshot-loop.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/authelia/configuration.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/authelia/db.sqlite3" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/authelia/issuer.key" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/01ef9266c178bdcf654bb8730bf1d55f.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/112ee7db86acb6c32ff0ad9e1d651094.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/1bea8ef81b66dd63fcf3b68e5b959925.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/23edd98fb1aee8a2cc1d8b07f2a8adec.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/4e8bce301ebed58b98689146c493d8c4.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/Hermes-3-Llama-3.2-3B-Q4_K_M.gguf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/MODEL_CARD" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/c1a3af45b7927c64663e1d5beac5fcac.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/d5d777709b4378daa8979eb2e364a5d1.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/embed.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/en-us-amy-low.onnx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/en-us-amy-low.onnx.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/f3cb558f560f3efdeadc6b36d9064998.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/ggml-whisper-base.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/granite-embedding-107m-multilingual-f16.gguf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/jina-reranker-v1-tiny-en.f16.gguf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/llama3.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/minicpm-v-4_5-Q4_K_M.gguf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/minicpm-v-4_5-mmproj-f16.gguf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/qwen-coder.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/router.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/sd15.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/silero-vad.onnx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/vision.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/voice-en-us-amy-low.tar.gz" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/whisper-medium.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/volumes/localai/models/whisper-small.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env.bootstrap" beforeDir="false" afterPath="$PROJECT_DIR$/.env.bootstrap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/agent/bringup.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cleandocker.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/cleandocker.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/benthos/benthos.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/litellm/config.bootstrap.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/litellm/config.bootstrap.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/create_debian_distribution.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/create_debian_distribution.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/.idea/codeStyles/Project.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/.idea/codeStyles/Project.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/.idea/codeStyles/codeStyleConfig.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/.idea/codeStyles/codeStyleConfig.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/.idea/gradle.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/.idea/kotlinc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/.idea/kotlinc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/gradle.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/gradle.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/gradlew" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/gradlew" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/gradlew.bat" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/gradlew.bat" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/plugins/hosttools/llm-plugin.json" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/plugins/hosttools/llm-plugin.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/settings.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/api/LlmTool.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/api/LlmTool.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/api/Plugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/api/Plugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/host/CapabilityPolicy.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/CapabilityPolicy.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/host/HostConfig.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/HostConfig.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/host/PluginManager.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/PluginManager.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/host/ToolRegistry.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/ToolRegistry.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/http/HttpServer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/http/HttpServer.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/manifest/Manifest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/manifest/Manifest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/manifest/Version.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/manifest/Version.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/plugins/CoreToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/CoreToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/main/kotlin/org/example/util/Json.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/util/Json.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/host/CapabilityPolicyTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/CapabilityPolicyTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/host/PluginManagerTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/PluginManagerTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/host/ToolRegistryTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/ToolRegistryTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/http/HttpServerTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/http/HttpServerTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/manifest/VersionTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/manifest/VersionTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/plugins/CoreToolsPluginTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/plugins/CoreToolsPluginTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kfuncdb/src/test/kotlin/org/example/testplugins/TestPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/testplugins/TestPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/embed.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/localai/models/embed.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/llama3.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/localai/models/llama3.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/qwen-coder.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/localai/models/qwen-coder.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/router.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/localai/models/router.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/sd15.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/localai/models/sd15.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/vision.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/localai/models/vision.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/whisper-medium.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/localai/models/whisper-medium.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/whisper-small.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/localai/models/whisper-small.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/tests/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/webui.e2e.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/tests/webui.e2e.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/bootstrap_vectors.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/create_debian_distribution.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/create_debian_distribution.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/init-dockge.js" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -211,6 +99,7 @@
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;SHELLCHECK.PATH&quot;: &quot;/home/gerald/.local/share/JetBrains/PyCharm2025.2/Shell Script/shellcheck&quot;,
     &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
     &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
@@ -686,7 +575,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764284312493</updated>
     </task>
-    <option name="localTasksCounter" value="31" />
+    <task id="LOCAL-00031" summary="bootstrapping">
+      <option name="closed" value="true" />
+      <created>1764284470768</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1764284470768</updated>
+    </task>
+    <option name="localTasksCounter" value="32" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

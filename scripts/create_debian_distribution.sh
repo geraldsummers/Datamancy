@@ -155,6 +155,7 @@ cp "$SSH_PUB" "$ISO_WORK_DIR/ssh-builder.pub"
 cat > zshrc-template <<'EOF'
 # Auto-generated default zshrc for this image
 PROMPT="%F{red}%M%f %F{14}%n%f %d %T : "
+export EDITOR=nvim
 EOF
 
 cp zshrc-template "$ISO_WORK_DIR/zshrc-template"

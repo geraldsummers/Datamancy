@@ -711,7 +711,7 @@ services:
       - TASKS=0
       - VERSION=1
     volumes:
-      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - ${DOCKER_SOCKET:-/run/user/1000/docker.sock}:/var/run/docker.sock:ro
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:2375/version"]
       interval: 30s
@@ -728,7 +728,7 @@ services:
     networks:
       - backend
     volumes:
-      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      - ${DOCKER_SOCKET:-/run/user/1000/docker.sock}:/var/run/docker.sock
       - /var/lib/docker/volumes:/var/lib/docker/volumes
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9001/api/status"]
@@ -1286,7 +1286,7 @@ services:
       - bootstrap
 
   localai:
-    image: localai/localai:v3.7.0-aio-gpu-nvidia-cuda-12
+    image: localai/localai:v3.7.0-aio-cpu
     container_name: localai
     restart: unless-stopped
     networks:
@@ -1423,7 +1423,7 @@ services:
       - KFUNCDB_PLUGINS_DIR=/app/plugins
       - KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.inspect
     volumes:
-      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - ${DOCKER_SOCKET:-/run/user/1000/docker.sock}:/var/run/docker.sock:ro
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/healthz"]
       interval: 30s
