@@ -65,10 +65,11 @@ volumes:
   mailu_dkim:
   sogo_data:
   portainer_data:
+  proofs:
 
 services:
-  caddy-docker-proxy:
-    image: lucaslorentz/caddy-docker-proxy:2.8
+  caddy:
+    image: caddy:2.8.4
     container_name: caddy
     restart: unless-stopped
     profiles:
@@ -107,12 +108,17 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - caddy_data:/data
       - caddy_config:/config
+      # Provide the static Caddyfile. Defaults to self-signed (internal CA).
+      # To enable Let's Encrypt for a specific site, edit configs/infrastructure/caddy/Caddyfile
+      # and add `tls you@example.com` inside that site's block.
+      - ./configs/infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     environment:
-      - CADDY_INGRESS_NETWORKS=frontend backend
-      - ACME_AGREE=true
+      # Domain for vhosts in Caddyfile
+      DOMAIN: "${DOMAIN}"
+      # Default IP allowlist for api.litellm subdomain (space-separated CIDRs)
+      API_LITELLM_ALLOWLIST: "${API_LITELLM_ALLOWLIST:-10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 ::1 fc00::/7 fe80::/10}"
     healthcheck:
       # Use the caddy binary as a lightweight readiness signal
       test: ["CMD", "caddy", "version"]
@@ -135,16 +141,17 @@ services:
       - LDAP_ORGANISATION=Datamancy
       - LDAP_DOMAIN=stack.local
       - LDAP_BASE_DN=dc=stack,dc=local
-      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
-      - LDAP_CONFIG_PASSWORD=${LDAP_CONFIG_PASSWORD}
+      # Consolidated: use stack-wide admin password for LDAP admin/config
+      - LDAP_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - LDAP_CONFIG_PASSWORD=${STACK_ADMIN_PASSWORD}
       - LDAP_TLS=false
     volumes:
       - ldap_data:/var/lib/ldap
       - ldap_config:/etc/ldap/slapd.d
-      - ./configs/ldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap.ldif:ro
+      - ./bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
     command: --copy-service --loglevel debug
     healthcheck:
-      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=stack,dc=local", "-D", "cn=admin,dc=stack,dc=local", "-w", "${LDAP_ADMIN_PASSWORD}"]
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=stack,dc=local", "-D", "cn=admin,dc=stack,dc=local", "-w", "${STACK_ADMIN_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -160,12 +167,6 @@ services:
     profiles:
       - bootstrap
       - applications
-    labels:
-      caddy: lam.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 80}}"
     depends_on:
       ldap:
         condition: service_healthy
@@ -175,8 +176,10 @@ services:
       - LDAP_DOMAIN=stack.local
       - LDAP_BASE_DN=dc=stack,dc=local
       - LDAP_USER=cn=admin,dc=stack,dc=local
-      - LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
-      - LAM_PASSWORD=${LAM_PASSWORD:-lam}
+      # Consolidated: use stack-wide admin password for LDAP bind
+      - LDAP_PASSWORD=${STACK_ADMIN_PASSWORD}
+      # Consolidated admin credentials: use stack-wide admin password
+      - LAM_PASSWORD=${STACK_ADMIN_PASSWORD}
       - LAM_LANG=en_US
     volumes:
       - lam_config:/var/lib/ldap-account-manager
@@ -195,7 +198,7 @@ services:
       - backend
     profiles:
       - bootstrap
-      - database
+      - databases
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -216,9 +219,6 @@ services:
     profiles:
       - bootstrap
       - infrastructure
-    labels:
-      caddy: auth.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 9091}}"
     depends_on:
       ldap:
         condition: service_healthy
@@ -226,16 +226,18 @@ services:
         condition: service_healthy
     volumes:
       - ./volumes/authelia:/config
-      - ${AUTHELIA_CONFIG_FILE:-./configs/authelia/configuration.yml}:/config/configuration.yml:ro
+      - ${AUTHELIA_CONFIG_FILE:-./configs/applications/authelia/configuration.yml}:/config/configuration.yml:ro
     command: ["--config", "/config/configuration.yml"]
     environment:
       - TZ=UTC
       - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET}
       - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET}
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
-      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
+      # Consolidated: use stack-wide admin password for LDAP bind
+      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${STACK_ADMIN_PASSWORD}
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET:-}
-      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY:-}
+      # OIDC private key is configured in the jwks section of configuration.yml
+      # - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY:-}
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/api/health"]
       interval: 30s
@@ -248,20 +250,20 @@ services:
     container_name: mariadb
     restart: unless-stopped
     profiles:
-      - database
+      - databases
     networks:
       - database
     environment:
-      - MYSQL_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
       - MYSQL_DATABASE=datamancy
-      - MYSQL_USER=datamancy
-      - MYSQL_PASSWORD=${MARIADB_PASSWORD}
+      - MYSQL_USER=${STACK_ADMIN_USER}
+      - MYSQL_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - mariadb_data:/var/lib/mysql
-      - ./configs/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./configs/databases/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_ROOT_PASSWORD}"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${STACK_ADMIN_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -272,27 +274,27 @@ services:
     container_name: postgres
     restart: unless-stopped
     profiles:
-      - database
+      - databases
     networks:
       database:
         aliases:
           - db
       backend: {}
     environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - POSTGRES_USER=${STACK_ADMIN_USER}
       - POSTGRES_DB=postgres
-      - PLANKA_DB_PASSWORD=${PLANKA_DB_PASSWORD}
-      - OUTLINE_DB_PASSWORD=${OUTLINE_DB_PASSWORD}
-      - SYNAPSE_DB_PASSWORD=${SYNAPSE_DB_PASSWORD}
-      - MAILU_DB_PASSWORD=${MAILU_DB_PASSWORD}
+      - PLANKA_DB_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - OUTLINE_DB_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - SYNAPSE_DB_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - MAILU_DB_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./configs/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
-      - ./configs/postgres/init-mailu-schema.sql:/docker-entrypoint-initdb.d/init-mailu-schema.sql:ro
+      - ./configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./configs/databases/postgres/init-mailu-schema.sql:/docker-entrypoint-initdb.d/init-mailu-schema.sql:ro
     command: postgres -c 'max_connections=200'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${STACK_ADMIN_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -303,21 +305,15 @@ services:
     container_name: couchdb
     restart: unless-stopped
     profiles:
-      - database
+      - databases
     networks:
       - database
-    labels:
-      caddy: couchdb.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 5984}}"
     environment:
-      - COUCHDB_USER=admin
-      - COUCHDB_PASSWORD=${COUCHDB_PASSWORD}
+      - COUCHDB_USER=${STACK_ADMIN_USER}
+      - COUCHDB_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - couchdb_data:/opt/couchdb/data
-      - ./configs/couchdb/init-wrapper.sh:/usr/local/bin/init-wrapper.sh:ro
+      - ./configs/databases/couchdb/init-wrapper.sh:/usr/local/bin/init-wrapper.sh:ro
     entrypoint: ["/bin/bash", "/usr/local/bin/init-wrapper.sh"]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://127.0.0.1:5984/_up | grep -q '\"status\":\"ok\"' || exit 1"]
@@ -332,7 +328,7 @@ services:
     container_name: seafile-memcached
     restart: unless-stopped
     profiles:
-      - database
+      - databases
     networks:
       - backend
     healthcheck:
@@ -347,18 +343,18 @@ services:
     container_name: mariadb-seafile
     restart: unless-stopped
     profiles:
-      - database
+      - databases
     environment:
-      - MYSQL_ROOT_PASSWORD=${MARIADB_SEAFILE_ROOT_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
       - MYSQL_DATABASE=seafile
-      - MYSQL_USER=seafile
-      - MYSQL_PASSWORD=${MARIADB_SEAFILE_PASSWORD}
+      - MYSQL_USER=${STACK_ADMIN_USER}
+      - MYSQL_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - seafile_mysql_data:/var/lib/mysql
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_SEAFILE_ROOT_PASSWORD}"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${STACK_ADMIN_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -369,7 +365,7 @@ services:
     container_name: redis-synapse
     restart: unless-stopped
     profiles:
-      - database
+      - databases
     networks:
       - backend
     healthcheck:
@@ -385,11 +381,8 @@ services:
     restart: unless-stopped
     profiles:
       - applications
-    labels:
-      caddy: mail.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 80}}"
     env_file:
-      - configs/mailu/mailu.env
+      - configs/applications/mailu/mailu.env
     ports:
       - "25:25"
       - "465:465"
@@ -418,7 +411,7 @@ services:
     container_name: mailu-redis
     restart: unless-stopped
     profiles:
-      - database
+      - databases
     networks:
       backend:
         aliases:
@@ -438,7 +431,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/mailu/mailu.env
+      - configs/applications/mailu/mailu.env
     volumes:
       - mailu_filter:/var/lib/rspamd
     networks:
@@ -460,7 +453,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/mailu/mailu.env
+      - configs/applications/mailu/mailu.env
     networks:
       - backend
     healthcheck:
@@ -477,7 +470,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/mailu/mailu.env
+      - configs/applications/mailu/mailu.env
     volumes:
       - mailu_data:/data
     networks:
@@ -499,7 +492,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/mailu/mailu.env
+      - configs/applications/mailu/mailu.env
     volumes:
       - mailu_data:/data
       - mailu_dkim:/dkim
@@ -522,7 +515,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/mailu/mailu.env
+      - configs/applications/mailu/mailu.env
     volumes:
       - mailu_data:/data
     networks:
@@ -546,9 +539,9 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/mailu/mailu.env
+      - configs/applications/mailu/mailu.env
     volumes:
-      - ./configs/mailu/nginx-override.conf:/overrides/nginx/roundcube.conf:ro
+      - ./configs/applications/mailu/nginx-override.conf:/overrides/nginx/roundcube.conf:ro
     networks:
       - backend
     depends_on:
@@ -571,12 +564,6 @@ services:
     restart: unless-stopped
     profiles:
       - applications
-    labels:
-      caddy: sogo.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 20000}}"
     environment:
       - SOGO_WORKERS=1
       - SOGO_SIEVE_SCRIPTS_ENABLED=YES
@@ -612,12 +599,6 @@ services:
       - infrastructure
     networks:
       - backend
-    labels:
-      caddy: dockge.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 5001}}"
     depends_on:
       - docker-proxy
     volumes:
@@ -644,7 +625,7 @@ services:
       dockge:
         condition: service_healthy
     volumes:
-      - ./configs/dockge/init-dockge.js:/init-dockge.js:ro
+      - ./configs/applications/dockge/init-dockge.js:/init-dockge.js:ro
     environment:
       - DOCKGE_HOST=dockge
       - DOCKGE_PORT=5001
@@ -667,20 +648,14 @@ services:
       - infrastructure
     networks:
       - backend
-    labels:
-      caddy: kopia.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 51515}}"
     volumes:
       - kopia_data:/app/config
       - kopia_cache:/app/cache
       - kopia_data:/data:ro
       - kopia_repository:/repository
-      - ./configs/kopia/init-kopia.sh:/init-kopia.sh:ro
+      - ./configs/applications/kopia/init-kopia.sh:/init-kopia.sh:ro
     environment:
-      - KOPIA_PASSWORD=${KOPIA_PASSWORD}
+      - KOPIA_PASSWORD=${STACK_ADMIN_PASSWORD}
       - KOPIA_REPO_PATH=/repository
       - USER=kopia
     entrypoint: ["sh", "/init-kopia.sh"]
@@ -765,12 +740,6 @@ services:
         condition: service_healthy
     volumes:
       - portainer_data:/data
-    labels:
-      caddy: portainer.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 9000}}"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/api/system/status"]
       interval: 30s
@@ -792,9 +761,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    labels:
-      caddy: grafana.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
     depends_on:
       authelia:
         condition: service_healthy
@@ -824,11 +790,12 @@ services:
       - GF_USERS_AUTO_ASSIGN_ORG=true
       - GF_USERS_AUTO_ASSIGN_ORG_ROLE=Viewer
       - GF_AUTH_DISABLE_LOGIN_FORM=false
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      # Consolidated admin credentials: use stack-wide admin user/pass
+      - GF_SECURITY_ADMIN_USER=${STACK_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./configs/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./configs/applications/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
       interval: 30s
@@ -849,12 +816,6 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
-    labels:
-      caddy: open-webui.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 8080}}"
     depends_on:
       litellm:
         condition: service_healthy
@@ -889,9 +850,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    labels:
-      caddy: vaultwarden.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 80}}"
     depends_on:
       authelia:
         condition: service_healthy
@@ -942,9 +900,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    labels:
-      caddy: planka.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 1337}}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -965,7 +920,7 @@ services:
       - NODE_TLS_REJECT_UNAUTHORIZED=0
     volumes:
       - planka_data:/app/public/user-avatars
-      - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
+      - ./configs/applications/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:1337/api/health"]
       interval: 30s
@@ -981,9 +936,6 @@ services:
       - applications
     networks:
       - backend
-    labels:
-      caddy: outline.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -1025,12 +977,6 @@ services:
     restart: unless-stopped
     profiles:
       - applications
-    labels:
-      caddy: seafile.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 80}}"
     depends_on:
       memcached:
         condition: service_healthy
@@ -1043,12 +989,13 @@ services:
       - DB_HOST=mariadb-seafile
       - DB_ROOT_PASSWD=${MARIADB_SEAFILE_ROOT_PASSWORD}
       - SEAFILE_SERVER_HOSTNAME=seafile.${DOMAIN}
-      - SEAFILE_ADMIN_EMAIL=${SEAFILE_ADMIN_EMAIL}
-      - SEAFILE_ADMIN_PASSWORD=${SEAFILE_ADMIN_PASSWORD}
+      # Consolidated admin credentials: use stack-wide admin email/pass
+      - SEAFILE_ADMIN_EMAIL=${STACK_ADMIN_EMAIL}
+      - SEAFILE_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
       - TIME_ZONE=UTC
     volumes:
       - seafile_data:/shared
-      - ./configs/seafile/seahub_settings.py:/opt/seafile/conf/seahub_settings.py:ro
+      - ./configs/applications/seafile/seahub_settings.py:/opt/seafile/conf/seahub_settings.py:ro
     networks:
       - backend
     healthcheck:
@@ -1064,12 +1011,6 @@ services:
     restart: unless-stopped
     profiles:
       - applications
-    labels:
-      caddy: onlyoffice.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 80}}"
     environment:
       - TZ=UTC
       - JWT_ENABLED=true
@@ -1092,9 +1033,6 @@ services:
     restart: unless-stopped
     profiles:
       - applications
-    labels:
-      caddy: matrix.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8008}}"
     depends_on:
       redis-synapse:
         condition: service_healthy
@@ -1113,8 +1051,8 @@ services:
       - REDIS_HOST=redis-synapse
     volumes:
       - synapse_data:/data
-      - ./configs/synapse/homeserver.yaml:/data/homeserver.yaml:ro
-      - ./configs/synapse/entrypoint.sh:/entrypoint.sh:ro
+      - ./configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./configs/applications/synapse/entrypoint.sh:/entrypoint.sh:ro
     entrypoint: ["/entrypoint.sh"]
     networks:
       - backend
@@ -1133,9 +1071,6 @@ services:
       - applications
     networks:
       - backend
-    labels:
-      caddy: mastodon.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -1146,7 +1081,7 @@ services:
       mailu-smtp:
         condition: service_healthy
     env_file:
-      - configs/mastodon/mastodon.env
+      - configs/applications/mastodon/mastodon.env
     command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 3000 -b 0.0.0.0"
     volumes:
       - mastodon_data:/mastodon/public/system
@@ -1173,7 +1108,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - configs/mastodon/mastodon.env
+      - configs/applications/mastodon/mastodon.env
     command: node ./streaming
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1"]
@@ -1198,7 +1133,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - configs/mastodon/mastodon.env
+      - configs/applications/mastodon/mastodon.env
     command: bundle exec sidekiq
     volumes:
       - mastodon_data:/mastodon/public/system
@@ -1221,7 +1156,7 @@ services:
         condition: service_healthy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./configs/mastodon/init-mastodon.sh:/init-mastodon.sh:ro
+      - ./configs/applications/mastodon/init-mastodon.sh:/init-mastodon.sh:ro
     command: sh /init-mastodon.sh
     restart: "no"
     healthcheck:
@@ -1239,23 +1174,17 @@ services:
       - applications
     networks:
       - backend
-    labels:
-      caddy: homepage.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 3000}}"
     environment:
       - PUID=1000
       - PGID=1000
       - HOMEPAGE_ALLOWED_HOSTS=homepage.${DOMAIN}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./configs/homepage/services.yaml:/app/config/services.yaml:ro
-      - ./configs/homepage/settings.yaml:/app/config/settings.yaml:ro
-      - ./configs/homepage/widgets.yaml:/app/config/widgets.yaml:ro
-      - ./configs/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
-      - ./configs/homepage/docker.yaml:/app/config/docker.yaml:ro
+      - ./configs/applications/homepage/services.yaml:/app/config/services.yaml:ro
+      - ./configs/applications/homepage/settings.yaml:/app/config/settings.yaml:ro
+      - ./configs/applications/homepage/widgets.yaml:/app/config/widgets.yaml:ro
+      - ./configs/applications/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
+      - ./configs/applications/homepage/docker.yaml:/app/config/docker.yaml:ro
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
       interval: 30s
@@ -1265,7 +1194,7 @@ services:
 
   jupyterhub:
     build:
-      context: configs/jupyterhub
+      context: src/jupyterhub
       dockerfile: Dockerfile
     container_name: jupyterhub
     restart: unless-stopped
@@ -1273,9 +1202,6 @@ services:
       - applications
     networks:
       - backend
-    labels:
-      caddy: jupyterhub.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 8000}}"
     depends_on:
       authelia:
         condition: service_healthy
@@ -1287,7 +1213,7 @@ services:
       - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
       - jupyterhub_data:/srv/jupyterhub
-      - ./configs/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
+      - ./src/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/hub/health"]
       interval: 30s
@@ -1303,12 +1229,6 @@ services:
       - applications
     networks:
       - backend
-    labels:
-      caddy: homeassistant.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 8123}}"
     depends_on:
       authelia:
         condition: service_healthy
@@ -1331,7 +1251,7 @@ services:
     image: alpine:latest
     container_name: localai-init
     volumes:
-      - ./configs/localai/models:/source:ro
+      - ./configs/infrastructure/localai/models:/source:ro
       - ./volumes/localai/models:/dest
     command: sh -c "cp -f /source/*.yaml /dest/ 2>/dev/null || true"
     restart: "no"
@@ -1346,7 +1266,7 @@ services:
       start_period: 5s
 
   localai:
-    image: localai/localai:v3.7.0-aio-gpu-nvidia-cuda-12
+    image: localai/localai:master-gpu-nvidia-cuda-12
     container_name: localai
     restart: unless-stopped
     networks:
@@ -1355,12 +1275,6 @@ services:
     profiles:
       - bootstrap
       - applications
-    labels:
-      caddy: localai.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 8080}}"
     depends_on:
       localai-init:
         condition: service_completed_successfully
@@ -1371,6 +1285,21 @@ services:
       - ./volumes/localai/models:/models
     environment:
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+      # Disable galleries to prevent empty URL errors
+      GALLERIES: "[]"
+      DEBUG: "true"
+      # Force llama.cpp backend to respect model configs
+      LLAMA_CPP_AUTO_CONTEXT: "false"
+      # Default fallback limits (models can still override these)
+      CONTEXT_SIZE: "2048"
+      GPU_LAYERS: "15"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/readyz"]
       interval: 60s
@@ -1388,21 +1317,6 @@ services:
     profiles:
       - bootstrap
       - applications
-    labels:
-      caddy: litellm.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 4000}}"
-      # Public, non-interactive API endpoint without ForwardAuth.
-      # Exposes api.litellm.${DOMAIN} guarded by an IP allowlist and LiteLLM's API key.
-      # Allowlist is space-separated CIDRs from API_LITELLM_ALLOWLIST; default only permits private/local ranges.
-      caddy_1: api.litellm.${DOMAIN}
-      # Deny any request not coming from allowed IP CIDRs
-      caddy_1.@notallowed.not.remote_ip: "${API_LITELLM_ALLOWLIST:-10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 ::1 fc00::/7 fe80::/10}"
-      caddy_1.respond: "@notallowed 403"
-      # Allowed clients are proxied to LiteLLM upstream without SSO
-      caddy_1.reverse_proxy: "{{upstreams 4000}}"
     depends_on:
       localai:
         condition: service_healthy
@@ -1410,11 +1324,12 @@ services:
         condition: service_healthy
     volumes:
       - litellm_config:/app/config
-      - ./configs/litellm/config.yaml:/app/config.yaml:ro
+      - ./configs/infrastructure/litellm/config.yaml:/app/config.yaml:ro
     environment:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      - UI_USERNAME=admin
-      - UI_PASSWORD=${LITELLM_MASTER_KEY}
+      # Consolidated admin credentials for UI login
+      - UI_USERNAME=${STACK_ADMIN_USER}
+      - UI_PASSWORD=${STACK_ADMIN_PASSWORD}
     command: --config /app/config.yaml --port 4000 --num_workers 4
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import socket; s=socket.socket(); s.settimeout(1); s.connect((\"127.0.0.1\", 4000)); s.close()' || exit 1"]
@@ -1435,21 +1350,26 @@ services:
       - bootstrap
       - applications
     user: "1000:1000"
-    labels:
-      caddy: kfuncdb.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 8081}}"
     depends_on:
       authelia:
         condition: service_healthy
     environment:
       - KFUNCDB_PORT=8081
       - KFUNCDB_PLUGINS_DIR=/app/plugins
-      - KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.inspect
+      - KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.inspect,host.ssh.exec,browser.control
+      # SSH to host via forced-command wrapper (see scripts)
+      - KFUNCDB_SSH_HOST=${KFUNCDB_SSH_HOST:-host.docker.internal}
+      - KFUNCDB_SSH_USER=${KFUNCDB_SSH_USER:-stackops}
+      - KFUNCDB_SSH_KEY_PATH=/app/keys/stackops_ed25519
+      - KFUNCDB_SSH_TIMEOUT_MS=20000
+      # Browserless base URL
+      - KFUNCDB_BROWSERLESS_URL=http://browserless:3000
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - ./volumes/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
+      - proofs:/app/proofs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8081/healthz"]
       interval: 30s
@@ -1470,18 +1390,20 @@ services:
       - backend
     profiles:
       - bootstrap_vector_dbs
-      - database
+      - databases
     environment:
       - QDRANT__SERVICE__GRPC_PORT=6334
     # Do not expose ports publicly; access internally via service name
     volumes:
       - qdrant_data:/qdrant/storage
+    # Qdrant image doesn't include wget or curl for healthchecks
+    # Use a no-op test to satisfy compose schema
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6333/readyz"]
-      interval: 10s
+      test: ["CMD", "true"]
+      interval: 1m
       timeout: 5s
-      retries: 12
-      start_period: 10s
+      retries: 1
+      start_period: 5s
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
@@ -1489,23 +1411,17 @@ services:
     restart: unless-stopped
     networks:
       - database
-    labels:
-      caddy: clickhouse.${DOMAIN}
-      caddy.forward_auth: "authelia:9091"
-      caddy.forward_auth.uri: "/api/authz/forward-auth"
-      caddy.forward_auth.copy_headers: "Remote-User Remote-Groups Remote-Name Remote-Email"
-      caddy.reverse_proxy: "{{upstreams 8123}}"
     profiles:
       - bootstrap_vector_dbs
-      - database
+      - databases
     environment:
       - CLICKHOUSE_DB=default
-      - CLICKHOUSE_USER=default
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./configs/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
-      - ./configs/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
+      - ./configs/databases/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     # Do not expose native TCP publicly; use internal networking
     ulimits:
       nofile:
@@ -1530,14 +1446,14 @@ services:
       - database
     depends_on:
       qdrant:
-        condition: service_healthy
+        condition: service_started
     environment:
       - QDRANT_URL=http://qdrant:6333
       - VECTOR_SIZE=${VECTOR_EMBED_SIZE:-384}
       - QDRANT_API_KEY=${QDRANT_API_KEY:-}
     volumes:
-      - ./configs/vectors/collections.yaml:/configs/collections.yaml:ro
-      - ./configs/vectors/bootstrap_vectors.py:/scripts/bootstrap_vectors.py:ro
+      - ./configs/databases/vectors/collections.yaml:/configs/collections.yaml:ro
+      - ./configs/databases/vectors/bootstrap_vectors.py:/scripts/bootstrap_vectors.py:ro
     command: sh -c "python /scripts/bootstrap_vectors.py /configs/collections.yaml"
     healthcheck:
       test: ["CMD", "python", "--version"]
@@ -1557,24 +1473,45 @@ services:
       - bootstrap_vector_dbs
       - infrastructure
     volumes:
-      - ./configs/benthos/benthos.yaml:/benthos.yaml:ro
+      - ./configs/infrastructure/benthos/benthos.yaml:/benthos.yaml:ro
       - benthos_data:/data
     command: -c /benthos.yaml
     environment:
       - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
       - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       - LOCALAI_URL=${LOCALAI_URL:-http://localai:8080/v1}
-      - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://default:${CLICKHOUSE_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
+      - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://${STACK_ADMIN_USER}:${STACK_ADMIN_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
       - EMBED_MODEL=${EMBED_MODEL:-embed-small}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       qdrant:
-        condition: service_healthy
+        condition: service_started
       clickhouse:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4195/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Headless browser for automation (Browserless Chromium)
+  browserless:
+    image: browserless/chromium:latest
+    container_name: browserless
+    restart: unless-stopped
+    profiles:
+      - infrastructure
+      - applications
+    networks:
+      - backend
+    environment:
+      - MAX_CONCURRENT_SESSIONS=2
+      - CONNECTION_TIMEOUT=60000
+      - FUNCTION_ENABLE_INCOGNITO_MODE=true
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -1,7 +1,0 @@
-name: llama3
-backend: llama-cpp
-parameters:
-  model: Meta-Llama-3-8B-Instruct.Q4_K_M.gguf
-  context_size: 4096
-  gpu_layers: 35
-id: QuantFactory/Meta-Llama-3-8B-Instruct-GGUF

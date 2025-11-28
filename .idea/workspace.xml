@@ -5,12 +5,88 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="bootstrapping">
+      <change afterPath="$PROJECT_DIR$/.env.template" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/docker-compose.secrets.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/init-secrets.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/dev-issuer.key" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/issuer.key" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/benthos.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/fred_meta_to_qdrant.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/fred_values_to_clickhouse.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/linux_debian_ndjson_to_qdrant.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/rss_to_qdrant.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/stackexchange_ndjson_to_qdrant.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/torrents_csv_to_qdrant.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/wiki_ndjson_to_qdrant.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/benthos/yahoo_news_to_qdrant.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/clickhouse/config.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/clickhouse/init.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/couchdb/init-db.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/couchdb/init-wrapper.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/couchdb/local.ini" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/dockge/init-dockge.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/filebrowser/entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/grafana/caddy-ca.crt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/grafana/grafana.ini" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/bookmarks.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/docker.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/services.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/settings.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/homepage/widgets.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/ingestion/linux_debian.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/ingestion/macro.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/ingestion/stackexchange.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/ingestion/wiki.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/ingestion/yahoo_finance.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/jellyfin/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/jellyfin/SSO-Auth.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/jellyfin/entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/kopia/init-kopia.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/ldap/bootstrap.ldif" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/litellm/config.bootstrap.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/litellm/config.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/localai/models/embed.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/localai/models/llama3.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/localai/models/qwen-coder.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/localai/models/router.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/localai/models/sd15.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/localai/models/vision.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/localai/models/whisper-medium.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/localai/models/whisper-small.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mailu/mailu.env" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mailu/nginx-override.conf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mariadb/init.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mastodon/init-mastodon.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/mastodon/mastodon.env" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/configure-oidc.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/delayed-oidc-install.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/add-cert-runtime.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/caddy-ca.crt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/delayed-oidc-install.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/docker-build/entrypoint-wrapper.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/oidc-setup.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/nextcloud/post-installation-oidc.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/postgres/init-db.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/postgres/init-mailu-schema.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/synapse/entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/synapse/homeserver.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/vectors/bootstrap_vectors.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/vectors/collections.yaml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/tests/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/tests/screenshot-loop.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/tests/webui.e2e.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/SECURITY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/rss_to_qdrant.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/build.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -81,48 +157,49 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Docker.docker-compose.yml.ca-generator: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.docker-compose.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src.caddy: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src.docker-socket-proxy: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src.ragserve: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src: Compose Deployment (1).executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.CapabilityPolicyTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.CoreToolsPluginTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.HttpServerTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PluginManagerTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.ToolRegistryTest.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;SHELLCHECK.PATH&quot;: &quot;/home/gerald/.local/share/JetBrains/PyCharm2025.2/Shell Script/shellcheck&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/gerald/PycharmProjects/Datamancy/kfuncdb/settings.gradle.kts&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMThirdPartyAiProvidersConfigurable&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Docker.docker-compose.yml.ca-generator: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
+    "Docker.src.caddy: Compose Deployment.executor": "Run",
+    "Docker.src.docker-socket-proxy: Compose Deployment.executor": "Run",
+    "Docker.src.ragserve: Compose Deployment.executor": "Run",
+    "Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor": "Run",
+    "Docker.src: Compose Deployment (1).executor": "Run",
+    "Docker.src: Compose Deployment.executor": "Run",
+    "Gradle.Build kfuncdb.executor": "Run",
+    "Gradle.CapabilityPolicyTest.executor": "Run",
+    "Gradle.CoreToolsPluginTest.executor": "Run",
+    "Gradle.HttpServerTest.executor": "Run",
+    "Gradle.PluginManagerTest.executor": "Run",
+    "Gradle.ToolRegistryTest.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "SHELLCHECK.PATH": "/home/gerald/.local/share/JetBrains/PyCharm2025.2/Shell Script/shellcheck",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "master",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/home/gerald/PycharmProjects/Datamancy/kfuncdb/settings.gradle.kts",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "node",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "ml.llm.LLMThirdPartyAiProvidersConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/kfuncdb" />
@@ -130,11 +207,11 @@
       <recent name="$PROJECT_DIR$/src" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/configs/infrastructure" />
       <recent name="$PROJECT_DIR$/src" />
       <recent name="$PROJECT_DIR$/scripts" />
       <recent name="$PROJECT_DIR$/configs/localai" />
-      <recent name="$PROJECT_DIR$/old" />
-      <recent name="$PROJECT_DIR$" />
     </key>
   </component>
   <component name="RunManager" selected="Gradle.CoreToolsPluginTest">
@@ -640,7 +717,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764302250658</updated>
     </task>
-    <option name="localTasksCounter" value="39" />
+    <task id="LOCAL-00039" summary="bootstrapping">
+      <option name="closed" value="true" />
+      <created>1764304560880</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
+      <option name="project" value="LOCAL" />
+      <updated>1764304560880</updated>
+    </task>
+    <option name="localTasksCounter" value="40" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

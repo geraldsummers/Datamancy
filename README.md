@@ -30,7 +30,37 @@ Profiles
 - full: Everything else as defined in docker-compose.yml (requires a complete .env). Same SSO/TLS configuration approach as bootstrap; bootstrap differs only by starting a smaller subset first.
 
 See docs/APP_CATALOG.md for which services belong to which profile and how they’re exposed.
+# Datamancy Stack
 
+A secure, self-hosted infrastructure stack with integrated secrets management.
+
+## 🔐 Security First
+
+**All secrets are generated programmatically at runtime and never exposed to human eyes or logs.**
+
+### First-Time Setup
+
+1. **Initialize secrets** (one-time only):
+   ```bash
+   docker compose --profile bootstrap run --rm secrets-manager
+   ```
+
+   This will:
+   - Generate cryptographically secure secrets using OpenSSL
+   - Encrypt them with AES-256-CBC
+   - Store them in an encrypted volume at `volumes/secrets/`
+   - **Never display secrets in logs or terminal output**
+
+2. **Start the stack**:
+   ```bash
+   docker compose --profile bootstrap up -d
+   ```
+
+   Services automatically load secrets from the encrypted store at runtime.
+
+### Secret Management
+
+#### View Available Commands
 CLI helper
 ----------
 

@@ -1,0 +1,196 @@
+###############################################
+# Caddy config for Datamancy (testing/dev)
+#
+# - Uses self-signed certificates by default via Caddy's internal CA.
+# - Official Caddy image + a static Caddyfile (no docker label proxy).
+# - Most apps are protected with Authelia via forward_auth where labels
+#   previously specified it.
+#
+# Env vars used inside this file (must be provided to the Caddy container):
+# - DOMAIN                     (e.g. example.com)
+# - API_LITELLM_ALLOWLIST     (space-separated CIDRs)
+###############################################
+{
+    # Default to self-signed certificates (no external ACME in dev/test)
+    local_certs
+}
+
+# Reusable snippet for Authelia forward-auth
+(authelia_auth) {
+    forward_auth authelia:9091 {
+        uri /api/authz/forward-auth
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
+}
+
+# ldap-account-manager
+lam.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy ldap-account-manager:80
+    }
+}
+
+# Authelia portal
+auth.{$DOMAIN} {
+    reverse_proxy authelia:9091
+}
+
+# CouchDB
+couchdb.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy couchdb:5984
+    }
+}
+
+# Mailu front (web UI only; mail ports handled by Mailu directly)
+mail.{$DOMAIN} {
+    reverse_proxy mailu-front:80
+}
+
+# SOGo (groupware UI)
+sogo.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy sogo:20000
+    }
+}
+
+# Dockge
+dockge.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy dockge:5001
+    }
+}
+
+# Kopia UI
+kopia.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy kopia:51515
+    }
+}
+
+# Portainer
+portainer.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy portainer:9000
+    }
+}
+
+# Grafana (uses OIDC within the app; no edge forward_auth)
+grafana.{$DOMAIN} {
+    reverse_proxy grafana:3000
+}
+
+# Open WebUI
+open-webui.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy open-webui:8080
+    }
+}
+
+# Vaultwarden
+vaultwarden.{$DOMAIN} {
+    reverse_proxy vaultwarden:80
+}
+
+# Planka
+planka.{$DOMAIN} {
+    reverse_proxy planka:1337
+}
+
+# Outline
+outline.{$DOMAIN} {
+    reverse_proxy outline:3000
+}
+
+# Seafile
+seafile.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy seafile:80
+    }
+}
+
+# OnlyOffice
+onlyoffice.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy onlyoffice:80
+    }
+}
+
+# Matrix (Synapse)
+matrix.{$DOMAIN} {
+    reverse_proxy synapse:8008
+}
+
+# Mastodon (web)
+mastodon.{$DOMAIN} {
+    reverse_proxy mastodon-web:3000
+}
+
+# Homepage
+homepage.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy homepage:3000
+    }
+}
+
+# JupyterHub
+jupyterhub.{$DOMAIN} {
+    reverse_proxy jupyterhub:8000
+}
+
+# Home Assistant
+homeassistant.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy homeassistant:8123
+    }
+}
+
+# LocalAI (protected)
+localai.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy localai:8080
+    }
+}
+
+# LiteLLM (protected)
+litellm.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy litellm:4000
+    }
+}
+
+# LiteLLM (public API) — allowlist by IP, no forward_auth
+api.litellm.{$DOMAIN} {
+    @notallowed not remote_ip {$API_LITELLM_ALLOWLIST}
+    respond @notallowed 403
+    reverse_proxy litellm:4000
+}
+
+# kfuncdb (protected)
+kfuncdb.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy kfuncdb:8081
+    }
+}
+
+# ClickHouse HTTP
+clickhouse.{$DOMAIN} {
+    route {
+        import authelia_auth
+        reverse_proxy clickhouse:8123
+    }
+}

@@ -1,7 +1,0 @@
-name: router
-backend: llama-cpp
-parameters:
-  model: Phi-3-mini-128k-instruct.Q4_K_M.gguf
-  context_size: 2048
-  gpu_layers: 10
-id: QuantFactory/Phi-3-mini-128k-instruct-GGUF

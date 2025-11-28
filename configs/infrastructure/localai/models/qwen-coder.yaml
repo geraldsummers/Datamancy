@@ -1,0 +1,6 @@
+name: qwen-code
+backend: llama-cpp
+parameters:
+  model: Hermes-3-Llama-3.2-3B-Q4_K_M.gguf
+  context_size: 4096
+  gpu_layers: 35

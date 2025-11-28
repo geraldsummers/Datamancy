@@ -62,7 +62,15 @@ TLS considerations
 
 - Validate certificate issuance in Caddy logs. Staging endpoints can be used to avoid rate limits during testing.
 - Keep system clock accurate; misconfigured time can break ACME flows.
+# Security Guide
 
+## Overview
+
+Datamancy implements defense-in-depth security with multiple layers of protection. **All secrets are generated programmatically and never exposed to humans or logs.**
+
+## Secrets Management
+
+### Architecture
 User management
 ---------------
 

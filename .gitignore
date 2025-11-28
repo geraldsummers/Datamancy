@@ -1,3 +1,37 @@
 # Ignore local volumes directory (containers data, models, databases, etc.)
 # Anchored to the repository root to avoid matching similarly named paths elsewhere.
 /volumes/
+# Secrets and sensitive data
+.env
+.env.runtime
+.env.local
+volumes/secrets/
+*.key
+*.enc
+
+# Runtime data
+volumes/
+!volumes/.gitkeep
+
+# Docker
+.docker/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup

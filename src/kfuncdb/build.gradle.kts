@@ -18,6 +18,8 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.20")
+    // SSH client for OpsSshPlugin
+    implementation("com.hierynomus:sshj:0.37.0")
 }
 
 tasks.test {

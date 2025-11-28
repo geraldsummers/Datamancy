@@ -1,0 +1,13 @@
+{
+  "id": "ops",
+  "version": "1.0.0",
+  "apiVersion": "1.0.0",
+  "implementation": "org.example.plugins.OpsSshPlugin",
+  "capabilities": [
+    "host.ssh.exec"
+  ],
+  "requires": {
+    "host": ">=1.0.0",
+    "api": "1.0.0"
+  }
+}
