@@ -30,47 +30,227 @@ networks:
 
 volumes:
   caddy_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/caddy_data
   caddy_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/caddy_config
   grafana_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/grafana_data
   open_webui_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/open_webui_data
   vaultwarden_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/vaultwarden_data
   planka_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/planka_data
   outline_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/outline_data
   seafile_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/seafile_data
   onlyoffice_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/onlyoffice_data
   synapse_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/synapse_data
   mastodon_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/mastodon_data
   jupyterhub_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/jupyterhub_data
   homeassistant_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/homeassistant_config
   litellm_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/litellm_config
   localai_models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/localai_models
   ldap_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/ldap_data
   ldap_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/ldap_config
   lam_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/lam_config
   mariadb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/mariadb_data
   postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/postgres_data
   couchdb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/couchdb_data
   clickhouse_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/clickhouse_data
   qdrant_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/qdrant_data
   benthos_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/benthos_data
   dockge_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/dockge_data
   kopia_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/kopia_data
   kopia_cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/kopia_cache
   kopia_repository:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/kopia_repository
   redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/redis_data
   seafile_mysql_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/seafile_mysql_data
   mailu_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/mailu_data
   mailu_filter:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/mailu_filter
   mailu_cert:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/mailu_cert
   mailu_dkim:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/mailu_dkim
   sogo_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/sogo_data
   portainer_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/portainer_data
   proofs:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ./volumes/proofs
+      device: ${VOLUMES_ROOT}/proofs
 
 services:
   caddy:
@@ -230,7 +410,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./volumes/authelia:/config
+      - ${VOLUMES_ROOT}/authelia:/config
       - ${AUTHELIA_CONFIG_FILE:-./configs/applications/authelia/configuration.yml}:/config/configuration.yml:ro
     command: ["--config", "/config/configuration.yml"]
     environment:
@@ -1257,7 +1437,7 @@ services:
     container_name: localai-init
     volumes:
       - ./configs/infrastructure/localai/models:/source:ro
-      - ./volumes/localai/models:/dest
+      - ${VOLUMES_ROOT}/localai/models:/dest
     command: sh -c "cp -f /source/*.yaml /dest/ 2>/dev/null || true"
     restart: "no"
     profiles:
@@ -1287,7 +1467,7 @@ services:
         condition: service_healthy
     volumes:
       - localai_models:/build/models
-      - ./volumes/localai/models:/models
+      - ${VOLUMES_ROOT}/localai/models:/models
     environment:
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
       # Disable galleries to prevent empty URL errors
@@ -1371,7 +1551,7 @@ services:
       - KFUNCDB_BROWSERLESS_URL=http://browserless:3000
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
-      - ./volumes/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
+      - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
       - proofs:/app/proofs
     extra_hosts:
       - "host.docker.internal:host-gateway"
