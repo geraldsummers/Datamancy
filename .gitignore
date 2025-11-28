@@ -8,6 +8,7 @@
 volumes/secrets/
 *.key
 *.enc
+stackops_ed25519
 
 # Runtime data
 volumes/
