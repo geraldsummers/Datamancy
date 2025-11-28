@@ -265,7 +265,7 @@ services:
         condition: service_healthy
     volumes:
       - ./volumes/authelia:/config
-      - ${AUTHELIA_CONFIG_FILE:-./configs/authelia/configuration.bootstrap.yml}:/config/configuration.yml:ro
+      - ${AUTHELIA_CONFIG_FILE:-./configs/authelia/configuration.yml}:/config/configuration.yml:ro
     command: ["--config", "/config/configuration.yml"]
     environment:
       - TZ=UTC
@@ -1430,7 +1430,7 @@ services:
         condition: service_healthy
     volumes:
       - litellm_config:/app/config
-      - ./configs/litellm/config.bootstrap.yaml:/app/config.yaml:ro
+      - ./configs/litellm/config.yaml:/app/config.yaml:ro
     environment:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - UI_USERNAME=admin
