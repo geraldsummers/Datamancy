@@ -3,11 +3,33 @@
 This page summarizes the security posture and the main practices to keep a hardened deployment.
 
 SSO and Ingress
----------------
+----------------
 
 - Caddy serves as the single ingress and TLS terminator. Certificates are provisioned automatically via Let’s Encrypt.
 - Authelia provides SSO; services are protected via Caddy `forward_auth` labels and propagate identity headers (Remote-User, Remote-Email, Remote-Groups).
+- Bootstrap mode also requires complete Authelia coverage: every UI goes through Caddy with `forward_auth`. No direct container ports are published by default.
 - Ensure all public UIs sit behind SSO unless explicitly intended to be public.
+
+Public, non-interactive API access (no ForwardAuth)
+--------------------------------------------------
+
+For machine-to-machine, non-interactive API traffic do NOT use browser-oriented ForwardAuth. Instead, expose a separate API hostname with network-based controls and an API key (or stronger):
+
+- Pattern implemented (example: LiteLLM)
+  - Human-UI: `https://litellm.${DOMAIN}` remains behind SSO via ForwardAuth.
+  - Machine API: `https://api.litellm.${DOMAIN}` bypasses SSO and is guarded by an IP allowlist at Caddy plus LiteLLM's master API key.
+  - Configure allowed client CIDRs via env var `API_LITELLM_ALLOWLIST` (space-separated CIDRs). If unset, it defaults to private/local ranges only and is effectively not publicly reachable until you set it, e.g.:
+    - `API_LITELLM_ALLOWLIST="203.0.113.10/32 198.51.100.0/24"`
+  - Clients must send the LiteLLM Authorization header, for example:
+    - `Authorization: Bearer ${LITELLM_MASTER_KEY}`
+
+- Rationale
+  - ForwardAuth redirects to an interactive SSO page which breaks non-interactive clients.
+  - IP allowlists (and preferably VPN/privates links) plus an application API key provide a simple, robust pattern for non-interactive access.
+
+- Extending the pattern
+  - You can mirror the same approach for other services that need public, non-interactive APIs (e.g., LocalAI) by adding a second Caddy vhost label block `api.<service>.${DOMAIN}` without ForwardAuth and protecting with `remote_ip` and an API key expected by the upstream.
+  - For higher assurance, consider mTLS on the API hostname by having Caddy verify client certificates against your CA, or place a JWT-verifying gateway in front of the upstream using a dedicated Authelia OIDC client with the `client_credentials` flow.
 
 Secrets and configuration
 -------------------------
@@ -16,6 +38,10 @@ Secrets and configuration
   - Set restrictive permissions: `chmod 600 .env*`.
   - Rotate defaults before production.
 - Authelia configuration (configs/authelia/*.yml) should reference https URLs and proper domain names in production.
+- For OIDC in full stack, set the following in `.env` and keep them secret:
+  - `AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET`
+  - `AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY` (PEM, single line)
+- Note: The provided Authelia configs are authored for the domain `project-saturn.com`. If you deploy under a different domain, update `configs/authelia/configuration*.yml` cookie domains, access control rules, and redirect URIs accordingly.
 
 Capability policy (KFuncDB)
 ---------------------------
@@ -28,6 +54,7 @@ Network separation
 
 - Services are split across `frontend`, `backend`, and `database` networks. Avoid exposing database ports publicly.
 - Prefer internal service names instead of publishing ports unless necessary.
+- By default, vector DB ports (Qdrant 6333/6334, ClickHouse TCP 9000) are not published to the host; access them via internal service DNS.
 
 TLS considerations
 ------------------

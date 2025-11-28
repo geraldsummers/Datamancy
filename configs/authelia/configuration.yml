@@ -312,3 +312,22 @@ identity_providers:
         response_types:
           - code
         token_endpoint_auth_method: client_secret_post
+
+      # Vaultwarden (Bitwarden-compatible)
+      # NOTE: Set VAULTWARDEN_OAUTH_SECRET in your .env to a strong value and
+      # update this hash to match (pbkdf2-sha512). Use Authelia's crypto tool to generate.
+      - client_id: vaultwarden
+        client_name: Vaultwarden
+        client_secret: '$pbkdf2-sha512$310000$3Qj3G8rM7vV3qJg8LQ0T3A$dVJzAbg9y3gE0q0mQx0lJ4h7wQq9Vv8K6t7t1g9y1h2Yx4M8J9J4H8cY0f2Z6G7j5r1D2s3E5f6G7h8i9j0k' # TODO: replace with real hash
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://vaultwarden.project-saturn.com/identity/connect/oidc-signin
+        scopes:
+          - openid
+          - profile
+          - email
+        grant_types:
+          - authorization_code
+        response_types:
+          - code

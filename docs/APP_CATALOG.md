@@ -126,7 +126,12 @@ These services are present in docker-compose.yml outside the bootstrap profiles.
 
 Notes
 -----
-- All UIs are exposed via Caddy and typically gated by Authelia SSO; see service labels in docker-compose.yml
+- All UIs are exposed via Caddy and gated by Authelia SSO in both bootstrap and full modes; see service labels in docker-compose.yml
 - URL pattern is usually https://<service>.${DOMAIN}
 - Health checks are defined per service via HEALTHCHECK or simple HTTP GETs
 - For exact environment variables and dependencies, consult docker-compose.yml and the configs/* directory
+
+Security-specific notes
+-----------------------
+- Seafile, OnlyOffice, and SOGo are now explicitly protected via Authelia forward_auth.
+- Vector DB services (Qdrant 6333/6334 and ClickHouse TCP 9000) are not published to the host; access them via internal service DNS from other containers.

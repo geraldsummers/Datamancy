@@ -12,11 +12,19 @@ The bootstrap profile brings up a minimal, production‑lean core:
 - LAM (LDAP Account Manager) and Portainer (+ agent)
 - Optional e2e test runner for basic smoke checks
 
-Quickstart (local, HTTP)
-------------------------
+Quickstart (with SSO)
+---------------------
+Important: Bootstrap mode enforces complete Authelia coverage. All UIs are served via Caddy and gated by Authelia SSO. Direct container ports are not published.
+
+Prereqs:
+- A real DOMAIN with DNS A records for required subdomains (e.g., auth.${DOMAIN}, open-webui.${DOMAIN}, litellm.${DOMAIN}, etc.)
+- Ports 80/443 reachable from the internet for certificate issuance
+
+Steps:
 1) bash scripts/bootstrap-stack.sh init
-2) bash scripts/bootstrap-stack.sh up-bootstrap
-3) Open WebUI at http://localhost:8080
+2) Edit ./.env.bootstrap and set DOMAIN to your real domain and rotate any secrets
+3) bash scripts/bootstrap-stack.sh up-bootstrap
+4) Sign in at: https://open-webui.${DOMAIN} (you will be redirected to https://auth.${DOMAIN} for SSO)
 
 Production (TLS/SSO)
 --------------------
@@ -44,7 +52,7 @@ Readiness Checklist
 Profiles and next steps
 -----------------------
 - Vectors/RAG: enable profile bootstrap_vector_dbs (Qdrant, ClickHouse, Benthos). See docs/DATA_AND_RAG.md
-- Full stack: prepare a complete .env, then run scripts/bootstrap-stack.sh switch-to-full
+- Full stack: prepare a complete .env, then run scripts/bootstrap-stack.sh switch-to-full. This will automatically use the OIDC-enabled Authelia configuration (configs/authelia/configuration.yml) so apps like Grafana/Outline/Planka/JupyterHub can authenticate via OIDC.
 
 Operations
 ----------
@@ -54,9 +62,10 @@ Operations
 
 Security Notes
 --------------
-- All UIs are fronted by Caddy with Authelia forward_auth
-- Rotate secrets in .env.bootstrap/.env for production
-- KFuncDB capabilities are explicitly gated via KFUNCDB_ALLOW_CAPS
+- Bootstrap and full modes both require SSO coverage for every UI. All UIs are fronted by Caddy with Authelia forward_auth; direct ports are not exposed.
+- Rotate secrets in .env.bootstrap/.env before production.
+- KFuncDB capabilities are explicitly gated via KFUNCDB_ALLOW_CAPS.
+- If your DOMAIN is not project-saturn.com, update the Authelia configs (configs/authelia/configuration*.yml) for cookie domains, ACLs, and redirect URIs to match your domain, or set the equivalent AUTHELIA_* environment overrides.
 
 References
 ----------

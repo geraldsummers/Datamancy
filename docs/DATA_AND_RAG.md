@@ -73,16 +73,19 @@ Verification snippets
 ---------------------
 
 - Qdrant scroll (example: rss_aggregation):
-  curl -s -X POST http://localhost:6333/collections/rss_aggregation/points/scroll \
-    -H 'Content-Type: application/json' -d '{"limit":3, "with_payload": true}' | jq '.result.points | length'
+  # From inside the qdrant container (no host ports are published)
+  docker compose --env-file .env.bootstrap --profile bootstrap_vector_dbs exec qdrant \
+    curl -s -X POST http://localhost:6333/collections/rss_aggregation/points/scroll \
+      -H 'Content-Type: application/json' -d '{"limit":3, "with_payload": true}' | jq '.result.points | length'
 
 - ClickHouse count (series_values):
-  curl -s 'http://localhost:8123/?query=SELECT%20count()%20FROM%20series_values'
+  docker compose --env-file .env.bootstrap --profile bootstrap_vector_dbs exec clickhouse \
+    wget -qO- 'http://localhost:8123/?query=SELECT%20count()%20FROM%20series_values'
 
 Operational notes
 -----------------
 - Ensure QDRANT_URL/QDRANT_API_KEY (if enabled) and LocalAI URL are configured for embedding stages.
-- For cross-compose communication, prefer internal service names within the same Docker network or well‑known published ports.
+- For cross-compose communication, prefer internal service names within the same Docker network; host ports are not published by default in this stack.
 - Keep collection vector size aligned with the embedding model dimensionality.
 
 Source-specific guidance (summary)

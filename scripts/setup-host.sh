@@ -55,6 +55,23 @@ add_user_to_docker() {
   usermod -aG docker "$target_user" || true
 }
 
+setup_qemu(){
+  apt update
+  apt install -y \
+    qemu-kvm \
+    libvirt-daemon-system \
+    libvirt-clients \
+    virt-manager \
+    bridge-utils \
+    ovmf
+  systemctl enable --now libvirtd
+  systemctl status libvirtd
+  usermod -aG libvirt $USER
+  usermod -aG kvm $USER
+  getent group libvirt-qemu && sudo usermod -aG libvirt-qemu $USER
+
+}
+
 main() {
   require_root
   if ! is_debian_like; then
@@ -64,6 +81,7 @@ main() {
 
   install_docker_debian
   add_user_to_docker
+  setup_qemu
 
   echo
   echo "Docker installed and started. The user '${SUDO_USER:-$USER}' was added to the 'docker' group."

@@ -19,7 +19,7 @@ Quickstart (bootstrap)
 2) From repo root:
    - bash scripts/bootstrap-stack.sh init
    - bash scripts/bootstrap-stack.sh up-bootstrap
-3) Open WebUI: http://localhost:8080 (bootstrap)
+3) Bootstrap access: all UIs are served via Caddy and gated by Authelia SSO. Use https://<service>.${DOMAIN} (e.g., https://open-webui.${DOMAIN}). Ensure DNS for ${DOMAIN} and subdomains points to your host and ports 80/443 are open.
 4) See docs/BOOTSTRAP.md for production/TLS and readiness.
 
 Profiles
