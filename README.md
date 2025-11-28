@@ -20,14 +20,14 @@ Quickstart (bootstrap)
    - bash scripts/bootstrap-stack.sh init
    - bash scripts/bootstrap-stack.sh up-bootstrap
 3) Bootstrap access: all UIs are served via Caddy and gated by Authelia SSO. Use https://<service>.${DOMAIN} (e.g., https://open-webui.${DOMAIN}). Ensure DNS for ${DOMAIN} and subdomains points to your host and ports 80/443 are open.
-4) See docs/BOOTSTRAP.md for production/TLS and readiness.
+4) See docs/BOOTSTRAP.md for production/TLS and readiness. Note: bootstrap is just the first slice of the same stack — there are no separate "bootstrap configs"; auth/TLS settings are shared across modes.
 
 Profiles
 --------
 
 - bootstrap: Core AI and supporting services (Caddy, Authelia, LDAP/Redis, LocalAI, LiteLLM, Open WebUI, KFuncDB, Portainer, LAM, test runner).
 - bootstrap_vector_dbs: Qdrant, ClickHouse, and Benthos for vector/RAG pipelines.
-- full: Everything else as defined in docker-compose.yml (requires a complete .env).
+- full: Everything else as defined in docker-compose.yml (requires a complete .env). Same SSO/TLS configuration approach as bootstrap; bootstrap differs only by starting a smaller subset first.
 
 See docs/APP_CATALOG.md for which services belong to which profile and how they’re exposed.
 

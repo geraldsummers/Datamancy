@@ -4,7 +4,7 @@ This is the canonical bootstrap guide. It consolidates the prior BOOTSTRAP_READY
 
 Overview
 --------
-The bootstrap profile brings up a minimal, production‑lean core:
+The bootstrap profile brings up a minimal, production‑lean core. It is the first slice of the same production stack and uses the same configuration patterns (auth, TLS, policies). There are no separate or special “bootstrap configs” — bootstrap simply starts a smaller subset of services first:
 - Caddy (reverse proxy, TLS) + Authelia (SSO) + LDAP/Redis (directory/sessions)
 - LocalAI (local models) + LiteLLM (OpenAI‑compatible gateway)
 - Open WebUI (chat UI)
@@ -52,7 +52,7 @@ Readiness Checklist
 Profiles and next steps
 -----------------------
 - Vectors/RAG: enable profile bootstrap_vector_dbs (Qdrant, ClickHouse, Benthos). See docs/DATA_AND_RAG.md
-- Full stack: prepare a complete .env, then run scripts/bootstrap-stack.sh switch-to-full. This will automatically use the OIDC-enabled Authelia configuration (configs/authelia/configuration.yml) so apps like Grafana/Outline/Planka/JupyterHub can authenticate via OIDC.
+- Full stack: prepare a complete .env, then run scripts/bootstrap-stack.sh switch-to-full. This command starts additional applications, but continues to use the same production SSO/TLS approach — there is no distinct “bootstrap Authelia config.” Apps like Grafana/Outline/Planka/JupyterHub authenticate via the same OIDC provider configuration already present.
 
 Operations
 ----------
@@ -63,9 +63,10 @@ Operations
 Security Notes
 --------------
 - Bootstrap and full modes both require SSO coverage for every UI. All UIs are fronted by Caddy with Authelia forward_auth; direct ports are not exposed.
+- There is a single configuration approach for auth/TLS across modes. Avoid creating mode‑specific config files; bootstrap is only about startup order/minimal footprint, not different settings.
 - Rotate secrets in .env.bootstrap/.env before production.
 - KFuncDB capabilities are explicitly gated via KFUNCDB_ALLOW_CAPS.
-- If your DOMAIN is not project-saturn.com, update the Authelia configs (configs/authelia/configuration*.yml) for cookie domains, ACLs, and redirect URIs to match your domain, or set the equivalent AUTHELIA_* environment overrides.
+- If your DOMAIN is not project-saturn.com, update the Authelia configuration for cookie domains, ACLs, and redirect URIs to match your domain, or set the equivalent AUTHELIA_* environment overrides. This applies equally in bootstrap and full modes (there isn’t a separate bootstrap config).
 
 References
 ----------

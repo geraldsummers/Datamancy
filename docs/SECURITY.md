@@ -8,6 +8,7 @@ SSO and Ingress
 - Caddy serves as the single ingress and TLS terminator. Certificates are provisioned automatically via Let’s Encrypt.
 - Authelia provides SSO; services are protected via Caddy `forward_auth` labels and propagate identity headers (Remote-User, Remote-Email, Remote-Groups).
 - Bootstrap mode also requires complete Authelia coverage: every UI goes through Caddy with `forward_auth`. No direct container ports are published by default.
+- There is no separate "bootstrap auth config" — bootstrap and full use the same SSO/TLS configuration approach; bootstrap simply starts a smaller subset of services first.
 - Ensure all public UIs sit behind SSO unless explicitly intended to be public.
 
 Public, non-interactive API access (no ForwardAuth)
@@ -37,7 +38,7 @@ Secrets and configuration
 - `.env.bootstrap` and `.env` contain sensitive values (API keys, DB passwords, JWT/session keys).
   - Set restrictive permissions: `chmod 600 .env*`.
   - Rotate defaults before production.
-- Authelia configuration (configs/authelia/*.yml) should reference https URLs and proper domain names in production.
+- Authelia configuration should reference https URLs and proper domain names in production. The same configuration approach applies to both bootstrap and full modes.
 - For OIDC in full stack, set the following in `.env` and keep them secret:
   - `AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET`
   - `AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY` (PEM, single line)

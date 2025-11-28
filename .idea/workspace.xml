@@ -5,9 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="bootstrapping">
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/bringup-piecewise.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env.bootstrap" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/Datamancy.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Datamancy.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.bootstrap.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/BOOTSTRAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/BOOTSTRAP.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/SECURITY.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -613,7 +617,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764297803656</updated>
     </task>
-    <option name="localTasksCounter" value="36" />
+    <task id="LOCAL-00036" summary="bootstrapping">
+      <option name="closed" value="true" />
+      <created>1764298509219</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1764298509220</updated>
+    </task>
+    <option name="localTasksCounter" value="37" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
