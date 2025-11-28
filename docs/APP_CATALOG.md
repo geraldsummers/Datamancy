@@ -120,8 +120,6 @@ These services are present in docker-compose.yml outside the bootstrap profiles.
 - adminer / pgadmin — DB admin UIs
 - mailu — mail stack; volumes: mailu_*
 - browserless — headless browser API
-- localagi — local agent orchestrator; volume: localagi_data
-- localrecall — personal recall app; volume: localrecall_data
 - kopia — backup client/server; volumes: kopia_data, kopia_cache, kopia_repository
 - postgres, mariadb — databases; volumes: postgres_data, mariadb_data
 - couchdb — DB for specific apps; volume: couchdb_data

@@ -64,8 +64,6 @@ volumes:
   mailu_cert:
   mailu_dkim:
   sogo_data:
-  localagi_data:
-  localrecall_data:
   portainer_data:
 
 services:
@@ -99,8 +97,6 @@ services:
           - portainer.${DOMAIN}
           - mail.${DOMAIN}
           - localai.${DOMAIN}
-          - localagi.${DOMAIN}
-          - localrecall.${DOMAIN}
           - browserless.${DOMAIN}
           - kfuncdb.${DOMAIN}
           - lam.${DOMAIN}
@@ -1280,7 +1276,7 @@ services:
     volumes:
       - ./configs/localai/models:/source:ro
       - ./volumes/localai/models:/dest
-    command: sh -c "cp -n /source/*.yaml /dest/ 2>/dev/null || true"
+    command: sh -c "cp -f /source/*.yaml /dest/ 2>/dev/null || true"
     restart: "no"
     profiles:
       - bootstrap
@@ -1352,52 +1348,6 @@ services:
       retries: 3
       start_period: 15s
 
-
-  localagi:
-    image: ghcr.io/open-webui/local-agi:latest
-    container_name: localagi
-    restart: unless-stopped
-    networks:
-      - backend
-    labels:
-      caddy: localagi.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
-    depends_on:
-      litellm:
-        condition: service_healthy
-    environment:
-      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
-      - OPENAI_API_BASE=https://litellm.${DOMAIN}
-      - WEB_CONCURRENCY=1
-    volumes:
-      - localagi_data:/data
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  localrecall:
-    image: ghcr.io/open-webui/local-recall:latest
-    container_name: localrecall
-    restart: unless-stopped
-    networks:
-      - backend
-    labels:
-      caddy: localrecall.${DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 3000}}"
-    environment:
-      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
-      - OPENAI_API_BASE=https://litellm.${DOMAIN}
-    volumes:
-      - localrecall_data:/data
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
   kfuncdb:
     build: ./src/kfuncdb

@@ -28,7 +28,7 @@ Data & Vector Stack (optional)
 
 Apps Layer (full stack)
 -----------------------
-Multiple user‑facing and admin apps are defined in docker-compose.yml (Grafana, Vaultwarden, Outline, Planka, JupyterHub, Seafile, OnlyOffice, Synapse, Mastodon, Home Assistant, SOGo, Adminer/PGAdmin, Portainer, Mailu, Browserless, LocalAGI, LocalRecall, etc.).
+Multiple user‑facing and admin apps are defined in docker-compose.yml (Grafana, Vaultwarden, Outline, Planka, JupyterHub, Seafile, OnlyOffice, Synapse, Mastodon, Home Assistant, SOGo, Adminer/PGAdmin, Portainer, Mailu, Browserless, etc.).
 See docs/APP_CATALOG.md for purposes, URLs, profiles, and dependencies.
 
 Request flows (examples)
