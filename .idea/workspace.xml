@@ -5,17 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="bootstrapping">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/authelia/configuration.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/APP_CATALOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/APP_CATALOG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/BOOTSTRAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/BOOTSTRAP.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/SECURITY.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/bootstrap-stack.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/setup-host.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/setup-host.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/NEEDED" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/NEEDED" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/bringup-piecewise.sh" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -613,7 +605,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764290891050</updated>
     </task>
-    <option name="localTasksCounter" value="35" />
+    <task id="LOCAL-00035" summary="bootstrapping">
+      <option name="closed" value="true" />
+      <created>1764297803656</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1764297803656</updated>
+    </task>
+    <option name="localTasksCounter" value="36" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

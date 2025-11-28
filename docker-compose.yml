@@ -129,7 +129,8 @@ services:
       - frontend
     depends_on:
       caddy-docker-proxy:
-        condition: service_healthy
+        # caddy-docker-proxy has no healthcheck; wait until it's started
+        condition: service_started
       authelia:
         condition: service_healthy
       localai:
