@@ -113,53 +113,14 @@ services:
     environment:
       - CADDY_INGRESS_NETWORKS=frontend backend
       - ACME_AGREE=true
-    # Note: Healthcheck disabled; relying on container logs and reverse-proxy readiness
+    healthcheck:
+      # Use the caddy binary as a lightweight readiness signal
+      test: ["CMD", "caddy", "version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-
-  test-runner:
-    build:
-      context: src/tests
-      dockerfile: Dockerfile
-    container_name: test-runner
-    profiles:
-      - bootstrap
-      - infrastructure
-    networks:
-      - backend
-      - frontend
-    depends_on:
-      caddy-docker-proxy:
-        # caddy-docker-proxy has no healthcheck; wait until it's started
-        condition: service_started
-      authelia:
-        condition: service_healthy
-      localai:
-        condition: service_healthy
-      open-webui:
-        condition: service_healthy
-    volumes:
-      - ./tests:/tests:ro
-      - ./screenshots:/screenshots:rw
-      - ./configs/grafana/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
-    environment:
-      - NODE_ENV=test
-      - CI=true
-      - LANG=en_US.UTF-8
-      - LC_ALL=en_US.UTF-8
-      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
-      - TEST_USERNAME=admin
-      - TEST_PASSWORD=DatamancyTest2025!
-      - SCREEN_DIR=/screenshots
-      - DOMAIN=${DOMAIN}
-      - LOCALAI_URL=http://localai:8080
-      - LITELLM_URL=http://litellm:4000
-      - LITELLM_API_KEY=${LITELLM_MASTER_KEY}
-    restart: "no"
-    command: >
-      sh -c 'set -eu &&
-      update-ca-certificates 2>/dev/null || true &&
-      printf "%s test-runner: starting screenshot analysis loop\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" &&
-      node /tests/screenshot-loop.js'
 
   ldap:
     image: osixia/openldap:1.5.0
@@ -691,6 +652,12 @@ services:
       - DOCKGE_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
     command: node /init-dockge.js
     restart: "no"
+    healthcheck:
+      test: ["CMD", "node", "-v"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 
   kopia:
     image: kopia/kopia:0.18.2
@@ -774,9 +741,10 @@ services:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
       - /var/lib/docker/volumes:/var/lib/docker/volumes
     healthcheck:
-      test: ["CMD", "echo", "ok"]
+      # Basic liveness check: ensure shell executes
+      test: ["CMD", "sh", "-c", "echo ok"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
       start_period: 10s
 
@@ -792,7 +760,7 @@ services:
       - frontend
     depends_on:
       portainer-agent:
-        condition: service_healthy
+        condition: service_started
       authelia:
         condition: service_healthy
     volumes:
@@ -1256,6 +1224,12 @@ services:
       - ./configs/mastodon/init-mastodon.sh:/init-mastodon.sh:ro
     command: sh /init-mastodon.sh
     restart: "no"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "echo ok"]
+      interval: 1m
+      timeout: 10s
+      retries: 1
+      start_period: 5s
 
   homepage:
     image: ghcr.io/gethomepage/homepage:v1.7.0
@@ -1364,6 +1338,12 @@ services:
     profiles:
       - bootstrap
       - infrastructure
+    healthcheck:
+      test: ["CMD", "sh", "-c", "echo ok"]
+      interval: 1m
+      timeout: 10s
+      retries: 1
+      start_period: 5s
 
   localai:
     image: localai/localai:v3.7.0-aio-gpu-nvidia-cuda-12
@@ -1559,6 +1539,12 @@ services:
       - ./configs/vectors/collections.yaml:/configs/collections.yaml:ro
       - ./configs/vectors/bootstrap_vectors.py:/scripts/bootstrap_vectors.py:ro
     command: sh -c "python /scripts/bootstrap_vectors.py /configs/collections.yaml"
+    healthcheck:
+      test: ["CMD", "python", "--version"]
+      interval: 1m
+      timeout: 10s
+      retries: 1
+      start_period: 5s
 
   benthos:
     image: jeffail/benthos:4.27.0

@@ -123,6 +123,63 @@ identity_providers:
         - revocation
         - introspection
       allowed_origins_from_client_redirect_uris: true
+    jwks:
+      - key_id: 'main'
+        algorithm: 'RS256'
+        use: 'sig'
+        key: |
+          -----BEGIN PRIVATE KEY-----
+          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
+          MdqpM3AxJ0/S6yVTWJh+4Leiz+ku
+          -----END PRIVATE KEY-----
 
     clients:
       # Grafana
