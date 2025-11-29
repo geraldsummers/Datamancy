@@ -90,4 +90,48 @@ class HttpServerTest {
         val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
         assertEquals(400, resp.statusCode())
     }
+
+    @Test
+    fun `tool timeout returns 504`() {
+        // Set a very small exec timeout before starting server
+        server.stop()
+        System.setProperty("KFUNCDB_TOOL_EXEC_TIMEOUT_MS", "100")
+
+        val reg = ToolRegistry()
+        val manifest = PluginManifest(
+            id = "tp-http",
+            version = "0.1.0",
+            apiVersion = "1.0.0",
+            implementation = TestPlugin::class.qualifiedName!!,
+            capabilities = emptyList(),
+            requires = null
+        )
+        reg.registerFrom(LoadedPlugin(manifest, this::class.java.classLoader, TestPlugin()))
+        server = LlmHttpServer(port = 0, tools = reg)
+        server.start()
+        val port = server.boundPort()!!
+        baseUri = URI.create("http://localhost:$port")
+
+        val client = HttpClient.newHttpClient()
+        val body = mapOf("name" to "sleep_ms", "args" to mapOf("ms" to 500))
+        val req = HttpRequest.newBuilder(baseUri.resolve("/call-tool"))
+            .POST(HttpRequest.BodyPublishers.ofByteArray(Json.mapper.writeValueAsBytes(body)))
+            .header("Content-Type", "application/json")
+            .build()
+        val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
+        assertEquals(504, resp.statusCode())
+    }
+
+    @Test
+    fun `preflight returns 204`() {
+        val client = HttpClient.newHttpClient()
+        val req = HttpRequest.newBuilder(baseUri.resolve("/call-tool"))
+            .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+            .header("Origin", "http://localhost")
+            .header("Access-Control-Request-Method", "POST")
+            .header("Access-Control-Request-Headers", "content-type")
+            .build()
+        val resp = client.send(req, HttpResponse.BodyHandlers.discarding())
+        assertEquals(204, resp.statusCode())
+    }
 }

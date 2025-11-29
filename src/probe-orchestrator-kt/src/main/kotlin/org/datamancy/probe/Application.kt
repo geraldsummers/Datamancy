@@ -167,7 +167,7 @@ Keep it simple and complete the task in 2-3 tool calls.
 
 suspend fun callKfuncTool(client: HttpClient, tool: String, args: JsonObject): JsonObject {
     val payload = buildJsonObject {
-        put("tool", tool)
+        put("name", tool)
         put("args", args)
     }
 
@@ -177,7 +177,10 @@ suspend fun callKfuncTool(client: HttpClient, tool: String, args: JsonObject): J
     }.bodyAsText()
 
     return try {
-        json.parseToJsonElement(respText).jsonObject
+        val responseObj = json.parseToJsonElement(respText).jsonObject
+        // KFuncDB returns {"result": {...}, "elapsedMs": ...}
+        // Extract the result field, or return the whole response if no result field
+        responseObj["result"]?.jsonObject ?: responseObj
     } catch (_: Exception) {
         buildJsonObject { put("raw", respText) }
     }
@@ -317,7 +320,7 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
                                 put("content", "Tool ${functionName} completed: ${compactResult.toString().take(300)}")
                             })
 
-                            continue // Go to next loop iteration
+                            return@repeat // Continue to next iteration
                         }
                     }
                 } catch (_: Exception) {

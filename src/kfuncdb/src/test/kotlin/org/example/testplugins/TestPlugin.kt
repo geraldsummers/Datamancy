@@ -49,5 +49,18 @@ class TestPlugin : Plugin {
             """
         )
         fun echo(dto: EchoDto): String = "${dto.x}:${dto.ok}"
+
+        @LlmTool(
+            name = "sleep_ms",
+            shortDescription = "Sleep for N milliseconds (testing only)",
+            longDescription = "Blocks the current thread for the requested milliseconds and returns a confirmation string.",
+            paramsSpec = """
+            {"type":"object","required":["ms"],"properties":{"ms":{"type":"integer","minimum":0,"maximum":60000}}}
+            """
+        )
+        fun sleep_ms(ms: Long): String {
+            Thread.sleep(ms)
+            return "slept ${'$'}ms"
+        }
     }
 }
