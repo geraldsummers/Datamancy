@@ -21,11 +21,6 @@
         description: AI Chat Interface
         icon: openwebui.png
 
-    - LocalAI:
-        href: https://localai.project-saturn.com
-        description: Local AI Models
-        icon: localai.png
-
     - JupyterHub:
         href: https://jupyterhub.project-saturn.com
         description: Data Science

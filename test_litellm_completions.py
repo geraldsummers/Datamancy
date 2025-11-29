@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test LocalAI completions via LiteLLM proxy.
+Test vLLM completions via LiteLLM proxy.
 """
 import os
 from openai import OpenAI
@@ -72,7 +72,7 @@ def test_streaming_completion(client, model_name):
         return False
 
 def main():
-    print("LocalAI Completions Test via LiteLLM")
+    print("vLLM Completions Test via LiteLLM")
     print(f"Base URL: {LITELLM_BASE_URL}")
     print(f"API Key: {LITELLM_API_KEY[:10]}..." if len(LITELLM_API_KEY) > 10 else f"API Key: {LITELLM_API_KEY}")
 

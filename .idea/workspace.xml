@@ -5,29 +5,27 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="bootstrapping">
-      <change afterPath="$PROJECT_DIR$/scripts/create-volume-dirs.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/applications/homepage/services.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/homepage/services.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/stackexchange_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/stackexchange_ndjson_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/torrents_csv_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/torrents_csv_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/yahoo_news_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/yahoo_news_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.bootstrap.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/litellm/config.bootstrap.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/embed.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/hermes-2-pro-mistral-7b.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/qwen-coder.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/router.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/sd15.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/vision.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/whisper-medium.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/whisper-small.yaml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml.backup" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/APP_CATALOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/APP_CATALOG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/BOOTSTRAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/BOOTSTRAP.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/OPERATIONS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/OPERATIONS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/SECURITY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/http/HttpServer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/http/HttpServer.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/02-install-stackops-wrapper.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/02-install-stackops-wrapper.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/stackops_ed25519.pub" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_litellm_completions.py" beforeDir="false" afterPath="$PROJECT_DIR$/test_litellm_completions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_litellm_docker.sh" beforeDir="false" afterPath="$PROJECT_DIR$/test_litellm_docker.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_mistral.sh" beforeDir="false" afterPath="$PROJECT_DIR$/test_mistral.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -707,7 +705,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764381209863</updated>
     </task>
-    <option name="localTasksCounter" value="46" />
+    <task id="LOCAL-00046" summary="bootstrapping">
+      <option name="closed" value="true" />
+      <created>1764411932549</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1764411932549</updated>
+    </task>
+    <option name="localTasksCounter" value="47" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

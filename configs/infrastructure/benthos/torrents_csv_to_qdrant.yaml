@@ -53,7 +53,7 @@ pipeline:
     - branch:
         processors:
           - http:
-              url: ${LOCALAI_URL:http://localai:8080/v1}/embeddings
+              url: ${LOCALAI_URL:http://litellm:4000/v1}/embeddings
               verb: POST
               headers:
                 Content-Type: application/json

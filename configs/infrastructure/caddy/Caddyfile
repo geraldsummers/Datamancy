@@ -156,14 +156,6 @@ homeassistant.{$DOMAIN} {
     }
 }
 
-# LocalAI (protected)
-localai.{$DOMAIN} {
-    route {
-        import authelia_auth
-        reverse_proxy localai:8080
-    }
-}
-
 # LiteLLM (protected)
 litellm.{$DOMAIN} {
     route {

@@ -30,7 +30,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("org.datamancy.probe.ApplicationKt")
+    mainClass.set("org.datamancy.speech.ApplicationKt")
 }
 
 kotlin {
@@ -39,9 +39,9 @@ kotlin {
 
 tasks.withType<Jar> {
     manifest {
-        attributes["Main-Class"] = "org.datamancy.probe.ApplicationKt"
+        attributes["Main-Class"] = "org.datamancy.speech.ApplicationKt"
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(configurations.runtimeClasspath.get().filter { it.name.endsWith(".jar") }.map { zipTree(it) })
-    archiveFileName.set("probe-orchestrator-kt.jar")
+    archiveFileName.set("ktspeechgateway.jar")
 }

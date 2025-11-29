@@ -35,7 +35,7 @@ echo "🔍 Test 2: Checking LLM availability..."
 curl -s "$LLM_URL/models" \
   -H "Authorization: Bearer ${LLM_API_KEY:-sk-local}" | jq -r '.data[].id' || {
   echo "❌ LLM service is not available at $LLM_URL"
-  echo "   Start it with: docker-compose up -d litellm localai"
+  echo "   Start it with: docker-compose up -d litellm vllm"
   exit 1
 }
 echo "✅ LLM service is available"
@@ -157,4 +157,4 @@ echo ""
 echo "For detailed logs:"
 echo "  docker-compose logs probe-orchestrator"
 echo "  docker-compose logs litellm"
-echo "  docker-compose logs localai"
+echo "  docker-compose logs vllm"

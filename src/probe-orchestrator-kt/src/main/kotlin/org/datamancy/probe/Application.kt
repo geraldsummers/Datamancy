@@ -21,11 +21,13 @@ import java.io.File
 import java.time.Instant
 import java.util.Base64
 
+// (moved) Upstream audio services are now handled by ktspeechgateway module
+
 // Env with defaults
 private val LLM_BASE_URL = System.getenv("LLM_BASE_URL") ?: "http://litellm:4000/v1"
 private val LLM_API_KEY = System.getenv("LLM_API_KEY") ?: (System.getenv("LITELLM_MASTER_KEY") ?: "sk-local")
 private val LLM_MODEL = System.getenv("LLM_MODEL") ?: "hermes-2-pro-mistral-7b"
-private val OCR_MODEL = System.getenv("OCR_MODEL") ?: (System.getenv("VISION_MODEL") ?: "llava")
+private val OCR_MODEL = System.getenv("OCR_MODEL") ?: (System.getenv("VISION_MODEL") ?: "none")
 private val KFUN_URL = System.getenv("KFUN_URL") ?: "http://kfuncdb:8081"
 private val PROOFS_DIR = System.getenv("PROOFS_DIR") ?: "/proofs"
 private val MAX_STEPS = (System.getenv("MAX_STEPS") ?: "12").toIntOrNull() ?: 12
@@ -176,8 +178,9 @@ Key rules:
 - Be efficient: for simple targets, screenshot → finish. For ambiguous cases, screenshot → DOM/HTTP → finish.
 """.trimIndent()
 
-// Submit a base64 image to LocalAI (via the OpenAI-compatible endpoint) to extract visible text using a vision model.
-suspend fun ocrImageWithLocalAI(client: HttpClient, imageBase64: String): String? {
+// Submit a base64 image to the configured LLM (OpenAI-compatible endpoint) to extract visible text using a vision-capable model.
+suspend fun ocrImageWithLLM(client: HttpClient, imageBase64: String): String? {
+    if (OCR_MODEL.equals("none", ignoreCase = true) || OCR_MODEL.isBlank()) return null
     val imageDataUrl = "data:image/png;base64,$imageBase64"
     val payload = buildJsonObject {
         put("model", OCR_MODEL)
@@ -502,8 +505,8 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
                                     screenshotPath = path.absolutePath
                                     println("Screenshot saved: $screenshotPath")
 
-                                    // OCR via LocalAI to extract visible text from screenshot
-                                    val ocrText = ocrImageWithLocalAI(client, b64)
+                                    // OCR via LLM (if configured) to extract visible text from screenshot
+                                    val ocrText = ocrImageWithLLM(client, b64)
                                     ocrExcerpt = ocrText?.take(2000)
                                 }
                             }
@@ -619,9 +622,9 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
                 screenshotPath = path.absolutePath
                 println("Screenshot saved: $screenshotPath")
 
-                // OCR via LocalAI to extract visible text
+                // OCR via LLM (if configured) to extract visible text
                 println("Performing OCR on screenshot...")
-                val ocrText = ocrImageWithLocalAI(client, b64)
+                val ocrText = ocrImageWithLLM(client, b64)
                 ocrExcerpt = ocrText?.take(2000)
                 println("OCR extracted ${ocrText?.length ?: 0} characters")
 
@@ -739,6 +742,8 @@ fun main() {
         install(io.ktor.server.plugins.contentnegotiation.ContentNegotiation) { json(json) }
         routing {
             get("/healthz") { call.respond(mapOf("ok" to true)) }
+
+            // Speech gateway endpoints moved to ktspeechgateway service
             post("/start-probe") {
                 val req = call.receive<StartReq>()
                 val results = mutableListOf<ProbeResult>()

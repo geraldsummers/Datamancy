@@ -56,7 +56,7 @@ class OpsSshPlugin : Plugin {
             paramsSpec = "{" +
                 "\"type\":\"object\",\"properties\":{\"cmd\":{\"type\":\"string\"}},\"required\":[\"cmd\"]}",
             params = [
-                LlmToolParamDoc(name = "cmd", description = "Command like 'docker logs localai --tail 200' or 'docker restart localai'.")
+                LlmToolParamDoc(name = "cmd", description = "Command like 'docker logs vllm --tail 200' or 'docker restart vllm'.")
             ]
         )
         fun ssh_exec_whitelisted(cmd: String): Map<String, Any?> {

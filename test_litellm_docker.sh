@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Test LocalAI completions via LiteLLM using docker exec
+# Test vLLM completions via LiteLLM using docker exec
 
 echo "==============================================="
-echo "LocalAI Completions Test via LiteLLM (Docker)"
+echo "vLLM Completions Test via LiteLLM (Docker)"
 echo "==============================================="
 
 # Get the master key from environment

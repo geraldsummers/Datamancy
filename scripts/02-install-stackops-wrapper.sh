@@ -14,7 +14,7 @@ set -euo pipefail
 ALLOWED_CMDS=(
   "docker ps"
   "docker logs"
-  "docker restart localai"
+  "docker restart vllm"
   "docker restart litellm"
   "docker restart authelia"
   "docker restart caddy"

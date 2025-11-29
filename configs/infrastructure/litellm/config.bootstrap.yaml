@@ -1,13 +1,13 @@
 # LiteLLM bootstrap configuration
 # Purpose: expose a local OpenAI-compatible endpoint at http://localhost:4000
-# that proxies to the LocalAI container started by docker-compose.bootstrap.yml.
+# that proxies to the vLLM container started by docker-compose.yml.
 
 model_list:
   - model_name: hermes-2-pro-mistral-7b
     litellm_params:
-      # Use OpenAI-compatible routes but point base to LocalAI
+      # Use OpenAI-compatible routes but point base to vLLM
       model: openai/hermes-2-pro-mistral-7b
-      api_base: http://localai:8080/v1
+      api_base: http://vllm:8000/v1
       api_key: unused
 
 router_settings:
