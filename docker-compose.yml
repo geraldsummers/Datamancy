@@ -119,6 +119,12 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT}/localai_models
+  localai_backends:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/localai_backends
   ldap_data:
     driver: local
     driver_opts:
@@ -1468,6 +1474,7 @@ services:
     volumes:
       - localai_models:/build/models
       - ${VOLUMES_ROOT}/localai/models:/models
+      - localai_backends:/backends
     environment:
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
       # Disable galleries to prevent empty URL errors
@@ -1580,7 +1587,7 @@ services:
     environment:
       - LLM_BASE_URL=${LLM_BASE_URL:-http://litellm:4000/v1}
       - LLM_API_KEY=${LITELLM_MASTER_KEY}
-      - LLM_MODEL=${LLM_MODEL:-llama3}
+      - LLM_MODEL=${LLM_MODEL:-hermes-2-pro-mistral-7b}
       - KFUN_URL=${KFUN_URL:-http://kfuncdb:8081}
       - PROOFS_DIR=/proofs
       - MAX_STEPS=${MAX_STEPS:-8}

@@ -1,8 +1,8 @@
 model_list:
-  # Main chat model - Llama 3 8B
-  - model_name: llama3
+  # Main chat model - Hermes-2-Pro-Mistral-7B
+  - model_name: hermes-2-pro-mistral-7b
     litellm_params:
-      model: openai/llama3
+      model: openai/hermes-2-pro-mistral-7b
       api_base: http://localai:8080/v1
       api_key: dummy
       max_tokens: 4096

@@ -3,10 +3,10 @@
 # that proxies to the LocalAI container started by docker-compose.bootstrap.yml.
 
 model_list:
-  - model_name: llama3
+  - model_name: hermes-2-pro-mistral-7b
     litellm_params:
       # Use OpenAI-compatible routes but point base to LocalAI
-      model: openai/llama3
+      model: openai/hermes-2-pro-mistral-7b
       api_base: http://localai:8080/v1
       api_key: unused
 

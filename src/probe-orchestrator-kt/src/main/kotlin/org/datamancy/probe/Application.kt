@@ -24,7 +24,7 @@ import java.util.Base64
 // Env with defaults
 private val LLM_BASE_URL = System.getenv("LLM_BASE_URL") ?: "http://litellm:4000/v1"
 private val LLM_API_KEY = System.getenv("LLM_API_KEY") ?: (System.getenv("LITELLM_MASTER_KEY") ?: "sk-local")
-private val LLM_MODEL = System.getenv("LLM_MODEL") ?: "localai/llama3"
+private val LLM_MODEL = System.getenv("LLM_MODEL") ?: "hermes-2-pro-mistral-7b"
 private val KFUN_URL = System.getenv("KFUN_URL") ?: "http://kfuncdb:8081"
 private val PROOFS_DIR = System.getenv("PROOFS_DIR") ?: "/proofs"
 private val MAX_STEPS = (System.getenv("MAX_STEPS") ?: "8").toIntOrNull() ?: 8
@@ -73,55 +73,113 @@ data class SummaryItem(
     val screenshot_path: String? = null,
 )
 
-private val TOOLS_SPEC = listOf(
-    mapOf("name" to "browser_screenshot", "args" to mapOf("url" to "string")),
-    mapOf("name" to "browser_dom", "args" to mapOf("url" to "string")),
-    mapOf("name" to "http_get", "args" to mapOf("url" to "string")),
-    mapOf("name" to "ssh_exec_whitelisted", "args" to mapOf("cmd" to "string")),
-)
-
-private val SYSTEM_PROMPT = buildString {
-    append("You are an autonomous LocalAI agent that can call a small set of tools via a bridge service.\n")
-    append("Goal: for a given service URL, navigate to it (no login yet), capture a DOM sample and at least one screenshot that shows the page loaded.\n\n")
-    append("Rules:\n")
-    append("- Allowed tools: ${TOOLS_SPEC.joinToString(", ") { it["name"].toString() }}.\n")
-    append("- Always reply as strict JSON with keys: tool, args, thought. When finished, reply with tool=\"finish\" and include args.status, args.reason, and optional args.proof (screenshot path).\n")
-    append("- Prefer calling browser_screenshot first to prove reachability; then browser_dom for HTML.\n")
-    append("- Keep arguments minimal. Do not include unknown fields.\n")
-    append("- Avoid loops beyond $MAX_STEPS steps.\n")
-    append("Output JSON only, with no extra text.\n")
-}
-
-private fun stripMarkdownFences(s: String): String {
-    var t = s.trim()
-    if (t.startsWith("```") && t.endsWith("```")) {
-        t = t.removePrefix("```").removeSuffix("```").trim()
-    }
-    if (t.startsWith("json\n", ignoreCase = true)) t = t.substringAfter('\n')
-    return t.trim()
-}
-
-private fun robustParseJsonObject(s: String): JsonObject {
-    val stripped = stripMarkdownFences(s)
-    try {
-        return json.parseToJsonElement(stripped).jsonObject
-    } catch (_: Exception) {
-        val start = stripped.indexOf('{')
-        val end = stripped.lastIndexOf('}')
-        if (start >= 0 && end > start) {
-            val sub = stripped.substring(start, end + 1)
-            return json.parseToJsonElement(sub).jsonObject
+// Define tools in OpenAI function calling format
+private val TOOLS_DEFINITIONS = buildJsonArray {
+    addJsonObject {
+        put("type", "function")
+        putJsonObject("function") {
+            put("name", "browser_screenshot")
+            put("description", "Navigate to a URL and capture a PNG screenshot. Returns base64-encoded image.")
+            putJsonObject("parameters") {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("url") {
+                        put("type", "string")
+                        put("description", "Absolute URL to visit (http/https)")
+                    }
+                }
+                putJsonArray("required") { add("url") }
+            }
         }
-        throw IllegalArgumentException("Unable to parse JSON from LLM response")
+    }
+    addJsonObject {
+        put("type", "function")
+        putJsonObject("function") {
+            put("name", "browser_dom")
+            put("description", "Navigate to a URL and extract the serialized DOM HTML.")
+            putJsonObject("parameters") {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("url") {
+                        put("type", "string")
+                        put("description", "Absolute URL to visit (http/https)")
+                    }
+                }
+                putJsonArray("required") { add("url") }
+            }
+        }
+    }
+    addJsonObject {
+        put("type", "function")
+        putJsonObject("function") {
+            put("name", "http_get")
+            put("description", "Perform an HTTP GET request and return status, headers, and body.")
+            putJsonObject("parameters") {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("url") {
+                        put("type", "string")
+                        put("description", "URL to fetch (http/https)")
+                    }
+                }
+                putJsonArray("required") { add("url") }
+            }
+        }
+    }
+    addJsonObject {
+        put("type", "function")
+        putJsonObject("function") {
+            put("name", "finish")
+            put("description", "Call this when you have completed the probe task with screenshot and DOM captured.")
+            putJsonObject("parameters") {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("status") {
+                        put("type", "string")
+                        put("description", "Status: 'ok' or 'failed'")
+                    }
+                    putJsonObject("reason") {
+                        put("type", "string")
+                        put("description", "Brief reason/summary")
+                    }
+                    putJsonObject("proof") {
+                        put("type", "string")
+                        put("description", "Path to screenshot proof file (optional)")
+                    }
+                }
+                putJsonArray("required") { add("status"); add("reason") }
+            }
+        }
     }
 }
 
-private fun truncateElement(el: JsonElement, max: Int): JsonElement {
-    return when (el) {
-        is JsonPrimitive -> if (el.isString) JsonPrimitive(el.content.take(max)) else el
-        is JsonArray -> JsonArray(el.take(200).map { truncateElement(it, max) })
-        is JsonObject -> JsonObject(el.mapValues { (_, v) -> truncateElement(v, max) })
-        else -> el
+private val SYSTEM_PROMPT = """
+You are an autonomous probe agent that verifies service availability.
+Goal: For a given service URL, capture a screenshot to prove it loads and extract the DOM HTML.
+
+Strategy:
+1. Call browser_screenshot with the service URL to capture visual proof
+2. Call browser_dom with the same URL to get the HTML structure
+3. Call finish with status='ok', reason describing what you captured, and the proof path
+
+Keep it simple and complete the task in 2-3 tool calls.
+""".trimIndent()
+
+suspend fun callKfuncTool(client: HttpClient, tool: String, args: JsonObject): JsonObject {
+    val payload = buildJsonObject {
+        put("tool", tool)
+        put("args", args)
+    }
+
+    val respText: String = client.post("$KFUN_URL/call-tool") {
+        contentType(ContentType.Application.Json)
+        setBody(payload)
+    }.bodyAsText()
+
+    return try {
+        json.parseToJsonElement(respText).jsonObject
+    } catch (_: Exception) {
+        buildJsonObject { put("raw", respText) }
     }
 }
 
@@ -133,9 +191,10 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
         },
         buildJsonObject {
             put("role", "user")
-            put("content", buildJsonObject { put("service", serviceUrl) }.toString())
+            put("content", "Probe this service and capture screenshot + DOM: $serviceUrl")
         }
     )
+
     val steps = mutableListOf<StepLog>()
     var domExcerpt: String? = null
     var screenshotPath: String? = null
@@ -143,12 +202,14 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
     repeat(MAX_STEPS) { i ->
         val stepNo = i + 1
 
-        // LLM chat
+        // Call LLM with function calling
         val payload = buildJsonObject {
             put("model", LLM_MODEL)
             putJsonArray("messages") { messages.forEach { add(it) } }
-            put("temperature", 0.2)
-            put("max_tokens", 800)
+            put("tools", TOOLS_DEFINITIONS)
+            put("tool_choice", "auto")
+            put("temperature", 0.3)
+            put("max_tokens", 500)
         }
 
         val raw: String = client.post("$LLM_BASE_URL/chat/completions") {
@@ -157,109 +218,230 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
             setBody(payload)
         }.bodyAsText()
 
-        val content = try {
-            val root = json.parseToJsonElement(raw).jsonObject
-            root["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content
-                ?: throw IllegalStateException("missing content")
+        val respJson = try {
+            json.parseToJsonElement(raw).jsonObject
         } catch (e: Exception) {
-            steps.add(StepLog(error = "llm-response-parse-failed: ${e.message}", result = JsonPrimitive(raw.take(4000))))
+            steps.add(StepLog(error = "llm-response-parse-failed: ${e.message}", result = JsonPrimitive(raw.take(2000))))
             return ProbeResult(serviceUrl, "failed", "llm-response-error", screenshotPath, domExcerpt, steps)
         }
 
-        val act = try {
-            robustParseJsonObject(content)
-        } catch (e: Exception) {
-            steps.add(StepLog(error = "json-parse-failed: ${e.message}", result = JsonPrimitive(content.take(4000))))
-            return ProbeResult(serviceUrl, "failed", "parse-error", screenshotPath, domExcerpt, steps)
+        val choice = respJson["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+        val message = choice?.get("message")?.jsonObject
+        val finishReason = choice?.get("finish_reason")?.jsonPrimitive?.contentOrNull
+
+        // Add assistant message to conversation
+        message?.let { messages.add(it) }
+
+        // Check for tool calls
+        val toolCallsElement = message?.get("tool_calls")
+        val toolCalls = when {
+            toolCallsElement == null || toolCallsElement is JsonNull -> null
+            toolCallsElement is JsonArray -> toolCallsElement
+            else -> null
         }
 
-        val tool = act["tool"]?.jsonPrimitive?.contentOrNull
-        val args = act["args"] ?: JsonObject(emptyMap())
-        val thought = act["thought"]?.jsonPrimitive?.contentOrNull
-        steps.add(StepLog(step = stepNo, tool = tool, args = args, thought = thought))
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            // No tool_calls array - model might have put it in content (Hermes-3 style)
+            val textContent = message?.get("content")?.jsonPrimitive?.contentOrNull
+            if (!textContent.isNullOrBlank()) {
+                // Try to extract tool call from text content
+                try {
+                    val contentJson = json.parseToJsonElement(textContent).jsonObject
+                    val toolCallObj = contentJson["tool_call"]?.jsonObject
+                    if (toolCallObj != null) {
+                        val functionName = toolCallObj["name"]?.jsonPrimitive?.content
+                        val functionArgs = toolCallObj["arguments"]?.jsonObject
+                        if (functionName != null && functionArgs != null) {
+                            // Found a tool call in content! Process it
+                            steps.add(StepLog(step = stepNo, tool = functionName, args = functionArgs))
 
-        if (tool == "finish") {
-            val status = args.jsonObject["status"]?.jsonPrimitive?.content ?: "ok"
-            val reason = args.jsonObject["reason"]?.jsonPrimitive?.content ?: "done"
-            val proof = args.jsonObject["proof"]?.jsonPrimitive?.contentOrNull
+                            if (functionName == "finish") {
+                                val status = functionArgs["status"]?.jsonPrimitive?.content ?: "ok"
+                                val reason = functionArgs["reason"]?.jsonPrimitive?.content ?: "done"
+                                val proof = functionArgs["proof"]?.jsonPrimitive?.contentOrNull
+                                return ProbeResult(serviceUrl, status, reason, proof ?: screenshotPath, domExcerpt, steps)
+                            }
+
+                            // Call KFuncDB and continue loop
+                            val toolResult = callKfuncTool(client, functionName, functionArgs)
+                            val compactResult = JsonObject(toolResult.mapValues { (k, v) ->
+                                when {
+                                    k == "imageBase64" -> JsonPrimitive("[base64]")
+                                    v is JsonPrimitive && v.isString -> JsonPrimitive(v.content.take(500))
+                                    else -> v
+                                }
+                            })
+                            steps.add(StepLog(result = compactResult))
+
+                            // Handle screenshot
+                            if (functionName == "browser_screenshot") {
+                                val b64 = toolResult["imageBase64"]?.jsonPrimitive?.contentOrNull
+                                if (!b64.isNullOrBlank()) {
+                                    val stamp = Instant.now().toEpochMilli()
+                                    val safeName = serviceUrl.replace(Regex("[^a-zA-Z0-9]"), "_")
+                                    val fileName = "${safeName}_${stamp}.png"
+                                    val path = File(PROOFS_DIR, fileName)
+                                    path.parentFile?.mkdirs()
+                                    val bytes = try { Base64.getDecoder().decode(b64) } catch (_: Exception) { ByteArray(0) }
+                                    path.writeBytes(bytes)
+                                    screenshotPath = path.absolutePath
+                                    println("Screenshot saved: $screenshotPath")
+                                }
+                            }
+
+                            // Handle DOM
+                            if (functionName == "browser_dom") {
+                                val bodyEl = toolResult["body"]
+                                val html: String = try {
+                                    when {
+                                        bodyEl == null -> ""
+                                        bodyEl is JsonPrimitive && bodyEl.isString -> {
+                                            val bodyStr = bodyEl.content
+                                            try {
+                                                json.parseToJsonElement(bodyStr).jsonObject["html"]?.jsonPrimitive?.content ?: bodyStr
+                                            } catch (_: Exception) {
+                                                bodyStr
+                                            }
+                                        }
+                                        else -> bodyEl.toString()
+                                    }
+                                } catch (_: Exception) {
+                                    bodyEl.toString()
+                                }
+                                domExcerpt = html.take(3000)
+                            }
+
+                            // Add assistant's next turn (mock tool response)
+                            messages.add(buildJsonObject {
+                                put("role", "user")
+                                put("content", "Tool ${functionName} completed: ${compactResult.toString().take(300)}")
+                            })
+
+                            continue // Go to next loop iteration
+                        }
+                    }
+                } catch (_: Exception) {
+                    // Not parseable as JSON or no tool_call field
+                }
+            }
+
+            // No valid tool call found
+            if (finishReason == "stop" || finishReason == "end") {
+                return ProbeResult(serviceUrl, "failed", "no-tool-call: $textContent", screenshotPath, domExcerpt, steps)
+            }
+            steps.add(StepLog(error = "no-tool-call", result = JsonPrimitive(textContent ?: "empty")))
+            return ProbeResult(serviceUrl, "failed", "no-tool-call", screenshotPath, domExcerpt, steps)
+        }
+
+        // Process the first tool call
+        val toolCall = toolCalls.first().jsonObject
+        val toolCallId = toolCall["id"]?.jsonPrimitive?.contentOrNull ?: "call_${stepNo}"
+        val function = toolCall["function"]?.jsonObject
+        val functionName = function?.get("name")?.jsonPrimitive?.contentOrNull
+        val functionArgs = function?.get("arguments")?.jsonPrimitive?.contentOrNull
+
+        if (functionName == null) {
+            steps.add(StepLog(error = "missing-function-name"))
+            return ProbeResult(serviceUrl, "failed", "missing-function-name", screenshotPath, domExcerpt, steps)
+        }
+
+        // Parse function arguments
+        val argsJson = try {
+            if (functionArgs.isNullOrBlank()) JsonObject(emptyMap())
+            else json.parseToJsonElement(functionArgs).jsonObject
+        } catch (e: Exception) {
+            steps.add(StepLog(error = "invalid-function-args: ${e.message}", result = JsonPrimitive(functionArgs ?: "")))
+            return ProbeResult(serviceUrl, "failed", "invalid-function-args", screenshotPath, domExcerpt, steps)
+        }
+
+        steps.add(StepLog(step = stepNo, tool = functionName, args = argsJson))
+
+        // Handle finish
+        if (functionName == "finish") {
+            val status = argsJson["status"]?.jsonPrimitive?.content ?: "ok"
+            val reason = argsJson["reason"]?.jsonPrimitive?.content ?: "done"
+            val proof = argsJson["proof"]?.jsonPrimitive?.contentOrNull
             return ProbeResult(serviceUrl, status, reason, proof ?: screenshotPath, domExcerpt, steps)
         }
 
-        val validTools = TOOLS_SPEC.map { it["name"].toString().trim('"') }.toSet()
-        if (tool == null || tool !in validTools) {
-            steps.add(StepLog(error = "unknown-tool $tool"))
-            return ProbeResult(serviceUrl, "failed", "unknown-tool", screenshotPath, domExcerpt, steps)
-        }
+        // Call KFuncDB tool
+        val toolResult = callKfuncTool(client, functionName, argsJson)
 
-        // Call KFuncDB
-        val toolRespText: String = client.post("$KFUN_URL/call-tool") {
-            contentType(ContentType.Application.Json)
-            setBody(buildJsonObject {
-                put("tool", tool)
-                put("args", args)
-            })
-        }.bodyAsText()
-        val toolResult = try { json.parseToJsonElement(toolRespText).jsonObject } catch (_: Exception) {
-            buildJsonObject { put("raw", toolRespText) }
-        }
-        // Compact result (truncate big strings)
-        val compact = JsonObject(toolResult.mapValues { (_, v) ->
-            when (v) {
-                is JsonPrimitive -> if (v.isString) JsonPrimitive(v.content.take(2000)) else v
+        // Compact result for logging
+        val compactResult = JsonObject(toolResult.mapValues { (k, v) ->
+            when {
+                k == "imageBase64" -> JsonPrimitive("[base64 image data]")
+                v is JsonPrimitive && v.isString -> JsonPrimitive(v.content.take(500))
                 else -> v
             }
         })
-        steps.add(StepLog(result = compact))
+        steps.add(StepLog(result = compactResult))
 
-        // Handle proofs
-        if (tool == "browser_screenshot") {
+        // Handle screenshot
+        if (functionName == "browser_screenshot") {
             val b64 = toolResult["imageBase64"]?.jsonPrimitive?.contentOrNull
             if (!b64.isNullOrBlank()) {
                 val stamp = Instant.now().toEpochMilli()
-                val base = serviceUrl.replace("://", "_").replace("/", "_") + "_${stamp}.png"
-                val path = File(PROOFS_DIR, base)
+                val safeName = serviceUrl.replace(Regex("[^a-zA-Z0-9]"), "_")
+                val fileName = "${safeName}_${stamp}.png"
+                val path = File(PROOFS_DIR, fileName)
                 path.parentFile?.mkdirs()
                 val bytes = try { Base64.getDecoder().decode(b64) } catch (_: Exception) { ByteArray(0) }
                 path.writeBytes(bytes)
                 screenshotPath = path.absolutePath
-                messages.add(buildJsonObject {
-                    put("role", "user")
-                    put("content", buildJsonObject { put("event", "screenshot_saved"); put("path", screenshotPath!!) }.toString())
-                })
+                println("Screenshot saved: $screenshotPath")
             }
         }
-        if (tool == "browser_dom") {
+
+        // Handle DOM
+        if (functionName == "browser_dom") {
             val bodyEl = toolResult["body"]
             val html: String = try {
-                if (bodyEl == null) "" else {
-                    val bodyStr = if (bodyEl is JsonPrimitive && bodyEl.isString) bodyEl.content else bodyEl.toString()
-                    val parsed = json.parseToJsonElement(bodyStr)
-                    parsed.jsonObject["html"]?.jsonPrimitive?.content ?: bodyStr
+                when {
+                    bodyEl == null -> ""
+                    bodyEl is JsonPrimitive && bodyEl.isString -> {
+                        val bodyStr = bodyEl.content
+                        // Try to parse as JSON in case it's wrapped
+                        try {
+                            json.parseToJsonElement(bodyStr).jsonObject["html"]?.jsonPrimitive?.content ?: bodyStr
+                        } catch (_: Exception) {
+                            bodyStr
+                        }
+                    }
+                    else -> bodyEl.toString()
                 }
             } catch (_: Exception) {
-                if (bodyEl is JsonPrimitive && bodyEl.isString) bodyEl.content else bodyEl.toString()
+                bodyEl.toString()
             }
-            domExcerpt = html.take(4000)
+            domExcerpt = html.take(3000)
         }
 
-        // Feedback to the model (without imageBase64)
-        val feedbackResult = JsonObject(toolResult.filterKeys { it != "imageBase64" }.mapValues { (_, v) ->
-            when (v) {
-                is JsonPrimitive -> if (v.isString) JsonPrimitive(v.content.take(1000)) else v
-                else -> v
+        // Send tool result back to LLM
+        val toolMessage = buildJsonObject {
+            put("role", "tool")
+            put("tool_call_id", toolCallId)
+            put("name", functionName)
+            // Construct response without huge base64 data
+            val feedbackResult = JsonObject(toolResult.filterKeys { it != "imageBase64" }.mapValues { (_, v) ->
+                when {
+                    v is JsonPrimitive && v.isString -> JsonPrimitive(v.content.take(800))
+                    else -> v
+                }
+            })
+            // Add screenshot path if available
+            if (functionName == "browser_screenshot" && screenshotPath != null) {
+                put("content", buildJsonObject {
+                    put("status", "success")
+                    put("screenshot_saved", screenshotPath!!)
+                }.toString())
+            } else {
+                put("content", feedbackResult.toString())
             }
-        })
-        messages.add(buildJsonObject {
-            put("role", "user")
-            put("content", buildJsonObject {
-                put("tool", tool)
-                put("ok", true)
-                put("result", feedbackResult)
-            }.toString())
-        })
+        }
+        messages.add(toolMessage)
     }
 
-    return ProbeResult(serviceUrl, "failed", "max-steps-or-error", screenshotPath, domExcerpt, steps)
+    return ProbeResult(serviceUrl, "failed", "max-steps-exceeded", screenshotPath, domExcerpt, steps)
 }
 
 fun main() {

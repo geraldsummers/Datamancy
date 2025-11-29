@@ -4,3 +4,6 @@ parameters:
   model: granite-embedding-107m-multilingual-f16.gguf
   context_size: 2048
   embeddings: true
+download_files:
+  - filename: granite-embedding-107m-multilingual-f16.gguf
+    uri: https://huggingface.co/ibm-granite/granite-embedding-107m-multilingual/resolve/main/granite-embedding-107m-multilingual-f16.gguf

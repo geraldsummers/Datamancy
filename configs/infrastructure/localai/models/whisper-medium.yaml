@@ -2,3 +2,6 @@ name: whisper-medium
 backend: whisper
 parameters:
   model: ggml-whisper-base.bin
+download_files:
+  - filename: ggml-whisper-base.bin
+    uri: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin

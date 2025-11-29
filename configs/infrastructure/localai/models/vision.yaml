@@ -2,4 +2,9 @@ name: vision
 backend: llava
 parameters:
   model: llava-v1.5-7b-q4_k.gguf
-id: llava-hf/llava-v1.5-7b-GGUF
+download_files:
+  - filename: llava-v1.5-7b-q4_k.gguf
+    uri: https://huggingface.co/mys/ggml_llava-v1.5-7b/resolve/main/ggml-model-q4_k.gguf
+  - filename: mmproj-model-f16.gguf
+    uri: https://huggingface.co/mys/ggml_llava-v1.5-7b/resolve/main/mmproj-model-f16.gguf
+mmproj: mmproj-model-f16.gguf
