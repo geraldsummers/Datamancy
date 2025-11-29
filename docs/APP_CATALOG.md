@@ -5,11 +5,11 @@ This catalog summarizes the services defined in docker-compose.yml. For each app
 Core (bootstrap profile)
 ------------------------
 
-- caddy-docker-proxy
-  - Purpose: Reverse proxy and TLS via Caddy (auto‑discovers containers via labels)
+- caddy
+  - Purpose: Reverse proxy and TLS via Caddy (configured via a static Caddyfile)
   - Profile: bootstrap
   - URL: https://<service>.${DOMAIN}
-  - SSO: Enforces Authelia forward_auth when labels present on target services
+  - SSO: Enforces Authelia forward_auth via per‑vhost directives in the Caddyfile
   - Volumes: caddy_data, caddy_config
   - Health: GET http://localhost:80/
 
@@ -36,7 +36,7 @@ Core (bootstrap profile)
   - Purpose: Local model inference (LLM, embeddings, vision, whisper)
   - Profile: bootstrap
   - URL: https://localai.${DOMAIN} (optional); API base http://localai:8080/v1
-  - Volumes: localai_models, ./volumes/localai/models
+  - Volumes: ./volumes/localai/models
   - Health: /readyz
 
 - litellm
@@ -44,6 +44,7 @@ Core (bootstrap profile)
   - Profile: bootstrap
   - URL: https://litellm.${DOMAIN}
   - Env: LITELLM_MASTER_KEY
+  - Notes: Machine‑to‑machine access is available at https://api.litellm.${DOMAIN} (no SSO; IP allowlisted in Caddy via API_LITELLM_ALLOWLIST)
 
 - open-webui
   - Purpose: Chat UI
@@ -103,7 +104,7 @@ Vector/RAG (bootstrap_vector_dbs profile)
 Additional applications (full stack)
 -----------------------------------
 
-These services are present in docker-compose.yml outside the bootstrap profiles. See labels for URL patterns and SSO status. Many depend on Postgres, MariaDB/MySQL, or Redis and mount their own persistent volumes.
+These services are present in docker-compose.yml outside the bootstrap profiles. See the Caddyfile vhosts for URL patterns and SSO status. Many depend on Postgres, MariaDB/MySQL, or Redis and mount their own persistent volumes.
 
 - grafana — dashboards/observability; SSO via Authelia; volume: grafana_data
 - homepage — service dashboard/launcher; config in configs/homepage/*
@@ -126,7 +127,7 @@ These services are present in docker-compose.yml outside the bootstrap profiles.
 
 Notes
 -----
-- All UIs are exposed via Caddy and gated by Authelia SSO in both bootstrap and full modes; see service labels in docker-compose.yml
+- All UIs are exposed via Caddy and gated by Authelia SSO in both bootstrap and full modes; see configs/infrastructure/caddy/Caddyfile for per‑service vhost/SSO settings
 - URL pattern is usually https://<service>.${DOMAIN}
 - Health checks are defined per service via HEALTHCHECK or simple HTTP GETs
 - For exact environment variables and dependencies, consult docker-compose.yml and the configs/* directory

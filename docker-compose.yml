@@ -113,18 +113,6 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT}/litellm_config
-  localai_models:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${VOLUMES_ROOT}/localai_models
-  localai_backends:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${VOLUMES_ROOT}/localai_backends
   ldap_data:
     driver: local
     driver_opts:
@@ -1437,27 +1425,8 @@ services:
       retries: 5
       start_period: 60s
 
-  # AI Services from docker-compose.llm.yml
-  localai-init:
-    image: alpine:latest
-    container_name: localai-init
-    volumes:
-      - ./configs/infrastructure/localai/models:/source:ro
-      - ${VOLUMES_ROOT}/localai/models:/dest
-    command: sh -c "cp -f /source/*.yaml /dest/ 2>/dev/null || true"
-    restart: "no"
-    profiles:
-      - bootstrap
-      - infrastructure
-    healthcheck:
-      test: ["CMD", "sh", "-c", "echo ok"]
-      interval: 1m
-      timeout: 10s
-      retries: 1
-      start_period: 5s
-
   localai:
-    image: localai/localai:master-gpu-nvidia-cuda-12
+    image: localai/localai:v3.7.0-aio-gpu-nvidia-cuda-12
     container_name: localai
     restart: unless-stopped
     networks:
@@ -1467,24 +1436,12 @@ services:
       - bootstrap
       - applications
     depends_on:
-      localai-init:
-        condition: service_completed_successfully
       authelia:
         condition: service_healthy
     volumes:
-      - localai_models:/build/models
       - ${VOLUMES_ROOT}/localai/models:/models
-      - localai_backends:/backends
     environment:
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
-      # Disable galleries to prevent empty URL errors
-      GALLERIES: "[]"
-      DEBUG: "true"
-      # Force llama.cpp backend to respect model configs
-      LLAMA_CPP_AUTO_CONTEXT: "false"
-      # Default fallback limits (models can still override these)
-      CONTEXT_SIZE: "2048"
-      GPU_LAYERS: "15"
     deploy:
       resources:
         reservations:
@@ -1547,6 +1504,8 @@ services:
         condition: service_healthy
       playwright:
         condition: service_healthy
+      litellm:
+        condition: service_healthy
     environment:
       - KFUNCDB_PORT=8081
       - KFUNCDB_PLUGINS_DIR=/app/plugins
@@ -1558,6 +1517,9 @@ services:
       - KFUNCDB_SSH_TIMEOUT_MS=20000
       # Browser service base URL (Playwright with Firefox)
       - KFUNCDB_BROWSERLESS_URL=http://playwright:3000
+      # LiteLLM connection for LLM completions
+      - LITELLM_BASE_URL=http://litellm:4000
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
@@ -1592,6 +1554,7 @@ services:
       - LLM_BASE_URL=${LLM_BASE_URL:-http://litellm:4000/v1}
       - LLM_API_KEY=${LITELLM_MASTER_KEY}
       - LLM_MODEL=${LLM_MODEL:-hermes-2-pro-mistral-7b}
+      - OCR_MODEL=${OCR_MODEL:-vision}
       - KFUN_URL=${KFUN_URL:-http://kfuncdb:8081}
       - PROOFS_DIR=/proofs
       - MAX_STEPS=${MAX_STEPS:-8}
@@ -1730,6 +1693,7 @@ services:
     container_name: playwright
     restart: unless-stopped
     profiles:
+      - bootstrap
       - infrastructure
       - applications
     networks:

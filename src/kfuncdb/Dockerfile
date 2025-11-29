@@ -6,10 +6,11 @@ COPY . .
 RUN gradle --no-daemon clean shadowJar
 
 # Create minimal plugin jars that only contain llm-plugin.json for each plugin
-RUN mkdir -p /tmp/hosttools-jar /tmp/ops-jar /tmp/browser-jar
+RUN mkdir -p /tmp/hosttools-jar /tmp/ops-jar /tmp/browser-jar /tmp/llmcompletion-jar
 COPY plugins/hosttools/llm-plugin.json /tmp/hosttools-jar/llm-plugin.json
 COPY plugins/ops/llm-plugin.json /tmp/ops-jar/llm-plugin.json
 COPY plugins/browser/llm-plugin.json /tmp/browser-jar/llm-plugin.json
+COPY plugins/llmcompletion/llm-plugin.json /tmp/llmcompletion-jar/llm-plugin.json
 RUN (cd /tmp/hosttools-jar && \
      printf "Manifest-Version: 1.0\n" > MANIFEST.MF && \
      jar --create --file /tmp/hosttools.jar -m MANIFEST.MF -C /tmp/hosttools-jar .)
@@ -19,6 +20,9 @@ RUN (cd /tmp/ops-jar && \
 RUN (cd /tmp/browser-jar && \
      printf "Manifest-Version: 1.0\n" > MANIFEST.MF && \
      jar --create --file /tmp/browser.jar -m MANIFEST.MF -C /tmp/browser-jar .)
+RUN (cd /tmp/llmcompletion-jar && \
+     printf "Manifest-Version: 1.0\n" > MANIFEST.MF && \
+     jar --create --file /tmp/llmcompletion.jar -m MANIFEST.MF -C /tmp/llmcompletion-jar .)
 
 # Runtime stage
 FROM eclipse-temurin:17-jre
@@ -41,6 +45,7 @@ COPY --from=build /src/build/libs/*-all.jar /app/app.jar
 COPY --from=build /tmp/hosttools.jar /app/plugins/hosttools.jar
 COPY --from=build /tmp/ops.jar /app/plugins/ops.jar
 COPY --from=build /tmp/browser.jar /app/plugins/browser.jar
+COPY --from=build /tmp/llmcompletion.jar /app/plugins/llmcompletion.jar
 
 EXPOSE 8081
 USER appuser

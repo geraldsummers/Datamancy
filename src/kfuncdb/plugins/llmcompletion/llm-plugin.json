@@ -1,0 +1,11 @@
+{
+  "id": "llmcompletion",
+  "version": "1.0.0",
+  "apiVersion": "1.0.0",
+  "implementation": "org.example.plugins.LlmCompletionPlugin",
+  "capabilities": [],
+  "requires": {
+    "host": ">=1.0.0",
+    "api": "1.0.0"
+  }
+}

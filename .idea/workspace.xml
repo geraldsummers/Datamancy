@@ -5,15 +5,29 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="bootstrapping">
-      <change afterPath="$PROJECT_DIR$/src/playwright-service/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/playwright-service/app.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/create-volume-dirs.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/embed.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/hermes-2-pro-mistral-7b.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/qwen-coder.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/router.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/sd15.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/vision.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/whisper-medium.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/localai/models/whisper-small.yaml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml.backup" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/APP_CATALOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/APP_CATALOG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/BOOTSTRAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/BOOTSTRAP.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/OPERATIONS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/OPERATIONS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/SECURITY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/http/HttpServer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/http/HttpServer.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/http/HttpServerTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/http/HttpServerTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/testplugins/TestPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/testplugins/TestPlugin.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/stackops_ed25519.pub" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -112,7 +126,7 @@
     "git-widget-placeholder": "master",
     "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/gerald/PycharmProjects/Datamancy/scripts",
+    "last_opened_file_path": "/home/gerald/PycharmProjects/Datamancy",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -130,9 +144,9 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
       <recent name="$PROJECT_DIR$/scripts" />
       <recent name="$PROJECT_DIR$/kfuncdb" />
-      <recent name="$PROJECT_DIR$" />
       <recent name="$PROJECT_DIR$/src" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
@@ -685,7 +699,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764374733077</updated>
     </task>
-    <option name="localTasksCounter" value="45" />
+    <task id="LOCAL-00045" summary="bootstrapping">
+      <option name="closed" value="true" />
+      <created>1764381209863</created>
+      <option name="number" value="00045" />
+      <option name="presentableId" value="LOCAL-00045" />
+      <option name="project" value="LOCAL" />
+      <updated>1764381209863</updated>
+    </task>
+    <option name="localTasksCounter" value="46" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

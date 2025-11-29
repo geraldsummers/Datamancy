@@ -1,5 +1,0 @@
-name: sd15
-backend: diffusers
-parameters:
-  model: stable-diffusion-v1-5/stable-diffusion-v1-5
-  scheduler_type: euler

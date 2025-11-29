@@ -18,6 +18,7 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
         srv.createContext("/tools", ToolsHandler(tools))
         srv.createContext("/call-tool", CallToolHandler(tools))
         srv.createContext("/healthz", HealthHandler())
+        srv.createContext("/v1/chat/completions", OpenAIProxyHandler(tools))
         // Use a cached pool but cap thread creation via system property if needed
         srv.executor = Executors.newCachedThreadPool()
         srv.start()

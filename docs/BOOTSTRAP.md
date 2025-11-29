@@ -14,16 +14,22 @@ The bootstrap profile brings up a minimal, production‑lean core. It is the fir
 
 Quickstart (with SSO)
 ---------------------
-Important: Bootstrap mode enforces complete Authelia coverage. All UIs are served via Caddy and gated by Authelia SSO. Direct container ports are not published.
+Important: Bootstrap mode enforces complete Authelia coverage. All UIs are served via Caddy and gated by Authelia SSO. Direct container ports are not published. In dev/test, Caddy uses local certificates (local_certs). For production, configure public DNS and ACME.
 
-Prereqs:
+Prereqs (dev/test):
+- Docker 24+
+- No public DNS is required for dev/test (Caddy uses local certificates)
+
+Prereqs (production):
 - A real DOMAIN with DNS A records for required subdomains (e.g., auth.${DOMAIN}, open-webui.${DOMAIN}, litellm.${DOMAIN}, etc.)
-- Ports 80/443 reachable from the internet for certificate issuance
+- Ports 80/443 reachable from the internet for certificate issuance (Let’s Encrypt)
 
-Steps:
-1) bash scripts/bootstrap-stack.sh init
-2) Edit ./.env.bootstrap and set DOMAIN to your real domain and rotate any secrets
-3) bash scripts/bootstrap-stack.sh up-bootstrap
+Steps (first time):
+1) Initialize non‑sensitive config: bash scripts/bootstrap-stack.sh init
+2) Initialize secrets store (one‑time):
+   docker compose -f docker-compose.secrets.yml --profile bootstrap run --rm secrets-manager
+3) Start bootstrap stack (uses secrets automatically):
+   docker compose -f docker-compose.secrets.yml -f docker-compose.yml --profile bootstrap up -d
 4) Sign in at: https://open-webui.${DOMAIN} (you will be redirected to https://auth.${DOMAIN} for SSO)
 
 Production (TLS/SSO)
@@ -34,10 +40,13 @@ Prereqs:
 
 Steps:
 1) Create/verify .env.bootstrap (scripts/bootstrap-stack.sh init)
-2) Verify DOMAIN and secrets in .env.bootstrap
-3) Start: bash scripts/bootstrap-stack.sh up-bootstrap
-4) Monitor: bash scripts/bootstrap-stack.sh status; docker logs caddy|authelia|localai -f
-5) Wait 3–5 minutes for initial model downloads
+2) Initialize secrets (one‑time):
+   docker compose -f docker-compose.secrets.yml --profile bootstrap run --rm secrets-manager
+3) Configure Caddy for public ACME (remove local_certs from the global block in configs/infrastructure/caddy/Caddyfile and set email if desired)
+4) Start:
+   docker compose -f docker-compose.secrets.yml -f docker-compose.yml --profile bootstrap up -d
+5) Monitor: bash scripts/bootstrap-stack.sh status; docker logs caddy|authelia|localai -f
+6) Wait 3–5 minutes for initial model downloads
 
 Readiness Checklist
 -------------------
@@ -67,6 +76,7 @@ Security Notes
 - Rotate secrets in .env.bootstrap/.env before production.
 - KFuncDB capabilities are explicitly gated via KFUNCDB_ALLOW_CAPS.
 - If your DOMAIN is not project-saturn.com, update the Authelia configuration for cookie domains, ACLs, and redirect URIs to match your domain, or set the equivalent AUTHELIA_* environment overrides. This applies equally in bootstrap and full modes (there isn’t a separate bootstrap config).
+ - In dev/test, Caddy uses local certificates via local_certs; for production, configure ACME/Let’s Encrypt in the Caddyfile.
 
 References
 ----------

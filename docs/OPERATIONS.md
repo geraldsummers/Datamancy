@@ -15,6 +15,19 @@ Use scripts/bootstrap-stack.sh for common flows:
 - switch-to-full: Stop bootstrap and start the full stack (requires .env)
 - status: Show container status summary
 
+Secrets manager
+---------------
+
+- Initialize secrets (one-time):
+  docker compose -f docker-compose.secrets.yml --profile bootstrap run --rm secrets-manager
+
+- Start stack with secrets loaded:
+  docker compose -f docker-compose.secrets.yml -f docker-compose.yml --profile bootstrap up -d
+
+- Export runtime env (only when necessary; avoid storing secrets in plaintext):
+  docker compose -f docker-compose.secrets.yml run --rm secrets-exporter
+  # Output will be written to ./.env.runtime (load with: export $(cat .env.runtime | xargs))
+
 Logs and health
 ---------------
 
@@ -37,11 +50,11 @@ Updates
 
 1) Pull images and restart relevant services:
    docker compose --env-file .env.bootstrap --profile bootstrap pull
-   docker compose --env-file .env.bootstrap --profile bootstrap up -d
+   docker compose -f docker-compose.secrets.yml -f docker-compose.yml --env-file .env.bootstrap --profile bootstrap up -d
 
 2) For the vector profile:
    docker compose --env-file .env.bootstrap --profile bootstrap_vector_dbs pull
-   docker compose --env-file .env.bootstrap --profile bootstrap_vector_dbs up -d
+   docker compose -f docker-compose.secrets.yml -f docker-compose.yml --env-file .env.bootstrap --profile bootstrap_vector_dbs up -d
 
 Troubleshooting
 ---------------
@@ -49,6 +62,7 @@ Troubleshooting
 - Verify DNS and TLS: check Caddy logs for certificate messages
 - Verify SSO: https://auth.${DOMAIN}/api/health should return 200
 - LocalAI readiness: curl http://localai:8080/readyz from a container on backend network
+- Dev/test TLS: Caddy uses local certificates (local_certs). For production, ensure ACME/Let’s Encrypt is configured in the Caddyfile and ports 80/443 are reachable.
 
 See also
 --------

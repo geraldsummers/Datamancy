@@ -1,60 +1,60 @@
 model_list:
-  # Main chat model - Hermes-2-Pro-Mistral-7B
+  # Main chat model - gpt-4 (Qwen 2.5 7B with function calling)
   - model_name: hermes-2-pro-mistral-7b
     litellm_params:
-      model: openai/hermes-2-pro-mistral-7b
+      model: openai/gpt-4
       api_base: http://localai:8080/v1
       api_key: dummy
       max_tokens: 4096
 
-  # Coding specialist
+  # Coding specialist (also gpt-4 for now)
   - model_name: qwen-code
     litellm_params:
-      model: openai/qwen-code
+      model: openai/gpt-4
       api_base: http://localai:8080/v1
       api_key: dummy
       max_tokens: 4096
 
-  # Router/triage model
+  # Router/triage model (using gpt-4o vision model)
   - model_name: router
     litellm_params:
-      model: openai/router
+      model: openai/gpt-4o
       api_base: http://localai:8080/v1
       api_key: dummy
       max_tokens: 2048
 
-  # Embeddings
+  # Embeddings (text-embedding-ada-002)
   - model_name: embed-small
     litellm_params:
-      model: openai/embed-small
+      model: openai/text-embedding-ada-002
       api_base: http://localai:8080/v1
       api_key: dummy
 
-  # Vision/image understanding
+  # Vision/image understanding (gpt-4o)
   - model_name: vision
     litellm_params:
-      model: openai/vision
+      model: openai/gpt-4o
       api_base: http://localai:8080/v1
       api_key: dummy
 
-  # Speech-to-text (high quality)
+  # Speech-to-text (whisper-1)
   - model_name: whisper-medium
     litellm_params:
-      model: openai/whisper-medium
+      model: openai/whisper-1
       api_base: http://localai:8080/v1
       api_key: dummy
 
-  # Speech-to-text (fast)
+  # Speech-to-text (whisper-1)
   - model_name: whisper-small
     litellm_params:
-      model: openai/whisper-small
+      model: openai/whisper-1
       api_base: http://localai:8080/v1
       api_key: dummy
 
-  # Image generation
+  # Image generation (stablediffusion)
   - model_name: sd15
     litellm_params:
-      model: openai/sd15
+      model: openai/stablediffusion
       api_base: http://localai:8080/v1
       api_key: dummy
 

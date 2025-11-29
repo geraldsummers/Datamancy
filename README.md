@@ -16,11 +16,12 @@ Quickstart (bootstrap)
 ----------------------
 
 1) Ensure Docker (with compose plugin) is installed.
-2) From repo root:
+2) From repo root (first time):
    - bash scripts/bootstrap-stack.sh init
-   - bash scripts/bootstrap-stack.sh up-bootstrap
-3) Bootstrap access: all UIs are served via Caddy and gated by Authelia SSO. Use https://<service>.${DOMAIN} (e.g., https://open-webui.${DOMAIN}). Ensure DNS for ${DOMAIN} and subdomains points to your host and ports 80/443 are open.
-4) See docs/BOOTSTRAP.md for production/TLS and readiness. Note: bootstrap is just the first slice of the same stack — there are no separate "bootstrap configs"; auth/TLS settings are shared across modes.
+   - docker compose -f docker-compose.secrets.yml --profile bootstrap run --rm secrets-manager
+   - docker compose -f docker-compose.secrets.yml -f docker-compose.yml --profile bootstrap up -d
+3) Bootstrap access: all UIs are served via Caddy and gated by Authelia SSO. Use https://<service>.${DOMAIN} (e.g., https://open-webui.${DOMAIN}).
+4) See docs/BOOTSTRAP.md for dev/test vs production TLS and readiness. Note: bootstrap is just the first slice of the same stack — there are no separate "bootstrap configs"; auth/TLS settings are shared across modes.
 
 Profiles
 --------
@@ -42,7 +43,7 @@ A secure, self-hosted infrastructure stack with integrated secrets management.
 
 1. **Initialize secrets** (one-time only):
    ```bash
-   docker compose --profile bootstrap run --rm secrets-manager
+   docker compose -f docker-compose.secrets.yml --profile bootstrap run --rm secrets-manager
    ```
 
    This will:
@@ -53,7 +54,7 @@ A secure, self-hosted infrastructure stack with integrated secrets management.
 
 2. **Start the stack**:
    ```bash
-   docker compose --profile bootstrap up -d
+   docker compose -f docker-compose.secrets.yml -f docker-compose.yml --profile bootstrap up -d
    ```
 
    Services automatically load secrets from the encrypted store at runtime.
