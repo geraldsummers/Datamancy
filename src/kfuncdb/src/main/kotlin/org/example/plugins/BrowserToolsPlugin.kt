@@ -4,6 +4,10 @@ import org.example.api.LlmTool
 import org.example.api.LlmToolParamDoc
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.host.ToolDefinition
+import org.example.host.ToolHandler
+import org.example.host.ToolParam
+import org.example.host.ToolRegistry
 import org.example.manifest.PluginManifest
 import org.example.manifest.Requires
 import java.net.URI
@@ -48,6 +52,49 @@ class BrowserToolsPlugin : Plugin {
     }
 
     override fun tools(): List<Any> = listOf(Tools(http, baseUrl, reqTimeout, debug))
+
+    override fun registerTools(registry: ToolRegistry) {
+        val pluginId = manifest().id
+        val tools = Tools(http, baseUrl, reqTimeout, debug)
+
+        // browser_screenshot
+        registry.register(
+            ToolDefinition(
+                name = "browser_screenshot",
+                description = "Navigate to a URL and return a PNG screenshot (Base64)",
+                shortDescription = "Navigate to a URL and return a PNG screenshot (Base64)",
+                longDescription = "Uses Browserless /screenshot?url=... to capture a screenshot.",
+                parameters = listOf(
+                    ToolParam(name = "url", type = "string", required = true, description = "Absolute URL (http/https)")
+                ),
+                paramsSpec = "{\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"}},\"required\":[\"url\"]}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val url = args.get("url")?.asText() ?: throw IllegalArgumentException("url required")
+                tools.browser_screenshot(url)
+            }
+        )
+
+        // browser_dom
+        registry.register(
+            ToolDefinition(
+                name = "browser_dom",
+                description = "Return serialized DOM HTML for a URL",
+                shortDescription = "Return serialized DOM HTML for a URL",
+                longDescription = "Uses Browserless /function to evaluate document.documentElement.outerHTML.",
+                parameters = listOf(
+                    ToolParam(name = "url", type = "string", required = true, description = "Absolute URL (http/https)")
+                ),
+                paramsSpec = "{\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"}},\"required\":[\"url\"]}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val url = args.get("url")?.asText() ?: throw IllegalArgumentException("url required")
+                tools.browser_dom(url)
+            }
+        )
+    }
 
     class Tools(
         private val http: HttpClient,

@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import org.example.api.LlmTool
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.host.ToolDefinition
+import org.example.host.ToolHandler
+import org.example.host.ToolParam
+import org.example.host.ToolRegistry
 import org.example.manifest.PluginManifest
 import org.example.manifest.Requires
 import java.net.URI
@@ -29,6 +33,63 @@ class LlmCompletionPlugin : Plugin {
     override fun init(context: PluginContext) { /* no-op */ }
 
     override fun tools(): List<Any> = listOf(Tools())
+
+    override fun registerTools(registry: ToolRegistry) {
+        val pluginId = manifest().id
+        val tools = Tools()
+
+        // llm_chat_completion
+        registry.register(
+            ToolDefinition(
+                name = "llm_chat_completion",
+                description = "Generate LLM chat completion",
+                shortDescription = "Generate LLM chat completion",
+                longDescription = "Call the LiteLLM proxy to generate a chat completion using the specified model.",
+                parameters = listOf(
+                    ToolParam("model", "string", false, "Model name"),
+                    ToolParam("messages", "array[object]", true, "Array of {role, content}"),
+                    ToolParam("temperature", "number", false, "Sampling temperature (0-2)"),
+                    ToolParam("max_tokens", "integer", false, "Maximum tokens to generate")
+                ),
+                paramsSpec = "{\"type\":\"object\",\"required\":[\"messages\"],\"properties\":{\"model\":{\"type\":\"string\"},\"messages\":{\"type\":\"array\"},\"temperature\":{\"type\":\"number\"},\"max_tokens\":{\"type\":\"integer\"}}}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val model = args.get("model")?.asText() ?: "hermes-2-pro-mistral-7b"
+                val temperature = args.get("temperature")?.asDouble() ?: 0.7
+                val maxTokens = args.get("max_tokens")?.asInt() ?: 2048
+                val messagesNode = args.get("messages") ?: throw IllegalArgumentException("messages required")
+                val messages = mutableListOf<Map<String, String>>()
+                messagesNode.forEach { n ->
+                    val role = n.get("role")?.asText() ?: "user"
+                    val content = n.get("content")?.asText() ?: ""
+                    messages += mapOf("role" to role, "content" to content)
+                }
+                tools.llm_chat_completion(model, messages, temperature, maxTokens)
+            }
+        )
+
+        // llm_embed_text
+        registry.register(
+            ToolDefinition(
+                name = "llm_embed_text",
+                description = "Generate LLM embeddings",
+                shortDescription = "Generate LLM embeddings",
+                longDescription = "Generate embeddings for text using the specified embedding model via LiteLLM.",
+                parameters = listOf(
+                    ToolParam("text", "string", true, "Text to embed"),
+                    ToolParam("model", "string", false, "Embedding model name")
+                ),
+                paramsSpec = "{\"type\":\"object\",\"required\":[\"text\"],\"properties\":{\"text\":{\"type\":\"string\"},\"model\":{\"type\":\"string\"}}}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val text = args.get("text")?.asText() ?: throw IllegalArgumentException("text required")
+                val model = args.get("model")?.asText() ?: "embed-small"
+                tools.llm_embed_text(text, model)
+            }
+        )
+    }
 
     class Tools {
         private val httpClient = HttpClient.newBuilder()

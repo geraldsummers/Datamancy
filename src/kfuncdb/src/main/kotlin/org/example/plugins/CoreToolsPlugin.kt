@@ -6,6 +6,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import org.example.api.LlmTool
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.host.ToolDefinition
+import org.example.host.ToolHandler
+import org.example.host.ToolParam
+import org.example.host.ToolRegistry
 import org.example.manifest.PluginManifest
 import org.example.manifest.Requires
 import java.text.Normalizer
@@ -37,6 +41,41 @@ class CoreToolsPlugin : Plugin {
     override fun init(context: PluginContext) { /* no-op */ }
 
     override fun tools(): List<Any> = listOf(Tools())
+
+    override fun registerTools(registry: ToolRegistry) {
+        val pluginId = manifest().id
+        val tools = Tools()
+
+        // Register a representative subset non-reflectively
+        registry.register(
+            ToolDefinition(
+                name = "normalize_whitespace",
+                description = "Collapse repeated whitespace and trim",
+                shortDescription = "Collapse repeated whitespace and trim",
+                longDescription = "Collapse runs of any whitespace (spaces, tabs, newlines) into single spaces and trim leading/trailing whitespace.",
+                parameters = listOf(ToolParam("text", "string", true, "Input text to normalize")),
+                paramsSpec = "{\"type\":\"object\",\"required\":[\"text\"],\"properties\":{\"text\":{\"type\":\"string\"}}}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val text = args.get("text")?.asText() ?: throw IllegalArgumentException("text required")
+                tools.normalize_whitespace(text)
+            }
+        )
+
+        registry.register(
+            ToolDefinition(
+                name = "uuid_generate",
+                description = "Generate a random UUIDv4",
+                shortDescription = "Generate a random UUIDv4",
+                longDescription = "Returns a random UUID (version 4) string.",
+                parameters = emptyList(),
+                paramsSpec = "{\"type\":\"object\",\"properties\":{}}",
+                pluginId = pluginId
+            ),
+            ToolHandler { _ -> tools.uuid_generate() }
+        )
+    }
 
     class Tools {
         // -------------------- Text / String --------------------

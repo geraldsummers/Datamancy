@@ -65,7 +65,7 @@ fun main() {
 
     // Register tools from all loaded plugins (non-reflective)
     val registry = ToolRegistry()
-    builtinPlugins.forEach { plugin ->
+    loadedPlugins.forEach { plugin ->
         runCatching { plugin.registerTools(registry) }
             .onFailure { println("[WARN] Plugin ${'$'}{plugin.manifest().id} failed to register tools: ${'$'}it") }
     }

@@ -1,15 +1,16 @@
 package org.example.plugins
-
-import net.schmizz.sshj.SSHClient
-import net.schmizz.sshj.transport.verification.PromiscuousVerifier
-import net.schmizz.sshj.userauth.keyprovider.KeyProvider
 import org.example.api.LlmTool
 import org.example.api.LlmToolParamDoc
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.host.ToolDefinition
+import org.example.host.ToolHandler
+import org.example.host.ToolParam
+import org.example.host.ToolRegistry
 import org.example.manifest.PluginManifest
 import org.example.manifest.Requires
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.TimeUnit
 
 /**
  * SSH operations plugin. Intentionally minimal: delegates all safety/allowlisting
@@ -32,6 +33,28 @@ class OpsSshPlugin : Plugin {
 
     override fun tools(): List<Any> = listOf(Tools(cfg))
 
+    override fun registerTools(registry: ToolRegistry) {
+        val pluginId = manifest().id
+        val tools = Tools(cfg)
+        registry.register(
+            ToolDefinition(
+                name = "ssh_exec_whitelisted",
+                description = "Run an allowed host op via SSH forced-command wrapper",
+                shortDescription = "Run an allowed host op via SSH forced-command wrapper",
+                longDescription = "Executes a command string over SSH. Server-side forced-command wrapper enforces a strict allowlist (e.g., docker logs/restart).",
+                parameters = listOf(
+                    ToolParam(name = "cmd", type = "string", required = true, description = "Command like 'docker logs vllm --tail 200' or 'docker restart vllm'.")
+                ),
+                paramsSpec = "{\"type\":\"object\",\"properties\":{\"cmd\":{\"type\":\"string\"}},\"required\":[\"cmd\"]}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val cmd = args.get("cmd")?.asText() ?: throw IllegalArgumentException("cmd required")
+                tools.ssh_exec_whitelisted(cmd)
+            }
+        )
+    }
+
     data class Cfg(
         val host: String,
         val user: String,
@@ -49,14 +72,26 @@ class OpsSshPlugin : Plugin {
     }
 
     class Tools(private val cfg: Cfg) {
-        private fun <T> ssh(block: (SSHClient) -> T): T {
-            val ssh = SSHClient()
-            // In an internal network; consider pinning real host keys in production
-            ssh.addHostKeyVerifier(PromiscuousVerifier())
-            ssh.connect(cfg.host)
-            val kp: KeyProvider = ssh.loadKeys(cfg.keyPath)
-            ssh.authPublickey(cfg.user, kp)
-            return try { block(ssh) } finally { runCatching { ssh.disconnect() } }
+        private fun runSshCommand(cmd: String): Triple<Int, ByteArray, ByteArray> {
+            // Use system ssh client to avoid external dependencies.
+            val fullCmd = listOf(
+                "ssh",
+                "-o", "StrictHostKeyChecking=no",
+                "-i", cfg.keyPath,
+                "${cfg.user}@${cfg.host}",
+                cmd
+            )
+            val pb = ProcessBuilder(fullCmd)
+            val p = pb.start()
+            val completed = p.waitFor(cfg.timeoutMs, TimeUnit.MILLISECONDS)
+            if (!completed) {
+                runCatching { p.destroyForcibly() }
+                throw IllegalStateException("timeout")
+            }
+            val out = p.inputStream.readAllBytes()
+            val err = p.errorStream.readAllBytes()
+            val code = p.exitValue()
+            return Triple(code, out, err)
         }
 
         @LlmTool(
@@ -71,29 +106,11 @@ class OpsSshPlugin : Plugin {
         )
         fun ssh_exec_whitelisted(cmd: String): Map<String, Any?> {
             require(cmd.isNotBlank()) { "cmd required" }
-            val out = ByteArrayOutputStream()
-            val err = ByteArrayOutputStream()
-            val exit = ssh { client ->
-                client.startSession().use { session ->
-                    val exec = session.exec(cmd)
-                    // Busy-wait with simple timeout
-                    val deadline = System.currentTimeMillis() + cfg.timeoutMs
-                    while (!exec.isEOF) {
-                        if (System.currentTimeMillis() > deadline) {
-                            runCatching { exec.close() }
-                            throw IllegalStateException("timeout")
-                        }
-                        Thread.sleep(25)
-                    }
-                    exec.inputStream.copyTo(out)
-                    exec.errorStream.copyTo(err)
-                    exec.exitStatus ?: 255
-                }
-            }
+            val (code, outBytes, errBytes) = runSshCommand(cmd)
             return mapOf(
-                "exitCode" to exit,
-                "stdout" to out.toString(Charsets.UTF_8),
-                "stderr" to err.toString(Charsets.UTF_8)
+                "exitCode" to code,
+                "stdout" to outBytes.toString(Charsets.UTF_8),
+                "stderr" to errBytes.toString(Charsets.UTF_8)
             )
         }
     }

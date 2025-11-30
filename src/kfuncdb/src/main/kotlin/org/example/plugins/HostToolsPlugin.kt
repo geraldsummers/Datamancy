@@ -4,6 +4,10 @@ import org.example.api.LlmTool
 import org.example.api.LlmToolParamDoc
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.host.ToolDefinition
+import org.example.host.ToolHandler
+import org.example.host.ToolParam
+import org.example.host.ToolRegistry
 import org.example.manifest.PluginManifest
 import org.example.manifest.Requires
 import java.io.BufferedReader
@@ -34,6 +38,74 @@ class HostToolsPlugin : Plugin {
     }
 
     override fun tools(): List<Any> = listOf(Tools())
+
+    override fun registerTools(registry: ToolRegistry) {
+        val pluginId = manifest().id
+        val tools = Tools()
+
+        // host_exec_readonly
+        registry.register(
+            ToolDefinition(
+                name = "host_exec_readonly",
+                description = "Run a safe, read-only host command and return stdout/stderr",
+                shortDescription = "Run a safe, read-only host command and return stdout/stderr",
+                longDescription = "Executes a whitelisted command with arguments in read-only mode. Disallows redirection/pipes and known mutating commands.",
+                parameters = listOf(
+                    ToolParam("cmd", "array[string]", true, "Array: [executable, arg1, ...]. Whitelisted commands only."),
+                    ToolParam("cwd", "string", false, "Optional working directory")
+                ),
+                paramsSpec = "{\"type\":\"object\",\"properties\":{\"cmd\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"cwd\":{\"type\":\"string\"}},\"required\":[\"cmd\"]}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val cmdNode = args.get("cmd") ?: throw IllegalArgumentException("cmd required")
+                val cmd = mutableListOf<String>()
+                cmdNode.forEach { cmd.add(it.asText()) }
+                val cwd = args.get("cwd")?.asText()
+                tools.host_exec_readonly(cmd, cwd)
+            }
+        )
+
+        // docker_logs
+        registry.register(
+            ToolDefinition(
+                name = "docker_logs",
+                description = "Fetch container logs",
+                shortDescription = "Fetch container logs",
+                longDescription = "Return last N lines of logs for a container using 'docker logs'.",
+                parameters = listOf(
+                    ToolParam("container", "string", true, "Container name or ID"),
+                    ToolParam("tail", "integer", false, "Number of lines from the end (default 200)")
+                ),
+                paramsSpec = "{\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"},\"tail\":{\"type\":\"integer\"}},\"required\":[\"container\"]}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val container = args.get("container")?.asText() ?: throw IllegalArgumentException("container required")
+                val tail = args.get("tail")?.asInt(200) ?: 200
+                tools.docker_logs(container, tail)
+            }
+        )
+
+        // docker_restart
+        registry.register(
+            ToolDefinition(
+                name = "docker_restart",
+                description = "Restart a docker container",
+                shortDescription = "Restart a docker container",
+                longDescription = "Runs 'docker restart <container>' and returns status.",
+                parameters = listOf(
+                    ToolParam("container", "string", true, "Container name or ID")
+                ),
+                paramsSpec = "{\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"}},\"required\":[\"container\"]}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val container = args.get("container")?.asText() ?: throw IllegalArgumentException("container required")
+                tools.docker_restart(container)
+            }
+        )
+    }
 
     class Tools {
         private val http = HttpClient.newBuilder()
