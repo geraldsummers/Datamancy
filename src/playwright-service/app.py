@@ -38,7 +38,7 @@ def screenshot():
 
     try:
         browser = get_browser()
-        context = browser.new_context()
+        context = browser.new_context(ignore_https_errors=True)
         page = context.new_page()
 
         page.goto(url, wait_until='networkidle', timeout=15000)
@@ -73,7 +73,7 @@ def function():
 
     try:
         browser = get_browser()
-        context = browser.new_context()
+        context = browser.new_context(ignore_https_errors=True)
 
         # Simple pattern matching for common operations
         # For screenshot: extract URL and take screenshot

@@ -6,19 +6,12 @@
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="fixed gradle">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/Main.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/supervisor-session.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/supervisor-session.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/CoreToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/CoreToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/LlmCompletionPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/LlmCompletionPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/CapabilityPolicyTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/PluginManagerTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/ToolRegistryTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/http/HttpServerTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/manifest/VersionTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/plugins/CoreToolsPluginTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/testplugins/TestPlugin.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/playwright-service/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-service/app.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -329,14 +322,6 @@
       <workItem from="1763979230531" duration="8000" />
       <workItem from="1764013916310" duration="3785000" />
       <workItem from="1764197823454" duration="6384000" />
-    </task>
-    <task id="LOCAL-00004" summary="holy claude">
-      <option name="closed" value="true" />
-      <created>1761032282433</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
-      <option name="project" value="LOCAL" />
-      <updated>1761032282433</updated>
     </task>
     <task id="LOCAL-00005" summary="holy claude">
       <option name="closed" value="true" />
@@ -722,7 +707,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764488329540</updated>
     </task>
-    <option name="localTasksCounter" value="53" />
+    <task id="LOCAL-00053" summary="fixed gradle">
+      <option name="closed" value="true" />
+      <created>1764489319403</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1764489319403</updated>
+    </task>
+    <option name="localTasksCounter" value="54" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

@@ -57,6 +57,58 @@ function fix() {
   echo "[supervisor] Fix workflow is not yet implemented. Proposed fix id: $ISSUE_ID"
 }
 
+function run_tests() {
+  echo "[supervisor] Running diagnostic system tests..."
+  echo ""
+
+  # Tests are now in tests/diagnostic/
+  TEST_DIR="$(dirname "$0")/../tests/diagnostic"
+  TESTS=(
+    "test-01-kfuncdb-tools.sh"
+    "test-02-single-probe.sh"
+    "test-03-screenshot-capture.sh"
+    "test-04-container-diagnostics.sh"
+    "test-05-llm-analysis.sh"
+  )
+
+  PASSED=0
+  FAILED=0
+
+  for test in "${TESTS[@]}"; do
+    if [ -f "$TEST_DIR/$test" ]; then
+      echo ""
+      if bash "$TEST_DIR/$test"; then
+        ((PASSED++))
+      else
+        ((FAILED++))
+      fi
+    else
+      echo "⚠️  Test not found: $TEST_DIR/$test"
+      ((FAILED++))
+    fi
+  done
+
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "TEST SUMMARY"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "  Passed: $PASSED"
+  echo "  Failed: $FAILED"
+  echo "  Total:  $((PASSED + FAILED))"
+
+  if [ $FAILED -eq 0 ]; then
+    echo ""
+    echo "✅ ALL TESTS PASSED"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    return 0
+  else
+    echo ""
+    echo "❌ SOME TESTS FAILED"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    return 1
+  fi
+}
+
 case "$CMD" in
   diagnose)
     diagnose
@@ -75,8 +127,11 @@ case "$CMD" in
     shift || true
     fix "$@"
     ;;
+  test)
+    run_tests
+    ;;
   *)
-    echo "Usage: $0 {diagnose|diagnose-enhanced|report|review|fix <issue-id>}"
+    echo "Usage: $0 {diagnose|diagnose-enhanced|report|review|fix <issue-id>|test}"
     echo ""
     echo "Commands:"
     echo "  diagnose           - Run basic stack diagnostics (screenshots + probes)"
@@ -84,5 +139,6 @@ case "$CMD" in
     echo "  report             - Show summary of latest basic diagnostic report"
     echo "  review             - Interactive review of enhanced diagnostics to approve fixes"
     echo "  fix <issue-id>     - (Not yet implemented) Execute approved fixes"
+    echo "  test               - Run all diagnostic system tests (granular, with logging)"
     ;;
 esac

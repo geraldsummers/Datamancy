@@ -1,19 +1,26 @@
 #!/bin/bash
+# This script ensures database users and databases exist with correct passwords
+# Run this after postgres starts to ensure credentials are always correct
+
 set -e
 
-# This script creates databases and users for services that need PostgreSQL
-# It runs automatically when the PostgreSQL container is first initialized
-# Note: This only runs on first initialization when the data volume is empty
+# Wait for postgres to be ready
+until pg_isready -U "${POSTGRES_USER}"; do
+    echo "Waiting for PostgreSQL to be ready..."
+    sleep 2
+done
 
-# Read passwords from environment or use defaults
+echo "PostgreSQL is ready. Ensuring users and databases..."
+
+# Read passwords from environment
 PLANKA_DB_PASSWORD="${PLANKA_DB_PASSWORD:-changeme_planka_db}"
 OUTLINE_DB_PASSWORD="${OUTLINE_DB_PASSWORD:-changeme_outline_db}"
 SYNAPSE_DB_PASSWORD="${SYNAPSE_DB_PASSWORD:-changeme_synapse_db}"
 MAILU_DB_PASSWORD="${MAILU_DB_PASSWORD:-changeme_mailu_db}"
 
+# Create/update users and databases
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    -- Create users with passwords from environment (must be created before databases for ownership)
-    -- Use DO block to check if user exists before creating
+    -- Create or update users with passwords
     DO \$\$
     BEGIN
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'planka') THEN
@@ -42,7 +49,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     END
     \$\$;
 
-    -- Create databases with correct owners (IF NOT EXISTS requires PostgreSQL 9.1+)
+    -- Create databases if they don't exist
     SELECT 'CREATE DATABASE planka OWNER planka'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'planka')\gexec
 
@@ -61,7 +68,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE mailu OWNER mailu'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mailu')\gexec
 
-    -- Grant privileges (these are idempotent)
+    -- Grant privileges (idempotent)
     GRANT ALL PRIVILEGES ON DATABASE planka TO planka;
     GRANT ALL PRIVILEGES ON DATABASE outline TO outline;
     GRANT ALL PRIVILEGES ON DATABASE langgraph TO postgres;
@@ -70,13 +77,14 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE mailu TO mailu;
 EOSQL
 
-# Grant schema privileges (PostgreSQL 15+)
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "planka" -c "GRANT ALL ON SCHEMA public TO planka;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "outline" -c "GRANT ALL ON SCHEMA public TO outline;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "synapse" -c "GRANT ALL ON SCHEMA public TO synapse;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -c "GRANT ALL ON SCHEMA public TO mailu;"
+# Grant schema privileges
+for db in planka outline synapse mailu; do
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" -c "GRANT ALL ON SCHEMA public TO $db;" 2>/dev/null || true
+done
 
-# Create Mailu application schema
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -f /docker-entrypoint-initdb.d/init-mailu-schema.sql
+# Initialize mailu schema if needed
+if [ -f /docker-entrypoint-initdb.d/init-mailu-schema.sql ]; then
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -f /docker-entrypoint-initdb.d/init-mailu-schema.sql 2>/dev/null || true
+fi
 
-echo "PostgreSQL databases and users initialized successfully"
+echo "✅ PostgreSQL users and databases verified"

@@ -1484,7 +1484,7 @@ services:
       - VLLM_BASE_URL=http://vllm:8000
       - PORT=8010
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8010/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8010/health"]
       interval: 30s
       timeout: 5s
       retries: 10
@@ -1545,7 +1545,7 @@ services:
     environment:
       - KFUNCDB_PORT=8081
       - KFUNCDB_PLUGINS_DIR=/app/plugins
-      - KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.inspect,host.ssh.exec,browser.control
+      - KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.write,host.docker.inspect,host.network.http,host.network.ssh
       # SSH to host via forced-command wrapper (see scripts)
       - KFUNCDB_SSH_HOST=${KFUNCDB_SSH_HOST:-host.docker.internal}
       - KFUNCDB_SSH_USER=${KFUNCDB_SSH_USER:-stackops}

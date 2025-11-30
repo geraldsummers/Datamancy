@@ -10,11 +10,15 @@ import org.example.host.ToolParam
 import org.example.host.ToolRegistry
 import org.example.manifest.PluginManifest
 import org.example.manifest.Requires
+import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 /**
  * Minimal Browserless tools: take screenshots and fetch DOM of a URL.
@@ -63,16 +67,20 @@ class BrowserToolsPlugin : Plugin {
                 name = "browser_screenshot",
                 description = "Navigate to a URL and return a PNG screenshot (Base64)",
                 shortDescription = "Navigate to a URL and return a PNG screenshot (Base64)",
-                longDescription = "Uses Browserless /screenshot?url=... to capture a screenshot.",
+                longDescription = "Uses Browserless /screenshot?url=... to capture a screenshot. Optionally saves to disk.",
                 parameters = listOf(
-                    ToolParam(name = "url", type = "string", required = true, description = "Absolute URL (http/https)")
+                    ToolParam(name = "url", type = "string", required = true, description = "Absolute URL (http/https)"),
+                    ToolParam(name = "serviceName", type = "string", required = false, description = "Service name for organized storage (e.g., 'grafana')"),
+                    ToolParam(name = "savePath", type = "string", required = false, description = "Optional custom save path (overrides auto-naming)")
                 ),
-                paramsSpec = "{\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"}},\"required\":[\"url\"]}",
+                paramsSpec = "{\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"},\"serviceName\":{\"type\":\"string\"},\"savePath\":{\"type\":\"string\"}},\"required\":[\"url\"]}",
                 pluginId = pluginId
             ),
             ToolHandler { args ->
                 val url = args.get("url")?.asText() ?: throw IllegalArgumentException("url required")
-                tools.browser_screenshot(url)
+                val serviceName = args.get("serviceName")?.asText()
+                val savePath = args.get("savePath")?.asText()
+                tools.browser_screenshot(url, serviceName, savePath)
             }
         )
 
@@ -105,12 +113,16 @@ class BrowserToolsPlugin : Plugin {
         @LlmTool(
             name = "browser_screenshot",
             shortDescription = "Navigate to a URL and return a PNG screenshot (Base64)",
-            longDescription = "Uses Browserless /screenshot?url=... to capture a screenshot.",
+            longDescription = "Uses Browserless /screenshot?url=... to capture a screenshot. Optionally saves to disk with organized naming.",
             paramsSpec = "{" +
-                "\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"}},\"required\":[\"url\"]}",
-            params = [ LlmToolParamDoc(name = "url", description = "Absolute URL (http/https)") ]
+                "\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"},\"serviceName\":{\"type\":\"string\"},\"savePath\":{\"type\":\"string\"}},\"required\":[\"url\"]}",
+            params = [
+                LlmToolParamDoc(name = "url", description = "Absolute URL (http/https)"),
+                LlmToolParamDoc(name = "serviceName", description = "Service name for organized storage (optional)"),
+                LlmToolParamDoc(name = "savePath", description = "Custom save path (optional, overrides auto-naming)")
+            ]
         )
-        fun browser_screenshot(url: String): Map<String, Any?> {
+        fun browser_screenshot(url: String, serviceName: String? = null, savePath: String? = null): Map<String, Any?> {
             require(url.startsWith("http")) { "url must start with http/https" }
             val full = "$base/screenshot?url=" + encode(url)
             val start = System.nanoTime()
@@ -124,10 +136,27 @@ class BrowserToolsPlugin : Plugin {
                 val elapsedMs = (System.nanoTime() - start) / 1_000_000
                 if (debug) println("[BrowserTools] ${'$'}full -> ${'$'}{res.statusCode()} in ${'$'}elapsedMs ms")
                 val b64 = java.util.Base64.getEncoder().encodeToString(res.body())
+
+                // Save to disk if requested
+                var savedPath: String? = null
+                try {
+                    val finalPath = savePath ?: generateScreenshotPath(serviceName, url)
+                    if (finalPath != null) {
+                        val file = File(finalPath)
+                        file.parentFile?.mkdirs()
+                        file.writeBytes(res.body())
+                        savedPath = finalPath
+                        if (debug) println("[BrowserTools] Saved screenshot to: ${'$'}savedPath")
+                    }
+                } catch (e: Exception) {
+                    if (debug) println("[BrowserTools] Failed to save screenshot: ${'$'}{e.message}")
+                }
+
                 mapOf(
                     "status" to res.statusCode(),
                     "imageBase64" to b64,
-                    "elapsedMs" to elapsedMs
+                    "elapsedMs" to elapsedMs,
+                    "savedPath" to savedPath
                 )
             } catch (e: java.net.http.HttpTimeoutException) {
                 val elapsedMs = (System.nanoTime() - start) / 1_000_000
@@ -204,5 +233,21 @@ class BrowserToolsPlugin : Plugin {
         }
 
         private fun encode(s: String): String = java.net.URLEncoder.encode(s, java.nio.charset.StandardCharsets.UTF_8)
+
+        private fun generateScreenshotPath(serviceName: String?, url: String): String? {
+            val baseDir = System.getenv("KFUNCDB_SCREENSHOTS_DIR") ?: "/app/proofs/screenshots"
+            val timestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")
+                .withZone(ZoneOffset.UTC)
+                .format(Instant.now())
+
+            return if (serviceName != null && serviceName.isNotBlank()) {
+                // Structured: /proofs/screenshots/service-name/2025-11-30_09-45-30.png
+                "$baseDir/$serviceName/$timestamp.png"
+            } else {
+                // Fallback: /proofs/screenshots/2025-11-30_09-45-30_<url-hash>.png
+                val urlHash = url.hashCode().toString(16).takeLast(8)
+                "$baseDir/$timestamp" + "_$urlHash.png"
+            }
+        }
     }
 }
