@@ -1523,7 +1523,9 @@ services:
 
 
   kfuncdb:
-    build: ./src/kfuncdb
+    build:
+      context: .
+      dockerfile: src/kfuncdb/Dockerfile
     container_name: kfuncdb
     restart: unless-stopped
     networks:
@@ -1551,6 +1553,11 @@ services:
       - KFUNCDB_SSH_USER=${KFUNCDB_SSH_USER:-stackops}
       - KFUNCDB_SSH_KEY_PATH=/app/keys/stackops_ed25519
       - KFUNCDB_SSH_TIMEOUT_MS=20000
+      # Browser service timeouts (login operations need more time)
+      - KFUNCDB_BROWSER_HTTP_TIMEOUT_MS=90000
+      - KFUNCDB_BROWSER_URL=http://playwright:3000
+      - KFUNCDB_SCREENSHOTS_DIR=/app/proofs/screenshots
+      - KFUNCDB_DEBUG=true
       # Browser service base URL (Playwright with Firefox)
       - KFUNCDB_BROWSERLESS_URL=http://playwright:3000
       # LiteLLM connection for LLM completions

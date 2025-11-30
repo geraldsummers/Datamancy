@@ -1,9 +1,13 @@
 # Build stage
 FROM gradle:8.10.2-jdk17-alpine AS build
-WORKDIR /src
-COPY . .
+WORKDIR /workspace
+# Copy root gradle files first
+COPY build.gradle.kts settings.gradle.kts gradle.properties* ./
+# Copy kfuncdb source
+COPY src/kfuncdb ./src/kfuncdb
 # Build fat jar with all plugins baked in
-RUN gradle --no-daemon clean shadowJar
+WORKDIR /workspace
+RUN gradle --no-daemon :kfuncdb:shadowJar
 
 # Runtime stage
 FROM eclipse-temurin:17-jre
@@ -20,7 +24,7 @@ RUN apt-get update \
     && usermod -aG docker appuser
 
 # App jar
-COPY --from=build /src/build/libs/*-all.jar /app/app.jar
+COPY --from=build /workspace/src/kfuncdb/build/libs/*-all.jar /app/app.jar
 
 EXPOSE 8081
 USER appuser

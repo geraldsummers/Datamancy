@@ -10,10 +10,11 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/src/kfuncdb" />
-            <option value="$PROJECT_DIR$/src/probe-orchestrator-kt" />
             <option value="$PROJECT_DIR$/src/ktspeechgateway" />
-            <option value="$PROJECT_DIR$/src/vllm-model-router-kt" />
+            <option value="$PROJECT_DIR$/src/playrightcontrollerkt" />
+            <option value="$PROJECT_DIR$/src/probe-orchestrator-kt" />
             <option value="$PROJECT_DIR$/src/stack-discovery" />
+            <option value="$PROJECT_DIR$/src/vllm-model-router-kt" />
           </set>
         </option>
       </GradleProjectSettings>

@@ -1,3 +1,4 @@
+
 plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
@@ -16,7 +17,7 @@ dependencies {
     implementation("io.ktor:ktor-client-core:3.0.0")
     implementation("io.ktor:ktor-client-cio:3.0.0")
     implementation("io.ktor:ktor-client-content-negotiation:3.0.0")
-    implementation("io.ktor:ktor-client-forms:3.0.0")
+//    implementation("io.ktor:ktor-client-forms:3.0.0")
 
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.12")
@@ -30,7 +31,7 @@ application {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(24)
 }
 
 tasks.withType<Jar> {
@@ -38,6 +39,6 @@ tasks.withType<Jar> {
         attributes["Main-Class"] = "org.datamancy.speech.ApplicationKt"
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    from(configurations.runtimeClasspath.get().filter { it.name.endsWith(".jar") }.map { zipTree(it) })
+    from(configurations.named("runtimeClasspath").get().filter { it.name.endsWith(".jar") }.map { zipTree(it) })
     archiveFileName.set("ktspeechgateway.jar")
 }

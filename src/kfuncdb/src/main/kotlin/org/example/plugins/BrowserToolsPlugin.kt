@@ -102,6 +102,31 @@ class BrowserToolsPlugin : Plugin {
                 tools.browser_dom(url)
             }
         )
+
+        // browser_login
+        registry.register(
+            ToolDefinition(
+                name = "browser_login",
+                description = "Login to Authelia-protected services",
+                shortDescription = "Login to Authelia-protected services",
+                longDescription = "Navigates to a URL, detects Authelia login screen, fills credentials, and submits. Returns screenshot after login.",
+                parameters = listOf(
+                    ToolParam(name = "url", type = "string", required = true, description = "Absolute URL (http/https) of protected service"),
+                    ToolParam(name = "username", type = "string", required = true, description = "Authelia username"),
+                    ToolParam(name = "password", type = "string", required = true, description = "Authelia password"),
+                    ToolParam(name = "serviceName", type = "string", required = false, description = "Service name for screenshot storage")
+                ),
+                paramsSpec = "{\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"},\"username\":{\"type\":\"string\"},\"password\":{\"type\":\"string\"},\"serviceName\":{\"type\":\"string\"}},\"required\":[\"url\",\"username\",\"password\"]}",
+                pluginId = pluginId
+            ),
+            ToolHandler { args ->
+                val url = args.get("url")?.asText() ?: throw IllegalArgumentException("url required")
+                val username = args.get("username")?.asText() ?: throw IllegalArgumentException("username required")
+                val password = args.get("password")?.asText() ?: throw IllegalArgumentException("password required")
+                val serviceName = args.get("serviceName")?.asText()
+                tools.browser_login(url, username, password, serviceName)
+            }
+        )
     }
 
     class Tools(
@@ -211,6 +236,137 @@ class BrowserToolsPlugin : Plugin {
                 val elapsedMs = (System.nanoTime() - start) / 1_000_000
                 if (debug) println("[BrowserTools] ${'$'}full -> ${'$'}{res.statusCode()} in ${'$'}elapsedMs ms")
                 mapOf("status" to res.statusCode(), "body" to res.body(), "elapsedMs" to elapsedMs)
+            } catch (e: java.net.http.HttpTimeoutException) {
+                val elapsedMs = (System.nanoTime() - start) / 1_000_000
+                if (debug) println("[BrowserTools] TIMEOUT ${'$'}full after ${'$'}elapsedMs ms: ${'$'}{e.message}")
+                mapOf(
+                    "error" to "timeout",
+                    "message" to (e.message ?: "request timed out"),
+                    "target" to full,
+                    "elapsedMs" to elapsedMs
+                )
+            } catch (e: Exception) {
+                val elapsedMs = (System.nanoTime() - start) / 1_000_000
+                if (debug) println("[BrowserTools] ERROR ${'$'}full after ${'$'}elapsedMs ms: ${'$'}{e.message}")
+                mapOf(
+                    "error" to "http_error",
+                    "message" to (e.message ?: "request failed"),
+                    "target" to full,
+                    "elapsedMs" to elapsedMs
+                )
+            }
+        }
+
+        @LlmTool(
+            name = "browser_login",
+            shortDescription = "Login to Authelia-protected services",
+            longDescription = "Navigates to a URL, detects Authelia login screen, fills credentials, submits, and returns screenshot after login.",
+            paramsSpec = "{" +
+                "\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"},\"username\":{\"type\":\"string\"},\"password\":{\"type\":\"string\"},\"serviceName\":{\"type\":\"string\"}},\"required\":[\"url\",\"username\",\"password\"]}",
+            params = [
+                LlmToolParamDoc(name = "url", description = "Absolute URL (http/https) of protected service"),
+                LlmToolParamDoc(name = "username", description = "Authelia username"),
+                LlmToolParamDoc(name = "password", description = "Authelia password"),
+                LlmToolParamDoc(name = "serviceName", description = "Service name for screenshot storage (optional)")
+            ]
+        )
+        fun browser_login(url: String, username: String, password: String, serviceName: String? = null): Map<String, Any?> {
+            require(url.startsWith("http")) { "url must start with http/https" }
+
+            // Authelia selectors (hardcoded)
+            val usernameSelector = "#username-textfield"
+            val passwordSelector = "#password-textfield"
+            val submitSelector = "#sign-in-button"
+
+            val escapedUrl = url.replace("\\", "\\\\").replace("\"", "\\\"")
+            val escapedUsername = username.replace("\\", "\\\\").replace("\"", "\\\"")
+            val escapedPassword = password.replace("\\", "\\\\").replace("\"", "\\\"")
+
+            val script = """
+                module.exports = async ({ page }) => {
+                  // Navigate to protected URL
+                  await page.goto("$escapedUrl", { waitUntil: 'networkidle0', timeout: 30000 });
+
+                  // Check if we landed on Authelia login page
+                  const usernameInput = await page.$('$usernameSelector');
+
+                  if (usernameInput) {
+                    // Fill in credentials
+                    await page.fill('$usernameSelector', "$escapedUsername");
+                    await page.fill('$passwordSelector', "$escapedPassword");
+
+                    // Click submit
+                    await page.click('$submitSelector');
+
+                    // Wait for navigation after login
+                    await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 });
+                  }
+
+                  // Take screenshot after login (or if already logged in)
+                  const screenshot = await page.screenshot({ encoding: 'base64' });
+                  const finalUrl = page.url();
+
+                  return {
+                    imageBase64: screenshot,
+                    finalUrl: finalUrl,
+                    loginDetected: !!usernameInput
+                  };
+                };
+            """.trimIndent()
+
+            val full = "$base/function"
+            val start = System.nanoTime()
+            if (debug) println("[BrowserTools] POST ${'$'}full (browser_login)")
+            return try {
+                val req = HttpRequest.newBuilder(URI.create(full))
+                    .timeout(timeout)
+                    .header("Content-Type", "application/javascript")
+                    .POST(HttpRequest.BodyPublishers.ofString(script))
+                    .build()
+                val res = http.send(req, HttpResponse.BodyHandlers.ofString())
+                val elapsedMs = (System.nanoTime() - start) / 1_000_000
+                if (debug) println("[BrowserTools] ${'$'}full -> ${'$'}{res.statusCode()} in ${'$'}elapsedMs ms")
+
+                // Parse response to extract base64 image
+                val bodyText = res.body()
+                val imageBase64Regex = """"imageBase64"\s*:\s*"([^"]+)"""".toRegex()
+                val finalUrlRegex = """"finalUrl"\s*:\s*"([^"]+)"""".toRegex()
+                val loginDetectedRegex = """"loginDetected"\s*:\s*(true|false)""".toRegex()
+
+                val imageMatch = imageBase64Regex.find(bodyText)
+                val urlMatch = finalUrlRegex.find(bodyText)
+                val loginMatch = loginDetectedRegex.find(bodyText)
+
+                val imageBase64 = imageMatch?.groupValues?.get(1) ?: ""
+                val finalUrl = urlMatch?.groupValues?.get(1) ?: url
+                val loginDetected = loginMatch?.groupValues?.get(1) == "true"
+
+                // Save screenshot if we got one
+                var savedPath: String? = null
+                if (imageBase64.isNotEmpty()) {
+                    try {
+                        val finalPath = generateScreenshotPath(serviceName, url)
+                        if (finalPath != null) {
+                            val imageBytes = java.util.Base64.getDecoder().decode(imageBase64)
+                            val file = File(finalPath)
+                            file.parentFile?.mkdirs()
+                            file.writeBytes(imageBytes)
+                            savedPath = finalPath
+                            if (debug) println("[BrowserTools] Saved login screenshot to: ${'$'}savedPath")
+                        }
+                    } catch (e: Exception) {
+                        if (debug) println("[BrowserTools] Failed to save screenshot: ${'$'}{e.message}")
+                    }
+                }
+
+                mapOf(
+                    "status" to res.statusCode(),
+                    "imageBase64" to imageBase64,
+                    "finalUrl" to finalUrl,
+                    "loginDetected" to loginDetected,
+                    "elapsedMs" to elapsedMs,
+                    "savedPath" to savedPath
+                )
             } catch (e: java.net.http.HttpTimeoutException) {
                 val elapsedMs = (System.nanoTime() - start) / 1_000_000
                 if (debug) println("[BrowserTools] TIMEOUT ${'$'}full after ${'$'}elapsedMs ms: ${'$'}{e.message}")

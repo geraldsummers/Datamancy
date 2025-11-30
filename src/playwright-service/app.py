@@ -76,6 +76,62 @@ def function():
         context = browser.new_context(ignore_https_errors=True)
 
         # Simple pattern matching for common operations
+
+        # For login with Authelia: detect login pattern
+        if 'page.fill' in code and 'username' in code.lower() and 'password' in code.lower():
+            import re
+            # Extract URL
+            url_match = re.search(r"goto\(['\"]([^'\"]+)['\"]", code)
+            # Extract username selector and value
+            username_selector_match = re.search(r"fill\(['\"]([^'\"]*username[^'\"]*)['\"],\s*['\"]([^'\"]+)['\"]", code, re.IGNORECASE)
+            # Extract password selector and value
+            password_selector_match = re.search(r"fill\(['\"]([^'\"]*password[^'\"]*)['\"],\s*['\"]([^'\"]+)['\"]", code, re.IGNORECASE)
+            # Extract submit button selector
+            submit_match = re.search(r"click\(['\"]([^'\"]+)['\"]", code)
+
+            if url_match and username_selector_match and password_selector_match and submit_match:
+                url = url_match.group(1)
+                username_selector = username_selector_match.group(1)
+                username_value = username_selector_match.group(2)
+                password_selector = password_selector_match.group(1)
+                password_value = password_selector_match.group(2)
+                submit_selector = submit_match.group(1)
+
+                page = context.new_page()
+                # Navigate to protected URL
+                page.goto(url, wait_until='networkidle', timeout=30000)
+
+                # Check if login page is present
+                login_detected = page.query_selector(username_selector) is not None
+
+                if login_detected:
+                    # Fill credentials
+                    page.fill(username_selector, username_value)
+                    page.fill(password_selector, password_value)
+                    # Click submit
+                    page.click(submit_selector)
+                    # Wait for navigation
+                    import time
+                    time.sleep(2)
+                    try:
+                        page.wait_for_load_state('networkidle', timeout=30000)
+                    except PlaywrightTimeout:
+                        pass  # Continue even if timeout
+
+                # Take screenshot and get final URL
+                screenshot_bytes = page.screenshot()
+                screenshot_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                final_url = page.url
+
+                page.close()
+                context.close()
+
+                return jsonify({
+                    'imageBase64': screenshot_b64,
+                    'finalUrl': final_url,
+                    'loginDetected': login_detected
+                })
+
         # For screenshot: extract URL and take screenshot
         if 'page.screenshot' in code and 'goto' in code:
             # Extract URL (basic pattern)
