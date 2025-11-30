@@ -36,4 +36,5 @@ logs/
 *.tmp
 *.bak
 *.backup
-/build/*
+
+build/
