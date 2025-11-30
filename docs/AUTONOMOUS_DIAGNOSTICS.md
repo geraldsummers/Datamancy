@@ -450,7 +450,7 @@ To extend the diagnostic system:
 1. **Add new diagnostic tools**: Edit `src/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt`
 2. **Improve AI prompts**: Edit analysis prompts in `src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt`
 3. **Add new fix actions**: Extend the fix action enum and implement executors
-4. **Improve review UX**: Edit `scripts/review-diagnostics.py`
+4. **Improve review UX**: Use `scripts/supervisor-session.sh review` (wrapper around the review workflow)
 
 See `ARCHITECTURE.md` for more details on the plugin system.
 

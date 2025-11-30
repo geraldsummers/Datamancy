@@ -75,6 +75,35 @@ Where to look next
 - Production with TLS/SSO: docs/BOOTSTRAP.md
 - All apps and URLs: docs/APP_CATALOG.md
 
+Kotlin scripts (migration from Python)
+--------------------------------------
+
+This repository is migrating ad-hoc scripts from Python to Kotlin Script (KTS) for consistency with the Kotlin codebase. Two commonly used utilities now have KTS equivalents:
+
+- Vector DB bootstrap (Qdrant):
+  - Compose service vector-bootstrap now runs a KTS script on a Kotlin image.
+  - Script: configs/databases/vectors/bootstrap_vectors.main.kts
+  - It reads configs/databases/vectors/collections.yaml and ensures collections exist in Qdrant.
+  - Run manually (optional):
+    ```bash
+    kotlin configs/databases/vectors/bootstrap_vectors.main.kts configs/databases/vectors/collections.yaml
+    # Environment variables honored:
+    #   QDRANT_URL (default http://localhost:6333)
+    #   QDRANT_API_KEY (optional)
+    #   VECTOR_SIZE (overrides YAML default)
+    ```
+
+- Authelia login diagnostic (Playwright):
+  - Script: tests/diagnostic/test-authelia-login.main.kts
+  - Replaces the former Python diagnostic. Uses Java Playwright bindings and Firefox in headless mode.
+  - Run locally:
+    ```bash
+    AUTHELIA_USERNAME=admin AUTHELIA_PASSWORD=password \
+    kotlin tests/diagnostic/test-authelia-login.main.kts
+    ```
+  - Captures screenshots to /tmp and exits non-zero if any target fails.
+  - Note: The legacy Python script has been deprecated. Use the KTS above.
+
 Autonomous diagnostics & self-healing
 --------------------------------------
 
@@ -130,7 +159,7 @@ For complete documentation, see: **docs/AUTONOMOUS_DIAGNOSTICS.md**
 
 Custom programs in this repository
 ---------------------------------
-
+CUSTOM SOFTWARE SHOULD BE WRITTEN IN KOTLIN/GRADLE OR KTSCRIPT.
 The stack includes several custom-built services that glue the platform together and provide functionality not available off-the-shelf. This section documents the purpose of each program so you can quickly understand where it fits and when to use or troubleshoot it.
 
 - agent-tool-server (Kotlin/Gradle)

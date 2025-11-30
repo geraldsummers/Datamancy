@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="oo">
+      <change afterPath="$PROJECT_DIR$/test-authelia-login.main.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
@@ -12,13 +13,41 @@
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/databases/vectors/bootstrap_vectors.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/speech-gateway/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/vllm-router/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/AUTONOMOUS_DIAGNOSTICS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AUTONOMOUS_DIAGNOSTICS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DIAGNOSTIC_ARTIFACTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DIAGNOSTIC_ARTIFACTS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/01-create-stackops-user.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/02-install-stackops-wrapper.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/03-harden-sshd-for-stackops.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/04-generate-ssh-keys.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/05-setup-stackops-key.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/06-setup-stackops-authorized-keys.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/analyze-diagnostic-report.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/cleandocker.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/create-volume-dirs.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/create_debian_distribution.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/ensure-postgres-ready.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/init-secrets.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/install-nvidia-containers.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/review-diagnostics.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/setup-host.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/supervisor-session.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/APPS_LAYER_ISSUES.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/FINAL_SUCCESS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/FIX_RESULTS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/FULL_APPS_AUDIT_PLAN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/PERSISTENCE_FIX.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/README_FIXES.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/SCREENSHOT_SOLUTION.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/TEST_06_RESULTS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-authelia-login.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -55,6 +84,13 @@
         </projects_view>
       </state>
     </system>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Setup Script" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -94,7 +130,10 @@
     "git-widget-placeholder": "master",
     "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/gerald/PycharmProjects/Datamancy/src/build.gradle.kts",
+    "last_opened_file_path": "/home/gerald/IdeaProjects/Datamancy",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
     "to.speed.mode.migration.done": "true"
   }
 }]]></component>
@@ -195,7 +234,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764501672180</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="oo">
+      <option name="closed" value="true" />
+      <created>1764538863249</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1764538863249</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

@@ -6,7 +6,7 @@ This document consolidates the ingestion plan and vector stack usage. It explain
 Collections
 -----------
 
-Defined in configs/vectors/collections.yaml with vector_size aligned to the embedding model (default 384):
+Defined in configs/databases/vectors/collections.yaml with vector_size aligned to the embedding model (default 384):
 - wiki_projects
 - rss_aggregation
 - stack_exchange
@@ -95,7 +95,7 @@ Source-specific guidance (summary)
 - Extract with wikiextractor to NDJSON; chunk → embed → upsert to wiki_projects.
 
 2) RSS aggregation
-- See scripts/rss_to_qdrant.py or use benthos rss config; dedupe → embed → upsert.
+- Use Benthos config configs/infrastructure/benthos/rss_to_qdrant.yaml; dedupe → embed → upsert.
 
 3) Stack Exchange
 - Parse Posts.xml; build contexts; chunk → embed → upsert to stack_exchange.

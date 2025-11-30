@@ -369,7 +369,7 @@ services:
       start_period: 10s
 
   redis:
-    image: redis:7.4.7-alpine
+    image: redis:7.4.7
     container_name: redis
     restart: unless-stopped
     networks:
@@ -448,7 +448,7 @@ services:
       start_period: 30s
 
   postgres:
-    image: postgres:16.11-alpine
+    image: postgres:16.11
     container_name: postgres
     restart: unless-stopped
     profiles:
@@ -502,7 +502,7 @@ services:
 
 
   memcached:
-    image: memcached:1.6.39-alpine
+    image: memcached:1.6.39
     container_name: seafile-memcached
     restart: unless-stopped
     profiles:
@@ -539,7 +539,7 @@ services:
       start_period: 30s
 
   redis-synapse:
-    image: redis:7.4.7-alpine
+    image: redis:7.4.7
     container_name: redis-synapse
     restart: unless-stopped
     profiles:
@@ -585,7 +585,7 @@ services:
       start_period: 30s
 
   mailu-redis:
-    image: redis:7.4.7-alpine
+    image: redis:7.4.7
     container_name: mailu-redis
     restart: unless-stopped
     profiles:
@@ -793,7 +793,7 @@ services:
       start_period: 10s
 
   dockge-init:
-    image: node:20.18.1-alpine
+    image: node:20.18.1
     container_name: dockge-init
     profiles:
       - infrastructure
@@ -1739,7 +1739,7 @@ services:
       start_period: 30s
 
   vector-bootstrap:
-    image: python:3.12-alpine
+    image: kotlin:1.9.25-jdk17
     container_name: vector-bootstrap
     profiles:
       - bootstrap_vector_dbs
@@ -1757,10 +1757,10 @@ services:
       - QDRANT_API_KEY=${QDRANT_API_KEY:-}
     volumes:
       - ./configs/databases/vectors/collections.yaml:/configs/collections.yaml:ro
-      - ./configs/databases/vectors/bootstrap_vectors.py:/scripts/bootstrap_vectors.py:ro
-    command: sh -c "python /scripts/bootstrap_vectors.py /configs/collections.yaml"
+      - ./configs/databases/vectors/bootstrap_vectors.main.kts:/scripts/bootstrap_vectors.main.kts:ro
+    command: ["kotlin", "/scripts/bootstrap_vectors.main.kts", "/configs/collections.yaml"]
     healthcheck:
-      test: ["CMD", "python", "--version"]
+      test: ["CMD", "kotlin", "-version"]
       interval: 1m
       timeout: 10s
       retries: 1
