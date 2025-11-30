@@ -4,46 +4,684 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="screenshots!">
+    <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/.gradle/8.14/checksums/checksums.lock" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/8.14/checksums/md5-checksums.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/8.14/checksums/sha1-checksums.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/8.14/executionHistory/executionHistory.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/8.14/expanded/expanded.lock" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/8.14/fileHashes/resourceHashesCache.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/buildOutputCleanup/cache.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/.gradle/file-system.probe" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/Dockerfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/build.gradle.kts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/gradle.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/gradlew" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/gradlew.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/plugins/hosttools/llm-plugin.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/plugins/ops/llm-plugin.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/settings.gradle.kts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/Main.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/api/LlmTool.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/api/Plugin.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/host/CapabilityPolicy.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/host/HostConfig.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/host/PluginFactories.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/host/PluginManager.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/host/ToolRegistry.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/HttpServer.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/OpenAIProxy.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/manifest/Manifest.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/manifest/Version.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/CoreToolsPlugin.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/LlmCompletionPlugin.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/util/Json.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/build/reports/problems/problems-report.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/META-INF/playwright-controller.kotlin_module" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/AppKt$main$1$2$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/AppKt$main$1$2$2.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/AppKt$main$1$2$3.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/AppKt.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/ErrorResponse$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/ErrorResponse$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/ErrorResponse.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/FunctionResult$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/FunctionResult$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/FunctionResult.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/classes/kotlin/main/org/datamancy/playwright/PlaywrightManager.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/last-build.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/local-state/build-history.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/libs/playrightcontrollerkt-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/libs/playwright-controller-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/playwright-controller/build/tmp/jar/MANIFEST.MF" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/fileChanges/last-build.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/gc.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/vcs-1/gc.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/META-INF/probe-orchestrator.kotlin_module" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$analyzeIssueAndProposeFixes$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$callKfuncTool$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$generateWellnessReport$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$main$1$2$3.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$main$1$2$4.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$main$1$2$5.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$main$1$2$6.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$main$1$2$7.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$ocrImageWithLLM$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$runEnhancedDiagnostics$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$runRepairAgent$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$runStackProbe$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/DiagnosticIssue$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/DiagnosticIssue$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/DiagnosticIssue.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/EnhancedDiagnosticsReport$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/EnhancedDiagnosticsReport$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/EnhancedDiagnosticsReport.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ExecuteFixRequest$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ExecuteFixRequest$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ExecuteFixRequest.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/FixProposal$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/FixProposal$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/FixProposal.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/RepairResult$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/RepairResult$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/RepairResult.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ServiceTarget$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ServiceTarget$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ServiceTarget.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ServicesManifest$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ServicesManifest$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ServicesManifest.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StackDiagnosticsReport$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StackDiagnosticsReport$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StackDiagnosticsReport.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StackServiceReport$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StackServiceReport$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StackServiceReport.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/distributions/probe-orchestrator-kt-1.0-SNAPSHOT.tar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/distributions/probe-orchestrator-kt-1.0-SNAPSHOT.zip" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.s" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/counters.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/scripts/probe-orchestrator-kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/scripts/probe-orchestrator-kt.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/tmp/shadowJar/MANIFEST.MF" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/classes/kotlin/main/META-INF/speech-gateway.kotlin_module" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/classes/kotlin/main/org/datamancy/speech/ApplicationKt$main$1$2$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/classes/kotlin/main/org/datamancy/speech/ApplicationKt$main$1$2$2$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/classes/kotlin/main/org/datamancy/speech/ApplicationKt$main$1$2$2.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/classes/kotlin/main/org/datamancy/speech/ApplicationKt$main$1$2$3.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/classes/kotlin/main/org/datamancy/speech/ApplicationKt.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/counters.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/cacheable/last-build.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/kotlin/compileKotlin/local-state/build-history.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/libs/ktspeechgateway.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/speech-gateway/build/tmp/jar/MANIFEST.MF" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/classes/kotlin/main/META-INF/stack-discovery.kotlin_module" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/classes/kotlin/main/org/datamancy/stackdiscovery/MainKt$main$$inlined$sortedBy$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/classes/kotlin/main/org/datamancy/stackdiscovery/MainKt.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/classes/kotlin/main/org/datamancy/stackdiscovery/ServiceTarget$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/classes/kotlin/main/org/datamancy/stackdiscovery/ServiceTarget$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/classes/kotlin/main/org/datamancy/stackdiscovery/ServiceTarget.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/classes/kotlin/main/org/datamancy/stackdiscovery/ServicesManifest$$serializer.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/classes/kotlin/main/org/datamancy/stackdiscovery/ServicesManifest$Companion.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/classes/kotlin/main/org/datamancy/stackdiscovery/ServicesManifest.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/counters.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/cacheable/last-build.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/kotlin/compileKotlin/local-state/build-history.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/libs/stack-discovery-1.0-SNAPSHOT.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/stack-discovery/build/tmp/jar/MANIFEST.MF" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/META-INF/vllm-router.kotlin_module" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt$main$1$2$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt$main$1$2$2.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt$main$1$2$3.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt$main$1$2$4.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt$main$1$2$5.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt$proxyResponse$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt$proxyResponse$2.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt$proxyWithModelManagement$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt$proxyWithModelManagement$requestBodyBytes$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ApplicationKt.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ModelManager$ensureModelLoaded$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ModelManager$listLoadedModels$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ModelManager$loadModel$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ModelManager$unloadModel$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/classes/kotlin/main/org/datamancy/vllmrouter/ModelManager.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/distributions/vllm-model-router-kt-1.0-SNAPSHOT.tar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/distributions/vllm-model-router-kt-1.0-SNAPSHOT.zip" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/counters.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/cacheable/last-build.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/kotlin/compileKotlin/local-state/build-history.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/libs/vllm-model-router-kt.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/scripts/vllm-model-router-kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/scripts/vllm-model-router-kt.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/tmp/jar/MANIFEST.MF" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vllm-router/build/tmp/shadowJar/MANIFEST.MF" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/md5-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/md5-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/sha1-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/sha1-checksums.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/md5-checksums.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/sha1-checksums.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/cache.properties" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/cache.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/kotlinc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/KFDB.iml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/ktspeechgateway/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/ktspeechgateway/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/playwright-service/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-service/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/.idea/codeStyles/Project.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/.idea/codeStyles/codeStyleConfig.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/.idea/gradle.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/.idea/kotlinc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/build.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/gradle.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/gradlew" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/gradlew.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/plugins/hosttools/llm-plugin.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/plugins/ops/llm-plugin.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/settings.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/Main.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/api/LlmTool.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/api/Plugin.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/CapabilityPolicy.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/HostConfig.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/PluginFactories.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/PluginManager.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/ToolRegistry.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/http/HttpServer.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/http/OpenAIProxy.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/manifest/Manifest.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/manifest/Version.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/CoreToolsPlugin.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/LlmCompletionPlugin.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/util/Json.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ktspeechgateway/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ktspeechgateway/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ktspeechgateway/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/settings.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ktspeechgateway/src/main/kotlin/org/datamancy/speech/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/src/main/kotlin/org/datamancy/speech/SpeechGateway.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/playrightcontrollerkt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/playrightcontrollerkt/src/main/kotlin/org/datamancy/playwright/App.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/src/main/kotlin/org/datamancy/playwright/PlaywrightController.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/playwright-service/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/playwright-service/app.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/checksums/checksums.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/checksums/md5-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/checksums/md5-checksums.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/checksums/sha1-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/checksums/sha1-checksums.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/dependencies-accessors/gc.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/.gradle/8.14/gc.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/executionHistory/executionHistory.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/executionHistory/executionHistory.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/fileChanges/last-build.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/.gradle/8.14/fileChanges/last-build.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/fileHashes/fileHashes.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/fileHashes/fileHashes.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/fileHashes/resourceHashesCache.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/8.5/gc.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/.gradle/vcs-1/gc.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/buildOutputCleanup/cache.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/buildOutputCleanup/cache.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/.gradle/vcs-1/gc.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/.gradle/8.5/dependencies-accessors/gc.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/META-INF/probe-orchestrator-kt.kotlin_module" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$main$1$2$1.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$main$1$2$1.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$main$1$2$2.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$main$1$2$2.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$runOne$1.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt$runOne$1.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ApplicationKt.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/ProbeResult$$serializer.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ProbeResult$$serializer.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/ProbeResult$Companion.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ProbeResult$Companion.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/ProbeResult.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/ProbeResult.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/StartReq$$serializer.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StartReq$$serializer.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/StartReq$Companion.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StartReq$Companion.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/StartReq.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StartReq.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/StartResponse$$serializer.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StartResponse$$serializer.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/StartResponse$Companion.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StartResponse$Companion.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/StartResponse.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StartResponse.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/StepLog$$serializer.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StepLog$$serializer.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/StepLog$Companion.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StepLog$Companion.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/StepLog.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/StepLog.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/SummaryItem$$serializer.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/SummaryItem$$serializer.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/SummaryItem$Companion.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/SummaryItem$Companion.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/classes/kotlin/main/org/datamancy/probe/SummaryItem.class" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/classes/kotlin/main/org/datamancy/probe/SummaryItem.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/package-parts.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/counters.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/counters.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build/kotlin/compileKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/cacheable/last-build.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/cacheable/last-build.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/kotlin/compileKotlin/local-state/build-history.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/kotlin/compileKotlin/local-state/build-history.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/libs/probe-orchestrator-kt.jar" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/libs/probe-orchestrator-kt.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/tmp/.cache/expanded/expanded.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/tmp/.cache/expanded/expanded.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build/tmp/shadowJar/MANIFEST.MF" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build/tmp/jar/MANIFEST.MF" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/settings.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/src/main/kotlin/org/datamancy/probe/Probe-Orchestrator.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/stack-discovery/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/stack-discovery/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/vllm-model-router-kt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-model-router-kt/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/stack-discovery/src/main/kotlin/org/datamancy/stackdiscovery/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/stack-discovery/src/main/kotlin/org/datamancy/stackdiscovery/StackDiscovery.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vllm-model-router-kt/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vllm-model-router-kt/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vllm-model-router-kt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vllm-model-router-kt/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/settings.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vllm-model-router-kt/src/main/kotlin/org/datamancy/vllmrouter/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/src/main/kotlin/org/datamancy/vllmrouter/VLLMRouter.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="141" />
-    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
-  </component>
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
     </projectState>
-    <projectState path="$PROJECT_DIR$/kfuncdb">
+    <projectState path="$PROJECT_DIR$/src">
       <ProjectState />
     </projectState>
   </component>
   <component name="ExternalProjectsManager">
     <system id="GRADLE">
       <state>
-        <task path="$PROJECT_DIR$/kfuncdb">
+        <task path="$PROJECT_DIR$/src">
           <activation />
         </task>
         <projects_view>
@@ -51,7 +689,18 @@
             <expand>
               <path>
                 <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="KFDB" type="f1a62948:ProjectNode" />
+                <item name="Datamancy" type="f1a62948:ProjectNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="Datamancy" type="f1a62948:ProjectNode" />
+                <item name="agent-tool-server" type="2d1252cf:ModuleNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="Datamancy" type="f1a62948:ProjectNode" />
+                <item name="agent-tool-server" type="2d1252cf:ModuleNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
               </path>
             </expand>
             <select />
@@ -59,14 +708,6 @@
         </projects_view>
       </state>
     </system>
-  </component>
-  <component name="FileTemplateManagerImpl">
-    <option name="RECENT_TEMPLATES">
-      <list>
-        <option value="Python Script" />
-        <option value="Dockerfile" />
-      </list>
-    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -85,687 +726,35 @@
 }</component>
   <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="$USER_HOME$/.gradle/wrapper/dists/gradle-8.14-bin/38aieal9i53h9rfe7vjup95b9/gradle-8.14" javaHome="$USER_HOME$/.jdks/corretto-24.0.2" gradleVersion="8.14" />
   <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
   &quot;associatedIndex&quot;: 2
 }</component>
-  <component name="ProjectId" id="2zOLpsPU4lAjlSWgkYaSRtaElsu" />
-  <component name="ProjectLevelVcsManager">
-    <ConfirmationsSetting value="2" id="Add" />
-  </component>
+  <component name="ProjectId" id="36CC93YxhVVfs8kcJ66WfC08AYV" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
-    "Docker.docker-compose.yml.ca-generator: Compose Deployment.executor": "Run",
-    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
-    "Docker.src.caddy: Compose Deployment.executor": "Run",
-    "Docker.src.docker-socket-proxy: Compose Deployment.executor": "Run",
-    "Docker.src.ragserve: Compose Deployment.executor": "Run",
-    "Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor": "Run",
-    "Docker.src: Compose Deployment (1).executor": "Run",
-    "Docker.src: Compose Deployment.executor": "Run",
-    "Gradle.Build kfuncdb.executor": "Run",
-    "Gradle.CapabilityPolicyTest.executor": "Run",
-    "Gradle.CoreToolsPluginTest.executor": "Run",
-    "Gradle.HttpServerTest.executor": "Run",
-    "Gradle.PluginManagerTest.executor": "Run",
-    "Gradle.ToolRegistryTest.executor": "Run",
-    "JUnit.HttpServerTest.executor": "Run",
-    "JUnit.PluginManagerTest.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "SHELLCHECK.PATH": "/home/gerald/.local/share/JetBrains/PyCharm2025.2/Shell Script/shellcheck",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "git-widget-placeholder": "master",
     "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/gerald/PycharmProjects/Datamancy",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_interpreter_path": "node",
-    "nodejs_package_manager_path": "npm",
-    "project.structure.last.edited": "Modules",
-    "project.structure.proportion": "0.15",
-    "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "reference.settingsdialog.project.gradle",
-    "to.speed.mode.migration.done": "true",
-    "ts.external.directory.path": "/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib",
-    "vue.rearranger.settings.migration": "true"
+    "last_opened_file_path": "/home/gerald/PycharmProjects/Datamancy/src/build.gradle.kts",
+    "to.speed.mode.migration.done": "true"
   }
 }]]></component>
-  <component name="RecentsManager">
-    <key name="CopyFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$" />
-      <recent name="$PROJECT_DIR$/scripts" />
-      <recent name="$PROJECT_DIR$/kfuncdb" />
-      <recent name="$PROJECT_DIR$/src" />
-    </key>
-    <key name="MoveFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/scripts" />
-      <recent name="$PROJECT_DIR$" />
-      <recent name="$PROJECT_DIR$/configs/infrastructure" />
-      <recent name="$PROJECT_DIR$/src" />
-      <recent name="$PROJECT_DIR$/configs/localai" />
-    </key>
-  </component>
-  <component name="RunManager" selected="JUnit.PluginManagerTest">
-    <configuration name="CapabilityPolicyTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$/kfuncdb" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" value="" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value=":test" />
-            <option value="--tests" />
-            <option value="&quot;org.example.host.CapabilityPolicyTest&quot;" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>true</RunAsTest>
-      <method v="2" />
-    </configuration>
-    <configuration name="CoreToolsPluginTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$/kfuncdb" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" value="" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value=":test" />
-            <option value="--tests" />
-            <option value="&quot;org.example.plugins.CoreToolsPluginTest&quot;" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>true</RunAsTest>
-      <method v="2" />
-    </configuration>
-    <configuration name="PluginManagerTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$/kfuncdb" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" value="" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value=":test" />
-            <option value="--tests" />
-            <option value="&quot;org.example.host.PluginManagerTest&quot;" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>true</RunAsTest>
-      <method v="2" />
-    </configuration>
-    <configuration name="HttpServerTest" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
-      <module name="KFDB.test" />
-      <extension name="coverage">
-        <pattern>
-          <option name="PATTERN" value="org.example.http.*" />
-          <option name="ENABLED" value="true" />
-        </pattern>
-      </extension>
-      <option name="PACKAGE_NAME" value="org.example.http" />
-      <option name="MAIN_CLASS_NAME" value="org.example.http.HttpServerTest" />
-      <option name="TEST_OBJECT" value="class" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="PluginManagerTest" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
-      <module name="KFDB.test" />
-      <extension name="coverage">
-        <pattern>
-          <option name="PATTERN" value="org.example.host.*" />
-          <option name="ENABLED" value="true" />
-        </pattern>
-      </extension>
-      <option name="PACKAGE_NAME" value="org.example.host" />
-      <option name="MAIN_CLASS_NAME" value="org.example.host.PluginManagerTest" />
-      <option name="TEST_OBJECT" value="class" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
-      <deployment type="docker-compose.yml">
-        <settings />
-      </deployment>
-      <method v="2" />
-    </configuration>
-    <recent_temporary>
-      <list>
-        <item itemvalue="JUnit.PluginManagerTest" />
-        <item itemvalue="JUnit.HttpServerTest" />
-        <item itemvalue="Gradle.CoreToolsPluginTest" />
-        <item itemvalue="Gradle.PluginManagerTest" />
-        <item itemvalue="Gradle.CapabilityPolicyTest" />
-      </list>
-    </recent_temporary>
-  </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="" />
-      <created>1751597361578</created>
+      <changelist id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="" />
+      <created>1764501012247</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1751597361578</updated>
-      <workItem from="1751773090805" duration="109000" />
-      <workItem from="1751773207809" duration="230000" />
-      <workItem from="1751773478739" duration="7000" />
-      <workItem from="1751773502710" duration="13756000" />
-      <workItem from="1752981618907" duration="19113000" />
-      <workItem from="1753693644938" duration="22000" />
-      <workItem from="1761031754797" duration="842000" />
-      <workItem from="1761074745675" duration="4165000" />
-      <workItem from="1761086191831" duration="9513000" />
-      <workItem from="1761105398481" duration="6700000" />
-      <workItem from="1761166172579" duration="23980000" />
-      <workItem from="1761250021885" duration="14853000" />
-      <workItem from="1761289022130" duration="328000" />
-      <workItem from="1761289693856" duration="19650000" />
-      <workItem from="1761354579810" duration="4430000" />
-      <workItem from="1761359169494" duration="70000" />
-      <workItem from="1761359355348" duration="19582000" />
-      <workItem from="1761384204536" duration="4838000" />
-      <workItem from="1761425002122" duration="8437000" />
-      <workItem from="1761435675424" duration="13116000" />
-      <workItem from="1761455188234" duration="30256000" />
-      <workItem from="1761518547942" duration="90000" />
-      <workItem from="1761518646569" duration="97000" />
-      <workItem from="1761518770182" duration="44250000" />
-      <workItem from="1761617652024" duration="3247000" />
-      <workItem from="1761621072216" duration="15312000" />
-      <workItem from="1761644901486" duration="2298000" />
-      <workItem from="1761647377308" duration="29581000" />
-      <workItem from="1761710501464" duration="697000" />
-      <workItem from="1761711703958" duration="19604000" />
-      <workItem from="1761768408160" duration="8295000" />
-      <workItem from="1761777906728" duration="762000" />
-      <workItem from="1761780210665" duration="4301000" />
-      <workItem from="1761786736553" duration="286000" />
-      <workItem from="1761787066806" duration="13000" />
-      <workItem from="1761787088502" duration="18453000" />
-      <workItem from="1761808250055" duration="7996000" />
-      <workItem from="1761824210747" duration="29549000" />
-      <workItem from="1762748250907" duration="102000" />
-      <workItem from="1762748380353" duration="10872000" />
-      <workItem from="1762813713545" duration="153000" />
-      <workItem from="1762814519918" duration="7653000" />
-      <workItem from="1762892557596" duration="3911000" />
-      <workItem from="1762896700340" duration="11168000" />
-      <workItem from="1763238783751" duration="417000" />
-      <workItem from="1763239208773" duration="8638000" />
-      <workItem from="1763270444174" duration="3558000" />
-      <workItem from="1763334504154" duration="15161000" />
-      <workItem from="1763412238402" duration="10658000" />
-      <workItem from="1763588175105" duration="4923000" />
-      <workItem from="1763765928758" duration="6715000" />
-      <workItem from="1763979230531" duration="8000" />
-      <workItem from="1764013916310" duration="3785000" />
-      <workItem from="1764197823454" duration="6384000" />
+      <updated>1764501012247</updated>
     </task>
-    <task id="LOCAL-00006" summary="holy claude">
-      <option name="closed" value="true" />
-      <created>1761114682882</created>
-      <option name="number" value="00006" />
-      <option name="presentableId" value="LOCAL-00006" />
-      <option name="project" value="LOCAL" />
-      <updated>1761114682882</updated>
-    </task>
-    <task id="LOCAL-00007" summary="rebuild">
-      <option name="closed" value="true" />
-      <created>1761278906341</created>
-      <option name="number" value="00007" />
-      <option name="presentableId" value="LOCAL-00007" />
-      <option name="project" value="LOCAL" />
-      <updated>1761278906341</updated>
-    </task>
-    <task id="LOCAL-00008" summary="rebuild">
-      <option name="closed" value="true" />
-      <created>1761286293615</created>
-      <option name="number" value="00008" />
-      <option name="presentableId" value="LOCAL-00008" />
-      <option name="project" value="LOCAL" />
-      <updated>1761286293615</updated>
-    </task>
-    <task id="LOCAL-00009" summary="rebuild">
-      <option name="closed" value="true" />
-      <created>1761355915644</created>
-      <option name="number" value="00009" />
-      <option name="presentableId" value="LOCAL-00009" />
-      <option name="project" value="LOCAL" />
-      <updated>1761355915644</updated>
-    </task>
-    <task id="LOCAL-00010" summary="rebuild 2 - no dns">
-      <option name="closed" value="true" />
-      <created>1761359436395</created>
-      <option name="number" value="00010" />
-      <option name="presentableId" value="LOCAL-00010" />
-      <option name="project" value="LOCAL" />
-      <updated>1761359436395</updated>
-    </task>
-    <task id="LOCAL-00011" summary="rebuild 2 - sso">
-      <option name="closed" value="true" />
-      <created>1761378179342</created>
-      <option name="number" value="00011" />
-      <option name="presentableId" value="LOCAL-00011" />
-      <option name="project" value="LOCAL" />
-      <updated>1761378179342</updated>
-    </task>
-    <task id="LOCAL-00012" summary="rebuild 2 - sso">
-      <option name="closed" value="true" />
-      <created>1761388075273</created>
-      <option name="number" value="00012" />
-      <option name="presentableId" value="LOCAL-00012" />
-      <option name="project" value="LOCAL" />
-      <updated>1761388075273</updated>
-    </task>
-    <task id="LOCAL-00013" summary="rebuild - caddy security plugin">
-      <option name="closed" value="true" />
-      <created>1761452591920</created>
-      <option name="number" value="00013" />
-      <option name="presentableId" value="LOCAL-00013" />
-      <option name="project" value="LOCAL" />
-      <updated>1761452591920</updated>
-    </task>
-    <task id="LOCAL-00014" summary="fixed pycharm stuff">
-      <option name="closed" value="true" />
-      <created>1761518800761</created>
-      <option name="number" value="00014" />
-      <option name="presentableId" value="LOCAL-00014" />
-      <option name="project" value="LOCAL" />
-      <updated>1761518800761</updated>
-    </task>
-    <task id="LOCAL-00015" summary="looking promising">
-      <option name="closed" value="true" />
-      <created>1761688890599</created>
-      <option name="number" value="00015" />
-      <option name="presentableId" value="LOCAL-00015" />
-      <option name="project" value="LOCAL" />
-      <updated>1761688890599</updated>
-    </task>
-    <task id="LOCAL-00016" summary="jupter working">
-      <option name="closed" value="true" />
-      <created>1761695819538</created>
-      <option name="number" value="00016" />
-      <option name="presentableId" value="LOCAL-00016" />
-      <option name="project" value="LOCAL" />
-      <updated>1761695819538</updated>
-    </task>
-    <task id="LOCAL-00017" summary="gettin testy">
-      <option name="closed" value="true" />
-      <created>1761792882043</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1761792882043</updated>
-    </task>
-    <task id="LOCAL-00018" summary="gettin testy">
-      <option name="closed" value="true" />
-      <created>1761797003333</created>
-      <option name="number" value="00018" />
-      <option name="presentableId" value="LOCAL-00018" />
-      <option name="project" value="LOCAL" />
-      <updated>1761797003333</updated>
-    </task>
-    <task id="LOCAL-00019" summary="gettin testy">
-      <option name="closed" value="true" />
-      <created>1761816179156</created>
-      <option name="number" value="00019" />
-      <option name="presentableId" value="LOCAL-00019" />
-      <option name="project" value="LOCAL" />
-      <updated>1761816179156</updated>
-    </task>
-    <task id="LOCAL-00020" summary="towards llm">
-      <option name="closed" value="true" />
-      <created>1763344629279</created>
-      <option name="number" value="00020" />
-      <option name="presentableId" value="LOCAL-00020" />
-      <option name="project" value="LOCAL" />
-      <updated>1763344629279</updated>
-    </task>
-    <task id="LOCAL-00021" summary="towards llm">
-      <option name="closed" value="true" />
-      <created>1763357633105</created>
-      <option name="number" value="00021" />
-      <option name="presentableId" value="LOCAL-00021" />
-      <option name="project" value="LOCAL" />
-      <updated>1763357633105</updated>
-    </task>
-    <task id="LOCAL-00022" summary="towards llm">
-      <option name="closed" value="true" />
-      <created>1763428005008</created>
-      <option name="number" value="00022" />
-      <option name="presentableId" value="LOCAL-00022" />
-      <option name="project" value="LOCAL" />
-      <updated>1763428005008</updated>
-    </task>
-    <task id="LOCAL-00023" summary="towards llm">
-      <option name="closed" value="true" />
-      <created>1764013950401</created>
-      <option name="number" value="00023" />
-      <option name="presentableId" value="LOCAL-00023" />
-      <option name="project" value="LOCAL" />
-      <updated>1764013950401</updated>
-    </task>
-    <task id="LOCAL-00024" summary="towards llm">
-      <option name="closed" value="true" />
-      <created>1764040826236</created>
-      <option name="number" value="00024" />
-      <option name="presentableId" value="LOCAL-00024" />
-      <option name="project" value="LOCAL" />
-      <updated>1764040826236</updated>
-    </task>
-    <task id="LOCAL-00025" summary="towards llm">
-      <option name="closed" value="true" />
-      <created>1764041318576</created>
-      <option name="number" value="00025" />
-      <option name="presentableId" value="LOCAL-00025" />
-      <option name="project" value="LOCAL" />
-      <updated>1764041318576</updated>
-    </task>
-    <task id="LOCAL-00026" summary="towards llm">
-      <option name="closed" value="true" />
-      <created>1764198972348</created>
-      <option name="number" value="00026" />
-      <option name="presentableId" value="LOCAL-00026" />
-      <option name="project" value="LOCAL" />
-      <updated>1764198972348</updated>
-    </task>
-    <task id="LOCAL-00027" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764211983256</created>
-      <option name="number" value="00027" />
-      <option name="presentableId" value="LOCAL-00027" />
-      <option name="project" value="LOCAL" />
-      <updated>1764211983256</updated>
-    </task>
-    <task id="LOCAL-00028" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764216550463</created>
-      <option name="number" value="00028" />
-      <option name="presentableId" value="LOCAL-00028" />
-      <option name="project" value="LOCAL" />
-      <updated>1764216550463</updated>
-    </task>
-    <task id="LOCAL-00029" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764223538289</created>
-      <option name="number" value="00029" />
-      <option name="presentableId" value="LOCAL-00029" />
-      <option name="project" value="LOCAL" />
-      <updated>1764223538289</updated>
-    </task>
-    <task id="LOCAL-00030" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764284312493</created>
-      <option name="number" value="00030" />
-      <option name="presentableId" value="LOCAL-00030" />
-      <option name="project" value="LOCAL" />
-      <updated>1764284312493</updated>
-    </task>
-    <task id="LOCAL-00031" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764284470768</created>
-      <option name="number" value="00031" />
-      <option name="presentableId" value="LOCAL-00031" />
-      <option name="project" value="LOCAL" />
-      <updated>1764284470768</updated>
-    </task>
-    <task id="LOCAL-00032" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764287594579</created>
-      <option name="number" value="00032" />
-      <option name="presentableId" value="LOCAL-00032" />
-      <option name="project" value="LOCAL" />
-      <updated>1764287594579</updated>
-    </task>
-    <task id="LOCAL-00033" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764288925049</created>
-      <option name="number" value="00033" />
-      <option name="presentableId" value="LOCAL-00033" />
-      <option name="project" value="LOCAL" />
-      <updated>1764288925049</updated>
-    </task>
-    <task id="LOCAL-00034" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764290891050</created>
-      <option name="number" value="00034" />
-      <option name="presentableId" value="LOCAL-00034" />
-      <option name="project" value="LOCAL" />
-      <updated>1764290891050</updated>
-    </task>
-    <task id="LOCAL-00035" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764297803656</created>
-      <option name="number" value="00035" />
-      <option name="presentableId" value="LOCAL-00035" />
-      <option name="project" value="LOCAL" />
-      <updated>1764297803656</updated>
-    </task>
-    <task id="LOCAL-00036" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764298509219</created>
-      <option name="number" value="00036" />
-      <option name="presentableId" value="LOCAL-00036" />
-      <option name="project" value="LOCAL" />
-      <updated>1764298509220</updated>
-    </task>
-    <task id="LOCAL-00037" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764301881747</created>
-      <option name="number" value="00037" />
-      <option name="presentableId" value="LOCAL-00037" />
-      <option name="project" value="LOCAL" />
-      <updated>1764301881747</updated>
-    </task>
-    <task id="LOCAL-00038" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764302250658</created>
-      <option name="number" value="00038" />
-      <option name="presentableId" value="LOCAL-00038" />
-      <option name="project" value="LOCAL" />
-      <updated>1764302250658</updated>
-    </task>
-    <task id="LOCAL-00039" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764304560880</created>
-      <option name="number" value="00039" />
-      <option name="presentableId" value="LOCAL-00039" />
-      <option name="project" value="LOCAL" />
-      <updated>1764304560880</updated>
-    </task>
-    <task id="LOCAL-00040" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764364846815</created>
-      <option name="number" value="00040" />
-      <option name="presentableId" value="LOCAL-00040" />
-      <option name="project" value="LOCAL" />
-      <updated>1764364846815</updated>
-    </task>
-    <task id="LOCAL-00041" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764367512552</created>
-      <option name="number" value="00041" />
-      <option name="presentableId" value="LOCAL-00041" />
-      <option name="project" value="LOCAL" />
-      <updated>1764367512552</updated>
-    </task>
-    <task id="LOCAL-00042" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764367523271</created>
-      <option name="number" value="00042" />
-      <option name="presentableId" value="LOCAL-00042" />
-      <option name="project" value="LOCAL" />
-      <updated>1764367523271</updated>
-    </task>
-    <task id="LOCAL-00043" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764368591800</created>
-      <option name="number" value="00043" />
-      <option name="presentableId" value="LOCAL-00043" />
-      <option name="project" value="LOCAL" />
-      <updated>1764368591800</updated>
-    </task>
-    <task id="LOCAL-00044" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764374733077</created>
-      <option name="number" value="00044" />
-      <option name="presentableId" value="LOCAL-00044" />
-      <option name="project" value="LOCAL" />
-      <updated>1764374733077</updated>
-    </task>
-    <task id="LOCAL-00045" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764381209863</created>
-      <option name="number" value="00045" />
-      <option name="presentableId" value="LOCAL-00045" />
-      <option name="project" value="LOCAL" />
-      <updated>1764381209863</updated>
-    </task>
-    <task id="LOCAL-00046" summary="bootstrapping">
-      <option name="closed" value="true" />
-      <created>1764411932549</created>
-      <option name="number" value="00046" />
-      <option name="presentableId" value="LOCAL-00046" />
-      <option name="project" value="LOCAL" />
-      <updated>1764411932549</updated>
-    </task>
-    <task id="LOCAL-00047" summary="-localai&#10;+whisper piper vllm kspeechgateway">
-      <option name="closed" value="true" />
-      <created>1764418318392</created>
-      <option name="number" value="00047" />
-      <option name="presentableId" value="LOCAL-00047" />
-      <option name="project" value="LOCAL" />
-      <updated>1764418318392</updated>
-    </task>
-    <task id="LOCAL-00048" summary="-localai&#10;+whisper piper vllm kspeechgateway">
-      <option name="closed" value="true" />
-      <created>1764464770497</created>
-      <option name="number" value="00048" />
-      <option name="presentableId" value="LOCAL-00048" />
-      <option name="project" value="LOCAL" />
-      <updated>1764464770497</updated>
-    </task>
-    <task id="LOCAL-00049" summary="tool calling!">
-      <option name="closed" value="true" />
-      <created>1764475784297</created>
-      <option name="number" value="00049" />
-      <option name="presentableId" value="LOCAL-00049" />
-      <option name="project" value="LOCAL" />
-      <updated>1764475784297</updated>
-    </task>
-    <task id="LOCAL-00050" summary="tool calling!">
-      <option name="closed" value="true" />
-      <created>1764475909413</created>
-      <option name="number" value="00050" />
-      <option name="presentableId" value="LOCAL-00050" />
-      <option name="project" value="LOCAL" />
-      <updated>1764475909413</updated>
-    </task>
-    <task id="LOCAL-00051" summary="tool calling!">
-      <option name="closed" value="true" />
-      <created>1764485958472</created>
-      <option name="number" value="00051" />
-      <option name="presentableId" value="LOCAL-00051" />
-      <option name="project" value="LOCAL" />
-      <updated>1764485958472</updated>
-    </task>
-    <task id="LOCAL-00052" summary="fixed gradle">
-      <option name="closed" value="true" />
-      <created>1764488329540</created>
-      <option name="number" value="00052" />
-      <option name="presentableId" value="LOCAL-00052" />
-      <option name="project" value="LOCAL" />
-      <updated>1764488329540</updated>
-    </task>
-    <task id="LOCAL-00053" summary="fixed gradle">
-      <option name="closed" value="true" />
-      <created>1764489319403</created>
-      <option name="number" value="00053" />
-      <option name="presentableId" value="LOCAL-00053" />
-      <option name="project" value="LOCAL" />
-      <updated>1764489319403</updated>
-    </task>
-    <task id="LOCAL-00054" summary="screenshots!">
-      <option name="closed" value="true" />
-      <created>1764496913042</created>
-      <option name="number" value="00054" />
-      <option name="presentableId" value="LOCAL-00054" />
-      <option name="project" value="LOCAL" />
-      <updated>1764496913042</updated>
-    </task>
-    <option name="localTasksCounter" value="55" />
     <servers />
-  </component>
-  <component name="TypeScriptGeneratedFilesManager">
-    <option name="version" value="3" />
-  </component>
-  <component name="Vcs.Log.Tabs.Properties">
-    <option name="TAB_STATES">
-      <map>
-        <entry key="MAIN">
-          <value>
-            <State />
-          </value>
-        </entry>
-      </map>
-    </option>
-  </component>
-  <component name="VcsManagerConfiguration">
-    <MESSAGE value="Remove unused services, configurations, and dependencies from project" />
-    <MESSAGE value="holy claude" />
-    <MESSAGE value="rebuild" />
-    <MESSAGE value="rebuild 2 - no dns" />
-    <MESSAGE value="rebuild 2 - sso" />
-    <MESSAGE value="rebuild - caddy security plugin" />
-    <MESSAGE value="fixed pycharm stuff" />
-    <MESSAGE value="looking promising" />
-    <MESSAGE value="jupter working" />
-    <MESSAGE value="gettin testy" />
-    <MESSAGE value="towards llm" />
-    <MESSAGE value="bootstrapping" />
-    <MESSAGE value="-localai&#10;+whisper piper vllm kspeechgateway" />
-    <MESSAGE value="tool calling!" />
-    <MESSAGE value="fixed gradle" />
-    <MESSAGE value="screenshots!" />
-    <option name="LAST_COMMIT_MESSAGE" value="screenshots!" />
-  </component>
-  <component name="XSLT-Support.FileAssociations.UIState">
-    <expand />
-    <select />
   </component>
 </project>

@@ -1,17 +1,17 @@
 rootProject.name = "Datamancy"
 
-// Include all Kotlin subprojects
-include(":kfuncdb")
-include(":probe-orchestrator-kt")
-include(":ktspeechgateway")
-include(":vllm-model-router-kt")
+// Include all Kotlin subprojects (standardized module IDs)
+include(":agent-tool-server")
+include(":probe-orchestrator")
+include(":speech-gateway")
+include(":vllm-router")
 include(":stack-discovery")
-include(":playrightcontrollerkt")
+include(":playwright-controller")
 
-// Map subproject directories
-project(":kfuncdb").projectDir = file("src/kfuncdb")
-project(":probe-orchestrator-kt").projectDir = file("src/probe-orchestrator-kt")
-project(":ktspeechgateway").projectDir = file("src/ktspeechgateway")
-project(":vllm-model-router-kt").projectDir = file("src/vllm-model-router-kt")
+// Map subproject directories (standardized directories)
+project(":agent-tool-server").projectDir = file("src/agent-tool-server")
+project(":probe-orchestrator").projectDir = file("src/probe-orchestrator")
+project(":speech-gateway").projectDir = file("src/speech-gateway")
+project(":vllm-router").projectDir = file("src/vllm-router")
 project(":stack-discovery").projectDir = file("src/stack-discovery")
-project(":playrightcontrollerkt").projectDir = file("src/playrightcontrollerkt")
+project(":playwright-controller").projectDir = file("src/playwright-controller")

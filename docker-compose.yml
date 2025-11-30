@@ -1467,7 +1467,7 @@ services:
       start_period: 2m
 
   vllm-router:
-    build: ./src/vllm-model-router-kt
+    build: ./src/vllm-router
     container_name: vllm-router
     restart: unless-stopped
     networks:
@@ -1578,7 +1578,7 @@ services:
 
 
   probe-orchestrator:
-    build: ./src/probe-orchestrator-kt
+    build: ./src/probe-orchestrator
     container_name: probe-orchestrator
     restart: unless-stopped
     networks:
@@ -1617,7 +1617,7 @@ services:
 
   # Kotlin speech gateway service (Whisper ASR + Piper TTS proxy)
   ktspeechgateway:
-    build: ./src/ktspeechgateway
+    build: ./src/speech-gateway
     container_name: ktspeechgateway
     restart: unless-stopped
     networks:
