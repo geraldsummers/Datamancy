@@ -5,4 +5,4 @@ required_env:
   - OECD_APP_KEY
 notes:
   - Pull series metadata/descriptions from providers
-  - Build text contexts, embed (LocalAI), upsert to Qdrant
+  - Build text contexts, embed (via LiteLLM), upsert to Qdrant

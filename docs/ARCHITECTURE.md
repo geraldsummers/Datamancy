@@ -17,8 +17,8 @@ Ingress and SSO
 
 AI Core
 -------
-- LocalAI: Runs local models (LLM, embeddings, vision, whisper) and exposes OpenAI‑style routes at http://localai:8080/v1.
-- LiteLLM: Exposes an OpenAI‑compatible API and routes requests to LocalAI per configs/infrastructure/litellm/config*.yaml.
+- vLLM: Primary LLM server exposing OpenAI‑compatible routes at http://vllm:8000/v1.
+- LiteLLM: OpenAI‑compatible gateway that proxies to vLLM (and can route to other providers if configured). See configs/infrastructure/litellm/config*.yaml.
 - Open WebUI: Chat interface that talks to LiteLLM (OpenAI API compatible).
 - KFuncDB: Function/tool host with an explicit capability policy.
   - Note: For machine‑to‑machine access, a dedicated hostname (api.litellm.${DOMAIN}) is provided without SSO and is IP‑allowlisted at the edge; the human UI remains behind SSO (litellm.${DOMAIN}).
@@ -35,8 +35,8 @@ See docs/APP_CATALOG.md for purposes, URLs, profiles, and dependencies.
 
 Request flows (examples)
 ------------------------
-- Chat: Browser → Caddy (TLS, SSO) → Open WebUI → LiteLLM → LocalAI → response
-- Embedding ingest: Client → Benthos /ingest/text → LocalAI /v1/embeddings → Qdrant upsert
+- Chat: Browser → Caddy (TLS, SSO) → Open WebUI → LiteLLM → vLLM → response
+- Embedding ingest: Client → Benthos /ingest/text → LiteLLM /v1/embeddings (backed by vLLM) → Qdrant upsert
 - Series ingest: Client → Benthos /ingest/series → ClickHouse insert
 
 Next steps

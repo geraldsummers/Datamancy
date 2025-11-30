@@ -14,9 +14,21 @@ sudo apt-get install -y nvidia-container-toolkit
 sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
 
-# Then ensure the LocalAI service in docker-compose.yml uses a GPU-enabled image, e.g.:
-#   image: localai/localai:v3.7.0-aio-gpu-nvidia-cuda-12
-# If you previously used a CPU image, switch to the GPU tag above.
+# Then ensure vLLM is configured to use the NVIDIA runtime and appropriate CUDA drivers.
+# Example (in docker-compose.yml):
+#   vllm:
+#     image: vllm/vllm-openai:latest
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - capabilities: [gpu]
+#     environment:
+#       - NVIDIA_VISIBLE_DEVICES=all
+#       - VLLM_ATTENTION_BACKEND=FLASH_ATTENTION
+#     runtime: nvidia
+#
+# Also ensure LiteLLM routes to vLLM as its backend.
 
 # Restart bootstrap set (local-only)
 bash scripts/bootstrap-stack.sh down-bootstrap || true

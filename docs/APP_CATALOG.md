@@ -32,15 +32,15 @@ Core (bootstrap profile)
   - Profile: bootstrap
   - Volumes: redis_data
 
-- localai
-  - Purpose: Local model inference (LLM, embeddings, vision, whisper)
+- vllm
+  - Purpose: Primary LLM server (chat/completions)
   - Profile: bootstrap
-  - URL: https://localai.${DOMAIN} (optional); API base http://localai:8080/v1
-  - Volumes: ./volumes/localai/models
-  - Health: /readyz
+  - URL: API base http://vllm:8000/v1 (internal)
+  - Volumes: hf-cache under ${VOLUMES_ROOT}/vllm
+  - Health: GET http://vllm:8000/health
 
 - litellm
-  - Purpose: OpenAI‑compatible gateway routing to LocalAI (and others if configured)
+  - Purpose: OpenAI‑compatible gateway proxying to vLLM (and others if configured)
   - Profile: bootstrap
   - URL: https://litellm.${DOMAIN}
   - Env: LITELLM_MASTER_KEY
@@ -52,6 +52,8 @@ Core (bootstrap profile)
   - URL: https://open-webui.${DOMAIN}
   - SSO: via Caddy forward_auth (Authelia)
   - Volumes: open_webui_data
+
+Note: Embeddings and Chat API are provided via LiteLLM (OpenAI-compatible) backed by vLLM by default.
 
 - kfuncdb
   - Purpose: Function/tool host with capability policy

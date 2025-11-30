@@ -15,7 +15,7 @@ Defined in configs/vectors/collections.yaml with vector_size aligned to the embe
 - linux_debian_docs
 - torrents_csv
 
-Embedding model: use LocalAI OpenAI-compatible embeddings endpoint (/v1/embeddings) with the model configured in configs/localai/models/embed.yaml.
+Embedding model: use the LiteLLM OpenAI-compatible embeddings endpoint (/v1/embeddings), typically backed by vLLM. Configure the model via EMBED_MODEL.
 
 Bring up the vector profile
 ---------------------------
@@ -30,7 +30,7 @@ Pipelines (Benthos and workers)
 -------------------------------
 
 The main Benthos adapter config is at configs/benthos/benthos.yaml with two HTTP inputs:
-- POST /ingest/text → embed via LocalAI → upsert to Qdrant
+- POST /ingest/text → embed via LiteLLM → upsert to Qdrant
 - POST /ingest/series → insert into ClickHouse (series_values)
 
 Additional ready-made configs exist under configs/benthos/*.yaml for specific sources:
@@ -84,7 +84,7 @@ Verification snippets
 
 Operational notes
 -----------------
-- Ensure QDRANT_URL/QDRANT_API_KEY (if enabled) and LocalAI URL are configured for embedding stages.
+- Ensure QDRANT_URL/QDRANT_API_KEY (if enabled) and LITELLM_URL are configured for embedding stages.
 - For cross-compose communication, prefer internal service names within the same Docker network; host ports are not published by default in this stack.
 - Keep collection vector size aligned with the embedding model dimensionality.
 

@@ -61,7 +61,7 @@ Troubleshooting
 
 - Verify DNS and TLS: check Caddy logs for certificate messages
 - Verify SSO: https://auth.${DOMAIN}/api/health should return 200
-- LocalAI readiness: curl http://localai:8080/readyz from a container on backend network
+- vLLM health: curl http://vllm:8000/health from a container on the backend network
 - Dev/test TLS: Caddy uses local certificates (local_certs). For production, ensure ACME/Let’s Encrypt is configured in the Caddyfile and ports 80/443 are reachable.
 
 See also

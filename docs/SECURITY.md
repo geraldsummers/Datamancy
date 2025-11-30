@@ -29,7 +29,7 @@ For machine-to-machine, non-interactive API traffic do NOT use browser-oriented 
   - IP allowlists (and preferably VPN/privates links) plus an application API key provide a simple, robust pattern for non-interactive access.
 
 - Extending the pattern
-  - You can mirror the same approach for other services that need public, non-interactive APIs (e.g., LocalAI) by adding a second Caddy vhost label block `api.<service>.${DOMAIN}` without ForwardAuth and protecting with `remote_ip` and an API key expected by the upstream.
+  - You can mirror the same approach for other services that need public, non-interactive APIs by adding a second Caddy vhost label block `api.<service>.${DOMAIN}` without ForwardAuth and protecting with `remote_ip` and an API key expected by the upstream.
   - For higher assurance, consider mTLS on the API hostname by having Caddy verify client certificates against your CA, or place a JWT-verifying gateway in front of the upstream using a dedicated Authelia OIDC client with the `client_credentials` flow.
 
 Secrets and configuration
@@ -86,7 +86,7 @@ Backups and recovery
 Patching and updates
 --------------------
 
-- Pull updated images regularly and restart services. Monitor upstream CVEs for core components (Caddy, Authelia, LocalAI, LiteLLM, Qdrant, ClickHouse).
+- Pull updated images regularly and restart services. Monitor upstream CVEs for core components (Caddy, Authelia, LiteLLM, vLLM, Qdrant, ClickHouse).
 
 Audit checklist
 ---------------

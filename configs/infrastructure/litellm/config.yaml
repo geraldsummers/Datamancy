@@ -3,7 +3,7 @@ model_list:
   - model_name: hermes-2-pro-mistral-7b
     litellm_params:
       model: openai/hermes-2-pro-mistral-7b
-      api_base: http://vllm:8000/v1
+      api_base: http://vllm-router:8010/v1
       api_key: unused
       max_tokens: 4096
 
@@ -11,7 +11,7 @@ model_list:
   - model_name: qwen-code
     litellm_params:
       model: openai/hermes-2-pro-mistral-7b
-      api_base: http://vllm:8000/v1
+      api_base: http://vllm-router:8010/v1
       api_key: unused
       max_tokens: 4096
 
@@ -19,7 +19,7 @@ model_list:
   - model_name: router
     litellm_params:
       model: openai/hermes-2-pro-mistral-7b
-      api_base: http://vllm:8000/v1
+      api_base: http://vllm-router:8010/v1
       api_key: unused
       max_tokens: 2048
 

@@ -4,11 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="bootstrapping">
+    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="-localai&#10;+whisper piper vllm kspeechgateway">
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/homepage/services.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/homepage/services.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/linux_debian.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/linux_debian.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/macro.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/macro.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/stackexchange.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/stackexchange.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/wiki.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/wiki.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/yahoo_finance.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/yahoo_finance.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/stackexchange_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/stackexchange_ndjson_to_qdrant.yaml" afterDir="false" />
@@ -16,16 +22,16 @@
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/yahoo_news_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/yahoo_news_to_qdrant.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.bootstrap.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/litellm/config.bootstrap.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/02-install-stackops-wrapper.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/02-install-stackops-wrapper.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/APP_CATALOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/APP_CATALOG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/BOOTSTRAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/BOOTSTRAP.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/OPERATIONS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/OPERATIONS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/SECURITY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/install-nvidia-containers.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/install-nvidia-containers.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_litellm_completions.py" beforeDir="false" afterPath="$PROJECT_DIR$/test_litellm_completions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_litellm_docker.sh" beforeDir="false" afterPath="$PROJECT_DIR$/test_litellm_docker.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_mistral.sh" beforeDir="false" afterPath="$PROJECT_DIR$/test_mistral.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -96,50 +102,50 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Docker.docker-compose.yml.ca-generator: Compose Deployment.executor": "Run",
-    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
-    "Docker.src.caddy: Compose Deployment.executor": "Run",
-    "Docker.src.docker-socket-proxy: Compose Deployment.executor": "Run",
-    "Docker.src.ragserve: Compose Deployment.executor": "Run",
-    "Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor": "Run",
-    "Docker.src: Compose Deployment (1).executor": "Run",
-    "Docker.src: Compose Deployment.executor": "Run",
-    "Gradle.Build kfuncdb.executor": "Run",
-    "Gradle.CapabilityPolicyTest.executor": "Run",
-    "Gradle.CoreToolsPluginTest.executor": "Run",
-    "Gradle.HttpServerTest.executor": "Run",
-    "Gradle.PluginManagerTest.executor": "Run",
-    "Gradle.ToolRegistryTest.executor": "Run",
-    "JUnit.HttpServerTest.executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "SHELLCHECK.PATH": "/home/gerald/.local/share/JetBrains/PyCharm2025.2/Shell Script/shellcheck",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "master",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/gerald/PycharmProjects/Datamancy",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_interpreter_path": "node",
-    "nodejs_package_manager_path": "npm",
-    "project.structure.last.edited": "Modules",
-    "project.structure.proportion": "0.15",
-    "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "ml.llm.LLMThirdPartyAiProvidersConfigurable",
-    "to.speed.mode.migration.done": "true",
-    "ts.external.directory.path": "/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Docker.docker-compose.yml.ca-generator: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.docker-compose.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src.caddy: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src.docker-socket-proxy: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src.ragserve: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src: Compose Deployment (1).executor&quot;: &quot;Run&quot;,
+    &quot;Docker.src: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Build kfuncdb.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.CapabilityPolicyTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.CoreToolsPluginTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.HttpServerTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.PluginManagerTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.ToolRegistryTest.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.HttpServerTest.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;SHELLCHECK.PATH&quot;: &quot;/home/gerald/.local/share/JetBrains/PyCharm2025.2/Shell Script/shellcheck&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/gerald/PycharmProjects/Datamancy&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMThirdPartyAiProvidersConfigurable&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
@@ -713,7 +719,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764411932549</updated>
     </task>
-    <option name="localTasksCounter" value="47" />
+    <task id="LOCAL-00047" summary="-localai&#10;+whisper piper vllm kspeechgateway">
+      <option name="closed" value="true" />
+      <created>1764418318392</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1764418318392</updated>
+    </task>
+    <option name="localTasksCounter" value="48" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -743,7 +757,8 @@
     <MESSAGE value="gettin testy" />
     <MESSAGE value="towards llm" />
     <MESSAGE value="bootstrapping" />
-    <option name="LAST_COMMIT_MESSAGE" value="bootstrapping" />
+    <MESSAGE value="-localai&#10;+whisper piper vllm kspeechgateway" />
+    <option name="LAST_COMMIT_MESSAGE" value="-localai&#10;+whisper piper vllm kspeechgateway" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -30,6 +30,9 @@ private val LLM_MODEL = System.getenv("LLM_MODEL") ?: "hermes-2-pro-mistral-7b"
 private val OCR_MODEL = System.getenv("OCR_MODEL") ?: (System.getenv("VISION_MODEL") ?: "none")
 private val KFUN_URL = System.getenv("KFUN_URL") ?: "http://kfuncdb:8081"
 private val PROOFS_DIR = System.getenv("PROOFS_DIR") ?: "/proofs"
+private val SERVICES_MANIFEST_PATH = System.getenv("SERVICES_MANIFEST_PATH")
+    ?: "/app/configs/probe-orchestrator/services_manifest.json"
+private val DOMAIN_ENV = System.getenv("DOMAIN") ?: System.getenv("DOMAIN_NAME") ?: "project-saturn.com"
 private val MAX_STEPS = (System.getenv("MAX_STEPS") ?: "12").toIntOrNull() ?: 12
 private val HTTP_TIMEOUT_MS = ((System.getenv("HTTP_TIMEOUT") ?: "30").toDoubleOrNull() ?: 30.0) * 1000
 
@@ -76,6 +79,36 @@ data class SummaryItem(
     val status: String,
     val reason: String,
     val screenshot_path: String? = null,
+)
+
+@Serializable
+data class ServiceTarget(
+    val name: String,
+    val internal: List<String> = emptyList(),
+    val external: List<String> = emptyList(),
+)
+
+@Serializable
+data class ServicesManifest(val services: List<ServiceTarget> = emptyList())
+
+@Serializable
+data class StackServiceReport(
+    val name: String,
+    val results: List<ProbeResult>,
+    val overall_status: String,
+    val best_reason: String? = null,
+    val best_screenshot: String? = null,
+    val container_info: JsonElement? = null,
+)
+
+@Serializable
+data class StackDiagnosticsReport(
+    val generated_at: Long,
+    val total_services: Int,
+    val healthy: Int,
+    val degraded: Int,
+    val failed: Int,
+    val services: List<StackServiceReport>,
 )
 
 // Define tools in OpenAI function calling format
@@ -498,7 +531,7 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
                                     val stamp = Instant.now().toEpochMilli()
                                     val safeName = serviceUrl.replace(Regex("[^a-zA-Z0-9]"), "_")
                                     val fileName = "${safeName}_${stamp}.png"
-                                    val path = File(PROOFS_DIR, fileName)
+                                    val path = File(File(PROOFS_DIR, "screenshots"), fileName)
                                     path.parentFile?.mkdirs()
                                     val bytes = try { Base64.getDecoder().decode(b64) } catch (_: Exception) { ByteArray(0) }
                                     path.writeBytes(bytes)
@@ -615,7 +648,7 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
                 val stamp = Instant.now().toEpochMilli()
                 val safeName = serviceUrl.replace(Regex("[^a-zA-Z0-9]"), "_")
                 val fileName = "${safeName}_${stamp}.png"
-                val path = File(PROOFS_DIR, fileName)
+                val path = File(File(PROOFS_DIR, "screenshots"), fileName)
                 path.parentFile?.mkdirs()
                 val bytes = try { Base64.getDecoder().decode(b64) } catch (_: Exception) { ByteArray(0) }
                 path.writeBytes(bytes)
@@ -759,6 +792,117 @@ fun main() {
                 )
                 call.respond(resp)
             }
+
+            // Discover services from manifest and probe the whole stack
+            get("/start-stack-probe") {
+                val report = runCatching { runStackProbe(client) }.getOrElse {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (it.message ?: "error")))
+                    return@get
+                }
+                call.respond(report)
+            }
+
+            post("/start-stack-probe") {
+                val report = runCatching { runStackProbe(client) }.getOrElse {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (it.message ?: "error")))
+                    return@post
+                }
+                call.respond(report)
+            }
         }
     }.start(wait = true)
+}
+
+private suspend fun runStackProbe(client: HttpClient): JsonObject {
+    val manifestFile = File(SERVICES_MANIFEST_PATH)
+    if (!manifestFile.exists()) {
+        return buildJsonObject {
+            put("error", "services_manifest.json not found at $SERVICES_MANIFEST_PATH")
+        }
+    }
+
+    val manifest = try {
+        json.decodeFromString(ServicesManifest.serializer(), manifestFile.readText())
+    } catch (e: Exception) {
+        return buildJsonObject {
+            put("error", "failed-to-parse-manifest: ${e.message}")
+        }
+    }
+
+    val serviceReports = mutableListOf<StackServiceReport>()
+
+    fun expand(url: String): String = url
+        .replace("\${'$'}{DOMAIN}", DOMAIN_ENV)
+        .replace("\${'$'}{DOMAIN_NAME}", DOMAIN_ENV)
+
+    for (svc in manifest.services) {
+        val urls = (svc.internal + svc.external).map { expand(it) }.distinct()
+        val results = mutableListOf<ProbeResult>()
+        for (u in urls) {
+            val r = runCatching { runOne(client, u) }.getOrElse {
+                ProbeResult(u, "failed", it.message ?: "error", null, null, null, null, emptyList())
+            }
+            results.add(r)
+        }
+
+        // Overall status selection
+        val anyOk = results.any { it.status.equals("ok", true) }
+        val anyFailed = results.any { !it.status.equals("ok", true) }
+        val overall = when {
+            anyOk && anyFailed -> "degraded"
+            anyOk -> "ok"
+            else -> "failed"
+        }
+        val best = results.firstOrNull { it.status == "ok" } ?: results.firstOrNull()
+
+        // Try to get container info via kfunc host.docker.inspect
+        val containerInfo = runCatching {
+            callKfuncTool(
+                client,
+                "host.docker.inspect",
+                buildJsonObject { put("name", svc.name) }
+            )
+        }.getOrNull()?.let { json.parseToJsonElement(it.toString()) }
+
+        serviceReports.add(
+            StackServiceReport(
+                name = svc.name,
+                results = results,
+                overall_status = overall,
+                best_reason = best?.reason,
+                best_screenshot = best?.screenshot_path,
+                container_info = containerInfo
+            )
+        )
+    }
+
+    val healthy = serviceReports.count { it.overall_status == "ok" }
+    val degraded = serviceReports.count { it.overall_status == "degraded" }
+    val failed = serviceReports.count { it.overall_status == "failed" }
+
+    val report = StackDiagnosticsReport(
+        generated_at = Instant.now().toEpochMilli(),
+        total_services = serviceReports.size,
+        healthy = healthy,
+        degraded = degraded,
+        failed = failed,
+        services = serviceReports
+    )
+
+    // Save to proofs directory
+    val outName = "stack_diagnostics_${Instant.now().epochSecond}.json"
+    val outFile = File(PROOFS_DIR, outName)
+    outFile.parentFile?.mkdirs()
+    outFile.writeText(json.encodeToString(StackDiagnosticsReport.serializer(), report))
+
+    return buildJsonObject {
+        put("summary", buildJsonObject {
+            put("total", report.total_services)
+            put("healthy", report.healthy)
+            put("degraded", report.degraded)
+            put("failed", report.failed)
+        })
+        put("report_path", outFile.absolutePath)
+        put("services", json.encodeToJsonElement(report.services))
+    }
 }

@@ -1425,7 +1425,7 @@ services:
       start_period: 60s
 
   vllm:
-    image: vllm/vllm-openai:latest
+    image: vllm/vllm-openai:v0.6.3.post1
     container_name: vllm
     restart: unless-stopped
     networks:
@@ -1438,10 +1438,14 @@ services:
         condition: service_healthy
     environment:
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+      - HF_HUB_ENABLE_HF_TRANSFER=0
     command: [
-      "--model", "NousResearch/Hermes-2-Pro-Mistral-7B",
+      "--model", "solidrust/Hermes-2-Pro-Mistral-7B-AWQ",
       "--served-model-name", "hermes-2-pro-mistral-7b",
-      "--max-model-len", "4096"
+      "--max-model-len", "4096",
+      "--quantization", "awq",
+      "--gpu-memory-utilization", "0.85",
+      "--dtype", "auto"
     ]
     volumes:
       - ${VOLUMES_ROOT}/vllm/hf-cache:/root/.cache/huggingface
@@ -1453,11 +1457,35 @@ services:
               count: 1
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 60s
       timeout: 10s
       retries: 5
       start_period: 2m
+
+  vllm-router:
+    build: ./src/vllm-model-router-kt
+    container_name: vllm-router
+    restart: unless-stopped
+    networks:
+      - backend
+    profiles:
+      - bootstrap
+      - applications
+    depends_on:
+      vllm:
+        condition: service_healthy
+      authelia:
+        condition: service_healthy
+    environment:
+      - VLLM_BASE_URL=http://vllm:8000
+      - PORT=8010
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8010/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   litellm:
     image: ghcr.io/berriai/litellm:v1.74.9-stable.patch.1
@@ -1470,7 +1498,7 @@ services:
       - bootstrap
       - applications
     depends_on:
-      vllm:
+      vllm-router:
         condition: service_healthy
       authelia:
         condition: service_healthy
@@ -1561,10 +1589,12 @@ services:
       - OCR_MODEL=${OCR_MODEL:-none}
       - KFUN_URL=${KFUN_URL:-http://kfuncdb:8081}
       - PROOFS_DIR=/proofs
+      - SERVICES_MANIFEST_PATH=/app/configs/probe-orchestrator/services_manifest.json
       - MAX_STEPS=${MAX_STEPS:-8}
       - HTTP_TIMEOUT=${HTTP_TIMEOUT:-30}
     volumes:
       - proofs:/proofs
+      - ./configs/probe-orchestrator:/app/configs/probe-orchestrator:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8089/healthz"]
       interval: 30s
@@ -1740,7 +1770,7 @@ services:
     environment:
       - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
       - QDRANT_API_KEY=${QDRANT_API_KEY:-}
-      - LOCALAI_URL=${LOCALAI_URL:-http://litellm:4000/v1}
+      - LITELLM_URL=${LITELLM_URL:-http://litellm:4000/v1}
       - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://${STACK_ADMIN_USER}:${STACK_ADMIN_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
       - EMBED_MODEL=${EMBED_MODEL:-embed-small}
     extra_hosts:

@@ -31,7 +31,7 @@ pipeline:
     - branch:
         processors:
           - http:
-              url: ${LOCALAI_URL:http://litellm:4000/v1}/embeddings
+              url: ${LITELLM_URL:http://litellm:4000/v1}/embeddings
               verb: POST
               headers:
                 Content-Type: application/json

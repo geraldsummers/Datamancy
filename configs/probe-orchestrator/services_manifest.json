@@ -1,0 +1,19 @@
+{
+  "services": [
+    {
+      "name": "open-webui",
+      "internal": ["http://open-webui:8080"],
+      "external": ["https://open-webui.${DOMAIN}"]
+    },
+    {
+      "name": "kfuncdb",
+      "internal": ["http://kfuncdb:8081"],
+      "external": []
+    },
+    {
+      "name": "litellm",
+      "internal": ["http://litellm:4000/health"],
+      "external": ["https://api.${DOMAIN}"]
+    }
+  ]
+}

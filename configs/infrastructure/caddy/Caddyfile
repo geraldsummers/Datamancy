@@ -15,174 +15,219 @@
     local_certs
 }
 
-# Reusable snippet for Authelia forward-auth
-(authelia_auth) {
-    forward_auth authelia:9091 {
-        uri /api/authz/forward-auth
-        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-    }
-}
-
 # ldap-account-manager
-lam.{$DOMAIN} {
+lam.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy ldap-account-manager:80
     }
 }
 
 # Authelia portal
-auth.{$DOMAIN} {
+auth.project-saturn.com {
     reverse_proxy authelia:9091
 }
 
 # CouchDB
-couchdb.{$DOMAIN} {
+couchdb.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy couchdb:5984
     }
 }
 
 # Mailu front (web UI only; mail ports handled by Mailu directly)
-mail.{$DOMAIN} {
+mail.project-saturn.com {
     reverse_proxy mailu-front:80
 }
 
 # SOGo (groupware UI)
-sogo.{$DOMAIN} {
+sogo.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy sogo:20000
     }
 }
 
 # Dockge
-dockge.{$DOMAIN} {
+dockge.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy dockge:5001
     }
 }
 
 # Kopia UI
-kopia.{$DOMAIN} {
+kopia.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy kopia:51515
     }
 }
 
 # Portainer
-portainer.{$DOMAIN} {
+portainer.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy portainer:9000
     }
 }
 
 # Grafana (uses OIDC within the app; no edge forward_auth)
-grafana.{$DOMAIN} {
+grafana.project-saturn.com {
     reverse_proxy grafana:3000
 }
 
 # Open WebUI
-open-webui.{$DOMAIN} {
+open-webui.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy open-webui:8080
     }
 }
 
 # Vaultwarden
-vaultwarden.{$DOMAIN} {
+vaultwarden.project-saturn.com {
     reverse_proxy vaultwarden:80
 }
 
 # Planka
-planka.{$DOMAIN} {
+planka.project-saturn.com {
     reverse_proxy planka:1337
 }
 
 # Outline
-outline.{$DOMAIN} {
+outline.project-saturn.com {
     reverse_proxy outline:3000
 }
 
 # Seafile
-seafile.{$DOMAIN} {
+seafile.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy seafile:80
     }
 }
 
 # OnlyOffice
-onlyoffice.{$DOMAIN} {
+onlyoffice.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy onlyoffice:80
     }
 }
 
 # Matrix (Synapse)
-matrix.{$DOMAIN} {
+matrix.project-saturn.com {
     reverse_proxy synapse:8008
 }
 
 # Mastodon (web)
-mastodon.{$DOMAIN} {
+mastodon.project-saturn.com {
     reverse_proxy mastodon-web:3000
 }
 
 # Homepage
-homepage.{$DOMAIN} {
+homepage.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy homepage:3000
     }
 }
 
 # JupyterHub
-jupyterhub.{$DOMAIN} {
+jupyterhub.project-saturn.com {
     reverse_proxy jupyterhub:8000
 }
 
 # Home Assistant
-homeassistant.{$DOMAIN} {
+homeassistant.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy homeassistant:8123
     }
 }
 
 # LiteLLM (protected)
-litellm.{$DOMAIN} {
+litellm.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy litellm:4000
     }
 }
 
 # LiteLLM (public API) — allowlist by IP, no forward_auth
-api.litellm.{$DOMAIN} {
+api.litellm.project-saturn.com {
     @notallowed not remote_ip {$API_LITELLM_ALLOWLIST}
     respond @notallowed 403
     reverse_proxy litellm:4000
 }
 
 # kfuncdb (protected)
-kfuncdb.{$DOMAIN} {
+kfuncdb.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy kfuncdb:8081
     }
 }
 
 # ClickHouse HTTP
-clickhouse.{$DOMAIN} {
+clickhouse.project-saturn.com {
     route {
-        import authelia_auth
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
         reverse_proxy clickhouse:8123
+    }
+}
+
+# vLLM Router (protected)
+vllm-router.project-saturn.com {
+    route {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy vllm-router:8010
     }
 }

@@ -6,7 +6,7 @@ Overview
 --------
 The bootstrap profile brings up a minimal, production‑lean core. It is the first slice of the same production stack and uses the same configuration patterns (auth, TLS, policies). There are no separate or special “bootstrap configs” — bootstrap simply starts a smaller subset of services first:
 - Caddy (reverse proxy, TLS) + Authelia (SSO) + LDAP/Redis (directory/sessions)
-- LocalAI (local models) + LiteLLM (OpenAI‑compatible gateway)
+- vLLM (local models) + LiteLLM (OpenAI‑compatible gateway)
 - Open WebUI (chat UI)
 - KFuncDB (function/tool host)
 - LAM (LDAP Account Manager) and Portainer (+ agent)
@@ -45,7 +45,7 @@ Steps:
 3) Configure Caddy for public ACME (remove local_certs from the global block in configs/infrastructure/caddy/Caddyfile and set email if desired)
 4) Start:
    docker compose -f docker-compose.secrets.yml -f docker-compose.yml --profile bootstrap up -d
-5) Monitor: bash scripts/bootstrap-stack.sh status; docker logs caddy|authelia|localai -f
+5) Monitor: bash scripts/bootstrap-stack.sh status; docker logs caddy|authelia|vllm|litellm -f
 6) Wait 3–5 minutes for initial model downloads
 
 Readiness Checklist
@@ -55,7 +55,6 @@ Readiness Checklist
 - Authelia health: https://auth.${DOMAIN}/api/health → 200
 - Open WebUI responds behind SSO: https://open-webui.${DOMAIN}
 - LiteLLM health: https://litellm.${DOMAIN}/health
-- LocalAI readiness: http://localai:8080/readyz (internal) or via Caddy if exposed
 - Portainer and LAM accessible behind SSO
 
 Profiles and next steps

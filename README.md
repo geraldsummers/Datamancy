@@ -26,7 +26,7 @@ Quickstart (bootstrap)
 Profiles
 --------
 
-- bootstrap: Core AI and supporting services (Caddy, Authelia, LDAP/Redis, LocalAI, LiteLLM, Open WebUI, KFuncDB, Portainer, LAM, test runner).
+- bootstrap: Core AI and supporting services (Caddy, Authelia, LDAP/Redis, vLLM, LiteLLM, Open WebUI, KFuncDB, Portainer, LAM, test runner).
 - bootstrap_vector_dbs: Qdrant, ClickHouse, and Benthos for vector/RAG pipelines.
 - full: Everything else as defined in docker-compose.yml (requires a complete .env). Same SSO/TLS configuration approach as bootstrap; bootstrap differs only by starting a smaller subset first.
 
@@ -74,3 +74,28 @@ Where to look next
 - Ingest data and run vector search: docs/DATA_AND_RAG.md
 - Production with TLS/SSO: docs/BOOTSTRAP.md
 - All apps and URLs: docs/APP_CATALOG.md
+
+Autonomous diagnostics (agent-driven)
+-------------------------------------
+
+This stack ships with a local diagnostics agent that can probe UIs and APIs, take screenshots, OCR them (optional), analyze DOM, and generate a stack-wide health report.
+
+Quick start:
+
+- Generate or update the services manifest (optional, a starter file exists at configs/probe-orchestrator/services_manifest.json):
+  - Requires Gradle on host
+  - Command:
+    - cd src/stack-discovery
+    - gradle run --args "../../docker-compose.yml ../../configs/infrastructure/caddy/Caddyfile ../../configs/probe-orchestrator/services_manifest.json"
+
+- Start diagnostics:
+  - ./scripts/supervisor-session.sh diagnose
+  - This calls probe-orchestrator at http://localhost:8089/start-stack-probe and writes a JSON report to volumes/proofs/stack_diagnostics_<timestamp>.json with screenshots under volumes/proofs/screenshots/
+
+- View the latest report summary:
+  - ./scripts/supervisor-session.sh report
+  - Prints a concise summary with critical issues, warnings, and evidence paths.
+
+Notes:
+- OCR is disabled by default. To enable, set OCR_MODEL to a supported vision model for your LLM gateway and restart probe-orchestrator.
+- The diagnostics agent uses only local compute (vLLM/LiteLLM) and tools via KFuncDB (Playwright browser, HTTP, Docker inspect).
