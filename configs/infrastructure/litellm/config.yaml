@@ -5,7 +5,8 @@ model_list:
       model: openai/hermes-2-pro-mistral-7b
       api_base: http://vllm-router:8010/v1
       api_key: unused
-      max_tokens: 4096
+      max_tokens: 2048
+    supports_function_calling: true
 
   # Alias for coding tasks - routed to same vLLM model
   - model_name: qwen-code
@@ -13,7 +14,7 @@ model_list:
       model: openai/hermes-2-pro-mistral-7b
       api_base: http://vllm-router:8010/v1
       api_key: unused
-      max_tokens: 4096
+      max_tokens: 2048
 
   # Simple router alias - also routed to main model
   - model_name: router
@@ -21,7 +22,7 @@ model_list:
       model: openai/hermes-2-pro-mistral-7b
       api_base: http://vllm-router:8010/v1
       api_key: unused
-      max_tokens: 2048
+      max_tokens: 1024
 
 litellm_settings:
   drop_params: true

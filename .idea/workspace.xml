@@ -5,33 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="-localai&#10;+whisper piper vllm kspeechgateway">
-      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/linux_debian.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/linux_debian.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/macro.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/macro.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/stackexchange.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/stackexchange.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/wiki.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/wiki.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/yahoo_finance.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/yahoo_finance.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/stackexchange_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/stackexchange_ndjson_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/torrents_csv_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/torrents_csv_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/yahoo_news_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/yahoo_news_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.bootstrap.yaml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/APP_CATALOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/APP_CATALOG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/BOOTSTRAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/BOOTSTRAP.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/OPERATIONS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/OPERATIONS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/SECURITY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/install-nvidia-containers.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/install-nvidia-containers.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/supervisor-session.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/supervisor-session.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -727,7 +705,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764418318392</updated>
     </task>
-    <option name="localTasksCounter" value="48" />
+    <task id="LOCAL-00048" summary="-localai&#10;+whisper piper vllm kspeechgateway">
+      <option name="closed" value="true" />
+      <created>1764464770497</created>
+      <option name="number" value="00048" />
+      <option name="presentableId" value="LOCAL-00048" />
+      <option name="project" value="LOCAL" />
+      <updated>1764464770497</updated>
+    </task>
+    <option name="localTasksCounter" value="49" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

@@ -1425,7 +1425,7 @@ services:
       start_period: 60s
 
   vllm:
-    image: vllm/vllm-openai:v0.6.3.post1
+    image: vllm/vllm-openai:latest
     container_name: vllm
     restart: unless-stopped
     networks:
@@ -1444,8 +1444,11 @@ services:
       "--served-model-name", "hermes-2-pro-mistral-7b",
       "--max-model-len", "4096",
       "--quantization", "awq",
-      "--gpu-memory-utilization", "0.85",
-      "--dtype", "auto"
+      "--gpu-memory-utilization", "0.80",
+      "--max-num-seqs", "128",
+      "--dtype", "auto",
+      "--enable-auto-tool-choice",
+      "--tool-call-parser", "hermes"
     ]
     volumes:
       - ${VOLUMES_ROOT}/vllm/hf-cache:/root/.cache/huggingface
@@ -1582,6 +1585,7 @@ services:
       playwright:
         condition: service_healthy
     environment:
+      - DOMAIN=${DOMAIN}
       - LLM_BASE_URL=${LLM_BASE_URL:-http://litellm:4000/v1}
       - LLM_API_KEY=${LITELLM_MASTER_KEY}
       - LLM_MODEL=${LLM_MODEL:-hermes-2-pro-mistral-7b}
