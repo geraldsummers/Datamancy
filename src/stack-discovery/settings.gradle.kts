@@ -1,1 +1,1 @@
-rootProject.name = "stack-discovery"
+// This file is no longer needed - configuration moved to root settings.gradle.kts

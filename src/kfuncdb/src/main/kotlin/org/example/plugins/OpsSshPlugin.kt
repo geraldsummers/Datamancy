@@ -7,6 +7,8 @@ import org.example.api.LlmTool
 import org.example.api.LlmToolParamDoc
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.manifest.PluginManifest
+import org.example.manifest.Requires
 import java.io.ByteArrayOutputStream
 
 /**
@@ -14,6 +16,14 @@ import java.io.ByteArrayOutputStream
  * to the host's forced-command wrapper configured for the target user.
  */
 class OpsSshPlugin : Plugin {
+    override fun manifest() = PluginManifest(
+        id = "org.example.plugins.ops",
+        version = "1.0.0",
+        apiVersion = "1.0.0",
+        implementation = "org.example.plugins.OpsSshPlugin",
+        capabilities = listOf("host.network.ssh"),
+        requires = Requires(host = ">=1.0.0", api = ">=1.0.0")
+    )
     private lateinit var cfg: Cfg
 
     override fun init(context: PluginContext) {

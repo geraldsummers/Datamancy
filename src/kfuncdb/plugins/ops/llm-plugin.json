@@ -1,13 +1,16 @@
 {
-  "id": "ops",
+  "id": "org.example.plugins.ops",
   "version": "1.0.0",
   "apiVersion": "1.0.0",
+  "name": "Ops SSH Plugin",
+  "description": "SSH operations for remote server management",
   "implementation": "org.example.plugins.OpsSshPlugin",
-  "capabilities": [
-    "host.ssh.exec"
-  ],
   "requires": {
     "host": ">=1.0.0",
-    "api": "1.0.0"
-  }
+    "api": ">=1.0.0"
+  },
+  "capabilities": [
+    "host.shell.read",
+    "host.network.ssh"
+  ]
 }

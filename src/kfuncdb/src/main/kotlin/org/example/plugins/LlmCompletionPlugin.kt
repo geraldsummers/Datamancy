@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import org.example.api.LlmTool
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.manifest.PluginManifest
+import org.example.manifest.Requires
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -15,6 +17,15 @@ import java.time.Duration
  * Plugin providing LLM chat completion capabilities via LiteLLM.
  */
 class LlmCompletionPlugin : Plugin {
+    override fun manifest() = PluginManifest(
+        id = "org.example.plugins.llmcompletion",
+        version = "1.0.0",
+        apiVersion = "1.0.0",
+        implementation = "org.example.plugins.LlmCompletionPlugin",
+        capabilities = listOf("host.network.http"),
+        requires = Requires(host = ">=1.0.0", api = ">=1.0.0")
+    )
+
     override fun init(context: PluginContext) { /* no-op */ }
 
     override fun tools(): List<Any> = listOf(Tools())

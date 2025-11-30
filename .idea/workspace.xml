@@ -5,18 +5,33 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="tool calling!">
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/supervisor-session.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/supervisor-session.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/plugins/browser/llm-plugin.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/plugins/hosttools/llm-plugin.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/plugins/llmcompletion/llm-plugin.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/plugins/ops/llm-plugin.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/settings.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/PluginManager.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/PluginManager.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/api/Plugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/api/Plugin.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/ToolRegistry.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/ToolRegistry.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/CoreToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/CoreToolsPlugin.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/PluginManagerTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/PluginManagerTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/LlmCompletionPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/LlmCompletionPlugin.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/NEEDED" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ktspeechgateway/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/ktspeechgateway/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ktspeechgateway/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/ktspeechgateway/settings.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/settings.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/stack-discovery/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/stack-discovery/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/stack-discovery/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/stack-discovery/settings.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vllm-model-router-kt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-model-router-kt/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vllm-model-router-kt/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-model-router-kt/settings.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -327,14 +342,6 @@
       <workItem from="1763979230531" duration="8000" />
       <workItem from="1764013916310" duration="3785000" />
       <workItem from="1764197823454" duration="6384000" />
-    </task>
-    <task id="LOCAL-00002" summary="holy claude">
-      <option name="closed" value="true" />
-      <created>1760999708466</created>
-      <option name="number" value="00002" />
-      <option name="presentableId" value="LOCAL-00002" />
-      <option name="project" value="LOCAL" />
-      <updated>1760999708466</updated>
     </task>
     <task id="LOCAL-00003" summary="holy claude">
       <option name="closed" value="true" />
@@ -720,7 +727,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764475909413</updated>
     </task>
-    <option name="localTasksCounter" value="51" />
+    <task id="LOCAL-00051" summary="tool calling!">
+      <option name="closed" value="true" />
+      <created>1764485958472</created>
+      <option name="number" value="00051" />
+      <option name="presentableId" value="LOCAL-00051" />
+      <option name="project" value="LOCAL" />
+      <updated>1764485958472</updated>
+    </task>
+    <option name="localTasksCounter" value="52" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

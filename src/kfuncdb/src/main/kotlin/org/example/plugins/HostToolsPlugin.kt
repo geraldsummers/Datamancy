@@ -4,6 +4,8 @@ import org.example.api.LlmTool
 import org.example.api.LlmToolParamDoc
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.manifest.PluginManifest
+import org.example.manifest.Requires
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -18,6 +20,15 @@ import java.time.Duration
  * Read-only tools are safe. Write operations (restart, exec) require caution.
  */
 class HostToolsPlugin : Plugin {
+    override fun manifest() = PluginManifest(
+        id = "org.example.plugins.hosttools",
+        version = "1.0.0",
+        apiVersion = "1.0.0",
+        implementation = "org.example.plugins.HostToolsPlugin",
+        capabilities = listOf("host.shell.read", "host.docker.inspect", "host.docker.write"),
+        requires = Requires(host = ">=1.0.0", api = ">=1.0.0")
+    )
+
     override fun init(context: PluginContext) {
         // no-op
     }

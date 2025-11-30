@@ -1,14 +1,17 @@
 {
-  "id": "hosttools",
+  "id": "org.example.plugins.hosttools",
   "version": "1.0.0",
   "apiVersion": "1.0.0",
+  "name": "Host Tools Plugin",
+  "description": "Host inspection and docker action tools",
   "implementation": "org.example.plugins.HostToolsPlugin",
-  "capabilities": [
-    "host.shell.read",
-    "host.docker.inspect"
-  ],
   "requires": {
     "host": ">=1.0.0",
-    "api": "1.0.0"
-  }
+    "api": ">=1.0.0"
+  },
+  "capabilities": [
+    "host.shell.read",
+    "host.docker.inspect",
+    "host.docker.write"
+  ]
 }

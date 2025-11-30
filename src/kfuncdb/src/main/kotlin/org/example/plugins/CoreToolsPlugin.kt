@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import org.example.api.LlmTool
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.manifest.PluginManifest
+import org.example.manifest.Requires
 import java.text.Normalizer
 import java.time.Duration
 import java.time.Instant
@@ -23,6 +25,15 @@ import kotlin.math.sqrt
  * Core LM-friendly tools plugin. All functions are pure and deterministic.
  */
 class CoreToolsPlugin : Plugin {
+    override fun manifest() = PluginManifest(
+        id = "org.example.plugins.core",
+        version = "1.0.0",
+        apiVersion = "1.0.0",
+        implementation = "org.example.plugins.CoreToolsPlugin",
+        capabilities = emptyList(),
+        requires = Requires(host = ">=1.0.0", api = ">=1.0.0")
+    )
+
     override fun init(context: PluginContext) { /* no-op */ }
 
     override fun tools(): List<Any> = listOf(Tools())

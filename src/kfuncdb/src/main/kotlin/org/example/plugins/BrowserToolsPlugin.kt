@@ -4,6 +4,8 @@ import org.example.api.LlmTool
 import org.example.api.LlmToolParamDoc
 import org.example.api.Plugin
 import org.example.api.PluginContext
+import org.example.manifest.PluginManifest
+import org.example.manifest.Requires
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -14,6 +16,14 @@ import java.time.Duration
  * Minimal Browserless tools: take screenshots and fetch DOM of a URL.
  */
 class BrowserToolsPlugin : Plugin {
+    override fun manifest() = PluginManifest(
+        id = "org.example.plugins.browser",
+        version = "1.0.0",
+        apiVersion = "1.0.0",
+        implementation = "org.example.plugins.BrowserToolsPlugin",
+        capabilities = listOf("host.network.http"),
+        requires = Requires(host = ">=1.0.0", api = ">=1.0.0")
+    )
     private lateinit var baseUrl: String
     private lateinit var http: HttpClient
     private var reqTimeout: Duration = Duration.ofSeconds(20)

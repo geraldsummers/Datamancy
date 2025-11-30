@@ -1,4 +1,1 @@
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
-}
-rootProject.name = "KFDB"
+// This file is no longer needed - configuration moved to root settings.gradle.kts

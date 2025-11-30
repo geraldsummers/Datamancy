@@ -144,6 +144,29 @@ data class EnhancedDiagnosticsReport(
     val base_report_path: String? = null
 )
 
+@Serializable
+data class ExecuteFixRequest(
+    val issue_id: String,
+    val service: String,
+    val service_url: String,
+    val container: String,
+    val fix_action: String,
+    val fix_parameters: Map<String, String> = emptyMap()
+)
+
+@Serializable
+data class RepairResult(
+    val success: Boolean,
+    val issue_id: String,
+    val service: String,
+    val action_taken: String,
+    val before_status: String,
+    val after_status: String,
+    val verification: String,
+    val steps: List<StepLog> = emptyList(),
+    val elapsed_ms: Long
+)
+
 // Define tools in OpenAI function calling format
 private val TOOLS_DEFINITIONS = buildJsonArray {
     addJsonObject {
@@ -224,6 +247,73 @@ private val TOOLS_DEFINITIONS = buildJsonArray {
     }
 }
 
+// Repair tools for fix execution
+private val REPAIR_TOOLS = buildJsonArray {
+    // Include all diagnostic tools
+    addAll(TOOLS_DEFINITIONS)
+
+    // Add docker action tools
+    addJsonObject {
+        put("type", "function")
+        putJsonObject("function") {
+            put("name", "docker_restart")
+            put("description", "Restart a docker container to fix unhealthy or stuck services.")
+            putJsonObject("parameters") {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("container") {
+                        put("type", "string")
+                        put("description", "Container name or ID to restart")
+                    }
+                }
+                putJsonArray("required") { add("container") }
+            }
+        }
+    }
+    addJsonObject {
+        put("type", "function")
+        putJsonObject("function") {
+            put("name", "docker_health_wait")
+            put("description", "Wait for a container to become healthy after a fix is applied.")
+            putJsonObject("parameters") {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("container") {
+                        put("type", "string")
+                        put("description", "Container name to wait for")
+                    }
+                    putJsonObject("timeoutSec") {
+                        put("type", "integer")
+                        put("description", "Timeout in seconds (5-300)")
+                    }
+                }
+                putJsonArray("required") { add("container") }
+            }
+        }
+    }
+    addJsonObject {
+        put("type", "function")
+        putJsonObject("function") {
+            put("name", "docker_logs")
+            put("description", "Get recent container logs to verify fix or diagnose continued issues.")
+            putJsonObject("parameters") {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("container") {
+                        put("type", "string")
+                        put("description", "Container name")
+                    }
+                    putJsonObject("tail") {
+                        put("type", "integer")
+                        put("description", "Number of lines to retrieve")
+                    }
+                }
+                putJsonArray("required") { add("container") }
+            }
+        }
+    }
+}
+
 private val SYSTEM_PROMPT = """
 You are an autonomous probe agent verifying service availability.
 
@@ -242,6 +332,40 @@ Key rules:
 - Always end by calling finish with a readiness report.
 - Use the OCR text and any DOM/HTTP cues to confirm you are on the target page (e.g., titles, headings, product/service names).
 - Be efficient: for simple targets, screenshot → finish. For ambiguous cases, screenshot → DOM/HTTP → finish.
+""".trimIndent()
+
+private val REPAIR_SYSTEM_PROMPT = """
+You are an autonomous repair agent that diagnoses and fixes service issues.
+
+Goal: Execute an approved fix, verify it worked, and report results.
+
+Workflow:
+1) Probe the service with http_get() and/or browser_dom() to confirm the issue
+   - Check HTTP status codes (200 vs 500)
+   - Look for error indicators in response body or DOM
+
+2) Execute the approved fix:
+   - docker_restart(container): Restart unhealthy container
+   - docker_exec(container, cmd): Run safe command in container
+
+3) Wait for stabilization:
+   - docker_health_wait(container, timeoutSec): Wait for healthy status
+   - Allow 30-60 seconds for service to fully start
+
+4) Verify the fix worked:
+   - Re-probe with http_get() and/or browser_dom()
+   - Compare before/after state
+   - Check docker_logs(container) for errors
+
+5) Call finish with:
+   - status: 'ok' if service now healthy, 'failed' if still broken
+   - reason: Summary of what was done and verification results
+
+Key rules:
+- Always verify before and after the fix
+- Wait for health checks before declaring success
+- Use logs to diagnose if fix didn't work
+- Be concise but thorough in reporting
 """.trimIndent()
 
 // Submit a base64 image to the configured LLM (OpenAI-compatible endpoint) to extract visible text using a vision-capable model.
@@ -798,6 +922,151 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
     return ProbeResult(serviceUrl, "failed", "max-steps-exceeded", screenshotPath, domExcerpt, null, null, steps)
 }
 
+suspend fun runRepairAgent(
+    client: HttpClient,
+    serviceUrl: String,
+    container: String,
+    fixAction: String,
+    fixParameters: Map<String, String> = emptyMap()
+): RepairResult {
+    val startTime = System.currentTimeMillis()
+    val steps = mutableListOf<StepLog>()
+
+    // Step 1: Probe service BEFORE fix
+    println("[repair-agent] Probing $serviceUrl before fix...")
+    val beforeProbe = runCatching {
+        callKfuncTool(client, "http_get", buildJsonObject { put("url", serviceUrl) })
+    }.getOrElse {
+        buildJsonObject { put("error", it.message ?: "probe failed") }
+    }
+
+    val beforeStatus = beforeProbe["status"]?.jsonPrimitive?.intOrNull ?: 0
+    steps.add(StepLog(
+        step = 1,
+        tool = "http_get",
+        args = buildJsonObject { put("url", serviceUrl) },
+        result = buildJsonObject { put("status", beforeStatus) }
+    ))
+
+    println("[repair-agent] Before status: HTTP $beforeStatus")
+
+    // Step 2: Execute fix
+    println("[repair-agent] Executing fix: $fixAction on container $container")
+    val fixResult = when (fixAction) {
+        "restart" -> {
+            callKfuncTool(client, "docker_restart", buildJsonObject { put("container", container) })
+        }
+        "docker_exec" -> {
+            val cmd = fixParameters["cmd"]?.split(" ") ?: emptyList()
+            callKfuncTool(client, "docker_exec", buildJsonObject {
+                put("container", container)
+                putJsonArray("cmd") { cmd.forEach { add(it) } }
+            })
+        }
+        else -> buildJsonObject { put("error", "unknown action: $fixAction") }
+    }
+
+    steps.add(StepLog(
+        step = 2,
+        tool = fixAction,
+        args = buildJsonObject { put("container", container) },
+        result = fixResult
+    ))
+
+    val fixSuccess = fixResult["success"]?.jsonPrimitive?.booleanOrNull ?: false
+    println("[repair-agent] Fix execution: ${if (fixSuccess) "success" else "failed"}")
+
+    if (!fixSuccess) {
+        return RepairResult(
+            success = false,
+            issue_id = "",
+            service = container,
+            action_taken = fixAction,
+            before_status = "HTTP $beforeStatus",
+            after_status = "fix_failed",
+            verification = "Fix execution failed: ${fixResult["output"]?.jsonPrimitive?.contentOrNull ?: "unknown"}",
+            steps = steps,
+            elapsed_ms = System.currentTimeMillis() - startTime
+        )
+    }
+
+    // Step 3: Wait for health
+    println("[repair-agent] Waiting for container to become healthy...")
+    val healthWait = callKfuncTool(client, "docker_health_wait", buildJsonObject {
+        put("container", container)
+        put("timeoutSec", 60)
+    })
+
+    steps.add(StepLog(
+        step = 3,
+        tool = "docker_health_wait",
+        args = buildJsonObject { put("container", container) },
+        result = healthWait
+    ))
+
+    val healthStatus = healthWait["status"]?.jsonPrimitive?.contentOrNull ?: "unknown"
+    println("[repair-agent] Health status: $healthStatus")
+
+    // Step 4: Wait a bit for service to fully start
+    Thread.sleep(5000)
+
+    // Step 5: Probe service AFTER fix
+    println("[repair-agent] Probing $serviceUrl after fix...")
+    val afterProbe = runCatching {
+        callKfuncTool(client, "http_get", buildJsonObject { put("url", serviceUrl) })
+    }.getOrElse {
+        buildJsonObject { put("error", it.message ?: "probe failed") }
+    }
+
+    val afterStatus = afterProbe["status"]?.jsonPrimitive?.intOrNull ?: 0
+    steps.add(StepLog(
+        step = 4,
+        tool = "http_get",
+        args = buildJsonObject { put("url", serviceUrl) },
+        result = buildJsonObject { put("status", afterStatus) }
+    ))
+
+    println("[repair-agent] After status: HTTP $afterStatus")
+
+    // Step 6: Check logs for errors
+    val logs = callKfuncTool(client, "docker_logs", buildJsonObject {
+        put("container", container)
+        put("tail", 50)
+    })
+
+    steps.add(StepLog(
+        step = 5,
+        tool = "docker_logs",
+        args = buildJsonObject { put("container", container) },
+        result = buildJsonObject { put("logs", (logs["logs"]?.jsonPrimitive?.contentOrNull ?: "").take(500)) }
+    ))
+
+    // Determine success
+    val isHealthy = afterStatus in 200..299
+    val verification = buildString {
+        append("Service $container was restarted. ")
+        append("HTTP status changed from $beforeStatus to $afterStatus. ")
+        if (isHealthy) {
+            append("Service is now responding with healthy status.")
+        } else {
+            append("Service may still have issues (non-2xx status).")
+        }
+        append(" Health check: $healthStatus.")
+    }
+
+    return RepairResult(
+        success = isHealthy,
+        issue_id = "",
+        service = container,
+        action_taken = fixAction,
+        before_status = "HTTP $beforeStatus",
+        after_status = "HTTP $afterStatus",
+        verification = verification,
+        steps = steps,
+        elapsed_ms = System.currentTimeMillis() - startTime
+    )
+}
+
 fun main() {
     val port = 8089
     val client = HttpClient(CIO) {
@@ -867,6 +1136,37 @@ fun main() {
                     return@get
                 }
                 call.respond(report)
+            }
+
+            // Execute approved fix and verify
+            post("/execute-fix") {
+                val req = call.receive<ExecuteFixRequest>()
+                println("[probe-orchestrator] Executing fix for ${req.service}: ${req.fix_action}")
+
+                val result = runCatching {
+                    runRepairAgent(
+                        client,
+                        req.service_url,
+                        req.container,
+                        req.fix_action,
+                        req.fix_parameters
+                    ).copy(issue_id = req.issue_id)
+                }.getOrElse {
+                    RepairResult(
+                        success = false,
+                        issue_id = req.issue_id,
+                        service = req.service,
+                        action_taken = req.fix_action,
+                        before_status = "unknown",
+                        after_status = "error",
+                        verification = "Repair agent failed: ${it.message}",
+                        steps = emptyList(),
+                        elapsed_ms = 0
+                    )
+                }
+
+                println("[probe-orchestrator] Fix result: ${result.success} - ${result.verification}")
+                call.respond(result)
             }
         }
     }.start(wait = true)
