@@ -5,6 +5,8 @@ import org.example.host.PluginManager
 import org.example.host.ToolRegistry
 import org.example.host.CapabilityPolicy
 import org.example.http.LlmHttpServer
+import org.example.host.PluginFactories
+import org.example.plugins.CoreToolsPlugin
 import java.io.File
 
 fun main() {
@@ -28,6 +30,9 @@ fun main() {
         pluginsDir = pluginsDir,
         capabilityPolicy = CapabilityPolicy(allowed = allowedCaps)
     )
+
+    // Register built-in plugins (non-reflective instantiation)
+    PluginFactories.register(CoreToolsPlugin::class.qualifiedName!!) { CoreToolsPlugin() }
 
     val manager = PluginManager(config)
     val loaded = manager.loadAll()

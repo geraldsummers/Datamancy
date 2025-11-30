@@ -31,13 +31,14 @@ ENV KFUNCDB_PORT=8081 \
     KFUNCDB_PLUGINS_DIR=/app/plugins \
     KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.inspect
 
-# Install minimal tools for healthcheck (wget) and create non-root user
+# Install minimal tools for healthcheck (wget), docker CLI, and create non-root user
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends wget ca-certificates \
+    && apt-get install -y --no-install-recommends wget ca-certificates docker.io \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -u 10001 -g root appuser \
     && mkdir -p /app/plugins \
-    && chown -R appuser:root /app
+    && chown -R appuser:root /app \
+    && usermod -aG docker appuser
 
 # App jar
 COPY --from=build /src/build/libs/*-all.jar /app/app.jar

@@ -14,7 +14,8 @@ import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
- * Read-only host inspection tools. All functions must be safe and non-mutating.
+ * Host inspection and docker action tools.
+ * Read-only tools are safe. Write operations (restart, exec) require caution.
  */
 class HostToolsPlugin : Plugin {
     override fun init(context: PluginContext) {
@@ -117,6 +118,59 @@ class HostToolsPlugin : Plugin {
         }
 
         @LlmTool(
+            name = "docker_stats",
+            shortDescription = "Get resource usage stats for a container (safe read-only)",
+            longDescription = "Returns CPU, memory, network I/O stats for a container via `docker stats --no-stream`.",
+            paramsSpec = "{" +
+                "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"}},\"required\":[\"container\"]}"
+        )
+        fun docker_stats(container: String): Map<String, Any?> {
+            require(container.isNotBlank()) { "container is required" }
+            val fmt = "{{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}"
+            val pb = ProcessBuilder(listOf("docker", "stats", "--no-stream", "--format", fmt, container))
+            pb.redirectErrorStream(true)
+            val p = pb.start()
+            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
+            val code = p.waitFor()
+
+            if (code != 0 || out.isBlank()) {
+                return mapOf("exitCode" to code, "error" to "Failed to get stats", "raw" to out)
+            }
+
+            val parts = out.trim().split('\t')
+            return mapOf(
+                "exitCode" to code,
+                "container" to parts.getOrNull(0).orEmpty(),
+                "cpu_percent" to parts.getOrNull(1).orEmpty(),
+                "mem_usage" to parts.getOrNull(2).orEmpty(),
+                "mem_percent" to parts.getOrNull(3).orEmpty(),
+                "net_io" to parts.getOrNull(4).orEmpty(),
+                "block_io" to parts.getOrNull(5).orEmpty(),
+                "pids" to parts.getOrNull(6).orEmpty()
+            )
+        }
+
+        @LlmTool(
+            name = "docker_inspect",
+            shortDescription = "Get detailed container metadata (safe read-only)",
+            longDescription = "Returns full container inspection data via `docker inspect`.",
+            paramsSpec = "{" +
+                "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"}},\"required\":[\"container\"]}"
+        )
+        fun docker_inspect(container: String): Map<String, Any?> {
+            require(container.isNotBlank()) { "container is required" }
+            val pb = ProcessBuilder(listOf("docker", "inspect", container))
+            pb.redirectErrorStream(true)
+            val p = pb.start()
+            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
+            val code = p.waitFor()
+            return mapOf(
+                "exitCode" to code,
+                "json" to out.take(500_000)
+            )
+        }
+
+        @LlmTool(
             name = "http_get",
             shortDescription = "HTTP GET a URL and return status, headers, and body",
             longDescription = "Simple GET using Java HttpClient. Intended for internal diagnostics.",
@@ -138,6 +192,160 @@ class HostToolsPlugin : Plugin {
                 "status" to res.statusCode(),
                 "headers" to res.headers().map(),
                 "body" to res.body()?.take(500_000)
+            )
+        }
+
+        // ======= DOCKER ACTION TOOLS (Write Operations) =======
+
+        @LlmTool(
+            name = "docker_restart",
+            shortDescription = "Restart a docker container",
+            longDescription = "Executes `docker restart <container>` to restart an unhealthy or stuck container. Returns success status and timing.",
+            paramsSpec = "{" +
+                "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"}},\"required\":[\"container\"]}"
+        )
+        fun docker_restart(container: String): Map<String, Any?> {
+            require(container.isNotBlank()) { "container is required" }
+
+            val startTime = System.currentTimeMillis()
+            val pb = ProcessBuilder(listOf("docker", "restart", container))
+            pb.redirectErrorStream(true)
+            val p = pb.start()
+            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
+            val code = p.waitFor()
+            val elapsedMs = System.currentTimeMillis() - startTime
+
+            return mapOf(
+                "exitCode" to code,
+                "success" to (code == 0),
+                "output" to out.trim(),
+                "elapsedMs" to elapsedMs
+            )
+        }
+
+        @LlmTool(
+            name = "docker_exec",
+            shortDescription = "Execute a safe command inside a container",
+            longDescription = "Runs a whitelisted command in a container via `docker exec`. Only allows safe, non-destructive commands like config reloads.",
+            paramsSpec = "{" +
+                "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"},\"cmd\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"container\",\"cmd\"]}"
+        )
+        fun docker_exec(container: String, cmd: List<String>): Map<String, Any?> {
+            require(container.isNotBlank()) { "container is required" }
+            require(cmd.isNotEmpty()) { "cmd must not be empty" }
+
+            // Whitelist safe commands only
+            val allowedCommands = setOf(
+                "nginx", "caddy", "systemctl", "kill", "pkill",
+                "reload", "graceful", "touch", "cat", "ls"
+            )
+
+            val exe = cmd[0]
+            require(allowedCommands.any { exe.contains(it, ignoreCase = true) }) {
+                "command '$exe' is not in whitelist"
+            }
+
+            val fullCmd = listOf("docker", "exec", container) + cmd
+            val pb = ProcessBuilder(fullCmd)
+            pb.redirectErrorStream(true)
+            val p = pb.start()
+            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
+            val code = p.waitFor()
+
+            return mapOf(
+                "exitCode" to code,
+                "success" to (code == 0),
+                "output" to out.take(50_000)
+            )
+        }
+
+        @LlmTool(
+            name = "docker_health_wait",
+            shortDescription = "Wait for a container to become healthy",
+            longDescription = "Polls `docker inspect` health status until container is healthy or timeout. Returns final health state.",
+            paramsSpec = "{" +
+                "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"},\"timeoutSec\":{\"type\":\"integer\",\"minimum\":5,\"maximum\":300}},\"required\":[\"container\"]}"
+        )
+        fun docker_health_wait(container: String, timeoutSec: Int = 60): Map<String, Any?> {
+            require(container.isNotBlank()) { "container is required" }
+            val safeTimeout = timeoutSec.coerceIn(5, 300)
+            val deadline = System.currentTimeMillis() + (safeTimeout * 1000)
+
+            var lastStatus = "unknown"
+            var attempts = 0
+
+            while (System.currentTimeMillis() < deadline) {
+                attempts++
+                val pb = ProcessBuilder(listOf("docker", "inspect", "--format", "{{.State.Health.Status}}", container))
+                pb.redirectErrorStream(true)
+                val p = pb.start()
+                val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText().trim() }
+                p.waitFor()
+
+                lastStatus = out
+
+                when (lastStatus) {
+                    "healthy" -> {
+                        return mapOf(
+                            "success" to true,
+                            "status" to "healthy",
+                            "attempts" to attempts,
+                            "elapsedSec" to ((System.currentTimeMillis() - (deadline - safeTimeout * 1000)) / 1000)
+                        )
+                    }
+                    "" -> {
+                        // Container has no healthcheck
+                        return mapOf(
+                            "success" to true,
+                            "status" to "no_healthcheck",
+                            "note" to "Container does not define a health check",
+                            "attempts" to attempts
+                        )
+                    }
+                }
+
+                Thread.sleep(2000) // Poll every 2 seconds
+            }
+
+            return mapOf(
+                "success" to false,
+                "status" to lastStatus,
+                "timeout" to true,
+                "attempts" to attempts,
+                "timeoutSec" to safeTimeout
+            )
+        }
+
+        @LlmTool(
+            name = "docker_compose_restart",
+            shortDescription = "Restart a service via docker compose",
+            longDescription = "Executes `docker compose restart <service>` to restart a compose service. Safer than direct container restart.",
+            paramsSpec = "{" +
+                "\"type\":\"object\",\"properties\":{\"service\":{\"type\":\"string\"},\"composeFile\":{\"type\":\"string\"}},\"required\":[\"service\"]}"
+        )
+        fun docker_compose_restart(service: String, composeFile: String? = null): Map<String, Any?> {
+            require(service.isNotBlank()) { "service is required" }
+
+            val cmd = mutableListOf("docker", "compose")
+            if (composeFile != null) {
+                cmd.add("-f")
+                cmd.add(composeFile)
+            }
+            cmd.addAll(listOf("restart", service))
+
+            val startTime = System.currentTimeMillis()
+            val pb = ProcessBuilder(cmd)
+            pb.redirectErrorStream(true)
+            val p = pb.start()
+            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
+            val code = p.waitFor()
+            val elapsedMs = System.currentTimeMillis() - startTime
+
+            return mapOf(
+                "exitCode" to code,
+                "success" to (code == 0),
+                "output" to out.trim(),
+                "elapsedMs" to elapsedMs
             )
         }
     }

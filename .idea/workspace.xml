@@ -4,12 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="-localai&#10;+whisper piper vllm kspeechgateway">
+    <list default="true" id="2bde439d-435d-4865-a36f-4d2506780c1e" name="Changes" comment="tool calling!">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.bootstrap.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/supervisor-session.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/supervisor-session.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/Main.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/PluginManager.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/host/PluginManager.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/main/kotlin/org/example/plugins/HostToolsPlugin.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/PluginManagerTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/kfuncdb/src/test/kotlin/org/example/host/PluginManagerTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator-kt/src/main/kotlin/org/datamancy/probe/Application.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -80,50 +87,51 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Docker.docker-compose.yml.ca-generator: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.docker-compose.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src.caddy: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src.docker-socket-proxy: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src.ragserve: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src: Compose Deployment (1).executor&quot;: &quot;Run&quot;,
-    &quot;Docker.src: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Build kfuncdb.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.CapabilityPolicyTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.CoreToolsPluginTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.HttpServerTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PluginManagerTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.ToolRegistryTest.executor&quot;: &quot;Run&quot;,
-    &quot;JUnit.HttpServerTest.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;SHELLCHECK.PATH&quot;: &quot;/home/gerald/.local/share/JetBrains/PyCharm2025.2/Shell Script/shellcheck&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/gerald/PycharmProjects/Datamancy&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMThirdPartyAiProvidersConfigurable&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Docker.docker-compose.yml.ca-generator: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
+    "Docker.src.caddy: Compose Deployment.executor": "Run",
+    "Docker.src.docker-socket-proxy: Compose Deployment.executor": "Run",
+    "Docker.src.ragserve: Compose Deployment.executor": "Run",
+    "Docker.src/docker-compose.override.yml.loki: Compose Deployment.executor": "Run",
+    "Docker.src: Compose Deployment (1).executor": "Run",
+    "Docker.src: Compose Deployment.executor": "Run",
+    "Gradle.Build kfuncdb.executor": "Run",
+    "Gradle.CapabilityPolicyTest.executor": "Run",
+    "Gradle.CoreToolsPluginTest.executor": "Run",
+    "Gradle.HttpServerTest.executor": "Run",
+    "Gradle.PluginManagerTest.executor": "Run",
+    "Gradle.ToolRegistryTest.executor": "Run",
+    "JUnit.HttpServerTest.executor": "Run",
+    "JUnit.PluginManagerTest.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "SHELLCHECK.PATH": "/home/gerald/.local/share/JetBrains/PyCharm2025.2/Shell Script/shellcheck",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "master",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/home/gerald/PycharmProjects/Datamancy",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "node",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "ml.llm.LLMThirdPartyAiProvidersConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "/home/gerald/Documents/IdeaProjects/Datamancy/tests/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
@@ -139,7 +147,7 @@
       <recent name="$PROJECT_DIR$/configs/localai" />
     </key>
   </component>
-  <component name="RunManager" selected="JUnit.HttpServerTest">
+  <component name="RunManager" selected="JUnit.PluginManagerTest">
     <configuration name="CapabilityPolicyTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -212,30 +220,6 @@
       <RunAsTest>true</RunAsTest>
       <method v="2" />
     </configuration>
-    <configuration name="ToolRegistryTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$/kfuncdb" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" value="" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value=":test" />
-            <option value="--tests" />
-            <option value="&quot;org.example.host.ToolRegistryTest&quot;" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>true</RunAsTest>
-      <method v="2" />
-    </configuration>
     <configuration name="HttpServerTest" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
       <module name="KFDB.test" />
       <extension name="coverage">
@@ -251,6 +235,21 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <configuration name="PluginManagerTest" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="KFDB.test" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="org.example.host.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="org.example.host" />
+      <option name="MAIN_CLASS_NAME" value="org.example.host.PluginManagerTest" />
+      <option name="TEST_OBJECT" value="class" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
       <deployment type="docker-compose.yml">
         <settings />
@@ -259,11 +258,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="JUnit.PluginManagerTest" />
         <item itemvalue="JUnit.HttpServerTest" />
         <item itemvalue="Gradle.CoreToolsPluginTest" />
         <item itemvalue="Gradle.PluginManagerTest" />
         <item itemvalue="Gradle.CapabilityPolicyTest" />
-        <item itemvalue="Gradle.ToolRegistryTest" />
       </list>
     </recent_temporary>
   </component>
@@ -328,14 +327,6 @@
       <workItem from="1763979230531" duration="8000" />
       <workItem from="1764013916310" duration="3785000" />
       <workItem from="1764197823454" duration="6384000" />
-    </task>
-    <task id="LOCAL-00001" summary="Remove unused services, configurations, and dependencies from project">
-      <option name="closed" value="true" />
-      <created>1759101500858</created>
-      <option name="number" value="00001" />
-      <option name="presentableId" value="LOCAL-00001" />
-      <option name="project" value="LOCAL" />
-      <updated>1759101500858</updated>
     </task>
     <task id="LOCAL-00002" summary="holy claude">
       <option name="closed" value="true" />
@@ -713,7 +704,23 @@
       <option name="project" value="LOCAL" />
       <updated>1764464770497</updated>
     </task>
-    <option name="localTasksCounter" value="49" />
+    <task id="LOCAL-00049" summary="tool calling!">
+      <option name="closed" value="true" />
+      <created>1764475784297</created>
+      <option name="number" value="00049" />
+      <option name="presentableId" value="LOCAL-00049" />
+      <option name="project" value="LOCAL" />
+      <updated>1764475784297</updated>
+    </task>
+    <task id="LOCAL-00050" summary="tool calling!">
+      <option name="closed" value="true" />
+      <created>1764475909413</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1764475909413</updated>
+    </task>
+    <option name="localTasksCounter" value="51" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -744,7 +751,8 @@
     <MESSAGE value="towards llm" />
     <MESSAGE value="bootstrapping" />
     <MESSAGE value="-localai&#10;+whisper piper vllm kspeechgateway" />
-    <option name="LAST_COMMIT_MESSAGE" value="-localai&#10;+whisper piper vllm kspeechgateway" />
+    <MESSAGE value="tool calling!" />
+    <option name="LAST_COMMIT_MESSAGE" value="tool calling!" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

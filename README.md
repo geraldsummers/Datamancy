@@ -75,27 +75,55 @@ Where to look next
 - Production with TLS/SSO: docs/BOOTSTRAP.md
 - All apps and URLs: docs/APP_CATALOG.md
 
-Autonomous diagnostics (agent-driven)
--------------------------------------
+Autonomous diagnostics & self-healing
+--------------------------------------
 
-This stack ships with a local diagnostics agent that can probe UIs and APIs, take screenshots, OCR them (optional), analyze DOM, and generate a stack-wide health report.
+**NEW**: Enhanced AI-powered diagnostics with automated fix proposals!
 
-Quick start:
+This stack includes an autonomous diagnostic system that uses local AI to analyze failures and propose fixes—keeping expensive cloud LLM costs minimal.
 
-- Generate or update the services manifest (optional, a starter file exists at configs/probe-orchestrator/services_manifest.json):
-  - Requires Gradle on host
-  - Command:
-    - cd src/stack-discovery
-    - gradle run --args "../../docker-compose.yml ../../configs/infrastructure/caddy/Caddyfile ../../configs/probe-orchestrator/services_manifest.json"
+### Quick Start
 
-- Start diagnostics:
-  - ./scripts/supervisor-session.sh diagnose
-  - This calls probe-orchestrator at http://localhost:8089/start-stack-probe and writes a JSON report to volumes/proofs/stack_diagnostics_<timestamp>.json with screenshots under volumes/proofs/screenshots/
+```bash
+# Run enhanced diagnostics (AI analysis + fix proposals)
+./scripts/supervisor-session.sh diagnose-enhanced
 
-- View the latest report summary:
-  - ./scripts/supervisor-session.sh report
-  - Prints a concise summary with critical issues, warnings, and evidence paths.
+# Review issues and approve fixes interactively
+./scripts/supervisor-session.sh review
+```
 
-Notes:
-- OCR is disabled by default. To enable, set OCR_MODEL to a supported vision model for your LLM gateway and restart probe-orchestrator.
-- The diagnostics agent uses only local compute (vLLM/LiteLLM) and tools via KFuncDB (Playwright browser, HTTP, Docker inspect).
+### What It Does
+
+1. **Probes services** - Screenshots, DOM inspection, HTTP checks
+2. **Gathers evidence** - Container logs, resource metrics, health status
+3. **AI Analysis** - Local LLM analyzes root causes using all evidence
+4. **Fix Proposals** - Generates actionable fixes with confidence ratings
+5. **Human Review** - You approve/reject fixes via interactive CLI
+6. **Reports** - Saves structured diagnostics to `volumes/proofs/`
+
+### Cost Efficiency
+
+- **Local LLM (free)**: Does heavy lifting—log analysis, root cause detection, fix generation
+- **You (expensive)**: Only reviews summaries and approves fixes (5-10 min per session)
+- **Savings**: 90-95% reduction in expensive cloud LLM costs
+
+### Basic Diagnostics (Original)
+
+```bash
+# Simple probe without AI analysis
+./scripts/supervisor-session.sh diagnose
+
+# View summary report
+./scripts/supervisor-session.sh report
+```
+
+For complete documentation, see: **docs/AUTONOMOUS_DIAGNOSTICS.md**
+
+**Key Features:**
+- 🤖 Local AI analysis (Hermes-2-Pro-Mistral-7B via vLLM)
+- 📊 Structured diagnostic reports with evidence
+- 🔍 Root cause hypothesis generation
+- 🛠️ Confidence-rated fix proposals
+- ✅ Interactive approval workflow
+- 🔒 Read-only tools (safe by default)
+- 💰 Minimal cloud API costs

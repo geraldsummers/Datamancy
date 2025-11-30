@@ -1,3 +1,4 @@
+
 package org.example.host
 
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -8,8 +9,6 @@ import org.example.manifest.SemVer
 import org.example.manifest.VersionConstraint
 import org.example.util.Json
 import java.io.File
-import java.net.URL
-import java.net.URLClassLoader
 import java.util.jar.JarFile
 
 data class LoadedPlugin(
@@ -56,12 +55,10 @@ class PluginManager(private val config: HostConfig) {
             // Capabilities
             enforceCapabilities(config.capabilityPolicy, manifest.id, manifest.capabilities)
 
-            // Instantiate class
-            val urls: Array<URL> = arrayOf(jarFile.toURI().toURL())
-            val cl = URLClassLoader(urls, this::class.java.classLoader)
-            val clazz = Class.forName(manifest.implementation, true, cl)
-            val instance = clazz.getDeclaredConstructor().newInstance() as? Plugin
-                ?: throw IllegalStateException("Implementation ${'$'}{manifest.implementation} is not a Plugin")
+            // Instantiate via factory registry (no dynamic classloading/reflection)
+            val factory = PluginFactories.get(manifest.implementation)
+                ?: throw IllegalStateException("No factory registered for implementation: ${manifest.implementation}")
+            val instance = factory.invoke()
 
             val ctx = PluginContext(
                 hostVersion = config.hostVersion,
@@ -69,6 +66,7 @@ class PluginManager(private val config: HostConfig) {
                 config = config.config
             )
             instance.init(ctx)
+            val cl = this::class.java.classLoader
             plugins += LoadedPlugin(manifest, cl, instance)
         }
     }

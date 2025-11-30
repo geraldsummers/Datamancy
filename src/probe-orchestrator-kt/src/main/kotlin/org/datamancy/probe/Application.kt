@@ -3,6 +3,7 @@ package org.datamancy.probe
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -109,6 +110,38 @@ data class StackDiagnosticsReport(
     val degraded: Int,
     val failed: Int,
     val services: List<StackServiceReport>,
+)
+
+@Serializable
+data class FixProposal(
+    val action: String,
+    val confidence: String,
+    val reasoning: String,
+    val parameters: Map<String, String> = emptyMap()
+)
+
+@Serializable
+data class DiagnosticIssue(
+    val id: String,
+    val service: String,
+    val severity: String,
+    val status: String,
+    val evidence: List<String> = emptyList(),
+    val root_cause_hypothesis: String? = null,
+    val log_excerpt: String? = null,
+    val resource_metrics: Map<String, String>? = null,
+    val proposed_fixes: List<FixProposal> = emptyList()
+)
+
+@Serializable
+data class EnhancedDiagnosticsReport(
+    val generated_at: Long,
+    val report_id: String,
+    val summary: Map<String, Int>,
+    val issues: List<DiagnosticIssue>,
+    val automated_actions_safe: List<String> = emptyList(),
+    val requires_human_review: List<String> = emptyList(),
+    val base_report_path: String? = null
 )
 
 // Define tools in OpenAI function calling format
@@ -768,6 +801,13 @@ suspend fun runOne(client: HttpClient, serviceUrl: String): ProbeResult {
 fun main() {
     val port = 8089
     val client = HttpClient(CIO) {
+        install(HttpTimeout) {
+            // Global timeouts to prevent hanging requests (configurable via HTTP_TIMEOUT env, seconds)
+            val perRequest = HTTP_TIMEOUT_MS.toLong()
+            requestTimeoutMillis = perRequest
+            socketTimeoutMillis = perRequest
+            connectTimeoutMillis = 10_000
+        }
         install(ClientContentNegotiation) { json(json) }
     }
 
@@ -781,9 +821,11 @@ fun main() {
                 val req = call.receive<StartReq>()
                 val results = mutableListOf<ProbeResult>()
                 for (url in req.services) {
+                    println("[probe-orchestrator] Starting probe for: $url")
                     val r = runCatching { runOne(client, url) }.getOrElse {
                         ProbeResult(url, "failed", it.message ?: "error", null, null, null, null, emptyList())
                     }
+                    println("[probe-orchestrator] Probe finished for: $url -> ${r.status} (${r.reason})")
                     results.add(r)
                 }
                 val resp = StartResponse(
@@ -809,8 +851,213 @@ fun main() {
                 }
                 call.respond(report)
             }
+
+            // Enhanced diagnostics with fix proposals
+            post("/analyze-and-propose-fixes") {
+                val report = runCatching { runEnhancedDiagnostics(client) }.getOrElse {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (it.message ?: "error")))
+                    return@post
+                }
+                call.respond(report)
+            }
+
+            get("/analyze-and-propose-fixes") {
+                val report = runCatching { runEnhancedDiagnostics(client) }.getOrElse {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (it.message ?: "error")))
+                    return@get
+                }
+                call.respond(report)
+            }
         }
     }.start(wait = true)
+}
+
+suspend fun analyzeIssueAndProposeFixes(
+    client: HttpClient,
+    serviceName: String,
+    status: String,
+    probeResults: List<ProbeResult>,
+    containerInfo: JsonElement?
+): DiagnosticIssue {
+    // Collect evidence
+    val evidence = mutableListOf<String>()
+    val firstResult = probeResults.firstOrNull()
+
+    firstResult?.screenshot_path?.let { evidence.add("screenshot:$it") }
+    firstResult?.wellness_report?.let { evidence.add("wellness_report") }
+
+    // Get container logs via kfuncdb
+    val logs = try {
+        val logResult = callKfuncTool(
+            client,
+            "docker_logs",
+            buildJsonObject {
+                put("container", serviceName)
+                put("tail", 100)
+            }
+        )
+        logResult["logs"]?.jsonPrimitive?.contentOrNull?.takeLast(2000) ?: ""
+    } catch (e: Exception) {
+        "Failed to fetch logs: ${e.message}"
+    }
+
+    // Get resource stats via kfuncdb
+    val stats = try {
+        val statsResult = callKfuncTool(
+            client,
+            "docker_stats",
+            buildJsonObject { put("container", serviceName) }
+        )
+        mapOf(
+            "cpu" to (statsResult["cpu_percent"]?.jsonPrimitive?.contentOrNull ?: "N/A"),
+            "memory" to (statsResult["mem_usage"]?.jsonPrimitive?.contentOrNull ?: "N/A"),
+            "mem_percent" to (statsResult["mem_percent"]?.jsonPrimitive?.contentOrNull ?: "N/A")
+        )
+    } catch (e: Exception) {
+        mapOf("error" to "Failed to fetch stats")
+    }
+
+    // Build analysis prompt for LLM
+    val analysisPrompt = buildString {
+        append("DIAGNOSTIC ANALYSIS TASK\n\n")
+        append("Service: $serviceName\n")
+        append("Status: $status\n\n")
+
+        if (probeResults.isNotEmpty()) {
+            append("Probe Results:\n")
+            probeResults.forEach { result ->
+                append("- URL: ${result.service}\n")
+                append("  Status: ${result.status}\n")
+                append("  Reason: ${result.reason}\n")
+                result.ocr_text?.let { append("  OCR: ${it.take(300)}\n") }
+                result.dom_excerpt?.let { append("  DOM length: ${it.length} chars\n") }
+            }
+            append("\n")
+        }
+
+        append("Container Logs (last 100 lines):\n")
+        append(logs.takeLast(1500))
+        append("\n\n")
+
+        append("Resource Usage:\n")
+        stats.forEach { (k, v) -> append("$k: $v\n") }
+        append("\n")
+
+        append("""
+Your task: Analyze this service failure and provide structured recommendations.
+
+Respond with JSON in this exact format:
+{
+  "root_cause": "Brief hypothesis about what's wrong",
+  "severity": "critical|warning|info",
+  "fixes": [
+    {
+      "action": "restart|check_config|check_dependencies|scale_up|check_logs",
+      "confidence": "high|medium|low",
+      "reasoning": "Why this fix might help",
+      "parameters": {"key": "value"}
+    }
+  ]
+}
+
+Common failure patterns:
+- Container restarting/unhealthy: Often needs restart or dependency issue
+- High CPU/memory: May need scaling or resource limit adjustment
+- Connection errors in logs: Check network/dependencies
+- Application errors: Check config or logs for details
+
+Provide 1-3 most likely fixes ordered by confidence.
+        """.trimIndent())
+    }
+
+    // Call LLM for analysis
+    val llmPayload = buildJsonObject {
+        put("model", LLM_MODEL)
+        putJsonArray("messages") {
+            addJsonObject {
+                put("role", "user")
+                put("content", analysisPrompt)
+            }
+        }
+        put("temperature", 0.2)
+        put("max_tokens", 800)
+    }
+
+    val analysis = try {
+        val raw = client.post("$LLM_BASE_URL/chat/completions") {
+            contentType(ContentType.Application.Json)
+            header(HttpHeaders.Authorization, "Bearer $LLM_API_KEY")
+            setBody(llmPayload)
+        }.bodyAsText()
+
+        val resp = json.parseToJsonElement(raw).jsonObject
+        val choice = resp["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+        val msg = choice?.get("message")?.jsonObject
+        val content = msg?.get("content")?.jsonPrimitive?.content ?: "{}"
+
+        // Extract JSON from content (might be wrapped in markdown code blocks)
+        val jsonContent = if (content.contains("```json")) {
+            content.substringAfter("```json").substringBefore("```").trim()
+        } else if (content.contains("```")) {
+            content.substringAfter("```").substringBefore("```").trim()
+        } else {
+            content.trim()
+        }
+
+        json.parseToJsonElement(jsonContent).jsonObject
+    } catch (e: Exception) {
+        println("LLM analysis failed: ${e.message}")
+        buildJsonObject {
+            put("root_cause", "Analysis failed: ${e.message}")
+            put("severity", if (status == "failed") "critical" else "warning")
+            putJsonArray("fixes") {
+                addJsonObject {
+                    put("action", "check_logs")
+                    put("confidence", "medium")
+                    put("reasoning", "Manual log inspection recommended")
+                    putJsonObject("parameters") {}
+                }
+            }
+        }
+    }
+
+    // Parse LLM response into structured proposals
+    val fixes = try {
+        analysis["fixes"]?.jsonArray?.map { fixEl ->
+            val fixObj = fixEl.jsonObject
+            FixProposal(
+                action = fixObj["action"]?.jsonPrimitive?.content ?: "investigate",
+                confidence = fixObj["confidence"]?.jsonPrimitive?.content ?: "low",
+                reasoning = fixObj["reasoning"]?.jsonPrimitive?.content ?: "",
+                parameters = fixObj["parameters"]?.jsonObject?.mapValues {
+                    it.value.jsonPrimitive.content
+                } ?: emptyMap()
+            )
+        } ?: emptyList()
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    val rootCause = analysis["root_cause"]?.jsonPrimitive?.contentOrNull
+        ?: firstResult?.reason
+        ?: "Unknown issue"
+
+    val severity = analysis["severity"]?.jsonPrimitive?.contentOrNull
+        ?: if (status == "failed") "critical" else if (status == "degraded") "warning" else "info"
+
+    val issueId = "issue-${serviceName}-${Instant.now().toEpochMilli()}"
+
+    return DiagnosticIssue(
+        id = issueId,
+        service = serviceName,
+        severity = severity,
+        status = status,
+        evidence = evidence,
+        root_cause_hypothesis = rootCause,
+        log_excerpt = logs.takeLast(500),
+        resource_metrics = stats,
+        proposed_fixes = fixes
+    )
 }
 
 private suspend fun runStackProbe(client: HttpClient): JsonObject {
@@ -905,4 +1152,92 @@ private suspend fun runStackProbe(client: HttpClient): JsonObject {
         put("report_path", outFile.absolutePath)
         put("services", json.encodeToJsonElement(report.services))
     }
+}
+
+private suspend fun runEnhancedDiagnostics(client: HttpClient): EnhancedDiagnosticsReport {
+    // First run the basic stack probe
+    val baseReportJson = runStackProbe(client)
+    val baseReportPath = baseReportJson["report_path"]?.jsonPrimitive?.contentOrNull
+
+    // Parse the services from the base report
+    val servicesElement = baseReportJson["services"]
+    val services = try {
+        json.decodeFromJsonElement<List<StackServiceReport>>(servicesElement!!)
+    } catch (e: Exception) {
+        println("Failed to parse services: ${e.message}")
+        emptyList()
+    }
+
+    val issues = mutableListOf<DiagnosticIssue>()
+    val safeActions = mutableListOf<String>()
+    val needsReview = mutableListOf<String>()
+
+    // Analyze each failed or degraded service
+    for (svc in services) {
+        if (svc.overall_status == "ok") continue
+
+        println("Analyzing ${svc.name} (${svc.overall_status})...")
+
+        val issue = try {
+            analyzeIssueAndProposeFixes(
+                client,
+                svc.name,
+                svc.overall_status,
+                svc.results,
+                svc.container_info
+            )
+        } catch (e: Exception) {
+            println("Failed to analyze ${svc.name}: ${e.message}")
+            DiagnosticIssue(
+                id = "issue-${svc.name}-error",
+                service = svc.name,
+                severity = "warning",
+                status = svc.overall_status,
+                evidence = emptyList(),
+                root_cause_hypothesis = "Analysis failed: ${e.message}",
+                proposed_fixes = emptyList()
+            )
+        }
+
+        issues.add(issue)
+
+        // Categorize fixes
+        for (fix in issue.proposed_fixes) {
+            val fixDesc = "${issue.service}: ${fix.action}"
+            when {
+                fix.action == "restart" && fix.confidence == "high" -> safeActions.add(fixDesc)
+                fix.action == "check_logs" -> safeActions.add(fixDesc)
+                else -> needsReview.add(fixDesc)
+            }
+        }
+    }
+
+    val reportId = "enhanced-${Instant.now().epochSecond}"
+    val report = EnhancedDiagnosticsReport(
+        generated_at = Instant.now().toEpochMilli(),
+        report_id = reportId,
+        summary = mapOf(
+            "total" to services.size,
+            "healthy" to services.count { it.overall_status == "ok" },
+            "degraded" to services.count { it.overall_status == "degraded" },
+            "failed" to services.count { it.overall_status == "failed" },
+            "issues" to issues.size,
+            "safe_actions" to safeActions.size,
+            "needs_review" to needsReview.size
+        ),
+        issues = issues,
+        automated_actions_safe = safeActions,
+        requires_human_review = needsReview,
+        base_report_path = baseReportPath
+    )
+
+    // Save enhanced report
+    val outName = "enhanced_diagnostics_${Instant.now().epochSecond}.json"
+    val outFile = File(PROOFS_DIR, outName)
+    outFile.parentFile?.mkdirs()
+    outFile.writeText(json.encodeToString(EnhancedDiagnosticsReport.serializer(), report))
+
+    println("Enhanced diagnostic report saved: ${outFile.absolutePath}")
+
+    return report
 }

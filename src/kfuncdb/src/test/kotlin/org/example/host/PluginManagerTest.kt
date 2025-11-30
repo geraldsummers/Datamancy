@@ -41,6 +41,9 @@ class PluginManagerTest {
 
     @Test
     fun `loads plugin successfully and calls init and shutdown`() {
+        // Register factory for TestPlugin implementation
+        PluginFactories.clear()
+        PluginFactories.register(TestPlugin::class.qualifiedName!!) { TestPlugin() }
         val manifest = PluginManifest(
             id = "ok",
             version = "0.1.0",
@@ -62,6 +65,8 @@ class PluginManagerTest {
 
     @Test
     fun `rejects due to apiVersion mismatch`() {
+        PluginFactories.clear()
+        PluginFactories.register(TestPlugin::class.qualifiedName!!) { TestPlugin() }
         val manifest = PluginManifest(
             id = "api-mismatch",
             version = "0.1.0",
@@ -78,6 +83,8 @@ class PluginManagerTest {
 
     @Test
     fun `rejects due to requires host constraint`() {
+        PluginFactories.clear()
+        PluginFactories.register(TestPlugin::class.qualifiedName!!) { TestPlugin() }
         val manifest = PluginManifest(
             id = "host-req",
             version = "0.1.0",
@@ -94,6 +101,8 @@ class PluginManagerTest {
 
     @Test
     fun `rejects due to disallowed capabilities`() {
+        PluginFactories.clear()
+        PluginFactories.register(TestPlugin::class.qualifiedName!!) { TestPlugin() }
         val manifest = PluginManifest(
             id = "cap-bad",
             version = "0.1.0",

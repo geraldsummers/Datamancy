@@ -1533,6 +1533,8 @@ services:
       - bootstrap
       - applications
     user: "1000:1000"
+    group_add:
+      - "985"  # docker group on host for socket access
     depends_on:
       authelia:
         condition: service_healthy
