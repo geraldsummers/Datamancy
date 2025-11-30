@@ -5,7 +5,6 @@
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="gradleJvm" value="corretto-24" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
@@ -15,21 +14,6 @@
             <option value="$PROJECT_DIR$/src/speech-gateway" />
             <option value="$PROJECT_DIR$/src/stack-discovery" />
             <option value="$PROJECT_DIR$/src/vllm-router" />
-          </set>
-        </option>
-      </GradleProjectSettings>
-      <GradleProjectSettings>
-        <option name="externalProjectPath" value="$PROJECT_DIR$/src" />
-        <option name="gradleJvm" value="corretto-24" />
-        <option name="modules">
-          <set>
-            <option value="$PROJECT_DIR$/src" />
-            <option value="$PROJECT_DIR$/src/src/agent-tool-server" />
-            <option value="$PROJECT_DIR$/src/src/playwright-controller" />
-            <option value="$PROJECT_DIR$/src/src/probe-orchestrator" />
-            <option value="$PROJECT_DIR$/src/src/speech-gateway" />
-            <option value="$PROJECT_DIR$/src/src/stack-discovery" />
-            <option value="$PROJECT_DIR$/src/src/vllm-router" />
           </set>
         </option>
       </GradleProjectSettings>
