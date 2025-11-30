@@ -34,11 +34,22 @@ kotlin {
     jvmToolchain(21)
 }
 
-tasks.withType<Jar> {
-    manifest {
-        attributes["Main-Class"] = "org.datamancy.speech.ApplicationKt"
-    }
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    from(configurations.named("runtimeClasspath").get().filter { it.name.endsWith(".jar") }.map { zipTree(it) })
+// Configure Shadow to produce the runnable fat JAR we ship
+val shadowJarTask = tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
     archiveFileName.set("ktspeechgateway.jar")
 }
+
+// Keep the plain jar minimal (no manual fattening) and only set manifest
+tasks.withType<Jar> {
+    manifest { attributes["Main-Class"] = "org.datamancy.speech.ApplicationKt" }
+}
+
+// Ensure application plugin artifacts use the shadow jar and run after it
+tasks.named<CreateStartScripts>("startScripts") {
+    dependsOn(shadowJarTask)
+    // Use the shadow jar as the only classpath entry for the start script
+    classpath = files(shadowJarTask.get().archiveFile)
+}
+
+tasks.named<Tar>("distTar") { dependsOn(shadowJarTask) }
+tasks.named<Zip>("distZip") { dependsOn(shadowJarTask) }

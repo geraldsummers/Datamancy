@@ -127,3 +127,50 @@ For complete documentation, see: **docs/AUTONOMOUS_DIAGNOSTICS.md**
 - ✅ Interactive approval workflow
 - 🔒 Read-only tools (safe by default)
 - 💰 Minimal cloud API costs
+
+Custom programs in this repository
+---------------------------------
+
+The stack includes several custom-built services that glue the platform together and provide functionality not available off-the-shelf. This section documents the purpose of each program so you can quickly understand where it fits and when to use or troubleshoot it.
+
+- agent-tool-server (Kotlin/Gradle)
+  - Purpose: A lightweight tool execution host that exposes curated “tools” to agents/LLMs with strict capability policies. It provides a registry of tools, parameter specs, and HTTP endpoints to invoke them safely from other services.
+  - Role in stack: Backing service for function/tool orchestration used by diagnostics and future agent workflows. It centralizes tool metadata and execution so policies and observability are consistent.
+  - Highlights: Explicit tool registration (no reflection), capability policy model, plugins for core host tools and LLM completions.
+
+- vllm-router (Kotlin/Gradle)
+  - Purpose: An OpenAI-compatible proxy in front of vLLM that normalizes routes and responses, provides health endpoints, and exposes a stable API base to the rest of the stack.
+  - Role in stack: Default upstream for LiteLLM and any client expecting OpenAI-like endpoints. It helps decouple application clients from raw vLLM specifics.
+  - Highlights: Healthcheck at /health, OpenAI-style endpoints under /v1, used by Caddy for external access and by internal services (e.g., LiteLLM) via http://vllm-router:8010.
+
+- probe-orchestrator (Kotlin/Gradle)
+  - Purpose: Coordinates active probes across the stack (HTTP checks, UI screenshots, DOM inspection, log scraping), aggregates evidence, and drives AI-based analysis for the autonomous diagnostics feature.
+  - Role in stack: Orchestrates diagnostic sessions, stores structured results under volumes/proofs, and triggers suggested fixes for operator review.
+  - Highlights: Works with the Playwright controller and service manifests to build a full-surface health picture of running services.
+
+- playwright-controller (Kotlin/Gradle)
+  - Purpose: A controller service that manages browser automation tasks used in diagnostics (page navigation, screenshots, DOM capture) via Playwright-capable executors.
+  - Role in stack: Supplies the visual and structural evidence (PNG/HTML) referenced by diagnostic reports and used by the local LLM during analysis.
+  - Highlights: Designed to run headless in containers and integrate with orchestrated probe runs.
+
+- speech-gateway (Kotlin/Gradle)
+  - Purpose: A gateway for speech capabilities (STT/TTS) that presents a simple API to the stack while brokering requests to local engines or model backends.
+  - Role in stack: Enables voice features in UI and agents without coupling them to any single speech implementation.
+  - Highlights: Consistent, secure interface; intended to be extended with different speech providers.
+
+- stack-discovery (Kotlin/Gradle)
+  - Purpose: Discovers services and their endpoints from the running stack (compose config, Caddy routes, health URLs) and produces a manifest consumed by diagnostics and tooling.
+  - Role in stack: Source of truth for “what should be running where,” powering checks and dashboards.
+  - Highlights: Helps keep probes, routers, and UIs configuration-light by generating up-to-date service metadata.
+
+- JupyterHub customizations (Python config)
+  - Purpose: Repository-local configuration for JupyterHub to integrate with the platform’s SSO/TLS and routing conventions.
+  - Role in stack: Provides a secured, SSO-gated notebook environment aligned with the same Caddy/Authelia front door as other apps.
+  - Highlights: See src/jupyterhub/jupyterhub_config.py for details.
+
+Where to learn more about each program
+-------------------------------------
+
+- vllm-router has a focused README with usage examples: src/vllm-router/README.md
+- The docker-compose.yml and docs/APP_CATALOG.md show how each service is built, wired, and exposed.
+- The autonomous diagnostics guide (docs/AUTONOMOUS_DIAGNOSTICS.md) explains how probe-orchestrator, Playwright, and local LLMs work together.
