@@ -394,6 +394,7 @@ services:
     networks:
       - backend
       - frontend
+      - database
     profiles:
       - bootstrap
       - infrastructure
@@ -401,6 +402,8 @@ services:
       ldap:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     volumes:
       - ${VOLUMES_ROOT}/authelia:/config
@@ -414,6 +417,12 @@ services:
       # Consolidated: use stack-wide admin password for LDAP bind
       - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${STACK_ADMIN_PASSWORD}
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET:-}
+      # PostgreSQL backend configuration
+      - AUTHELIA_STORAGE_POSTGRES_HOST=postgres
+      - AUTHELIA_STORAGE_POSTGRES_PORT=5432
+      - AUTHELIA_STORAGE_POSTGRES_DATABASE=authelia
+      - AUTHELIA_STORAGE_POSTGRES_USERNAME=authelia
+      - AUTHELIA_STORAGE_POSTGRES_PASSWORD=${AUTHELIA_DB_PASSWORD}
       # OIDC private key is configured in the jwks section of configuration.yml
       # - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY:-}
     healthcheck:
@@ -465,6 +474,7 @@ services:
       - PLANKA_DB_PASSWORD=${PLANKA_DB_PASSWORD}
       - SYNAPSE_DB_PASSWORD=${SYNAPSE_DB_PASSWORD}
       - MAILU_DB_PASSWORD=${MAILU_DB_PASSWORD}
+      - AUTHELIA_DB_PASSWORD=${AUTHELIA_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro

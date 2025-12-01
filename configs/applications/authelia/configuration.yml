@@ -99,8 +99,14 @@ regulation:
 
 storage:
   encryption_key: a_very_important_secret # Will be overridden by env var
-  local:
-    path: /config/db.sqlite3
+  postgres:
+    host: postgres
+    port: 5432
+    database: authelia
+    schema: public
+    username: authelia
+    # Password is provided via AUTHELIA_STORAGE_POSTGRES_PASSWORD env var
+    timeout: 5s
 
 notifier:
   disable_startup_check: true

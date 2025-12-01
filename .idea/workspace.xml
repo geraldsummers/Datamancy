@@ -6,17 +6,9 @@
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="swap to valkey and bookstack (more AGPLy)">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/vectors/collections.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/vectors/collections.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/linux_debian.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/linux_debian.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/macro.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/macro.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/wiki.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/wiki.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/stackexchange_ndjson_to_qdrant.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/torrents_csv_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/torrents_csv_to_qdrant.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -317,7 +309,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764580951629</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="swap to valkey and bookstack (more AGPLy)">
+      <option name="closed" value="true" />
+      <created>1764587362669</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1764587362669</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

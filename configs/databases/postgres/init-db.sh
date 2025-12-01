@@ -9,6 +9,7 @@ set -e
 PLANKA_DB_PASSWORD="${PLANKA_DB_PASSWORD:-changeme_planka_db}"
 SYNAPSE_DB_PASSWORD="${SYNAPSE_DB_PASSWORD:-changeme_synapse_db}"
 MAILU_DB_PASSWORD="${MAILU_DB_PASSWORD:-changeme_mailu_db}"
+AUTHELIA_DB_PASSWORD="${AUTHELIA_DB_PASSWORD:-changeme_authelia_db}"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create users with passwords from environment (must be created before databases for ownership)
@@ -32,6 +33,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         ELSE
             ALTER USER mailu WITH PASSWORD '$MAILU_DB_PASSWORD';
         END IF;
+
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authelia') THEN
+            CREATE USER authelia WITH PASSWORD '$AUTHELIA_DB_PASSWORD';
+        ELSE
+            ALTER USER authelia WITH PASSWORD '$AUTHELIA_DB_PASSWORD';
+        END IF;
     END
     \$\$;
 
@@ -51,18 +58,23 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE mailu OWNER mailu'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mailu')\gexec
 
+    SELECT 'CREATE DATABASE authelia OWNER authelia'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'authelia')\gexec
+
     -- Grant privileges (these are idempotent)
     GRANT ALL PRIVILEGES ON DATABASE planka TO planka;
     GRANT ALL PRIVILEGES ON DATABASE langgraph TO postgres;
     GRANT ALL PRIVILEGES ON DATABASE litellm TO postgres;
     GRANT ALL PRIVILEGES ON DATABASE synapse TO synapse;
     GRANT ALL PRIVILEGES ON DATABASE mailu TO mailu;
+    GRANT ALL PRIVILEGES ON DATABASE authelia TO authelia;
 EOSQL
 
 # Grant schema privileges (PostgreSQL 15+)
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "planka" -c "GRANT ALL ON SCHEMA public TO planka;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "synapse" -c "GRANT ALL ON SCHEMA public TO synapse;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -c "GRANT ALL ON SCHEMA public TO mailu;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "authelia" -c "GRANT ALL ON SCHEMA public TO authelia;"
 
 # Create Mailu application schema
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -f /docker-entrypoint-initdb.d/init-mailu-schema.sql
