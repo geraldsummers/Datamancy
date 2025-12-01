@@ -5,49 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="kotlin script vincemcmahon.gif">
-      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AGENT_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AGENT_GUIDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/API.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/API.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DEPLOYMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEPLOYMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEVELOPMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.secrets.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.secrets.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/init-secrets.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/configure-environment.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/HttpServer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/HttpServer.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/OpenAIProxy.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/OpenAIProxy.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/jupyterhub/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/jupyterhub/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kotlin-script-runner/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator/src/main/kotlin/org/datamancy/probe/Probe-Orchestrator.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/src/main/kotlin/org/datamancy/probe/Probe-Orchestrator.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/speech-gateway/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/stack-discovery/src/main/kotlin/org/datamancy/stackdiscovery/StackDiscovery.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/stack-discovery/src/main/kotlin/org/datamancy/stackdiscovery/StackDiscovery.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/vllm-router/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/tests/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/capture-screenshots.sh" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/capture-screenshots.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-01-kfuncdb-tools.sh" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-01-kfuncdb-tools.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-02-single-probe.sh" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-02-single-probe.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-03-screenshot-capture.sh" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-03-screenshot-capture.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-04-container-diagnostics.sh" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-04-container-diagnostics.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-05-llm-analysis.sh" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-05-llm-analysis.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-06-full-apps-audit.sh" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-06-full-apps-audit.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/playwright-controller/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -324,7 +286,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764555647881</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="kotlin script vincemcmahon.gif">
+      <option name="closed" value="true" />
+      <created>1764561804819</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1764561804819</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

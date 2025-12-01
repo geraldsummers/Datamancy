@@ -1,0 +1,8 @@
+volumes/
+.git/
+.idea/
+*.log
+*.tmp
+.env.local
+.env.*.local
+node_modules/

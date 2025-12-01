@@ -34,7 +34,7 @@ kotlin {
 }
 
 application {
-    mainClass.set("org.datamancy.playwright.AppKt")
+    mainClass.set("org.datamancy.playwright.PlaywrightControllerKt")
 }
 
 tasks.withType<Jar> {
