@@ -186,7 +186,7 @@ docker compose --profile applications up -d
 
 | Service | Port | Description |
 |---------|------|-------------|
-| **kfuncdb** | 8081 | Plugin-based tool server (browser, SSH, Docker tools) |
+| **agent-tool-server** | 8081 | Plugin-based tool server (browser, SSH, Docker tools) |
 | **probe-orchestrator** | 8089 | Autonomous health monitoring & diagnostics |
 | **speech-gateway** | 8091 | Audio processing (Whisper ASR + Piper TTS) |
 | **vllm-router** | 8010 | Intelligent vLLM model memory management |
@@ -325,7 +325,7 @@ curl -X POST http://probe-orchestrator:8089/execute-fix \
 
 ```bash
 # Run diagnostic test suite
-./tests/diagnostic/test-01-kfuncdb-tools.sh
+./tests/diagnostic/test-01-agent-tool-server-tools.sh
 ./tests/diagnostic/test-02-single-probe.sh
 ./tests/diagnostic/test-03-screenshot-capture.sh
 

@@ -1,17 +1,20 @@
 # Build stage
-FROM gradle:8.5-jdk21 AS builder
-
-WORKDIR /build
-COPY build.gradle.kts settings.gradle.kts ./
-COPY src ./src
-
-RUN gradle clean shadowJar --no-daemon
+FROM gradle:8.10.2-jdk21-alpine AS build
+WORKDIR /workspace
+# Copy gradle wrapper and configuration
+COPY gradlew gradlew.bat ./
+COPY gradle ./gradle
+COPY build.gradle.kts settings.gradle.kts gradle.properties* ./
+# Copy probe-orchestrator source
+COPY src/probe-orchestrator ./src/probe-orchestrator
+# Build fat jar
+RUN ./gradlew --no-daemon :probe-orchestrator:shadowJar
 
 # Runtime stage
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
-COPY --from=builder /build/build/libs/probe-orchestrator-kt.jar app.jar
+COPY --from=build /workspace/src/probe-orchestrator/build/libs/*-all.jar app.jar
 
 EXPOSE 8089
 

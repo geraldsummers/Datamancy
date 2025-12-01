@@ -18,7 +18,7 @@ fun main() {
     val hostVersion = "1.0.0"
     val apiVersion = "1.0.0"
 
-    val allowedCapsEnv = System.getenv("KFUNCDB_ALLOW_CAPS")?.trim().orEmpty()
+    val allowedCapsEnv = System.getenv("TOOLSERVER_ALLOW_CAPS")?.trim().orEmpty()
     val allowedCaps: Set<String> = if (allowedCapsEnv.isBlank()) emptySet() else allowedCapsEnv
         .split(',')
         .map { it.trim() }
@@ -71,7 +71,7 @@ fun main() {
     }
 
     // Additionally load external plugins from pluginsDir using PluginManager (factory-based, no reflection for instantiation)
-    val pluginsDir = System.getenv("KFUNCDB_PLUGINS_DIR")?.takeIf { it.isNotBlank() } ?: "plugins"
+    val pluginsDir = System.getenv("TOOLSERVER_PLUGINS_DIR")?.takeIf { it.isNotBlank() } ?: "plugins"
     val hostConfig = HostConfig(
         hostVersion = hostVersion,
         apiVersion = apiVersion,
@@ -89,7 +89,7 @@ fun main() {
         println("Loaded external plugin: ${'$'}{loaded.manifest.id} v${'$'}{loaded.manifest.version}")
     }
 
-    val port = System.getenv("KFUNCDB_PORT")?.toIntOrNull() ?: 8081
+    val port = System.getenv("TOOLSERVER_PORT")?.toIntOrNull() ?: 8081
     val server = LlmHttpServer(port = port, tools = registry)
     server.start()
 
@@ -99,5 +99,5 @@ fun main() {
         loadedPlugins.forEach { it.shutdown() }
     })
 
-    println("Host started. HTTP endpoints:\n - GET  http://kfuncdb:$port/tools\n - POST http://kfuncdb:$port/call-tool")
+    println("Host started. HTTP endpoints:\n - GET  http://agent-tool-server:$port/tools\n - POST http://agent-tool-server:$port/call-tool")
 }

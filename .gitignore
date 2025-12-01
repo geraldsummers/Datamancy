@@ -39,3 +39,5 @@ logs/
 
 build/
 downloads/
+isofiles/
+id_ed*

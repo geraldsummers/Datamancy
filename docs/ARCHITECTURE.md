@@ -476,7 +476,7 @@ interface Plugin {
 }
 
 // Capability enforcement
-val allowedCaps = System.getenv("KFUNCDB_ALLOW_CAPS")
+val allowedCaps = System.getenv("TOOLSERVER_ALLOW_CAPS")
     .split(',')
     .toSet()
 
@@ -542,7 +542,7 @@ repeat(MAX_STEPS) {
 
     when (toolCall.name) {
         "browser_screenshot" -> {
-            val screenshot = kfuncdb.call("browser_screenshot", args)
+            val screenshot = agent-tool-server.call("browser_screenshot", args)
             val ocrText = ocrModel.extract(screenshot)
             messages.add(toolResponse(ocrText))
         }
@@ -593,7 +593,7 @@ class ProbeOrchestrator {
 ### Capability-Based Access (KFuncDB)
 
 ```bash
-KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.write,host.network.http
+TOOLSERVER_ALLOW_CAPS=host.shell.read,host.docker.write,host.network.http
 ```
 
 Only plugins declaring these capabilities in their manifest are loaded.

@@ -199,14 +199,14 @@ api.litellm.project-saturn.com {
     reverse_proxy litellm:4000
 }
 
-# kfuncdb (protected)
-kfuncdb.project-saturn.com {
+# agent-tool-server (protected)
+agent-tool-server.project-saturn.com {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
             copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
         }
-        reverse_proxy kfuncdb:8081
+        reverse_proxy agent-tool-server:8081
     }
 }
 

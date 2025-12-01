@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# Test 03: Direct screenshot capture via kfuncdb
+# Test 03: Direct screenshot capture via agent-tool-server
 set -euo pipefail
 
-TARGET_URL="${1:-http://kfuncdb:8081/healthz}"
+TARGET_URL="${1:-http://agent-tool-server:8081/healthz}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "TEST 03: Screenshot Capture (Direct Tool Call)"
 echo "Target: $TARGET_URL"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Check kfuncdb
+# Check agent-tool-server
 echo ""
-echo "Step 1: Verifying kfuncdb availability..."
-if ! docker ps --format '{{.Names}}' | grep -q '^kfuncdb$'; then
-    echo "❌ FAIL: kfuncdb not running"
+echo "Step 1: Verifying agent-tool-server availability..."
+if ! docker ps --format '{{.Names}}' | grep -q '^agent-tool-server$'; then
+    echo "❌ FAIL: agent-tool-server not running"
     exit 1
 fi
-echo "✅ kfuncdb is running"
+echo "✅ agent-tool-server is running"
 
 # Check if browser_screenshot tool exists
 echo ""
 echo "Step 2: Checking for browser_screenshot tool..."
-if docker exec kfuncdb wget -qO- http://localhost:8081/tools 2>/dev/null | jq -e '.[] | select(.name == "browser_screenshot")' > /dev/null; then
+if docker exec agent-tool-server wget -qO- http://localhost:8081/tools 2>/dev/null | jq -e '.[] | select(.name == "browser_screenshot")' > /dev/null; then
     echo "✅ browser_screenshot tool is available"
 else
     echo "❌ FAIL: browser_screenshot tool not found"
@@ -35,7 +35,7 @@ echo "Payload: {\"name\": \"browser_screenshot\", \"args\": {\"url\": \"$TARGET_
 
 START_TIME=$(date +%s)
 
-RESULT=$(docker exec kfuncdb wget -qO- --timeout=60 \
+RESULT=$(docker exec agent-tool-server wget -qO- --timeout=60 \
     --post-data="{\"name\":\"browser_screenshot\",\"args\":{\"url\":\"$TARGET_URL\"}}" \
     --header="Content-Type: application/json" \
     http://localhost:8081/call-tool 2>&1)

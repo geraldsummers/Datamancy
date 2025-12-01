@@ -65,7 +65,7 @@ For local development:
 127.0.0.1 open-webui.stack.local
 127.0.0.1 grafana.stack.local
 127.0.0.1 portainer.stack.local
-127.0.0.1 kfuncdb.stack.local
+127.0.0.1 agent-tool-server.stack.local
 ```
 
 For production, configure DNS:
@@ -515,7 +515,7 @@ curl http://localhost:9000/api/system/status  # Portainer
 
 SERVICES=(
   "authelia:9091/api/health"
-  "kfuncdb:8081/tools"
+  "agent-tool-server:8081/tools"
   "probe-orchestrator:8089/healthz"
   "litellm:4000/health"
   "open-webui:8080/health"

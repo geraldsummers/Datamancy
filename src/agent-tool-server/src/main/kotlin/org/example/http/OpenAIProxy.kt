@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets
 import java.time.Duration
 
 /**
- * OpenAI-compatible proxy that auto-injects kfuncdb tools into completion requests
+ * OpenAI-compatible proxy that auto-injects agent-tool-server tools into completion requests
  * and handles tool execution.
  */
 class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
@@ -40,7 +40,7 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
             // Get available tools from registry
             val kfuncTools = tools.listTools()
 
-            // Transform kfuncdb tools to OpenAI format
+            // Transform agent-tool-server tools to OpenAI format
             val openaiTools = Json.mapper.createArrayNode()
             kfuncTools.forEach { toolDef ->
                 openaiTools.addObject().apply {
@@ -105,7 +105,7 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
                             Json.mapper.createObjectNode().put("error", "invalid_args")
                         }
 
-                        // Execute via kfuncdb
+                        // Execute via agent-tool-server
                         val result = try {
                             tools.invoke(functionName, functionArgs)
                         } catch (e: Exception) {

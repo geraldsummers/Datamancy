@@ -9,7 +9,7 @@ tests/
 ├── README.md                    # This file
 └── diagnostic/                  # Autonomous diagnostic system tests
     ├── README.md                # Detailed testing guide
-    ├── test-01-kfuncdb-tools.sh
+    ├── test-01-agent-tool-server-tools.sh
     ├── test-02-single-probe.sh
     ├── test-03-screenshot-capture.sh
     ├── test-04-container-diagnostics.sh
@@ -26,7 +26,7 @@ tests/
 ### Run Individual Test Suites
 ```bash
 # Diagnostic system tests (granular, with logging)
-./tests/diagnostic/test-01-kfuncdb-tools.sh
+./tests/diagnostic/test-01-agent-tool-server-tools.sh
 ./tests/diagnostic/test-02-single-probe.sh
 # ... etc
 ```
@@ -38,7 +38,7 @@ tests/
 Tests for the autonomous diagnostic and repair system that monitors stack health.
 
 **What it tests**:
-- Tool availability (kfuncdb plugins)
+- Tool availability (agent-tool-server plugins)
 - Service probing (HTTP checks, screenshots, DOM)
 - Container diagnostics (logs, stats, inspect)
 - LLM-powered root cause analysis
@@ -46,7 +46,7 @@ Tests for the autonomous diagnostic and repair system that monitors stack health
 
 **Prerequisites**:
 ```bash
-docker compose --profile bootstrap up -d kfuncdb litellm probe-orchestrator playwright
+docker compose --profile bootstrap up -d agent-tool-server litellm probe-orchestrator playwright
 ```
 
 **Documentation**: See [diagnostic/README.md](diagnostic/README.md)

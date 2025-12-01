@@ -279,7 +279,7 @@ services:
           - portainer.${DOMAIN}
           - mail.${DOMAIN}
           - browserless.${DOMAIN}
-          - kfuncdb.${DOMAIN}
+          - agent-tool-server.${DOMAIN}
           - lam.${DOMAIN}
     ports:
       - "80:80"
@@ -881,26 +881,6 @@ services:
       retries: 3
       start_period: 10s
 
-  portainer-agent:
-    image: portainer/agent:latest
-    container_name: portainer-agent
-    restart: unless-stopped
-    profiles:
-      - bootstrap
-      - infrastructure
-    networks:
-      - backend
-    volumes:
-      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
-      - /var/lib/docker/volumes:/var/lib/docker/volumes
-    healthcheck:
-      # Basic liveness check: ensure shell executes
-      test: ["CMD", "sh", "-c", "echo ok"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
@@ -912,18 +892,18 @@ services:
       - backend
       - frontend
     depends_on:
-      portainer-agent:
-        condition: service_started
       authelia:
         condition: service_healthy
     volumes:
       - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/api/system/status"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 20s
+
 
   grafana:
     image: grafana/grafana:11.6.7
@@ -1372,8 +1352,7 @@ services:
 
   jupyterhub:
     build:
-      context: src/jupyterhub
-      dockerfile: Dockerfile
+      dockerfile: ./src/jupyterhub/Dockerfile
     container_name: jupyterhub
     restart: unless-stopped
     profiles:
@@ -1467,7 +1446,8 @@ services:
       start_period: 2m
 
   vllm-router:
-    build: ./src/vllm-router
+    build:
+      dockerfile: ./src/vllm-router/Dockerfile
     container_name: vllm-router
     restart: unless-stopped
     networks:
@@ -1544,11 +1524,10 @@ services:
       start_period: 15s
 
 
-  kfuncdb:
+  agent-tool-server:
     build:
-      context: .
-      dockerfile: src/kfuncdb/Dockerfile
-    container_name: kfuncdb
+      dockerfile: ./src/agent-tool-server/Dockerfile
+    container_name: agent-tool-server
     restart: unless-stopped
     networks:
       - backend
@@ -1567,21 +1546,21 @@ services:
       litellm:
         condition: service_healthy
     environment:
-      - KFUNCDB_PORT=8081
-      - KFUNCDB_PLUGINS_DIR=/app/plugins
-      - KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.write,host.docker.inspect,host.network.http,host.network.ssh
+      - TOOLSERVER_PORT=8081
+      - TOOLSERVER_PLUGINS_DIR=/app/plugins
+      - TOOLSERVER_ALLOW_CAPS=host.shell.read,host.docker.write,host.docker.inspect,host.network.http,host.network.ssh
       # SSH to host via forced-command wrapper (see scripts)
-      - KFUNCDB_SSH_HOST=${KFUNCDB_SSH_HOST:-host.docker.internal}
-      - KFUNCDB_SSH_USER=${KFUNCDB_SSH_USER:-stackops}
-      - KFUNCDB_SSH_KEY_PATH=/app/keys/stackops_ed25519
-      - KFUNCDB_SSH_TIMEOUT_MS=20000
+      - TOOLSERVER_SSH_HOST=${TOOLSERVER_SSH_HOST:-host.docker.internal}
+      - TOOLSERVER_SSH_USER=${TOOLSERVER_SSH_USER:-stackops}
+      - TOOLSERVER_SSH_KEY_PATH=/app/keys/stackops_ed25519
+      - TOOLSERVER_SSH_TIMEOUT_MS=20000
       # Browser service timeouts (login operations need more time)
-      - KFUNCDB_BROWSER_HTTP_TIMEOUT_MS=90000
-      - KFUNCDB_BROWSER_URL=http://playwright:3000
-      - KFUNCDB_SCREENSHOTS_DIR=/app/proofs/screenshots
-      - KFUNCDB_DEBUG=true
+      - TOOLSERVER_BROWSER_HTTP_TIMEOUT_MS=90000
+      - TOOLSERVER_BROWSER_URL=http://playwright:3000
+      - TOOLSERVER_SCREENSHOTS_DIR=/app/proofs/screenshots
+      - TOOLSERVER_DEBUG=true
       # Browser service base URL (Playwright with Firefox)
-      - KFUNCDB_BROWSERLESS_URL=http://playwright:3000
+      - TOOLSERVER_BROWSERLESS_URL=http://playwright:3000
       # LiteLLM connection for LLM completions
       - LITELLM_BASE_URL=http://litellm:4000
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
@@ -1600,7 +1579,8 @@ services:
 
 
   probe-orchestrator:
-    build: ./src/probe-orchestrator
+    build:
+      dockerfile: ./src/probe-orchestrator/Dockerfile
     container_name: probe-orchestrator
     restart: unless-stopped
     networks:
@@ -1609,7 +1589,7 @@ services:
       - bootstrap
       - applications
     depends_on:
-      kfuncdb:
+      agent-tool-server:
         condition: service_healthy
       litellm:
         condition: service_healthy
@@ -1622,7 +1602,7 @@ services:
       - LLM_MODEL=${LLM_MODEL:-hermes-2-pro-mistral-7b}
       # Optional: OCR via LLM vision model (disabled by default)
       - OCR_MODEL=${OCR_MODEL:-none}
-      - KFUN_URL=${KFUN_URL:-http://kfuncdb:8081}
+      - KFUN_URL=${KFUN_URL:-http://agent-tool-server:8081}
       - PROOFS_DIR=/proofs
       - SERVICES_MANIFEST_PATH=/app/configs/probe-orchestrator/services_manifest.json
       - MAX_STEPS=${MAX_STEPS:-8}
@@ -1639,7 +1619,8 @@ services:
 
   # Kotlin speech gateway service (Whisper ASR + Piper TTS proxy)
   ktspeechgateway:
-    build: ./src/speech-gateway
+    build:
+      dockerfile: ./src/speech-gateway/Dockerfile
     container_name: ktspeechgateway
     restart: unless-stopped
     networks:
@@ -1685,7 +1666,7 @@ services:
 
   # Piper TTS HTTP service
   piper:
-    image: rhasspy/piper:latest
+    image: rhasspy/wyoming-piper
     container_name: piper
     restart: unless-stopped
     networks:
@@ -1761,7 +1742,8 @@ services:
       start_period: 30s
 
   vector-bootstrap:
-    build: ./src/kotlin-script-runner
+    build:
+      dockerfile: ./src/debiankotlin/Dockerfile
     container_name: vector-bootstrap
     profiles:
       - bootstrap_vector_dbs
@@ -1825,7 +1807,8 @@ services:
 
   # Headless browser for automation - Playwright with Firefox
   playwright:
-    build: ./src/playwright-service
+    build:
+      dockerfile: ./src/playwright-controller/Dockerfile
     container_name: playwright
     restart: unless-stopped
     profiles:

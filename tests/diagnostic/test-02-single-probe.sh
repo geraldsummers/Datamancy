@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Test 02: Single service probe (kfuncdb healthz endpoint)
+# Test 02: Single service probe (agent-tool-server healthz endpoint)
 set -euo pipefail
 
-TARGET_URL="${1:-http://kfuncdb:8081/healthz}"
+TARGET_URL="${1:-http://agent-tool-server:8081/healthz}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "TEST 02: Single Service Probe"

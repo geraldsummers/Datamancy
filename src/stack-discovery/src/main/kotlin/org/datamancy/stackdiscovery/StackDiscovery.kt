@@ -71,7 +71,7 @@ fun main(args: Array<String>) {
         // Heuristics for common ports in this stack (best-effort)
         val commonInternal = when (svc) {
             "open-webui" -> listOf("http://open-webui:8080")
-            "kfuncdb" -> listOf("http://kfuncdb:8081")
+            "agent-tool-server" -> listOf("http://agent-tool-server:8081")
             "litellm" -> listOf("http://litellm:4000/health")
             else -> emptyList()
         }

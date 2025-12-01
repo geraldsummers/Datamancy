@@ -52,20 +52,20 @@ private class ToolsHandler(private val tools: ToolRegistry) : HttpHandler {
 private data class CallRequest(val name: String, val args: JsonNode?)
 
 private class CallToolHandler(private val tools: ToolRegistry) : HttpHandler {
-    private val debug: Boolean = ((System.getProperty("KFUNCDB_DEBUG") ?: System.getenv("KFUNCDB_DEBUG") ?: "").lowercase()) in setOf("1", "true", "yes", "on")
+    private val debug: Boolean = ((System.getProperty("TOOLSERVER_DEBUG") ?: System.getenv("TOOLSERVER_DEBUG") ?: "").lowercase()) in setOf("1", "true", "yes", "on")
     private val bodyMaxBytes: Long = (
-        System.getProperty("KFUNCDB_HTTP_BODY_MAX_BYTES")?.toLongOrNull()
-            ?: System.getenv("KFUNCDB_HTTP_BODY_MAX_BYTES")?.toLongOrNull()
+        System.getProperty("TOOLSERVER_HTTP_BODY_MAX_BYTES")?.toLongOrNull()
+            ?: System.getenv("TOOLSERVER_HTTP_BODY_MAX_BYTES")?.toLongOrNull()
             ?: 1_000_000L
         ).coerceAtLeast(1024L)
     private val bodyReadTimeoutMs: Long = (
-        System.getProperty("KFUNCDB_HTTP_BODY_TIMEOUT_MS")?.toLongOrNull()
-            ?: System.getenv("KFUNCDB_HTTP_BODY_TIMEOUT_MS")?.toLongOrNull()
+        System.getProperty("TOOLSERVER_HTTP_BODY_TIMEOUT_MS")?.toLongOrNull()
+            ?: System.getenv("TOOLSERVER_HTTP_BODY_TIMEOUT_MS")?.toLongOrNull()
             ?: 5_000L
         ).coerceAtLeast(250L)
     private val callTimeoutMs: Long = (
-        System.getProperty("KFUNCDB_TOOL_EXEC_TIMEOUT_MS")?.toLongOrNull()
-            ?: System.getenv("KFUNCDB_TOOL_EXEC_TIMEOUT_MS")?.toLongOrNull()
+        System.getProperty("TOOLSERVER_TOOL_EXEC_TIMEOUT_MS")?.toLongOrNull()
+            ?: System.getenv("TOOLSERVER_TOOL_EXEC_TIMEOUT_MS")?.toLongOrNull()
             ?: 30_000L
         ).coerceAtLeast(500L)
 

@@ -1,12 +1,12 @@
 #!/bin/bash
 # Structured screenshot capture with service-name/timestamp organization
-# Wraps kfuncdb browser_screenshot tool with proper file saving
+# Wraps agent-tool-server browser_screenshot tool with proper file saving
 
 set -euo pipefail
 
 # Configuration
 SCREENSHOTS_DIR="${SCREENSHOTS_DIR:-/var/lib/docker/volumes/datamancy_proofs/_data/screenshots}"
-KFUN_URL="${KFUN_URL:-http://kfuncdb:8081}"
+KFUN_URL="${KFUN_URL:-http://agent-tool-server:8081}"
 DOMAIN="${DOMAIN:-project-saturn.com}"
 
 # Colors
@@ -29,7 +29,7 @@ capture_screenshot() {
     docker run --rm -v datamancy_proofs:/proofs alpine mkdir -p "/proofs/screenshots/$service_name"
 
     # Capture screenshot
-    local result=$(docker exec kfuncdb wget -qO- --timeout=60 \
+    local result=$(docker exec agent-tool-server wget -qO- --timeout=60 \
         --post-data="{\"name\":\"browser_screenshot\",\"args\":{\"url\":\"$url\"}}" \
         --header='Content-Type: application/json' \
         http://localhost:8081/call-tool 2>&1)

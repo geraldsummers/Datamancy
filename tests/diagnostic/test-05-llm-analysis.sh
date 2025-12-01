@@ -2,7 +2,7 @@
 # Test 05: LLM analysis of diagnostic data
 set -euo pipefail
 
-SERVICE_NAME="${1:-kfuncdb}"
+SERVICE_NAME="${1:-agent-tool-server}"
 STATUS="${2:-failed}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -38,7 +38,7 @@ echo "Step 3: Gathering diagnostic data for $SERVICE_NAME..."
 
 # Get container logs
 echo "  • Fetching container logs..."
-LOGS=$(docker exec kfuncdb wget -qO- --timeout=10 \
+LOGS=$(docker exec agent-tool-server wget -qO- --timeout=10 \
     --post-data="{\"name\":\"docker_logs\",\"args\":{\"container\":\"$SERVICE_NAME\",\"tail\":50}}" \
     --header="Content-Type: application/json" \
     http://localhost:8081/call-tool 2>/dev/null | jq -r '.result.logs // "No logs"' | head -20)
@@ -48,7 +48,7 @@ echo "    Sample: ${LOG_EXCERPT}..."
 
 # Get container stats
 echo "  • Fetching container stats..."
-STATS=$(docker exec kfuncdb wget -qO- --timeout=15 \
+STATS=$(docker exec agent-tool-server wget -qO- --timeout=15 \
     --post-data="{\"name\":\"docker_stats\",\"args\":{\"container\":\"$SERVICE_NAME\"}}" \
     --header="Content-Type: application/json" \
     http://localhost:8081/call-tool 2>/dev/null)

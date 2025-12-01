@@ -4,7 +4,7 @@ Complete API documentation for all Datamancy services.
 
 ## Table of Contents
 
-- [KFuncDB (Agent Tool Server)](#kfuncdb-agent-tool-server)
+- [KFuncDB (Agent Tool Server)](#agent-tool-server-agent-tool-server)
 - [Probe Orchestrator](#probe-orchestrator)
 - [Speech Gateway](#speech-gateway)
 - [vLLM Router](#vllm-router)
@@ -13,7 +13,7 @@ Complete API documentation for all Datamancy services.
 
 ## KFuncDB (Agent Tool Server)
 
-Base URL: `http://kfuncdb:8081`
+Base URL: `http://agent-tool-server:8081`
 
 ### GET /tools
 

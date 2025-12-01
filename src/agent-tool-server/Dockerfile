@@ -1,19 +1,20 @@
 # Build stage
-FROM gradle:8.10.2-jdk17-alpine AS build
+FROM gradle:8.10.2-jdk21-alpine AS build
 WORKDIR /workspace
-# Copy root gradle files first
+# Copy gradle wrapper and configuration
+COPY gradlew gradlew.bat ./
+COPY gradle ./gradle
 COPY build.gradle.kts settings.gradle.kts gradle.properties* ./
-# Copy kfuncdb source
-COPY src/kfuncdb ./src/kfuncdb
+# Copy agent-tool-server source and build file
+COPY src/agent-tool-server ./src/agent-tool-server
 # Build fat jar with all plugins baked in
-WORKDIR /workspace
-RUN gradle --no-daemon :kfuncdb:shadowJar
+RUN ./gradlew --no-daemon :agent-tool-server:shadowJar
 
 # Runtime stage
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21-jre
 WORKDIR /app
-ENV KFUNCDB_PORT=8081 \
-    KFUNCDB_ALLOW_CAPS=host.shell.read,host.docker.inspect,host.docker.write
+ENV TOOLSERVER_PORT=8081 \
+    TOOLSERVER_ALLOW_CAPS=host.shell.read,host.docker.inspect,host.docker.write
 
 # Install minimal tools for healthcheck (wget), docker CLI, and create non-root user
 RUN apt-get update \
@@ -24,7 +25,7 @@ RUN apt-get update \
     && usermod -aG docker appuser
 
 # App jar
-COPY --from=build /workspace/src/kfuncdb/build/libs/*-all.jar /app/app.jar
+COPY --from=build /workspace/src/agent-tool-server/build/libs/*-all.jar /app/app.jar
 
 EXPOSE 8081
 USER appuser

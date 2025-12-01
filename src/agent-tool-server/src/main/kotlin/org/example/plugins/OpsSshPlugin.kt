@@ -63,10 +63,10 @@ class OpsSshPlugin : Plugin {
     ) {
         companion object {
             fun fromEnv() = Cfg(
-                host = System.getenv("KFUNCDB_SSH_HOST") ?: error("KFUNCDB_SSH_HOST required"),
-                user = System.getenv("KFUNCDB_SSH_USER") ?: "stackops",
-                keyPath = System.getenv("KFUNCDB_SSH_KEY_PATH") ?: "/app/keys/stackops_ed25519",
-                timeoutMs = (System.getenv("KFUNCDB_SSH_TIMEOUT_MS")?.toLongOrNull() ?: 15000L)
+                host = System.getenv("TOOLSERVER_SSH_HOST") ?: error("TOOLSERVER_SSH_HOST required"),
+                user = System.getenv("TOOLSERVER_SSH_USER") ?: "stackops",
+                keyPath = System.getenv("TOOLSERVER_SSH_KEY_PATH") ?: "/app/keys/stackops_ed25519",
+                timeoutMs = (System.getenv("TOOLSERVER_SSH_TIMEOUT_MS")?.toLongOrNull() ?: 15000L)
             )
         }
     }

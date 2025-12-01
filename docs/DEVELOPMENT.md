@@ -208,7 +208,7 @@ cd src/probe-orchestrator
 ../../gradlew run
 
 # With environment variables
-KFUNCDB_PORT=8081 ../../gradlew :agent-tool-server:run
+TOOLSERVER_PORT=8081 ../../gradlew :agent-tool-server:run
 ```
 
 ## Project Structure
@@ -270,7 +270,7 @@ Datamancy/
 │
 ├── tests/                       # Test suites
 │   └── diagnostic/              # Diagnostic tests
-│       ├── test-01-kfuncdb-tools.sh
+│       ├── test-01-agent-tool-server-tools.sh
 │       ├── test-02-single-probe.sh
 │       └── ...
 │
@@ -384,8 +384,8 @@ fun main() {
 # Build stage
 FROM gradle:8.5-jdk21 AS builder
 WORKDIR /app
-COPY build.gradle.kts settings.gradle.kts ./
-COPY src ./src
+COPY ../build.gradle.kts settings.gradle.kts ./
+COPY ../src ./src
 RUN gradle shadowJar --no-daemon
 
 # Runtime stage
@@ -549,7 +549,7 @@ Located in `tests/diagnostic/`:
 
 ```bash
 # Test KFuncDB tool inventory
-./tests/diagnostic/test-01-kfuncdb-tools.sh
+./tests/diagnostic/test-01-agent-tool-server-tools.sh
 
 # Test single service probe
 ./tests/diagnostic/test-02-single-probe.sh http://grafana:3000
@@ -558,7 +558,7 @@ Located in `tests/diagnostic/`:
 ./tests/diagnostic/test-03-screenshot-capture.sh
 
 # Test container diagnostics
-./tests/diagnostic/test-04-container-diagnostics.sh kfuncdb
+./tests/diagnostic/test-04-container-diagnostics.sh agent-tool-server
 
 # Run all diagnostic tests
 for test in ./tests/diagnostic/test-*.sh; do
@@ -628,7 +628,7 @@ export JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=
 
 ```bash
 # Exec into container
-docker exec -it kfuncdb sh
+docker exec -it agent-tool-server sh
 
 # View logs
 docker logs -f probe-orchestrator
@@ -640,14 +640,14 @@ docker logs --tail 100 litellm
 docker logs -f --timestamps grafana
 
 # Inspect container
-docker inspect kfuncdb | jq
+docker inspect agent-tool-server | jq
 
 # Check health
-docker inspect kfuncdb | jq '.[0].State.Health'
+docker inspect agent-tool-server | jq '.[0].State.Health'
 
 # Network debugging
-docker exec kfuncdb ping postgres
-docker exec kfuncdb wget -O- http://playwright:3000/healthz
+docker exec agent-tool-server ping postgres
+docker exec agent-tool-server wget -O- http://playwright:3000/healthz
 ```
 
 ### Common Issues

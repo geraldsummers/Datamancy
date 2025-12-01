@@ -2,7 +2,7 @@
 # Test 04: Container diagnostics (logs, stats, inspect)
 set -euo pipefail
 
-TARGET_CONTAINER="${1:-kfuncdb}"
+TARGET_CONTAINER="${1:-agent-tool-server}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "TEST 04: Container Diagnostics Tools"
@@ -18,14 +18,14 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${TARGET_CONTAINER}$"; then
 fi
 echo "✅ Container '$TARGET_CONTAINER' is running"
 
-# Check kfuncdb availability
+# Check agent-tool-server availability
 echo ""
-echo "Step 2: Verifying kfuncdb availability..."
-if ! docker ps --format '{{.Names}}' | grep -q '^kfuncdb$'; then
-    echo "❌ FAIL: kfuncdb not running"
+echo "Step 2: Verifying agent-tool-server availability..."
+if ! docker ps --format '{{.Names}}' | grep -q '^agent-tool-server$'; then
+    echo "❌ FAIL: agent-tool-server not running"
     exit 1
 fi
-echo "✅ kfuncdb is running"
+echo "✅ agent-tool-server is running"
 
 # Test docker_logs
 echo ""
@@ -33,7 +33,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Test 4a: docker_logs tool"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-LOGS_RESULT=$(docker exec kfuncdb wget -qO- --timeout=10 \
+LOGS_RESULT=$(docker exec agent-tool-server wget -qO- --timeout=10 \
     --post-data="{\"name\":\"docker_logs\",\"args\":{\"container\":\"$TARGET_CONTAINER\",\"tail\":10}}" \
     --header="Content-Type: application/json" \
     http://localhost:8081/call-tool 2>&1)
@@ -63,7 +63,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Test 4b: docker_stats tool"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-STATS_RESULT=$(docker exec kfuncdb wget -qO- --timeout=15 \
+STATS_RESULT=$(docker exec agent-tool-server wget -qO- --timeout=15 \
     --post-data="{\"name\":\"docker_stats\",\"args\":{\"container\":\"$TARGET_CONTAINER\"}}" \
     --header="Content-Type: application/json" \
     http://localhost:8081/call-tool 2>&1)
@@ -90,7 +90,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Test 4c: docker_inspect tool"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-INSPECT_RESULT=$(docker exec kfuncdb wget -qO- --timeout=10 \
+INSPECT_RESULT=$(docker exec agent-tool-server wget -qO- --timeout=10 \
     --post-data="{\"name\":\"docker_inspect\",\"args\":{\"container\":\"$TARGET_CONTAINER\"}}" \
     --header="Content-Type: application/json" \
     http://localhost:8081/call-tool 2>&1)

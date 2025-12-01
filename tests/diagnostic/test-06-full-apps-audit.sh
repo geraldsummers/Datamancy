@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Configuration
-KFUN_URL="${KFUN_URL:-http://kfuncdb.stack.local:8081}"
+KFUN_URL="${KFUN_URL:-http://agent-tool-server.stack.local:8081}"
 DOMAIN="${DOMAIN:-stack.local}"
 PROOFS_DIR="${PROJECT_ROOT}/volumes/proofs/screenshots"
 
@@ -83,7 +83,7 @@ test_internal_health() {
     fi
 }
 
-# Capture screenshot via kfuncdb
+# Capture screenshot via agent-tool-server
 capture_screenshot() {
     local service=$1
     local url=$2
@@ -95,7 +95,7 @@ capture_screenshot() {
     # Create output directory
     mkdir -p "$PROOFS_DIR"
 
-    # Call kfuncdb browser_screenshot tool
+    # Call agent-tool-server browser_screenshot tool
     local response
     response=$(curl -sf --max-time 45 -X POST "$KFUN_URL/call" \
         -H "Content-Type: application/json" \
@@ -181,7 +181,7 @@ test_service() {
 echo ""
 log_info "Starting comprehensive application layer audit"
 log_info "Domain: $DOMAIN"
-log_info "kfuncdb URL: $KFUN_URL"
+log_info "agent-tool-server URL: $KFUN_URL"
 log_info "Screenshots will be saved to: $PROOFS_DIR"
 echo ""
 

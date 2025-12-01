@@ -28,7 +28,7 @@ private val LLM_BASE_URL = System.getenv("LLM_BASE_URL") ?: "http://litellm:4000
 private val LLM_API_KEY = System.getenv("LLM_API_KEY") ?: (System.getenv("LITELLM_MASTER_KEY") ?: "sk-local")
 private val LLM_MODEL = System.getenv("LLM_MODEL") ?: "hermes-2-pro-mistral-7b"
 private val OCR_MODEL = System.getenv("OCR_MODEL") ?: (System.getenv("VISION_MODEL") ?: "none")
-private val KFUN_URL = System.getenv("KFUN_URL") ?: "http://kfuncdb:8081"
+private val KFUN_URL = System.getenv("KFUN_URL") ?: "http://agent-tool-server:8081"
 private val PROOFS_DIR = System.getenv("PROOFS_DIR") ?: "/proofs"
 private val SERVICES_MANIFEST_PATH = System.getenv("SERVICES_MANIFEST_PATH")
     ?: "/app/configs/probe-orchestrator/services_manifest.json"
@@ -1185,7 +1185,7 @@ suspend fun analyzeIssueAndProposeFixes(
     firstResult?.screenshot_path?.let { evidence.add("screenshot:$it") }
     firstResult?.wellness_report?.let { evidence.add("wellness_report") }
 
-    // Get container logs via kfuncdb
+    // Get container logs via agent-tool-server
     val logs = try {
         val logResult = callKfuncTool(
             client,
@@ -1200,7 +1200,7 @@ suspend fun analyzeIssueAndProposeFixes(
         "Failed to fetch logs: ${e.message}"
     }
 
-    // Get resource stats via kfuncdb
+    // Get resource stats via agent-tool-server
     val stats = try {
         val statsResult = callKfuncTool(
             client,

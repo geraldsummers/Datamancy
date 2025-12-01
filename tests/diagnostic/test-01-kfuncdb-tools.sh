@@ -1,35 +1,35 @@
 #!/usr/bin/env bash
-# Test 01: Verify kfuncdb tool inventory
+# Test 01: Verify agent-tool-server tool inventory
 set -euo pipefail
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "TEST 01: kfuncdb Tool Inventory"
+echo "TEST 01: agent-tool-server Tool Inventory"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Check if kfuncdb container is running
+# Check if agent-tool-server container is running
 echo ""
-echo "Step 1: Checking kfuncdb container status..."
-if ! docker ps --format '{{.Names}}' | grep -q '^kfuncdb$'; then
-    echo "❌ FAIL: kfuncdb container is not running"
-    echo "   Run: docker compose --profile bootstrap up -d kfuncdb"
+echo "Step 1: Checking agent-tool-server container status..."
+if ! docker ps --format '{{.Names}}' | grep -q '^agent-tool-server$'; then
+    echo "❌ FAIL: agent-tool-server container is not running"
+    echo "   Run: docker compose --profile bootstrap up -d agent-tool-server"
     exit 1
 fi
-echo "✅ kfuncdb container is running"
+echo "✅ agent-tool-server container is running"
 
 # Check health
 echo ""
-echo "Step 2: Checking kfuncdb health endpoint..."
-if docker exec kfuncdb wget -qO- --timeout=5 http://localhost:8081/healthz | grep -q '"status":"ok"'; then
-    echo "✅ kfuncdb health check passed"
+echo "Step 2: Checking agent-tool-server health endpoint..."
+if docker exec agent-tool-server wget -qO- --timeout=5 http://localhost:8081/healthz | grep -q '"status":"ok"'; then
+    echo "✅ agent-tool-server health check passed"
 else
-    echo "❌ FAIL: kfuncdb health check failed"
+    echo "❌ FAIL: agent-tool-server health check failed"
     exit 1
 fi
 
 # Check loaded plugins
 echo ""
 echo "Step 3: Checking loaded plugins..."
-PLUGINS=$(docker logs kfuncdb 2>&1 | grep -E "Loaded plugin:" | tail -10)
+PLUGINS=$(docker logs agent-tool-server 2>&1 | grep -E "Loaded plugin:" | tail -10)
 echo "$PLUGINS"
 
 PLUGIN_COUNT=$(echo "$PLUGINS" | wc -l)
@@ -40,13 +40,13 @@ if [ "$PLUGIN_COUNT" -lt 4 ]; then
     echo "⚠️  WARNING: Expected at least 4 plugins (core, hosttools, browser, llmcompletion, ops)"
     echo ""
     echo "Checking for skipped plugins:"
-    docker logs kfuncdb 2>&1 | grep -E "\[WARN\].*requires capabilities" | tail -10
+    docker logs agent-tool-server 2>&1 | grep -E "\[WARN\].*requires capabilities" | tail -10
 fi
 
 # List all available tools
 echo ""
 echo "Step 4: Fetching tool inventory..."
-TOOLS_JSON=$(docker exec kfuncdb wget -qO- http://localhost:8081/tools 2>/dev/null)
+TOOLS_JSON=$(docker exec agent-tool-server wget -qO- http://localhost:8081/tools 2>/dev/null)
 TOOL_COUNT=$(echo "$TOOLS_JSON" | jq '. | length' 2>/dev/null || echo "0")
 
 echo "Total tools available: $TOOL_COUNT"
@@ -83,11 +83,11 @@ else
     echo "❌ TEST 01 FAILED: Missing tools: ${MISSING_TOOLS[*]}"
     echo ""
     echo "Diagnosis:"
-    echo "  Check docker-compose.yml for KFUNCDB_ALLOW_CAPS environment variable"
+    echo "  Check docker-compose.yml for TOOLSERVER_ALLOW_CAPS environment variable"
     echo "  Required capabilities: host.docker.write,host.docker.inspect,host.network.http,host.network.ssh"
     echo ""
     echo "  Current configuration:"
-    docker exec kfuncdb env | grep KFUNCDB_ALLOW_CAPS || echo "  (not set)"
+    docker exec agent-tool-server env | grep TOOLSERVER_ALLOW_CAPS || echo "  (not set)"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     exit 1
 fi

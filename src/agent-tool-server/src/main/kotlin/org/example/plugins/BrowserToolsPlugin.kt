@@ -39,20 +39,20 @@ class BrowserToolsPlugin : Plugin {
 
     override fun init(context: PluginContext) {
         // Prefer new env var, fall back to legacy one, then sane default for our Playwright service
-        baseUrl = System.getenv("KFUNCDB_BROWSER_URL")
-            ?: System.getenv("KFUNCDB_BROWSERLESS_URL")
+        baseUrl = System.getenv("TOOLSERVER_BROWSER_URL")
+            ?: System.getenv("TOOLSERVER_BROWSERLESS_URL")
             ?: "http://playwright:3000"
 
         // Timeouts configurable via env (milliseconds). Defaults aim to fail-fast to avoid perceived hangs.
-        val timeoutMs = (System.getenv("KFUNCDB_BROWSER_HTTP_TIMEOUT_MS")?.toLongOrNull()) ?: 20000L
+        val timeoutMs = (System.getenv("TOOLSERVER_BROWSER_HTTP_TIMEOUT_MS")?.toLongOrNull()) ?: 20000L
         reqTimeout = Duration.ofMillis(timeoutMs.coerceAtLeast(1000L))
 
-        val connectMs = (System.getenv("KFUNCDB_BROWSER_HTTP_CONNECT_TIMEOUT_MS")?.toLongOrNull()) ?: 5000L
+        val connectMs = (System.getenv("TOOLSERVER_BROWSER_HTTP_CONNECT_TIMEOUT_MS")?.toLongOrNull()) ?: 5000L
         http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(connectMs.coerceAtLeast(500L)))
             .build()
 
-        debug = (System.getenv("KFUNCDB_DEBUG") ?: "").lowercase() in setOf("1", "true", "yes", "on")
+        debug = (System.getenv("TOOLSERVER_DEBUG") ?: "").lowercase() in setOf("1", "true", "yes", "on")
     }
 
     override fun tools(): List<Any> = listOf(Tools(http, baseUrl, reqTimeout, debug))
@@ -391,7 +391,7 @@ class BrowserToolsPlugin : Plugin {
         private fun encode(s: String): String = java.net.URLEncoder.encode(s, java.nio.charset.StandardCharsets.UTF_8)
 
         private fun generateScreenshotPath(serviceName: String?, url: String): String? {
-            val baseDir = System.getenv("KFUNCDB_SCREENSHOTS_DIR") ?: "/app/proofs/screenshots"
+            val baseDir = System.getenv("TOOLSERVER_SCREENSHOTS_DIR") ?: "/app/proofs/screenshots"
             val timestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")
                 .withZone(ZoneOffset.UTC)
                 .format(Instant.now())

@@ -126,7 +126,7 @@ agent_capabilities:
 
 ```yaml
 services:
-  - name: kfuncdb
+  - name: agent-tool-server
     path: src/agent-tool-server
     port: 8081
     description: Plugin-based tool server for browser, Docker, SSH operations
@@ -157,7 +157,7 @@ services:
       - ocr_analysis
       - autonomous_diagnosis
       - automated_repair
-    dependencies: [kfuncdb, litellm, playwright]
+    dependencies: [agent-tool-server, litellm, playwright]
 
   - name: speech-gateway
     path: src/speech-gateway
@@ -214,7 +214,7 @@ services:
 
 ```yaml
   - name: playwright
-    path: src/playwright-service
+    path: src/playwright-controller
     port: 3000
     language: Python
     description: Headless Firefox browser automation HTTP API
@@ -289,7 +289,7 @@ Datamancy/
 ├── Tests
 │   └── tests/
 │       └── diagnostic/
-│           ├── test-01-kfuncdb-tools.sh
+│           ├── test-01-agent-tool-server-tools.sh
 │           ├── test-02-single-probe.sh
 │           ├── test-03-screenshot-capture.sh
 │           ├── test-04-container-diagnostics.sh
@@ -341,7 +341,7 @@ run_tests:
 start_minimal_stack:
   command: "docker compose --profile bootstrap up -d"
   services: 12
-  includes: [caddy, authelia, ldap, vllm, litellm, kfuncdb, probe-orchestrator, open-webui]
+  includes: [caddy, authelia, ldap, vllm, litellm, agent-tool-server, probe-orchestrator, open-webui]
 
 start_full_stack:
   command: "docker compose --profile bootstrap --profile databases --profile applications up -d"
@@ -458,7 +458,7 @@ steps:
     args: {status: "ok|failed", reason: "wellness report"}
 
 example_code: |
-  curl -X POST http://kfuncdb:8081/call-tool \
+  curl -X POST http://agent-tool-server:8081/call-tool \
     -H "Content-Type: application/json" \
     -d '{
       "name": "browser_screenshot",
@@ -537,12 +537,12 @@ auth: "Authorization: Bearer ${LITELLM_MASTER_KEY}"
 ```yaml
 task_routing:
   capture_screenshot:
-    service: kfuncdb
+    service: agent-tool-server
     endpoint: POST /call-tool
     tool_name: browser_screenshot
 
   extract_dom:
-    service: kfuncdb
+    service: agent-tool-server
     endpoint: POST /call-tool
     tool_name: browser_dom
 
@@ -555,12 +555,12 @@ task_routing:
     endpoint: POST /analyze-and-propose-fixes
 
   restart_container:
-    service: kfuncdb
+    service: agent-tool-server
     endpoint: POST /call-tool
     tool_name: docker_restart
 
   get_container_logs:
-    service: kfuncdb
+    service: agent-tool-server
     endpoint: POST /call-tool
     tool_name: docker_logs
 
