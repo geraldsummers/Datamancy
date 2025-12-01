@@ -36,7 +36,7 @@ pipeline:
           root.series = this
     - mapping: |
         let meta = this.series.seriess.0
-        root.collection = env("TARGET_COLLECTION", "macroeconomics_data")
+        root.collection = env("TARGET_COLLECTION", "macro_series_meta")
         root.id = ("fred:" + this.series_id)
         root.text = ("Series: " + meta.title + " (" + meta.id + ")\nUnits: " + meta.units + "\nFreq: " + meta.frequency + "\nNotes: " + meta.notes).string().trim()
         root.payload = {
@@ -49,6 +49,7 @@ pipeline:
           last_updated: meta.last_updated
         }
         root.payload.text = root.text
+        root.payload.content = root.text
     - dedupe:
         cache: dedupe_mem
         hash: "${! this.id }"
@@ -65,7 +66,7 @@ pipeline:
 
 output:
   http_client:
-    url: ${QDRANT_URL:http://qdrant:6333}/collections/${TARGET_COLLECTION:macroeconomics_data}/points?wait=true
+    url: ${QDRANT_URL:http://qdrant:6333}/collections/${TARGET_COLLECTION:macro_series_meta}/points?wait=true
     verb: PUT
     headers:
       Content-Type: application/json

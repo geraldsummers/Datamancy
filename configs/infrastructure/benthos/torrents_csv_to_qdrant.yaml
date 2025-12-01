@@ -46,6 +46,7 @@ pipeline:
           size: if $size_ix >= 0 && $size_ix < $cols.length() { $cols.index($size_ix) } else { "" }
         }
         root.payload.text = root.text
+        root.payload.content = root.text
     - bloblang: 'root = if this.text == "" { deleted() } else { this }'
     - dedupe:
         cache: dedupe_mem

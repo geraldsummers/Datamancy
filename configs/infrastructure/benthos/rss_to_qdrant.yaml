@@ -45,6 +45,7 @@ input:
               root.text = this.text
               root.payload = this.payload
               root.payload.text = this.text
+              root.payload.content = this.text
           - dedupe:
               cache: dedupe_mem
               hash: "${! this.id }"

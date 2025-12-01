@@ -26,6 +26,7 @@ input:
               root.payload = this.payload.or({})
               # also store raw text in payload for retrieval
               root.payload.text = root.text
+              root.payload.content = root.text
           - bloblang: 'root = if this.text == "" { deleted() }'
           - dedupe:
               cache: dedupe_mem

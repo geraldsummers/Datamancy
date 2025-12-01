@@ -3,17 +3,32 @@ distance: Cosine
 
 # Collections to initialize in Qdrant for vectorized knowledge bases
 collections:
-  - name: wiki_projects
-    description: Wikimedia projects (Wikipedia, Wiktionary, etc.) extracts
+  # Wikimedia projects (en only for v1)
+  - name: wiki_general
+    description: Combined Wikipedia/Wiktionary/Wikibooks/Wikisource/Wikiquote/Wikivoyage/Wikinews/Wikiversity
+  - name: wiki_species
+    description: Wikispecies extracts
+  - name: wiki_functions
+    description: Wikifunctions extracts
+
+  # RSS aggregation
   - name: rss_aggregation
-    description: Aggregated RSS/Atom feeds from selected sources
-  - name: stack_exchange
-    description: Stack Exchange network Q&A exports
-  - name: macroeconomics_data
-    description: IMF, World Bank, OECD, and FRED datasets and documentation
+    description: Aggregated RSS/Atom feeds from curated sources
+
+  # Macro series metadata (embeddable descriptions/notes)
+  - name: macro_series_meta
+    description: FRED/IMF/World Bank/OECD series metadata and notes
+
+  # Yahoo Finance entities
   - name: yahoo_finance
-    description: Yahoo Finance symbols, news, and fundamentals
-  - name: linux_debian_docs
-    description: Linux and Debian documentation, manpages, and guides
+    description: Yahoo Finance tickers and company metadata
+
+  # Linux and Debian docs (separate per spec)
+  - name: linux_docs
+    description: Linux kernel/docs/LFS and related documentation
+  - name: debian_docs
+    description: Debian manuals/wiki and related documentation
+
+  # Torrents metadata (CSV-derived)
   - name: torrents_csv
-    description: Torrents-csv dataset (metadata descriptions)
+    description: Torrents CSV dataset (metadata descriptions)

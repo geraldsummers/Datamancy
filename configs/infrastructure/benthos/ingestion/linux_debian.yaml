@@ -1,4 +1,4 @@
-target_collection: linux_debian_docs
+target_collection: linux_docs
 required_env:
   - LINUX_DEBIAN_SOURCES
 notes:

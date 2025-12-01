@@ -1,4 +1,4 @@
-target_collection: wiki_projects
+target_collection: wiki_general
 required_env:
   - WIKI_DUMPS_URL
 notes:

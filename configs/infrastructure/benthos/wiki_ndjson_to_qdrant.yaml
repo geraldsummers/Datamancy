@@ -23,11 +23,12 @@ pipeline:
         format: json_array
     - mapping: |
         # Expect each line to have fields: id, text, payload
-        root.collection = env("TARGET_COLLECTION", "wiki_projects")
+        root.collection = env("TARGET_COLLECTION", "wiki_general")
         root.id = this.id.or(uuid_v4())
         root.text = this.text.or("")
         root.payload = this.payload.or({})
         root.payload.text = root.text
+        root.payload.content = root.text
     - bloblang: 'root = if this.text == "" { deleted() } else { this }'
     - dedupe:
         cache: dedupe_mem
@@ -45,7 +46,7 @@ pipeline:
 
 output:
   http_client:
-    url: ${QDRANT_URL:http://qdrant:6333}/collections/${TARGET_COLLECTION:wiki_projects}/points?wait=true
+    url: ${QDRANT_URL:http://qdrant:6333}/collections/${TARGET_COLLECTION:wiki_general}/points?wait=true
     verb: PUT
     headers:
       Content-Type: application/json

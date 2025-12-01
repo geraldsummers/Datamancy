@@ -4,35 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="kotlin script vincemcmahon.gif">
+    <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="swap to valkey and bookstack (more AGPLy)">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/authelia/configuration.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/homepage/services.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/homepage/services.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/mailu/mailu.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/mailu/mailu.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/synapse/homeserver.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/synapse/homeserver.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/mariadb/init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/mariadb/init.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/ensure-users.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/postgres/ensure-users.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/AGENT_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AGENT_GUIDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/API.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/API.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DEPLOYMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEPLOYMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEVELOPMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/configure-environment.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/configure-environment.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/playwright-controller/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/playwright-controller/src/main/kotlin/org/datamancy/playwright/PlaywrightController.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/src/main/kotlin/org/datamancy/playwright/PlaywrightController.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/speech-gateway/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/speech-gateway/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/vllm-router/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/vllm-router/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-06-full-apps-audit.sh" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-06-full-apps-audit.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-authelia-login.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-authelia-login.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/databases/vectors/collections.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/vectors/collections.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/linux_debian.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/linux_debian.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/macro.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/macro.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/wiki.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/wiki.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/stackexchange_ndjson_to_qdrant.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/torrents_csv_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/torrents_csv_to_qdrant.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -121,27 +105,27 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Gradle.Build Datamancy.executor": "Run",
-    "Gradle.Datamancy [:agent-tool-server:build].executor": "Run",
-    "Gradle.Datamancy [build].executor": "Run",
-    "Gradle.src [build].executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "master",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/gerald/IdeaProjects/Datamancy",
-    "project.structure.last.edited": "Modules",
-    "project.structure.proportion": "0.0",
-    "project.structure.side.proportion": "0.0",
-    "to.speed.mode.migration.done": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Gradle.Build Datamancy.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Datamancy [:agent-tool-server:build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Datamancy [build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.src [build].executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/gerald/IdeaProjects/Datamancy&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/docs" />
@@ -325,12 +309,21 @@
       <option name="project" value="LOCAL" />
       <updated>1764565302132</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="swap to valkey and bookstack (more AGPLy)">
+      <option name="closed" value="true" />
+      <created>1764580951629</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1764580951629</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="oo" />
     <MESSAGE value="kotlin script vincemcmahon.gif" />
-    <option name="LAST_COMMIT_MESSAGE" value="kotlin script vincemcmahon.gif" />
+    <MESSAGE value="swap to valkey and bookstack (more AGPLy)" />
+    <option name="LAST_COMMIT_MESSAGE" value="swap to valkey and bookstack (more AGPLy)" />
   </component>
 </project>

@@ -1,4 +1,4 @@
-target_collection: macroeconomics_data
+target_collection: macro_series_meta
 required_env:
   - FRED_API_KEY
   - IMF_API_KEY
