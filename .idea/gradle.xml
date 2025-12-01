@@ -9,6 +9,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/src/agent-tool-server" />
+            <option value="$PROJECT_DIR$/src/config-generator" />
             <option value="$PROJECT_DIR$/src/playwright-controller" />
             <option value="$PROJECT_DIR$/src/probe-orchestrator" />
             <option value="$PROJECT_DIR$/src/speech-gateway" />
