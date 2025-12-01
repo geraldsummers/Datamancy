@@ -14,7 +14,7 @@ RUN ./gradlew --no-daemon :vllm-router:shadowJar
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
-COPY --from=build /workspace/src/vllm-router/build/libs/*-all.jar app.jar
+COPY --from=build /workspace/src/vllm-router/build/libs/vllm-model-router-kt.jar app.jar
 
 EXPOSE 8010
 

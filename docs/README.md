@@ -96,7 +96,7 @@ Datamancy provides a production-ready infrastructure stack with:
 ┌────────▼──────┐    ┌──────────▼──────────┐   ┌───────▼────────┐
 │  Diagnostics  │    │    Data Layer       │   │  Orchestration │
 │  - KFuncDB    │    │  - PostgreSQL       │   │  - Portainer   │
-│  - Probe Orch │    │  - Redis            │   │  - Dockge      │
+│  - Probe Orch │    │  - Valkey           │   │  - Dockge      │
 │  - Playwright │    │  - Qdrant           │   │                │
 └───────────────┘    │  - ClickHouse       │   └────────────────┘
                      └─────────────────────┘
@@ -149,7 +149,7 @@ docker compose --profile bootstrap up -d
 - Caddy (reverse proxy)
 - Authelia (SSO/OIDC)
 - OpenLDAP (directory)
-- Redis (cache)
+- Valkey (cache)
 - Portainer (Docker UI)
 - vLLM (LLM serving)
 - LiteLLM (API gateway)
@@ -204,9 +204,9 @@ docker compose --profile applications up -d
 
 ### Databases
 
-- **PostgreSQL** 16 - Relational data (Planka, Outline, Synapse, Mailu)
-- **MariaDB** 11 - MySQL workloads (Seafile)
-- **Redis** 7 - Caching and sessions
+- **PostgreSQL** 16 - Relational data (Planka, Synapse, Mailu)
+- **MariaDB** 11 - MySQL workloads (Seafile, BookStack)
+- **Valkey** - Redis-compatible key-value store for caching and sessions
 - **CouchDB** 3 - Document store
 - **Qdrant** - Vector database for embeddings
 - **ClickHouse** 24 - Analytics and time-series
@@ -214,7 +214,7 @@ docker compose --profile applications up -d
 ### Applications
 
 **Productivity & Collaboration:**
-- **Outline** - Wiki and knowledge base (OIDC)
+- **BookStack** - Wiki and knowledge base (OIDC)
 - **Planka** - Kanban project management (OIDC)
 - **JupyterHub** - Multi-user notebooks (OIDC)
 - **Seafile** - File sync and share

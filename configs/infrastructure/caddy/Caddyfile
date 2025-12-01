@@ -117,9 +117,15 @@ planka.project-saturn.com {
     reverse_proxy planka:1337
 }
 
-# Outline
-outline.project-saturn.com {
-    reverse_proxy outline:3000
+# BookStack
+bookstack.project-saturn.com {
+    route {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy bookstack:80
+    }
 }
 
 # Seafile

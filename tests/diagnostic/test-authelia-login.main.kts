@@ -116,7 +116,7 @@ fun main() {
   val testServices = listOf(
     "https://grafana.project-saturn.com" to "grafana",
     "https://planka.project-saturn.com" to "planka",
-    "https://outline.project-saturn.com" to "outline",
+    "https://bookstack.project-saturn.com" to "bookstack",
   )
 
   val username = getenv("AUTHELIA_USERNAME", "admin")

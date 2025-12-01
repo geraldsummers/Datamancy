@@ -14,7 +14,7 @@ PROOFS_DIR="${PROJECT_ROOT}/volumes/proofs/screenshots"
 
 # Service groups for systematic testing
 CORE_APPS=("grafana" "open-webui" "ldap-account-manager" "homepage")
-PRODUCTIVITY_APPS=("planka" "outline" "vaultwarden")
+PRODUCTIVITY_APPS=("planka" "bookstack" "vaultwarden")
 COLLAB_APPS=("seafile" "onlyoffice" "jupyterhub")
 COMMS_APPS=("sogo" "synapse")
 DEVOPS_APPS=("dockge" "portainer" "kopia")
@@ -203,7 +203,7 @@ echo -e "${BLUE}Phase 2: Productivity Applications${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 
 test_service "planka" "http://planka:1337/api/health" "https://planka.${DOMAIN}"
-test_service "outline" "http://outline:3000/" "https://outline.${DOMAIN}"
+test_service "bookstack" "http://bookstack:80/" "https://bookstack.${DOMAIN}"
 test_service "vaultwarden" "http://vaultwarden:80/alive" "https://vaultwarden.${DOMAIN}"
 
 # Phase 3: Collaboration Applications

@@ -223,7 +223,6 @@ private fun cmdInit() {
         appendLine("GRAFANA_OAUTH_SECRET=${generateSecretHex(32)}")
         appendLine("VAULTWARDEN_OAUTH_SECRET=${generateSecretHex(32)}")
         appendLine("PLANKA_OAUTH_SECRET=${generateSecretHex(32)}")
-        appendLine("OUTLINE_OAUTH_SECRET=${generateSecretHex(32)}")
         appendLine("JUPYTERHUB_OAUTH_SECRET=${generateSecretHex(32)}")
         appendLine("LITELLM_OAUTH_SECRET=${generateSecretHex(32)}")
         appendLine("OPENWEBUI_OAUTH_SECRET=${generateSecretHex(32)}")
@@ -234,8 +233,6 @@ private fun cmdInit() {
 
         // Application secrets
         appendLine("PLANKA_SECRET_KEY=${generateSecretHex(32)}")
-        appendLine("OUTLINE_SECRET_KEY=${generateSecretHex(32)}")
-        appendLine("OUTLINE_UTILS_SECRET=${generateSecretHex(32)}")
         appendLine("ONLYOFFICE_JWT_SECRET=${generateSecretHex(32)}")
         appendLine("VAULTWARDEN_ADMIN_TOKEN=${generateSecretB64(32)}")
         appendLine("VAULTWARDEN_SMTP_PASSWORD=${generatePassword(24)}")
@@ -260,7 +257,8 @@ private fun cmdInit() {
 
         // Database passwords
         appendLine("PLANKA_DB_PASSWORD=${generatePassword(32)}")
-        appendLine("OUTLINE_DB_PASSWORD=${generatePassword(32)}")
+        // BookStack database password for MariaDB
+        appendLine("BOOKSTACK_DB_PASSWORD=${generatePassword(32)}")
         appendLine("SYNAPSE_DB_PASSWORD=${generatePassword(32)}")
         appendLine("MAILU_DB_PASSWORD=${generatePassword(32)}")
         appendLine("MARIADB_SEAFILE_ROOT_PASSWORD=${generatePassword(32)}")
@@ -341,6 +339,8 @@ private fun cmdExport() {
     putIfMissing("MASTODON_OTP_SECRET") { generateSecretHex(64) }
     putIfMissing("MASTODON_SMTP_USER") { mastodonSmtpUserBackfill }
     putIfMissing("MASTODON_SMTP_PASSWORD") { generatePassword(24) }
+    // Secret for BookStack database user
+    putIfMissing("BOOKSTACK_DB_PASSWORD") { generatePassword(32) }
     putIfMissing("MASTODON_OIDC_SECRET") { generateSecretHex(48) }
     putIfMissing("VAPID_PRIVATE_KEY") { generateSecretB64(64) }
     putIfMissing("VAPID_PUBLIC_KEY") { generateSecretB64(64) }

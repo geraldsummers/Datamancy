@@ -27,7 +27,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("org.datamancy.speech.ApplicationKt")
+    mainClass.set("org.datamancy.speech.SpeechGatewayKt")
 }
 
 kotlin {
@@ -41,7 +41,7 @@ val shadowJarTask = tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks
 
 // Keep the plain jar minimal (no manual fattening) and only set manifest
 tasks.withType<Jar> {
-    manifest { attributes["Main-Class"] = "org.datamancy.speech.ApplicationKt" }
+    manifest { attributes["Main-Class"] = "org.datamancy.speech.SpeechGatewayKt" }
 }
 
 // Ensure application plugin artifacts use the shadow jar and run after it

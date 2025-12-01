@@ -57,4 +57,4 @@ RUN python3 -m venv /app/venv \
     && /app/venv/bin/playwright install firefox
 
 EXPOSE 3000
-CMD ["sh", "-lc", "exec java -jar /app/app.jar"]
+CMD ["java", "-jar", "/app/app.jar"]

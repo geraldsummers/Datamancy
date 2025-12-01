@@ -20,7 +20,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("org.datamancy.vllmrouter.ApplicationKt")
+    mainClass.set("org.datamancy.vllmrouter.VLLMRouterKt")
 }
 
 kotlin {
@@ -34,7 +34,7 @@ val shadowJarTask = tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks
 
 // Keep the plain jar minimal (no manual fattening) and only set manifest
 tasks.withType<Jar> {
-    manifest { attributes["Main-Class"] = "org.datamancy.vllmrouter.ApplicationKt" }
+    manifest { attributes["Main-Class"] = "org.datamancy.vllmrouter.VLLMRouterKt" }
 }
 
 // Ensure application plugin artifacts use the shadow jar and run after it

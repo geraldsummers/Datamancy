@@ -148,8 +148,6 @@ AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=$(openssl rand -hex 32)
 GRAFANA_OAUTH_SECRET=$(openssl rand -hex 16)
 VAULTWARDEN_OAUTH_SECRET=$(openssl rand -hex 16)
 PLANKA_SECRET_KEY=$(openssl rand -hex 32)
-OUTLINE_SECRET_KEY=$(openssl rand -hex 32)
-OUTLINE_UTILS_SECRET=$(openssl rand -hex 32)
 
 # Optional Features
 VECTOR_EMBED_SIZE=384
@@ -692,7 +690,7 @@ command: [
 
 **Issue: Authelia login loop**
 ```bash
-# Check Redis connection
+# Check Valkey connection
 docker exec authelia nc -zv redis 6379
 
 # Verify LDAP connection

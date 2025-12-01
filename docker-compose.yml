@@ -262,7 +262,7 @@ services:
           - open-webui.${DOMAIN}
           - vaultwarden.${DOMAIN}
           - planka.${DOMAIN}
-          - outline.${DOMAIN}
+          - bookstack.${DOMAIN}
           - jupyterhub.${DOMAIN}
           - homepage.${DOMAIN}
           - seafile.${DOMAIN}
@@ -369,7 +369,7 @@ services:
       start_period: 10s
 
   redis:
-    image: redis:7.4.7
+    image: valkey/valkey:latest
     container_name: redis
     restart: unless-stopped
     networks:
@@ -379,9 +379,9 @@ services:
       - databases
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: valkey-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -463,7 +463,6 @@ services:
       - POSTGRES_USER=${STACK_ADMIN_USER}
       - POSTGRES_DB=postgres
       - PLANKA_DB_PASSWORD=${PLANKA_DB_PASSWORD}
-      - OUTLINE_DB_PASSWORD=${OUTLINE_DB_PASSWORD}
       - SYNAPSE_DB_PASSWORD=${SYNAPSE_DB_PASSWORD}
       - MAILU_DB_PASSWORD=${MAILU_DB_PASSWORD}
     volumes:
@@ -539,7 +538,7 @@ services:
       start_period: 30s
 
   redis-synapse:
-    image: redis:7.4.7
+    image: valkey/valkey:latest
     container_name: redis-synapse
     restart: unless-stopped
     profiles:
@@ -547,7 +546,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -585,7 +584,7 @@ services:
       start_period: 30s
 
   mailu-redis:
-    image: redis:7.4.7
+    image: valkey/valkey:latest
     container_name: mailu-redis
     restart: unless-stopped
     profiles:
@@ -596,7 +595,7 @@ services:
           - redis
           - mailu-redis
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -1065,7 +1064,7 @@ services:
         condition: service_healthy
     environment:
       - BASE_URL=https://planka.${DOMAIN}
-      - DATABASE_URL=postgresql://planka:${PLANKA_DB_PASSWORD}@postgres:5432/planka
+      - DATABASE_URL=postgresql://planka:planka_secure_pass_2024@postgres:5432/planka
       - SECRET_KEY=${PLANKA_SECRET_KEY}
       - OIDC_ISSUER=https://auth.${DOMAIN}
       - OIDC_CLIENT_ID=planka
@@ -1080,50 +1079,37 @@ services:
       - planka_data:/app/public/user-avatars
       - ./configs/applications/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:1337/api/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:1337/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
 
-  outline:
-    image: outlinewiki/outline:0.87.3
-    container_name: outline
+  bookstack:
+    image: lscr.io/linuxserver/bookstack:latest
+    container_name: bookstack
     restart: unless-stopped
     profiles:
       - applications
     networks:
       - backend
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      authelia:
+      mariadb:
         condition: service_healthy
     environment:
-      - NODE_ENV=production
-      - SECRET_KEY=${OUTLINE_SECRET_KEY}
-      - UTILS_SECRET=${OUTLINE_UTILS_SECRET}
-      - DATABASE_URL=postgres://outline:${OUTLINE_DB_PASSWORD}@postgres:5432/outline
-      - PGSSLMODE=disable
-      - REDIS_URL=redis://redis:6379
-      - URL=https://outline.${DOMAIN}
-      - PORT=3000
-      - OIDC_CLIENT_ID=outline
-      - OIDC_CLIENT_SECRET=${OUTLINE_OAUTH_SECRET}
-      - OIDC_AUTH_URI=https://auth.${DOMAIN}/api/oidc/authorization
-      - OIDC_TOKEN_URI=http://authelia:9091/api/oidc/token
-      - OIDC_USERINFO_URI=http://authelia:9091/api/oidc/userinfo
-      - OIDC_USERNAME_CLAIM=preferred_username
-      - OIDC_DISPLAY_NAME=Authelia
-      - OIDC_SCOPES=openid offline_access profile email
-      - FILE_STORAGE=local
-      - FILE_STORAGE_LOCAL_ROOT_DIR=/var/lib/outline/data
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - APP_URL=https://bookstack.${DOMAIN}
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_USER=bookstack
+      - DB_PASS=${BOOKSTACK_DB_PASSWORD}
+      - DB_DATABASE=bookstack
     volumes:
-      - outline_data:/var/lib/outline/data
+      - outline_data:/config
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1205,7 +1191,7 @@ services:
       - POSTGRES_PORT=5432
       - POSTGRES_DB=synapse
       - POSTGRES_USER=synapse
-      - POSTGRES_PASSWORD=${SYNAPSE_DB_PASSWORD}
+      - POSTGRES_PASSWORD=synapse_secure_pass_2024
       - REDIS_HOST=redis-synapse
     volumes:
       - synapse_data:/data
@@ -1658,7 +1644,7 @@ services:
     volumes:
       - ${VOLUMES_ROOT}/whisper/models:/root/.cache/whisper
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9000/"]
       interval: 60s
       timeout: 10s
       retries: 5
@@ -1820,7 +1806,7 @@ services:
       - backend
     shm_size: '2gb'
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/healthz')"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/healthz')"]
       interval: 30s
       timeout: 10s
       retries: 3

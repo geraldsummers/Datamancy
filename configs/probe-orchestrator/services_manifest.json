@@ -86,9 +86,9 @@
       "external": ["https://planka.${DOMAIN}"]
     },
     {
-      "name": "outline",
-      "internal": ["http://outline:3000/"],
-      "external": ["https://outline.${DOMAIN}"]
+      "name": "bookstack",
+      "internal": ["http://bookstack:80/"],
+      "external": ["https://bookstack.${DOMAIN}"]
     },
     {
       "name": "vaultwarden",

@@ -25,7 +25,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("org.datamancy.probe.ApplicationKt")
+    mainClass.set("org.datamancy.probe.Probe_OrchestratorKt")
 }
 
 kotlin {
@@ -39,7 +39,7 @@ val shadowJarTask = tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks
 
 // Keep the plain jar minimal (no manual fattening) and only set manifest
 tasks.withType<Jar> {
-    manifest { attributes["Main-Class"] = "org.datamancy.probe.ApplicationKt" }
+    manifest { attributes["Main-Class"] = "org.datamancy.probe.Probe_OrchestratorKt" }
 }
 
 // Ensure application plugin artifacts use the shadow jar and run after it

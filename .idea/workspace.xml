@@ -5,11 +5,34 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="kotlin script vincemcmahon.gif">
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/applications/homepage/services.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/homepage/services.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/applications/mailu/mailu.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/mailu/mailu.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/applications/synapse/homeserver.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/synapse/homeserver.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/databases/mariadb/init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/mariadb/init.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/ensure-users.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/postgres/ensure-users.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/playwright-controller/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/AGENT_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AGENT_GUIDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/API.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/API.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DEPLOYMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEPLOYMENT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEVELOPMENT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/configure-environment.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/configure-environment.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/playwright-controller/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/playwright-controller/src/main/kotlin/org/datamancy/playwright/PlaywrightController.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/src/main/kotlin/org/datamancy/playwright/PlaywrightController.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/probe-orchestrator/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/probe-orchestrator/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/speech-gateway/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/speech-gateway/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/speech-gateway/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vllm-router/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vllm-router/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vllm-router/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-06-full-apps-audit.sh" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-06-full-apps-audit.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-authelia-login.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/tests/diagnostic/test-authelia-login.main.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -294,7 +317,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764561804819</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="kotlin script vincemcmahon.gif">
+      <option name="closed" value="true" />
+      <created>1764565302132</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1764565302132</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

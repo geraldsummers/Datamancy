@@ -604,8 +604,8 @@ issue_diagnosis:
     steps:
       1. Check Authelia logs: "docker logs authelia"
       2. Test LDAP: "docker exec authelia ldapsearch -x -H ldap://ldap:389 -b 'dc=stack,dc=local'"
-      3. Verify Redis: "docker exec redis redis-cli KEYS 'authelia:*'"
-      4. Clear sessions: "docker exec redis redis-cli FLUSHALL"
+      3. Verify Valkey: "docker exec redis valkey-cli KEYS 'authelia:*'"
+      4. Clear sessions: "docker exec redis valkey-cli FLUSHALL"
 ```
 
 ## Code Generation Templates
@@ -844,7 +844,7 @@ fi
 ### OIDC Integration
 - Authelia is central OIDC provider
 - All applications integrate via OAuth2
-- Sessions stored in Redis
+- Sessions stored in Valkey
 - Users managed in OpenLDAP
 
 ---

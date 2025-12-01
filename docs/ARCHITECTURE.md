@@ -86,7 +86,7 @@ Datamancy is a multi-layered infrastructure stack built on Docker Compose, organ
 
 Profile: bootstrap (Core Services)
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│    Caddy    │  │  Authelia   │  │  OpenLDAP   │  │    Redis    │
+│    Caddy    │  │  Authelia   │  │  OpenLDAP   │  │    Valkey   │
 │  (Proxy)    │◄─┤   (OIDC)    │◄─┤ (Directory) │  │   (Cache)   │
 │   :80/443   │  │    :9091    │  │    :389     │  │    :6379    │
 └──────┬──────┘  └─────────────┘  └─────────────┘  └─────────────┘
@@ -146,7 +146,7 @@ Internet
 ┌────────────────────────────────────────────┐
 │        database (172.22.0.0/24)           │  ← Data layer (isolated)
 │  - PostgreSQL, MariaDB                    │
-│  - Redis, Qdrant, ClickHouse             │
+│  - Valkey, Qdrant, ClickHouse            │
 └────────────────────────────────────────────┘
 ```
 
@@ -177,7 +177,7 @@ Internet
 **Authelia (Authentication & OIDC)**
 - Single Sign-On (SSO) provider
 - OIDC authorization server for OAuth flows
-- Session management (Redis-backed)
+- Session management (Valkey-backed)
 - LDAP authentication backend
 - MFA support (TOTP)
 
@@ -209,7 +209,7 @@ User Request Flow:
    - **Open WebUI**: ChatGPT-like interface
 
 2. **Productivity Tools**
-   - **Outline**: Markdown-based wiki (PostgreSQL + Redis)
+   - **BookStack**: Wiki and knowledge base (MariaDB)
    - **Planka**: Kanban boards (PostgreSQL)
    - **JupyterHub**: Multi-user Jupyter notebooks (DockerSpawner)
    - **Seafile**: File sync/share (MariaDB + object storage)
@@ -269,7 +269,7 @@ Diagnostic Flow:
 
 **Relational Databases**
 - **PostgreSQL 16**: Primary RDBMS
-  - Databases: planka, outline, synapse, mailu
+  - Databases: planka, synapse, mailu
   - Init scripts for schema setup
   - Connection pooling (max 200 connections)
 
@@ -278,7 +278,7 @@ Diagnostic Flow:
   - UTF8MB4 encoding
 
 **NoSQL & Caching**
-- **Redis 7**: Session store, caching (Authelia, Outline, Synapse)
+- **Valkey**: Redis-compatible store for sessions and caching (Authelia, Synapse)
 - **CouchDB 3**: Document database
 - **ClickHouse 24**: Columnar database for analytics
 - **Qdrant**: Vector database for embeddings
@@ -289,7 +289,7 @@ All data persisted to `./volumes/` via bind mounts:
 volumes/
 ├── postgres_data/       # PostgreSQL data directory
 ├── mariadb_data/       # MariaDB data
-├── redis_data/         # Redis RDB snapshots
+├── redis_data/         # Valkey RDB snapshots (kept volume name 'redis_data')
 ├── qdrant_data/        # Vector embeddings
 ├── open_webui_data/    # Chat history
 ├── grafana_data/       # Dashboards
@@ -339,7 +339,7 @@ User sees Authelia login page
    │      ├─► OpenLDAP :389 (LDAP bind)
    │      │      └─► Returns user DN + groups
    │      │
-   │      │ Creates session (stored in Redis)
+   │      │ Creates session (stored in Valkey)
    │      └─► 302 Redirect back to Grafana
    │
 User → https://grafana.domain.com (with session cookie)
@@ -456,7 +456,7 @@ uvicorn==0.23+
 | **API Gateway** | LiteLLM | 1.74.9 |
 | **Embedding** | Hugging Face TEI | cpu-1.2 |
 | **Browser** | Playwright (Firefox) | 1.49.0 |
-| **Databases** | PostgreSQL, MariaDB, Redis | 16, 11, 7 |
+| **Databases** | PostgreSQL, MariaDB, Valkey | 16, 11, latest |
 | **Vector DB** | Qdrant | latest |
 
 ## Design Patterns
@@ -611,13 +611,13 @@ KFuncDB → SSH (key auth) → Host (forced command wrapper)
 
 - **Single-node deployment**: All services on one Docker host
 - **Shared GPU**: vLLM monopolizes GPU (via vLLM Router for multi-model)
-- **No horizontal scaling**: Stateful services (Authelia sessions in Redis)
+- **No horizontal scaling**: Stateful services (Authelia sessions in Valkey)
 
 ### Scalability Paths
 
 1. **Database Scaling**
    - PostgreSQL read replicas
-   - Redis Sentinel for HA
+   - Valkey HA options (replica/cluster)
    - Qdrant distributed mode
 
 2. **LLM Scaling**
@@ -628,7 +628,7 @@ KFuncDB → SSH (key auth) → Host (forced command wrapper)
 3. **Application Scaling**
    - Kubernetes migration
    - Stateless app replicas behind load balancer
-   - Shared session store (already Redis-backed)
+   - Shared session store (already Valkey-backed)
 
 ### Resource Requirements by Profile
 
@@ -653,7 +653,7 @@ KFuncDB → SSH (key auth) → Host (forced command wrapper)
 Caddy
  ├─► Authelia
  │    ├─► OpenLDAP
- │    └─► Redis
+ │    └─► Valkey
  │
  ├─► Open WebUI
  │    └─► LiteLLM
@@ -670,9 +670,9 @@ Caddy
  │    ├─► PostgreSQL
  │    └─► ClickHouse
  │
- └─► Planka, Outline, Vaultwarden, etc.
-      ├─► PostgreSQL
-      └─► Redis
+ └─► Planka, BookStack, Vaultwarden, etc.
+      ├─► PostgreSQL/MariaDB
+      └─► Valkey
 ```
 
 ### Service Startup Order
@@ -680,7 +680,7 @@ Caddy
 ```
 Phase 1: Infrastructure
   → OpenLDAP
-  → Redis
+  → Valkey
   → Authelia (depends: LDAP, Redis)
   → Caddy (depends: Authelia)
 
@@ -703,7 +703,7 @@ Phase 4: Diagnostics
 
 Phase 5: Applications
   → Open WebUI (depends: LiteLLM)
-  → Grafana, Planka, Outline (depend: PostgreSQL, Redis)
+  → Grafana, Planka, BookStack (depend: PostgreSQL/MariaDB, Valkey)
   → Mailu, Seafile, etc.
 ```
 

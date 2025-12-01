@@ -14,7 +14,7 @@ RUN ./gradlew --no-daemon :speech-gateway:shadowJar
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
-COPY --from=build /workspace/src/speech-gateway/build/libs/*-all.jar app.jar
+COPY --from=build /workspace/src/speech-gateway/build/libs/ktspeechgateway.jar app.jar
 
 EXPOSE 8091
 

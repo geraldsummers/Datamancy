@@ -21,7 +21,7 @@ database:
   allow_unsafe_locale: true
   args:
     user: synapse
-    password: changeme_synapse_db
+    password: synapse_secure_pass_2024
     database: synapse
     host: postgres
     port: 5432

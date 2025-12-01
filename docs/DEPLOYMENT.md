@@ -143,9 +143,6 @@ VAULTWARDEN_OAUTH_SECRET=$(openssl rand -hex 16)
 VAULTWARDEN_ADMIN_TOKEN=$(openssl rand -hex 32)
 PLANKA_OAUTH_SECRET=$(openssl rand -hex 16)
 PLANKA_SECRET_KEY=$(openssl rand -hex 32)
-OUTLINE_OAUTH_SECRET=$(openssl rand -hex 16)
-OUTLINE_SECRET_KEY=$(openssl rand -hex 32)
-OUTLINE_UTILS_SECRET=$(openssl rand -hex 32)
 JUPYTERHUB_OAUTH_SECRET=$(openssl rand -hex 16)
 ONLYOFFICE_JWT_SECRET=$(openssl rand -hex 32)
 
@@ -155,7 +152,7 @@ VAULTWARDEN_SMTP_PASSWORD=$(openssl rand -hex 16)
 # Database Passwords
 MARIADB_SEAFILE_ROOT_PASSWORD=$(openssl rand -hex 16)
 PLANKA_DB_PASSWORD=$(openssl rand -hex 16)
-OUTLINE_DB_PASSWORD=$(openssl rand -hex 16)
+BOOKSTACK_DB_PASSWORD=$(openssl rand -hex 16)
 SYNAPSE_DB_PASSWORD=$(openssl rand -hex 16)
 MAILU_DB_PASSWORD=$(openssl rand -hex 16)
 EOF
@@ -234,7 +231,7 @@ docker compose logs -f
 ```
 
 **Bootstrap profile includes:**
-- Caddy, Authelia, OpenLDAP, Redis
+- Caddy, Authelia, OpenLDAP, Valkey
 - Portainer, Portainer Agent
 - vLLM, LiteLLM, vLLM Router, Embedding Service
 - KFuncDB, Probe Orchestrator, Playwright
@@ -410,8 +407,8 @@ Docker Compose profiles for modular deployment:
 | Profile | Services | Purpose | Dependencies |
 |---------|----------|---------|--------------|
 | `bootstrap` | Core + AI + Diagnostics | Minimal working stack | None |
-| `databases` | PostgreSQL, MariaDB, Redis, etc. | Data layer | None |
-| `applications` | Grafana, Planka, Outline, etc. | User apps | `databases` |
+| `databases` | PostgreSQL, MariaDB, Valkey, etc. | Data layer | None |
+| `applications` | Grafana, Planka, BookStack, etc. | User apps | `databases` |
 | `infrastructure` | Benthos, Dockge, Kopia, etc. | Ops tools | `bootstrap` |
 | `bootstrap_vector_dbs` | Qdrant, ClickHouse, Benthos | RAG/Analytics | `bootstrap` |
 
@@ -440,14 +437,14 @@ Services start in dependency order:
 ```
 Phase 1: Infrastructure Foundation
   1. OpenLDAP (directory)
-  2. Redis (cache)
-  3. Authelia (waits for LDAP + Redis)
+  2. Valkey (cache)
+  3. Authelia (waits for LDAP + Valkey)
   4. Caddy (waits for Authelia)
 
 Phase 2: Databases
   5. PostgreSQL
   6. MariaDB
-  7. Redis-Synapse, Mailu-Redis
+  7. Valkey (Synapse), Valkey (Mailu)
   8. CouchDB
   9. ClickHouse, Qdrant (vector DBs)
 
@@ -465,7 +462,7 @@ Phase 4: Diagnostics
 Phase 5: Applications
   17. Open WebUI (waits for LiteLLM)
   18. Portainer, Dockge
-  19. Grafana, Vaultwarden, Planka, Outline, etc.
+  19. Grafana, Vaultwarden, Planka, BookStack, etc.
   20. Mailu stack, Seafile, Synapse, Mastodon, etc.
 ```
 
@@ -499,7 +496,7 @@ curl http://localhost:8000/health      # vLLM
 # Databases
 docker exec postgres pg_isready
 docker exec mariadb mariadb-admin ping
-docker exec redis redis-cli ping
+docker exec redis valkey-cli ping
 
 # Applications
 curl http://localhost:3000/api/health  # Grafana
@@ -569,9 +566,9 @@ docker exec postgres pg_dumpall -U ${STACK_ADMIN_USER} | gzip > backup/postgres-
 # MariaDB
 docker exec mariadb mariadb-dump -u root -p${STACK_ADMIN_PASSWORD} --all-databases | gzip > backup/mariadb-$(date +%Y%m%d).sql.gz
 
-# Redis
-docker exec redis redis-cli SAVE
-cp volumes/redis_data/dump.rdb backup/redis-$(date +%Y%m%d).rdb
+# Valkey
+docker exec redis valkey-cli SAVE
+cp volumes/redis_data/dump.rdb backup/valkey-$(date +%Y%m%d).rdb
 ```
 
 **3. Kopia (Built-in Backup Service)**
@@ -648,11 +645,11 @@ docker exec authelia ldapsearch -x -H ldap://ldap:389 \
   -w "${STACK_ADMIN_PASSWORD}" \
   -b "dc=stack,dc=local"
 
-# Verify Redis session store
-docker exec redis redis-cli KEYS 'authelia:*'
+# Verify Valkey session store
+docker exec redis valkey-cli KEYS 'authelia:*'
 
 # Clear sessions
-docker exec redis redis-cli FLUSHALL
+docker exec redis valkey-cli FLUSHALL
 ```
 
 ### GPU/vLLM Not Working

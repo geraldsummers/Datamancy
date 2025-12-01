@@ -14,7 +14,7 @@ RUN ./gradlew --no-daemon :probe-orchestrator:shadowJar
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
-COPY --from=build /workspace/src/probe-orchestrator/build/libs/*-all.jar app.jar
+COPY --from=build /workspace/src/probe-orchestrator/build/libs/probe-orchestrator-kt.jar app.jar
 
 EXPOSE 8089
 

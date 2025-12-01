@@ -299,7 +299,7 @@ Analyze failures and propose remediation.
     }
   ],
   "automated_actions_safe": ["grafana: restart"],
-  "requires_human_review": ["outline: check_config"],
+  "requires_human_review": ["bookstack: check_config"],
   "base_report_path": "/proofs/stack_diagnostics_1704067200.json"
 }
 ```

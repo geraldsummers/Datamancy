@@ -32,10 +32,10 @@
         description: File Storage
         icon: nextcloud.png
 
-    - Outline:
-        href: https://outline.project-saturn.com
+    - BookStack:
+        href: https://bookstack.project-saturn.com
         description: Team Wiki
-        icon: outline.png
+        icon: bookstack.png
 
     - Planka:
         href: https://planka.project-saturn.com
