@@ -1685,7 +1685,7 @@ services:
 
   # Piper TTS HTTP service
   piper:
-    image: ghcr.io/rhasspy/piper-http:latest
+    image: rhasspy/piper:latest
     container_name: piper
     restart: unless-stopped
     networks:

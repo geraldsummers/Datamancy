@@ -5,23 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="kotlin script vincemcmahon.gif">
-      <change afterPath="$PROJECT_DIR$/scripts/cleandocker.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/APP_CATALOG.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/AUTONOMOUS_DIAGNOSTICS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/BOOTSTRAP.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DIAGNOSTIC_ARTIFACTS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/OPERATIONS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/test-authelia-login.main.kts" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -230,7 +215,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764544587008</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="kotlin script vincemcmahon.gif">
+      <option name="closed" value="true" />
+      <created>1764549582381</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1764549582382</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
