@@ -1,4 +1,5 @@
-#!/usr/bin/env kotlin
+#!/usr/bin/env -S kotlin -Xmulti-dollar-interpolation
+
 /**
  * Kotlin rewrite of create_debian_distribution.sh
  *
@@ -31,6 +32,7 @@ fun which(cmd: String): Boolean = runCatching {
 }.getOrElse { false }
 
 fun runCmd(vararg args: String, cwd: File? = null, env: Map<String, String> = emptyMap()): CmdResult {
+    println("[CMD] ${args.joinToString(" ")}")
     val pb = ProcessBuilder(*args)
     if (cwd != null) pb.directory(cwd)
     val processEnv = pb.environment()
@@ -39,6 +41,7 @@ fun runCmd(vararg args: String, cwd: File? = null, env: Map<String, String> = em
     val out = p.inputStream.bufferedReader().readText()
     val err = p.errorStream.bufferedReader().readText()
     val code = p.waitFor()
+    println("[EXIT CODE] ${code}")
     return CmdResult(code, out, err)
 }
 
@@ -94,14 +97,22 @@ val KEYSTORE_DIR = Path.of(getEnv("KEYSTORE_DIR", "./ssh-keystore")).toAbsoluteP
 
 // ----------------------------- Start -----------------------------
 
+println("=== Debian Distribution Builder ===")
+println("IMAGE_ID: $IMAGE_ID")
+println("ADMIN_USER: $ADMIN_USER")
+println()
+
 if (!isRoot()) {
     System.err.println("Run this script with sudo.")
     exitProcess(1)
 }
 
+println("[✓] Running as root")
+
 // ----------------------------- Dependencies -----------------------------
 
 fun aptInstallMissing() {
+    println("\n[STEP] Checking dependencies...")
     val needed = mutableListOf<String>()
     if (!which("xorriso")) needed += "xorriso"
     if (!which("cpio")) needed += "cpio"
@@ -113,8 +124,13 @@ fun aptInstallMissing() {
     if (!File(ISOLINUX_MBR).exists()) needed += "isolinux"
 
     if (needed.isNotEmpty()) {
+        println("[!] Missing packages: ${needed.joinToString(", ")}")
+        println("[STEP] Running apt-get update...")
         requireSuccess(runCmd("bash", "-lc", "apt-get update"), "apt-get update")
+        println("[STEP] Installing missing packages: ${needed.joinToString(" ")}")
         requireSuccess(runCmd("bash", "-lc", "DEBIAN_FRONTEND=noninteractive apt-get install -y ${needed.joinToString(" ")}"), "apt-get install")
+    } else {
+        println("[✓] All dependencies present")
     }
 }
 
@@ -122,8 +138,13 @@ aptInstallMissing()
 
 // ----------------------------- Download ISO -----------------------------
 
+println("\n[STEP] Preparing download directory: $DOWNLOAD_DIR")
 ensureDir(DOWNLOAD_DIR)
+
+println("[STEP] Fetching mirror index from: $MIRROR_BASE")
 val htmlIndex = runCmd("bash", "-lc", "curl -fsSL '$MIRROR_BASE/'").also { requireSuccess(it, "download mirror index") }.out
+
+println("[STEP] Searching for latest Debian 13 netinst ISO...")
 val isoName = htmlIndex.lines()
     .mapNotNull { Regex("debian-13\\.[0-9]+\\.0-amd64-netinst\\.iso").find(it)?.value }
     .distinct()
@@ -134,19 +155,28 @@ val isoName = htmlIndex.lines()
         exitProcess(1)
     }
 
+println("[✓] Found ISO: $isoName")
 val isoIn = DOWNLOAD_DIR.resolve(isoName)
 val isoUrl = "$MIRROR_BASE/$isoName"
 
 if (!Files.exists(isoIn)) {
+    println("[STEP] Downloading ISO from: $isoUrl")
+    println("       Destination: $isoIn")
     requireSuccess(runCmd("bash", "-lc", "curl -fLo '${isoIn}' '${isoUrl}'"), "download ISO")
+    println("[✓] Download complete")
+} else {
+    println("[✓] ISO already exists: $isoIn")
 }
 
 // Verify SHA512
+println("[STEP] Verifying SHA512 checksum...")
 runCmd("bash", "-lc", "cd '${DOWNLOAD_DIR}' && curl -fsSL '$MIRROR_BASE/SHA512SUMS' | grep ' $isoName\$' | sha512sum -c -")
     .also { requireSuccess(it, "verify SHA512SUMS") }
+println("[✓] SHA512 verification passed")
 
 // ----------------------------- SSH key management -----------------------------
 
+println("\n[STEP] Managing SSH keys...")
 ensureDir(KEYSTORE_DIR)
 val metaFile = KEYSTORE_DIR.resolve("${IMAGE_ID}.meta")
 
@@ -154,6 +184,7 @@ data class Keys(val basename: String, val priv: Path, val pub: Path)
 
 fun ensureKeys(): Keys {
     return if (Files.exists(metaFile)) {
+        println("[INFO] Found existing key metadata for IMAGE_ID '$IMAGE_ID'")
         val basename = Files.readAllLines(metaFile).firstOrNull()?.trim().orEmpty()
         val priv = KEYSTORE_DIR.resolve(basename)
         val pub = KEYSTORE_DIR.resolve("$basename.pub")
@@ -161,13 +192,17 @@ fun ensureKeys(): Keys {
             System.err.println("ERROR: Key files missing for IMAGE_ID '$IMAGE_ID'. Refusing to proceed.")
             exitProcess(1)
         }
+        println("[✓] Using existing SSH key: $basename")
         Keys(basename, priv, pub)
     } else {
+        println("[INFO] No existing key found, generating new SSH key pair...")
         val basename = SSH_KEY_NAME
         val priv = KEYSTORE_DIR.resolve(basename)
         val pub = KEYSTORE_DIR.resolve("$basename.pub")
         Files.writeString(metaFile, basename + "\n")
+        println("[STEP] Generating ed25519 key: $basename")
         requireSuccess(runCmd("ssh-keygen", "-t", "ed25519", "-N", "", "-f", priv.toString()), "ssh-keygen")
+        println("[✓] SSH key pair generated")
         Keys(basename, priv, pub)
     }
 }
@@ -175,18 +210,22 @@ fun ensureKeys(): Keys {
 val keys = ensureKeys()
 
 // Install builder key into invoking user's ~/.ssh
+println("[STEP] Installing SSH key to user's ~/.ssh directory...")
 val runUser = System.getenv("SUDO_USER") ?: System.getenv("USER") ?: System.getProperty("user.name")
+println("[INFO] Target user: $runUser")
 val userHome = runCmd("bash", "-lc", "eval echo ~${runUser}").out.trim().ifBlank { System.getProperty("user.home") }
 val targetSshDir = Path.of(userHome, ".ssh")
 ensureDir(targetSshDir)
 val targetPriv = targetSshDir.resolve(keys.priv.fileName.toString())
 val targetPub = targetSshDir.resolve(keys.pub.fileName.toString())
+println("[STEP] Copying keys to $targetSshDir")
 Files.copy(keys.priv, targetPriv, StandardCopyOption.REPLACE_EXISTING)
 Files.copy(keys.pub, targetPub, StandardCopyOption.REPLACE_EXISTING)
 chmod(targetPriv, "600")
 chmod(targetPub, "644")
 chownRecursive(targetSshDir, runUser, runUser)
 
+println("[STEP] Updating SSH config...")
 val sshConfig = targetSshDir.resolve("config")
 if (!Files.exists(sshConfig)) Files.createFile(sshConfig)
 chmod(sshConfig, "600")
@@ -194,23 +233,36 @@ val idLine = "IdentityFile ~/.ssh/${keys.basename}"
 val configText = Files.readString(sshConfig)
 if (!configText.lines().any { it.trim() == idLine }) {
     appendLine(sshConfig, idLine)
+    println("[✓] Added IdentityFile entry to SSH config")
+} else {
+    println("[✓] SSH config already contains IdentityFile entry")
 }
 
 // ----------------------------- ISO extraction workdir -----------------------------
 
+println("\n[STEP] Setting up ISO work directory...")
 val ISO_WORK_DIR = Path.of("isofiles").toAbsolutePath()
 val ISO_OUT = ISO_WORK_DIR.parent.resolve("${isoName.removeSuffix(".iso")}-${IMAGE_ID}-custom.iso").toAbsolutePath()
+println("[INFO] Work directory: $ISO_WORK_DIR")
+println("[INFO] Output ISO: $ISO_OUT")
 
 if (Files.exists(ISO_WORK_DIR)) {
+    println("[STEP] Cleaning existing work directory...")
     runCmd("bash", "-lc", "rm -rf '${ISO_WORK_DIR}'").also { requireSuccess(it, "clean ISO_WORK_DIR") }
 }
 Files.createDirectory(ISO_WORK_DIR)
+println("[✓] Work directory created")
 
+println("[STEP] Extracting ISO contents with xorriso (this may take a moment)...")
 requireSuccess(runCmd("xorriso", "-osirrox", "on", "-indev", isoIn.toString(), "-extract", "/", ISO_WORK_DIR.toString()), "xorriso extract")
+println("[✓] ISO extraction complete")
 
+println("[STEP] Copying SSH public key to ISO...")
 Files.copy(keys.pub, ISO_WORK_DIR.resolve("ssh-builder.pub"), StandardCopyOption.REPLACE_EXISTING)
+println("[✓] SSH key copied")
 
 // ----------------------------- zshrc template -----------------------------
+println("\n[STEP] Creating configuration files...")
 val zshrcTemplate = """
 # Auto-generated default zshrc for this image
 PROMPT="%F{red}%M%f %F{14}%n%f %d %T : "
@@ -218,8 +270,10 @@ export EDITOR=nvim
 """.trimIndent()
 
 writeFile(ISO_WORK_DIR.resolve("zshrc-template"), zshrcTemplate)
+println("[✓] zshrc template created")
 
 // ----------------------------- btrfs-subvol-setup.sh -----------------------------
+
 val btrfsSubvolSetup = $$"""#!/bin/bash
 set -euo pipefail
 
@@ -348,6 +402,7 @@ umount /mnt/btrfs-root || true
 
 writeFile(ISO_WORK_DIR.resolve("btrfs-subvol-setup.sh"), btrfsSubvolSetup)
 chmod(ISO_WORK_DIR.resolve("btrfs-subvol-setup.sh"), "755")
+println("[✓] btrfs-subvol-setup.sh created")
 
 // ----------------------------- firstboot-btrfs-snapper scripts -----------------------------
 val firstbootScript = """#!/bin/bash
@@ -396,6 +451,7 @@ WantedBy=multi-user.target
 """.trimIndent()
 
 writeFile(ISO_WORK_DIR.resolve("firstboot-btrfs-snapper.service"), firstbootService)
+println("[✓] firstboot scripts and service created")
 
 // ----------------------------- preseed.cfg -----------------------------
 val preseed = """### Debian 13 Preseed — minimal automation, with KDE + sane defaults.
@@ -473,16 +529,24 @@ d-i preseed/late_command string \
 """.trimIndent()
 
 writeFile(ISO_WORK_DIR.resolve("preseed.cfg"), preseed)
+println("[✓] preseed.cfg created")
 
 // ----------------------------- Inject preseed into initrd -----------------------------
+println("\n[STEP] Injecting preseed.cfg into initrd...")
 val initrdDir = ISO_WORK_DIR.resolve("install.amd").toFile()
+println("[INFO] initrd directory: ${initrdDir.absolutePath}")
 Files.copy(ISO_WORK_DIR.resolve("preseed.cfg"), initrdDir.toPath().resolve("preseed.cfg"), StandardCopyOption.REPLACE_EXISTING)
+println("[STEP] Making initrd directory writable...")
 runCmd("bash", "-lc", "chmod +w '${initrdDir.absolutePath}'").also { requireSuccess(it, "chmod +w initrd dir") }
+println("[STEP] Unpacking initrd, injecting preseed.cfg, and repacking (this may take a moment)...")
 runCmd("bash", "-lc", "cd '${initrdDir.absolutePath}' && gunzip initrd.gz && echo preseed.cfg | cpio -H newc -o -A -F initrd && gzip initrd")
     .also { requireSuccess(it, "initrd injection") }
+println("[STEP] Restoring initrd directory permissions...")
 runCmd("bash", "-lc", "chmod -w '${initrdDir.absolutePath}'").also { requireSuccess(it, "chmod -w initrd dir") }
+println("[✓] preseed.cfg injected into initrd")
 
 // ----------------------------- Boot configs -----------------------------
+println("\n[STEP] Configuring boot loaders...")
 val isolinuxCfg = """default auto
 prompt 0
 timeout 0
@@ -493,6 +557,7 @@ label auto
 """.trimIndent()
 
 writeFile(ISO_WORK_DIR.resolve("isolinux/isolinux.cfg"), isolinuxCfg)
+println("[✓] ISOLINUX config written")
 
 val grubCfg = """set default=0
 set timeout=0
@@ -504,14 +569,20 @@ menuentry "Automated install" {
 """.trimIndent()
 
 writeFile(ISO_WORK_DIR.resolve("boot/grub/grub.cfg"), grubCfg)
+println("[✓] GRUB config written")
 
 // ----------------------------- md5sum.txt rebuild -----------------------------
+println("\n[STEP] Rebuilding md5sum.txt for modified ISO contents...")
 runCmd(
     "bash", "-lc",
     "cd '${ISO_WORK_DIR}' && find . -type f ! -name md5sum.txt -print0 | xargs -0 md5sum > md5sum.txt"
 ).also { requireSuccess(it, "rebuild md5sum.txt") }
+println("[✓] md5sum.txt rebuilt")
 
 // ----------------------------- Build final ISO -----------------------------
+println("\n[STEP] Building final ISO image...")
+println("[INFO] Output file: $ISO_OUT")
+println("[INFO] Using ISOLINUX MBR: $ISOLINUX_MBR")
 val buildCmd = arrayOf(
     "xorriso", "-as", "mkisofs",
     "-isohybrid-mbr", ISOLINUX_MBR,
@@ -528,9 +599,13 @@ val buildCmd = arrayOf(
     ISO_WORK_DIR.toString()
 )
 
+println("[STEP] Running xorriso to create bootable hybrid ISO (this may take a moment)...")
 runCmd(*buildCmd).also { requireSuccess(it, "build final ISO") }
+println("[✓] ISO build complete")
 
+println("\n" + "=".repeat(60))
 println("Custom ISO ready: $ISO_OUT")
 println("IMAGE_ID: $IMAGE_ID")
 println("SSH key:   ~/.ssh/${keys.priv.fileName}")
 println("NOTE: This custom ISO is not Secure Boot signed. Disable Secure Boot to boot it.")
+println("=".repeat(60))

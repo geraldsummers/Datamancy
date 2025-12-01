@@ -38,3 +38,4 @@ logs/
 *.backup
 
 build/
+downloads/
