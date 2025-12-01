@@ -1490,6 +1490,26 @@ services:
       retries: 10
       start_period: 30s
 
+  embedding-service:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.2
+    container_name: embedding-service
+    restart: unless-stopped
+    networks:
+      - backend
+    profiles:
+      - bootstrap
+      - bootstrap_vector_dbs
+      - applications
+    command: --model-id sentence-transformers/all-MiniLM-L6-v2 --port 8080
+    volumes:
+      - ${VOLUMES_ROOT}/embeddings/models:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   litellm:
     image: ghcr.io/berriai/litellm:v1.74.9-stable.patch.1
     container_name: litellm
@@ -1504,6 +1524,8 @@ services:
       vllm-router:
         condition: service_healthy
       authelia:
+        condition: service_healthy
+      embedding-service:
         condition: service_healthy
     volumes:
       - litellm_config:/app/config
@@ -1739,7 +1761,7 @@ services:
       start_period: 30s
 
   vector-bootstrap:
-    image: kotlin:1.9.25-jdk17
+    build: ./src/kotlin-script-runner
     container_name: vector-bootstrap
     profiles:
       - bootstrap_vector_dbs
@@ -1784,6 +1806,7 @@ services:
       - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
       - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       - LITELLM_URL=${LITELLM_URL:-http://litellm:4000/v1}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://${STACK_ADMIN_USER}:${STACK_ADMIN_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
       - EMBED_MODEL=${EMBED_MODEL:-embed-small}
     extra_hosts:

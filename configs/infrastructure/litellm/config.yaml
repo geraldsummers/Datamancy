@@ -24,6 +24,13 @@ model_list:
       api_key: unused
       max_tokens: 1024
 
+  # Embedding model via Hugging Face TEI
+  - model_name: embed-small
+    litellm_params:
+      model: huggingface/sentence-transformers/all-MiniLM-L6-v2
+      api_base: http://embedding-service:8080
+      api_key: unused
+
 litellm_settings:
   drop_params: true
   success_callback: []

@@ -4,50 +4,24 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="oo">
-      <change afterPath="$PROJECT_DIR$/test-authelia-login.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
+    <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="kotlin script vincemcmahon.gif">
+      <change afterPath="$PROJECT_DIR$/scripts/cleandocker.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/vectors/bootstrap_vectors.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/AUTONOMOUS_DIAGNOSTICS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AUTONOMOUS_DIAGNOSTICS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DIAGNOSTIC_ARTIFACTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DIAGNOSTIC_ARTIFACTS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/01-create-stackops-user.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/02-install-stackops-wrapper.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/03-harden-sshd-for-stackops.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/04-generate-ssh-keys.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/05-setup-stackops-key.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/06-setup-stackops-authorized-keys.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/analyze-diagnostic-report.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/cleandocker.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/create-volume-dirs.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/create_debian_distribution.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/ensure-postgres-ready.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/init-secrets.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/install-nvidia-containers.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/review-diagnostics.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/setup-host.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/supervisor-session.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/APPS_LAYER_ISSUES.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/FINAL_SUCCESS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/FIX_RESULTS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/FULL_APPS_AUDIT_PLAN.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/PERSISTENCE_FIX.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/README_FIXES.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/SCREENSHOT_SOLUTION.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/TEST_06_RESULTS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/diagnostic/test-authelia-login.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/APP_CATALOG.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/AUTONOMOUS_DIAGNOSTICS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/BOOTSTRAP.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DATA_AND_RAG.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DIAGNOSTIC_ARTIFACTS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/OPERATIONS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-authelia-login.main.kts" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -89,6 +63,7 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Setup Script" />
+        <option value="Kotlin Script MainKts.main" />
       </list>
     </option>
   </component>
@@ -117,26 +92,31 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Gradle.Build Datamancy.executor": "Run",
-    "Gradle.Datamancy [build].executor": "Run",
-    "Gradle.src [build].executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "master",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/gerald/IdeaProjects/Datamancy",
-    "project.structure.last.edited": "Modules",
-    "project.structure.proportion": "0.0",
-    "project.structure.side.proportion": "0.0",
-    "to.speed.mode.migration.done": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Gradle.Build Datamancy.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Datamancy [build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.src [build].executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/gerald/IdeaProjects/Datamancy&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/scripts" />
+    </key>
+  </component>
   <component name="RunAnythingCache">
     <option name="myCommands">
       <command value="gradle build" />
@@ -242,11 +222,20 @@
       <option name="project" value="LOCAL" />
       <updated>1764538863249</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="kotlin script vincemcmahon.gif">
+      <option name="closed" value="true" />
+      <created>1764544587008</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1764544587008</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="oo" />
-    <option name="LAST_COMMIT_MESSAGE" value="oo" />
+    <MESSAGE value="kotlin script vincemcmahon.gif" />
+    <option name="LAST_COMMIT_MESSAGE" value="kotlin script vincemcmahon.gif" />
   </component>
 </project>

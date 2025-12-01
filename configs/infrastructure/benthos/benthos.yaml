@@ -4,10 +4,9 @@ http:
   root_path: /benthos
   debug_endpoints: true
 
-resources:
-  caches:
-    dedupe_mem:
-      memory: {}
+cache_resources:
+  - label: dedupe_mem
+    memory: {}
 
 input:
   broker:
@@ -30,19 +29,17 @@ input:
           - bloblang: 'root = if this.text == "" { deleted() }'
           - dedupe:
               cache: dedupe_mem
-              hash: "${! this.id }"
+              key: "${! this.id }"
           - branch:
+              request_map: |
+                root = { "inputs": this.text }
               processors:
                 - http:
-                    url: ${LITELLM_URL:http://litellm:4000/v1}/embeddings
+                    url: http://embedding-service:8080/embed
                     verb: POST
                     headers:
                       Content-Type: application/json
-                    body: |
-                      root = { "input": [ this.text ], "model": env("EMBED_MODEL", "embed-small") }
-                - mapping: |
-                    root = { "vector": this.data.0.embedding }
-              result_map: 'root.vector = this.vector'
+              result_map: 'root.vector = this.0'
 
       - label: ingest_series
         http_server:
@@ -67,15 +64,17 @@ output:
       - check: this.route == "text"
         output:
           http_client:
-            url: ${QDRANT_URL:http://qdrant:6333}/collections/${! json("collection") }/points?wait=true
+            url: ${QDRANT_URL:http://qdrant:6333}/collections/${! this.collection }/points?wait=true
             verb: PUT
             headers:
               Content-Type: application/json
               api-key: ${QDRANT_API_KEY:}
-            body: |
-              root = {
-                "points": [ { "id": this.id, "vector": this.vector, "payload": this.payload } ]
-              }
+            batch_as_multipart: false
+          processors:
+            - mapping: |
+                root = {
+                  "points": [ { "id": this.id, "vector": this.vector, "payload": this.payload } ]
+                }
       - check: this.route == "series"
         output:
           sql_insert:
