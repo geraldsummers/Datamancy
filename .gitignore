@@ -48,3 +48,12 @@ isofiles/
 id_ed*
 /volumes/
 *.iso
+# SSH keys (NEVER COMMIT)
+ssh-keystore/
+id_ed25519*
+*.pem
+!*.pem.example
+
+# Encrypted secrets (COMMIT THESE)
+!.env.enc
+!.sops.yaml

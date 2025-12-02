@@ -6,47 +6,17 @@
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="confugirator">
       <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/authelia/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/authelia/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/filebrowser/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/filebrowser/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/synapse/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/applications/synapse/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/couchdb/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/couchdb/init-db.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/couchdb/init-wrapper.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/couchdb/init-wrapper.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/ensure-users.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/postgres/ensure-users.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/vectors/bootstrap_vectors.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/configs/databases/vectors/bootstrap_vectors.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/BACKUP_IMPLEMENTATION_COMPLETE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/FAIL_SECURE_MODES.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/LOG_CENTRALIZATION_PLAN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/PRE_PRODUCTION_AUDIT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/PRE_PRODUCTION_FIXES_APPLIED.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/PRE_PRODUCTION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/SECRETS_MANAGEMENT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/SSH_DEPLOYMENT_GUIDE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/STACKOPS_UP.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DEPLOYMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEPLOYMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEVELOPMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/config-generator/generate-all.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/create_debian_distribution.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/create_debian_distribution.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/rag_helper.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/rag_query.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/stackops.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/stackops.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/HttpServer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/HttpServer.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/OpsSshPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/build.gradle.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/Orchestrator.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/model/Authelia.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/model/Databases.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/model/Ldap.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/model/Mailu.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/model/ProbeOrchestrator.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/model/StackConfig.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/model/StackConfigs.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/secrets/Secrets.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/templates/AutheliaTemplate.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/templates/CaddyTemplate.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/templates/DockerComposeTemplate.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/templates/LdapBootstrapTemplate.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/util/LdapSsha.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config-generator/src/main/kotlin/org/datamancy/configgen/validators/Validation.kt" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -371,7 +341,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764627614725</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="confugirator">
+      <option name="closed" value="true" />
+      <created>1764644603550</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1764644603550</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

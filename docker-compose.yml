@@ -1094,7 +1094,7 @@ services:
         condition: service_healthy
     environment:
       - BASE_URL=https://planka.${DOMAIN}
-      - DATABASE_URL=postgresql://planka:planka_secure_pass_2024@postgres:5432/planka
+      - DATABASE_URL=postgresql://planka:${PLANKA_DB_PASSWORD}@postgres:5432/planka
       - SECRET_KEY=${PLANKA_SECRET_KEY}
       - OIDC_ISSUER=https://auth.${DOMAIN}
       - OIDC_CLIENT_ID=planka
@@ -1224,7 +1224,7 @@ services:
       - POSTGRES_PORT=5432
       - POSTGRES_DB=synapse
       - POSTGRES_USER=synapse
-      - POSTGRES_PASSWORD=synapse_secure_pass_2024
+      - POSTGRES_PASSWORD=${SYNAPSE_DB_PASSWORD}
       - REDIS_HOST=redis-synapse
     volumes:
       - synapse_data:/data
