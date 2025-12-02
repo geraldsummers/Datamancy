@@ -1,6 +1,0 @@
-target_collection: wiki_general
-required_env:
-  - WIKI_DUMPS_URL
-notes:
-  - Run wikiextractor over dumps to produce NDJSON chunks
-  - Chunk -> embed (via LiteLLM) -> upsert to Qdrant

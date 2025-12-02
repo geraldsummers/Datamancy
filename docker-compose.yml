@@ -1205,7 +1205,8 @@ services:
       start_period: 2m
 
   synapse:
-    image: matrixdotorg/synapse:v1.141.0
+    build:
+      dockerfile: ./src/synapse/Dockerfile
     container_name: synapse
     restart: unless-stopped
     profiles:
@@ -1214,6 +1215,8 @@ services:
       redis-synapse:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      ldap:
         condition: service_healthy
     environment:
       - SYNAPSE_SERVER_NAME=matrix.${DOMAIN}
@@ -1226,6 +1229,7 @@ services:
       - POSTGRES_USER=synapse
       - POSTGRES_PASSWORD=${SYNAPSE_DB_PASSWORD}
       - REDIS_HOST=redis-synapse
+      - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - synapse_data:/data
       - ./configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
@@ -1883,3 +1887,49 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+
+  # LDAP Sync Service - Syncs LDAP users to services without LDAP support
+  ldap-sync-service:
+    build:
+      dockerfile: ./src/ldap-sync-service/Dockerfile
+      context: .
+    container_name: ldap-sync-service
+    restart: "no"  # Run on-demand or via cron
+    profiles:
+      - infrastructure
+    networks:
+      - backend
+    depends_on:
+      ldap:
+        condition: service_healthy
+      mailu-admin:
+        condition: service_healthy
+      docker-proxy:
+        condition: service_healthy
+    environment:
+      # LDAP connection
+      - LDAP_HOST=ldap
+      - LDAP_PORT=389
+      - LDAP_BIND_DN=cn=admin,dc=stack,dc=local
+      - LDAP_BIND_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - LDAP_BASE_DN=dc=stack,dc=local
+      - LDAP_USERS_OU=ou=users
+      - LDAP_GROUPS_OU=ou=groups
+      # Enable plugins
+      - ENABLE_MAILU_SYNC=true
+      # Mailu configuration
+      - MAILU_ADMIN_CONTAINER=mailu-admin
+      - MAIL_DOMAIN=${MAIL_DOMAIN}
+      - MAILU_DEFAULT_QUOTA_MB=5000
+      - MAILU_DEFAULT_PASSWORD=ChangeMe123!
+      # Docker socket for Mailu sync (via proxy)
+      - DOCKER_HOST=tcp://docker-proxy:2375
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    command: ["sync"]
+    healthcheck:
+      test: ["CMD", "echo", "ok"]
+      interval: 5m
+      timeout: 10s
+      retries: 1
+      start_period: 10s

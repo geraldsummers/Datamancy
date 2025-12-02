@@ -5,14 +5,14 @@ set -e
 # It runs automatically when the PostgreSQL container is first initialized
 # Note: This only runs on first initialization when the data volume is empty
 
-# Read passwords from environment or use defaults
-PLANKA_DB_PASSWORD="${PLANKA_DB_PASSWORD:-changeme_planka_db}"
-SYNAPSE_DB_PASSWORD="${SYNAPSE_DB_PASSWORD:-changeme_synapse_db}"
-MAILU_DB_PASSWORD="${MAILU_DB_PASSWORD:-changeme_mailu_db}"
-AUTHELIA_DB_PASSWORD="${AUTHELIA_DB_PASSWORD:-changeme_authelia_db}"
-GRAFANA_DB_PASSWORD="${GRAFANA_DB_PASSWORD:-changeme_grafana_db}"
-VAULTWARDEN_DB_PASSWORD="${VAULTWARDEN_DB_PASSWORD:-changeme_vaultwarden_db}"
-OPENWEBUI_DB_PASSWORD="${OPENWEBUI_DB_PASSWORD:-changeme_openwebui_db}"
+# Read passwords from environment (fail if not set - security)
+PLANKA_DB_PASSWORD="${PLANKA_DB_PASSWORD:?ERROR: PLANKA_DB_PASSWORD not set}"
+SYNAPSE_DB_PASSWORD="${SYNAPSE_DB_PASSWORD:?ERROR: SYNAPSE_DB_PASSWORD not set}"
+MAILU_DB_PASSWORD="${MAILU_DB_PASSWORD:?ERROR: MAILU_DB_PASSWORD not set}"
+AUTHELIA_DB_PASSWORD="${AUTHELIA_DB_PASSWORD:?ERROR: AUTHELIA_DB_PASSWORD not set}"
+GRAFANA_DB_PASSWORD="${GRAFANA_DB_PASSWORD:?ERROR: GRAFANA_DB_PASSWORD not set}"
+VAULTWARDEN_DB_PASSWORD="${VAULTWARDEN_DB_PASSWORD:?ERROR: VAULTWARDEN_DB_PASSWORD not set}"
+OPENWEBUI_DB_PASSWORD="${OPENWEBUI_DB_PASSWORD:?ERROR: OPENWEBUI_DB_PASSWORD not set}"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create users with passwords from environment (must be created before databases for ownership)

@@ -12,12 +12,12 @@ done
 
 echo "PostgreSQL is ready. Ensuring users and databases..."
 
-# Read passwords from environment
-PLANKA_DB_PASSWORD="${PLANKA_DB_PASSWORD:-changeme_planka_db}"
-SYNAPSE_DB_PASSWORD="${SYNAPSE_DB_PASSWORD:-changeme_synapse_db}"
-MAILU_DB_PASSWORD="${MAILU_DB_PASSWORD:-changeme_mailu_db}"
-AUTHELIA_DB_PASSWORD="${AUTHELIA_DB_PASSWORD:-changeme_authelia_db}"
-BOOKSTACK_DB_PASSWORD="${BOOKSTACK_DB_PASSWORD:-changeme_bookstack_db}"
+# Read passwords from environment (fail if not set - security)
+PLANKA_DB_PASSWORD="${PLANKA_DB_PASSWORD:?ERROR: PLANKA_DB_PASSWORD not set}"
+SYNAPSE_DB_PASSWORD="${SYNAPSE_DB_PASSWORD:?ERROR: SYNAPSE_DB_PASSWORD not set}"
+MAILU_DB_PASSWORD="${MAILU_DB_PASSWORD:?ERROR: MAILU_DB_PASSWORD not set}"
+AUTHELIA_DB_PASSWORD="${AUTHELIA_DB_PASSWORD:?ERROR: AUTHELIA_DB_PASSWORD not set}"
+BOOKSTACK_DB_PASSWORD="${BOOKSTACK_DB_PASSWORD:?ERROR: BOOKSTACK_DB_PASSWORD not set}"
 
 # Create/update users and databases
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL

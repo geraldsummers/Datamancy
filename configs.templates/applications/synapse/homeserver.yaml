@@ -41,9 +41,9 @@ uploads_path: /data/uploads
 
 max_upload_size: 50M
 
-registration_shared_secret: "changeme_synapse_registration"
-macaroon_secret_key: "changeme_synapse_macaroon"
-form_secret: "changeme_synapse_form"
+registration_shared_secret: "{{SYNAPSE_REGISTRATION_SECRET}}"
+macaroon_secret_key: "{{SYNAPSE_MACAROON_SECRET}}"
+form_secret: "{{SYNAPSE_FORM_SECRET}}"
 
 signing_key_path: "/data/matrix.{{DOMAIN}}.signing.key"
 
@@ -56,6 +56,23 @@ report_stats: true
 # Registration
 enable_registration: false
 enable_registration_without_verification: false
+
+# LDAP Authentication
+password_providers:
+  - module: "ldap_auth_provider.LdapAuthProvider"
+    config:
+      enabled: true
+      uri: "ldap://ldap:389"
+      start_tls: false
+      base: "ou=users,dc=stack,dc=local"
+      bind_dn: "cn=admin,dc=stack,dc=local"
+      bind_password: "{{STACK_ADMIN_PASSWORD}}"
+      attributes:
+        uid: "uid"
+        mail: "mail"
+        name: "displayName"
+      # User filter - only allow inetOrgPerson objects
+      filter: "(&(objectClass=inetOrgPerson)(uid={uid}))"
 
 # URL preview
 url_preview_enabled: true

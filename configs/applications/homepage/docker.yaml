@@ -1,6 +1,0 @@
----
-# Docker integration for container stats
-# This will automatically show status of your containers
-my-docker:
-  host: /var/run/docker.sock
-  show: running

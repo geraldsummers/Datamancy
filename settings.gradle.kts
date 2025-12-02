@@ -7,6 +7,7 @@ include(":speech-gateway")
 include(":vllm-router")
 include(":stack-discovery")
 include(":playwright-controller")
+include(":ldap-sync-service")
 // NOTE: config-generator has been replaced by process-config-templates.main.kts
 // Removed: include(":config-generator")
 
@@ -17,3 +18,4 @@ project(":speech-gateway").projectDir = file("src/speech-gateway")
 project(":vllm-router").projectDir = file("src/vllm-router")
 project(":stack-discovery").projectDir = file("src/stack-discovery")
 project(":playwright-controller").projectDir = file("src/playwright-controller")
+project(":ldap-sync-service").projectDir = file("src/ldap-sync-service")

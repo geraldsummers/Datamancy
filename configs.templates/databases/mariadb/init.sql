@@ -1,15 +1,11 @@
 -- Create databases for services that need MariaDB
-CREATE DATABASE IF NOT EXISTS authelia CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE IF NOT EXISTS grafana CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- Note: Authelia and Grafana use PostgreSQL (not MariaDB)
+-- Only BookStack and Seafile use MariaDB
 CREATE DATABASE IF NOT EXISTS bookstack CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- Create users and grant permissions
-CREATE USER IF NOT EXISTS 'authelia'@'%' IDENTIFIED BY 'AUTHELIA_DB_PASSWORD_PLACEHOLDER';
-CREATE USER IF NOT EXISTS 'grafana'@'%' IDENTIFIED BY 'GRAFANA_DB_PASSWORD_PLACEHOLDER';
-CREATE USER IF NOT EXISTS 'bookstack'@'%' IDENTIFIED BY 'BOOKSTACK_DB_PASSWORD_PLACEHOLDER';
+CREATE USER IF NOT EXISTS 'bookstack'@'%' IDENTIFIED BY '{{BOOKSTACK_DB_PASSWORD}}';
 
-GRANT ALL PRIVILEGES ON authelia.* TO 'authelia'@'%';
-GRANT ALL PRIVILEGES ON grafana.* TO 'grafana'@'%';
 GRANT ALL PRIVILEGES ON bookstack.* TO 'bookstack'@'%';
 
 FLUSH PRIVILEGES;
