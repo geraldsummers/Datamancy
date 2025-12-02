@@ -149,6 +149,12 @@ GRAFANA_OAUTH_SECRET=$(openssl rand -hex 16)
 VAULTWARDEN_OAUTH_SECRET=$(openssl rand -hex 16)
 PLANKA_SECRET_KEY=$(openssl rand -hex 32)
 
+# Database Passwords (use openssl rand -hex 16)
+GRAFANA_DB_PASSWORD=grafana_dev_pass
+VAULTWARDEN_DB_PASSWORD=vaultwarden_dev_pass
+OPENWEBUI_DB_PASSWORD=openwebui_dev_pass
+PLANKA_DB_PASSWORD=planka_dev_pass
+
 # Optional Features
 VECTOR_EMBED_SIZE=384
 OCR_MODEL=none  # Set to vision model name if available
@@ -246,7 +252,26 @@ Datamancy/
 │   ├── stack-discovery/         # Service discovery
 │   └── playwright-controller/   # Browser automation
 │
-├── configs/                      # Service configurations
+├── src/config-generator/        # Configuration generator
+│   ├── src/main/kotlin/
+│   │   └── org/datamancy/configgen/
+│   │       ├── Orchestrator.kt           # Main generator
+│   │       ├── model/                    # Config data models
+│   │       │   ├── StackConfig.kt
+│   │       │   ├── StackConfigs.kt       # Env definitions (lab, prod)
+│   │       │   └── ...
+│   │       ├── templates/                # Config templates
+│   │       │   ├── DockerComposeTemplate.kt
+│   │       │   ├── CaddyTemplate.kt
+│   │       │   ├── AutheliaTemplate.kt
+│   │       │   └── LdapBootstrapTemplate.kt
+│   │       ├── secrets/                  # Secrets providers
+│   │       │   └── Secrets.kt
+│   │       └── validators/               # Config validation
+│   │           └── Validation.kt
+│   └── build.gradle.kts
+│
+├── configs/                      # Service configurations (current/manual)
 │   ├── applications/             # App-specific configs
 │   │   ├── authelia/
 │   │   ├── grafana/
@@ -262,6 +287,8 @@ Datamancy/
 │   └── probe-orchestrator/      # Service manifests
 │
 ├── scripts/                     # Utility scripts
+│   ├── config-generator/
+│   │   └── generate-all.main.kts  # Config generation entry point
 │   ├── cleandocker.main.kts    # Kotlin script - Docker cleanup
 │   ├── rag_helper.main.kts     # RAG ingestion
 │   └── rag_query.main.kts      # RAG queries
@@ -505,6 +532,181 @@ docker logs my-new-service
 curl http://localhost:8090/healthz
 ```
 
+## Configuration Template System
+
+### Overview
+
+Datamancy uses a **template-based configuration system** with simple `{{PLACEHOLDER}}` substitution to support multiple environments without hardcoding values.
+
+**Key Concept:** The `configs/` directory is **generated from templates** and is **gitignored**. You must generate it before deployment!
+
+### Architecture
+
+```
+configs.templates/           # Source templates (committed to git)
+├── applications/
+│   ├── authelia/
+│   │   └── configuration.yml     # Has {{DOMAIN}} placeholders
+│   ├── mailu/mailu.env          # Has {{MAIL_DOMAIN}}, {{DOMAIN}}
+│   └── ...
+├── infrastructure/
+│   └── caddy/
+│       └── Caddyfile            # Has {{DOMAIN}} placeholders
+└── databases/
+            ↓
+    (process-config-templates.main.kts)
+            ↓
+configs/                     # Generated (gitignored)
+└── (same structure, placeholders replaced with .env values)
+```
+
+### Usage
+
+**Scripts:**
+- `scripts/process-config-templates.main.kts` - Main processor
+- `scripts/migrate-to-templates.main.kts` - One-time migration tool
+
+**Generate configs:**
+```bash
+# Generate configs/ from configs.templates/ using .env
+kotlin scripts/process-config-templates.main.kts
+
+# Preview what would be generated (dry-run)
+kotlin scripts/process-config-templates.main.kts --dry-run --verbose
+
+# Regenerate after changing .env (force overwrite)
+kotlin scripts/process-config-templates.main.kts --force
+```
+
+**What gets processed:**
+- 28 template files (.yml, .yaml, .conf, .env, Caddyfile, .json, .toml)
+- 24 additional files copied as-is (scripts, binaries)
+- 71 placeholder replacements total
+
+### Template Syntax
+
+Templates use simple `{{VARIABLE}}` syntax:
+
+**Example: configs.templates/infrastructure/caddy/Caddyfile**
+```
+auth.{{DOMAIN}} {
+    reverse_proxy authelia:9091
+}
+
+grafana.{{DOMAIN}} {
+    reverse_proxy grafana:3000
+}
+```
+
+**After processing with DOMAIN=project-saturn.com:**
+```
+auth.project-saturn.com {
+    reverse_proxy authelia:9091
+}
+
+grafana.project-saturn.com {
+    reverse_proxy grafana:3000
+}
+```
+
+### Supported Variables
+
+All variables from `.env` are automatically available:
+
+| Variable | Example | Used In |
+|----------|---------|---------|
+| `DOMAIN` | `project-saturn.com` | Caddyfile, Authelia, Mailu, Synapse, Homepage |
+| `MAIL_DOMAIN` | `project-saturn.com` | Mailu configuration |
+| `STACK_ADMIN_EMAIL` | `admin@example.com` | Authelia, various configs |
+| `VOLUMES_ROOT` | `./volumes` | Volume mount paths |
+
+### Adding New Templates
+
+1. **Edit template file** in `configs.templates/`:
+   ```yaml
+   # configs.templates/myapp/config.yml
+   server:
+     host: {{MY_APP_HOST}}
+     domain: {{DOMAIN}}
+   ```
+
+2. **Add variable to `.env`**:
+   ```bash
+   MY_APP_HOST=0.0.0.0
+   ```
+
+3. **Regenerate**:
+   ```bash
+   kotlin scripts/process-config-templates.main.kts --force
+   ```
+
+### Migration Tool
+
+If you have existing configs with hardcoded values, use the migration script:
+
+```bash
+# Preview migration
+kotlin scripts/migrate-to-templates.main.kts --dry-run --verbose
+
+# Perform migration (creates configs.templates/)
+kotlin scripts/migrate-to-templates.main.kts
+
+# Backup original
+mv configs configs.backup
+```
+
+The migration script automatically finds and replaces:
+- `project-saturn.com` → `{{DOMAIN}}`
+- `auth.project-saturn.com` → `auth.{{DOMAIN}}`
+- `admin@localhost` → `{{STACK_ADMIN_EMAIL}}`
+- etc.
+
+### Development Workflow
+
+**Changing your domain:**
+```bash
+# 1. Edit environment
+nano .env
+# Change: DOMAIN=new-domain.com
+
+# 2. Regenerate configs
+kotlin scripts/process-config-templates.main.kts --force
+
+# 3. Restart affected services
+docker compose restart caddy authelia grafana
+```
+
+**Adding a new service:**
+```bash
+# 1. Add config template
+mkdir -p configs.templates/applications/myapp
+cat > configs.templates/applications/myapp/config.yml <<EOF
+server:
+  domain: {{DOMAIN}}
+  email: {{STACK_ADMIN_EMAIL}}
+EOF
+
+# 2. Regenerate
+kotlin scripts/process-config-templates.main.kts --force
+
+# 3. Update docker-compose.yml to mount generated config
+# volumes:
+#   - ./configs/applications/myapp/config.yml:/app/config.yml:ro
+```
+
+### Benefits
+
+- ✅ **Simple**: Just string replacement, no complex logic
+- ✅ **Fast**: Processes 52 files in seconds
+- ✅ **Transparent**: Templates are readable config files
+- ✅ **Environment-Agnostic**: Same templates for dev/staging/prod
+- ✅ **No Duplication**: Single source of truth for each environment
+
+### See Full Documentation
+
+- [TEMPLATE_CONFIG.md](../TEMPLATE_CONFIG.md) - Complete reference
+- [QUICKSTART_TEMPLATES.md](../QUICKSTART_TEMPLATES.md) - Step-by-step guide
+
 ## Testing
 
 ### Unit Tests
@@ -546,7 +748,7 @@ class ApplicationTest {
 Located in `tests/diagnostic/`:
 
 ```bash
-# Test KFuncDB tool inventory
+# Test agent-tool-server tool inventory
 ./tests/diagnostic/test-01-agent-tool-server-tools.sh
 
 # Test single service probe
@@ -557,6 +759,17 @@ Located in `tests/diagnostic/`:
 
 # Test container diagnostics
 ./tests/diagnostic/test-04-container-diagnostics.sh agent-tool-server
+
+# Test SSH operations (requires SSH key setup)
+curl -X POST http://localhost:8081/call-tool \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ops_ssh_cmd",
+    "args": {
+      "cmd": "uptime",
+      "host": "host.docker.internal"
+    }
+  }' | jq
 
 # Run all diagnostic tests
 for test in ./tests/diagnostic/test-*.sh; do
@@ -677,6 +890,32 @@ docker ps | grep postgres
 # Test connection from service container
 docker exec myservice ping postgres
 docker exec myservice nc -zv postgres 5432
+
+# Verify PostgreSQL databases exist
+docker exec postgres psql -U admin -d postgres -c '\l'
+
+# Test specific database connection
+docker exec postgres psql -U grafana -d grafana -c 'SELECT 1'
+docker exec postgres psql -U vaultwarden -d vaultwarden -c 'SELECT 1'
+docker exec postgres psql -U openwebui -d openwebui -c 'SELECT 1'
+```
+
+**Issue: SSH host key verification fails**
+```bash
+# Symptom: agent-tool-server SSH operations fail with "Host key verification failed"
+
+# Solution 1: Refresh known_hosts via API
+curl -X POST http://localhost:8081/admin/refresh-ssh-keys
+
+# Solution 2: Manually refresh known_hosts
+docker exec ssh-key-bootstrap sh /bootstrap_known_hosts.sh /app/known_hosts
+docker compose restart agent-tool-server
+
+# Verify known_hosts file
+docker exec agent-tool-server cat /app/known_hosts
+
+# Check SSH key permissions
+docker exec agent-tool-server ls -la /app/stackops_ed25519
 ```
 
 **Issue: vLLM OOM (Out of Memory)**

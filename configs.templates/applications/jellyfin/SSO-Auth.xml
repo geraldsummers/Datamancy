@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PluginConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SamlConfigs />
+  <OidConfigs>
+    <config>
+      <OidEndpoint>https://auth.stack.local</OidEndpoint>
+      <OidClientId>jellyfin</OidClientId>
+      <OidSecret>changeme_jellyfin_oauth</OidSecret>
+      <Enabled>true</Enabled>
+      <EnableAuthorization>true</EnableAuthorization>
+      <EnableAllFolders>true</EnableAllFolders>
+      <EnabledFolders />
+      <AdminRoles />
+      <Roles />
+      <RoleClaim>groups</RoleClaim>
+      <OidScopes>
+        <string>openid</string>
+        <string>profile</string>
+        <string>email</string>
+        <string>groups</string>
+      </OidScopes>
+      <CanonicalLinks />
+      <DisableHttps>false</DisableHttps>
+      <DoNotValidateEndpoints>false</DoNotValidateEndpoints>
+      <DoNotValidateIssuerName>false</DoNotValidateIssuerName>
+    </config>
+  </OidConfigs>
+  <PluginState>1</PluginState>
+</PluginConfiguration>

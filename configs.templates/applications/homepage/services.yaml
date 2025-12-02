@@ -1,0 +1,91 @@
+---
+- Management:
+    - Grafana:
+        href: https://grafana.{{DOMAIN}}
+        description: Monitoring Dashboard
+        icon: grafana.png
+
+    - Dockge:
+        href: https://dockge.{{DOMAIN}}
+        description: Docker Manager
+        icon: dockge.png
+
+    - Authelia:
+        href: https://auth.{{DOMAIN}}
+        description: SSO Authentication
+        icon: authelia.png
+
+- AI Services:
+    - Open WebUI:
+        href: https://open-webui.{{DOMAIN}}
+        description: AI Chat Interface
+        icon: openwebui.png
+
+    - JupyterHub:
+        href: https://jupyterhub.{{DOMAIN}}
+        description: Data Science
+        icon: jupyter.png
+
+- Collaboration:
+    - Nextcloud:
+        href: https://nextcloud.{{DOMAIN}}
+        description: File Storage
+        icon: nextcloud.png
+
+    - BookStack:
+        href: https://bookstack.{{DOMAIN}}
+        description: Team Wiki
+        icon: bookstack.png
+
+    - Planka:
+        href: https://planka.{{DOMAIN}}
+        description: Project Board
+        icon: planka.png
+
+- Data & Storage:
+    - FileBrowser:
+        href: https://filebrowser.{{DOMAIN}}
+        description: File Manager
+        icon: filebrowser.png
+
+    - Kopia:
+        href: https://kopia.{{DOMAIN}}
+        description: Backups
+        icon: kopia.png
+
+- Databases:
+    - pgAdmin:
+        href: https://pgadmin.{{DOMAIN}}
+        description: PostgreSQL
+        icon: si-postgresql
+
+    - Adminer:
+        href: https://adminer.{{DOMAIN}}
+        description: DB Admin
+        icon: adminer.png
+
+    - CouchDB:
+        href: https://couchdb.{{DOMAIN}}
+        description: NoSQL DB
+        icon: couchdb.png
+
+    - ClickHouse:
+        href: https://clickhouse.{{DOMAIN}}
+        description: Analytics DB
+        icon: si-clickhouse
+
+- Infrastructure:
+    - Caddy:
+        href: https://homepage.{{DOMAIN}}
+        description: Reverse Proxy
+        icon: caddy.png
+
+    - Benthos:
+        href: https://benthos.{{DOMAIN}}
+        description: Data Pipeline
+        icon: si-databricks
+
+    - Home Assistant:
+        href: https://homeassistant.{{DOMAIN}}
+        description: Home Automation
+        icon: home-assistant.png

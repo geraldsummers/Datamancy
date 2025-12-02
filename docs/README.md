@@ -135,15 +135,23 @@ LITELLM_MASTER_KEY=<random-key>
 VOLUMES_ROOT=./volumes
 ```
 
-### 2. Initialize Infrastructure
+### 2. Start Stack (Intelligent Startup)
+
+🚀 **One command does it all** - validates, generates configs, creates volumes, starts services:
 
 ```bash
-# Create required directories
-mkdir -p volumes/{caddy_data,caddy_config,postgres_data,redis_data}
+# Start with bootstrap profile (Caddy, Authelia, LLM stack)
+kotlin scripts/stackops.main.kts up
 
-# Start core infrastructure
-docker compose --profile bootstrap up -d
+# Or start everything
+kotlin scripts/stackops.main.kts up --all
 ```
+
+**What this does automatically:**
+1. ✓ Validates `.env` has required variables
+2. ✓ Auto-generates `configs/` from templates if missing
+3. ✓ Creates missing volume directories
+4. ✓ Starts Docker Compose with selected profiles
 
 **Bootstrap profile includes:**
 - Caddy (reverse proxy)
@@ -156,6 +164,30 @@ docker compose --profile bootstrap up -d
 - KFuncDB (tool server)
 - Probe Orchestrator (diagnostics)
 - Open WebUI (chat interface)
+
+**See:** [STACKOPS_UP.md](../STACKOPS_UP.md) for full documentation
+
+<details>
+<summary><b>Alternative: Manual Steps (click to expand)</b></summary>
+
+If you prefer manual control:
+
+```bash
+# Generate configs from configs.templates/
+kotlin scripts/process-config-templates.main.kts
+
+# Create volume directories
+mkdir -p volumes/{caddy_data,caddy_config,postgres_data,redis_data}
+
+# Start services
+docker compose --profile bootstrap up -d
+```
+
+⚠️ The `configs/` directory is generated from templates and **must be created before starting services**.
+
+**See:** [TEMPLATE_CONFIG.md](../TEMPLATE_CONFIG.md) and [QUICKSTART_TEMPLATES.md](../QUICKSTART_TEMPLATES.md)
+
+</details>
 
 ### 3. Verify Services
 
@@ -204,12 +236,16 @@ docker compose --profile applications up -d
 
 ### Databases
 
-- **PostgreSQL** 16 - Relational data (Planka, Synapse, Mailu)
+- **PostgreSQL** 16 - Primary relational database
+  - Serves 10 databases: authelia, grafana, planka, vaultwarden, openwebui, synapse, mailu, mastodon, homeassistant, langgraph, litellm
+  - **Note**: Grafana, Vaultwarden, Open WebUI migrated from SQLite (2025-12-02)
 - **MariaDB** 11 - MySQL workloads (Seafile, BookStack)
 - **Valkey** - Redis-compatible key-value store for caching and sessions
 - **CouchDB** 3 - Document store
 - **Qdrant** - Vector database for embeddings
 - **ClickHouse** 24 - Analytics and time-series
+
+**Database Philosophy**: No SQLite - all persistent data uses PostgreSQL or MariaDB for consistency, backup simplicity, and operational reliability.
 
 ### Applications
 
@@ -226,8 +262,8 @@ docker compose --profile applications up -d
 - **SOGo** - Webmail client
 
 **Infrastructure:**
-- **Grafana** - Monitoring dashboards (OIDC)
-- **Vaultwarden** - Password manager (OIDC)
+- **Grafana** - Monitoring dashboards (OIDC, PostgreSQL)
+- **Vaultwarden** - Password manager (OIDC, PostgreSQL)
 - **Portainer** - Docker management UI
 - **Dockge** - Compose stack manager
 - **Homepage** - Service dashboard
@@ -235,6 +271,71 @@ docker compose --profile applications up -d
 **Office & Productivity:**
 - **OnlyOffice** - Document editor
 - **Home Assistant** - Automation platform
+
+## 🔧 Configuration Template System
+
+Datamancy uses a **template-based configuration system** to support multiple environments (dev/staging/prod) without hardcoding values.
+
+### How It Works
+
+```
+configs.templates/     → Templates with {{PLACEHOLDERS}}
+        ↓ (+ .env values)
+configs/              → Generated configs (gitignored)
+```
+
+**The `configs/` directory does NOT exist in git** - you must generate it!
+
+### Template Features
+
+- **Simple Substitution**: `{{DOMAIN}}` → `your-domain.com`
+- **Environment-Specific**: Change `.env`, regenerate configs
+- **No Hardcoded Values**: All domains, emails, paths use variables
+- **71 Replacements**: Across Caddyfile, Authelia, Mailu, Synapse, etc.
+
+### Generate Configs
+
+```bash
+# Generate configs/ from configs.templates/
+kotlin scripts/process-config-templates.main.kts
+
+# Preview what will be generated (dry-run)
+kotlin scripts/process-config-templates.main.kts --dry-run --verbose
+
+# Regenerate after changing .env
+kotlin scripts/process-config-templates.main.kts --force
+```
+
+**Template variables used:**
+- `{{DOMAIN}}` - Your domain (e.g., `project-saturn.com`)
+- `{{MAIL_DOMAIN}}` - Mail domain (usually same as DOMAIN)
+- `{{STACK_ADMIN_EMAIL}}` - Admin email address
+- `{{VOLUMES_ROOT}}` - Volume mount path
+
+**Generated files** (52 config files total):
+- `configs/infrastructure/caddy/Caddyfile` - All 25 virtual hosts
+- `configs/applications/authelia/configuration.yml` - OIDC/SSO config
+- `configs/applications/mailu/mailu.env` - Email server
+- `configs/applications/synapse/homeserver.yaml` - Matrix server
+- Plus: Grafana, Homepage, database configs, etc.
+
+### Changing Your Domain
+
+```bash
+# 1. Edit .env
+nano .env
+# Change: DOMAIN=new-domain.com
+
+# 2. Regenerate configs
+kotlin scripts/process-config-templates.main.kts --force
+
+# 3. Restart services
+docker compose restart caddy authelia
+```
+
+**See full documentation:**
+- [TEMPLATE_CONFIG.md](../TEMPLATE_CONFIG.md) - Complete reference
+- [QUICKSTART_TEMPLATES.md](../QUICKSTART_TEMPLATES.md) - Step-by-step guide
 
 ## 🔧 Development
 

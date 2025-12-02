@@ -1,6 +1,6 @@
 # Ignore local volumes directory (containers data, models, databases, etc.)
 # Anchored to the repository root to avoid matching similarly named paths elsewhere.
-/volumes/
+
 # Secrets and sensitive data
 .env
 .env.runtime
@@ -9,6 +9,10 @@ volumes/secrets/
 *.key
 *.enc
 stackops_ed25519
+
+# Generated configuration files (from templates)
+configs/
+configs.backup/
 
 # Runtime data
 volumes/
@@ -37,7 +41,10 @@ logs/
 *.bak
 *.backup
 
+#SATURN stuff
 build/
 downloads/
 isofiles/
 id_ed*
+/volumes/
+*.iso

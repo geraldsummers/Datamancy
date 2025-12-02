@@ -18,6 +18,7 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
         srv.createContext("/tools", ToolsHandler(tools))
         srv.createContext("/call-tool", CallToolHandler(tools))
         srv.createContext("/healthz", HealthHandler())
+        srv.createContext("/admin/refresh-ssh-keys", RefreshSshKeysHandler())
         srv.createContext("/v1/chat/completions", OpenAIProxyHandler(tools))
         // Use a cached pool but cap thread creation via system property if needed
         srv.executor = Executors.newCachedThreadPool()
@@ -181,6 +182,57 @@ private class HealthHandler : HttpHandler {
             respond(exchange, 200, mapOf("status" to "ok"))
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("status" to "error", "message" to (e.message ?: "internal error")))
+        }
+    }
+}
+
+private class RefreshSshKeysHandler : HttpHandler {
+    override fun handle(exchange: HttpExchange) {
+        try {
+            // Only allow from internal networks
+            val remoteAddr = exchange.remoteAddress.address.hostAddress
+            if (!remoteAddr.startsWith("127.") && !remoteAddr.startsWith("172.") && !remoteAddr.startsWith("::1")) {
+                respond(exchange, 403, mapOf("error" to "Admin endpoint - internal access only"))
+                return
+            }
+
+            if (exchange.requestMethod != "POST") {
+                respond(exchange, 405, mapOf("error" to "Method not allowed"))
+                return
+            }
+
+            val host = System.getenv("TOOLSERVER_SSH_HOST") ?: "host.docker.internal"
+            val knownHostsPath = System.getenv("TOOLSERVER_SSH_KNOWN_HOSTS") ?: "/app/known_hosts"
+
+            val pb = ProcessBuilder(
+                "sh", "/app/scripts/bootstrap_known_hosts.sh", knownHostsPath
+            )
+            pb.environment()["TOOLSERVER_SSH_HOST"] = host
+            val p = pb.start()
+            val completed = p.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)
+
+            if (!completed) {
+                p.destroyForcibly()
+                respond(exchange, 504, mapOf("error" to "Key scan timeout"))
+                return
+            }
+
+            if (p.exitValue() != 0) {
+                val err = p.errorStream.readAllBytes().toString(StandardCharsets.UTF_8)
+                respond(exchange, 500, mapOf(
+                    "error" to "Key scan failed",
+                    "details" to err
+                ))
+            } else {
+                val out = p.inputStream.readAllBytes().toString(StandardCharsets.UTF_8)
+                respond(exchange, 200, mapOf(
+                    "status" to "refreshed",
+                    "host" to host,
+                    "output" to out
+                ))
+            }
+        } catch (e: Exception) {
+            respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
         }
     }
 }

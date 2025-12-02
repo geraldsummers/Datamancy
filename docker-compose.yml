@@ -1,4 +1,4 @@
-####TK7###########################################
+###############################################
 # Datamancy — docker-compose.yml
 #
 # Documentation:
@@ -10,23 +10,21 @@
 # - Operations & Security: docs/OPERATIONS.md, docs/SECURITY.md
 #
 # Tip: Services are grouped by profiles (bootstrap, bootstrap_vector_dbs, full).
+#
+# TODO PRE-PRODUCTION:
+# - Add memory/CPU resource limits after real lab deployment profiling
+# - Waiting for actual usage data to properly regulate resource constraints
+# - Priority services needing limits: vllm, clickhouse, postgres, mastodon-*
 ###############################################
 networks:
   frontend:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/24
+    # Let Docker auto-assign subnets to avoid conflicts with existing networks
+    # Original fixed subnets: 172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24
   backend:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.21.0.0/24
   database:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.22.0.0/24
 
 volumes:
   caddy_data:
@@ -903,9 +901,12 @@ services:
     depends_on:
       authelia:
         condition: service_healthy
+      docker-proxy:
+        condition: service_healthy
     volumes:
       - portainer_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DOCKER_HOST=tcp://docker-proxy:2375
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/api/system/status"]
       interval: 30s
@@ -929,12 +930,21 @@ services:
         max-size: "10m"
         max-file: "3"
     depends_on:
+      postgres:
+        condition: service_healthy
       authelia:
         condition: service_healthy
     environment:
       - GF_DEFAULT_LOCALE=en_US
       - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN}
       - GF_SERVER_DOMAIN=grafana.${DOMAIN}
+      # PostgreSQL database
+      - GF_DATABASE_TYPE=postgres
+      - GF_DATABASE_HOST=postgres:5432
+      - GF_DATABASE_NAME=grafana
+      - GF_DATABASE_USER=grafana
+      - GF_DATABASE_PASSWORD=${GRAFANA_DB_PASSWORD}
+      - GF_DATABASE_SSL_MODE=disable
       - GF_AUTH_GENERIC_OAUTH_ENABLED=true
       - GF_AUTH_GENERIC_OAUTH_NAME=Authelia
       - GF_AUTH_GENERIC_OAUTH_CLIENT_ID=grafana
@@ -977,6 +987,7 @@ services:
     networks:
       - backend
       - frontend
+      - database
     profiles:
       - bootstrap
       - applications
@@ -984,12 +995,16 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     depends_on:
+      postgres:
+        condition: service_healthy
       litellm:
         condition: service_healthy
       authelia:
         condition: service_healthy
     environment:
       - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
+      # PostgreSQL database
+      - DATABASE_URL=postgresql://openwebui:${OPENWEBUI_DB_PASSWORD}@postgres:5432/openwebui
       - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-false}
       - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
       - ENABLE_OPENAI_API=true
@@ -1012,18 +1027,23 @@ services:
       - applications
     networks:
       - backend
+      - database
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
     depends_on:
+      postgres:
+        condition: service_healthy
       authelia:
         condition: service_healthy
       mailu-smtp:
         condition: service_healthy
     environment:
       - DOMAIN=https://vaultwarden.${DOMAIN}
+      # PostgreSQL database
+      - DATABASE_URL=postgresql://vaultwarden:${VAULTWARDEN_DB_PASSWORD}@postgres:5432/vaultwarden
       - SIGNUPS_ALLOWED=false
       - SIGNUPS_VERIFY=true
       - SIGNUPS_DOMAINS_WHITELIST=${MAIL_DOMAIN}
@@ -1084,7 +1104,8 @@ services:
       - OIDC_EMAIL_ATTRIBUTE=email
       - OIDC_NAME_ATTRIBUTE=name
       - OIDC_USERNAME_ATTRIBUTE=preferred_username
-      - NODE_TLS_REJECT_UNAUTHORIZED=0
+      # NODE_TLS_REJECT_UNAUTHORIZED=0 removed - trust Caddy CA cert instead
+      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
     volumes:
       - planka_data:/app/public/user-avatars
       - ./configs/applications/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
@@ -1105,6 +1126,8 @@ services:
       - backend
     depends_on:
       mariadb:
+        condition: service_healthy
+      authelia:
         condition: service_healthy
     environment:
       - PUID=1000
@@ -1292,7 +1315,9 @@ services:
     volumes:
       - mastodon_data:/mastodon/public/system
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep '[s]idekiq 6' || exit 1"]
+      # Check for sidekiq process responding (not just running)
+      # Sidekiq heartbeat is stored in Redis - check it's updating
+      test: ["CMD-SHELL", "bundle exec rails runner 'exit(Sidekiq::ProcessSet.new.size > 0 ? 0 : 1)' || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -1308,8 +1333,11 @@ services:
     depends_on:
       mastodon-web:
         condition: service_healthy
+      docker-proxy:
+        condition: service_healthy
+    environment:
+      - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./configs/applications/mastodon/init-mastodon.sh:/init-mastodon.sh:ro
     command: sh /init-mastodon.sh
     restart: "no"
@@ -1328,12 +1356,15 @@ services:
       - applications
     networks:
       - backend
+    depends_on:
+      docker-proxy:
+        condition: service_healthy
     environment:
       - PUID=1000
       - PGID=1000
       - HOMEPAGE_ALLOWED_HOSTS=homepage.${DOMAIN}
+      - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./configs/applications/homepage/services.yaml:/app/config/services.yaml:ro
       - ./configs/applications/homepage/settings.yaml:/app/config/settings.yaml:ro
       - ./configs/applications/homepage/widgets.yaml:/app/config/widgets.yaml:ro
@@ -1520,6 +1551,30 @@ services:
       start_period: 15s
 
 
+  ssh-key-bootstrap:
+    image: alpine:latest
+    container_name: ssh-key-bootstrap
+    profiles:
+      - bootstrap
+      - applications
+    restart: "no"
+    networks:
+      - backend
+    environment:
+      - TOOLSERVER_SSH_HOST=${TOOLSERVER_SSH_HOST:-host.docker.internal}
+    volumes:
+      - ${VOLUMES_ROOT}/agent_tool_server:/app:rw
+      - ./configs/infrastructure/ssh/bootstrap_known_hosts.sh:/bootstrap_known_hosts.sh:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["sh", "-c", "apk add --no-cache openssh-client && sh /bootstrap_known_hosts.sh /app/known_hosts"]
+    healthcheck:
+      test: ["CMD", "test", "-f", "/app/known_hosts"]
+      interval: 5s
+      timeout: 5s
+      retries: 1
+      start_period: 5s
+
   agent-tool-server:
     build:
       dockerfile: ./src/agent-tool-server/Dockerfile
@@ -1535,6 +1590,8 @@ services:
     group_add:
       - "985"  # docker group on host for socket access
     depends_on:
+      ssh-key-bootstrap:
+        condition: service_completed_successfully
       authelia:
         condition: service_healthy
       playwright:
@@ -1549,6 +1606,7 @@ services:
       - TOOLSERVER_SSH_HOST=${TOOLSERVER_SSH_HOST:-host.docker.internal}
       - TOOLSERVER_SSH_USER=${TOOLSERVER_SSH_USER:-stackops}
       - TOOLSERVER_SSH_KEY_PATH=/app/keys/stackops_ed25519
+      - TOOLSERVER_SSH_KNOWN_HOSTS=/app/known_hosts
       - TOOLSERVER_SSH_TIMEOUT_MS=20000
       # Browser service timeouts (login operations need more time)
       - TOOLSERVER_BROWSER_HTTP_TIMEOUT_MS=90000
@@ -1563,6 +1621,8 @@ services:
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
+      - ${VOLUMES_ROOT}/agent_tool_server/known_hosts:/app/known_hosts:ro
+      - ./configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
       - proofs:/app/proofs
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -1794,6 +1854,8 @@ services:
       qdrant:
         condition: service_started
       clickhouse:
+        condition: service_healthy
+      litellm:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4195/ready"]

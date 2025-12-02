@@ -1,0 +1,59 @@
+http:
+  address: 0.0.0.0:4204
+  enabled: true
+
+resources:
+  rate_limits:
+    api_rl:
+      local:
+        count: 5
+        interval: 1s
+
+input:
+  generate:
+    count: 1
+    interval: 24h
+    mapping: |
+      root = env("FRED_SERIES_LIST", "GDP,UNRATE,CPIAUCSL").split(",").map_each(x -> x.trim())
+
+pipeline:
+  processors:
+    - unarchive:
+        format: json_array
+    - mapping: |
+        root.series_id = this
+        root = if env("FRED_API_KEY").length() == 0 { deleted() } else { root }
+    - branch:
+        processors:
+          - http:
+              url: https://api.stlouisfed.org/fred/series/observations?series_id=${! this.series_id }&api_key=${FRED_API_KEY}&file_type=json&observation_start=${FRED_OBS_START:1900-01-01}&observation_end=${FRED_OBS_END:9999-12-31}
+              verb: GET
+              rate_limit: api_rl
+        result_map: 'root.observations = this.observations'
+    - mapping: |
+        root = this.observations.map_each(o -> {
+          "provider": "FRED",
+          "dataset": "fred",
+          "series_id": this.series_id,
+          "ts": o.date,
+          "value": o.value,
+          "revision": 0
+        })
+    - unarchive:
+        format: json_array
+    - mapping: |
+        # Convert value to number; drop rows that are '.' or empty
+        let v = this.value.number()
+        root = if !is_null($v) { this.merge({"value": $v}) } else { deleted() }
+
+output:
+  sql_insert:
+    driver: clickhouse
+    dsn: ${CLICKHOUSE_DSN}
+    table: series_values
+    columns: ["provider","dataset","series_id","ts","value","revision"]
+    args_mapping: 'root = [ this.provider, this.dataset, this.series_id, this.ts, this.value, this.revision ]'
+
+logger:
+  level: INFO
+  format: json

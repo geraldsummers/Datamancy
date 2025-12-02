@@ -155,6 +155,9 @@ PLANKA_DB_PASSWORD=$(openssl rand -hex 16)
 BOOKSTACK_DB_PASSWORD=$(openssl rand -hex 16)
 SYNAPSE_DB_PASSWORD=$(openssl rand -hex 16)
 MAILU_DB_PASSWORD=$(openssl rand -hex 16)
+GRAFANA_DB_PASSWORD=$(openssl rand -hex 16)
+VAULTWARDEN_DB_PASSWORD=$(openssl rand -hex 16)
+OPENWEBUI_DB_PASSWORD=$(openssl rand -hex 16)
 EOF
 ```
 
@@ -204,13 +207,57 @@ chmod 644 .secrets/oidc-public.pem
 ### 6. Generate SSH Key for Operations
 
 ```bash
-# For KFuncDB SSH operations
+# For agent-tool-server SSH operations
 mkdir -p volumes/secrets
 ssh-keygen -t ed25519 -f volumes/secrets/stackops_ed25519 -N "" -C "stackops@datamancy"
 
 # Add public key to authorized_keys on host if using host SSH
 # cat volumes/secrets/stackops_ed25519.pub >> ~/.ssh/authorized_keys
+
+# Note: SSH host keys are automatically discovered and cached by the
+# ssh-key-bootstrap init container, which runs before agent-tool-server starts.
+# This enables strict host key checking (MITM protection).
 ```
+
+### 7. Generate Configuration Files (**REQUIRED**)
+
+⚠️ **CRITICAL**: The `configs/` directory is **generated from templates** and does NOT exist in git. You **MUST** run this step before starting services!
+
+Datamancy uses a template system to support multiple environments without hardcoding values.
+
+**Generate configs from templates:**
+```bash
+# Generate configs/ from configs.templates/ using .env values
+kotlin scripts/process-config-templates.main.kts
+
+# Verify generation succeeded
+ls -la configs/
+ls configs/infrastructure/caddy/Caddyfile
+ls configs/applications/authelia/configuration.yml
+```
+
+**What this does:**
+- Reads all files in `configs.templates/`
+- Replaces `{{DOMAIN}}` with your actual domain from `.env`
+- Replaces `{{STACK_ADMIN_EMAIL}}`, `{{VOLUMES_ROOT}}`, etc.
+- Writes processed files to `configs/`
+- Processes 28 template files, copies 24 additional files
+
+**Preview before generating:**
+```bash
+# Dry-run mode (shows what would be generated)
+kotlin scripts/process-config-templates.main.kts --dry-run --verbose
+```
+
+**Regenerate after changing .env:**
+```bash
+# Force overwrite existing configs/
+kotlin scripts/process-config-templates.main.kts --force
+```
+
+**See full documentation:**
+- [TEMPLATE_CONFIG.md](../TEMPLATE_CONFIG.md) - Complete reference
+- [QUICKSTART_TEMPLATES.md](../QUICKSTART_TEMPLATES.md) - Step-by-step guide
 
 ## Development Deployment
 
@@ -231,11 +278,12 @@ docker compose logs -f
 ```
 
 **Bootstrap profile includes:**
-- Caddy, Authelia, OpenLDAP, Valkey
+- Caddy, Authelia, OpenLDAP, Valkey, PostgreSQL
 - Portainer, Portainer Agent
 - vLLM, LiteLLM, vLLM Router, Embedding Service
-- KFuncDB, Probe Orchestrator, Playwright
-- Open WebUI
+- agent-tool-server, Probe Orchestrator, Playwright
+- Open WebUI (PostgreSQL backend)
+- SSH key bootstrap (init container)
 
 ### Access Services
 
@@ -436,13 +484,13 @@ Services start in dependency order:
 
 ```
 Phase 1: Infrastructure Foundation
-  1. OpenLDAP (directory)
+  1. OpenLDAP (directory), PostgreSQL (database)
   2. Valkey (cache)
-  3. Authelia (waits for LDAP + Valkey)
+  3. Authelia (waits for LDAP + Valkey + PostgreSQL)
   4. Caddy (waits for Authelia)
+  5. SSH Key Bootstrap (one-time init - scans SSH host keys)
 
-Phase 2: Databases
-  5. PostgreSQL
+Phase 2: Additional Databases (optional)
   6. MariaDB
   7. Valkey (Synapse), Valkey (Mailu)
   8. CouchDB
@@ -456,13 +504,13 @@ Phase 3: AI Services
 
 Phase 4: Diagnostics
   14. Playwright (browser automation)
-  15. KFuncDB (waits for Playwright)
-  16. Probe Orchestrator (waits for KFuncDB, LiteLLM)
+  15. agent-tool-server (waits for Playwright + SSH bootstrap)
+  16. Probe Orchestrator (waits for agent-tool-server, LiteLLM)
 
 Phase 5: Applications
-  17. Open WebUI (waits for LiteLLM)
+  17. Open WebUI (waits for LiteLLM + PostgreSQL)
   18. Portainer, Dockge
-  19. Grafana, Vaultwarden, Planka, BookStack, etc.
+  19. Grafana, Vaultwarden, Planka, BookStack (all use PostgreSQL)
   20. Mailu stack, Seafile, Synapse, Mastodon, etc.
 ```
 
@@ -488,13 +536,14 @@ curl -X POST http://localhost:8089/start-stack-probe | jq
 ```bash
 # Core Services
 curl http://localhost:9091/api/health  # Authelia
-curl http://localhost:8081/tools       # KFuncDB
+curl http://localhost:8081/tools       # agent-tool-server
 curl http://localhost:8089/healthz     # Probe Orchestrator
 curl http://localhost:4000/health      # LiteLLM
 curl http://localhost:8000/health      # vLLM
 
 # Databases
 docker exec postgres pg_isready
+docker exec postgres psql -U admin -d postgres -c '\l'  # List all databases
 docker exec mariadb mariadb-admin ping
 docker exec redis valkey-cli ping
 
@@ -560,8 +609,13 @@ echo "Backup saved to $BACKUP_DIR"
 **2. Database Dumps**
 
 ```bash
-# PostgreSQL
+# PostgreSQL (primary database - serves 10 databases)
 docker exec postgres pg_dumpall -U ${STACK_ADMIN_USER} | gzip > backup/postgres-$(date +%Y%m%d).sql.gz
+
+# Individual database dumps (optional)
+docker exec postgres pg_dump -U admin grafana | gzip > backup/grafana-$(date +%Y%m%d).sql.gz
+docker exec postgres pg_dump -U admin vaultwarden | gzip > backup/vaultwarden-$(date +%Y%m%d).sql.gz
+docker exec postgres pg_dump -U admin openwebui | gzip > backup/openwebui-$(date +%Y%m%d).sql.gz
 
 # MariaDB
 docker exec mariadb mariadb-dump -u root -p${STACK_ADMIN_PASSWORD} --all-databases | gzip > backup/mariadb-$(date +%Y%m%d).sql.gz
@@ -678,11 +732,36 @@ docker network inspect datamancy_database
 # Verify database is running
 docker exec postgres pg_isready
 
+# List PostgreSQL databases
+docker exec postgres psql -U admin -d postgres -c '\l'
+
 # Test from application container
 docker exec grafana nc -zv postgres 5432
 
 # Check credentials
 docker exec -it postgres psql -U ${STACK_ADMIN_USER} -d postgres
+
+# Verify specific application database access
+docker exec -it postgres psql -U grafana -d grafana
+docker exec -it postgres psql -U vaultwarden -d vaultwarden
+docker exec -it postgres psql -U openwebui -d openwebui
+```
+
+### SSH Host Key Issues
+
+```bash
+# Symptom: agent-tool-server can't connect via SSH, "Host key verification failed"
+# Cause: SSH host keys changed (e.g., after OS reinstall)
+
+# Solution 1: Refresh known_hosts via API
+curl -X POST http://localhost:8081/admin/refresh-ssh-keys
+
+# Solution 2: Manually refresh
+docker exec ssh-key-bootstrap sh /bootstrap_known_hosts.sh /app/known_hosts
+docker compose restart agent-tool-server
+
+# Verify known_hosts
+docker exec agent-tool-server cat /app/known_hosts
 ```
 
 ## Monitoring

@@ -16,6 +16,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.time.Duration
+import kotlin.io.path.exists
 import kotlin.system.exitProcess
 
 // ----------------------------- Utilities -----------------------------
@@ -102,16 +103,9 @@ println("IMAGE_ID: $IMAGE_ID")
 println("ADMIN_USER: $ADMIN_USER")
 println()
 
-if (!isRoot()) {
-    System.err.println("Run this script with sudo.")
-    exitProcess(1)
-}
-
-println("[✓] Running as root")
-
 // ----------------------------- Dependencies -----------------------------
 
-fun aptInstallMissing() {
+fun checkDependencies() {
     println("\n[STEP] Checking dependencies...")
     val needed = mutableListOf<String>()
     if (!which("xorriso")) needed += "xorriso"
@@ -124,17 +118,16 @@ fun aptInstallMissing() {
     if (!File(ISOLINUX_MBR).exists()) needed += "isolinux"
 
     if (needed.isNotEmpty()) {
-        println("[!] Missing packages: ${needed.joinToString(", ")}")
-        println("[STEP] Running apt-get update...")
-        requireSuccess(runCmd("bash", "-lc", "apt-get update"), "apt-get update")
-        println("[STEP] Installing missing packages: ${needed.joinToString(" ")}")
-        requireSuccess(runCmd("bash", "-lc", "DEBIAN_FRONTEND=noninteractive apt-get install -y ${needed.joinToString(" ")}"), "apt-get install")
+        System.err.println("\n[ERROR] Missing required packages: ${needed.joinToString(", ")}")
+        System.err.println("\nInstall them with:")
+        System.err.println("  sudo apt update && sudo apt install -y ${needed.joinToString(" ")}")
+        exitProcess(1)
     } else {
         println("[✓] All dependencies present")
     }
 }
 
-aptInstallMissing()
+checkDependencies()
 
 // ----------------------------- Download ISO -----------------------------
 
@@ -248,7 +241,7 @@ println("[INFO] Output ISO: $ISO_OUT")
 
 if (Files.exists(ISO_WORK_DIR)) {
     println("[STEP] Cleaning existing work directory...")
-    runCmd("bash", "-lc", "rm -rf '${ISO_WORK_DIR}'").also { requireSuccess(it, "clean ISO_WORK_DIR") }
+    runCmd("bash", "-lc", "chmod -R +w '${ISO_WORK_DIR}' && rm -rf '${ISO_WORK_DIR}'").also { requireSuccess(it, "clean ISO_WORK_DIR") }
 }
 Files.createDirectory(ISO_WORK_DIR)
 println("[✓] Work directory created")
@@ -287,22 +280,22 @@ raw_src="$(findmnt -n -o SOURCE /)"
 
 # Split into block device and subvolume.
 rootdev="${raw_src%%\[*}"
-root_sv="${{raw_src##*\[}"
-root_sv="${{root_sv%\]}"
-[ -n "${root_sv" ] || root_sv="@"
+root_sv="${raw_src##*\[}"
+root_sv="${root_sv%\]}"
+[ -n "${root_sv}" ] || root_sv="@"
 
 # Mount top-level root (id=5)
 mkdir -p /mnt/btrfs-root
-mount -o subvolid=5 "${rootdev" /mnt/btrfs-root
+mount -o subvolid=5 "${rootdev}" /mnt/btrfs-root
 
-root_path="/mnt/btrfs-root/${root_sv"
-[ -d "${root_path" ] || root_path="/mnt/btrfs-root"
+root_path="/mnt/btrfs-root/${root_sv}"
+[ -d "${root_path}" ] || root_path="/mnt/btrfs-root"
 
 # Helper to ensure subvolumes exist at the top level.
 ensure_sv() {
-  local name="${1"
-  if ! btrfs subvolume list /mnt/btrfs-root | awk '{print ${9}' | grep -qx "${name"; then
-    btrfs subvolume create "/mnt/btrfs-root/${name"
+  local name="$${1}"
+  if ! btrfs subvolume list /mnt/btrfs-root | awk '{print $$9}' | grep -qx "${name}"; then
+    btrfs subvolume create "/mnt/btrfs-root/${name}"
   fi
 }
 
@@ -314,11 +307,11 @@ ensure_sv @snapshots
 
 # Move a tree out of the root subvol into a dedicated subvol.
 move_tree() {
-  local rel="${1" dest_sv="${2"
-  if [ -d "${root_path/${rel" ]; then
-    rsync -aXS "${root_path/${rel"/ "/mnt/btrfs-root/${dest_sv/"
-    rm -rf "${root_path/${rel"
-    mkdir -p "${root_path/${rel"
+  local rel="${1}" dest_sv="${2}"
+  if [ -d "${root_path}/${rel}" ]; then
+    rsync -aXS "${root_path}/${rel}/" "/mnt/btrfs-root/${dest_sv}/"
+    rm -rf "${root_path}/${rel}"
+    mkdir -p "${root_path}/${rel}"
   fi
 }
 
@@ -331,14 +324,14 @@ mkdir -p /mnt/btrfs-root/@snapshots
 
 # Human-facing docs in each subvolume root.
 write_info() {
-  local dir="${1" name="${2" mnt="${3"
-  mkdir -p "${dir"
-  cat > "${dir/.subvol.md" <<INFOEOF
-# Btrfs subvolume: ${name
+  local dir="${1}" name="${2}" mnt="${3}"
+  mkdir -p "${dir}"
+  cat > "${dir}/.subvol.md" <<INFOEOF
+# Btrfs subvolume: ${name}
 
-- Physical device: ${rootdev
-- Subvolume name: ${name
-- Intended mount point: ${mnt
+- Physical device: ${rootdev}
+- Subvolume name: ${name}
+- Intended mount point: ${mnt}
 
 This file was generated automatically by the custom Debian 13 installer.
 You can snapshot or send/receive this subvolume independently of others.
@@ -346,7 +339,7 @@ INFOEOF
 }
 
 # Root subvol doc (shows up at "/").
-write_info "${root_path" "${root_sv" "/"
+write_info "${root_path}" "${root_sv}" "/"
 
 # Docs for the others (show up at their mountpoints).
 write_info "/mnt/btrfs-root/@home"       "@home"       "/home"
@@ -356,30 +349,30 @@ write_info "/mnt/btrfs-root/@var_tmp"    "@var_tmp"    "/var/tmp"
 write_info "/mnt/btrfs-root/@snapshots"  "@snapshots"  "/.snapshots"
 
 # Rewrite fstab: comment any existing btrfs root line (format varies wildly)
-sed -i 's|^\([^#].*[[:space:]]/[[:space:]].*btrfs.*\)${|# \1|' /etc/fstab
+sed -i 's|^\([^#].*[[:space:]]/[[:space:]].*btrfs.*\)$$|# \1|' /etc/fstab
 
-rootuuid="${(blkid -s UUID -o value "${rootdev" || true)"
-rootref="${{rootuuid:+UUID=${rootuuid}"
-rootref="${{rootref:-${rootdev}"
+rootuuid="$$(blkid -s UUID -o value "${rootdev}" || true)"
+rootref="${rootuuid:+UUID=${rootuuid}}"
+rootref="${rootref:-${rootdev}}"
 opts="compress=zstd:3,noatime,space_cache=v2"
 
 {
-  echo "${rootref  /           btrfs  subvol=${root_sv,${opts           0  0"
-  echo "${rootref  /home       btrfs  subvol=@home,${opts              0  0"
-  echo "${rootref  /var/log    btrfs  subvol=@var_log,${opts          0  0"
-  echo "${rootref  /var/cache  btrfs  subvol=@var_cache,${opts        0  0"
-  echo "${rootref  /var/tmp    btrfs  subvol=@var_tmp,${opts          0  0"
-  echo "${rootref  /.snapshots btrfs  subvol=@snapshots,${opts         0  0"
+  echo "${rootref}  /           btrfs  subvol=${root_sv},${opts}           0  0"
+  echo "${rootref}  /home       btrfs  subvol=@home,${opts}              0  0"
+  echo "${rootref}  /var/log    btrfs  subvol=@var_log,${opts}          0  0"
+  echo "${rootref}  /var/cache  btrfs  subvol=@var_cache,${opts}        0  0"
+  echo "${rootref}  /var/tmp    btrfs  subvol=@var_tmp,${opts}          0  0"
+  echo "${rootref}  /.snapshots btrfs  subvol=@snapshots,${opts}         0  0"
 } >> /etc/fstab
 
 # Mount the new subvols immediately so this first boot sees them.
 mount_subvol_if_needed() {
-  local mp="${1" sv="${2"
-  if mountpoint -q "${mp"; then
+  local mp="${1}" sv="${2}"
+  if mountpoint -q "${mp}"; then
     return
   fi
-  mkdir -p "${mp"
-  mount -o "subvol=${sv,${opts" "${rootdev" "${mp" || true
+  mkdir -p "${mp}"
+  mount -o "subvol=${sv},${opts}" "${rootdev}" "${mp}" || true
 }
 
 mount_subvol_if_needed /home       @home
@@ -390,9 +383,9 @@ mount_subvol_if_needed /.snapshots @snapshots
 
 # Ensure all passwd-listed home directories actually exist under /home.
 while IFS=: read -r _ _ _ _ _ homedir _; do
-  case "${homedir" in
+  case "${homedir}" in
     /home/*)
-      [ -d "${homedir" ] || mkdir -p "${homedir"
+      [ -d "${homedir}" ] || mkdir -p "${homedir}"
       ;;
   esac
 done < /etc/passwd
@@ -535,14 +528,12 @@ println("[✓] preseed.cfg created")
 println("\n[STEP] Injecting preseed.cfg into initrd...")
 val initrdDir = ISO_WORK_DIR.resolve("install.amd").toFile()
 println("[INFO] initrd directory: ${initrdDir.absolutePath}")
+println("[STEP] Making ISO work directory writable...")
+runCmd("bash", "-lc", "chmod -R +w '${ISO_WORK_DIR}'").also { requireSuccess(it, "chmod -R +w ISO_WORK_DIR") }
 Files.copy(ISO_WORK_DIR.resolve("preseed.cfg"), initrdDir.toPath().resolve("preseed.cfg"), StandardCopyOption.REPLACE_EXISTING)
-println("[STEP] Making initrd directory writable...")
-runCmd("bash", "-lc", "chmod +w '${initrdDir.absolutePath}'").also { requireSuccess(it, "chmod +w initrd dir") }
 println("[STEP] Unpacking initrd, injecting preseed.cfg, and repacking (this may take a moment)...")
 runCmd("bash", "-lc", "cd '${initrdDir.absolutePath}' && gunzip initrd.gz && echo preseed.cfg | cpio -H newc -o -A -F initrd && gzip initrd")
     .also { requireSuccess(it, "initrd injection") }
-println("[STEP] Restoring initrd directory permissions...")
-runCmd("bash", "-lc", "chmod -w '${initrdDir.absolutePath}'").also { requireSuccess(it, "chmod -w initrd dir") }
 println("[✓] preseed.cfg injected into initrd")
 
 // ----------------------------- Boot configs -----------------------------
@@ -582,6 +573,12 @@ println("[✓] md5sum.txt rebuilt")
 // ----------------------------- Build final ISO -----------------------------
 println("\n[STEP] Building final ISO image...")
 println("[INFO] Output file: $ISO_OUT")
+if (ISO_OUT.exists()) {
+    System.err.println("\nERROR: Output ISO file already exists: $ISO_OUT")
+    System.err.println("Please remove it first with:\n")
+    System.err.println("    sudo rm -f '$ISO_OUT'\n")
+    exitProcess(1)
+}
 println("[INFO] Using ISOLINUX MBR: $ISOLINUX_MBR")
 val buildCmd = arrayOf(
     "xorriso", "-as", "mkisofs",

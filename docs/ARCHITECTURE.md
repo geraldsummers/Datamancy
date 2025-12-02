@@ -228,7 +228,7 @@ User Request Flow:
 
 ### Layer 3: Diagnostic & Automation
 
-**KFuncDB (Agent Tool Server)**
+**agent-tool-server (KFuncDB)**
 - Plugin-based architecture for extensible tools
 - OpenAI function calling compatible API
 - Built-in plugins:
@@ -236,7 +236,10 @@ User Request Flow:
   - `HostToolsPlugin`: Docker operations (inspect, logs, restart)
   - `BrowserToolsPlugin`: Screenshot, DOM extraction
   - `LlmCompletionPlugin`: LLM proxy with tool injection
-  - `OpsSshPlugin`: SSH command execution
+  - `OpsSshPlugin`: **SSH command execution with strict host key checking**
+    - Uses `StrictHostKeyChecking=accept-new` (MITM protection)
+    - Host keys cached via ssh-key-bootstrap init container
+    - Manual refresh endpoint: `POST /admin/refresh-ssh-keys`
 
 **Probe Orchestrator**
 - Autonomous health monitoring
@@ -256,8 +259,8 @@ User Request Flow:
 ```
 Diagnostic Flow:
 1. Probe Orchestrator receives probe request
-2. Calls KFuncDB's browser_screenshot tool
-3. KFuncDB → Playwright → Captures screenshot
+2. Calls agent-tool-server's browser_screenshot tool
+3. agent-tool-server → Playwright → Captures screenshot
 4. Returns base64 image
 5. Probe Orchestrator → OCR via vision model (optional)
 6. LLM analyzes OCR + DOM + HTTP status
@@ -268,13 +271,15 @@ Diagnostic Flow:
 ### Layer 4: Data Persistence
 
 **Relational Databases**
-- **PostgreSQL 16**: Primary RDBMS
-  - Databases: planka, synapse, mailu
+- **PostgreSQL 16**: Primary RDBMS (centralized strategy)
+  - **10 databases**: authelia, grafana, planka, vaultwarden, openwebui, synapse, mailu, mastodon, homeassistant, langgraph, litellm
+  - **Recent migrations** (2025-12-02): grafana, vaultwarden, open-webui from SQLite
+  - **Philosophy**: No SQLite - all persistent data uses PostgreSQL for consistency, backup simplicity, and operational reliability
   - Init scripts for schema setup
   - Connection pooling (max 200 connections)
 
 - **MariaDB 11**: MySQL-compatible
-  - Used by Seafile
+  - Used by Seafile, BookStack (ecosystem constraints)
   - UTF8MB4 encoding
 
 **NoSQL & Caching**
@@ -590,20 +595,40 @@ class ProbeOrchestrator {
 - **Internal CA**: Self-signed certificates for internal services
 - **IP Allowlisting**: `API_LITELLM_ALLOWLIST` for API endpoint
 
-### Capability-Based Access (KFuncDB)
+### SSH Security (2025-12-02 Enhancement)
+
+**MITM Protection**:
+- `StrictHostKeyChecking=accept-new` mode (accepts on first connection, validates thereafter)
+- Known hosts cached by ssh-key-bootstrap init container
+- Automatic host key scanning on stack startup
+- Manual refresh via `POST /admin/refresh-ssh-keys` endpoint
+
+**Security Properties**:
+- **No blind trust**: Host keys verified after first scan
+- **Rotation support**: API endpoint allows key refresh when hosts are legitimately re-keyed
+- **MITM detection**: Failed connections trigger `HostKeyChangedException` with remediation instructions
+
+**Architecture**:
+```
+Stack Startup:
+  1. ssh-key-bootstrap (init container)
+     └─► Scans SSH hosts → /app/known_hosts
+  2. agent-tool-server (depends on bootstrap)
+     └─► Mounts known_hosts volume
+     └─► OpsSshPlugin uses StrictHostKeyChecking=accept-new
+
+Runtime:
+  agent-tool-server → SSH (key auth + host verification) → Host
+                     UserKnownHostsFile=/app/known_hosts
+```
+
+### Capability-Based Access (agent-tool-server)
 
 ```bash
 TOOLSERVER_ALLOW_CAPS=host.shell.read,host.docker.write,host.network.http
 ```
 
 Only plugins declaring these capabilities in their manifest are loaded.
-
-### SSH Key-Based Operations
-
-```
-KFuncDB → SSH (key auth) → Host (forced command wrapper)
-                                   └─► Only allowed commands
-```
 
 ## Scalability Considerations
 
@@ -662,35 +687,35 @@ Caddy
  │         └─► Embedding Service
  │
  ├─► Probe Orchestrator
- │    ├─► KFuncDB
+ │    ├─► agent-tool-server
  │    │    └─► Playwright
  │    └─► LiteLLM
  │
- ├─► Grafana
+ ├─► Grafana (PostgreSQL backend)
  │    ├─► PostgreSQL
  │    └─► ClickHouse
  │
- └─► Planka, BookStack, Vaultwarden, etc.
-      ├─► PostgreSQL/MariaDB
+ └─► Planka, BookStack, Vaultwarden, Open WebUI
+      ├─► PostgreSQL (centralized)
       └─► Valkey
 ```
 
 ### Service Startup Order
 
 ```
-Phase 1: Infrastructure
-  → OpenLDAP
-  → Valkey
-  → Authelia (depends: LDAP, Redis)
+Phase 1: Infrastructure Foundation
+  → OpenLDAP, PostgreSQL (core data stores)
+  → Valkey (cache)
+  → Authelia (depends: LDAP, Valkey, PostgreSQL)
   → Caddy (depends: Authelia)
+  → SSH Key Bootstrap (init container - scans host keys)
 
-Phase 2: Databases
-  → PostgreSQL
+Phase 2: Additional Databases (optional)
   → MariaDB
   → Qdrant
   → ClickHouse
 
-Phase 3: AI
+Phase 3: AI Services
   → vLLM (GPU required)
   → Embedding Service
   → vLLM Router (depends: vLLM)
@@ -698,13 +723,14 @@ Phase 3: AI
 
 Phase 4: Diagnostics
   → Playwright
-  → KFuncDB (depends: Playwright)
-  → Probe Orchestrator (depends: KFuncDB, LiteLLM)
+  → agent-tool-server (depends: Playwright, SSH bootstrap)
+  → Probe Orchestrator (depends: agent-tool-server, LiteLLM)
 
 Phase 5: Applications
-  → Open WebUI (depends: LiteLLM)
-  → Grafana, Planka, BookStack (depend: PostgreSQL/MariaDB, Valkey)
-  → Mailu, Seafile, etc.
+  → Open WebUI (depends: LiteLLM, PostgreSQL)
+  → Grafana, Vaultwarden (depend: PostgreSQL, Authelia)
+  → Planka, BookStack (depend: PostgreSQL, Authelia)
+  → Mailu, Seafile, Synapse, Mastodon, etc.
 ```
 
 ---

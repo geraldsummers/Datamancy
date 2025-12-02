@@ -59,6 +59,7 @@ class OpsSshPlugin : Plugin {
         val host: String,
         val user: String,
         val keyPath: String,
+        val knownHostsPath: String,
         val timeoutMs: Long,
     ) {
         companion object {
@@ -66,17 +67,22 @@ class OpsSshPlugin : Plugin {
                 host = System.getenv("TOOLSERVER_SSH_HOST") ?: error("TOOLSERVER_SSH_HOST required"),
                 user = System.getenv("TOOLSERVER_SSH_USER") ?: "stackops",
                 keyPath = System.getenv("TOOLSERVER_SSH_KEY_PATH") ?: "/app/keys/stackops_ed25519",
+                knownHostsPath = System.getenv("TOOLSERVER_SSH_KNOWN_HOSTS") ?: "/app/known_hosts",
                 timeoutMs = (System.getenv("TOOLSERVER_SSH_TIMEOUT_MS")?.toLongOrNull() ?: 15000L)
             )
         }
     }
 
+    class HostKeyChangedException(message: String) : Exception(message)
+
     class Tools(private val cfg: Cfg) {
         private fun runSshCommand(cmd: String): Triple<Int, ByteArray, ByteArray> {
-            // Use system ssh client to avoid external dependencies.
+            // Use system ssh client with strict host key checking
             val fullCmd = listOf(
                 "ssh",
-                "-o", "StrictHostKeyChecking=no",
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "UserKnownHostsFile=${cfg.knownHostsPath}",
+                "-o", "ConnectTimeout=10",
                 "-i", cfg.keyPath,
                 "${cfg.user}@${cfg.host}",
                 cmd
@@ -86,11 +92,20 @@ class OpsSshPlugin : Plugin {
             val completed = p.waitFor(cfg.timeoutMs, TimeUnit.MILLISECONDS)
             if (!completed) {
                 runCatching { p.destroyForcibly() }
-                throw IllegalStateException("timeout")
+                throw IllegalStateException("SSH timeout after ${cfg.timeoutMs}ms")
             }
             val out = p.inputStream.readAllBytes()
             val err = p.errorStream.readAllBytes()
             val code = p.exitValue()
+
+            // Check for host key verification failure
+            if (code == 255 && err.toString(Charsets.UTF_8).contains("Host key verification failed")) {
+                throw HostKeyChangedException(
+                    "SSH host key changed for ${cfg.host}. " +
+                    "Run key refresh: curl -X POST http://localhost:8081/admin/refresh-ssh-keys"
+                )
+            }
+
             return Triple(code, out, err)
         }
 
