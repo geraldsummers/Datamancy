@@ -13,6 +13,11 @@ RUN ./gradlew --no-daemon :probe-orchestrator:shadowJar
 # Runtime stage
 FROM eclipse-temurin:21-jre
 
+# Install wget for healthcheck
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends wget && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY --from=build /workspace/src/probe-orchestrator/build/libs/probe-orchestrator-kt.jar app.jar
 

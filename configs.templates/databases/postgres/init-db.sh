@@ -13,6 +13,8 @@ AUTHELIA_DB_PASSWORD="${AUTHELIA_DB_PASSWORD:?ERROR: AUTHELIA_DB_PASSWORD not se
 GRAFANA_DB_PASSWORD="${GRAFANA_DB_PASSWORD:?ERROR: GRAFANA_DB_PASSWORD not set}"
 VAULTWARDEN_DB_PASSWORD="${VAULTWARDEN_DB_PASSWORD:?ERROR: VAULTWARDEN_DB_PASSWORD not set}"
 OPENWEBUI_DB_PASSWORD="${OPENWEBUI_DB_PASSWORD:?ERROR: OPENWEBUI_DB_PASSWORD not set}"
+MASTODON_DB_PASSWORD="${MASTODON_DB_PASSWORD:?ERROR: MASTODON_DB_PASSWORD not set}"
+HOMEASSISTANT_DB_PASSWORD="${HOMEASSISTANT_DB_PASSWORD:-}"  # Optional - HA may use SQLite
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create users with passwords from environment (must be created before databases for ownership)
@@ -60,6 +62,18 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         ELSE
             ALTER USER openwebui WITH PASSWORD '$OPENWEBUI_DB_PASSWORD';
         END IF;
+
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mastodon') THEN
+            CREATE USER mastodon WITH PASSWORD '$MASTODON_DB_PASSWORD';
+        ELSE
+            ALTER USER mastodon WITH PASSWORD '$MASTODON_DB_PASSWORD';
+        END IF;
+
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'homeassistant') THEN
+            CREATE USER homeassistant WITH PASSWORD '$HOMEASSISTANT_DB_PASSWORD';
+        ELSE
+            ALTER USER homeassistant WITH PASSWORD '$HOMEASSISTANT_DB_PASSWORD';
+        END IF;
     END
     \$\$;
 
@@ -91,6 +105,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE openwebui OWNER openwebui'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'openwebui')\gexec
 
+    SELECT 'CREATE DATABASE mastodon OWNER mastodon'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mastodon')\gexec
+
+    SELECT 'CREATE DATABASE homeassistant OWNER homeassistant'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'homeassistant')\gexec
+
     -- Grant privileges (these are idempotent)
     GRANT ALL PRIVILEGES ON DATABASE planka TO planka;
     GRANT ALL PRIVILEGES ON DATABASE langgraph TO postgres;
@@ -101,6 +121,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE grafana TO grafana;
     GRANT ALL PRIVILEGES ON DATABASE vaultwarden TO vaultwarden;
     GRANT ALL PRIVILEGES ON DATABASE openwebui TO openwebui;
+    GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
+    GRANT ALL PRIVILEGES ON DATABASE homeassistant TO homeassistant;
 EOSQL
 
 # Grant schema privileges (PostgreSQL 15+)
@@ -111,6 +133,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "authelia" -c "GRAN
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "grafana" -c "GRANT ALL ON SCHEMA public TO grafana;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "vaultwarden" -c "GRANT ALL ON SCHEMA public TO vaultwarden;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRANT ALL ON SCHEMA public TO openwebui;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO homeassistant;"
 
 # Create Mailu application schema
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -f /docker-entrypoint-initdb.d/init-mailu-schema.sql

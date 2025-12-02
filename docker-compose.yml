@@ -79,6 +79,12 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT}/outline_data
+  bookstack_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT}/bookstack_data
   seafile_data:
     driver: local
     driver_opts:
@@ -382,7 +388,7 @@ services:
       start_period: 10s
 
   redis:
-    image: valkey/valkey:latest
+    image: valkey/valkey:8.0.1
     container_name: redis
     restart: unless-stopped
     networks:
@@ -567,7 +573,7 @@ services:
       start_period: 30s
 
   redis-synapse:
-    image: valkey/valkey:latest
+    image: valkey/valkey:8.0.1
     container_name: redis-synapse
     restart: unless-stopped
     profiles:
@@ -613,7 +619,7 @@ services:
       start_period: 30s
 
   mailu-redis:
-    image: valkey/valkey:latest
+    image: valkey/valkey:8.0.1
     container_name: mailu-redis
     restart: unless-stopped
     profiles:
@@ -1167,7 +1173,7 @@ services:
       - DB_PASS=${BOOKSTACK_DB_PASSWORD}
       - DB_DATABASE=bookstack
     volumes:
-      - outline_data:/config
+      - bookstack_data:/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 30s
@@ -1596,7 +1602,7 @@ services:
 
 
   ssh-key-bootstrap:
-    image: alpine:latest
+    image: alpine:3.20
     container_name: ssh-key-bootstrap
     profiles:
       - bootstrap
