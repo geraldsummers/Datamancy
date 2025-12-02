@@ -19,12 +19,22 @@
 networks:
   frontend:
     driver: bridge
-    # Let Docker auto-assign subnets to avoid conflicts with existing networks
-    # Original fixed subnets: 172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1
   backend:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+          gateway: 172.21.0.1
   database:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
+          gateway: 172.22.0.1
 
 volumes:
   caddy_data:
@@ -295,6 +305,11 @@ services:
       DOMAIN: "${DOMAIN}"
       # Default IP allowlist for api.litellm subdomain (space-separated CIDRs)
       API_LITELLM_ALLOWLIST: "${API_LITELLM_ALLOWLIST:-10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 ::1 fc00::/7 fe80::/10}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       # Use the caddy binary as a lightweight readiness signal
       test: ["CMD", "caddy", "version"]
@@ -325,7 +340,7 @@ services:
       - ldap_data:/var/lib/ldap
       - ldap_config:/etc/ldap/slapd.d
       - ./bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
-    command: --copy-service --loglevel debug
+    command: --copy-service --loglevel info
     healthcheck:
       test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=stack,dc=local", "-D", "cn=admin,dc=stack,dc=local", "-w", "${STACK_ADMIN_PASSWORD}"]
       interval: 10s
@@ -414,7 +429,7 @@ services:
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
       # Consolidated: use stack-wide admin password for LDAP bind
       - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${STACK_ADMIN_PASSWORD}
-      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET:-}
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_OIDC_HMAC_SECRET}
       # PostgreSQL backend configuration
       - AUTHELIA_STORAGE_POSTGRES_HOST=postgres
       - AUTHELIA_STORAGE_POSTGRES_PORT=5432
@@ -459,6 +474,7 @@ services:
     container_name: postgres
     restart: unless-stopped
     profiles:
+      - bootstrap
       - databases
     networks:
       database:
@@ -477,7 +493,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
       - ./configs/databases/postgres/init-mailu-schema.sql:/docker-entrypoint-initdb.d/init-mailu-schema.sql:ro
-    command: postgres -c 'max_connections=200'
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+    command: postgres -c 'max_connections=300' -c 'shared_buffers=1GB'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${STACK_ADMIN_USER}"]
       interval: 10s
@@ -836,7 +857,12 @@ services:
     volumes:
       - kopia_data:/app/config
       - kopia_cache:/app/cache
-      - kopia_data:/data:ro
+      # Mount volumes to backup (read-only)
+      - postgres_data:/backup/postgres:ro
+      - mariadb_data:/backup/mariadb:ro
+      - grafana_data:/backup/grafana:ro
+      - open_webui_data:/backup/open_webui:ro
+      - vaultwarden_data:/backup/vaultwarden:ro
       - kopia_repository:/repository
       - ./configs/applications/kopia/init-kopia.sh:/init-kopia.sh:ro
     environment:
@@ -856,6 +882,7 @@ services:
     container_name: docker-proxy
     restart: unless-stopped
     profiles:
+      - bootstrap
       - infrastructure
     networks:
       - backend
@@ -889,7 +916,7 @@ services:
       start_period: 10s
 
   portainer:
-    image: portainer/portainer-ce:latest
+    image: portainer/portainer-ce:2.24.0
     container_name: portainer
     restart: unless-stopped
     profiles:
@@ -1117,7 +1144,7 @@ services:
       start_period: 30s
 
   bookstack:
-    image: lscr.io/linuxserver/bookstack:latest
+    image: lscr.io/linuxserver/bookstack:24.12.1
     container_name: bookstack
     restart: unless-stopped
     profiles:
@@ -1266,6 +1293,11 @@ services:
     command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 3000 -b 0.0.0.0"
     volumes:
       - mastodon_data:/mastodon/public/system
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider --proxy=off localhost:3000/health || exit 1"]
       interval: 30s
@@ -1318,6 +1350,11 @@ services:
     command: bundle exec sidekiq
     volumes:
       - mastodon_data:/mastodon/public/system
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
     healthcheck:
       # Check for sidekiq process responding (not just running)
       # Sidekiq heartbeat is stored in Redis - check it's updating
@@ -1435,7 +1472,7 @@ services:
       start_period: 60s
 
   vllm:
-    image: vllm/vllm-openai:latest
+    image: vllm/vllm-openai:v0.6.5
     container_name: vllm
     restart: unless-stopped
     networks:
@@ -1464,6 +1501,9 @@ services:
       - ${VOLUMES_ROOT}/vllm/hf-cache:/root/.cache/huggingface
     deploy:
       resources:
+        limits:
+          memory: 8G
+          cpus: '4.0'
         reservations:
           devices:
             - driver: nvidia
@@ -1705,7 +1745,7 @@ services:
 
   # Whisper ASR service (OpenAI-compatible)
   whisper:
-    image: onerahmet/openai-whisper-asr-webservice:latest
+    image: onerahmet/openai-whisper-asr-webservice:v1.6.0
     container_name: whisper
     restart: unless-stopped
     networks:
@@ -1750,7 +1790,7 @@ services:
   # Vector Stack (profile: bootstrap_vector_dbs)
   ###############################################
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.12.5
     container_name: qdrant
     restart: unless-stopped
     networks:
@@ -1764,14 +1804,17 @@ services:
     # Do not expose ports publicly; access internally via service name
     volumes:
       - qdrant_data:/qdrant/storage
-    # Qdrant image doesn't include wget or curl for healthchecks
-    # Use a no-op test to satisfy compose schema
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
     healthcheck:
-      test: ["CMD", "true"]
-      interval: 1m
-      timeout: 5s
-      retries: 1
-      start_period: 5s
+      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
@@ -1791,6 +1834,11 @@ services:
       - ./configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
       - ./configs/databases/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     # Do not expose native TCP publicly; use internal networking
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
     ulimits:
       nofile:
         soft: 262144
@@ -1927,9 +1975,33 @@ services:
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
     command: ["sync"]
+
+  # VM Provisioner - Manages VMs via libvirt/QEMU with SSH key management
+  vm-provisioner:
+    build:
+      dockerfile: ./src/vm-provisioner/Dockerfile
+      context: ./src/vm-provisioner
+    container_name: vm-provisioner
+    restart: unless-stopped
+    profiles:
+      - infrastructure
+      - compute
+    networks:
+      - backend
+    privileged: true  # Required for libvirt/QEMU access
+    volumes:
+      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock
+      - ${VOLUMES_ROOT}/vm-provisioner/ssh_keys:/app/ssh_keys
+      - ${VOLUMES_ROOT}/vm-provisioner/vms:/var/lib/libvirt/images
+    environment:
+      - VM_PROVISIONER_PORT=8092
+      - LIBVIRT_URI=qemu:///system
+      - SSH_KEY_DIR=/app/ssh_keys
+      - LIBVIRT_STORAGE_POOL=default
+      - LIBVIRT_STORAGE_PATH=/var/lib/libvirt/images
     healthcheck:
-      test: ["CMD", "echo", "ok"]
-      interval: 5m
+      test: ["CMD", "curl", "-f", "http://localhost:8092/healthz"]
+      interval: 30s
       timeout: 10s
-      retries: 1
-      start_period: 10s
+      retries: 3
+      start_period: 20s

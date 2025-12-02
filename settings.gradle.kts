@@ -8,6 +8,7 @@ include(":vllm-router")
 include(":stack-discovery")
 include(":playwright-controller")
 include(":ldap-sync-service")
+include(":vm-provisioner")
 // NOTE: config-generator has been replaced by process-config-templates.main.kts
 // Removed: include(":config-generator")
 
@@ -19,3 +20,4 @@ project(":vllm-router").projectDir = file("src/vllm-router")
 project(":stack-discovery").projectDir = file("src/stack-discovery")
 project(":playwright-controller").projectDir = file("src/playwright-controller")
 project(":ldap-sync-service").projectDir = file("src/ldap-sync-service")
+project(":vm-provisioner").projectDir = file("src/vm-provisioner")

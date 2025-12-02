@@ -5,110 +5,22 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="confugirator">
-      <change afterPath="$PROJECT_DIR$/SCRIPT_REORGANIZATION_PLAN.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/REMOTE_MANAGEMENT.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/STACK_CONTROLLER_GUIDE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/backup/backup-databases.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/backup/dr-drill.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/backup/restore-from-backup.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/backup/setup-backup-automation.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/backup/verify-backups.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/core/configure-environment.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/core/create-volume-dirs.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/core/process-config-templates.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/deployment/create_debian_distribution.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/deployment/stackops.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/maintenance/cleandocker.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/security/install-sops-age.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/security/setup-log-centralization.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/security/setup-secrets-encryption.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/ldap-sync-service/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/ldap-sync-service/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/ldap-sync-service/build.gradle.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/ldap-sync-service/src/main/kotlin/org/datamancy/ldapsync/Main.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/ldap-sync-service/src/main/kotlin/org/datamancy/ldapsync/api/SyncPlugin.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/ldap-sync-service/src/main/kotlin/org/datamancy/ldapsync/core/LdapClient.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/ldap-sync-service/src/main/kotlin/org/datamancy/ldapsync/core/SyncOrchestrator.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/ldap-sync-service/src/main/kotlin/org/datamancy/ldapsync/plugins/MailuSyncPlugin.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/synapse/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env.enc" beforeDir="false" afterPath="$PROJECT_DIR$/.env.enc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bootstrap_ldap.ldif" beforeDir="false" afterPath="$PROJECT_DIR$/bootstrap_ldap.ldif" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/jellyfin/SSO-Auth.xml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/jellyfin/SSO-Auth.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mailu/mailu.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mailu/mailu.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/synapse/homeserver.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/synapse/homeserver.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/mariadb/init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/mariadb/init.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/ensure-users.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/ensure-users.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/authelia/configuration.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/authelia/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/dockge/init-dockge.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/filebrowser/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/grafana/caddy-ca.crt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/grafana/grafana.ini" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/homepage/bookmarks.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/homepage/docker.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/homepage/services.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/homepage/settings.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/homepage/widgets.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/jellyfin/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/jellyfin/SSO-Auth.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/jellyfin/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/kopia/init-kopia.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/mailu/mailu.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/mailu/nginx-override.conf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/mastodon/init-mastodon.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/mastodon/mastodon.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/synapse/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/applications/synapse/homeserver.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/clickhouse/config.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/clickhouse/init.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/couchdb/init-db.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/couchdb/init-wrapper.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/couchdb/local.ini" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/mariadb/init.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/ensure-users.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/init-db.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/postgres/init-mailu-schema.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/vectors/bootstrap_vectors.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/databases/vectors/collections.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/benthos.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_meta_to_qdrant.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/fred_values_to_clickhouse.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/linux_debian.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/macro.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/stackexchange.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/wiki.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/ingestion/yahoo_finance.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/linux_debian_ndjson_to_qdrant.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/manifest/sources.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/rss_to_qdrant.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/torrents_csv_to_qdrant.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/wiki_ndjson_to_qdrant.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/benthos/yahoo_news_to_qdrant.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/caddy/Caddyfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/infrastructure/litellm/config.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/probe-orchestrator/services_manifest.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/decrypt-env.sh" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/encrypt-env.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/backup-databases.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/cleandocker.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/configure-environment.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/create-volume-dirs.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/create_debian_distribution.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/dr-drill.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/install-sops-age.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/process-config-templates.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/restore-from-backup.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/setup-backup-automation.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/setup-log-centralization.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/setup-secrets-encryption.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/stackops.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/verify-backups.main.kts" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ldap-sync-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/ldap-sync-service/build.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -449,7 +361,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764655335588</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="confugirator">
+      <option name="closed" value="true" />
+      <created>1764672144397</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1764672144397</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

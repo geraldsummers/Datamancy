@@ -1,3 +1,16 @@
+# ⚠️  WARNING: DEVELOPMENT/TEST CREDENTIALS ONLY ⚠️
+# This LDIF file contains hardcoded test passwords for local development.
+# DO NOT USE IN PRODUCTION - these credentials are publicly visible in git.
+#
+# For production deployment:
+# 1. Use environment-driven LDAP user provisioning
+# 2. Generate production LDIF with: kotlin scripts/ldap/generate-production-ldif.main.kts
+# 3. Or manually change passwords after first startup via LDAP Account Manager
+#
+# Test credentials in this file:
+#   Username: admin / Password: DatamancyTest2025!
+#   Username: user  / Password: DatamancyTest2025!
+
 dn: ou=users,dc=stack,dc=local
 objectClass: organizationalUnit
 ou: users
