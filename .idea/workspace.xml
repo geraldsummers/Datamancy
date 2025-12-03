@@ -5,8 +5,29 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="finished?">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.sops.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/DEPLOYMENT_FIXES_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/FIXES_APPLIED.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/PRE_DEPLOYMENT_REVIEW.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/backup/backup-databases.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/backup/backup-with-verify.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/backup/dr-drill.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/backup/restore-from-backup.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/backup/setup-backup-automation.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/backup/verify-backups.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/maintenance/add-logging-to-compose.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/maintenance/cleandocker.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/cleandocker.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/fix-template-secrets.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/generate-ldap-bootstrap.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/generate-ldap-bootstrap.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/generate-oidc-hashes.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/generate-ssha-password.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/install-sops-age.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/setup-log-centralization.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/setup-secrets-encryption.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/template-secrets-remediation.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/test-deploy-iterate.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/test-pre-deployment.main.kts" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -431,7 +452,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764794343230</updated>
     </task>
-    <option name="localTasksCounter" value="28" />
+    <task id="LOCAL-00028" summary="finished?">
+      <option name="closed" value="true" />
+      <created>1764800979930</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1764800979930</updated>
+    </task>
+    <option name="localTasksCounter" value="29" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

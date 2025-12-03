@@ -1055,7 +1055,7 @@ private fun cmdLdapBootstrap(dryRun: Boolean = false, force: Boolean = false) {
     info("Generating LDAP bootstrap file from template")
     info("Output: $outputFile")
 
-    val script = root.resolve("scripts/security/generate-ldap-bootstrap.main.kts")
+    val script = root.resolve("scripts/core/generate-ldap-bootstrap.main.kts")
 
     if (!Files.exists(script)) {
         err("LDAP bootstrap generator not found: $script")
