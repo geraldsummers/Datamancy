@@ -338,14 +338,12 @@ services:
       - LDAP_ORGANISATION=Datamancy
       - LDAP_DOMAIN=stack.local
       - LDAP_BASE_DN=dc=stack,dc=local
-      # Consolidated: use stack-wide admin password for LDAP admin/config
       - LDAP_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
       - LDAP_CONFIG_PASSWORD=${STACK_ADMIN_PASSWORD}
       - LDAP_TLS=false
     volumes:
       - ldap_data:/var/lib/ldap
       - ldap_config:/etc/ldap/slapd.d
-      # Mount from runtime config dir (outside git tree)
       - ${HOME}/.config/datamancy/bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
     command: --copy-service --loglevel info
     healthcheck:
@@ -374,13 +372,10 @@ services:
       - LDAP_DOMAIN=stack.local
       - LDAP_BASE_DN=dc=stack,dc=local
       - LDAP_USER=cn=admin,dc=stack,dc=local
-      # Consolidated: use stack-wide admin password for LDAP bind
       - LDAP_PASSWORD=${STACK_ADMIN_PASSWORD}
-      # Consolidated admin credentials: use stack-wide admin password
       - LAM_PASSWORD=${STACK_ADMIN_PASSWORD}
       - LAM_LANG=en_US
-    volumes:
-      - lam_config:/var/lib/ldap-account-manager
+    # Note: No volume mount - LAM uses container-internal storage and connects to persistent LDAP
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/lam/"]
       interval: 10s
@@ -427,7 +422,6 @@ services:
         condition: service_healthy
     volumes:
       - ${VOLUMES_ROOT}/authelia:/config
-      # Mount from runtime config dir
       - ${HOME}/.config/datamancy/configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
       - ${HOME}/.config/datamancy/.secrets/oidc-private.pem:/secrets/oidc-key.pem:ro
     command: ["--config", "/config/configuration.yml"]
@@ -436,16 +430,13 @@ services:
       - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET}
       - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET}
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
-      # Consolidated: use stack-wide admin password for LDAP bind
       - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${STACK_ADMIN_PASSWORD}
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_OIDC_HMAC_SECRET}
-      # PostgreSQL backend configuration
       - AUTHELIA_STORAGE_POSTGRES_HOST=postgres
       - AUTHELIA_STORAGE_POSTGRES_PORT=5432
       - AUTHELIA_STORAGE_POSTGRES_DATABASE=authelia
       - AUTHELIA_STORAGE_POSTGRES_USERNAME=authelia
       - AUTHELIA_STORAGE_POSTGRES_PASSWORD=${AUTHELIA_DB_PASSWORD}
-      # OIDC private key mounted as file at /secrets/oidc-key.pem and referenced in config.yml
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/api/health"]
       interval: 30s
@@ -497,6 +488,11 @@ services:
       - SYNAPSE_DB_PASSWORD=${SYNAPSE_DB_PASSWORD}
       - MAILU_DB_PASSWORD=${MAILU_DB_PASSWORD}
       - AUTHELIA_DB_PASSWORD=${AUTHELIA_DB_PASSWORD}
+      - GRAFANA_DB_PASSWORD=${GRAFANA_DB_PASSWORD}
+      - VAULTWARDEN_DB_PASSWORD=${VAULTWARDEN_DB_PASSWORD}
+      - OPENWEBUI_DB_PASSWORD=${OPENWEBUI_DB_PASSWORD}
+      - MASTODON_DB_PASSWORD=${MASTODON_DB_PASSWORD}
+      - HOMEASSISTANT_DB_PASSWORD=${HOMEASSISTANT_DB_PASSWORD:-}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ${HOME}/.config/datamancy/configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
@@ -975,7 +971,6 @@ services:
       - GF_DEFAULT_LOCALE=en_US
       - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN}
       - GF_SERVER_DOMAIN=grafana.${DOMAIN}
-      # PostgreSQL database
       - GF_DATABASE_TYPE=postgres
       - GF_DATABASE_HOST=postgres:5432
       - GF_DATABASE_NAME=grafana
@@ -1004,7 +999,6 @@ services:
       - GF_USERS_AUTO_ASSIGN_ORG=true
       - GF_USERS_AUTO_ASSIGN_ORG_ROLE=Viewer
       - GF_AUTH_DISABLE_LOGIN_FORM=false
-      # Consolidated admin credentials: use stack-wide admin user/pass
       - GF_SECURITY_ADMIN_USER=${STACK_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
@@ -1040,8 +1034,8 @@ services:
         condition: service_healthy
     environment:
       - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
-      # PostgreSQL database
-      - DATABASE_URL=postgresql://openwebui:${OPENWEBUI_DB_PASSWORD}@postgres:5432/openwebui
+      # PostgreSQL database - use URL-encoded password for special characters
+      - DATABASE_URL=postgresql://openwebui:${OPENWEBUI_DB_PASSWORD_ENCODED}@postgres:5432/openwebui
       - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-false}
       - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
       - ENABLE_OPENAI_API=true
@@ -1079,7 +1073,6 @@ services:
         condition: service_healthy
     environment:
       - DOMAIN=https://vaultwarden.${DOMAIN}
-      # PostgreSQL database
       - DATABASE_URL=postgresql://vaultwarden:${VAULTWARDEN_DB_PASSWORD}@postgres:5432/vaultwarden
       - SIGNUPS_ALLOWED=false
       - SIGNUPS_VERIFY=true
@@ -1141,7 +1134,6 @@ services:
       - OIDC_EMAIL_ATTRIBUTE=email
       - OIDC_NAME_ATTRIBUTE=name
       - OIDC_USERNAME_ATTRIBUTE=preferred_username
-      # NODE_TLS_REJECT_UNAUTHORIZED=0 removed - trust Caddy CA cert instead
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
     volumes:
       - planka_data:/app/public/user-avatars
@@ -1203,7 +1195,6 @@ services:
       - DB_HOST=mariadb-seafile
       - DB_ROOT_PASSWD=${MARIADB_SEAFILE_ROOT_PASSWORD}
       - SEAFILE_SERVER_HOSTNAME=seafile.${DOMAIN}
-      # Consolidated admin credentials: use stack-wide admin email/pass
       - SEAFILE_ADMIN_EMAIL=${STACK_ADMIN_EMAIL}
       - SEAFILE_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
       - TIME_ZONE=UTC
@@ -1366,8 +1357,6 @@ services:
           memory: 2G
           cpus: '2.0'
     healthcheck:
-      # Check for sidekiq process responding (not just running)
-      # Sidekiq heartbeat is stored in Redis - check it's updating
       test: ["CMD-SHELL", "bundle exec rails runner 'exit(Sidekiq::ProcessSet.new.size > 0 ? 0 : 1)' || exit 1"]
       interval: 60s
       timeout: 10s
@@ -1604,31 +1593,6 @@ services:
       retries: 3
       start_period: 15s
 
-
-  ssh-key-bootstrap:
-    image: alpine:3.20
-    container_name: ssh-key-bootstrap
-    profiles:
-      - bootstrap
-      - applications
-    restart: "no"
-    networks:
-      - backend
-    environment:
-      - TOOLSERVER_SSH_HOST=${TOOLSERVER_SSH_HOST:-host.docker.internal}
-    volumes:
-      - ${VOLUMES_ROOT}/agent_tool_server:/app:rw
-      - ${HOME}/.config/datamancy/configs/infrastructure/ssh/bootstrap_known_hosts.sh:/bootstrap_known_hosts.sh:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: ["sh", "-c", "apk add --no-cache openssh-client && sh /bootstrap_known_hosts.sh /app/known_hosts"]
-    healthcheck:
-      test: ["CMD", "test", "-f", "/app/known_hosts"]
-      interval: 5s
-      timeout: 5s
-      retries: 1
-      start_period: 5s
-
   agent-tool-server:
     build:
       dockerfile: ./src/agent-tool-server/Dockerfile
@@ -1644,8 +1608,6 @@ services:
     group_add:
       - "985"  # docker group on host for socket access
     depends_on:
-      ssh-key-bootstrap:
-        condition: service_completed_successfully
       authelia:
         condition: service_healthy
       playwright:

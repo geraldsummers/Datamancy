@@ -69,11 +69,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             ALTER USER mastodon WITH PASSWORD '$MASTODON_DB_PASSWORD';
         END IF;
 
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'homeassistant') THEN
-            CREATE USER homeassistant WITH PASSWORD '$HOMEASSISTANT_DB_PASSWORD';
-        ELSE
-            ALTER USER homeassistant WITH PASSWORD '$HOMEASSISTANT_DB_PASSWORD';
-        END IF;
+        -- Home Assistant user creation is optional (may use SQLite)
+        -- Skip if no password provided
     END
     \$\$;
 
@@ -81,10 +78,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE planka OWNER planka'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'planka')\gexec
 
-    SELECT 'CREATE DATABASE langgraph OWNER postgres'
+    SELECT 'CREATE DATABASE langgraph OWNER $POSTGRES_USER'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'langgraph')\gexec
 
-    SELECT 'CREATE DATABASE litellm OWNER postgres'
+    SELECT 'CREATE DATABASE litellm OWNER $POSTGRES_USER'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'litellm')\gexec
 
     SELECT 'CREATE DATABASE synapse OWNER synapse'
@@ -108,13 +105,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE mastodon OWNER mastodon'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mastodon')\gexec
 
-    SELECT 'CREATE DATABASE homeassistant OWNER homeassistant'
-    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'homeassistant')\gexec
+    -- Home Assistant database creation skipped (uses SQLite by default)
 
     -- Grant privileges (these are idempotent)
     GRANT ALL PRIVILEGES ON DATABASE planka TO planka;
-    GRANT ALL PRIVILEGES ON DATABASE langgraph TO postgres;
-    GRANT ALL PRIVILEGES ON DATABASE litellm TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE langgraph TO $POSTGRES_USER;
+    GRANT ALL PRIVILEGES ON DATABASE litellm TO $POSTGRES_USER;
     GRANT ALL PRIVILEGES ON DATABASE synapse TO synapse;
     GRANT ALL PRIVILEGES ON DATABASE mailu TO mailu;
     GRANT ALL PRIVILEGES ON DATABASE authelia TO authelia;
@@ -122,7 +118,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE vaultwarden TO vaultwarden;
     GRANT ALL PRIVILEGES ON DATABASE openwebui TO openwebui;
     GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
-    GRANT ALL PRIVILEGES ON DATABASE homeassistant TO homeassistant;
 EOSQL
 
 # Grant schema privileges (PostgreSQL 15+)
@@ -134,7 +129,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "grafana" -c "GRANT
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "vaultwarden" -c "GRANT ALL ON SCHEMA public TO vaultwarden;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRANT ALL ON SCHEMA public TO openwebui;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO homeassistant;"
 
 # Create Mailu application schema
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -f /docker-entrypoint-initdb.d/init-mailu-schema.sql

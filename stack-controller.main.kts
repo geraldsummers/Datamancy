@@ -38,11 +38,18 @@ import kotlin.system.exitProcess
 // Utilities
 // ============================================================================
 
-private fun info(msg: String) = println("\u001B[32m[INFO]\u001B[0m $msg")
-private fun warn(msg: String) = println("\u001B[33m[WARN]\u001B[0m $msg")
-private fun success(msg: String) = println("\u001B[32m✓\u001B[0m $msg")
+// ANSI color codes
+private val ANSI_RESET = "\u001B[0m"
+private val ANSI_RED = "\u001B[31m"
+private val ANSI_GREEN = "\u001B[32m"
+private val ANSI_YELLOW = "\u001B[33m"
+private val ANSI_CYAN = "\u001B[36m"
+
+private fun info(msg: String) = println("${ANSI_GREEN}[INFO]${ANSI_RESET} $msg")
+private fun warn(msg: String) = println("${ANSI_YELLOW}[WARN]${ANSI_RESET} $msg")
+private fun success(msg: String) = println("${ANSI_GREEN}✓${ANSI_RESET} $msg")
 private fun err(msg: String): Nothing {
-    System.err.println("\u001B[31m[ERROR]\u001B[0m $msg")
+    System.err.println("${ANSI_RED}[ERROR]${ANSI_RESET} $msg")
     exitProcess(1)
 }
 
@@ -295,6 +302,94 @@ private fun cmdDown() {
     info("Stopping stack")
     run("docker", "compose", "down", cwd = root)
     success("Stack stopped")
+}
+
+private fun cmdRecreate(profile: String? = null, cleanVolumes: Boolean = false, skipConfigs: Boolean = false) {
+    val root = projectRoot()
+
+    println("""
+        |$ANSI_CYAN========================================
+        |  Stack Recreate Workflow
+        |========================================$ANSI_RESET
+        |Profile: ${profile ?: "all"}
+        |Clean volumes: $cleanVolumes
+        |Regenerate configs: ${!skipConfigs}
+        |
+    """.trimMargin())
+
+    // Step 1: Down
+    info("Step 1/5: Stopping all services")
+    run("docker", "compose", "down", cwd = root)
+    success("Services stopped")
+
+    // Step 2: Clean volumes (optional)
+    if (cleanVolumes) {
+        warn("Step 2/5: Cleaning volumes (THIS WILL DELETE ALL DATA)")
+        print("Are you sure? Type 'yes' to continue: ")
+        val confirmation = readLine()?.trim()?.lowercase()
+        if (confirmation != "yes") {
+            err("Volume cleaning cancelled")
+        }
+
+        val volumesToClean = if (profile == "bootstrap" || profile == null) {
+            listOf("postgres_data", "ldap_data", "redis_data")
+        } else {
+            emptyList()
+        }
+
+        if (volumesToClean.isNotEmpty()) {
+            for (vol in volumesToClean) {
+                val volPath = root.resolve("volumes/$vol")
+                if (Files.exists(volPath)) {
+                    info("Cleaning: $vol")
+                    run("docker", "run", "--rm",
+                        "-v", "$volPath:/data",
+                        "alpine", "sh", "-c", "rm -rf /data/*")
+                }
+            }
+            success("Volumes cleaned")
+        } else {
+            info("No volumes to clean for profile: $profile")
+        }
+    } else {
+        info("Step 2/5: Skipping volume cleaning (use --clean-volumes to enable)")
+    }
+
+    // Step 3: Regenerate configs
+    if (!skipConfigs) {
+        info("Step 3/5: Regenerating configuration files")
+        cmdConfigProcess()
+        success("Configs regenerated")
+    } else {
+        info("Step 3/5: Skipping config regeneration (use --no-skip-configs to enable)")
+    }
+
+    // Step 4: Bootstrap SSH known_hosts if needed
+    if (profile == "bootstrap" || profile == null) {
+        info("Step 4/5: Bootstrapping SSH known_hosts")
+        try {
+            cmdSshBootstrap()
+        } catch (e: Exception) {
+            warn("SSH bootstrap failed (may be OK if SSH not needed): ${e.message}")
+        }
+    } else {
+        info("Step 4/5: Skipping SSH bootstrap (not bootstrap profile)")
+    }
+
+    // Step 5: Up
+    info("Step 5/5: Starting services")
+    cmdUp(profile)
+
+    println("""
+        |
+        |$ANSI_GREEN========================================
+        |  Recreate Complete!
+        |========================================$ANSI_RESET
+        |
+        |Check status: docker compose ps
+        |View logs: docker compose logs -f
+        |
+    """.trimMargin())
 }
 
 private fun cmdRestart(service: String) {
@@ -599,6 +694,46 @@ private fun cmdVolumesCreate() {
     success("Volume directories created")
 }
 
+private fun cmdSshBootstrap() {
+    val root = projectRoot()
+    val knownHostsFile = root.resolve("volumes/agent_tool_server/known_hosts")
+    val sshHost = System.getenv("TOOLSERVER_SSH_HOST") ?: "host.docker.internal"
+
+    info("Bootstrapping SSH known_hosts for agent-tool-server")
+    info("Scanning SSH keys from: $sshHost")
+
+    // Ensure parent directory exists
+    Files.createDirectories(knownHostsFile.parent)
+
+    // Remove if it's a directory (common mistake)
+    if (Files.isDirectory(knownHostsFile)) {
+        info("Removing incorrectly created directory: $knownHostsFile")
+        run("docker", "run", "--rm",
+            "-v", "${knownHostsFile}:/data",
+            "alpine", "sh", "-c", "rm -rf /data")
+    }
+
+    // Scan SSH host keys
+    val tmpFile = Files.createTempFile("known_hosts", ".tmp")
+    try {
+        val keys = run("ssh-keyscan", "-H", "-t", "rsa,ecdsa,ed25519", sshHost, allowFail = true)
+        if (keys.trim().isEmpty()) {
+            warn("No SSH keys found for $sshHost - service may not be accessible")
+            warn("This is OK if agent-tool-server doesn't need SSH access")
+            // Create empty file so volume mount works
+            Files.writeString(knownHostsFile, "")
+        } else {
+            Files.writeString(tmpFile, keys)
+            Files.copy(tmpFile, knownHostsFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            ensurePerm(knownHostsFile, executable = false)
+            success("SSH known_hosts created: $knownHostsFile")
+            println("Keys captured: ${keys.lines().filter { it.isNotBlank() }.size}")
+        }
+    } finally {
+        Files.deleteIfExists(tmpFile)
+    }
+}
+
 private fun cmdVolumesClean() {
     val root = projectRoot()
     val volumesPath = root.resolve("volumes").toString()
@@ -675,6 +810,10 @@ private fun showHelp() {
         |Stack Operations:
         |  up [--profile=<name>]   Start stack or specific profile
         |  down                    Stop all services
+        |  recreate [options]      Full recreate: down → clean → regenerate → up
+        |    --profile=<name>        Recreate specific profile
+        |    --clean-volumes         Clean volumes (DELETES DATA - prompts for confirmation)
+        |    --skip-configs          Skip config regeneration
         |  restart <service>       Restart a service
         |  logs <service>          View service logs (add -f to follow)
         |  status                  Show stack status
@@ -693,6 +832,7 @@ private fun showHelp() {
         |Maintenance:
         |  volumes create          Create volume directory structure
         |  volumes clean           Clean volumes directory (fix root ownership)
+        |  ssh bootstrap           Bootstrap SSH known_hosts for agent-tool-server
         |  clean docker            Clean unused Docker resources
         |  ldap sync               Sync LDAP users to services
         |  ldap bootstrap          Generate LDAP bootstrap in ~/.config/datamancy
@@ -737,6 +877,12 @@ when (args[0]) {
         cmdUp(profile)
     }
     "down" -> cmdDown()
+    "recreate" -> {
+        val profile = args.find { it.startsWith("--profile=") }?.substringAfter("=")
+        val cleanVolumes = args.contains("--clean-volumes")
+        val skipConfigs = args.contains("--skip-configs")
+        cmdRecreate(profile, cleanVolumes, skipConfigs)
+    }
     "restart" -> {
         val service = args.getOrNull(1) ?: err("Service name required")
         cmdRestart(service)
@@ -780,6 +926,14 @@ when (args[0]) {
         else -> {
             println("Unknown volumes command: ${args.getOrNull(1)}")
             println("Valid: create, clean")
+            exitProcess(1)
+        }
+    }
+    "ssh" -> when (args.getOrNull(1)) {
+        "bootstrap" -> cmdSshBootstrap()
+        else -> {
+            println("Unknown ssh command: ${args.getOrNull(1)}")
+            println("Valid: bootstrap")
             exitProcess(1)
         }
     }
