@@ -130,7 +130,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "vaultwarden" -c "G
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRANT ALL ON SCHEMA public TO openwebui;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
 
-# Create Mailu application schema
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -f /docker-entrypoint-initdb.d/init-mailu-schema.sql
+# Note: Mailu manages its own database schema via SQLAlchemy migrations
+# The init-mailu-schema.sql file should not run before Mailu Admin initializes
+# Uncomment only if you need custom tables not managed by Mailu
+# psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -f /docker-entrypoint-initdb.d/init-mailu-schema.sql
 
 echo "PostgreSQL databases and users initialized successfully"

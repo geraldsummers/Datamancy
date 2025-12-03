@@ -104,6 +104,12 @@ private fun runtimeConfigDir(): Path {
 
 private fun ensureRuntimeConfigDir(): Path {
     val dir = runtimeConfigDir()
+
+    // Security: Never run config/ldap/volumes commands as root
+    if (isRoot()) {
+        err("Config operations must not be run as root. Run without sudo.")
+    }
+
     Files.createDirectories(dir)
     return dir
 }
@@ -202,32 +208,6 @@ private fun checkDiskSpace(path: Path, requiredGB: Long = 50) {
 }
 
 // ============================================================================
-// Environment Management Commands
-// ============================================================================
-
-private fun cmdEnvLink() {
-    val root = projectRoot()
-    val runtimeDir = runtimeConfigDir()
-    val runtimeEnv = runtimeDir.resolve(".env.runtime")
-    val localEnv = root.resolve(".env")
-
-    if (!Files.exists(runtimeEnv)) {
-        err("Runtime .env not found at: $runtimeEnv\n" +
-            "Generate it first:\n" +
-            "  ./stack-controller.main.kts config generate")
-    }
-
-    info("Linking .env → ~/.config/datamancy/.env.runtime")
-
-    // Copy runtime env to local for docker-compose
-    Files.copy(runtimeEnv, localEnv, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-    ensurePerm(localEnv, executable = false)
-
-    success("Linked: $localEnv → $runtimeEnv")
-    warn("Remember: .env is gitignored - never commit it!")
-}
-
-// ============================================================================
 // Stack Operations
 // ============================================================================
 
@@ -235,7 +215,6 @@ private fun cmdUp(profile: String? = null) {
     val root = projectRoot()
 
     // Pre-flight checks
-    val envFile = root.resolve(".env")
     val runtimeDir = runtimeConfigDir()
     val runtimeEnv = runtimeDir.resolve(".env.runtime")
     val ldapBootstrap = runtimeDir.resolve("bootstrap_ldap.ldif")
@@ -248,17 +227,10 @@ private fun cmdUp(profile: String? = null) {
             "  ./stack-controller.main.kts config generate")
     }
 
-    // Check 2: Link .env to project root if needed
-    if (!Files.exists(envFile)) {
-        info("Linking .env for docker-compose")
-        Files.copy(runtimeEnv, envFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-        ensurePerm(envFile, executable = false)
-    }
+    validateEnvFile(runtimeEnv)
 
-    validateEnvFile(envFile)
-
-    // Check 3: Validate DOMAIN
-    val envContent = Files.readString(envFile)
+    // Check 2: Validate DOMAIN
+    val envContent = Files.readString(runtimeEnv)
     val domainMatch = "DOMAIN=(.+)".toRegex().find(envContent)
     if (domainMatch != null) {
         val domain = domainMatch.groupValues[1].trim().removeSurrounding("\"", "'")
@@ -285,7 +257,7 @@ private fun cmdUp(profile: String? = null) {
 
     info("Starting stack" + if (profile != null) " with profile: $profile" else "")
 
-    val args = mutableListOf("docker", "compose")
+    val args = mutableListOf("docker", "compose", "--env-file", runtimeEnv.toString())
     if (profile != null) {
         args.add("--profile")
         args.add(profile)
@@ -299,8 +271,14 @@ private fun cmdUp(profile: String? = null) {
 
 private fun cmdDown() {
     val root = projectRoot()
+    val runtimeDir = runtimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
     info("Stopping stack")
-    run("docker", "compose", "down", cwd = root)
+    if (Files.exists(runtimeEnv)) {
+        run("docker", "compose", "--env-file", runtimeEnv.toString(), "down", cwd = root)
+    } else {
+        run("docker", "compose", "down", cwd = root)
+    }
     success("Stack stopped")
 }
 
@@ -319,7 +297,13 @@ private fun cmdRecreate(profile: String? = null, cleanVolumes: Boolean = false, 
 
     // Step 1: Down
     info("Step 1/5: Stopping all services")
-    run("docker", "compose", "down", cwd = root)
+    val runtimeDir = runtimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
+    if (Files.exists(runtimeEnv)) {
+        run("docker", "compose", "--env-file", runtimeEnv.toString(), "down", cwd = root)
+    } else {
+        run("docker", "compose", "down", cwd = root)
+    }
     success("Services stopped")
 
     // Step 2: Clean volumes (optional)
@@ -394,8 +378,14 @@ private fun cmdRecreate(profile: String? = null, cleanVolumes: Boolean = false, 
 
 private fun cmdRestart(service: String) {
     val root = projectRoot()
+    val runtimeDir = runtimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
     info("Restarting service: $service")
-    run("docker", "compose", "restart", service, cwd = root)
+    if (Files.exists(runtimeEnv)) {
+        run("docker", "compose", "--env-file", runtimeEnv.toString(), "restart", service, cwd = root)
+    } else {
+        run("docker", "compose", "restart", service, cwd = root)
+    }
     success("Service restarted: $service")
 }
 
@@ -481,6 +471,7 @@ private fun cmdHealth() {
 private fun cmdConfigProcess() {
     val root = projectRoot()
     val runtimeDir = ensureRuntimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
 
     info("Processing configuration templates")
     info("Output: $runtimeDir/configs")
@@ -491,16 +482,23 @@ private fun cmdConfigProcess() {
         warn("Script not found at new location, trying old location...")
         val oldScript = root.resolve("scripts/process-config-templates.main.kts")
         if (Files.exists(oldScript)) {
-            run("kotlin", oldScript.toString(), "--force", "--output=$runtimeDir/configs", cwd = root)
+            run("kotlin", oldScript.toString(), "--force", "--output=$runtimeDir/configs", "--env=$runtimeEnv", cwd = root)
         } else {
             err("process-config-templates.main.kts not found")
         }
     } else {
-        run("kotlin", script.toString(), "--force", "--output=$runtimeDir/configs", cwd = root)
+        run("kotlin", script.toString(), "--force", "--output=$runtimeDir/configs", "--env=$runtimeEnv", cwd = root)
     }
 
     success("Configuration templates processed")
     info("Configs location: $runtimeDir/configs")
+
+    // Setup application-specific init scripts
+    info("Setting up application init scripts")
+    val bookstackInitScript = root.resolve("scripts/core/setup-bookstack-init.sh")
+    if (Files.exists(bookstackInitScript)) {
+        run("bash", bookstackInitScript.toString(), cwd = root)
+    }
 }
 
 private fun cmdConfigGenerate() {
@@ -536,7 +534,7 @@ private fun cmdConfigGenerate() {
 
     success("Environment configuration generated")
     info("Location: $runtimeEnv")
-    info("To use: ./stack-controller.main.kts env link")
+    info("Ready to use with: ./stack-controller up")
 }
 
 // ============================================================================
@@ -766,8 +764,14 @@ private fun cmdCleanDocker() {
 
 private fun cmdLdapSync() {
     val root = projectRoot()
+    val runtimeDir = runtimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
     info("Syncing LDAP users to services")
-    run("docker", "compose", "run", "--rm", "ldap-sync-service", "sync", cwd = root)
+    if (Files.exists(runtimeEnv)) {
+        run("docker", "compose", "--env-file", runtimeEnv.toString(), "run", "--rm", "ldap-sync-service", "sync", cwd = root)
+    } else {
+        run("docker", "compose", "run", "--rm", "ldap-sync-service", "sync", cwd = root)
+    }
     success("LDAP sync complete")
 }
 
@@ -804,8 +808,12 @@ private fun showHelp() {
         |
         |Usage: ./stack-controller <command> [options]
         |
-        |Environment Management:
-        |  env link                Copy runtime .env for docker-compose
+        |📚 Documentation:
+        |  README.md                      Quick start guide
+        |  docs/DEPLOYMENT.md             Complete deployment guide with troubleshooting
+        |  docs/STACK_CONTROLLER_GUIDE.md This CLI reference (detailed)
+        |  docs/ARCHITECTURE.md           System architecture
+        |  docs/SECURITY.md               Security setup
         |
         |Stack Operations:
         |  up [--profile=<name>]   Start stack or specific profile
@@ -851,6 +859,9 @@ private fun showHelp() {
         |  sudo ./stack-controller deploy create-user
         |
         |Note: All runtime configs stored in ~/.config/datamancy (outside git tree)
+        |Note: Docker Compose uses --env-file flag (no .env symlink needed)
+        |
+        |For detailed troubleshooting, see: docs/DEPLOYMENT.md#troubleshooting
     """.trimMargin())
 }
 
@@ -861,48 +872,54 @@ if (args.isEmpty()) {
 }
 
 when (args[0]) {
-    // Environment
-    "env" -> when (args.getOrNull(1)) {
-        "link" -> cmdEnvLink()
-        else -> {
-            println("Unknown env command: ${args.getOrNull(1)}")
-            println("Valid: link")
-            exitProcess(1)
-        }
-    }
-
     // Stack operations
     "up" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         val profile = args.find { it.startsWith("--profile=") }?.substringAfter("=")
         cmdUp(profile)
     }
-    "down" -> cmdDown()
+    "down" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        cmdDown()
+    }
     "recreate" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         val profile = args.find { it.startsWith("--profile=") }?.substringAfter("=")
         val cleanVolumes = args.contains("--clean-volumes")
         val skipConfigs = args.contains("--skip-configs")
         cmdRecreate(profile, cleanVolumes, skipConfigs)
     }
     "restart" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         val service = args.getOrNull(1) ?: err("Service name required")
         cmdRestart(service)
     }
     "logs" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         val service = args.getOrNull(1) ?: err("Service name required")
         val follow = args.contains("-f") || args.contains("--follow")
         cmdLogs(service, follow)
     }
-    "status" -> cmdStatus()
-    "health" -> cmdHealth()
+    "status" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        cmdStatus()
+    }
+    "health" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        cmdHealth()
+    }
 
     // Configuration
-    "config" -> when (args.getOrNull(1)) {
-        "process" -> cmdConfigProcess()
-        "generate" -> cmdConfigGenerate()
-        else -> {
-            println("Unknown config command: ${args.getOrNull(1)}")
-            println("Valid: process, generate")
-            exitProcess(1)
+    "config" -> {
+        if (isRoot()) err("Config operations must not be run as root. Run without sudo.")
+        when (args.getOrNull(1)) {
+            "process" -> cmdConfigProcess()
+            "generate" -> cmdConfigGenerate()
+            else -> {
+                println("Unknown config command: ${args.getOrNull(1)}")
+                println("Valid: process, generate")
+                exitProcess(1)
+            }
         }
     }
 
@@ -920,42 +937,54 @@ when (args[0]) {
     }
 
     // Maintenance
-    "volumes" -> when (args.getOrNull(1)) {
-        "create" -> cmdVolumesCreate()
-        "clean" -> cmdVolumesClean()
-        else -> {
-            println("Unknown volumes command: ${args.getOrNull(1)}")
-            println("Valid: create, clean")
-            exitProcess(1)
+    "volumes" -> {
+        if (isRoot()) err("Volume operations must not be run as root. Run without sudo.")
+        when (args.getOrNull(1)) {
+            "create" -> cmdVolumesCreate()
+            "clean" -> cmdVolumesClean()
+            else -> {
+                println("Unknown volumes command: ${args.getOrNull(1)}")
+                println("Valid: create, clean")
+                exitProcess(1)
+            }
         }
     }
-    "ssh" -> when (args.getOrNull(1)) {
-        "bootstrap" -> cmdSshBootstrap()
-        else -> {
-            println("Unknown ssh command: ${args.getOrNull(1)}")
-            println("Valid: bootstrap")
-            exitProcess(1)
+    "ssh" -> {
+        if (isRoot()) err("SSH operations must not be run as root. Run without sudo.")
+        when (args.getOrNull(1)) {
+            "bootstrap" -> cmdSshBootstrap()
+            else -> {
+                println("Unknown ssh command: ${args.getOrNull(1)}")
+                println("Valid: bootstrap")
+                exitProcess(1)
+            }
         }
     }
-    "clean" -> when (args.getOrNull(1)) {
-        "docker" -> cmdCleanDocker()
-        else -> {
-            println("Unknown clean command: ${args.getOrNull(1)}")
-            println("Valid: docker")
-            exitProcess(1)
+    "clean" -> {
+        if (isRoot()) err("Clean operations must not be run as root. Run without sudo.")
+        when (args.getOrNull(1)) {
+            "docker" -> cmdCleanDocker()
+            else -> {
+                println("Unknown clean command: ${args.getOrNull(1)}")
+                println("Valid: docker")
+                exitProcess(1)
+            }
         }
     }
-    "ldap" -> when (args.getOrNull(1)) {
-        "sync" -> cmdLdapSync()
-        "bootstrap" -> {
-            val dryRun = args.contains("--dry-run") || args.contains("-n")
-            val force = args.contains("--force") || args.contains("-f")
-            cmdLdapBootstrap(dryRun, force)
-        }
-        else -> {
-            println("Unknown ldap command: ${args.getOrNull(1)}")
-            println("Valid: sync, bootstrap [--force] [--dry-run]")
-            exitProcess(1)
+    "ldap" -> {
+        if (isRoot()) err("LDAP operations must not be run as root. Run without sudo.")
+        when (args.getOrNull(1)) {
+            "sync" -> cmdLdapSync()
+            "bootstrap" -> {
+                val dryRun = args.contains("--dry-run") || args.contains("-n")
+                val force = args.contains("--force") || args.contains("-f")
+                cmdLdapBootstrap(dryRun, force)
+            }
+            else -> {
+                println("Unknown ldap command: ${args.getOrNull(1)}")
+                println("Valid: sync, bootstrap [--force] [--dry-run]")
+                exitProcess(1)
+            }
         }
     }
 

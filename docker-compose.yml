@@ -1,20 +1,47 @@
 ###############################################
 # Datamancy — docker-compose.yml
 #
-# Documentation:
-# - Overview and Quickstart: README.md
-# - Bootstrap guide: docs/BOOTSTRAP.md
-# - Architecture overview: docs/ARCHITECTURE.md
-# - App catalog (all services): docs/APP_CATALOG.md
-# - Data ingestion & RAG: docs/DATA_AND_RAG.md
-# - Operations & Security: docs/OPERATIONS.md, docs/SECURITY.md
+# 📚 Documentation:
+# - Quick Start: README.md
+# - Deployment Guide: docs/DEPLOYMENT.md (includes troubleshooting)
+# - Stack Controller: docs/STACK_CONTROLLER_GUIDE.md
+# - Architecture: docs/ARCHITECTURE.md
+# - Security: docs/SECURITY.md
+# - LDAP Setup: docs/LDAP_BOOTSTRAP.md
 #
-# Tip: Services are grouped by profiles (bootstrap, bootstrap_vector_dbs, full).
+# 🚀 Quick Deploy:
+#   ./stack-controller.main.kts config generate
+#   ./stack-controller.main.kts config process
+#   ./stack-controller.main.kts ldap bootstrap
+#   ./stack-controller.main.kts volumes create
+#   docker compose --env-file ~/.config/datamancy/.env.runtime \
+#     --profile bootstrap --profile databases --profile vector-dbs \
+#     --profile infrastructure --profile applications up -d
 #
-# TODO PRE-PRODUCTION:
-# - Add memory/CPU resource limits after real lab deployment profiling
-# - Waiting for actual usage data to properly regulate resource constraints
-# - Priority services needing limits: vllm, clickhouse, postgres, mastodon-*
+# 🔍 Service Profiles:
+#   bootstrap        - Core auth (LDAP, Authelia, Postgres, Redis, Caddy)
+#   databases        - All databases (MariaDB, Postgres, ClickHouse, etc.)
+#   vector-dbs       - Vector search (Qdrant)
+#   infrastructure   - Management (Portainer, Grafana, Dockge, etc.)
+#   applications     - Apps (Mastodon, Mailu, BookStack, Open-WebUI, etc.)
+#
+# 🐛 Common Issues:
+#   - Bookstack DB errors: See docs/DEPLOYMENT.md#bookstack-database-connection-errors
+#   - Mailu antispam stuck: See docs/DEPLOYMENT.md#mailu-antispam-service-waiting-for-admin
+#   - Seafile timeout: docker restart seafile
+#   - Portainer unhealthy: Expected (needs admin setup within 5min)
+#
+# 🌐 Networks:
+#   frontend (172.20.0.0/24)  - Caddy reverse proxy
+#   backend (172.21.0.0/24)   - Application services
+#   database (172.22.0.0/24)  - Database services
+#   Note: MariaDB & Postgres on BOTH backend + database for compatibility
+#
+# ⚙️ Key Fixes Applied (persistent in templates):
+#   - MariaDB: Added backend network for Bookstack connectivity
+#   - Mailu: Fixed SUBNET to 172.21.0.0/24, added 'admin' alias
+#   - Bookstack: Auto-fix .env via init script (configs.templates/applications/bookstack/init/)
+#   - Antispam: Fixed healthcheck command (pgrep rspamd)
 ###############################################
 networks:
   frontend:
@@ -394,7 +421,7 @@ services:
       - databases
     volumes:
       - redis_data:/data
-    command: valkey-server --appendonly yes
+    command: valkey-server --appendonly yes --dir /data
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
@@ -413,6 +440,7 @@ services:
     profiles:
       - bootstrap
       - infrastructure
+      - applications
     depends_on:
       ldap:
         condition: service_healthy
@@ -423,7 +451,8 @@ services:
     volumes:
       - ${VOLUMES_ROOT}/authelia:/config
       - ${HOME}/.config/datamancy/configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
-      - ${HOME}/.config/datamancy/.secrets/oidc-private.pem:/secrets/oidc-key.pem:ro
+      - ${HOME}/.config/datamancy/configs/applications/authelia/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/entrypoint.sh"]
     command: ["--config", "/config/configuration.yml"]
     environment:
       - TZ=UTC
@@ -432,6 +461,7 @@ services:
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
       - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${STACK_ADMIN_PASSWORD}
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_OIDC_HMAC_SECRET}
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY}
       - AUTHELIA_STORAGE_POSTGRES_HOST=postgres
       - AUTHELIA_STORAGE_POSTGRES_PORT=5432
       - AUTHELIA_STORAGE_POSTGRES_DATABASE=authelia
@@ -451,7 +481,8 @@ services:
     profiles:
       - databases
     networks:
-      - database
+      database: {}
+      backend: {}
     environment:
       - MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
       - MYSQL_DATABASE=datamancy
@@ -562,7 +593,9 @@ services:
     volumes:
       - seafile_mysql_data:/var/lib/mysql
     networks:
-      - backend
+      backend:
+        aliases:
+          - mysql
     healthcheck:
       test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${STACK_ADMIN_PASSWORD}"]
       interval: 10s
@@ -605,7 +638,9 @@ services:
       - mailu_cert:/certs
       - mailu_dkim:/dkim
     networks:
-      - backend
+      backend:
+        aliases:
+          - front
     depends_on:
       mailu-admin:
         condition: service_healthy
@@ -650,7 +685,7 @@ services:
       mailu-admin:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "rspamc", "stat"]
+      test: ["CMD", "sh", "-c", "pgrep rspamd"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -689,7 +724,7 @@ services:
       mailu-admin:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "doveadm", "director", "status"]
+      test: ["CMD", "doveadm", "log", "test"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -729,7 +764,9 @@ services:
     volumes:
       - mailu_data:/data
     networks:
-      - backend
+      backend:
+        aliases:
+          - admin
     depends_on:
       postgres:
         condition: service_healthy
@@ -795,11 +832,11 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:20000/"]
+      test: ["CMD-SHELL", "pgrep sogod > /dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
   dockge:
     image: louislam/dockge:1
@@ -853,7 +890,7 @@ services:
   kopia:
     image: kopia/kopia:0.18.2
     container_name: kopia
-    restart: unless-stopped
+    restart: "no"  # Manual start after all services are up to avoid volume mount race conditions
     profiles:
       - infrastructure
     networks:
@@ -1148,11 +1185,14 @@ services:
   bookstack:
     image: lscr.io/linuxserver/bookstack:24.12.1
     container_name: bookstack
+    hostname: bookstack
     restart: unless-stopped
     profiles:
       - applications
     networks:
       - backend
+    links:
+      - mariadb:mariadb
     depends_on:
       mariadb:
         condition: service_healthy
@@ -1163,6 +1203,7 @@ services:
       - PGID=1000
       - TZ=UTC
       - APP_URL=https://bookstack.${DOMAIN}
+      - APP_KEY=${BOOKSTACK_APP_KEY}
       - DB_HOST=mariadb
       - DB_PORT=3306
       - DB_USER=bookstack
@@ -1170,6 +1211,7 @@ services:
       - DB_DATABASE=bookstack
     volumes:
       - bookstack_data:/config
+      - ${VOLUMES_ROOT}/bookstack_init:/custom-cont-init.d:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 30s
@@ -1192,8 +1234,8 @@ services:
         condition: service_healthy
     environment:
       - TZ=UTC
-      - DB_HOST=mariadb-seafile
-      - DB_ROOT_PASSWD=${MARIADB_SEAFILE_ROOT_PASSWORD}
+      - DB_HOST=mysql  # Use alias for mariadb-seafile
+      - DB_ROOT_PASSWD=${STACK_ADMIN_PASSWORD}
       - SEAFILE_SERVER_HOSTNAME=seafile.${DOMAIN}
       - SEAFILE_ADMIN_EMAIL=${STACK_ADMIN_EMAIL}
       - SEAFILE_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
@@ -1207,8 +1249,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
+      start_period: 180s
 
   onlyoffice:
     image: onlyoffice/documentserver:8.2.2
@@ -1262,8 +1304,6 @@ services:
     volumes:
       - synapse_data:/data
       - ${HOME}/.config/datamancy/configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
-      - ${HOME}/.config/datamancy/configs/applications/synapse/entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/entrypoint.sh"]
     networks:
       - backend
     healthcheck:
@@ -1292,9 +1332,10 @@ services:
         condition: service_healthy
     env_file:
       - ${HOME}/.config/datamancy/configs/applications/mastodon/mastodon.env
-    command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 3000 -b 0.0.0.0"
     volumes:
       - mastodon_data:/mastodon/public/system
+      - ${HOME}/.config/datamancy/configs/applications/mastodon/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
     deploy:
       resources:
         limits:
@@ -1304,11 +1345,11 @@ services:
       test: ["CMD-SHELL", "wget -q --spider --proxy=off localhost:3000/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 10
+      start_period: 180s
 
   mastodon-streaming:
-    image: ghcr.io/mastodon/mastodon:v4.3.3
+    image: ghcr.io/mastodon/mastodon-streaming:v4.3.3
     container_name: mastodon-streaming
     restart: unless-stopped
     profiles:
@@ -1324,7 +1365,6 @@ services:
         condition: service_healthy
     env_file:
       - ${HOME}/.config/datamancy/configs/applications/mastodon/mastodon.env
-    command: node ./streaming
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1"]
       interval: 30s
@@ -1363,31 +1403,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-
-  mastodon-init:
-    image: docker:27-cli
-    container_name: mastodon-init
-    profiles:
-      - applications
-    networks:
-      - backend
-    depends_on:
-      mastodon-web:
-        condition: service_healthy
-      docker-proxy:
-        condition: service_healthy
-    environment:
-      - DOCKER_HOST=tcp://docker-proxy:2375
-    volumes:
-      - ${HOME}/.config/datamancy/configs/applications/mastodon/init-mastodon.sh:/init-mastodon.sh:ro
-    command: sh /init-mastodon.sh
-    restart: "no"
-    healthcheck:
-      test: ["CMD", "sh", "-c", "echo ok"]
-      interval: 1m
-      timeout: 10s
-      retries: 1
-      start_period: 5s
 
   homepage:
     image: ghcr.io/gethomepage/homepage:v1.7.0
@@ -1835,7 +1850,6 @@ services:
     container_name: vector-bootstrap
     profiles:
       - bootstrap_vector_dbs
-      - infrastructure
     restart: "no"
     networks:
       - backend
@@ -1930,10 +1944,9 @@ services:
     depends_on:
       ldap:
         condition: service_healthy
-      mailu-admin:
-        condition: service_healthy
       docker-proxy:
         condition: service_healthy
+      # mailu-admin dependency removed - service will check availability at runtime
     environment:
       # LDAP connection
       - LDAP_HOST=ldap

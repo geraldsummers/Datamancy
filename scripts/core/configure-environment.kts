@@ -148,6 +148,10 @@ private fun generatePassword(length: Int = 24): String {
     return sb.toString()
 }
 
+private fun urlEncode(value: String): String {
+    return java.net.URLEncoder.encode(value, "UTF-8")
+}
+
 // ---------- Encryption Helpers (via openssl) ----------
 private fun ensureKeyFile() {
     if (!Files.exists(SECRETS_KEY_FILE)) {
@@ -217,7 +221,12 @@ private fun cmdInit() {
         appendLine("AUTHELIA_SESSION_SECRET=${generateSecretHex(32)}")
         appendLine("AUTHELIA_STORAGE_ENCRYPTION_KEY=${generateSecretHex(32)}")
         appendLine("AUTHELIA_OIDC_HMAC_SECRET=${generateSecretHex(32)}")
-        appendLine("AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${generateRsaKeyBase64()}")
+        val rsaKeyB64 = generateRsaKeyBase64()
+        appendLine("AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=$rsaKeyB64")
+        // Decode for template processing (multi-line YAML value)
+        val rsaKeyPem = String(Base64.getDecoder().decode(rsaKeyB64), StandardCharsets.UTF_8)
+        // Don't add extra indentation - YAML literal block (|) handles it
+        appendLine("OIDC_PRIVATE_KEY=\"${rsaKeyPem.trim()}\"")
         appendLine()
 
         // OAuth client secrets
@@ -253,6 +262,7 @@ private fun cmdInit() {
         appendLine("ONLYOFFICE_JWT_SECRET=${generateSecretHex(32)}")
         appendLine("VAULTWARDEN_ADMIN_TOKEN=${generateSecretB64(32)}")
         appendLine("VAULTWARDEN_SMTP_PASSWORD=${generatePassword(24)}")
+        appendLine("BOOKSTACK_APP_KEY=base64:${generateSecretB64(32)}")
         appendLine()
 
         // Mastodon secrets (to satisfy compose env and app config)
@@ -284,7 +294,9 @@ private fun cmdInit() {
         appendLine("AUTHELIA_DB_PASSWORD=${generatePassword(32)}")
         appendLine("GRAFANA_DB_PASSWORD=${generatePassword(32)}")
         appendLine("VAULTWARDEN_DB_PASSWORD=${generatePassword(32)}")
-        appendLine("OPENWEBUI_DB_PASSWORD=${generatePassword(32)}")
+        val openwebuiPassword = generatePassword(32)
+        appendLine("OPENWEBUI_DB_PASSWORD=$openwebuiPassword")
+        appendLine("OPENWEBUI_DB_PASSWORD_ENCODED=${urlEncode(openwebuiPassword)}")
         appendLine("MARIADB_SEAFILE_ROOT_PASSWORD=${generatePassword(32)}")
         appendLine("MARIADB_SEAFILE_PASSWORD=${generatePassword(32)}")
         appendLine()
@@ -392,6 +404,13 @@ private fun cmdExport() {
     putIfMissing("VAULTWARDEN_DB_PASSWORD") { generatePassword(32) }
     putIfMissing("OPENWEBUI_DB_PASSWORD") { generatePassword(32) }
 
+    // URL-encoded versions of passwords for connection strings
+    if (currentMap.containsKey("OPENWEBUI_DB_PASSWORD") && !currentMap.containsKey("OPENWEBUI_DB_PASSWORD_ENCODED")) {
+        currentMap["OPENWEBUI_DB_PASSWORD_ENCODED"] = urlEncode(currentMap["OPENWEBUI_DB_PASSWORD"]!!)
+        logWarn("Backfilled missing secret: OPENWEBUI_DB_PASSWORD_ENCODED")
+        changed = true
+    }
+
     // Synapse secrets
     putIfMissing("SYNAPSE_REGISTRATION_SECRET") { generateSecretHex(32) }
     putIfMissing("SYNAPSE_MACAROON_SECRET") { generateSecretHex(32) }
@@ -406,6 +425,19 @@ private fun cmdExport() {
     // Additional OAuth secrets
     putIfMissing("HOMEASSISTANT_OAUTH_SECRET") { generateSecretHex(32) }
     putIfMissing("DIM_OAUTH_SECRET") { generateSecretHex(32) }
+
+    // BookStack APP_KEY
+    putIfMissing("BOOKSTACK_APP_KEY") { "base64:${generateSecretB64(32)}" }
+
+    // Decode OIDC private key for template processing (if missing)
+    if (currentMap.containsKey("AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY") && !currentMap.containsKey("OIDC_PRIVATE_KEY")) {
+        val rsaKeyB64 = currentMap["AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY"]!!
+        val rsaKeyPem = String(Base64.getDecoder().decode(rsaKeyB64), StandardCharsets.UTF_8)
+        // Don't add extra indentation - YAML literal block (|) handles it
+        currentMap["OIDC_PRIVATE_KEY"] = "\"${rsaKeyPem.trim()}\""
+        logWarn("Backfilled missing secret: OIDC_PRIVATE_KEY")
+        changed = true
+    }
 
     // OIDC hash placeholders (will be filled by generate-oidc-hashes script)
     putIfMissing("GRAFANA_OAUTH_SECRET_HASH") { "PENDING" }

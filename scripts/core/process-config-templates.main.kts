@@ -35,7 +35,8 @@ data class Args(
     val dryRun: Boolean = false,
     val verbose: Boolean = false,
     val force: Boolean = false,
-    val outputDir: String? = null
+    val outputDir: String? = null,
+    val envFile: String? = null
 )
 
 fun parseArgs(argv: Array<String>): Args {
@@ -43,6 +44,7 @@ fun parseArgs(argv: Array<String>): Args {
     var verbose = false
     var force = false
     var outputDir: String? = null
+    var envFile: String? = null
 
     argv.forEach { arg ->
         when {
@@ -50,6 +52,7 @@ fun parseArgs(argv: Array<String>): Args {
             arg == "--verbose" || arg == "-v" -> verbose = true
             arg == "--force" || arg == "-f" -> force = true
             arg.startsWith("--output=") -> outputDir = arg.substringAfter("=")
+            arg.startsWith("--env=") -> envFile = arg.substringAfter("=")
             arg == "--help" || arg == "-h" -> {
                 println("""
                     Usage: kotlin scripts/process-config-templates.main.kts [OPTIONS]
@@ -59,6 +62,7 @@ fun parseArgs(argv: Array<String>): Args {
                       --verbose, -v         Show detailed processing information
                       --force, -f           Overwrite existing configs/ directory
                       --output=<path>       Output directory (default: ./configs)
+                      --env=<path>          Environment file path (default: ./.env or ~/.config/datamancy/.env.runtime)
                       --help, -h            Show this help message
                 """.trimIndent())
                 exitProcess(0)
@@ -66,7 +70,7 @@ fun parseArgs(argv: Array<String>): Args {
         }
     }
 
-    return Args(dryRun, verbose, force, outputDir)
+    return Args(dryRun, verbose, force, outputDir, envFile)
 }
 
 fun log(message: String, color: String = RESET) {
@@ -325,7 +329,16 @@ fun main(argv: Array<String>) {
     } else {
         File(projectRoot, "configs")
     }
-    val envFile = File(projectRoot, ".env")
+
+    // Determine env file location
+    val envFile = when {
+        args.envFile != null -> File(args.envFile)
+        File(projectRoot, ".env").exists() -> File(projectRoot, ".env")
+        else -> {
+            val runtimeEnv = File(System.getProperty("user.home"), ".config/datamancy/.env.runtime")
+            if (runtimeEnv.exists()) runtimeEnv else File(projectRoot, ".env")
+        }
+    }
 
     // Validate
     if (!templatesDir.exists()) {

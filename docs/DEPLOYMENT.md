@@ -916,6 +916,132 @@ docker compose restart agent-tool-server
 docker exec agent-tool-server cat /app/known_hosts
 ```
 
+### Common Service-Specific Issues
+
+#### Bookstack: Database Connection Errors
+
+**Symptom:** Bookstack shows `Access denied for user 'database_username'` or can't resolve mariadb hostname
+
+**Causes:**
+1. MariaDB not on `backend` network (fixed in docker-compose.yml)
+2. Bookstack .env cache has old credentials
+3. Database not initialized
+
+**Solution:**
+```bash
+# 1. Verify MariaDB networks
+docker inspect mariadb --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+# Should show: datamancy_backend datamancy_database
+
+# 2. Check if database exists
+docker exec mariadb mariadb -uroot -p${STACK_ADMIN_PASSWORD} -e "SHOW DATABASES" | grep bookstack
+
+# 3. Create database if missing
+docker exec mariadb mariadb -uroot -p${STACK_ADMIN_PASSWORD} <<EOF
+CREATE DATABASE IF NOT EXISTS bookstack CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'bookstack'@'%' IDENTIFIED BY '${BOOKSTACK_DB_PASSWORD}';
+GRANT ALL PRIVILEGES ON bookstack.* TO 'bookstack'@'%';
+FLUSH PRIVILEGES;
+EOF
+
+# 4. Bookstack .env is auto-fixed by init script at volumes/bookstack_init/50-fix-env.sh
+# If needed, manually clear cache and restart:
+docker exec bookstack sh -c 'cd /app/www && php artisan config:clear && php artisan cache:clear'
+docker restart bookstack
+```
+
+**Note:** The init script at `configs.templates/applications/bookstack/init/50-fix-env.sh` automatically updates the .env file on container start.
+
+#### Mailu: Antispam Service Waiting for Admin
+
+**Symptom:** `mailu-antispam` logs show "Admin is not up just yet, retrying in 1 second"
+
+**Causes:**
+1. Incorrect SUBNET configuration (must match backend network: 172.21.0.0/24)
+2. mailu-admin missing 'admin' network alias
+3. Wrong healthcheck command
+
+**Solution:**
+```bash
+# 1. Verify subnet in config (should be 172.21.0.0/24)
+grep SUBNET ~/.config/datamancy/configs/applications/mailu/mailu.env
+
+# 2. Verify admin alias
+docker inspect mailu-admin --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}}: {{$v.Aliases}}{{end}}'
+# Should show: datamancy_backend: [admin mailu-admin ...]
+
+# 3. Test connectivity from antispam
+docker exec mailu-antispam wget -q -O- http://admin:8080/internal/rspamd/local_domains
+
+# 4. If issues persist, restart services
+docker restart mailu-admin mailu-antispam
+```
+
+**Note:** Subnet fix is in `configs.templates/applications/mailu/mailu.env` (SUBNET=172.21.0.0/24)
+
+#### Seafile: MySQL Connection Timeout
+
+**Symptom:** Seafile logs show "waiting for mysql server to be ready: mysql is not ready"
+
+**Cause:** Seafile entrypoint script has timing issues detecting mariadb-seafile
+
+**Solution:**
+```bash
+# Simply restart seafile after mariadb-seafile is healthy
+docker restart seafile
+
+# Wait 30 seconds and verify
+sleep 30
+docker logs seafile --tail 5
+# Should show: "This is an idle script (infinite loop) to keep container running"
+```
+
+#### Portainer: Unhealthy Status
+
+**Symptom:** Portainer shows as unhealthy after 5 minutes
+
+**Cause:** Portainer requires initial admin setup within 5 minutes of first start (security feature)
+
+**Solution:**
+```bash
+# This is expected behavior. Access Portainer and create admin account:
+# https://portainer.yourdomain.com
+
+# Or restart to get another 5-minute window:
+docker restart portainer
+```
+
+### Network Connectivity Issues
+
+**Symptom:** Service A can't reach Service B
+
+**Debug checklist:**
+```bash
+# 1. Check both services are on the same network
+docker inspect service-a --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+docker inspect service-b --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+
+# 2. Test DNS resolution
+docker exec service-a ping -c 2 service-b
+
+# 3. Test port connectivity
+docker exec service-a nc -zv service-b <port>
+
+# 4. Check network aliases
+docker inspect service-b --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}}: {{$v.Aliases}}{{end}}'
+
+# 5. List all networks
+docker network ls
+docker network inspect datamancy_backend
+docker network inspect datamancy_database
+```
+
+**Key Network Rules:**
+- `frontend` (172.20.0.0/24): Caddy reverse proxy
+- `backend` (172.21.0.0/24): Application services
+- `database` (172.22.0.0/24): Database services
+- MariaDB and Postgres are on BOTH `backend` and `database` for maximum compatibility
+
 ## Monitoring
 
 ### Logs

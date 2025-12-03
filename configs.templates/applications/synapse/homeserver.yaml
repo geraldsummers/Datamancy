@@ -21,7 +21,7 @@ database:
   allow_unsafe_locale: true
   args:
     user: synapse
-    password: synapse_secure_pass_2024
+    password: {{SYNAPSE_DB_PASSWORD}}
     database: synapse
     host: postgres
     port: 5432
@@ -34,7 +34,24 @@ redis:
   host: redis-synapse
   port: 6379
 
-log_config: "/data/matrix.{{DOMAIN}}.log.config"
+# Inline logging configuration (avoids permission issues with log_config file)
+log:
+  version: 1
+  formatters:
+    precise:
+      format: '%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(request)s - %(message)s'
+  handlers:
+    console:
+      class: logging.StreamHandler
+      formatter: precise
+  loggers:
+    synapse:
+      level: INFO
+    synapse.storage.SQL:
+      level: INFO
+  root:
+    level: INFO
+    handlers: [console]
 
 media_store_path: /data/media_store
 uploads_path: /data/uploads

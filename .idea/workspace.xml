@@ -5,27 +5,24 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="finished?">
+      <change afterPath="$PROJECT_DIR$/DEPLOYMENT_FIXES_SUMMARY.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/configs.templates/applications/bookstack/init/50-fix-env.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/configs.templates/applications/bookstack/init/99-fix-dns.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/core/setup-bookstack-init.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/$HOME/.local/share/stack-secrets/stack_secrets.enc" beforeDir="false" afterPath="$PROJECT_DIR$/$HOME/.local/share/stack-secrets/stack_secrets.enc" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/filebrowser/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/filebrowser/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/jellyfin/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/jellyfin/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/kopia/init-kopia.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/kopia/init-kopia.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/applications/mailu/mailu.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mailu/mailu.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mastodon/mastodon.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mastodon/mastodon.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/couchdb/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/couchdb/init-db.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/couchdb/init-wrapper.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/couchdb/init-wrapper.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/ensure-users.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/ensure-users.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/synapse/homeserver.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/synapse/homeserver.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/ssh/bootstrap_known_hosts.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/ssh/bootstrap_known_hosts.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DEPLOYMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEPLOYMENT.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/core/configure-environment.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/configure-environment.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/ldap-sync-service/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/ldap-sync-service/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/synapse/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/synapse/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/vm-provisioner/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/vm-provisioner/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/process-config-templates.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/process-config-templates.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -417,7 +414,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764729020507</updated>
     </task>
-    <option name="localTasksCounter" value="24" />
+    <task id="LOCAL-00024" summary="finished?">
+      <option name="closed" value="true" />
+      <created>1764735964626</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1764735964626</updated>
+    </task>
+    <option name="localTasksCounter" value="25" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

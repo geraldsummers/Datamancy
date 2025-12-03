@@ -131,13 +131,8 @@ identity_providers:
         - revocation
         - introspection
       allowed_origins_from_client_redirect_uris: true
-    jwks:
-      - key_id: 'main'
-        algorithm: 'RS256'
-        use: 'sig'
-        # OIDC signing key (RSA private key in PEM format)
-        key: |
-          {{OIDC_PRIVATE_KEY}}
+    # OIDC signing key loaded from environment variable AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY (base64-encoded)
+    issuer_private_key: ""
 
     clients:
       # Grafana
