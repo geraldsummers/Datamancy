@@ -191,7 +191,13 @@ envLines.forEach { line ->
 
     // Use updated value if we have one
     if (env.containsKey(key)) {
-        newLines.add("$key=${env[key]}")
+        val value = env[key]!!
+        // Wrap hash values in single quotes to prevent Docker Compose variable expansion
+        if (key.endsWith("_OAUTH_SECRET_HASH") && value.startsWith("\$pbkdf2")) {
+            newLines.add("$key='$value'")
+        } else {
+            newLines.add("$key=$value")
+        }
     } else {
         newLines.add(line)
     }
@@ -200,7 +206,12 @@ envLines.forEach { line ->
 // Add any new hash keys that weren't in the original file
 env.forEach { (key, value) ->
     if (!processedKeys.contains(key) && key.endsWith("_OAUTH_SECRET_HASH")) {
-        newLines.add("$key=$value")
+        // Wrap hash values in single quotes to prevent Docker Compose variable expansion
+        if (value.startsWith("\$pbkdf2")) {
+            newLines.add("$key='$value'")
+        } else {
+            newLines.add("$key=$value")
+        }
     }
 }
 

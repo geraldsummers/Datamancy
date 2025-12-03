@@ -84,6 +84,15 @@ A     grafana.your-domain.com    -> SERVER_IP
 
 ## Environment Configuration
 
+### Overview: Runtime Config Architecture
+
+Datamancy uses a **runtime config directory** at `~/.config/datamancy/` to store all generated configurations and secrets **outside the git repository**. This ensures:
+
+- ✅ Secrets never accidentally committed
+- ✅ Each developer/server has isolated configuration
+- ✅ No encryption complexity (SOPS/Age removed)
+- ✅ Clean separation between templates (in git) and runtime configs (outside git)
+
 ### 1. Clone Repository
 
 ```bash
@@ -91,83 +100,52 @@ git clone <repository-url>
 cd Datamancy
 ```
 
-### 2. Create Environment File
+### 2. Generate Runtime Configuration
+
+**All configuration is generated to `~/.config/datamancy/` automatically:**
 
 ```bash
-cp .env.example .env
+# Generate secrets (random passwords, keys, etc.)
+./stack-controller.main.kts config generate
+# Creates: ~/.config/datamancy/.env.runtime
+
+# Generate LDAP bootstrap with SSHA password hashes
+./stack-controller.main.kts ldap bootstrap
+# Creates: ~/.config/datamancy/bootstrap_ldap.ldif
+
+# Process templates with your environment values
+./stack-controller.main.kts config process
+# Creates: ~/.config/datamancy/configs/
 ```
 
-### 3. Configure .env
+### 3. Customize Configuration (Optional)
 
-**Essential Variables:**
+**The `config generate` command creates ALL secrets automatically. Only customize if needed:**
 
 ```bash
-# Domain (use stack.local for dev, your-domain.com for prod)
-DOMAIN=your-domain.com
-MAIL_DOMAIN=your-domain.com
+# View generated secrets
+cat ~/.config/datamancy/.env.runtime | head -20
 
-# Admin Credentials (CHANGE THESE!)
-STACK_ADMIN_USER=admin
-STACK_ADMIN_PASSWORD=$(openssl rand -base64 32)
-STACK_ADMIN_EMAIL=admin@your-domain.com
-
-# Volumes Location
-VOLUMES_ROOT=./volumes
-
-# LLM Configuration
-LITELLM_MASTER_KEY=$(openssl rand -hex 32)
-HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-
-# LLM Model Selection
-LLM_MODEL=hermes-2-pro-mistral-7b
-OCR_MODEL=none  # Set to vision model if available
-
-# Docker Socket (usually /var/run/docker.sock)
-DOCKER_SOCKET=/var/run/docker.sock
+# Optional: Edit DOMAIN or other non-secret values
+nano ~/.config/datamancy/.env.runtime
 ```
 
-**Security Secrets (Generate with openssl):**
+**Key Variables** (most are auto-generated):
+
+| Variable | Auto-Generated | Description |
+|----------|----------------|-------------|
+| `DOMAIN` | ✅ (stack.local) | Change for production |
+| `MAIL_DOMAIN` | ✅ (stack.local) | Change for production |
+| `STACK_ADMIN_PASSWORD` | ✅ | Keep safe! |
+| `AUTHELIA_JWT_SECRET` | ✅ | Auto-generated 64-char hex |
+| `LITELLM_MASTER_KEY` | ✅ | Auto-generated 64-char hex |
+| `HUGGINGFACEHUB_API_TOKEN` | ❌ | Set manually if needed |
+
+**After editing, re-process templates:**
 
 ```bash
-# Generate all secrets at once
-cat >> .env << 'EOF'
-# Authelia Secrets
-AUTHELIA_JWT_SECRET=$(openssl rand -hex 32)
-AUTHELIA_SESSION_SECRET=$(openssl rand -hex 32)
-AUTHELIA_STORAGE_ENCRYPTION_KEY=$(openssl rand -hex 32)
-AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=$(openssl rand -hex 32)
-
-# Application OAuth Secrets
-GRAFANA_OAUTH_SECRET=$(openssl rand -hex 16)
-VAULTWARDEN_OAUTH_SECRET=$(openssl rand -hex 16)
-VAULTWARDEN_ADMIN_TOKEN=$(openssl rand -hex 32)
-PLANKA_OAUTH_SECRET=$(openssl rand -hex 16)
-PLANKA_SECRET_KEY=$(openssl rand -hex 32)
-JUPYTERHUB_OAUTH_SECRET=$(openssl rand -hex 16)
-ONLYOFFICE_JWT_SECRET=$(openssl rand -hex 32)
-
-# Email Configuration (Mailu/Vaultwarden)
-VAULTWARDEN_SMTP_PASSWORD=$(openssl rand -hex 16)
-
-# Database Passwords
-MARIADB_SEAFILE_ROOT_PASSWORD=$(openssl rand -hex 16)
-PLANKA_DB_PASSWORD=$(openssl rand -hex 16)
-BOOKSTACK_DB_PASSWORD=$(openssl rand -hex 16)
-SYNAPSE_DB_PASSWORD=$(openssl rand -hex 16)
-MAILU_DB_PASSWORD=$(openssl rand -hex 16)
-GRAFANA_DB_PASSWORD=$(openssl rand -hex 16)
-VAULTWARDEN_DB_PASSWORD=$(openssl rand -hex 16)
-OPENWEBUI_DB_PASSWORD=$(openssl rand -hex 16)
-EOF
-```
-
-**Expand Environment Variables:**
-
-```bash
-# This expands $(openssl ...) commands
-source .env
-env | grep -E "(SECRET|PASSWORD|TOKEN)" > .env.expanded
-mv .env.expanded .env
+./stack-controller.main.kts config process
+./stack-controller.main.kts ldap bootstrap
 ```
 
 ### 4. Create Volume Directories
@@ -219,62 +197,59 @@ ssh-keygen -t ed25519 -f volumes/secrets/stackops_ed25519 -N "" -C "stackops@dat
 # This enables strict host key checking (MITM protection).
 ```
 
-### 7. Generate Configuration Files (**REQUIRED**)
+### 5. Verify Runtime Configuration
 
-⚠️ **CRITICAL**: The `configs/` directory is **generated from templates** and does NOT exist in git. You **MUST** run this step before starting services!
+**All configuration is in `~/.config/datamancy/` - verify it exists:**
 
-Datamancy uses a template system to support multiple environments without hardcoding values.
-
-**Generate configs from templates:**
 ```bash
-# Generate configs/ from configs.templates/ using .env values
-kotlin scripts/process-config-templates.main.kts
+# Check runtime config directory
+ls -la ~/.config/datamancy/
 
-# Verify generation succeeded
-ls -la configs/
-ls configs/infrastructure/caddy/Caddyfile
-ls configs/applications/authelia/configuration.yml
+# Should show:
+# .env.runtime              - Environment variables with secrets
+# bootstrap_ldap.ldif       - LDAP bootstrap with SSHA hashes
+# configs/                  - All processed configuration files
+
+# Verify key files
+ls ~/.config/datamancy/configs/infrastructure/caddy/Caddyfile
+ls ~/.config/datamancy/configs/applications/authelia/configuration.yml
 ```
 
-**What this does:**
-- Reads all files in `configs.templates/`
-- Replaces `{{DOMAIN}}` with your actual domain from `.env`
-- Replaces `{{STACK_ADMIN_EMAIL}}`, `{{VOLUMES_ROOT}}`, etc.
-- Writes processed files to `configs/`
-- Processes 28 template files, copies 24 additional files
+**What each command created:**
+- `config generate` → `~/.config/datamancy/.env.runtime` (secrets)
+- `ldap bootstrap` → `~/.config/datamancy/bootstrap_ldap.ldif` (LDAP users)
+- `config process` → `~/.config/datamancy/configs/` (all service configs)
 
-**Preview before generating:**
+**Regenerate after editing .env.runtime:**
 ```bash
-# Dry-run mode (shows what would be generated)
-kotlin scripts/process-config-templates.main.kts --dry-run --verbose
-```
-
-**Regenerate after changing .env:**
-```bash
-# Force overwrite existing configs/
-kotlin scripts/process-config-templates.main.kts --force
+nano ~/.config/datamancy/.env.runtime  # Edit DOMAIN, etc
+./stack-controller.main.kts config process
+./stack-controller.main.kts ldap bootstrap
 ```
 
 **See full documentation:**
-- [TEMPLATE_CONFIG.md](../TEMPLATE_CONFIG.md) - Complete reference
-- [QUICKSTART_TEMPLATES.md](../QUICKSTART_TEMPLATES.md) - Step-by-step guide
+- [STACK_CONTROLLER_GUIDE.md](STACK_CONTROLLER_GUIDE.md) - All commands
+- [LDAP_BOOTSTRAP.md](LDAP_BOOTSTRAP.md) - LDAP password security
 
 ## Development Deployment
 
 ### Quick Start (Bootstrap Profile)
 
 ```bash
-# Build images
+# Build Kotlin services
+./gradlew build
+
+# Build Docker images
 docker compose build
 
 # Start core services
-docker compose --profile bootstrap up -d
+./stack-controller.main.kts up --profile=bootstrap
 
-# Wait for services to be healthy
-docker compose ps
+# Check stack status
+./stack-controller.main.kts status
 
-# Check logs
-docker compose logs -f
+# Follow logs
+./stack-controller.main.kts logs caddy -f
 ```
 
 **Bootstrap profile includes:**
@@ -327,20 +302,41 @@ docker compose --profile bootstrap --profile databases --profile applications up
 
 ### Pre-Deployment Checklist
 
-- [ ] DNS records configured
+- [ ] DNS records configured (A records for domain and subdomains)
 - [ ] Firewall rules set (ports 80, 443, 25, 587, 993, etc.)
 - [ ] SSL certificate strategy decided (Let's Encrypt vs self-signed)
-- [ ] Backup strategy planned
-- [ ] Monitoring configured
-- [ ] Strong passwords generated for all secrets
-- [ ] `.env` file secured (chmod 600)
-- [ ] Volume backups tested
+- [ ] Backup strategy for `~/.config/datamancy/` directory
+- [ ] Monitoring configured (Grafana dashboards)
+- [ ] Runtime config secured (`chmod 700 ~/.config/datamancy`)
+- [ ] Volume backup location decided (`./volumes/`)
+- [ ] DOMAIN variable set correctly in `~/.config/datamancy/.env.runtime`
 
-### 1. Configure SSL/TLS
+### 1. Configure Production Domain
+
+**Edit runtime configuration:**
+
+```bash
+nano ~/.config/datamancy/.env.runtime
+```
+
+**Change these values:**
+```bash
+DOMAIN=your-domain.com
+MAIL_DOMAIN=your-domain.com
+STACK_ADMIN_EMAIL=admin@your-domain.com
+```
+
+**Regenerate configs with new domain:**
+```bash
+./stack-controller.main.kts config process
+./stack-controller.main.kts ldap bootstrap
+```
+
+### 2. Configure SSL/TLS
 
 **Option A: Let's Encrypt (Recommended for Production)**
 
-Edit `configs/infrastructure/caddy/Caddyfile`:
+Edit `~/.config/datamancy/configs/infrastructure/caddy/Caddyfile`:
 
 ```caddyfile
 {
@@ -399,6 +395,145 @@ sudo ufw enable
 # Verify
 sudo ufw status verbose
 ```
+
+### 3.1. Configure Fail2ban for Email Protection
+
+**CRITICAL**: Email ports (25, 587, 993) are constantly attacked. Fail2ban blocks brute-force attempts.
+
+**Install Fail2ban:**
+
+```bash
+# Install on host server
+sudo apt-get update
+sudo apt-get install -y fail2ban
+
+# Create Mailu-specific filters
+sudo mkdir -p /etc/fail2ban/filter.d
+sudo mkdir -p /etc/fail2ban/jail.d
+```
+
+**Create Mailu filter** (`/etc/fail2ban/filter.d/mailu-postfix.conf`):
+
+```ini
+[Definition]
+# Matches Postfix authentication failures in Mailu logs
+failregex = ^.* warning: .*\[<HOST>\]: SASL .* authentication failed.*$
+            ^.* lost connection after AUTH from .*\[<HOST>\].*$
+            ^.* client=.*\[<HOST>\], sasl_method=.*, sasl_username=.*$
+
+ignoreregex =
+```
+
+**Create Mailu filter** (`/etc/fail2ban/filter.d/mailu-dovecot.conf`):
+
+```ini
+[Definition]
+# Matches Dovecot authentication failures in Mailu logs
+failregex = ^.* auth-worker.* pam\(.*,<HOST>,.*\): pam_authenticate\(\) failed: .*$
+            ^.* auth-worker.* pam\(.*,<HOST>\): unknown user$
+            ^.* imap-login: Disconnected \(auth failed, .*\): user=<.*>, method=.*, rip=<HOST>.*$
+
+ignoreregex =
+```
+
+**Configure Fail2ban jail** (`/etc/fail2ban/jail.d/mailu.conf`):
+
+```ini
+[mailu-postfix]
+enabled = true
+backend = systemd
+filter = mailu-postfix
+journalmatch = CONTAINER_NAME=mailu-smtp
+maxretry = 5
+findtime = 600
+bantime = 3600
+action = iptables-allports[name=mailu-smtp]
+
+[mailu-dovecot]
+enabled = true
+backend = systemd
+filter = mailu-dovecot
+journalmatch = CONTAINER_NAME=mailu-imap
+maxretry = 5
+findtime = 600
+bantime = 3600
+action = iptables-allports[name=mailu-imap]
+
+[mailu-admin]
+enabled = true
+backend = systemd
+filter = mailu-admin
+journalmatch = CONTAINER_NAME=mailu-admin
+maxretry = 3
+findtime = 600
+bantime = 7200
+action = iptables-allports[name=mailu-admin]
+```
+
+**Create admin filter** (`/etc/fail2ban/filter.d/mailu-admin.conf`):
+
+```ini
+[Definition]
+# Matches admin UI login failures
+failregex = ^.* Failed login attempt from <HOST>.*$
+            ^.* Invalid credentials for .* from <HOST>.*$
+
+ignoreregex =
+```
+
+**Enable and test:**
+
+```bash
+# Restart fail2ban
+sudo systemctl restart fail2ban
+
+# Check status
+sudo fail2ban-client status
+
+# Check Mailu jails
+sudo fail2ban-client status mailu-postfix
+sudo fail2ban-client status mailu-dovecot
+
+# View banned IPs
+sudo fail2ban-client banned
+
+# Manually test ban (replace with test IP)
+# sudo fail2ban-client set mailu-postfix banip 192.0.2.1
+
+# Unban IP
+# sudo fail2ban-client set mailu-postfix unbanip 192.0.2.1
+```
+
+**Monitor logs:**
+
+```bash
+# Watch fail2ban activity
+sudo tail -f /var/log/fail2ban.log
+
+# Check Mailu logs for auth failures
+docker logs mailu-smtp --tail 100 | grep -i "authentication failed"
+docker logs mailu-imap --tail 100 | grep -i "auth failed"
+```
+
+**Whitelist trusted IPs** (optional):
+
+Add to `/etc/fail2ban/jail.d/mailu.conf`:
+
+```ini
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1
+           10.0.0.0/8       # Internal network
+           YOUR_IP_HERE     # Your static IP
+```
+
+**Note**: Fail2ban requires Docker containers to use `journald` logging driver. Verify with:
+
+```bash
+docker inspect mailu-smtp | grep LoggingDriver
+# Should show: "LoggingDriver": "journald" or "json-file"
+```
+
+If using `json-file` driver (default), use `backend = docker` instead of `systemd` and adjust paths.
 
 ### 4. Deploy Services
 
@@ -582,7 +717,27 @@ done
 
 ### Backup Strategy
 
-**1. Volume Backup (Recommended)**
+**Critical: Backup Runtime Config Directory**
+
+All secrets and configurations are in `~/.config/datamancy/` - **this MUST be backed up!**
+
+**1. Runtime Config Backup (CRITICAL)**
+
+```bash
+#!/bin/bash
+# backup-runtime-config.sh
+
+BACKUP_DIR="/backup/datamancy-$(date +%Y%m%d)"
+mkdir -p "$BACKUP_DIR"
+
+# Backup runtime config (includes secrets!)
+tar -czf "$BACKUP_DIR/runtime-config.tar.gz" ~/.config/datamancy/
+chmod 600 "$BACKUP_DIR/runtime-config.tar.gz"  # Secure it!
+
+echo "✓ Runtime config backed up (includes secrets)"
+```
+
+**2. Volume Backup (Data)**
 
 ```bash
 #!/bin/bash
@@ -596,9 +751,6 @@ docker compose stop
 
 # Tar volumes
 tar -czf "$BACKUP_DIR/volumes.tar.gz" volumes/
-
-# Backup environment (without secrets)
-grep -v -E "(PASSWORD|SECRET|TOKEN|KEY)" .env > "$BACKUP_DIR/env.template"
 
 # Restart services
 docker compose start

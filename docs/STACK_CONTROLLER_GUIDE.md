@@ -98,6 +98,12 @@ sudo ./stack-controller.main.kts deploy age-key
 # Clean unused Docker resources
 ./stack-controller.main.kts clean docker
 
+# Generate LDAP bootstrap with production passwords
+./stack-controller.main.kts ldap bootstrap
+
+# Preview LDAP bootstrap generation (dry-run)
+./stack-controller.main.kts ldap bootstrap --dry-run
+
 # Sync LDAP users to services (Mailu, etc.)
 ./stack-controller.main.kts ldap sync
 
@@ -128,6 +134,8 @@ ssh stackops@server.example.com "kotlin stack-controller.main.kts ldap sync"
     │   └── dr-drill.main.kts
     ├── security/                 # Security setup scripts
     │   ├── setup-secrets-encryption.main.kts
+    │   ├── generate-ldap-bootstrap.main.kts
+    │   ├── generate-ssha-password.main.kts
     │   ├── setup-log-centralization.main.kts
     │   └── install-sops-age.sh
     └── maintenance/              # Utility scripts

@@ -34,35 +34,39 @@ val RESET = "\u001B[0m"
 data class Args(
     val dryRun: Boolean = false,
     val verbose: Boolean = false,
-    val force: Boolean = false
+    val force: Boolean = false,
+    val outputDir: String? = null
 )
 
 fun parseArgs(argv: Array<String>): Args {
     var dryRun = false
     var verbose = false
     var force = false
+    var outputDir: String? = null
 
     argv.forEach { arg ->
-        when (arg) {
-            "--dry-run", "-n" -> dryRun = true
-            "--verbose", "-v" -> verbose = true
-            "--force", "-f" -> force = true
-            "--help", "-h" -> {
+        when {
+            arg == "--dry-run" || arg == "-n" -> dryRun = true
+            arg == "--verbose" || arg == "-v" -> verbose = true
+            arg == "--force" || arg == "-f" -> force = true
+            arg.startsWith("--output=") -> outputDir = arg.substringAfter("=")
+            arg == "--help" || arg == "-h" -> {
                 println("""
                     Usage: kotlin scripts/process-config-templates.main.kts [OPTIONS]
 
                     Options:
-                      --dry-run, -n    Show what would be processed without writing files
-                      --verbose, -v    Show detailed processing information
-                      --force, -f      Overwrite existing configs/ directory
-                      --help, -h       Show this help message
+                      --dry-run, -n         Show what would be processed without writing files
+                      --verbose, -v         Show detailed processing information
+                      --force, -f           Overwrite existing configs/ directory
+                      --output=<path>       Output directory (default: ./configs)
+                      --help, -h            Show this help message
                 """.trimIndent())
                 exitProcess(0)
             }
         }
     }
 
-    return Args(dryRun, verbose, force)
+    return Args(dryRun, verbose, force, outputDir)
 }
 
 fun log(message: String, color: String = RESET) {
@@ -84,25 +88,80 @@ fun loadEnvFile(envFile: File): Map<String, String> {
     }
 
     val env = mutableMapOf<String, String>()
+    val lines = envFile.readLines()
+    var i = 0
 
-    envFile.readLines().forEach { line ->
+    while (i < lines.size) {
+        val line = lines[i]
         val trimmed = line.trim()
+
         // Skip comments and empty lines
-        if (trimmed.isEmpty() || trimmed.startsWith("#")) return@forEach
+        if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+            i++
+            continue
+        }
 
         // Parse KEY=VALUE
-        val parts = trimmed.split("=", limit = 2)
-        if (parts.size == 2) {
-            val key = parts[0].trim()
-            val value = parts[1].trim()
+        val equalIndex = trimmed.indexOf('=')
+        if (equalIndex > 0) {
+            val key = trimmed.substring(0, equalIndex).trim()
+            var value = if (equalIndex + 1 < trimmed.length) {
+                trimmed.substring(equalIndex + 1).trim()
+            } else {
+                "" // Empty value
+            }
+
+            // Remove surrounding quotes if present (only if value is not empty)
+            if (value.isNotEmpty()) {
+                if (value.startsWith("'") && value.endsWith("'") && value.length > 1) {
+                    value = value.substring(1, value.length - 1)
+                } else if (value.startsWith("\"") && value.endsWith("\"") && value.length > 1) {
+                    value = value.substring(1, value.length - 1)
+                }
+            }
+
+            // Check for multi-line value (value is just a quote, or ends with \n, or has unmatched quotes)
+            val isMultiLine = value == "\"" || value.endsWith("\\n") ||
+                             (value.startsWith("\"") && !value.endsWith("\""))
+
+            if (isMultiLine) {
+                // Multi-line value - collect subsequent lines until we find the closing quote
+                val multiLineValue = StringBuilder()
+                if (value != "\"") {
+                    // Include the first line's value (minus the opening quote if present)
+                    multiLineValue.append(if (value.startsWith("\"")) value.substring(1) else value)
+                }
+
+                i++
+                while (i < lines.size) {
+                    val nextLine = lines[i]
+                    // Check if this line ends with a closing quote
+                    if (nextLine.trim().endsWith("\"")) {
+                        // Add this line without the closing quote and stop
+                        val content = nextLine.trimEnd()
+                        if (multiLineValue.isNotEmpty()) multiLineValue.append("\n")
+                        multiLineValue.append(content.substring(0, content.length - 1))
+                        break
+                    } else {
+                        // Add this line and continue
+                        if (multiLineValue.isNotEmpty()) multiLineValue.append("\n")
+                        multiLineValue.append(nextLine)
+                    }
+                    i++
+                }
+
+                value = multiLineValue.toString()
+            }
+
             env[key] = value
         }
+        i++
     }
 
     return env
 }
 
-fun processTemplate(content: String, env: Map<String, String>, filePath: String, verbose: Boolean): String {
+fun processTemplate(content: String, env: Map<String, String>, filePath: String, verbose: Boolean): Pair<String, List<String>> {
     var result = content
     val placeholderRegex = """\{\{([A-Z_][A-Z0-9_]*)\}\}""".toRegex()
 
@@ -110,7 +169,7 @@ fun processTemplate(content: String, env: Map<String, String>, filePath: String,
 
     if (matches.isEmpty()) {
         debug("No placeholders found in $filePath", verbose)
-        return result
+        return Pair(result, emptyList())
     }
 
     debug("Processing ${matches.size} placeholders in $filePath", verbose)
@@ -123,8 +182,32 @@ fun processTemplate(content: String, env: Map<String, String>, filePath: String,
 
         val value = env[varName]
         if (value != null) {
-            result = result.replace(placeholder, value)
-            debug("  $varName = $value", verbose)
+            // For multi-line values, preserve indentation from the placeholder line
+            if (value.contains("\n")) {
+                // Find the line containing the placeholder
+                val lines = result.split("\n")
+                val lineIndex = lines.indexOfFirst { it.contains(placeholder) }
+                if (lineIndex >= 0) {
+                    val line = lines[lineIndex]
+                    // Calculate indentation (spaces before the placeholder)
+                    val indent = line.substringBefore(placeholder).takeWhile { it.isWhitespace() }
+
+                    // Split the multi-line value and add proper indentation to each line except the first
+                    val valueLines = value.split("\n")
+                    val indentedValue = valueLines.mapIndexed { index, valueLine ->
+                        if (index == 0) valueLine else indent + valueLine
+                    }.joinToString("\n")
+
+                    result = result.replace(placeholder, indentedValue)
+                    debug("  $varName = <multi-line value>", verbose)
+                } else {
+                    result = result.replace(placeholder, value)
+                    debug("  $varName = <multi-line value>", verbose)
+                }
+            } else {
+                result = result.replace(placeholder, value)
+                debug("  $varName = $value", verbose)
+            }
         } else {
             missingVars.add(varName)
         }
@@ -134,7 +217,7 @@ fun processTemplate(content: String, env: Map<String, String>, filePath: String,
         warn("Missing variables in $filePath: ${missingVars.joinToString(", ")}")
     }
 
-    return result
+    return Pair(result, missingVars)
 }
 
 fun copyFileStructure(
@@ -142,9 +225,24 @@ fun copyFileStructure(
     targetDir: File,
     env: Map<String, String>,
     args: Args
-): Pair<Int, Int> {
+): Triple<Int, Int, Map<String, List<String>>> {
     var processedCount = 0
     var copiedCount = 0
+    val allMissingVars = mutableMapOf<String, List<String>>()
+
+    // Critical variables that MUST be present
+    val criticalVars = setOf(
+        "DOMAIN",
+        "STACK_ADMIN_USER",
+        "STACK_ADMIN_PASSWORD",
+        "STACK_ADMIN_EMAIL",
+        "MAIL_DOMAIN",
+        "VOLUMES_ROOT",
+        "LITELLM_MASTER_KEY",
+        "AUTHELIA_JWT_SECRET",
+        "AUTHELIA_SESSION_SECRET",
+        "AUTHELIA_STORAGE_ENCRYPTION_KEY"
+    )
 
     sourceDir.walkTopDown().forEach { sourceFile ->
         if (!sourceFile.isFile) return@forEach
@@ -161,7 +259,11 @@ fun copyFileStructure(
             debug("Processing template: $relativePath", args.verbose)
 
             val content = sourceFile.readText()
-            val processed = processTemplate(content, env, relativePath, args.verbose)
+            val (processed, missingVars) = processTemplate(content, env, relativePath, args.verbose)
+
+            if (missingVars.isNotEmpty()) {
+                allMissingVars[relativePath] = missingVars
+            }
 
             if (!args.dryRun) {
                 targetFile.parentFile?.mkdirs()
@@ -181,7 +283,30 @@ fun copyFileStructure(
         }
     }
 
-    return Pair(processedCount, copiedCount)
+    // Check for critical missing variables
+    val criticalMissing = allMissingVars.values.flatten().toSet().intersect(criticalVars)
+    if (criticalMissing.isNotEmpty()) {
+        println()
+        error("CRITICAL: Missing required environment variables!")
+        error("The following variables are required but not found in .env:")
+        criticalMissing.forEach { error("  - $it") }
+        println()
+        error("Files affected:")
+        allMissingVars.forEach { (file, vars) ->
+            val critical = vars.filter { it in criticalVars }
+            if (critical.isNotEmpty()) {
+                error("  $file: ${critical.joinToString(", ")}")
+            }
+        }
+        println()
+        error("Action required:")
+        error("1. Edit .env or ~/.config/datamancy/.env.runtime")
+        error("2. Add missing variables (run: ./stack-controller config generate)")
+        error("3. Re-run config processing")
+        exitProcess(1)
+    }
+
+    return Triple(processedCount, copiedCount, allMissingVars)
 }
 
 fun main(argv: Array<String>) {
@@ -195,7 +320,11 @@ fun main(argv: Array<String>) {
     // Paths
     val projectRoot = File(".").canonicalFile
     val templatesDir = File(projectRoot, "configs.templates")
-    val configsDir = File(projectRoot, "configs")
+    val configsDir = if (args.outputDir != null) {
+        File(args.outputDir)
+    } else {
+        File(projectRoot, "configs")
+    }
     val envFile = File(projectRoot, ".env")
 
     // Validate
@@ -226,7 +355,7 @@ fun main(argv: Array<String>) {
     }
     println()
 
-    val (processedCount, copiedCount) = copyFileStructure(
+    val (processedCount, copiedCount, allMissingVars) = copyFileStructure(
         templatesDir,
         configsDir,
         env,
@@ -238,6 +367,24 @@ fun main(argv: Array<String>) {
     info("✓ Template processing complete")
     info("  Processed: $processedCount files")
     info("  Copied: $copiedCount files")
+
+    // Report non-critical missing variables as warnings
+    val nonCriticalMissing = allMissingVars.filterValues { vars ->
+        vars.any { it !in setOf(
+            "DOMAIN", "STACK_ADMIN_USER", "STACK_ADMIN_PASSWORD",
+            "STACK_ADMIN_EMAIL", "MAIL_DOMAIN", "VOLUMES_ROOT",
+            "LITELLM_MASTER_KEY", "AUTHELIA_JWT_SECRET",
+            "AUTHELIA_SESSION_SECRET", "AUTHELIA_STORAGE_ENCRYPTION_KEY"
+        )}
+    }
+
+    if (nonCriticalMissing.isNotEmpty()) {
+        println()
+        warn("Optional variables missing (may need configuration):")
+        nonCriticalMissing.forEach { (file, vars) ->
+            warn("  $file: ${vars.joinToString(", ")}")
+        }
+    }
 
     if (args.dryRun) {
         info("  (Dry run - no files written)")

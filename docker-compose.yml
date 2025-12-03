@@ -305,7 +305,7 @@ services:
       # Provide the static Caddyfile. Defaults to self-signed (internal CA).
       # To enable Let's Encrypt for a specific site, edit configs/infrastructure/caddy/Caddyfile
       # and add `tls you@example.com` inside that site's block.
-      - ./configs/infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${HOME}/.config/datamancy/configs/infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     environment:
       # Domain for vhosts in Caddyfile
       DOMAIN: "${DOMAIN}"
@@ -345,7 +345,8 @@ services:
     volumes:
       - ldap_data:/var/lib/ldap
       - ldap_config:/etc/ldap/slapd.d
-      - ./bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
+      # Mount from runtime config dir (outside git tree)
+      - ${HOME}/.config/datamancy/bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
     command: --copy-service --loglevel info
     healthcheck:
       test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=stack,dc=local", "-D", "cn=admin,dc=stack,dc=local", "-w", "${STACK_ADMIN_PASSWORD}"]
@@ -426,7 +427,9 @@ services:
         condition: service_healthy
     volumes:
       - ${VOLUMES_ROOT}/authelia:/config
-      - ${AUTHELIA_CONFIG_FILE:-./configs/applications/authelia/configuration.yml}:/config/configuration.yml:ro
+      # Mount from runtime config dir
+      - ${HOME}/.config/datamancy/configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
+      - ${HOME}/.config/datamancy/.secrets/oidc-private.pem:/secrets/oidc-key.pem:ro
     command: ["--config", "/config/configuration.yml"]
     environment:
       - TZ=UTC
@@ -442,8 +445,7 @@ services:
       - AUTHELIA_STORAGE_POSTGRES_DATABASE=authelia
       - AUTHELIA_STORAGE_POSTGRES_USERNAME=authelia
       - AUTHELIA_STORAGE_POSTGRES_PASSWORD=${AUTHELIA_DB_PASSWORD}
-      # OIDC private key is configured in the jwks section of configuration.yml
-      # - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY:-}
+      # OIDC private key mounted as file at /secrets/oidc-key.pem and referenced in config.yml
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/api/health"]
       interval: 30s
@@ -466,7 +468,7 @@ services:
       - MYSQL_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - mariadb_data:/var/lib/mysql
-      - ./configs/databases/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ${HOME}/.config/datamancy/configs/databases/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${STACK_ADMIN_PASSWORD}"]
@@ -497,8 +499,8 @@ services:
       - AUTHELIA_DB_PASSWORD=${AUTHELIA_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
-      - ./configs/databases/postgres/init-mailu-schema.sql:/docker-entrypoint-initdb.d/init-mailu-schema.sql:ro
+      - ${HOME}/.config/datamancy/configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ${HOME}/.config/datamancy/configs/databases/postgres/init-mailu-schema.sql:/docker-entrypoint-initdb.d/init-mailu-schema.sql:ro
     deploy:
       resources:
         limits:
@@ -525,7 +527,7 @@ services:
       - COUCHDB_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - couchdb_data:/opt/couchdb/data
-      - ./configs/databases/couchdb/init-wrapper.sh:/usr/local/bin/init-wrapper.sh:ro
+      - ${HOME}/.config/datamancy/configs/databases/couchdb/init-wrapper.sh:/usr/local/bin/init-wrapper.sh:ro
     entrypoint: ["/bin/bash", "/usr/local/bin/init-wrapper.sh"]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://127.0.0.1:5984/_up | grep -q '\"status\":\"ok\"' || exit 1"]
@@ -594,7 +596,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/applications/mailu/mailu.env
+      - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     ports:
       - "25:25"
       - "465:465"
@@ -643,7 +645,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/applications/mailu/mailu.env
+      - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
       - mailu_filter:/var/lib/rspamd
     networks:
@@ -665,7 +667,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/applications/mailu/mailu.env
+      - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     networks:
       - backend
     healthcheck:
@@ -682,7 +684,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/applications/mailu/mailu.env
+      - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
       - mailu_data:/data
     networks:
@@ -704,7 +706,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/applications/mailu/mailu.env
+      - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
       - mailu_data:/data
       - mailu_dkim:/dkim
@@ -727,7 +729,7 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/applications/mailu/mailu.env
+      - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
       - mailu_data:/data
     networks:
@@ -751,9 +753,9 @@ services:
     profiles:
       - applications
     env_file:
-      - configs/applications/mailu/mailu.env
+      - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
-      - ./configs/applications/mailu/nginx-override.conf:/overrides/nginx/roundcube.conf:ro
+      - ${HOME}/.config/datamancy/configs/applications/mailu/nginx-override.conf:/overrides/nginx/roundcube.conf:ro
     networks:
       - backend
     depends_on:
@@ -837,7 +839,7 @@ services:
       dockge:
         condition: service_healthy
     volumes:
-      - ./configs/applications/dockge/init-dockge.js:/init-dockge.js:ro
+      - ${HOME}/.config/datamancy/configs/applications/dockge/init-dockge.js:/init-dockge.js:ro
     environment:
       - DOCKGE_HOST=dockge
       - DOCKGE_PORT=5001
@@ -870,7 +872,7 @@ services:
       - open_webui_data:/backup/open_webui:ro
       - vaultwarden_data:/backup/vaultwarden:ro
       - kopia_repository:/repository
-      - ./configs/applications/kopia/init-kopia.sh:/init-kopia.sh:ro
+      - ${HOME}/.config/datamancy/configs/applications/kopia/init-kopia.sh:/init-kopia.sh:ro
     environment:
       - KOPIA_PASSWORD=${STACK_ADMIN_PASSWORD}
       - KOPIA_REPO_PATH=/repository
@@ -893,25 +895,27 @@ services:
     networks:
       - backend
     environment:
-      - CONTAINERS=1
-      - IMAGES=1
-      - NETWORKS=1
-      - VOLUMES=1
-      - POST=0
-      - BUILD=0
+      # Minimal read-only permissions for security
+      # See: https://github.com/Tecnativa/docker-socket-proxy
+      - CONTAINERS=1  # Read container status (needed for health checks, logs)
+      - IMAGES=0      # Disabled - prevents image enumeration attacks
+      - NETWORKS=0    # Disabled - prevents network topology discovery
+      - VOLUMES=0     # Disabled - prevents volume path disclosure
+      - POST=0        # Disabled - no container creation/modification
+      - BUILD=0       # Disabled - no image builds
       - COMMIT=0
       - CONFIGS=0
       - DISTRIBUTION=0
-      - EXEC=0
+      - EXEC=0        # Disabled - prevents arbitrary command execution
       - GRPC=0
-      - INFO=1
+      - INFO=0        # Disabled - prevents daemon information disclosure
       - PLUGINS=0
       - SERVICES=0
       - SESSION=0
       - SWARM=0
       - SYSTEM=0
       - TASKS=0
-      - VERSION=1
+      - VERSION=1     # Enabled - allows version checks for compatibility
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
     healthcheck:
@@ -1005,7 +1009,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./configs/applications/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ${HOME}/.config/datamancy/configs/applications/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
       interval: 30s
@@ -1141,7 +1145,7 @@ services:
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
     volumes:
       - planka_data:/app/public/user-avatars
-      - ./configs/applications/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
+      - ${HOME}/.config/datamancy/configs/applications/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:1337/api/health"]
       interval: 30s
@@ -1205,7 +1209,7 @@ services:
       - TIME_ZONE=UTC
     volumes:
       - seafile_data:/shared
-      - ./configs/applications/seafile/seahub_settings.py:/opt/seafile/conf/seahub_settings.py:ro
+      - ${HOME}/.config/datamancy/configs/applications/seafile/seahub_settings.py:/opt/seafile/conf/seahub_settings.py:ro
     networks:
       - backend
     healthcheck:
@@ -1265,8 +1269,8 @@ services:
       - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - synapse_data:/data
-      - ./configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
-      - ./configs/applications/synapse/entrypoint.sh:/entrypoint.sh:ro
+      - ${HOME}/.config/datamancy/configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ${HOME}/.config/datamancy/configs/applications/synapse/entrypoint.sh:/entrypoint.sh:ro
     entrypoint: ["/entrypoint.sh"]
     networks:
       - backend
@@ -1295,7 +1299,7 @@ services:
       mailu-smtp:
         condition: service_healthy
     env_file:
-      - configs/applications/mastodon/mastodon.env
+      - ${HOME}/.config/datamancy/configs/applications/mastodon/mastodon.env
     command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 3000 -b 0.0.0.0"
     volumes:
       - mastodon_data:/mastodon/public/system
@@ -1327,7 +1331,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - configs/applications/mastodon/mastodon.env
+      - ${HOME}/.config/datamancy/configs/applications/mastodon/mastodon.env
     command: node ./streaming
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1"]
@@ -1352,7 +1356,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - configs/applications/mastodon/mastodon.env
+      - ${HOME}/.config/datamancy/configs/applications/mastodon/mastodon.env
     command: bundle exec sidekiq
     volumes:
       - mastodon_data:/mastodon/public/system
@@ -1385,7 +1389,7 @@ services:
     environment:
       - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
-      - ./configs/applications/mastodon/init-mastodon.sh:/init-mastodon.sh:ro
+      - ${HOME}/.config/datamancy/configs/applications/mastodon/init-mastodon.sh:/init-mastodon.sh:ro
     command: sh /init-mastodon.sh
     restart: "no"
     healthcheck:
@@ -1412,11 +1416,11 @@ services:
       - HOMEPAGE_ALLOWED_HOSTS=homepage.${DOMAIN}
       - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
-      - ./configs/applications/homepage/services.yaml:/app/config/services.yaml:ro
-      - ./configs/applications/homepage/settings.yaml:/app/config/settings.yaml:ro
-      - ./configs/applications/homepage/widgets.yaml:/app/config/widgets.yaml:ro
-      - ./configs/applications/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
-      - ./configs/applications/homepage/docker.yaml:/app/config/docker.yaml:ro
+      - ${HOME}/.config/datamancy/configs/applications/homepage/services.yaml:/app/config/services.yaml:ro
+      - ${HOME}/.config/datamancy/configs/applications/homepage/settings.yaml:/app/config/settings.yaml:ro
+      - ${HOME}/.config/datamancy/configs/applications/homepage/widgets.yaml:/app/config/widgets.yaml:ro
+      - ${HOME}/.config/datamancy/configs/applications/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
+      - ${HOME}/.config/datamancy/configs/applications/homepage/docker.yaml:/app/config/docker.yaml:ro
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/"]
       interval: 30s
@@ -1586,7 +1590,7 @@ services:
         condition: service_healthy
     volumes:
       - litellm_config:/app/config
-      - ./configs/infrastructure/litellm/config.yaml:/app/config.yaml:ro
+      - ${HOME}/.config/datamancy/configs/infrastructure/litellm/config.yaml:/app/config.yaml:ro
     environment:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       # Consolidated admin credentials for UI login
@@ -1614,7 +1618,7 @@ services:
       - TOOLSERVER_SSH_HOST=${TOOLSERVER_SSH_HOST:-host.docker.internal}
     volumes:
       - ${VOLUMES_ROOT}/agent_tool_server:/app:rw
-      - ./configs/infrastructure/ssh/bootstrap_known_hosts.sh:/bootstrap_known_hosts.sh:ro
+      - ${HOME}/.config/datamancy/configs/infrastructure/ssh/bootstrap_known_hosts.sh:/bootstrap_known_hosts.sh:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: ["sh", "-c", "apk add --no-cache openssh-client && sh /bootstrap_known_hosts.sh /app/known_hosts"]
@@ -1672,7 +1676,7 @@ services:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
       - ${VOLUMES_ROOT}/agent_tool_server/known_hosts:/app/known_hosts:ro
-      - ./configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
+      - ${HOME}/.config/datamancy/configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
       - proofs:/app/proofs
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -1715,7 +1719,7 @@ services:
       - HTTP_TIMEOUT=${HTTP_TIMEOUT:-30}
     volumes:
       - proofs:/proofs
-      - ./configs/probe-orchestrator:/app/configs/probe-orchestrator:ro
+      - ${HOME}/.config/datamancy/configs/probe-orchestrator:/app/configs/probe-orchestrator:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8089/healthz"]
       interval: 30s
@@ -1837,8 +1841,8 @@ services:
       - CLICKHOUSE_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
-      - ./configs/databases/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ${HOME}/.config/datamancy/configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
+      - ${HOME}/.config/datamancy/configs/databases/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     # Do not expose native TCP publicly; use internal networking
     deploy:
       resources:
@@ -1875,8 +1879,8 @@ services:
       - VECTOR_SIZE=${VECTOR_EMBED_SIZE:-384}
       - QDRANT_API_KEY=${QDRANT_API_KEY:-}
     volumes:
-      - ./configs/databases/vectors/collections.yaml:/configs/collections.yaml:ro
-      - ./configs/databases/vectors/bootstrap_vectors.main.kts:/scripts/bootstrap_vectors.main.kts:ro
+      - ${HOME}/.config/datamancy/configs/databases/vectors/collections.yaml:/configs/collections.yaml:ro
+      - ${HOME}/.config/datamancy/configs/databases/vectors/bootstrap_vectors.main.kts:/scripts/bootstrap_vectors.main.kts:ro
     command: ["kotlin", "/scripts/bootstrap_vectors.main.kts", "/configs/collections.yaml"]
     healthcheck:
       test: ["CMD", "kotlin", "-version"]
@@ -1896,7 +1900,7 @@ services:
       - bootstrap_vector_dbs
       - infrastructure
     volumes:
-      - ./configs/infrastructure/benthos/benthos.yaml:/benthos.yaml:ro
+      - ${HOME}/.config/datamancy/configs/infrastructure/benthos/benthos.yaml:/benthos.yaml:ro
       - benthos_data:/data
     command: -c /benthos.yaml
     environment:
@@ -1983,6 +1987,8 @@ services:
     command: ["sync"]
 
   # VM Provisioner - Manages VMs via libvirt/QEMU with SSH key management
+  # SECURITY NOTE: Uses CAP_NET_ADMIN for libvirt networking instead of privileged mode
+  # If this fails, see docs/PRE_DEPLOYMENT_REVIEW.md for troubleshooting
   vm-provisioner:
     build:
       dockerfile: ./src/vm-provisioner/Dockerfile
@@ -1994,7 +2000,13 @@ services:
       - compute
     networks:
       - backend
-    privileged: true  # Required for libvirt/QEMU access
+    # Use specific capabilities instead of privileged mode
+    cap_add:
+      - NET_ADMIN       # Required for libvirt network management
+      - SYS_ADMIN       # Required for mounting and cgroups access
+      - DAC_OVERRIDE    # Required for accessing libvirt socket
+    security_opt:
+      - apparmor=unconfined  # Libvirt requires this for QEMU operations
     volumes:
       - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock
       - ${VOLUMES_ROOT}/vm-provisioner/ssh_keys:/app/ssh_keys

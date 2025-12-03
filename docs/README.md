@@ -112,46 +112,53 @@ Datamancy provides a production-ready infrastructure stack with:
 - **8GB RAM minimum**, 16GB+ recommended
 - **50GB disk space** minimum
 
-### 1. Clone and Configure
+### 1. Clone Repository
 
 ```bash
 git clone <repository-url>
 cd Datamancy
-
-# Copy environment template
-cp .env.example .env
-
-# Edit configuration
-nano .env
 ```
 
-**Required environment variables:**
-```bash
-DOMAIN=your-domain.com
-STACK_ADMIN_USER=admin
-STACK_ADMIN_PASSWORD=<strong-password>
-STACK_ADMIN_EMAIL=admin@your-domain.com
-LITELLM_MASTER_KEY=<random-key>
-VOLUMES_ROOT=./volumes
-```
+### 2. Generate Configuration (Automatic)
 
-### 2. Start Stack (Intelligent Startup)
-
-🚀 **One command does it all** - validates, generates configs, creates volumes, starts services:
+**All secrets and configs are generated to `~/.config/datamancy/` (outside git)**:
 
 ```bash
-# Start with bootstrap profile (Caddy, Authelia, LLM stack)
-kotlin scripts/stackops.main.kts up
+# Generate secrets (passwords, keys, tokens)
+./stack-controller.main.kts config generate
 
-# Or start everything
-kotlin scripts/stackops.main.kts up --all
+# Generate LDAP bootstrap with SSHA password hashes
+./stack-controller.main.kts ldap bootstrap
+
+# Process configuration templates
+./stack-controller.main.kts config process
 ```
 
-**What this does automatically:**
-1. ✓ Validates `.env` has required variables
-2. ✓ Auto-generates `configs/` from templates if missing
-3. ✓ Creates missing volume directories
-4. ✓ Starts Docker Compose with selected profiles
+**Optional**: Customize domain (defaults to `stack.local`):
+```bash
+nano ~/.config/datamancy/.env.runtime
+# Change: DOMAIN=your-domain.com
+./stack-controller.main.kts config process  # Re-process with new domain
+```
+
+### 3. Create Volumes & Start
+
+```bash
+# Create volume directories
+./stack-controller.main.kts volumes create
+
+# Start with bootstrap profile (Caddy, Authelia, AI/LLM stack)
+./stack-controller.main.kts up --profile=bootstrap
+
+# Or start all services
+./stack-controller.main.kts up
+```
+
+**The `up` command automatically validates**:
+- ✅ Runtime config exists (`~/.config/datamancy`)
+- ✅ No placeholder values
+- ✅ Valid domain format
+- ✅ Sufficient disk space
 
 **Bootstrap profile includes:**
 - Caddy (reverse proxy)
@@ -161,39 +168,17 @@ kotlin scripts/stackops.main.kts up --all
 - Portainer (Docker UI)
 - vLLM (LLM serving)
 - LiteLLM (API gateway)
-- KFuncDB (tool server)
+- agent-tool-server (plugin-based tools)
 - Probe Orchestrator (diagnostics)
 - Open WebUI (chat interface)
 
-**See:** [STACKOPS_UP.md](../STACKOPS_UP.md) for full documentation
+**See:** [STACK_CONTROLLER_GUIDE.md](STACK_CONTROLLER_GUIDE.md) for all commands
 
-<details>
-<summary><b>Alternative: Manual Steps (click to expand)</b></summary>
-
-If you prefer manual control:
+### 4. Verify Services
 
 ```bash
-# Generate configs from configs.templates/
-kotlin scripts/process-config-templates.main.kts
-
-# Create volume directories
-mkdir -p volumes/{caddy_data,caddy_config,postgres_data,redis_data}
-
-# Start services
-docker compose --profile bootstrap up -d
-```
-
-⚠️ The `configs/` directory is generated from templates and **must be created before starting services**.
-
-**See:** [TEMPLATE_CONFIG.md](../TEMPLATE_CONFIG.md) and [QUICKSTART_TEMPLATES.md](../QUICKSTART_TEMPLATES.md)
-
-</details>
-
-### 3. Verify Services
-
-```bash
-# Check running containers
-docker compose ps
+# Check stack status
+./stack-controller.main.kts status
 
 # Run diagnostic probe
 docker exec probe-orchestrator wget -qO- http://localhost:8089/healthz
@@ -202,11 +187,12 @@ docker exec probe-orchestrator wget -qO- http://localhost:8089/healthz
 open https://open-webui.your-domain.com
 ```
 
-### 4. Add Applications (Optional)
+### 5. Add Applications (Optional)
 
 ```bash
-# Start databases
-docker compose --profile databases up -d
+# Start with additional profiles
+./stack-controller.main.kts up --profile=databases
+./stack-controller.main.kts up --profile=applications
 
 # Start all applications
 docker compose --profile applications up -d
@@ -293,49 +279,49 @@ configs/              → Generated configs (gitignored)
 - **No Hardcoded Values**: All domains, emails, paths use variables
 - **71 Replacements**: Across Caddyfile, Authelia, Mailu, Synapse, etc.
 
-### Generate Configs
+### Configuration Management
 
 ```bash
-# Generate configs/ from configs.templates/
-kotlin scripts/process-config-templates.main.kts
+# Generate all configs from templates
+./stack-controller.main.kts config process
 
-# Preview what will be generated (dry-run)
-kotlin scripts/process-config-templates.main.kts --dry-run --verbose
+# Generate LDAP bootstrap with production passwords
+./stack-controller.main.kts ldap bootstrap
 
-# Regenerate after changing .env
-kotlin scripts/process-config-templates.main.kts --force
+# Create volume directories
+./stack-controller.main.kts volumes create
 ```
 
-**Template variables used:**
+**Template variables** (from `.env`):
 - `{{DOMAIN}}` - Your domain (e.g., `project-saturn.com`)
 - `{{MAIL_DOMAIN}}` - Mail domain (usually same as DOMAIN)
 - `{{STACK_ADMIN_EMAIL}}` - Admin email address
+- `{{STACK_ADMIN_PASSWORD}}` - Admin password (hashed for LDAP)
 - `{{VOLUMES_ROOT}}` - Volume mount path
 
-**Generated files** (52 config files total):
-- `configs/infrastructure/caddy/Caddyfile` - All 25 virtual hosts
+**Generated files** (52 config files + LDAP bootstrap):
+- `configs/infrastructure/caddy/Caddyfile` - All virtual hosts
 - `configs/applications/authelia/configuration.yml` - OIDC/SSO config
 - `configs/applications/mailu/mailu.env` - Email server
 - `configs/applications/synapse/homeserver.yaml` - Matrix server
+- `bootstrap_ldap.ldif` - LDAP directory with SSHA password hashes
 - Plus: Grafana, Homepage, database configs, etc.
 
 ### Changing Your Domain
 
 ```bash
 # 1. Edit .env
-nano .env
-# Change: DOMAIN=new-domain.com
+nano .env  # Change: DOMAIN=new-domain.com
 
 # 2. Regenerate configs
-kotlin scripts/process-config-templates.main.kts --force
+./stack-controller.main.kts config process
 
 # 3. Restart services
-docker compose restart caddy authelia
+./stack-controller.main.kts restart caddy
+./stack-controller.main.kts restart authelia
 ```
 
-**See full documentation:**
-- [TEMPLATE_CONFIG.md](../TEMPLATE_CONFIG.md) - Complete reference
-- [QUICKSTART_TEMPLATES.md](../QUICKSTART_TEMPLATES.md) - Step-by-step guide
+**See:** [STACK_CONTROLLER_GUIDE.md](STACK_CONTROLLER_GUIDE.md) | [LDAP_BOOTSTRAP.md](LDAP_BOOTSTRAP.md)
 
 ## 🔧 Development
 

@@ -86,6 +86,9 @@ fun getEnv(name: String, default: String): String = System.getenv(name) ?: defau
 
 // ----------------------------- Config (env with defaults) -----------------------------
 
+// Get script's directory as base working directory
+val SCRIPT_DIR = runCmd("bash", "-c", "cd \$(dirname \${BASH_SOURCE[0]:-${__FILE__}}) && pwd").out.trim().let { Path.of(it) }
+
 val DEB_LOCALE = getEnv("DEB_LOCALE", "en_AU.UTF-8")
 val DEB_KEYMAP = getEnv("DEB_KEYMAP", "us")
 val DEB_TIMEZONE = getEnv("DEB_TIMEZONE", "Australia/Hobart")
@@ -93,12 +96,12 @@ val DEB_TIMEZONE = getEnv("DEB_TIMEZONE", "Australia/Hobart")
 val ADMIN_USER = getEnv("ADMIN_USER", "sysop")
 val IMAGE_ID = getEnv("IMAGE_ID", "debian13-$ADMIN_USER")
 
-val DOWNLOAD_DIR = Path.of(getEnv("DOWNLOAD_DIR", "./downloads")).toAbsolutePath()
+val DOWNLOAD_DIR = SCRIPT_DIR.resolve(getEnv("DOWNLOAD_DIR", "downloads"))
 val MIRROR_BASE = getEnv("MIRROR_BASE", "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd")
 val ISOLINUX_MBR = getEnv("ISOLINUX_MBR", "/usr/lib/ISOLINUX/isohdpfx.bin")
 
 val SSH_KEY_NAME = getEnv("SSH_KEY_NAME", "id_ed25519_${IMAGE_ID}")
-val KEYSTORE_DIR = Path.of(getEnv("KEYSTORE_DIR", "./ssh-keystore")).toAbsolutePath()
+val KEYSTORE_DIR = SCRIPT_DIR.resolve(getEnv("KEYSTORE_DIR", "ssh-keystore"))
 
 // ----------------------------- Start -----------------------------
 
@@ -262,10 +265,8 @@ if (!configText.lines().any { it.trim() == idLine }) {
 // ----------------------------- ISO extraction workdir -----------------------------
 
 println("\n[STEP] Setting up ISO work directory...")
-val ISO_WORK_DIR = Path.of("isofiles").toAbsolutePath()
-val ISO_OUT = ISO_WORK_DIR.parent
-    .resolve("${isoName.removeSuffix(".iso")}-${IMAGE_ID}-custom.iso")
-    .toAbsolutePath()
+val ISO_WORK_DIR = SCRIPT_DIR.resolve("isofiles")
+val ISO_OUT = SCRIPT_DIR.resolve("${isoName.removeSuffix(".iso")}-${IMAGE_ID}-custom.iso")
 println("[INFO] Work directory: $ISO_WORK_DIR")
 println("[INFO] Output ISO: $ISO_OUT")
 

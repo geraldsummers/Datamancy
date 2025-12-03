@@ -1,0 +1,76 @@
+# Datamancy LDAP Bootstrap - Directory Structure and Initial Users
+#
+# This file is processed by scripts/security/generate-ldap-bootstrap.main.kts
+# Passwords are dynamically generated from STACK_ADMIN_PASSWORD environment variable
+#
+# Generated: {{GENERATION_TIMESTAMP}}
+# Admin email: {{STACK_ADMIN_EMAIL}}
+
+# Organizational Units
+dn: ou=users,dc=stack,dc=local
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,dc=stack,dc=local
+objectClass: organizationalUnit
+ou: groups
+
+# System Administrator
+# Username: {{STACK_ADMIN_USER}}
+# Password: From STACK_ADMIN_PASSWORD environment variable
+dn: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: {{STACK_ADMIN_USER}}
+cn: Administrator
+sn: Admin
+mail: {{STACK_ADMIN_EMAIL}}
+displayName: System Administrator
+uidNumber: 10000
+gidNumber: 10000
+homeDirectory: /home/{{STACK_ADMIN_USER}}
+loginShell: /bin/bash
+userPassword: {{ADMIN_SSHA_PASSWORD}}
+
+# Default Regular User (optional - for testing)
+# Username: user
+# Password: From STACK_USER_PASSWORD environment variable (or same as admin if not set)
+dn: uid=user,ou=users,dc=stack,dc=local
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: user
+cn: User
+sn: Regular
+mail: user@{{DOMAIN}}
+displayName: Regular User
+uidNumber: 10001
+gidNumber: 10001
+homeDirectory: /home/user
+loginShell: /bin/bash
+userPassword: {{USER_SSHA_PASSWORD}}
+
+# Admins Group
+dn: cn=admins,ou=groups,dc=stack,dc=local
+objectClass: groupOfNames
+cn: admins
+member: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local
+
+# Users Group
+dn: cn=users,ou=groups,dc=stack,dc=local
+objectClass: groupOfNames
+cn: users
+member: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local
+member: uid=user,ou=users,dc=stack,dc=local
+
+# Service-specific Groups
+dn: cn=openwebui-admin,ou=groups,dc=stack,dc=local
+objectClass: groupOfNames
+cn: openwebui-admin
+member: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local
+
+dn: cn=planka-admin,ou=groups,dc=stack,dc=local
+objectClass: groupOfNames
+cn: planka-admin
+member: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local

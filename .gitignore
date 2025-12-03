@@ -3,16 +3,19 @@
 
 # Secrets and sensitive data
 .env
-.env.runtime
 .env.local
 volumes/secrets/
 *.key
-*.enc
 stackops_ed25519
 
 # Generated configuration files (from templates)
+# Now generated in ~/.config/datamancy for security
+# (No longer needed in project - all configs in runtime dir)
+
+# Legacy gitignore (kept for backwards compatibility):
 configs/
 configs.backup/
+bootstrap_ldap.ldif
 
 # Runtime data
 volumes/
@@ -54,6 +57,4 @@ id_ed25519*
 *.pem
 !*.pem.example
 
-# Encrypted secrets (COMMIT THESE)
-!.env.enc
-!.sops.yaml
+# No encrypted secrets - all secrets in ~/.config/datamancy

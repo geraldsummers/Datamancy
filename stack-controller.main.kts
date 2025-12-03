@@ -78,13 +78,27 @@ private fun run(
 }
 
 private fun projectRoot(): Path {
-    // stack-controller is at project root
+    // stack-controller.main.kts is located AT project root (not in scripts/)
     val prop = System.getProperty("kotlin.script.file.path")
     return if (prop != null) {
-        Paths.get(prop).toAbsolutePath().normalize().parent
+        // Get the directory containing the script
+        val scriptPath = Paths.get(prop).toAbsolutePath().normalize()
+        scriptPath.parent ?: Paths.get("").toAbsolutePath().normalize()
     } else {
         Paths.get("").toAbsolutePath().normalize()
     }
+}
+
+private fun runtimeConfigDir(): Path {
+    // Runtime configs stored in ~/.config/datamancy (outside git tree)
+    val userHome = Paths.get(System.getProperty("user.home"))
+    return userHome.resolve(".config/datamancy")
+}
+
+private fun ensureRuntimeConfigDir(): Path {
+    val dir = runtimeConfigDir()
+    Files.createDirectories(dir)
+    return dir
 }
 
 private fun ensurePerm(path: Path, executable: Boolean = false) {
@@ -111,76 +125,99 @@ private fun which(cmd: String): Boolean = try {
     false
 }
 
-// ============================================================================
-// Secrets Management Commands
-// ============================================================================
-
-private fun cmdSecretsEncrypt() {
-    val root = projectRoot()
-    val envFile = root.resolve(".env")
-    val encFile = root.resolve(".env.enc")
-
+private fun validateEnvFile(envFile: Path) {
     if (!Files.exists(envFile)) {
         err(".env file not found at: $envFile")
     }
 
-    if (!which("sops")) {
-        err("sops not installed. Run: ./stack-controller secrets init")
+    val content = Files.readString(envFile)
+
+    // Check for placeholder values
+    if (content.contains("<CHANGE_ME>")) {
+        err(".env contains <CHANGE_ME> placeholders.\n" +
+            "Generate secrets first:\n" +
+            "  ./stack-controller.main.kts config generate")
     }
 
-    info("Encrypting .env → .env.enc")
-    run("sops", "-e", "--input-type", "dotenv", "--output-type", "dotenv", envFile.toString(),
-        cwd = root, allowFail = false).let {
-        Files.writeString(encFile, it)
-    }
-    success("Encrypted successfully")
-    info("Commit .env.enc to git")
-}
+    // Validate required variables
+    val requiredVars = listOf(
+        "STACK_ADMIN_USER",
+        "STACK_ADMIN_PASSWORD",
+        "STACK_ADMIN_EMAIL",
+        "DOMAIN",
+        "MAIL_DOMAIN",
+        "VOLUMES_ROOT"
+    )
 
-private fun cmdSecretsDecrypt() {
-    val root = projectRoot()
-    val encFile = root.resolve(".env.enc")
-    val envFile = root.resolve(".env")
-
-    if (!Files.exists(encFile)) {
-        err(".env.enc file not found at: $encFile")
-    }
-
-    val ageKeyFile = Paths.get(System.getProperty("user.home"), ".config/sops/age/keys.txt")
-    if (!Files.exists(ageKeyFile)) {
-        err("Age key not found at: $ageKeyFile\nRun: ./stack-controller secrets init")
-    }
-
-    if (!which("sops")) {
-        err("sops not installed. Run: ./stack-controller secrets init")
-    }
-
-    info("Decrypting .env.enc → .env")
-    run("sops", "-d", "--input-type", "dotenv", "--output-type", "dotenv", encFile.toString(),
-        cwd = root, allowFail = false).let {
-        Files.writeString(envFile, it)
-    }
-    ensurePerm(envFile, executable = false)
-    success("Decrypted successfully")
-}
-
-private fun cmdSecretsInit() {
-    info("Initializing SOPS/Age encryption")
-    info("This will run the setup-secrets-encryption script")
-    val root = projectRoot()
-    val setupScript = root.resolve("scripts/security/setup-secrets-encryption.main.kts")
-
-    if (!Files.exists(setupScript)) {
-        warn("Script not found at new location, trying old location...")
-        val oldScript = root.resolve("scripts/setup-secrets-encryption.main.kts")
-        if (Files.exists(oldScript)) {
-            run("kotlin", oldScript.toString(), cwd = root)
-        } else {
-            err("setup-secrets-encryption.main.kts not found")
+    val missing = mutableListOf<String>()
+    requiredVars.forEach { varName ->
+        if (!content.contains("$varName=") || content.contains("$varName=\\s*$".toRegex())) {
+            missing.add(varName)
         }
-    } else {
-        run("kotlin", setupScript.toString(), cwd = root)
     }
+
+    if (missing.isNotEmpty()) {
+        err("Missing required variables in .env: ${missing.joinToString(", ")}")
+    }
+}
+
+private fun validateDomain(domain: String) {
+    // Validate domain format (basic DNS name validation)
+    val domainRegex = "^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$".toRegex()
+
+    if (domain.isBlank()) {
+        err("DOMAIN cannot be empty")
+    }
+
+    if (!domainRegex.matches(domain)) {
+        err("Invalid DOMAIN format: $domain\n" +
+            "Must be a valid DNS name (e.g., example.com, stack.local)")
+    }
+
+    if (domain.length > 253) {
+        err("DOMAIN too long: ${domain.length} chars (max 253)")
+    }
+}
+
+private fun checkDiskSpace(path: Path, requiredGB: Long = 50) {
+    try {
+        val store = Files.getFileStore(path)
+        val availableGB = store.usableSpace / (1024 * 1024 * 1024)
+
+        if (availableGB < requiredGB) {
+            warn("Low disk space: ${availableGB}GB available (${requiredGB}GB recommended)")
+            warn("Continuing in 3 seconds... (Ctrl+C to abort)")
+            Thread.sleep(3000)
+        }
+    } catch (e: Exception) {
+        warn("Could not check disk space: ${e.message}")
+    }
+}
+
+// ============================================================================
+// Environment Management Commands
+// ============================================================================
+
+private fun cmdEnvLink() {
+    val root = projectRoot()
+    val runtimeDir = runtimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
+    val localEnv = root.resolve(".env")
+
+    if (!Files.exists(runtimeEnv)) {
+        err("Runtime .env not found at: $runtimeEnv\n" +
+            "Generate it first:\n" +
+            "  ./stack-controller.main.kts config generate")
+    }
+
+    info("Linking .env → ~/.config/datamancy/.env.runtime")
+
+    // Copy runtime env to local for docker-compose
+    Files.copy(runtimeEnv, localEnv, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    ensurePerm(localEnv, executable = false)
+
+    success("Linked: $localEnv → $runtimeEnv")
+    warn("Remember: .env is gitignored - never commit it!")
 }
 
 // ============================================================================
@@ -189,6 +226,56 @@ private fun cmdSecretsInit() {
 
 private fun cmdUp(profile: String? = null) {
     val root = projectRoot()
+
+    // Pre-flight checks
+    val envFile = root.resolve(".env")
+    val runtimeDir = runtimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
+    val ldapBootstrap = runtimeDir.resolve("bootstrap_ldap.ldif")
+    val configsDir = runtimeDir.resolve("configs")
+
+    // Check 1: Validate runtime .env exists
+    if (!Files.exists(runtimeEnv)) {
+        err("Runtime .env not found at: $runtimeEnv\n" +
+            "Generate it first:\n" +
+            "  ./stack-controller.main.kts config generate")
+    }
+
+    // Check 2: Link .env to project root if needed
+    if (!Files.exists(envFile)) {
+        info("Linking .env for docker-compose")
+        Files.copy(runtimeEnv, envFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        ensurePerm(envFile, executable = false)
+    }
+
+    validateEnvFile(envFile)
+
+    // Check 3: Validate DOMAIN
+    val envContent = Files.readString(envFile)
+    val domainMatch = "DOMAIN=(.+)".toRegex().find(envContent)
+    if (domainMatch != null) {
+        val domain = domainMatch.groupValues[1].trim().removeSurrounding("\"", "'")
+        validateDomain(domain)
+    }
+
+    // Check 4: Verify configs generated (if bootstrap profile)
+    if (profile == "bootstrap" || profile == null) {
+        if (!Files.exists(configsDir)) {
+            err("Runtime configs not found at: $configsDir\n" +
+                "Generate them first:\n" +
+                "  ./stack-controller.main.kts config process")
+        }
+
+        if (!Files.exists(ldapBootstrap)) {
+            err("LDAP bootstrap not found at: $ldapBootstrap\n" +
+                "Generate it first:\n" +
+                "  ./stack-controller.main.kts ldap bootstrap")
+        }
+    }
+
+    // Check 5: Disk space
+    checkDiskSpace(root, requiredGB = 50)
+
     info("Starting stack" + if (profile != null) " with profile: $profile" else "")
 
     val args = mutableListOf("docker", "compose")
@@ -231,46 +318,130 @@ private fun cmdStatus() {
     println(run("docker", "compose", "ps", cwd = root))
 }
 
+private fun cmdHealth() {
+    val root = projectRoot()
+    info("Checking stack health...")
+
+    // Get container status in JSON format
+    val result = run("docker", "compose", "ps", "--format", "json", cwd = root, allowFail = true)
+
+    if (result.trim().isEmpty()) {
+        warn("No services running")
+        exitProcess(0)
+    }
+
+    val lines = result.trim().lines().filter { it.isNotBlank() }
+    var healthyCount = 0
+    var unhealthyCount = 0
+    val unhealthyServices = mutableListOf<String>()
+
+    lines.forEach { line ->
+        try {
+            // Parse JSON line (basic parsing without JSON library)
+            val service = line.substringAfter("\"Service\":\"").substringBefore("\"")
+            val state = line.substringAfter("\"State\":\"").substringBefore("\"")
+            val health = if (line.contains("\"Health\":\"")) {
+                line.substringAfter("\"Health\":\"").substringBefore("\"")
+            } else {
+                "none"
+            }
+
+            when {
+                state != "running" -> {
+                    unhealthyCount++
+                    unhealthyServices.add("$service: $state")
+                }
+                health == "healthy" || health == "none" -> {
+                    healthyCount++
+                }
+                else -> {
+                    unhealthyCount++
+                    unhealthyServices.add("$service: $health")
+                }
+            }
+        } catch (_: Exception) {
+            // Skip unparseable lines
+        }
+    }
+
+    println()
+    if (unhealthyCount == 0) {
+        success("All $healthyCount services healthy ✓")
+        exitProcess(0)
+    } else {
+        warn("Health check failed:")
+        warn("  Healthy:   $healthyCount")
+        warn("  Unhealthy: $unhealthyCount")
+        println()
+        err("Unhealthy services:")
+        unhealthyServices.forEach { println("  ✗ $it") }
+        exitProcess(1)
+    }
+}
+
 // ============================================================================
 // Configuration Commands
 // ============================================================================
 
 private fun cmdConfigProcess() {
     val root = projectRoot()
+    val runtimeDir = ensureRuntimeConfigDir()
+
     info("Processing configuration templates")
+    info("Output: $runtimeDir/configs")
+
     val script = root.resolve("scripts/core/process-config-templates.main.kts")
 
     if (!Files.exists(script)) {
         warn("Script not found at new location, trying old location...")
         val oldScript = root.resolve("scripts/process-config-templates.main.kts")
         if (Files.exists(oldScript)) {
-            run("kotlin", oldScript.toString(), "--force", cwd = root)
+            run("kotlin", oldScript.toString(), "--force", "--output=$runtimeDir/configs", cwd = root)
         } else {
             err("process-config-templates.main.kts not found")
         }
     } else {
-        run("kotlin", script.toString(), "--force", cwd = root)
+        run("kotlin", script.toString(), "--force", "--output=$runtimeDir/configs", cwd = root)
     }
+
     success("Configuration templates processed")
+    info("Configs location: $runtimeDir/configs")
 }
 
 private fun cmdConfigGenerate() {
     val root = projectRoot()
+    val runtimeDir = ensureRuntimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
+
     info("Generating .env from defaults")
+    info("Output: $runtimeEnv")
+
     val script = root.resolve("scripts/core/configure-environment.kts")
 
     if (!Files.exists(script)) {
         warn("Script not found at new location, trying old location...")
         val oldScript = root.resolve("scripts/configure-environment.kts")
         if (Files.exists(oldScript)) {
-            run("kotlin", oldScript.toString(), cwd = root)
+            run("kotlin", oldScript.toString(), "export", cwd = root)
         } else {
             err("configure-environment.kts not found")
         }
     } else {
-        run("kotlin", script.toString(), cwd = root)
+        run("kotlin", script.toString(), "export", cwd = root)
     }
+
+    // Script writes to .env in project root, move it to runtime location
+    val projectEnv = root.resolve(".env")
+    if (Files.exists(projectEnv)) {
+        Files.move(projectEnv, runtimeEnv, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        ensurePerm(runtimeEnv, executable = false)
+    } else {
+        err("Script did not generate .env file")
+    }
+
     success("Environment configuration generated")
+    info("Location: $runtimeEnv")
+    info("To use: ./stack-controller.main.kts env link")
 }
 
 // ============================================================================
@@ -405,27 +576,6 @@ private fun cmdDeployGenerateKeys() {
     success("SSH keypair generated at: $privateKey")
 }
 
-private fun cmdDeployAgeKey() {
-    if (!isRoot()) err("This command must be run with sudo/root")
-    info("Deploying Age key to stackops user")
-
-    val sourceKey = Paths.get(System.getProperty("user.home"), ".config/sops/age/keys.txt")
-    if (!Files.exists(sourceKey)) {
-        err("Age key not found at: $sourceKey")
-    }
-
-    val targetDir = Paths.get("/home/stackops/.config/sops/age")
-    Files.createDirectories(targetDir)
-
-    val targetKey = targetDir.resolve("keys.txt")
-    Files.copy(sourceKey, targetKey, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-
-    run("chown", "-R", "stackops:stackops", "/home/stackops/.config")
-    run("chmod", "700", targetDir.toString())
-    run("chmod", "600", targetKey.toString())
-
-    success("Age key deployed to stackops user")
-}
 
 // ============================================================================
 // Maintenance Commands
@@ -462,6 +612,29 @@ private fun cmdLdapSync() {
     success("LDAP sync complete")
 }
 
+private fun cmdLdapBootstrap(dryRun: Boolean = false, force: Boolean = false) {
+    val root = projectRoot()
+    val runtimeDir = ensureRuntimeConfigDir()
+    val outputFile = runtimeDir.resolve("bootstrap_ldap.ldif")
+
+    info("Generating LDAP bootstrap file from template")
+    info("Output: $outputFile")
+
+    val script = root.resolve("scripts/security/generate-ldap-bootstrap.main.kts")
+
+    if (!Files.exists(script)) {
+        err("LDAP bootstrap generator not found: $script")
+    }
+
+    val args = mutableListOf("kotlin", script.toString(), "--output=$outputFile")
+    if (dryRun) args.add("--dry-run")
+    if (force) args.add("--force")
+
+    run(*args.toTypedArray(), cwd = root)
+    success("LDAP bootstrap file generated")
+    info("File location: $outputFile")
+}
+
 // ============================================================================
 // Help & Main
 // ============================================================================
@@ -472,10 +645,8 @@ private fun showHelp() {
         |
         |Usage: ./stack-controller <command> [options]
         |
-        |Secrets Management:
-        |  secrets encrypt         Encrypt .env to .env.enc
-        |  secrets decrypt         Decrypt .env.enc to .env
-        |  secrets init            Initialize SOPS/Age encryption
+        |Environment Management:
+        |  env link                Copy runtime .env for docker-compose
         |
         |Stack Operations:
         |  up [--profile=<name>]   Start stack or specific profile
@@ -483,29 +654,38 @@ private fun showHelp() {
         |  restart <service>       Restart a service
         |  logs <service>          View service logs (add -f to follow)
         |  status                  Show stack status
+        |  health                  Check health of all services (exit 1 if any unhealthy)
         |
         |Configuration:
-        |  config process          Process templates to generate configs
-        |  config generate         Generate .env from defaults
+        |  config generate         Generate .env in ~/.config/datamancy
+        |  config process          Process templates to ~/.config/datamancy/configs
         |
         |Deployment (requires sudo):
         |  deploy create-user      Create stackops system user
         |  deploy install-wrapper  Install SSH forced-command wrapper
         |  deploy harden-sshd      Harden SSH daemon configuration
-        |  deploy generate-keys    Generate SSH keypair
-        |  deploy age-key          Deploy Age key to stackops user
+        |  deploy generate-keys    Generate SSH keypair for agent-tool-server
         |
         |Maintenance:
         |  volumes create          Create volume directory structure
         |  clean docker            Clean unused Docker resources
         |  ldap sync               Sync LDAP users to services
+        |  ldap bootstrap          Generate LDAP bootstrap in ~/.config/datamancy
+        |
+        |Quick Start (Development):
+        |  ./stack-controller config generate     # Creates ~/.config/datamancy/.env.runtime
+        |  ./stack-controller ldap bootstrap      # Creates ~/.config/datamancy/bootstrap_ldap.ldif
+        |  ./stack-controller config process      # Creates ~/.config/datamancy/configs/
+        |  ./stack-controller volumes create
+        |  ./stack-controller up --profile=bootstrap
         |
         |Examples:
-        |  ./stack-controller secrets encrypt
         |  ./stack-controller up --profile=applications
         |  ./stack-controller config process
         |  ./stack-controller restart caddy
         |  sudo ./stack-controller deploy create-user
+        |
+        |Note: All runtime configs stored in ~/.config/datamancy (outside git tree)
     """.trimMargin())
 }
 
@@ -516,14 +696,12 @@ if (args.isEmpty()) {
 }
 
 when (args[0]) {
-    // Secrets
-    "secrets" -> when (args.getOrNull(1)) {
-        "encrypt" -> cmdSecretsEncrypt()
-        "decrypt" -> cmdSecretsDecrypt()
-        "init" -> cmdSecretsInit()
+    // Environment
+    "env" -> when (args.getOrNull(1)) {
+        "link" -> cmdEnvLink()
         else -> {
-            println("Unknown secrets command: ${args.getOrNull(1)}")
-            println("Valid: encrypt, decrypt, init")
+            println("Unknown env command: ${args.getOrNull(1)}")
+            println("Valid: link")
             exitProcess(1)
         }
     }
@@ -544,6 +722,7 @@ when (args[0]) {
         cmdLogs(service, follow)
     }
     "status" -> cmdStatus()
+    "health" -> cmdHealth()
 
     // Configuration
     "config" -> when (args.getOrNull(1)) {
@@ -562,10 +741,9 @@ when (args[0]) {
         "install-wrapper" -> cmdDeployInstallWrapper()
         "harden-sshd" -> cmdDeployHardenSshd()
         "generate-keys" -> cmdDeployGenerateKeys()
-        "age-key" -> cmdDeployAgeKey()
         else -> {
             println("Unknown deploy command: ${args.getOrNull(1)}")
-            println("Valid: create-user, install-wrapper, harden-sshd, generate-keys, age-key")
+            println("Valid: create-user, install-wrapper, harden-sshd, generate-keys")
             exitProcess(1)
         }
     }
@@ -589,9 +767,14 @@ when (args[0]) {
     }
     "ldap" -> when (args.getOrNull(1)) {
         "sync" -> cmdLdapSync()
+        "bootstrap" -> {
+            val dryRun = args.contains("--dry-run") || args.contains("-n")
+            val force = args.contains("--force") || args.contains("-f")
+            cmdLdapBootstrap(dryRun, force)
+        }
         else -> {
             println("Unknown ldap command: ${args.getOrNull(1)}")
-            println("Valid: sync")
+            println("Valid: sync, bootstrap [--force] [--dry-run]")
             exitProcess(1)
         }
     }
