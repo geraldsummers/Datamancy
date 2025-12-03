@@ -599,6 +599,30 @@ private fun cmdVolumesCreate() {
     success("Volume directories created")
 }
 
+private fun cmdVolumesClean() {
+    val root = projectRoot()
+    val volumesPath = root.resolve("volumes").toString()
+
+    info("Cleaning volumes directory (removing root-owned files)")
+
+    // Get current user UID and GID
+    val uid = run("id", "-u").trim()
+    val gid = run("id", "-g").trim()
+
+    // Use a Docker container to clean and fix ownership
+    // This works because Docker has permission to manipulate files in bind mounts
+    run(
+        "docker", "run", "--rm",
+        "-v", "$volumesPath:/volumes",
+        "alpine",
+        "sh", "-c",
+        "rm -rf /volumes/* && chown -R $uid:$gid /volumes"
+    )
+
+    success("Volumes directory cleaned and ownership fixed")
+    info("You can now run: ./stack-controller volumes create")
+}
+
 private fun cmdCleanDocker() {
     info("Cleaning unused Docker resources")
     run("docker", "system", "prune", "-af", "--volumes")
@@ -668,6 +692,7 @@ private fun showHelp() {
         |
         |Maintenance:
         |  volumes create          Create volume directory structure
+        |  volumes clean           Clean volumes directory (fix root ownership)
         |  clean docker            Clean unused Docker resources
         |  ldap sync               Sync LDAP users to services
         |  ldap bootstrap          Generate LDAP bootstrap in ~/.config/datamancy
@@ -751,9 +776,10 @@ when (args[0]) {
     // Maintenance
     "volumes" -> when (args.getOrNull(1)) {
         "create" -> cmdVolumesCreate()
+        "clean" -> cmdVolumesClean()
         else -> {
             println("Unknown volumes command: ${args.getOrNull(1)}")
-            println("Valid: create")
+            println("Valid: create, clean")
             exitProcess(1)
         }
     }
