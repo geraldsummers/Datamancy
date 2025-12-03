@@ -78,10 +78,15 @@ fun loadEnv(envFile: File): Map<String, String> {
 val dryRun = args.contains("--dry-run") || args.contains("-n")
 val force = args.contains("--force") || args.contains("-f")
 val outputArg = args.find { it.startsWith("--output=") }?.substringAfter("=")
+val envArg = args.find { it.startsWith("--env=") }?.substringAfter("=")
 
 // Paths
 val rootDir = File(".")
-val envFile = File(rootDir, ".env")
+val envFile = if (envArg != null) {
+    File(envArg)
+} else {
+    File(rootDir, ".env")
+}
 val templateFile = File(rootDir, "configs.templates/infrastructure/ldap/bootstrap_ldap.ldif.template")
 val outputFile = if (outputArg != null) {
     File(outputArg)

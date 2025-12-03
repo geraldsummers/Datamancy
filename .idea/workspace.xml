@@ -5,23 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="finished?">
-      <change afterPath="$PROJECT_DIR$/DEPLOYMENT_FIXES_SUMMARY.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs.templates/applications/bookstack/init/50-fix-env.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/configs.templates/applications/bookstack/init/99-fix-dns.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/core/setup-bookstack-init.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/$HOME/.local/share/stack-secrets/stack_secrets.enc" beforeDir="false" afterPath="$PROJECT_DIR$/$HOME/.local/share/stack-secrets/stack_secrets.enc" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mailu/mailu.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mailu/mailu.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/synapse/homeserver.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/synapse/homeserver.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DEPLOYMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DEPLOYMENT.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/core/configure-environment.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/configure-environment.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/core/process-config-templates.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/process-config-templates.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/generate-ldap-bootstrap.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/security/generate-ldap-bootstrap.main.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -422,7 +409,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764735964626</updated>
     </task>
-    <option name="localTasksCounter" value="25" />
+    <task id="LOCAL-00025" summary="finished?">
+      <option name="closed" value="true" />
+      <created>1764767352130</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1764767352130</updated>
+    </task>
+    <option name="localTasksCounter" value="26" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

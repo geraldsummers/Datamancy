@@ -299,6 +299,7 @@ private fun cmdInit() {
         appendLine("OPENWEBUI_DB_PASSWORD_ENCODED=${urlEncode(openwebuiPassword)}")
         appendLine("MARIADB_SEAFILE_ROOT_PASSWORD=${generatePassword(32)}")
         appendLine("MARIADB_SEAFILE_PASSWORD=${generatePassword(32)}")
+        appendLine("SEAFILE_JWT_KEY=${generateSecretHex(32)}")
         appendLine()
 
         // Synapse Matrix secrets

@@ -778,6 +778,7 @@ private fun cmdLdapSync() {
 private fun cmdLdapBootstrap(dryRun: Boolean = false, force: Boolean = false) {
     val root = projectRoot()
     val runtimeDir = ensureRuntimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
     val outputFile = runtimeDir.resolve("bootstrap_ldap.ldif")
 
     info("Generating LDAP bootstrap file from template")
@@ -789,7 +790,7 @@ private fun cmdLdapBootstrap(dryRun: Boolean = false, force: Boolean = false) {
         err("LDAP bootstrap generator not found: $script")
     }
 
-    val args = mutableListOf("kotlin", script.toString(), "--output=$outputFile")
+    val args = mutableListOf("kotlin", script.toString(), "--output=$outputFile", "--env=$runtimeEnv")
     if (dryRun) args.add("--dry-run")
     if (force) args.add("--force")
 

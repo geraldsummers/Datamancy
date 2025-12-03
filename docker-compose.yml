@@ -292,9 +292,6 @@ services:
     image: caddy:2.8.4
     container_name: caddy
     restart: unless-stopped
-    profiles:
-      - bootstrap
-      - infrastructure
     networks:
       frontend: {}
       backend:
@@ -358,9 +355,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    profiles:
-      - bootstrap
-      - infrastructure
     environment:
       - LDAP_ORGANISATION=Datamancy
       - LDAP_DOMAIN=stack.local
@@ -387,9 +381,6 @@ services:
     networks:
       - backend
       - frontend
-    profiles:
-      - bootstrap
-      - applications
     depends_on:
       ldap:
         condition: service_healthy
@@ -416,9 +407,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    profiles:
-      - bootstrap
-      - databases
     volumes:
       - redis_data:/data
     command: valkey-server --appendonly yes --dir /data
@@ -437,10 +425,6 @@ services:
       - backend
       - frontend
       - database
-    profiles:
-      - bootstrap
-      - infrastructure
-      - applications
     depends_on:
       ldap:
         condition: service_healthy
@@ -478,8 +462,6 @@ services:
     image: mariadb:11.6.2
     container_name: mariadb
     restart: unless-stopped
-    profiles:
-      - databases
     networks:
       database: {}
       backend: {}
@@ -503,9 +485,6 @@ services:
     image: postgres:16.11
     container_name: postgres
     restart: unless-stopped
-    profiles:
-      - bootstrap
-      - databases
     networks:
       database:
         aliases:
@@ -545,8 +524,6 @@ services:
     image: couchdb:3.5.1
     container_name: couchdb
     restart: unless-stopped
-    profiles:
-      - databases
     networks:
       - database
     environment:
@@ -568,8 +545,6 @@ services:
     image: memcached:1.6.39
     container_name: seafile-memcached
     restart: unless-stopped
-    profiles:
-      - databases
     networks:
       - backend
     healthcheck:
@@ -583,13 +558,9 @@ services:
     image: mariadb:11.6.2
     container_name: mariadb-seafile
     restart: unless-stopped
-    profiles:
-      - databases
     environment:
       - MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
-      - MYSQL_DATABASE=seafile
-      - MYSQL_USER=${STACK_ADMIN_USER}
-      - MYSQL_PASSWORD=${STACK_ADMIN_PASSWORD}
+      # Let Seafile setup script create database and users automatically
     volumes:
       - seafile_mysql_data:/var/lib/mysql
     networks:
@@ -607,8 +578,6 @@ services:
     image: valkey/valkey:8.0.1
     container_name: redis-synapse
     restart: unless-stopped
-    profiles:
-      - databases
     networks:
       - backend
     healthcheck:
@@ -622,8 +591,6 @@ services:
     image: ghcr.io/mailu/nginx:2024.06.45
     container_name: mailu-front
     restart: unless-stopped
-    profiles:
-      - applications
     env_file:
       - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     ports:
@@ -655,8 +622,6 @@ services:
     image: valkey/valkey:8.0.1
     container_name: mailu-redis
     restart: unless-stopped
-    profiles:
-      - databases
     networks:
       backend:
         aliases:
@@ -673,8 +638,6 @@ services:
     image: ghcr.io/mailu/rspamd:2024.06.45
     container_name: mailu-antispam
     restart: unless-stopped
-    profiles:
-      - applications
     env_file:
       - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
@@ -695,8 +658,6 @@ services:
     image: ghcr.io/mailu/clamav:2.0.43
     container_name: mailu-antivirus
     restart: unless-stopped
-    profiles:
-      - applications
     env_file:
       - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     networks:
@@ -712,8 +673,6 @@ services:
     image: ghcr.io/mailu/dovecot:2024.06.45
     container_name: mailu-imap
     restart: unless-stopped
-    profiles:
-      - applications
     env_file:
       - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
@@ -734,8 +693,6 @@ services:
     image: ghcr.io/mailu/postfix:2024.06.45
     container_name: mailu-smtp
     restart: unless-stopped
-    profiles:
-      - applications
     env_file:
       - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
@@ -757,8 +714,6 @@ services:
     image: ghcr.io/mailu/admin:2024.06.45
     container_name: mailu-admin
     restart: unless-stopped
-    profiles:
-      - applications
     env_file:
       - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
@@ -783,8 +738,6 @@ services:
     image: ghcr.io/mailu/webmail:2024.06.45
     container_name: mailu-webmail
     restart: unless-stopped
-    profiles:
-      - applications
     env_file:
       - ${HOME}/.config/datamancy/configs/applications/mailu/mailu.env
     volumes:
@@ -809,8 +762,6 @@ services:
     image: pmietlicki/sogo:v5
     container_name: sogo
     restart: unless-stopped
-    profiles:
-      - applications
     environment:
       - SOGO_WORKERS=1
       - SOGO_SIEVE_SCRIPTS_ENABLED=YES
@@ -842,8 +793,6 @@ services:
     image: louislam/dockge:1
     container_name: dockge
     restart: unless-stopped
-    profiles:
-      - infrastructure
     networks:
       - backend
     depends_on:
@@ -864,8 +813,6 @@ services:
   dockge-init:
     image: node:20.18.1
     container_name: dockge-init
-    profiles:
-      - infrastructure
     networks:
       - backend
     depends_on:
@@ -891,8 +838,6 @@ services:
     image: kopia/kopia:0.18.2
     container_name: kopia
     restart: "no"  # Manual start after all services are up to avoid volume mount race conditions
-    profiles:
-      - infrastructure
     networks:
       - backend
     volumes:
@@ -922,9 +867,6 @@ services:
     image: tecnativa/docker-socket-proxy:v0.4.1
     container_name: docker-proxy
     restart: unless-stopped
-    profiles:
-      - bootstrap
-      - infrastructure
     networks:
       - backend
     environment:
@@ -962,9 +904,6 @@ services:
     image: portainer/portainer-ce:2.24.0
     container_name: portainer
     restart: unless-stopped
-    profiles:
-      - bootstrap
-      - infrastructure
     networks:
       - backend
       - frontend
@@ -977,20 +916,14 @@ services:
       - portainer_data:/data
     environment:
       - DOCKER_HOST=tcp://docker-proxy:2375
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/api/system/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 20s
+    # Healthcheck disabled - portainer image is minimal without wget/curl
+    # Service is monitored via depends_on chain instead
 
 
   grafana:
     image: grafana/grafana:11.6.7
     container_name: grafana
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
       - database
@@ -1056,9 +989,6 @@ services:
       - backend
       - frontend
       - database
-    profiles:
-      - bootstrap
-      - applications
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -1091,8 +1021,6 @@ services:
     image: vaultwarden/server:1.34.3
     container_name: vaultwarden
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
       - database
@@ -1145,8 +1073,6 @@ services:
     image: ghcr.io/plankanban/planka:1.26.3
     container_name: planka
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
     logging:
@@ -1187,8 +1113,6 @@ services:
     container_name: bookstack
     hostname: bookstack
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
     links:
@@ -1223,8 +1147,6 @@ services:
     image: seafileltd/seafile-mc:13.0.12
     container_name: seafile
     restart: unless-stopped
-    profiles:
-      - applications
     depends_on:
       memcached:
         condition: service_healthy
@@ -1236,13 +1158,16 @@ services:
       - TZ=UTC
       - DB_HOST=mysql  # Use alias for mariadb-seafile
       - DB_ROOT_PASSWD=${STACK_ADMIN_PASSWORD}
+      - SEAFILE_MYSQL_DB_HOST=mysql
+      - INIT_SEAFILE_MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
       - SEAFILE_SERVER_HOSTNAME=seafile.${DOMAIN}
       - SEAFILE_ADMIN_EMAIL=${STACK_ADMIN_EMAIL}
       - SEAFILE_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - JWT_PRIVATE_KEY=${SEAFILE_JWT_KEY}
       - TIME_ZONE=UTC
     volumes:
       - seafile_data:/shared
-      - ${HOME}/.config/datamancy/configs/applications/seafile/seahub_settings.py:/opt/seafile/conf/seahub_settings.py:ro
+      # Note: seahub_settings.py must be writable during first setup, configure LDAP after initialization
     networks:
       - backend
     healthcheck:
@@ -1256,8 +1181,6 @@ services:
     image: onlyoffice/documentserver:8.2.2
     container_name: onlyoffice
     restart: unless-stopped
-    profiles:
-      - applications
     environment:
       - TZ=UTC
       - JWT_ENABLED=true
@@ -1280,8 +1203,7 @@ services:
       context: .
     container_name: synapse
     restart: unless-stopped
-    profiles:
-      - applications
+    # Note: user 991 is set in Dockerfile, volume needs appropriate permissions
     depends_on:
       redis-synapse:
         condition: service_healthy
@@ -1317,8 +1239,6 @@ services:
     image: ghcr.io/mastodon/mastodon:v4.3.3
     container_name: mastodon-web
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
     depends_on:
@@ -1352,8 +1272,6 @@ services:
     image: ghcr.io/mastodon/mastodon-streaming:v4.3.3
     container_name: mastodon-streaming
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
     depends_on:
@@ -1376,8 +1294,6 @@ services:
     image: ghcr.io/mastodon/mastodon:v4.3.3
     container_name: mastodon-sidekiq
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
     depends_on:
@@ -1408,8 +1324,6 @@ services:
     image: ghcr.io/gethomepage/homepage:v1.7.0
     container_name: homepage
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
     depends_on:
@@ -1439,8 +1353,6 @@ services:
       context: .
     container_name: jupyterhub
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
     depends_on:
@@ -1466,8 +1378,6 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant
     restart: unless-stopped
-    profiles:
-      - applications
     networks:
       - backend
     depends_on:
@@ -1493,9 +1403,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    profiles:
-      - bootstrap
-      - applications
     depends_on:
       authelia:
         condition: service_healthy
@@ -1540,9 +1447,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    profiles:
-      - bootstrap
-      - applications
     depends_on:
       vllm:
         condition: service_healthy
@@ -1564,10 +1468,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    profiles:
-      - bootstrap
-      - bootstrap_vector_dbs
-      - applications
     command: --model-id sentence-transformers/all-MiniLM-L6-v2 --port 8080
     volumes:
       - ${VOLUMES_ROOT}/embeddings/models:/data
@@ -1585,9 +1485,6 @@ services:
     networks:
       - backend
       - frontend
-    profiles:
-      - bootstrap
-      - applications
     depends_on:
       vllm-router:
         condition: service_healthy
@@ -1620,9 +1517,6 @@ services:
     networks:
       - backend
       - frontend
-    profiles:
-      - bootstrap
-      - applications
     user: "1000:1000"
     group_add:
       - "985"  # docker group on host for socket access
@@ -1677,9 +1571,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    profiles:
-      - bootstrap
-      - applications
     depends_on:
       agent-tool-server:
         condition: service_healthy
@@ -1718,8 +1609,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    profiles:
-      - infrastructure
     depends_on:
       whisper:
         condition: service_healthy
@@ -1743,8 +1632,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    profiles:
-      - infrastructure
     environment:
       - ASR_MODEL=base
       - ASR_ENGINE=faster_whisper
@@ -1764,8 +1651,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    profiles:
-      - infrastructure
     environment:
       - PIPER_VOICE=${PIPER_VOICE:-en_US-lessac-medium}
     command: ["--voice", "en_US-lessac-medium"]
@@ -1789,9 +1674,6 @@ services:
     networks:
       - database
       - backend
-    profiles:
-      - bootstrap_vector_dbs
-      - databases
     environment:
       - QDRANT__SERVICE__GRPC_PORT=6334
     # Do not expose ports publicly; access internally via service name
@@ -1815,9 +1697,6 @@ services:
     restart: unless-stopped
     networks:
       - database
-    profiles:
-      - bootstrap_vector_dbs
-      - databases
     environment:
       - CLICKHOUSE_DB=default
       - CLICKHOUSE_USER=${STACK_ADMIN_USER}
@@ -1848,8 +1727,6 @@ services:
       dockerfile: ./src/debiankotlin/Dockerfile
       context: .
     container_name: vector-bootstrap
-    profiles:
-      - bootstrap_vector_dbs
     restart: "no"
     networks:
       - backend
@@ -1879,9 +1756,6 @@ services:
     networks:
       - backend
       - database
-    profiles:
-      - bootstrap_vector_dbs
-      - infrastructure
     volumes:
       - ${HOME}/.config/datamancy/configs/infrastructure/benthos/benthos.yaml:/benthos.yaml:ro
       - benthos_data:/data
@@ -1900,8 +1774,6 @@ services:
         condition: service_started
       clickhouse:
         condition: service_healthy
-      litellm:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4195/ready"]
       interval: 30s
@@ -1916,10 +1788,6 @@ services:
       context: .
     container_name: playwright
     restart: unless-stopped
-    profiles:
-      - bootstrap
-      - infrastructure
-      - applications
     networks:
       - backend
     shm_size: '2gb'
@@ -1937,8 +1805,6 @@ services:
       context: .
     container_name: ldap-sync-service
     restart: "no"  # Run on-demand or via cron
-    profiles:
-      - infrastructure
     networks:
       - backend
     depends_on:
@@ -1978,9 +1844,6 @@ services:
       context: .
     container_name: vm-provisioner
     restart: unless-stopped
-    profiles:
-      - infrastructure
-      - compute
     networks:
       - backend
     # Use specific capabilities instead of privileged mode
