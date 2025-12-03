@@ -5,10 +5,27 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="finished?">
+      <change beforePath="$PROJECT_DIR$/$HOME/.local/share/stack-secrets/stack_secrets.enc" beforeDir="false" afterPath="$PROJECT_DIR$/$HOME/.local/share/stack-secrets/stack_secrets.enc" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/filebrowser/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/filebrowser/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/jellyfin/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/jellyfin/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/kopia/init-kopia.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/kopia/init-kopia.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mailu/mailu.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mailu/mailu.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mastodon/mastodon.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mastodon/mastodon.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/couchdb/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/couchdb/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/couchdb/init-wrapper.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/couchdb/init-wrapper.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/ensure-users.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/ensure-users.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/ssh/bootstrap_known_hosts.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/ssh/bootstrap_known_hosts.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/configure-environment.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/configure-environment.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ldap-sync-service/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/ldap-sync-service/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/synapse/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/synapse/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vm-provisioner/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/vm-provisioner/Dockerfile" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -392,7 +409,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764727035727</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="finished?">
+      <option name="closed" value="true" />
+      <created>1764729020507</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1764729020507</updated>
+    </task>
+    <option name="localTasksCounter" value="24" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

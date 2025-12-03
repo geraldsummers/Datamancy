@@ -137,7 +137,8 @@ private fun generateRsaKeyBase64(): String {
 }
 
 // Avoid '$' since docker compose treats $VAR as interpolation in .env values if not escaped
-private val PASSWORD_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#%^&*"
+// Avoid URL-special characters (#%&@!*) to prevent issues with database connection strings
+private val PASSWORD_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_+=.,:"
 private fun generatePassword(length: Int = 24): String {
     val sb = StringBuilder(length)
     for (i in 0 until length) {
@@ -264,6 +265,9 @@ private fun cmdInit() {
         appendLine("MASTODON_DB_PASSWORD=${generatePassword(32)}")
         appendLine("MASTODON_SECRET_KEY_BASE=${generateSecretHex(64)}")
         appendLine("MASTODON_OTP_SECRET=${generateSecretHex(64)}")
+        appendLine("MASTODON_ENCRYPTION_DETERMINISTIC_KEY=${generateSecretHex(32)}")
+        appendLine("MASTODON_ENCRYPTION_KEY_DERIVATION_SALT=${generateSecretHex(32)}")
+        appendLine("MASTODON_ENCRYPTION_PRIMARY_KEY=${generateSecretHex(32)}")
         appendLine("MASTODON_SMTP_USER=${mastodonSmtpUser}")
         appendLine("MASTODON_SMTP_PASSWORD=${generatePassword(24)}")
         appendLine("MASTODON_OIDC_SECRET=${generateSecretHex(48)}")
@@ -371,6 +375,9 @@ private fun cmdExport() {
     putIfMissing("MASTODON_DB_PASSWORD") { generatePassword(32) }
     putIfMissing("MASTODON_SECRET_KEY_BASE") { generateSecretHex(64) }
     putIfMissing("MASTODON_OTP_SECRET") { generateSecretHex(64) }
+    putIfMissing("MASTODON_ENCRYPTION_DETERMINISTIC_KEY") { generateSecretHex(32) }
+    putIfMissing("MASTODON_ENCRYPTION_KEY_DERIVATION_SALT") { generateSecretHex(32) }
+    putIfMissing("MASTODON_ENCRYPTION_PRIMARY_KEY") { generateSecretHex(32) }
     putIfMissing("MASTODON_SMTP_USER") { mastodonSmtpUserBackfill }
     putIfMissing("MASTODON_SMTP_PASSWORD") { generatePassword(24) }
     // Secret for BookStack database user

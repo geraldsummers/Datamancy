@@ -1235,6 +1235,7 @@ services:
   synapse:
     build:
       dockerfile: ./src/synapse/Dockerfile
+      context: .
     container_name: synapse
     restart: unless-stopped
     profiles:
@@ -1420,6 +1421,7 @@ services:
   jupyterhub:
     build:
       dockerfile: ./src/jupyterhub/Dockerfile
+      context: .
     container_name: jupyterhub
     restart: unless-stopped
     profiles:
@@ -1518,6 +1520,7 @@ services:
   vllm-router:
     build:
       dockerfile: ./src/vllm-router/Dockerfile
+      context: .
     container_name: vllm-router
     restart: unless-stopped
     networks:
@@ -1596,6 +1599,7 @@ services:
   agent-tool-server:
     build:
       dockerfile: ./src/agent-tool-server/Dockerfile
+      context: .
     container_name: agent-tool-server
     restart: unless-stopped
     networks:
@@ -1653,6 +1657,7 @@ services:
   probe-orchestrator:
     build:
       dockerfile: ./src/probe-orchestrator/Dockerfile
+      context: .
     container_name: probe-orchestrator
     restart: unless-stopped
     networks:
@@ -1693,6 +1698,7 @@ services:
   ktspeechgateway:
     build:
       dockerfile: ./src/speech-gateway/Dockerfile
+      context: .
     container_name: ktspeechgateway
     restart: unless-stopped
     networks:
@@ -1825,6 +1831,7 @@ services:
   vector-bootstrap:
     build:
       dockerfile: ./src/debiankotlin/Dockerfile
+      context: .
     container_name: vector-bootstrap
     profiles:
       - bootstrap_vector_dbs
@@ -1892,6 +1899,7 @@ services:
   playwright:
     build:
       dockerfile: ./src/playwright-controller/Dockerfile
+      context: .
     container_name: playwright
     restart: unless-stopped
     profiles:
@@ -1954,7 +1962,7 @@ services:
   vm-provisioner:
     build:
       dockerfile: ./src/vm-provisioner/Dockerfile
-      context: ./src/vm-provisioner
+      context: .
     container_name: vm-provisioner
     restart: unless-stopped
     profiles:

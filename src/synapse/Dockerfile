@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir matrix-synapse-ldap3==0.3.0
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ldap-utils \
-        libldap-2.5-0 \
+        libldap-common \
         libsasl2-2 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

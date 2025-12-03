@@ -1,3 +1,11 @@
+FROM gradle:8.11.1-jdk21 AS builder
+
+WORKDIR /build
+COPY build.gradle.kts settings.gradle.kts ./
+COPY src ./src
+
+RUN gradle :ldap-sync-service:shadowJar --no-daemon
+
 FROM eclipse-temurin:21-jre-jammy
 
 # Install docker CLI for Mailu sync plugin
@@ -8,8 +16,8 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Copy the fat JAR
-COPY build/libs/ldap-sync-service-*.jar /app/ldap-sync-service.jar
+# Copy the fat JAR from builder
+COPY --from=builder /build/src/ldap-sync-service/build/libs/ldap-sync-service-*.jar /app/ldap-sync-service.jar
 
 # Run as non-root user (but needs docker socket access)
 RUN groupadd -g 1000 syncservice && \

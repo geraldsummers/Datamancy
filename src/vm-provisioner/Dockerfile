@@ -4,7 +4,7 @@ WORKDIR /build
 COPY build.gradle.kts settings.gradle.kts ./
 COPY src ./src
 
-RUN gradle shadowJar --no-daemon
+RUN gradle :vm-provisioner:shadowJar --no-daemon
 
 FROM eclipse-temurin:21-jre-jammy
 
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy the fat JAR from builder
-COPY --from=builder /build/build/libs/vm-provisioner.jar /app/vm-provisioner.jar
+COPY --from=builder /build/src/vm-provisioner/build/libs/vm-provisioner.jar /app/vm-provisioner.jar
 
 # Create directories
 RUN mkdir -p /app/ssh_keys /var/lib/libvirt/images
