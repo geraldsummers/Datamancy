@@ -255,7 +255,7 @@ fun copyFileStructure(
         val targetFile = File(targetDir, relativePath)
 
         // Determine if file should be processed as template
-        val shouldProcess = sourceFile.extension in listOf("yml", "yaml", "conf", "json", "env", "toml", "sql", "xml", "ini")
+        val shouldProcess = sourceFile.extension in listOf("yml", "yaml", "conf", "json", "env", "toml", "sql", "xml", "ini", "py")
             || sourceFile.name == "Caddyfile"
             || sourceFile.name.endsWith(".template")
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fix BookStack .env file with correct database credentials
-ENV_FILE="/config/www/.env"
+ENV_FILE="/app/www/.env"
 
 if [ -f "$ENV_FILE" ]; then
     echo "Updating BookStack .env file..."

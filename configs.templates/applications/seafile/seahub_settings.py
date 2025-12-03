@@ -1,25 +1,34 @@
-# Seahub (Seafile Web) Settings
-# This file configures the Seafile web interface
+# -*- coding: utf-8 -*-
+# Seafile Seahub Settings
+# This file is mounted into the container to provide database configuration
 
-# LDAP Authentication Configuration
-ENABLE_LDAP = True
-LDAP_SERVER_URL = 'ldap://ldap:389'
-LDAP_BASE_DN = 'ou=users,dc=stack,dc=local'
-LDAP_ADMIN_DN = 'cn=admin,dc=stack,dc=local'
-LDAP_ADMIN_PASSWORD = '{{STACK_ADMIN_PASSWORD}}'
+SECRET_KEY = "{{SEAFILE_SECRET_KEY}}"
 
-# LDAP User Attributes
-LDAP_LOGIN_ATTR = 'uid'
-LDAP_USER_FIRST_NAME_ATTR = 'givenName'
-LDAP_USER_LAST_NAME_ATTR = 'sn'
-LDAP_USER_NAME_REVERSE = False
-LDAP_FILTER = 'objectClass=inetOrgPerson'
+TIME_ZONE = 'UTC'
 
-# User Search Scope
-LDAP_USER_OBJECT_CLASS = 'inetOrgPerson'
+# Database Configuration
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": "seahub_db",
+        "USER": "seafile",
+        "PASSWORD": "{{MARIADB_SEAFILE_PASSWORD}}",
+        "HOST": "mysql",
+        "PORT": "3306",
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        }
+    }
+}
 
-# Import users automatically on first login
-LDAP_SYNC_INTERVAL = 60  # minutes
+# File server configuration
+FILE_SERVER_ROOT = "https://seafile.{{DOMAIN}}/seafhttp"
 
-# Email attribute (optional, if available in LDAP)
-LDAP_CONTACT_EMAIL_ATTR = 'mail'
+# Email configuration (uses Mailu)
+EMAIL_USE_TLS = True
+EMAIL_HOST = 'smtp.{{DOMAIN}}'
+EMAIL_HOST_USER = 'seafile@{{DOMAIN}}'
+EMAIL_HOST_PASSWORD = '{{SEAFILE_EMAIL_PASSWORD}}'
+EMAIL_PORT = 587
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+SERVER_EMAIL = EMAIL_HOST_USER

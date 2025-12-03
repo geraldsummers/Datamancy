@@ -18,13 +18,6 @@
 #     --profile bootstrap --profile databases --profile vector-dbs \
 #     --profile infrastructure --profile applications up -d
 #
-# 🔍 Service Profiles:
-#   bootstrap        - Core auth (LDAP, Authelia, Postgres, Redis, Caddy)
-#   databases        - All databases (MariaDB, Postgres, ClickHouse, etc.)
-#   vector-dbs       - Vector search (Qdrant)
-#   infrastructure   - Management (Portainer, Grafana, Dockge, etc.)
-#   applications     - Apps (Mastodon, Mailu, BookStack, Open-WebUI, etc.)
-#
 # 🐛 Common Issues:
 #   - Bookstack DB errors: See docs/DEPLOYMENT.md#bookstack-database-connection-errors
 #   - Mailu antispam stuck: See docs/DEPLOYMENT.md#mailu-antispam-service-waiting-for-admin
@@ -238,12 +231,6 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT}/redis_data
-  seafile_mysql_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${VOLUMES_ROOT}/seafile_mysql_data
   mailu_data:
     driver: local
     driver_opts:
@@ -401,15 +388,19 @@ services:
       retries: 3
       start_period: 10s
 
-  redis:
+  valkey:
     image: valkey/valkey:8.0.1
-    container_name: redis
+    container_name: valkey
     restart: unless-stopped
     networks:
-      - backend
+      backend:
+        aliases:
+          - redis
+          - redis-synapse
+          - mailu-redis
     volumes:
       - redis_data:/data
-    command: valkey-server --appendonly yes --dir /data
+    command: valkey-server --appendonly yes --dir /data --databases 16
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
@@ -428,7 +419,7 @@ services:
     depends_on:
       ldap:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
       postgres:
         condition: service_healthy
@@ -464,7 +455,9 @@ services:
     restart: unless-stopped
     networks:
       database: {}
-      backend: {}
+      backend:
+        aliases:
+          - mysql
     environment:
       - MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
       - MYSQL_DATABASE=datamancy
@@ -554,39 +547,6 @@ services:
       retries: 3
       start_period: 10s
 
-  mariadb-seafile:
-    image: mariadb:11.6.2
-    container_name: mariadb-seafile
-    restart: unless-stopped
-    environment:
-      - MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
-      # Let Seafile setup script create database and users automatically
-    volumes:
-      - seafile_mysql_data:/var/lib/mysql
-    networks:
-      backend:
-        aliases:
-          - mysql
-    healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${STACK_ADMIN_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-  redis-synapse:
-    image: valkey/valkey:8.0.1
-    container_name: redis-synapse
-    restart: unless-stopped
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
   mailu-front:
     image: ghcr.io/mailu/nginx:2024.06.45
     container_name: mailu-front
@@ -617,22 +577,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-
-  mailu-redis:
-    image: valkey/valkey:8.0.1
-    container_name: mailu-redis
-    restart: unless-stopped
-    networks:
-      backend:
-        aliases:
-          - redis
-          - mailu-redis
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
 
   mailu-antispam:
     image: ghcr.io/mailu/rspamd:2024.06.45
@@ -725,7 +669,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mailu-redis:
+      valkey:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-L", "http://localhost:8080/admin/ui"]
@@ -1150,7 +1094,7 @@ services:
     depends_on:
       memcached:
         condition: service_healthy
-      mariadb-seafile:
+      mariadb:
         condition: service_healthy
       authelia:
         condition: service_healthy
@@ -1159,6 +1103,9 @@ services:
       - DB_HOST=mysql  # Use alias for mariadb-seafile
       - DB_ROOT_PASSWD=${STACK_ADMIN_PASSWORD}
       - SEAFILE_MYSQL_DB_HOST=mysql
+      - SEAFILE_MYSQL_DB_PORT=3306
+      - SEAFILE_MYSQL_DB_USER=seafile
+      - SEAFILE_MYSQL_DB_PASSWORD=${MARIADB_SEAFILE_PASSWORD}
       - INIT_SEAFILE_MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
       - SEAFILE_SERVER_HOSTNAME=seafile.${DOMAIN}
       - SEAFILE_ADMIN_EMAIL=${STACK_ADMIN_EMAIL}
@@ -1167,11 +1114,11 @@ services:
       - TIME_ZONE=UTC
     volumes:
       - seafile_data:/shared
-      # Note: seahub_settings.py must be writable during first setup, configure LDAP after initialization
+      - ${HOME}/.config/datamancy/configs/applications/seafile/seahub_settings.py:/shared/seafile/conf/seahub_settings.py:ro
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/ | grep -E '^(200|302)$'"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -1197,15 +1144,25 @@ services:
       retries: 3
       start_period: 2m
 
+  synapse-init:
+    image: alpine:latest
+    container_name: synapse-init
+    volumes:
+      - synapse_data:/data
+    command: chown -R 991:991 /data
+    profiles:
+      - applications
+
   synapse:
     build:
       dockerfile: ./src/synapse/Dockerfile
       context: .
     container_name: synapse
     restart: unless-stopped
-    # Note: user 991 is set in Dockerfile, volume needs appropriate permissions
     depends_on:
-      redis-synapse:
+      synapse-init:
+        condition: service_completed_successfully
+      valkey:
         condition: service_healthy
       postgres:
         condition: service_healthy
@@ -1234,6 +1191,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    profiles:
+      - applications
 
   mastodon-web:
     image: ghcr.io/mastodon/mastodon:v4.3.3
@@ -1244,7 +1203,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
       authelia:
         condition: service_healthy
@@ -1277,7 +1236,7 @@ services:
     depends_on:
       mastodon-web:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
       postgres:
         condition: service_healthy
@@ -1299,7 +1258,7 @@ services:
     depends_on:
       mastodon-web:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
       postgres:
         condition: service_healthy

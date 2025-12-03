@@ -413,11 +413,13 @@ private fun cmdExport() {
     }
 
     // Synapse secrets
+    putIfMissing("SYNAPSE_DB_PASSWORD") { generatePassword(32) }
     putIfMissing("SYNAPSE_REGISTRATION_SECRET") { generateSecretHex(32) }
     putIfMissing("SYNAPSE_MACAROON_SECRET") { generateSecretHex(32) }
     putIfMissing("SYNAPSE_FORM_SECRET") { generateSecretHex(32) }
 
-    // Mailu secret
+    // Mailu secrets
+    putIfMissing("MAILU_DB_PASSWORD") { generatePassword(32) }
     putIfMissing("MAILU_SECRET_KEY") { generateSecretB64(16) }
 
     // Jellyfin
@@ -429,6 +431,13 @@ private fun cmdExport() {
 
     // BookStack APP_KEY
     putIfMissing("BOOKSTACK_APP_KEY") { "base64:${generateSecretB64(32)}" }
+
+    // Seafile secrets
+    putIfMissing("MARIADB_SEAFILE_ROOT_PASSWORD") { generatePassword(32) }
+    putIfMissing("MARIADB_SEAFILE_PASSWORD") { generatePassword(32) }
+    putIfMissing("SEAFILE_JWT_KEY") { generateSecretHex(32) }
+    putIfMissing("SEAFILE_SECRET_KEY") { generateSecretHex(50) }
+    putIfMissing("SEAFILE_EMAIL_PASSWORD") { generatePassword(32) }
 
     // Decode OIDC private key for template processing (if missing)
     if (currentMap.containsKey("AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY") && !currentMap.containsKey("OIDC_PRIVATE_KEY")) {

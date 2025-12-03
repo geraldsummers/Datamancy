@@ -158,6 +158,31 @@ fun main(args: Array<String>) {
         }
     }
 
+    // Fix ownership for specific services that need non-standard UIDs
+    println()
+    println("${GREEN}=== Fixing Service-Specific Permissions ===${NC}")
+
+    // Synapse runs as UID 991
+    val synapseDataDir = volumesRoot.resolve("synapse_data")
+    if (Files.isDirectory(synapseDataDir)) {
+        try {
+            val process = ProcessBuilder("chown", "-R", "991:991", synapseDataDir.toString())
+                .redirectOutput(ProcessBuilder.Redirect.PIPE)
+                .redirectError(ProcessBuilder.Redirect.PIPE)
+                .start()
+            val exitCode = process.waitFor()
+            if (exitCode == 0) {
+                println("${GREEN}✓${NC} Set ownership on synapse_data to UID 991")
+            } else {
+                println("${YELLOW}⚠${NC} Could not set ownership on synapse_data (may need sudo)")
+                println("  Run manually: sudo chown -R 991:991 ${synapseDataDir}")
+            }
+        } catch (e: Exception) {
+            println("${YELLOW}⚠${NC} Could not set ownership on synapse_data: ${e.message}")
+            println("  Run manually: sudo chown -R 991:991 ${synapseDataDir}")
+        }
+    }
+
     println()
     println("${GREEN}Done!${NC}")
 }
