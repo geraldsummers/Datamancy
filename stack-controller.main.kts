@@ -464,6 +464,277 @@ private fun cmdHealth() {
     }
 }
 
+private fun cmdDiagnose(service: String? = null, tail: Int = 100, follow: Boolean = false) {
+    val root = projectRoot()
+    val runtimeDir = runtimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
+
+    if (service != null) {
+        // Diagnose specific service
+        info("Diagnosing service: $service")
+
+        // Get container status
+        val status = run("docker", "compose", "--env-file", runtimeEnv.toString(),
+            "ps", service, "--format", "{{.Status}}", cwd = root, allowFail = true)
+        println("${ANSI_CYAN}Status:${ANSI_RESET} $status")
+
+        // Get logs
+        println("\n${ANSI_CYAN}Recent logs (last $tail lines):${ANSI_RESET}")
+        val logsCmd = mutableListOf("docker", "compose", "--env-file", runtimeEnv.toString(),
+            "logs", "--tail", tail.toString())
+        if (follow) logsCmd.add("-f")
+        logsCmd.add(service)
+        run(*logsCmd.toTypedArray(), cwd = root, allowFail = true)
+    } else {
+        // Diagnose all unhealthy services
+        info("Diagnosing all unhealthy services...")
+
+        val result = run("docker", "compose", "--env-file", runtimeEnv.toString(),
+            "ps", "--format", "json", cwd = root, allowFail = true)
+
+        val lines = result.trim().lines().filter { it.isNotBlank() }
+        val unhealthyServices = mutableListOf<String>()
+
+        lines.forEach { line ->
+            try {
+                val svc = line.substringAfter("\"Service\":\"").substringBefore("\"")
+                val state = line.substringAfter("\"State\":\"").substringBefore("\"")
+                val health = if (line.contains("\"Health\":\"")) {
+                    line.substringAfter("\"Health\":\"").substringBefore("\"")
+                } else {
+                    "none"
+                }
+
+                if (state != "running" || (health != "healthy" && health != "none")) {
+                    unhealthyServices.add(svc)
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (unhealthyServices.isEmpty()) {
+            success("All services are healthy!")
+            return
+        }
+
+        unhealthyServices.forEach { svc ->
+            println("\n$ANSI_YELLOW═══════════════════════════════════════$ANSI_RESET")
+            println("${ANSI_YELLOW}Service: $svc$ANSI_RESET")
+            println("$ANSI_YELLOW═══════════════════════════════════════$ANSI_RESET")
+
+            val status = run("docker", "compose", "--env-file", runtimeEnv.toString(),
+                "ps", svc, "--format", "{{.Status}}", cwd = root, allowFail = true)
+            println("${ANSI_CYAN}Status:${ANSI_RESET} $status")
+
+            println("\n${ANSI_CYAN}Last $tail log lines:${ANSI_RESET}")
+            run("docker", "compose", "--env-file", runtimeEnv.toString(),
+                "logs", "--tail", tail.toString(), svc, cwd = root, allowFail = true)
+        }
+    }
+}
+
+private fun cmdTestIterate(maxIterations: Int = 5) {
+    val root = projectRoot()
+
+    println("""
+        |$ANSI_CYAN========================================
+        |  Iterative Stack Testing
+        |========================================$ANSI_RESET
+        |Max iterations: $maxIterations
+        |
+        |This will:
+        |1. Check stack health
+        |2. Collect logs from unhealthy services
+        |3. Suggest fixes
+        |4. Wait for user to apply fixes
+        |5. Regenerate configs and restart
+        |6. Repeat until healthy or max iterations
+        |
+    """.trimMargin())
+
+    for (iteration in 1..maxIterations) {
+        println("\n$ANSI_GREEN╔════════════════════════════════════╗$ANSI_RESET")
+        println("$ANSI_GREEN║  Iteration $iteration of $maxIterations                  ║$ANSI_RESET")
+        println("$ANSI_GREEN╚════════════════════════════════════╝$ANSI_RESET\n")
+
+        // Check health
+        info("Checking stack health...")
+        val healthCheck = run("docker", "compose", "ps", "--format", "json", cwd = root, allowFail = true)
+        val lines = healthCheck.trim().lines().filter { it.isNotBlank() }
+        val unhealthyServices = mutableListOf<String>()
+
+        lines.forEach { line ->
+            try {
+                val svc = line.substringAfter("\"Service\":\"").substringBefore("\"")
+                val state = line.substringAfter("\"State\":\"").substringBefore("\"")
+                val health = if (line.contains("\"Health\":\"")) {
+                    line.substringAfter("\"Health\":\"").substringBefore("\"")
+                } else {
+                    "none"
+                }
+
+                if (state != "running" || (health != "healthy" && health != "none" && health != "starting")) {
+                    unhealthyServices.add(svc)
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (unhealthyServices.isEmpty()) {
+            success("All services healthy! Testing complete.")
+            return
+        }
+
+        warn("Found ${unhealthyServices.size} unhealthy service(s): ${unhealthyServices.joinToString(", ")}")
+
+        // Diagnose each unhealthy service
+        cmdDiagnose()
+
+        if (iteration < maxIterations) {
+            println("\n$ANSI_YELLOW========================================$ANSI_RESET")
+            println("${ANSI_YELLOW}Action required:$ANSI_RESET")
+            println("1. Review logs above")
+            println("2. Fix issues in templates or docker-compose.yml")
+            println("3. Press Enter to regenerate configs and restart")
+            println("   Or type 'skip' to continue without restart")
+            println("   Or type 'quit' to exit")
+            print("\n${ANSI_CYAN}Your choice:${ANSI_RESET} ")
+
+            val choice = readLine()?.trim()?.lowercase()
+            when (choice) {
+                "quit" -> {
+                    info("Exiting test iteration")
+                    return
+                }
+                "skip" -> {
+                    info("Skipping restart, continuing to next iteration")
+                    Thread.sleep(10000) // Wait 10s for services to start
+                }
+                else -> {
+                    info("Regenerating configs and restarting affected services...")
+                    cmdConfigProcess()
+                    unhealthyServices.forEach { svc ->
+                        info("Restarting: $svc")
+                        cmdRestart(svc)
+                    }
+                    info("Waiting 15 seconds for services to start...")
+                    Thread.sleep(15000)
+                }
+            }
+        }
+    }
+
+    warn("Max iterations reached. Some services may still be unhealthy.")
+    info("Run './stack-controller diagnose' to see remaining issues")
+}
+
+private fun cmdQuickStart() {
+    val root = projectRoot()
+
+    println("""
+        |$ANSI_CYAN========================================
+        |  Datamancy Quick Start
+        |========================================$ANSI_RESET
+        |This will perform a complete initial setup:
+        |1. Generate runtime configuration
+        |2. Bootstrap LDAP
+        |3. Process config templates
+        |4. Create volume directories
+        |5. Start all services
+        |
+    """.trimMargin())
+
+    print("${ANSI_YELLOW}Continue? (y/N):${ANSI_RESET} ")
+    val response = readLine()?.trim()?.lowercase()
+    if (response != "y" && response != "yes") {
+        info("Cancelled")
+        return
+    }
+
+    info("Step 1/5: Generating runtime configuration...")
+    cmdConfigGenerate()
+
+    info("Step 2/5: Bootstrapping LDAP...")
+    cmdLdapBootstrap()
+
+    info("Step 3/5: Processing config templates...")
+    cmdConfigProcess()
+
+    info("Step 4/5: Creating volume directories...")
+    cmdVolumesCreate()
+
+    info("Step 5/5: Starting all services...")
+    cmdUp(null)
+
+    success("Quick start complete!")
+    println("\n${ANSI_GREEN}Next steps:$ANSI_RESET")
+    println("1. Wait 2-3 minutes for services to initialize")
+    println("2. Check service health: ./stack-controller health")
+    println("3. View service URLs: ./stack-controller urls")
+    println("4. Access services via https://servicename.yourdomain.com")
+}
+
+private fun cmdShowUrls() {
+    val root = projectRoot()
+    val runtimeDir = runtimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
+
+    if (!Files.exists(runtimeEnv)) {
+        err("Runtime config not found. Run: ./stack-controller config generate")
+    }
+
+    // Load DOMAIN from env
+    val envContent = Files.readString(runtimeEnv)
+    val domain = envContent.lines()
+        .find { it.startsWith("DOMAIN=") }
+        ?.substringAfter("DOMAIN=")
+        ?.trim()
+        ?.trim('"')
+        ?: "yourdomain.com"
+
+    println("""
+        |$ANSI_CYAN========================================
+        |  Service URLs
+        |========================================$ANSI_RESET
+        |Domain: $domain
+        |
+        |${ANSI_GREEN}🔐 Infrastructure${ANSI_RESET}
+        |  Auth/SSO:     https://auth.$domain
+        |  Caddy:        https://$domain (reverse proxy)
+        |  Portainer:    https://portainer.$domain
+        |  Adminer:      https://adminer.$domain
+        |  pgAdmin:      https://pgadmin.$domain
+        |
+        |${ANSI_GREEN}📊 Monitoring & AI${ANSI_RESET}
+        |  Grafana:      https://grafana.$domain
+        |  Open WebUI:   https://open-webui.$domain
+        |  LiteLLM:      https://litellm.$domain
+        |  Homepage:     https://homepage.$domain
+        |
+        |${ANSI_GREEN}📝 Productivity${ANSI_RESET}
+        |  Bookstack:    https://bookstack.$domain
+        |  Planka:       https://planka.$domain
+        |  Seafile:      https://seafile.$domain
+        |  OnlyOffice:   https://onlyoffice.$domain
+        |  JupyterHub:   https://jupyterhub.$domain
+        |
+        |${ANSI_GREEN}💬 Communication${ANSI_RESET}
+        |  Matrix:       https://matrix.$domain
+        |  Mastodon:     https://mastodon.$domain (if enabled)
+        |  Mail (SOGo):  https://sogo.$domain
+        |  Mailu Admin:  https://mail.$domain/admin
+        |
+        |${ANSI_GREEN}🔒 Security & Secrets${ANSI_RESET}
+        |  Vaultwarden:  https://vaultwarden.$domain
+        |  LDAP Manager: https://lam.$domain
+        |
+        |${ANSI_GREEN}🏠 Home Automation${ANSI_RESET}
+        |  Home Assistant: https://homeassistant.$domain
+        |
+        |${ANSI_YELLOW}Note:${ANSI_RESET} All services use Authelia SSO (except Mailu)
+        |Default credentials: Check .env.runtime for STACK_ADMIN_USER/PASSWORD
+        |
+    """.trimMargin())
+}
+
 // ============================================================================
 // Configuration Commands
 // ============================================================================
@@ -828,6 +1099,14 @@ private fun showHelp() {
         |  status                  Show stack status
         |  health                  Check health of all services (exit 1 if any unhealthy)
         |
+        |Diagnostics & Testing:
+        |  diagnose [service]      Show logs and status for unhealthy services
+        |    --tail=N                Lines of logs to show (default: 100)
+        |    -f, --follow            Follow log output
+        |  test-iterate [--max=N]  Iterative testing: check→diagnose→fix→restart→repeat
+        |  quick-start             Complete initial setup (generate→bootstrap→up)
+        |  urls                    Display all service URLs with domain
+        |
         |Configuration:
         |  config generate         Generate .env in ~/.config/datamancy
         |  config process          Process templates to ~/.config/datamancy/configs
@@ -852,10 +1131,13 @@ private fun showHelp() {
         |  ./stack-controller config process      # Creates ~/.config/datamancy/configs/
         |  ./stack-controller volumes create
         |  ./stack-controller up --profile=bootstrap
+        |  ./stack-controller test-iterate        # Interactive testing workflow
         |
         |Examples:
         |  ./stack-controller up --profile=applications
-        |  ./stack-controller config process
+        |  ./stack-controller diagnose            # Show all unhealthy services
+        |  ./stack-controller diagnose bookstack  # Diagnose specific service
+        |  ./stack-controller test-iterate        # Iterative fix workflow
         |  ./stack-controller restart caddy
         |  sudo ./stack-controller deploy create-user
         |
@@ -908,6 +1190,26 @@ when (args[0]) {
     "health" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         cmdHealth()
+    }
+    "diagnose" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        val service = args.getOrNull(1)?.takeIf { !it.startsWith("--") && !it.startsWith("-") }
+        val tail = args.find { it.startsWith("--tail=") }?.substringAfter("=")?.toIntOrNull() ?: 100
+        val follow = args.contains("-f") || args.contains("--follow")
+        cmdDiagnose(service, tail, follow)
+    }
+    "test-iterate" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        val maxIterations = args.find { it.startsWith("--max=") }?.substringAfter("=")?.toIntOrNull() ?: 5
+        cmdTestIterate(maxIterations)
+    }
+    "quick-start" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        cmdQuickStart()
+    }
+    "urls" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        cmdShowUrls()
     }
 
     // Configuration

@@ -35,6 +35,7 @@
 #   - Mailu: Fixed SUBNET to 172.21.0.0/24, added 'admin' alias
 #   - Bookstack: Auto-fix .env via init script (configs.templates/applications/bookstack/init/)
 #   - Antispam: Fixed healthcheck command (pgrep rspamd)
+#   - Seafile: Auto-apply MySQL database config via bootstrap script (99-apply-seahub-settings.sh)
 ###############################################
 networks:
   frontend:
@@ -62,217 +63,217 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/caddy_data
+      device: ${VOLUMES_ROOT:-./volumes}/caddy_data
   caddy_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/caddy_config
+      device: ${VOLUMES_ROOT:-./volumes}/caddy_config
   grafana_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/grafana_data
+      device: ${VOLUMES_ROOT:-./volumes}/grafana_data
   open_webui_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/open_webui_data
+      device: ${VOLUMES_ROOT:-./volumes}/open_webui_data
   vaultwarden_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/vaultwarden_data
+      device: ${VOLUMES_ROOT:-./volumes}/vaultwarden_data
   planka_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/planka_data
+      device: ${VOLUMES_ROOT:-./volumes}/planka_data
   outline_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/outline_data
+      device: ${VOLUMES_ROOT:-./volumes}/outline_data
   bookstack_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/bookstack_data
+      device: ${VOLUMES_ROOT:-./volumes}/bookstack_data
   seafile_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/seafile_data
+      device: ${VOLUMES_ROOT:-./volumes}/seafile_data
   onlyoffice_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/onlyoffice_data
+      device: ${VOLUMES_ROOT:-./volumes}/onlyoffice_data
   synapse_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/synapse_data
+      device: ${VOLUMES_ROOT:-./volumes}/synapse_data
   mastodon_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/mastodon_data
+      device: ${VOLUMES_ROOT:-./volumes}/mastodon_data
   jupyterhub_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/jupyterhub_data
+      device: ${VOLUMES_ROOT:-./volumes}/jupyterhub_data
   homeassistant_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/homeassistant_config
+      device: ${VOLUMES_ROOT:-./volumes}/homeassistant_config
   litellm_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/litellm_config
+      device: ${VOLUMES_ROOT:-./volumes}/litellm_config
   ldap_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/ldap_data
+      device: ${VOLUMES_ROOT:-./volumes}/ldap_data
   ldap_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/ldap_config
+      device: ${VOLUMES_ROOT:-./volumes}/ldap_config
   lam_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/lam_config
+      device: ${VOLUMES_ROOT:-./volumes}/lam_config
   mariadb_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/mariadb_data
+      device: ${VOLUMES_ROOT:-./volumes}/mariadb_data
   postgres_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/postgres_data
+      device: ${VOLUMES_ROOT:-./volumes}/postgres_data
   couchdb_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/couchdb_data
+      device: ${VOLUMES_ROOT:-./volumes}/couchdb_data
   clickhouse_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/clickhouse_data
+      device: ${VOLUMES_ROOT:-./volumes}/clickhouse_data
   qdrant_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/qdrant_data
+      device: ${VOLUMES_ROOT:-./volumes}/qdrant_data
   benthos_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/benthos_data
+      device: ${VOLUMES_ROOT:-./volumes}/benthos_data
   dockge_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/dockge_data
+      device: ${VOLUMES_ROOT:-./volumes}/dockge_data
   kopia_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/kopia_data
+      device: ${VOLUMES_ROOT:-./volumes}/kopia_data
   kopia_cache:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/kopia_cache
+      device: ${VOLUMES_ROOT:-./volumes}/kopia_cache
   kopia_repository:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/kopia_repository
+      device: ${VOLUMES_ROOT:-./volumes}/kopia_repository
   redis_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/redis_data
+      device: ${VOLUMES_ROOT:-./volumes}/redis_data
   mailu_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/mailu_data
+      device: ${VOLUMES_ROOT:-./volumes}/mailu_data
   mailu_filter:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/mailu_filter
+      device: ${VOLUMES_ROOT:-./volumes}/mailu_filter
   mailu_cert:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/mailu_cert
+      device: ${VOLUMES_ROOT:-./volumes}/mailu_cert
   mailu_dkim:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/mailu_dkim
+      device: ${VOLUMES_ROOT:-./volumes}/mailu_dkim
   sogo_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/sogo_data
+      device: ${VOLUMES_ROOT:-./volumes}/sogo_data
   portainer_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/portainer_data
+      device: ${VOLUMES_ROOT:-./volumes}/portainer_data
   proofs:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT}/proofs
+      device: ${VOLUMES_ROOT:-./volumes}/proofs
 
 services:
   caddy:
@@ -1114,7 +1115,9 @@ services:
       - TIME_ZONE=UTC
     volumes:
       - seafile_data:/shared
-      - ${HOME}/.config/datamancy/configs/applications/seafile/seahub_settings.py:/shared/seafile/conf/seahub_settings.py:ro
+      # Mount template and bootstrap script
+      - ${HOME}/.config/datamancy/configs/applications/seafile/seahub_settings.py:/tmp/seahub_settings_template.py:ro
+      - ${HOME}/.config/datamancy/configs/applications/seafile/init/99-apply-seahub-settings.sh:/scripts/bootstrap.d/99-apply-seahub-settings.sh:ro
     networks:
       - backend
     healthcheck:
@@ -1357,7 +1360,7 @@ services:
       start_period: 60s
 
   vllm:
-    image: vllm/vllm-openai:v0.6.5
+    image: vllm/vllm-openai:latest
     container_name: vllm
     restart: unless-stopped
     networks:
