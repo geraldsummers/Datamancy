@@ -8,7 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 TEMPLATE_DIR="$PROJECT_ROOT/configs.templates/applications/bookstack/init"
-TARGET_DIR="$PROJECT_ROOT/volumes/bookstack_init"
+# Use unified data directory under ~/.datamancy
+TARGET_DIR="$HOME/.datamancy/volumes/bookstack_init"
 
 echo "Setting up BookStack init scripts..."
 echo "Source: $TEMPLATE_DIR"

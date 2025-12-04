@@ -20,7 +20,7 @@
  *
  * Examples:
  *   ./stack-controller secrets encrypt
- *   ./stack-controller up --profile=applications
+ *   ./stack-controller up
  *   ./stack-controller config process
  *   ./stack-controller deploy create-user
  */
@@ -96,23 +96,64 @@ private fun projectRoot(): Path {
     }
 }
 
-private fun runtimeConfigDir(): Path {
-    // Runtime configs stored in ~/.config/datamancy (outside git tree)
+/**
+ * Returns the path to the Datamancy data directory.
+ * All runtime configs, secrets, and volumes are stored here.
+ *
+ * @return Path to ~/.datamancy directory
+ */
+private fun datamancyDataDir(): Path {
     val userHome = Paths.get(System.getProperty("user.home"))
-    return userHome.resolve(".config/datamancy")
+    return userHome.resolve(".datamancy")
 }
 
-private fun ensureRuntimeConfigDir(): Path {
-    val dir = runtimeConfigDir()
-
+/**
+ * Ensures the Datamancy data directory exists and returns its path.
+ * Creates the directory if it doesn't exist.
+ *
+ * CRITICAL: This must be called before Docker Compose starts to prevent
+ * Docker from creating directories as root when mounting volumes.
+ *
+ * Security: Exits if running as root to prevent permission issues.
+ *
+ * @return Path to ~/.datamancy directory
+ * @throws SecurityException if running as root
+ */
+private fun ensureDatamancyDataDir(): Path {
     // Security: Never run config/ldap/volumes commands as root
     if (isRoot()) {
-        err("Config operations must not be run as root. Run without sudo.")
+        err("Operations must not be run as root. Run without sudo.")
     }
 
+    val dir = datamancyDataDir()
     Files.createDirectories(dir)
+
+    // Create critical subdirectories to prevent Docker from creating them as root
+    // when mounting volumes from docker-compose.yml
+    val configsDir = dir.resolve("configs")
+    val volumesDir = dir.resolve("volumes")
+
+    if (!Files.exists(configsDir)) {
+        Files.createDirectories(configsDir)
+    }
+    if (!Files.exists(volumesDir)) {
+        Files.createDirectories(volumesDir)
+    }
+
     return dir
 }
+
+/**
+ * Returns the path to the unified runtime configuration directory used by the stack.
+ * This now points to ~/.datamancy per the data directory consolidation requirements.
+ */
+private fun runtimeConfigDir(): Path = datamancyDataDir()
+
+/**
+ * Ensures the unified runtime configuration directory exists and returns its path.
+ * This now points to ~/.datamancy per the data directory consolidation requirements.
+ */
+private fun ensureRuntimeConfigDir(): Path = ensureDatamancyDataDir()
 
 private fun ensurePerm(path: Path, executable: Boolean = false) {
     try {
@@ -211,25 +252,47 @@ private fun checkDiskSpace(path: Path, requiredGB: Long = 50) {
 // Stack Operations
 // ============================================================================
 
-private fun cmdUp(profile: String? = null) {
+/**
+ * Starts the Datamancy stack with full automated setup.
+ *
+ * What it does:
+ * 1. Generates environment configuration (.env.runtime) if missing
+ * 2. Generates LDAP bootstrap file if missing
+ * 3. Processes configuration templates into ~/.datamancy/configs if missing
+ * 4. Creates required volume directories under ~/.datamancy/volumes if missing
+ * 5. Starts all Docker Compose services using the generated env file
+ *
+ * Side effects:
+ * - Creates and/or modifies files under ~/.datamancy
+ * - Launches Docker containers defined by docker-compose.yml
+ *
+ * Error conditions:
+ * - Missing critical environment variables during template processing
+ * - Docker not installed or not running
+ * - Insufficient permissions to create files or directories under the home directory
+ */
+private fun bringUpStack() {
     val root = projectRoot()
+    val dataDir = ensureDatamancyDataDir()
+    val runtimeEnv = dataDir.resolve(".env.runtime")
+    val ldapBootstrap = dataDir.resolve("bootstrap_ldap.ldif")
+    val configsDir = dataDir.resolve("configs")
+    val volumesDir = dataDir.resolve("volumes")
 
-    // Pre-flight checks
-    val runtimeDir = runtimeConfigDir()
-    val runtimeEnv = runtimeDir.resolve(".env.runtime")
-    val ldapBootstrap = runtimeDir.resolve("bootstrap_ldap.ldif")
-    val configsDir = runtimeDir.resolve("configs")
+    info("Starting Datamancy stack")
+    info("Data directory: $dataDir")
+    println()
 
-    // Check 1: Validate runtime .env exists
+    // Step 1: Generate environment configuration if needed
     if (!Files.exists(runtimeEnv)) {
-        err("Runtime .env not found at: $runtimeEnv\n" +
-            "Generate it first:\n" +
-            "  ./stack-controller.main.kts config generate")
+        info("Step 1/5: Generating environment configuration")
+        generateEnvironmentConfig()
+    } else {
+        info("Step 1/5: Environment config exists, validating")
+        validateEnvFile(runtimeEnv)
     }
 
-    validateEnvFile(runtimeEnv)
-
-    // Check 2: Validate DOMAIN
+    // Validate DOMAIN
     val envContent = Files.readString(runtimeEnv)
     val domainMatch = "DOMAIN=(.+)".toRegex().find(envContent)
     if (domainMatch != null) {
@@ -237,42 +300,60 @@ private fun cmdUp(profile: String? = null) {
         validateDomain(domain)
     }
 
-    // Check 4: Verify configs generated (if bootstrap profile)
-    if (profile == "bootstrap" || profile == null) {
-        if (!Files.exists(configsDir)) {
-            err("Runtime configs not found at: $configsDir\n" +
-                "Generate them first:\n" +
-                "  ./stack-controller.main.kts config process")
-        }
-
-        if (!Files.exists(ldapBootstrap)) {
-            err("LDAP bootstrap not found at: $ldapBootstrap\n" +
-                "Generate it first:\n" +
-                "  ./stack-controller.main.kts ldap bootstrap")
-        }
+    // Step 2: Generate LDAP bootstrap if needed
+    if (!Files.exists(ldapBootstrap)) {
+        info("Step 2/5: Generating LDAP bootstrap data")
+        generateLdapBootstrap(dryRun = false, force = false)
+    } else {
+        info("Step 2/5: LDAP bootstrap exists")
     }
 
-    // Check 5: Disk space
-    checkDiskSpace(root, requiredGB = 50)
-
-    info("Starting stack" + if (profile != null) " with profile: $profile" else "")
-
-    val args = mutableListOf("docker", "compose", "--env-file", runtimeEnv.toString())
-    if (profile != null) {
-        args.add("--profile")
-        args.add(profile)
+    // Step 3: Process configuration templates if needed
+    if (!Files.exists(configsDir) || Files.list(configsDir).count() == 0L) {
+        info("Step 3/5: Processing configuration templates")
+        processConfigurationTemplates()
+    } else {
+        info("Step 3/5: Configuration files exist")
     }
-    args.add("up")
-    args.add("-d")
 
+    // Step 4: Create volume directories if needed
+    // Always try to create volumes (createVolumeDirectories is idempotent and will skip existing ones)
+    info("Step 4/5: Volume directories exist")
+    createVolumeDirectories()
+
+    // Step 5: Disk space check
+    checkDiskSpace(volumesDir, requiredGB = 50)
+
+    // Step 6: Start services
+    info("Step 5/5: Starting Docker Compose services")
+    val args = mutableListOf("docker", "compose", "--env-file", runtimeEnv.toString(), "up", "-d")
     run(*args.toTypedArray(), cwd = root)
-    success("Stack started")
+
+    success("Stack started successfully")
+    println()
+    println("${ANSI_GREEN}Next steps:${ANSI_RESET}")
+    println("1. Wait 2-3 minutes for services to initialize")
+    println("2. Check service health: ./stack-controller status")
+    println("3. View service URLs: ./stack-controller urls")
 }
 
-private fun cmdDown() {
+/**
+ * Stops all Datamancy stack services.
+ *
+ * What it does:
+ * - Runs `docker compose down` using the runtime env file if available
+ *
+ * Side effects:
+ * - Stops running containers but preserves volumes and data
+ *
+ * Error conditions:
+ * - Docker not installed or user lacks permission to run docker commands
+ */
+private fun stopStack() {
     val root = projectRoot()
-    val runtimeDir = runtimeConfigDir()
-    val runtimeEnv = runtimeDir.resolve(".env.runtime")
+    val dataDir = datamancyDataDir()
+    val runtimeEnv = dataDir.resolve(".env.runtime")
+
     info("Stopping stack")
     if (Files.exists(runtimeEnv)) {
         run("docker", "compose", "--env-file", runtimeEnv.toString(), "down", cwd = root)
@@ -282,14 +363,13 @@ private fun cmdDown() {
     success("Stack stopped")
 }
 
-private fun cmdRecreate(profile: String? = null, cleanVolumes: Boolean = false, skipConfigs: Boolean = false) {
+private fun cmdRecreate(cleanVolumes: Boolean = false, skipConfigs: Boolean = false) {
     val root = projectRoot()
 
     println("""
         |$ANSI_CYAN========================================
         |  Stack Recreate Workflow
         |========================================$ANSI_RESET
-        |Profile: ${profile ?: "all"}
         |Clean volumes: $cleanVolumes
         |Regenerate configs: ${!skipConfigs}
         |
@@ -315,11 +395,7 @@ private fun cmdRecreate(profile: String? = null, cleanVolumes: Boolean = false, 
             err("Volume cleaning cancelled")
         }
 
-        val volumesToClean = if (profile == "bootstrap" || profile == null) {
-            listOf("postgres_data", "ldap_data", "redis_data")
-        } else {
-            emptyList()
-        }
+        val volumesToClean = listOf("postgres_data", "ldap_data", "redis_data")
 
         if (volumesToClean.isNotEmpty()) {
             for (vol in volumesToClean) {
@@ -333,7 +409,7 @@ private fun cmdRecreate(profile: String? = null, cleanVolumes: Boolean = false, 
             }
             success("Volumes cleaned")
         } else {
-            info("No volumes to clean for profile: $profile")
+            info("No volumes to clean")
         }
     } else {
         info("Step 2/5: Skipping volume cleaning (use --clean-volumes to enable)")
@@ -348,21 +424,17 @@ private fun cmdRecreate(profile: String? = null, cleanVolumes: Boolean = false, 
         info("Step 3/5: Skipping config regeneration (use --no-skip-configs to enable)")
     }
 
-    // Step 4: Bootstrap SSH known_hosts if needed
-    if (profile == "bootstrap" || profile == null) {
-        info("Step 4/5: Bootstrapping SSH known_hosts")
-        try {
-            cmdSshBootstrap()
-        } catch (e: Exception) {
-            warn("SSH bootstrap failed (may be OK if SSH not needed): ${e.message}")
-        }
-    } else {
-        info("Step 4/5: Skipping SSH bootstrap (not bootstrap profile)")
+    // Step 4: Bootstrap SSH known_hosts (optional, safe to ignore failures)
+    info("Step 4/5: Bootstrapping SSH known_hosts")
+    try {
+        cmdSshBootstrap()
+    } catch (e: Exception) {
+        warn("SSH bootstrap failed (may be OK if SSH not needed): ${e.message}")
     }
 
     // Step 5: Up
     info("Step 5/5: Starting services")
-    cmdUp(profile)
+    bringUpStack()
 
     println("""
         |
@@ -376,7 +448,20 @@ private fun cmdRecreate(profile: String? = null, cleanVolumes: Boolean = false, 
     """.trimMargin())
 }
 
-private fun cmdRestart(service: String) {
+/**
+ * Restart a specific service by name using Docker Compose.
+ *
+ * Parameters:
+ * - service: the Docker Compose service name to restart
+ *
+ * Side effects:
+ * - Issues a restart to the target container(s)
+ *
+ * Error conditions:
+ * - Service name not found in the compose file
+ * - Docker command fails or daemon is unavailable
+ */
+private fun restartService(service: String) {
     val root = projectRoot()
     val runtimeDir = runtimeConfigDir()
     val runtimeEnv = runtimeDir.resolve(".env.runtime")
@@ -389,7 +474,21 @@ private fun cmdRestart(service: String) {
     success("Service restarted: $service")
 }
 
-private fun cmdLogs(service: String, follow: Boolean = false) {
+/**
+ * Show logs for a specific service.
+ *
+ * Parameters:
+ * - service: the Docker Compose service name
+ * - follow: if true, follow the log output
+ *
+ * Side effects:
+ * - Streams logs to stdout; with follow=true the command will not return until interrupted
+ *
+ * Error conditions:
+ * - Service name invalid
+ * - Docker command fails
+ */
+private fun showServiceLogs(service: String, follow: Boolean = false) {
     val root = projectRoot()
     val args = mutableListOf("docker", "compose", "logs")
     if (follow) args.add("-f")
@@ -397,7 +496,16 @@ private fun cmdLogs(service: String, follow: Boolean = false) {
     run(*args.toTypedArray(), cwd = root)
 }
 
-private fun cmdStatus() {
+/**
+ * Display the current status of all services in the stack.
+ *
+ * What it does:
+ * - Prints `docker compose ps` table to stdout
+ *
+ * Error conditions:
+ * - Docker not installed or not running
+ */
+private fun showStackStatus() {
     val root = projectRoot()
     info("Stack status:")
     println(run("docker", "compose", "ps", cwd = root))
@@ -534,6 +642,11 @@ private fun cmdDiagnose(service: String? = null, tail: Int = 100, follow: Boolea
 
 private fun cmdTestIterate(maxIterations: Int = 5) {
     val root = projectRoot()
+    val dataDir = ensureDatamancyDataDir()
+    val runtimeEnv = dataDir.resolve(".env.runtime")
+    val ldapBootstrap = dataDir.resolve("bootstrap_ldap.ldif")
+    val configsDir = dataDir.resolve("configs")
+    val volumesDir = dataDir.resolve("volumes")
 
     println("""
         |$ANSI_CYAN========================================
@@ -613,7 +726,7 @@ private fun cmdTestIterate(maxIterations: Int = 5) {
                     cmdConfigProcess()
                     unhealthyServices.forEach { svc ->
                         info("Restarting: $svc")
-                        cmdRestart(svc)
+                        restartService(svc)
                     }
                     info("Waiting 15 seconds for services to start...")
                     Thread.sleep(15000)
@@ -628,6 +741,11 @@ private fun cmdTestIterate(maxIterations: Int = 5) {
 
 private fun cmdQuickStart() {
     val root = projectRoot()
+    val dataDir = ensureDatamancyDataDir()
+    val runtimeEnv = dataDir.resolve(".env.runtime")
+    val ldapBootstrap = dataDir.resolve("bootstrap_ldap.ldif")
+    val configsDir = dataDir.resolve("configs")
+    val volumesDir = dataDir.resolve("volumes")
 
     println("""
         |$ANSI_CYAN========================================
@@ -662,7 +780,7 @@ private fun cmdQuickStart() {
     cmdVolumesCreate()
 
     info("Step 5/5: Starting all services...")
-    cmdUp(null)
+    bringUpStack()
 
     success("Quick start complete!")
     println("\n${ANSI_GREEN}Next steps:$ANSI_RESET")
@@ -739,6 +857,11 @@ private fun cmdShowUrls() {
 // Configuration Commands
 // ============================================================================
 
+/**
+ * Processes configuration templates to generate runtime configuration files.
+ * Sources: configs.templates → Target: ~/.datamancy/configs
+ * Idempotent: overwrites existing files safely when --force is used.
+ */
 private fun cmdConfigProcess() {
     val root = projectRoot()
     val runtimeDir = ensureRuntimeConfigDir()
@@ -772,6 +895,10 @@ private fun cmdConfigProcess() {
     }
 }
 
+/**
+ * Generates the environment configuration (.env.runtime) under ~/.datamancy.
+ * Idempotent: will overwrite the previous file with new values.
+ */
 private fun cmdConfigGenerate() {
     val root = projectRoot()
     val runtimeDir = ensureRuntimeConfigDir()
@@ -945,6 +1072,11 @@ private fun cmdDeployGenerateKeys() {
 // Maintenance Commands
 // ============================================================================
 
+/**
+ * Creates the Docker volume directory structure under ~/.datamancy/volumes.
+ * Parses docker-compose.yml for ${VOLUMES_ROOT} paths and creates directories.
+ * Idempotent: existing directories are left untouched.
+ */
 private fun cmdVolumesCreate() {
     val root = projectRoot()
     info("Creating volume directory structure")
@@ -1033,6 +1165,147 @@ private fun cmdCleanDocker() {
     success("Docker cleanup complete")
 }
 
+/**
+ * Performs a complete cleanup of the Datamancy stack.
+ *
+ * What it does:
+ * 1. Stops all containers
+ * 2. Removes all Docker volumes (requires Docker to remove bind mounts created as root)
+ * 3. Removes networks
+ * 4. Deletes ~/.datamancy directory
+ *
+ * WARNING: This is destructive and will delete ALL data.
+ *
+ * @param force if true, skip confirmation prompt
+ */
+private fun cmdObliterate(force: Boolean = false) {
+    val root = projectRoot()
+    val dataDir = datamancyDataDir()
+
+    println("""
+        |${ANSI_RED}╔═══════════════════════════════════════════════════╗
+        |║  ⚠️  NUCLEAR OPTION - COMPLETE STACK CLEANUP  ⚠️  ║
+        |╚═══════════════════════════════════════════════════╝${ANSI_RESET}
+        |
+        |${ANSI_YELLOW}This will PERMANENTLY DELETE:${ANSI_RESET}
+        |  • All Docker containers
+        |  • All Docker volumes (including databases)
+        |  • All Docker networks
+        |  • Entire ~/.datamancy directory
+        |  • All configuration files
+        |  • All data (postgres, mariadb, ldap, etc.)
+        |
+        |${ANSI_RED}THIS CANNOT BE UNDONE!${ANSI_RESET}
+        |
+    """.trimMargin())
+
+    if (!force) {
+        print("${ANSI_YELLOW}Type 'OBLITERATE' (all caps) to confirm: ${ANSI_RESET}")
+        val confirmation = readLine()?.trim()
+        if (confirmation != "OBLITERATE") {
+            info("Cleanup cancelled")
+            return
+        }
+        println()
+    }
+
+    info("Step 1/4: Stopping all containers")
+    try {
+        val runtimeEnv = dataDir.resolve(".env.runtime")
+        if (Files.exists(runtimeEnv)) {
+            run("docker", "compose", "--env-file", runtimeEnv.toString(), "down", "-v", cwd = root, allowFail = true)
+        } else {
+            run("docker", "compose", "down", "-v", cwd = root, allowFail = true)
+        }
+        success("Containers stopped")
+    } catch (e: Exception) {
+        warn("Failed to stop containers gracefully: ${e.message}")
+    }
+
+    info("Step 2/4: Removing Docker volumes")
+    try {
+        // List all datamancy volumes
+        val volumes = run("docker", "volume", "ls", "-q", "--filter", "label=com.docker.compose.project=datamancy", allowFail = true)
+        val volumeList = volumes.trim().lines().filter { it.isNotBlank() }
+
+        if (volumeList.isNotEmpty()) {
+            info("Found ${volumeList.size} volumes to remove")
+            for (volume in volumeList) {
+                try {
+                    run("docker", "volume", "rm", volume, allowFail = true)
+                    println("  ${ANSI_GREEN}✓${ANSI_RESET} Removed: $volume")
+                } catch (e: Exception) {
+                    warn("  Failed to remove volume: $volume")
+                }
+            }
+        } else {
+            info("No Docker volumes found")
+        }
+        success("Docker volumes removed")
+    } catch (e: Exception) {
+        warn("Failed to remove volumes: ${e.message}")
+    }
+
+    info("Step 3/4: Removing Docker networks")
+    try {
+        val networks = run("docker", "network", "ls", "-q", "--filter", "label=com.docker.compose.project=datamancy", allowFail = true)
+        val networkList = networks.trim().lines().filter { it.isNotBlank() }
+
+        if (networkList.isNotEmpty()) {
+            for (network in networkList) {
+                try {
+                    run("docker", "network", "rm", network, allowFail = true)
+                    println("  ${ANSI_GREEN}✓${ANSI_RESET} Removed: $network")
+                } catch (e: Exception) {
+                    warn("  Failed to remove network: $network")
+                }
+            }
+        }
+        success("Docker networks removed")
+    } catch (e: Exception) {
+        warn("Failed to remove networks: ${e.message}")
+    }
+
+    info("Step 4/4: Removing ~/.datamancy directory")
+    try {
+        if (Files.exists(dataDir)) {
+            // Use docker to remove any root-owned files
+            val dataDirStr = dataDir.toString()
+            try {
+                run("docker", "run", "--rm",
+                    "-v", "$dataDirStr:/data",
+                    "alpine", "rm", "-rf", "/data",
+                    allowFail = true)
+            } catch (e: Exception) {
+                warn("Docker cleanup failed, trying direct removal: ${e.message}")
+            }
+
+            // Clean up any remaining files
+            if (Files.exists(dataDir)) {
+                dataDir.toFile().deleteRecursively()
+            }
+
+            success("Data directory removed")
+        } else {
+            info("Data directory doesn't exist")
+        }
+    } catch (e: Exception) {
+        warn("Failed to remove data directory: ${e.message}")
+        warn("You may need to manually remove: $dataDir")
+    }
+
+    println("""
+        |
+        |${ANSI_GREEN}╔════════════════════════════════════╗
+        |║  Cleanup Complete!                ║
+        |╚════════════════════════════════════╝${ANSI_RESET}
+        |
+        |Stack has been completely removed.
+        |To start fresh, run: ./stack-controller up
+        |
+    """.trimMargin())
+}
+
 private fun cmdLdapSync() {
     val root = projectRoot()
     val runtimeDir = runtimeConfigDir()
@@ -1046,6 +1319,14 @@ private fun cmdLdapSync() {
     success("LDAP sync complete")
 }
 
+/**
+ * Generates the LDAP bootstrap LDIF file under ~/.datamancy/bootstrap_ldap.ldif.
+ * Uses passwords and settings from ~/.datamancy/.env.runtime.
+ *
+ * Parameters:
+ * - dryRun: if true, previews the generated content without writing
+ * - force: if true, overwrites an existing bootstrap file
+ */
 private fun cmdLdapBootstrap(dryRun: Boolean = false, force: Boolean = false) {
     val root = projectRoot()
     val runtimeDir = ensureRuntimeConfigDir()
@@ -1064,11 +1345,78 @@ private fun cmdLdapBootstrap(dryRun: Boolean = false, force: Boolean = false) {
     val args = mutableListOf("kotlin", script.toString(), "--output=$outputFile", "--env=$runtimeEnv")
     if (dryRun) args.add("--dry-run")
     if (force) args.add("--force")
-
     run(*args.toTypedArray(), cwd = root)
     success("LDAP bootstrap file generated")
     info("File location: $outputFile")
 }
+
+// ============================================================================
+// Descriptive API wrappers (for new function names)
+// ============================================================================
+
+/**
+ * Creates ~/.datamancy/.env.runtime by invoking the environment configurator.
+ *
+ * What it does:
+ * - Runs scripts/core/configure-environment.kts to export a .env file, then
+ *   moves it to ~/.datamancy/.env.runtime with secure permissions.
+ *
+ * Side effects:
+ * - Creates ~/.datamancy directory if missing
+ * - Writes/overwrites ~/.datamancy/.env.runtime
+ *
+ * Error conditions:
+ * - Environment configurator script missing or fails
+ * - Unable to write to the user home directory
+ */
+private fun generateEnvironmentConfig() = cmdConfigGenerate()
+
+/**
+ * Processes templates under configs.templates/ into ~/.datamancy/configs.
+ *
+ * What it does:
+ * - Loads variables from ~/.datamancy/.env.runtime
+ * - Renders templates from configs.templates/ to ~/.datamancy/configs
+ *
+ * Side effects:
+ * - Creates or overwrites files under ~/.datamancy/configs
+ *
+ * Error conditions:
+ * - Missing critical variables in .env.runtime
+ * - Template processor script missing or fails
+ */
+private fun processConfigurationTemplates() = cmdConfigProcess()
+
+/**
+ * Generates ~/.datamancy/bootstrap_ldap.ldif using the LDAP template.
+ *
+ * Parameters:
+ * - dryRun: preview output without writing
+ * - force: overwrite existing file if present
+ *
+ * Side effects:
+ * - Writes/overwrites ~/.datamancy/bootstrap_ldap.ldif
+ *
+ * Error conditions:
+ * - Template file missing
+ * - Missing required environment variables such as STACK_ADMIN_USER, DOMAIN
+ */
+private fun generateLdapBootstrap(dryRun: Boolean = false, force: Boolean = false) = cmdLdapBootstrap(dryRun, force)
+
+/**
+ * Creates the volume directories under ~/.datamancy/volumes as required by docker-compose.yml.
+ *
+ * What it does:
+ * - Scans docker-compose.yml for ${'$'}{VOLUMES_ROOT} mounts and ensures host directories exist
+ *
+ * Side effects:
+ * - Creates directories under ~/.datamancy/volumes (or VOLUMES_ROOT if set)
+ *
+ * Error conditions:
+ * - docker-compose.yml missing
+ * - Insufficient permissions to create directories
+ */
+private fun createVolumeDirectories() = cmdVolumesCreate()
 
 // ============================================================================
 // Help & Main
@@ -1088,10 +1436,9 @@ private fun showHelp() {
         |  docs/SECURITY.md               Security setup
         |
         |Stack Operations:
-        |  up [--profile=<name>]   Start stack or specific profile
+        |  up                      Start stack with full automated setup
         |  down                    Stop all services
         |  recreate [options]      Full recreate: down → clean → regenerate → up
-        |    --profile=<name>        Recreate specific profile
         |    --clean-volumes         Clean volumes (DELETES DATA - prompts for confirmation)
         |    --skip-configs          Skip config regeneration
         |  restart <service>       Restart a service
@@ -1104,12 +1451,14 @@ private fun showHelp() {
         |    --tail=N                Lines of logs to show (default: 100)
         |    -f, --follow            Follow log output
         |  test-iterate [--max=N]  Iterative testing: check→diagnose→fix→restart→repeat
+        |  test-all                Check health of all services (summary report)
+        |  full-deploy             Complete deployment: generate→bootstrap→process→up
         |  quick-start             Complete initial setup (generate→bootstrap→up)
         |  urls                    Display all service URLs with domain
         |
         |Configuration:
-        |  config generate         Generate .env in ~/.config/datamancy
-        |  config process          Process templates to ~/.config/datamancy/configs
+        |  config generate         Generate .env.runtime in ~/.datamancy
+        |  config process          Process templates to ~/.datamancy/configs
         |
         |Deployment (requires sudo):
         |  deploy create-user      Create stackops system user
@@ -1123,25 +1472,24 @@ private fun showHelp() {
         |  ssh bootstrap           Bootstrap SSH known_hosts for agent-tool-server
         |  clean docker            Clean unused Docker resources
         |  ldap sync               Sync LDAP users to services
-        |  ldap bootstrap          Generate LDAP bootstrap in ~/.config/datamancy
+        |  ldap bootstrap          Generate LDAP bootstrap in ~/.datamancy
+        |
+        |Destructive Operations:
+        |  obliterate [--force]          COMPLETE CLEANUP - removes all data, volumes, and ~/.datamancy
+        |                          Requires typing 'OBLITERATE' to confirm (unless --force)
         |
         |Quick Start (Development):
-        |  ./stack-controller config generate     # Creates ~/.config/datamancy/.env.runtime
-        |  ./stack-controller ldap bootstrap      # Creates ~/.config/datamancy/bootstrap_ldap.ldif
-        |  ./stack-controller config process      # Creates ~/.config/datamancy/configs/
-        |  ./stack-controller volumes create
-        |  ./stack-controller up --profile=bootstrap
-        |  ./stack-controller test-iterate        # Interactive testing workflow
+        |  ./stack-controller up                  # End-to-end automated setup
+        |  ./stack-controller status              # Check services
         |
         |Examples:
-        |  ./stack-controller up --profile=applications
         |  ./stack-controller diagnose            # Show all unhealthy services
         |  ./stack-controller diagnose bookstack  # Diagnose specific service
         |  ./stack-controller test-iterate        # Iterative fix workflow
         |  ./stack-controller restart caddy
         |  sudo ./stack-controller deploy create-user
         |
-        |Note: All runtime configs stored in ~/.config/datamancy (outside git tree)
+        |Note: All runtime configs stored in ~/.datamancy (outside git tree)
         |Note: Docker Compose uses --env-file flag (no .env symlink needed)
         |
         |For detailed troubleshooting, see: docs/DEPLOYMENT.md#troubleshooting
@@ -1158,34 +1506,32 @@ when (args[0]) {
     // Stack operations
     "up" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        val profile = args.find { it.startsWith("--profile=") }?.substringAfter("=")
-        cmdUp(profile)
+        bringUpStack()
     }
     "down" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        cmdDown()
+        stopStack()
     }
     "recreate" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        val profile = args.find { it.startsWith("--profile=") }?.substringAfter("=")
         val cleanVolumes = args.contains("--clean-volumes")
         val skipConfigs = args.contains("--skip-configs")
-        cmdRecreate(profile, cleanVolumes, skipConfigs)
+        cmdRecreate(cleanVolumes, skipConfigs)
     }
     "restart" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         val service = args.getOrNull(1) ?: err("Service name required")
-        cmdRestart(service)
+        restartService(service)
     }
     "logs" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         val service = args.getOrNull(1) ?: err("Service name required")
         val follow = args.contains("-f") || args.contains("--follow")
-        cmdLogs(service, follow)
+        showServiceLogs(service, follow)
     }
     "status" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        cmdStatus()
+        showStackStatus()
     }
     "health" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
@@ -1202,6 +1548,75 @@ when (args[0]) {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         val maxIterations = args.find { it.startsWith("--max=") }?.substringAfter("=")?.toIntOrNull() ?: 5
         cmdTestIterate(maxIterations)
+    }
+    "full-deploy" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        info("Running full deployment workflow...")
+        cmdConfigGenerate()
+        cmdLdapBootstrap()
+        cmdConfigProcess()
+        cmdVolumesCreate()
+        bringUpStack()
+        success("Full deployment complete!")
+    }
+    "test-all" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        val root = projectRoot()
+        info("Testing all services...")
+        val result = run("docker", "compose", "ps", "--format", "json", cwd = root, allowFail = true)
+
+        if (result.trim().isEmpty()) {
+            warn("No services running")
+            exitProcess(1)
+        }
+
+        val lines = result.trim().lines().filter { it.isNotBlank() }
+        var healthyCount = 0
+        var unhealthyCount = 0
+        var noHealthcheckCount = 0
+        val unhealthyServices = mutableListOf<String>()
+
+        lines.forEach { line ->
+            try {
+                val service = line.substringAfter("\"Service\":\"").substringBefore("\"")
+                val state = line.substringAfter("\"State\":\"").substringBefore("\"")
+                val health = if (line.contains("\"Health\":\"")) {
+                    line.substringAfter("\"Health\":\"").substringBefore("\"")
+                } else {
+                    "none"
+                }
+
+                when {
+                    state != "running" -> {
+                        unhealthyCount++
+                        unhealthyServices.add("$service: $state")
+                    }
+                    health == "healthy" -> healthyCount++
+                    health == "none" -> noHealthcheckCount++
+                    else -> {
+                        unhealthyCount++
+                        unhealthyServices.add("$service: $health")
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        println()
+        println("${ANSI_CYAN}Service Status Summary:${ANSI_RESET}")
+        println("  Total services:              ${lines.size}")
+        println("  ${ANSI_GREEN}Healthy:${ANSI_RESET}                  $healthyCount")
+        println("  Without healthcheck:        $noHealthcheckCount")
+        println("  ${if (unhealthyCount > 0) ANSI_RED else ANSI_GREEN}Unhealthy:${ANSI_RESET}                $unhealthyCount")
+        println()
+
+        if (unhealthyCount == 0) {
+            success("All services with healthchecks are healthy! ✓")
+            exitProcess(0)
+        } else {
+            warn("Unhealthy services:")
+            unhealthyServices.forEach { println("  ${ANSI_RED}✗${ANSI_RESET} $it") }
+            exitProcess(1)
+        }
     }
     "quick-start" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
@@ -1273,6 +1688,11 @@ when (args[0]) {
                 exitProcess(1)
             }
         }
+    }
+    "obliterate" -> {
+        if (isRoot()) err("Obliterate operation must not be run as root. Run without sudo.")
+        val force = args.contains("--force")
+        cmdObliterate(force)
     }
     "ldap" -> {
         if (isRoot()) err("LDAP operations must not be run as root. Run without sudo.")

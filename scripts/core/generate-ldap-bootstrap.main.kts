@@ -82,16 +82,18 @@ val envArg = args.find { it.startsWith("--env=") }?.substringAfter("=")
 
 // Paths
 val rootDir = File(".")
+val home = System.getProperty("user.home")
 val envFile = if (envArg != null) {
     File(envArg)
 } else {
-    File(rootDir, ".env")
+    val runtime = File(home + "/.datamancy/.env.runtime")
+    if (runtime.exists()) runtime else File(rootDir, ".env")
 }
 val templateFile = File(rootDir, "configs.templates/infrastructure/ldap/bootstrap_ldap.ldif.template")
 val outputFile = if (outputArg != null) {
     File(outputArg)
 } else {
-    File(rootDir, "bootstrap_ldap.ldif")
+    File(home + "/.datamancy/bootstrap_ldap.ldif")
 }
 
 info("LDAP Bootstrap Generator")
@@ -106,7 +108,7 @@ if (outputFile.exists() && !force && !dryRun) {
     warn("")
     warn("To apply changes:")
     warn("  1. Stop LDAP:    docker compose stop ldap")
-    warn("  2. Delete data:  rm -rf volumes/ldap_data volumes/ldap_config")
+    warn("  2. Delete data:  rm -rf ~/.datamancy/volumes/ldap_data ~/.datamancy/volumes/ldap_config")
     warn("  3. Regenerate:   ./stack-controller ldap bootstrap --force")
     warn("  4. Restart:      docker compose up -d ldap")
     warn("")

@@ -61,8 +61,8 @@ fun parseArgs(argv: Array<String>): Args {
                       --dry-run, -n         Show what would be processed without writing files
                       --verbose, -v         Show detailed processing information
                       --force, -f           Overwrite existing configs/ directory
-                      --output=<path>       Output directory (default: ./configs)
-                      --env=<path>          Environment file path (default: ./.env or ~/.config/datamancy/.env.runtime)
+                      --output=<path>       Output directory (default: ~/.datamancy/configs)
+                      --env=<path>          Environment file path (default: ~/.datamancy/.env.runtime or ./.env)
                       --help, -h            Show this help message
                 """.trimIndent())
                 exitProcess(0)
@@ -304,7 +304,7 @@ fun copyFileStructure(
         }
         println()
         error("Action required:")
-        error("1. Edit .env or ~/.config/datamancy/.env.runtime")
+        error("1. Edit .env or ~/.datamancy/.env.runtime")
         error("2. Add missing variables (run: ./stack-controller config generate)")
         error("3. Re-run config processing")
         exitProcess(1)
@@ -327,17 +327,15 @@ fun main(argv: Array<String>) {
     val configsDir = if (args.outputDir != null) {
         File(args.outputDir)
     } else {
-        File(projectRoot, "configs")
+        File(System.getProperty("user.home") + "/.datamancy/configs")
     }
 
     // Determine env file location
     val envFile = when {
         args.envFile != null -> File(args.envFile)
+        File(System.getProperty("user.home") + "/.datamancy/.env.runtime").exists() -> File(System.getProperty("user.home") + "/.datamancy/.env.runtime")
         File(projectRoot, ".env").exists() -> File(projectRoot, ".env")
-        else -> {
-            val runtimeEnv = File(System.getProperty("user.home"), ".config/datamancy/.env.runtime")
-            if (runtimeEnv.exists()) runtimeEnv else File(projectRoot, ".env")
-        }
+        else -> File(System.getProperty("user.home") + "/.datamancy/.env.runtime")
     }
 
     // Validate

@@ -28,14 +28,15 @@ private fun logError(msg: String) {
 
 // ---------- Environment & Paths ----------
 private val env = System.getenv()
-private val SECRETS_DIR: Path = Path.of(env["SECRETS_DIR"] ?: "\$HOME/.local/share/stack-secrets")
+private val SECRETS_DIR: Path = Path.of(env["SECRETS_DIR"] ?: "${System.getProperty("user.home")}/.local/share/stack-secrets")
 private val SECRETS_FILE: Path = SECRETS_DIR.resolve("stack_secrets.enc")
 private val SECRETS_KEY_FILE: Path = SECRETS_DIR.resolve(".key")
 
 // ---------- Non-sensitive stack configuration (easily changeable) ----------
 // These values are exported in plain text at the TOP of the generated .env file by the `export` command.
 // You can override them by setting the corresponding environment variables when running the script.
-private val VOLUMES_ROOT: String = env["VOLUMES_ROOT"] ?: "./volumes"
+// Default all volumes under ~/.datamancy/volumes for unified data dir
+private val VOLUMES_ROOT: String = env["VOLUMES_ROOT"] ?: (System.getProperty("user.home") + "/.datamancy/volumes")
 private val DOMAIN: String = env["DOMAIN"] ?: "project-saturn.com"
 private val STACK_ADMIN_EMAIL_CFG: String = env["STACK_ADMIN_EMAIL"] ?: "admin@project-saturn.com"
 private val MAIL_DOMAIN: String = env["MAIL_DOMAIN"] ?: DOMAIN
@@ -137,9 +138,10 @@ private fun generateRsaKeyBase64(): String {
 }
 
 // Avoid '$' since docker compose treats $VAR as interpolation in .env values if not escaped
-// Avoid URL-special characters (#%&@!*) to prevent issues with database connection strings
-private val PASSWORD_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_+=.,:"
-private fun generatePassword(length: Int = 24): String {
+// Avoid URL-special characters (#%&@!*:=/) to prevent issues with database connection strings
+// Safe characters: alphanumeric + underscore and hyphen
+private val PASSWORD_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+private fun generatePassword(length: Int = 32): String {
     val sb = StringBuilder(length)
     for (i in 0 until length) {
         val idx = rng.nextInt(PASSWORD_CHARS.length)
@@ -286,7 +288,9 @@ private fun cmdInit() {
         appendLine()
 
         // Database passwords
-        appendLine("PLANKA_DB_PASSWORD=${generatePassword(32)}")
+        val plankaPassword = generatePassword(32)
+        appendLine("PLANKA_DB_PASSWORD=$plankaPassword")
+        appendLine("PLANKA_DB_PASSWORD_ENCODED=${urlEncode(plankaPassword)}")
         // BookStack database password for MariaDB
         appendLine("BOOKSTACK_DB_PASSWORD=${generatePassword(32)}")
         appendLine("SYNAPSE_DB_PASSWORD=${generatePassword(32)}")

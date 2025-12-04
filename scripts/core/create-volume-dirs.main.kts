@@ -53,11 +53,14 @@ fun main(args: Array<String>) {
     if (args.isNotEmpty()) {
         volumesRootStr = args[0]
     } else {
-        val dotEnv = projectRoot.resolve(".env").toFile()
+        // Prefer ~/.datamancy/.env.runtime; fallback to project .env
+        val home = System.getProperty("user.home")
+        val runtimeEnv = Paths.get(home, ".datamancy/.env.runtime").toFile()
+        val dotEnv = if (runtimeEnv.isFile) runtimeEnv else projectRoot.resolve(".env").toFile()
         volumesRootStr = readEnvVarFromDotEnv(dotEnv, "VOLUMES_ROOT")
         if (volumesRootStr.isNullOrBlank()) {
-            println("${YELLOW}Warning: VOLUMES_ROOT not found in .env, using default${NC}")
-            volumesRootStr = "./volumes"
+            println("${YELLOW}Warning: VOLUMES_ROOT not found in env, using default${NC}")
+            volumesRootStr = "$home/.datamancy/volumes"
         }
     }
 
@@ -77,9 +80,10 @@ fun main(args: Array<String>) {
     val volumeDirs = linkedSetOf<String>()
     val lines = composeFile.readLines()
 
-    val longSyntaxRegex = Regex("^\\s*device: \\\\?\\$\\{VOLUMES_ROOT\\}/(.+)$")
+    val longSyntaxRegex = Regex("^\\s*device: \\\\?\\$\\{VOLUMES_ROOT(?::-[^}]+)?\\}/(.+)$")
     // Matches short syntax mount entries like: - ${VOLUMES_ROOT}/path:/container or "${VOLUMES_ROOT}/path:/container:ro"
-    val shortSyntaxRegex = Regex("\\$\\{VOLUMES_ROOT\\}/([^\\s:]+)")
+    // Also matches default value syntax: ${VOLUMES_ROOT:-./volumes}/path
+    val shortSyntaxRegex = Regex("\\$\\{VOLUMES_ROOT(?::-[^}]+)?\\}/([^\\s:]+)")
 
     for (rawLine in lines) {
         val line = rawLine.trimEnd()
