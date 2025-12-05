@@ -5,38 +5,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8605ecf2-33c6-4c24-8e33-2416defa3806" name="Changes" comment="finished?">
-      <change beforePath="$PROJECT_DIR$/$HOME/.local/share/stack-secrets/stack_secrets.enc" beforeDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/testing/TestAllUIServices.main.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.secrets/oidc-private.pem" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.secrets/oidc-public.pem" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/bookstack/init/50-fix-env.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/bookstack/init/50-fix-env.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/seafile/seahub_settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/seafile/seahub_settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/AGENT_GUIDE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/API.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/BACKUP_STRATEGY.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DEPENDENCY_GRAPH.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DEPLOYMENT.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DEVELOPMENT.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/LDAP_BOOTSTRAP.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/REMOTE_MANAGEMENT.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/SECURITY.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/STACK_CONTROLLER_GUIDE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/TEMPLATE_SECRETS_FIX.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/archive/CRITICAL_DEPLOYMENT_ISSUES.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/archive/DEPLOYMENT_FIXES_APPLIED.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/archive/DEPLOYMENT_FIXES_APPLIED_2025-12-03.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/archive/FIXES_APPLIED.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/archive/SCRIPT_REORGANIZATION_PLAN.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/archive/SECRETS_MIGRATION.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/archive/TEMPLATE_FIX_COMPLETE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/archive/TEMPLATE_FIX_PLAN.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/archive/VM_PROVISIONING_SERVICE_COMPLETE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/core/configure-environment.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/configure-environment.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/core/create-volume-dirs.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/create-volume-dirs.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/core/generate-ldap-bootstrap.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/generate-ldap-bootstrap.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/core/process-config-templates.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/process-config-templates.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/core/setup-bookstack-init.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/setup-bookstack-init.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/jupyterhub/jupyterhub_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/jupyterhub/jupyterhub_config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ldap-sync-service/src/main/kotlin/org/datamancy/ldapsync/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/ldap-sync-service/src/main/kotlin/org/datamancy/ldapsync/Main.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/playwright-controller/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/playwright-controller/Dockerfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -126,27 +104,29 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Gradle.Build Datamancy.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Datamancy [:agent-tool-server:build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Datamancy [build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.src [build].executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/gerald/IdeaProjects/Datamancy/scripts/deployment&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Gradle.Build Datamancy.executor": "Run",
+    "Gradle.Datamancy [:agent-tool-server:build].executor": "Run",
+    "Gradle.Datamancy [build].executor": "Run",
+    "Gradle.src [build].executor": "Run",
+    "Kotlin script.TestAllUIServices.kts.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "master",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/home/gerald/IdeaProjects/Datamancy/scripts/deployment",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
+    "settings.editor.selected.configurable": "preferences.pluginManager",
+    "to.speed.mode.migration.done": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/scripts/deployment" />
@@ -162,7 +142,7 @@
       <command value="gradle build" />
     </option>
   </component>
-  <component name="RunManager" selected="Gradle.Datamancy [:agent-tool-server:build]">
+  <component name="RunManager" selected="Kotlin script.TestAllUIServices.main.kts">
     <configuration name="Datamancy [:agent-tool-server:build]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -229,11 +209,17 @@
       <RunAsTest>false</RunAsTest>
       <method v="2" />
     </configuration>
+    <configuration name="TestAllUIServices.main.kts" type="KotlinStandaloneScriptRunConfigurationType" temporary="true" nameIsGenerated="true">
+      <module name="Datamancy" />
+      <option name="filePath" value="$PROJECT_DIR$/scripts/testing/TestAllUIServices.main.kts" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Gradle.Datamancy [:agent-tool-server:build]" />
-        <item itemvalue="Gradle.Datamancy [build]" />
+        <item itemvalue="Kotlin script.TestAllUIServices.main.kts" />
         <item itemvalue="Gradle.src [build]" />
+        <item itemvalue="Gradle.Datamancy [build]" />
+        <item itemvalue="Gradle.Datamancy [:agent-tool-server:build]" />
       </list>
     </recent_temporary>
   </component>
@@ -477,8 +463,19 @@
       <option name="project" value="LOCAL" />
       <updated>1764801390962</updated>
     </task>
-    <option name="localTasksCounter" value="30" />
+    <task id="LOCAL-00030" summary="finished?">
+      <option name="closed" value="true" />
+      <created>1764817536655</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1764817536655</updated>
+    </task>
+    <option name="localTasksCounter" value="31" />
     <servers />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="com.intellij.fileTypeFactory" implementationName="Caddyfile" />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="oo" />

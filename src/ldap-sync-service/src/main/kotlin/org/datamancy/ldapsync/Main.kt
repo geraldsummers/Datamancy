@@ -4,6 +4,9 @@ import kotlinx.coroutines.runBlocking
 import org.datamancy.ldapsync.core.LdapClient
 import org.datamancy.ldapsync.core.SyncOrchestrator
 import org.datamancy.ldapsync.plugins.MailuSyncPlugin
+import org.datamancy.ldapsync.plugins.DockgeSyncPlugin
+import org.datamancy.ldapsync.plugins.KopiaSyncPlugin
+import org.datamancy.ldapsync.plugins.SOGoSyncPlugin
 import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
 
@@ -128,6 +131,46 @@ private suspend fun initializePlugins(config: Map<String, String>): List<org.dat
             )
         )
         plugins.add(mailuPlugin)
+    }
+
+    // Dockge plugin - sync admins to container management UI
+    if (config["ENABLE_DOCKGE_SYNC"]?.toBoolean() == true) {
+        log.info("Enabling Dockge sync plugin")
+        val dockgePlugin = DockgeSyncPlugin()
+        dockgePlugin.init(
+            mapOf(
+                "api_url" to (config["DOCKGE_API_URL"] ?: "http://dockge:5001"),
+                "default_password" to (config["DOCKGE_DEFAULT_PASSWORD"] ?: "ChangeMe123!")
+            )
+        )
+        plugins.add(dockgePlugin)
+    }
+
+    // Kopia plugin - sync users to backup server
+    if (config["ENABLE_KOPIA_SYNC"]?.toBoolean() == true) {
+        log.info("Enabling Kopia sync plugin")
+        val kopiaPlugin = KopiaSyncPlugin()
+        kopiaPlugin.init(
+            mapOf(
+                "api_url" to (config["KOPIA_API_URL"] ?: "http://kopia:51515"),
+                "server_password" to (config["KOPIA_SERVER_PASSWORD"] ?: error("KOPIA_SERVER_PASSWORD required for Kopia sync")),
+                "default_user_password" to (config["KOPIA_DEFAULT_USER_PASSWORD"] ?: "ChangeMe123!")
+            )
+        )
+        plugins.add(kopiaPlugin)
+    }
+
+    // SOGo plugin - sync users to groupware
+    if (config["ENABLE_SOGO_SYNC"]?.toBoolean() == true) {
+        log.info("Enabling SOGo sync plugin")
+        val sogoPlugin = SOGoSyncPlugin()
+        sogoPlugin.init(
+            mapOf(
+                "sogo_container" to (config["SOGO_CONTAINER"] ?: "sogo"),
+                "default_domain" to (config["MAIL_DOMAIN"] ?: error("MAIL_DOMAIN required for SOGo sync"))
+            )
+        )
+        plugins.add(sogoPlugin)
     }
 
     // Future plugins can be added here:

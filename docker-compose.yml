@@ -22,7 +22,6 @@
 #   - Bookstack DB errors: See docs/DEPLOYMENT.md#bookstack-database-connection-errors
 #   - Mailu antispam stuck: See docs/DEPLOYMENT.md#mailu-antispam-service-waiting-for-admin
 #   - Seafile timeout: docker restart seafile
-#   - Portainer unhealthy: Expected (needs admin setup within 5min)
 #
 # 🌐 Networks:
 #   frontend (172.20.0.0/24)  - Caddy reverse proxy
@@ -98,12 +97,6 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT:-./volumes}/planka_data
-  outline_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/outline_data
   bookstack_data:
     driver: local
     driver_opts:
@@ -266,12 +259,6 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT:-./volumes}/sogo_data
-  portainer_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/portainer_data
   proofs:
     driver: local
     driver_opts:
@@ -288,6 +275,8 @@ services:
       frontend: {}
       backend:
         aliases:
+          - www.${DOMAIN}
+          - ${DOMAIN}
           - grafana.${DOMAIN}
           - open-webui.${DOMAIN}
           - vaultwarden.${DOMAIN}
@@ -304,11 +293,8 @@ services:
           - api.litellm.${DOMAIN}
           - auth.${DOMAIN}
           - kopia.${DOMAIN}
-          - adminer.${DOMAIN}
-          - pgadmin.${DOMAIN}
           - portainer.${DOMAIN}
           - mail.${DOMAIN}
-          - browserless.${DOMAIN}
           - agent-tool-server.${DOMAIN}
           - lam.${DOMAIN}
     ports:
@@ -849,26 +835,6 @@ services:
       retries: 3
       start_period: 10s
 
-  portainer:
-    image: portainer/portainer-ce:2.24.0
-    container_name: portainer
-    restart: unless-stopped
-    networks:
-      - backend
-      - frontend
-    depends_on:
-      authelia:
-        condition: service_healthy
-      docker-proxy:
-        condition: service_healthy
-    volumes:
-      - portainer_data:/data
-    environment:
-      - DOCKER_HOST=tcp://docker-proxy:2375
-    # Healthcheck disabled - portainer image is minimal without wget/curl
-    # Service is monitored via depends_on chain instead
-
-
   grafana:
     image: grafana/grafana:11.6.7
     container_name: grafana
@@ -952,11 +918,17 @@ services:
       - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
       # PostgreSQL database - use URL-encoded password for special characters
       - DATABASE_URL=postgresql://openwebui:${OPENWEBUI_DB_PASSWORD_ENCODED}@postgres:5432/openwebui
-      - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-false}
+      - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-true}
       - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
       - ENABLE_OPENAI_API=true
       - OPENAI_API_BASE_URL=${OPENWEBUI_OPENAI_API_BASE_URL:-http://litellm:4000/v1}
       - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
+      # OIDC SSO Configuration
+      - OPENID_PROVIDER_URL=https://auth.${DOMAIN}
+      - OAUTH_CLIENT_ID=open-webui
+      - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
+      - OAUTH_PROVIDER_NAME=Authelia
+      - OAUTH_SCOPES=openid profile email groups
     volumes:
       - open_webui_data:/app/backend/data
     healthcheck:
@@ -1083,6 +1055,7 @@ services:
       - DB_USER=bookstack
       - DB_PASS=${BOOKSTACK_DB_PASSWORD}
       - DB_DATABASE=bookstack
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
     volumes:
       - bookstack_data:/config
       - ${VOLUMES_ROOT}/bookstack_init:/custom-cont-init.d:ro
@@ -1090,8 +1063,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 90s
 
   seafile:
     image: seafileltd/seafile-mc:13.0.12
@@ -1523,8 +1496,6 @@ services:
       - TOOLSERVER_BROWSER_URL=http://playwright:3000
       - TOOLSERVER_SCREENSHOTS_DIR=/app/proofs/screenshots
       - TOOLSERVER_DEBUG=true
-      # Browser service base URL (Playwright with Firefox)
-      - TOOLSERVER_BROWSERLESS_URL=http://playwright:3000
       # LiteLLM connection for LLM completions
       - LITELLM_BASE_URL=http://litellm:4000
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
@@ -1762,7 +1733,7 @@ services:
       retries: 3
       start_period: 10s
 
-  # Headless browser for automation - Playwright with Firefox
+  # Headless browser for automation - Playwright with chromium
   playwright:
     build:
       dockerfile: ./src/playwright-controller/Dockerfile
@@ -1805,12 +1776,24 @@ services:
       - LDAP_GROUPS_OU=ou=groups
       # Enable plugins
       - ENABLE_MAILU_SYNC=true
+      - ENABLE_DOCKGE_SYNC=true
+      - ENABLE_KOPIA_SYNC=true
+      - ENABLE_SOGO_SYNC=true
       # Mailu configuration
       - MAILU_ADMIN_CONTAINER=mailu-admin
       - MAIL_DOMAIN=${MAIL_DOMAIN}
       - MAILU_DEFAULT_QUOTA_MB=5000
       - MAILU_DEFAULT_PASSWORD=ChangeMe123!
-      # Docker socket for Mailu sync (via proxy)
+      # Dockge configuration
+      - DOCKGE_API_URL=http://dockge:5001
+      - DOCKGE_DEFAULT_PASSWORD=ChangeMe123!
+      # Kopia configuration
+      - KOPIA_API_URL=http://kopia:51515
+      - KOPIA_SERVER_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - KOPIA_DEFAULT_USER_PASSWORD=ChangeMe123!
+      # SOGo configuration
+      - SOGO_CONTAINER=sogo
+      # Docker socket for CLI-based sync (Mailu, SOGo) via proxy
       - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro

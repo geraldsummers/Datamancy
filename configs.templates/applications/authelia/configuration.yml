@@ -138,7 +138,7 @@ identity_providers:
       # Grafana
       - client_id: grafana
         client_name: Grafana
-        client_secret: {{GRAFANA_OAUTH_SECRET_HASH}}
+        client_secret: '{{GRAFANA_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -152,12 +152,12 @@ identity_providers:
           - authorization_code
         response_types:
           - code
-        token_endpoint_auth_method: client_secret_basic
+        token_endpoint_auth_method: client_secret_post
 
       # pgAdmin
       - client_id: pgadmin
         client_name: pgAdmin
-        client_secret: {{PGADMIN_OAUTH_SECRET_HASH}}
+        client_secret: '{{PGADMIN_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -175,7 +175,7 @@ identity_providers:
       # NOTE: Dockge doesn't support OIDC yet - protected via Caddy forward_auth
       - client_id: dockge
         client_name: Dockge
-        client_secret: PENDING
+        client_secret: 'PENDING'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -193,7 +193,7 @@ identity_providers:
       # Open WebUI
       - client_id: open-webui
         client_name: Open WebUI
-        client_secret: {{OPENWEBUI_OAUTH_SECRET_HASH}}
+        client_secret: '{{OPENWEBUI_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -211,7 +211,7 @@ identity_providers:
       # Nextcloud
       - client_id: nextcloud
         client_name: Nextcloud
-        client_secret: {{NEXTCLOUD_OAUTH_SECRET_HASH}}
+        client_secret: '{{NEXTCLOUD_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -231,7 +231,7 @@ identity_providers:
       # Dim Media Server
       - client_id: dim
         client_name: Dim
-        client_secret: {{DIM_OAUTH_SECRET_HASH}}
+        client_secret: '{{DIM_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -249,7 +249,7 @@ identity_providers:
       # Planka
       - client_id: planka
         client_name: Planka
-        client_secret: {{PLANKA_OAUTH_SECRET_HASH}}
+        client_secret: '{{PLANKA_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -267,6 +267,7 @@ identity_providers:
           - query
           - fragment
           - form_post
+        token_endpoint_auth_method: client_secret_basic
 
       # BookStack (protected via Caddy forward_auth; no direct OIDC client required)
       # This section intentionally left without a client for BookStack because
@@ -275,7 +276,7 @@ identity_providers:
       # Home Assistant
       - client_id: home-assistant
         client_name: Home Assistant
-        client_secret: {{HOMEASSISTANT_OAUTH_SECRET_HASH}}
+        client_secret: '{{HOMEASSISTANT_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -293,7 +294,7 @@ identity_providers:
       # JupyterHub
       - client_id: jupyterhub
         client_name: JupyterHub
-        client_secret: {{JUPYTERHUB_OAUTH_SECRET_HASH}}
+        client_secret: '{{JUPYTERHUB_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -314,7 +315,7 @@ identity_providers:
       # update this hash to match (pbkdf2-sha512). Use Authelia's crypto tool to generate.
       - client_id: vaultwarden
         client_name: Vaultwarden
-        client_secret: {{VAULTWARDEN_OAUTH_SECRET_HASH}}
+        client_secret: '{{VAULTWARDEN_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -331,7 +332,7 @@ identity_providers:
       # Mastodon
       - client_id: mastodon
         client_name: Mastodon
-        client_secret: {{MASTODON_OAUTH_SECRET_HASH}}
+        client_secret: '{{MASTODON_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:

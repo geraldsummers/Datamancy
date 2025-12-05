@@ -1,0 +1,306 @@
+{
+  "timestamp": "2025-12-05T17:39:20.873575412",
+  "summary": {
+    "totalServices": 18,
+    "accessible": 16,
+    "loginAttempts": 15,
+    "loginSuccessful": 15,
+    "totalScreenshots": 16
+  },
+  "results": [
+    {
+      "service": "Authelia",
+      "url": "https://auth.project-saturn.com",
+      "timestamp": "2025-12-05T17:33:38.609792948",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "direct",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Authelia_logged_in.png",
+          "filename": "Authelia_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://homepage.project-saturn.com/"
+    },
+    {
+      "service": "Grafana",
+      "url": "https://grafana.project-saturn.com",
+      "timestamp": "2025-12-05T17:34:02.212640081",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Grafana_logged_in.png",
+          "filename": "Grafana_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://grafana.project-saturn.com/?orgId\u003d1\u0026from\u003dnow-6h\u0026to\u003dnow\u0026timezone\u003dbrowser"
+    },
+    {
+      "service": "Open WebUI",
+      "url": "https://open-webui.project-saturn.com",
+      "timestamp": "2025-12-05T17:34:24.701792942",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Open_WebUI_logged_in.png",
+          "filename": "Open_WebUI_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://open-webui.project-saturn.com/auth"
+    },
+    {
+      "service": "Vaultwarden",
+      "url": "https://vaultwarden.project-saturn.com",
+      "timestamp": "2025-12-05T17:34:52.56108197",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": false,
+      "loginType": "authelia",
+      "error": "Username field not found",
+      "screenshots": [
+        {
+          "step": "error_no_username",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Vaultwarden_error_no_username.png",
+          "filename": "Vaultwarden_error_no_username.png"
+        }
+      ]
+    },
+    {
+      "service": "Planka",
+      "url": "https://planka.project-saturn.com",
+      "timestamp": "2025-12-05T17:35:14.275002012",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Planka_logged_in.png",
+          "filename": "Planka_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://planka.project-saturn.com/"
+    },
+    {
+      "service": "Bookstack",
+      "url": "https://bookstack.project-saturn.com",
+      "timestamp": "2025-12-05T17:35:31.749911605",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Bookstack_logged_in.png",
+          "filename": "Bookstack_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://bookstack.project-saturn.com/login"
+    },
+    {
+      "service": "Seafile",
+      "url": "https://seafile.project-saturn.com",
+      "timestamp": "2025-12-05T17:35:53.269427101",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Seafile_logged_in.png",
+          "filename": "Seafile_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://seafile.project-saturn.com/"
+    },
+    {
+      "service": "OnlyOffice",
+      "url": "https://onlyoffice.project-saturn.com",
+      "timestamp": "2025-12-05T17:36:15.252288747",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/OnlyOffice_logged_in.png",
+          "filename": "OnlyOffice_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://onlyoffice.project-saturn.com/welcome/"
+    },
+    {
+      "service": "JupyterHub",
+      "url": "https://jupyterhub.project-saturn.com",
+      "timestamp": "2025-12-05T17:36:37.552094825",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/JupyterHub_logged_in.png",
+          "filename": "JupyterHub_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://jupyterhub.project-saturn.com/hub/spawn"
+    },
+    {
+      "service": "Homepage",
+      "url": "https://homepage.project-saturn.com",
+      "timestamp": "2025-12-05T17:37:00.313776538",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Homepage_logged_in.png",
+          "filename": "Homepage_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://homepage.project-saturn.com/"
+    },
+    {
+      "service": "SOGo",
+      "url": "https://sogo.project-saturn.com",
+      "timestamp": "2025-12-05T17:37:22.280704034",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/SOGo_logged_in.png",
+          "filename": "SOGo_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://sogo.project-saturn.com/"
+    },
+    {
+      "service": "Home Assistant",
+      "url": "https://homeassistant.project-saturn.com",
+      "timestamp": "2025-12-05T17:37:48.439719306",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Home_Assistant_logged_in.png",
+          "filename": "Home_Assistant_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://homeassistant.project-saturn.com/"
+    },
+    {
+      "service": "Kopia",
+      "url": "https://kopia.project-saturn.com",
+      "timestamp": "2025-12-05T17:38:09.444100615",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Kopia_logged_in.png",
+          "filename": "Kopia_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://kopia.project-saturn.com/"
+    },
+    {
+      "service": "Mailu Admin",
+      "url": "https://mail.project-saturn.com/admin",
+      "timestamp": "2025-12-05T17:38:30.463425179",
+      "accessible": false,
+      "loginAttempted": false,
+      "loginSuccessful": false,
+      "loginType": "direct",
+      "error": "Navigation error: Error {\n  message\u003d\u0027NS_ERROR_REDIRECT_LOOP\n  name\u003d\u0027Error\n  stack\u003d\u0027Error: NS_ERROR_REDIRECT_LOOP\n    at FrameManager.frameAbortedNavigation (/tmp/playwright-java-6324104720363563717/package/lib/server/frames.js:216:14)\n    at FrameManager.requestFailed (/tmp/playwright-java-6324104720363563717/package/lib/server/frames.js:276:12)\n    at FFNetworkManager._onRequestFailed (/tmp/playwright-java-6324104720363563717/package/lib/server/firefox/ffNetworkManager.js:136:30)\n    at FFSession.emit (node:events:514:28)\n    at /tmp/playwright-java-6324104720363563717/package/lib/server/firefox/ffConnection.js:154:41\n}\nCall log:\n- navigating to \"https://mail.project-saturn.com/admin\", waiting until \"domcontentloaded\"\n",
+      "screenshots": []
+    },
+    {
+      "service": "Roundcube",
+      "url": "https://mail.project-saturn.com/webmail",
+      "timestamp": "2025-12-05T17:38:32.620110102",
+      "accessible": false,
+      "loginAttempted": false,
+      "loginSuccessful": false,
+      "loginType": "direct",
+      "error": "Navigation error: Error {\n  message\u003d\u0027NS_ERROR_REDIRECT_LOOP\n  name\u003d\u0027Error\n  stack\u003d\u0027Error: NS_ERROR_REDIRECT_LOOP\n    at FrameManager.frameAbortedNavigation (/tmp/playwright-java-6324104720363563717/package/lib/server/frames.js:216:14)\n    at FrameManager.requestFailed (/tmp/playwright-java-6324104720363563717/package/lib/server/frames.js:276:12)\n    at FFNetworkManager._onRequestFailed (/tmp/playwright-java-6324104720363563717/package/lib/server/firefox/ffNetworkManager.js:136:30)\n    at FFSession.emit (node:events:514:28)\n    at /tmp/playwright-java-6324104720363563717/package/lib/server/firefox/ffConnection.js:154:41\n}\nCall log:\n- navigating to \"https://mail.project-saturn.com/webmail\", waiting until \"domcontentloaded\"\n",
+      "screenshots": []
+    },
+    {
+      "service": "LDAP Account Manager",
+      "url": "https://lam.project-saturn.com",
+      "timestamp": "2025-12-05T17:38:34.747142336",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/LDAP_Account_Manager_logged_in.png",
+          "filename": "LDAP_Account_Manager_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://lam.project-saturn.com/lam/templates/login.php"
+    },
+    {
+      "service": "Dockge",
+      "url": "https://dockge.project-saturn.com",
+      "timestamp": "2025-12-05T17:38:55.713301921",
+      "accessible": true,
+      "loginAttempted": true,
+      "loginSuccessful": true,
+      "loginType": "authelia",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Dockge_logged_in.png",
+          "filename": "Dockge_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://dockge.project-saturn.com/setup"
+    },
+    {
+      "service": "Mastodon",
+      "url": "https://mastodon.project-saturn.com",
+      "timestamp": "2025-12-05T17:39:17.808839975",
+      "accessible": true,
+      "loginAttempted": false,
+      "loginSuccessful": true,
+      "loginType": "optional",
+      "screenshots": [
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Mastodon_logged_in.png",
+          "filename": "Mastodon_logged_in.png"
+        }
+      ],
+      "finalUrl": "https://mastodon.project-saturn.com/explore"
+    }
+  ]
+}

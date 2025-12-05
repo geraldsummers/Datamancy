@@ -65,6 +65,9 @@ c.GenericOAuthenticator.userdata_url = 'http://authelia:9091/api/oidc/userinfo'
 # User info mapping
 c.GenericOAuthenticator.username_claim = 'preferred_username'
 
+# Automatically redirect to Authelia (no manual login button click needed)
+c.GenericOAuthenticator.auto_login = True
+
 # Allow all authenticated users
 c.GenericOAuthenticator.allow_all = True
 

@@ -54,7 +54,7 @@ COPY --from=build /workspace/src/playwright-controller/build/libs/*-all.jar /app
 USER appuser
 RUN python3 -m venv /app/venv \
     && /app/venv/bin/pip install playwright==1.49.0 \
-    && /app/venv/bin/playwright install firefox
+    && /app/venv/bin/playwright install chromium
 
 EXPOSE 3000
 CMD ["java", "-jar", "/app/app.jar"]

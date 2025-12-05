@@ -1,0 +1,174 @@
+<!DOCTYPE html><html lang="en" class="light"><head>
+		<meta charset="utf-8">
+		<link rel="icon" href="https://open-webui.project-saturn.com/favicon.png">
+		<link rel="apple-touch-icon" href="/favicon.png">
+		<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+		<meta name="theme-color" content="#ffffff">
+		<meta name="robots" content="noindex,nofollow">
+		<meta name="description" content="Open WebUI">
+		<link rel="search" type="application/opensearchdescription+xml" title="Open WebUI" href="/opensearch.xml">
+
+		<script>
+			function resizeIframe(obj) {
+				obj.style.height = obj.contentWindow.document.documentElement.scrollHeight + 'px';
+			}
+		</script>
+
+		<script>
+			// On page load or when changing themes, best to add inline in `head` to avoid FOUC
+			(() => {
+				const metaThemeColorTag = document.querySelector('meta[name="theme-color"]');
+				const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+				if (!localStorage?.theme) {
+					localStorage.theme = 'system';
+				}
+
+				if (localStorage.theme === 'system') {
+					document.documentElement.classList.add(prefersDarkTheme ? 'dark' : 'light');
+					metaThemeColorTag.setAttribute('content', prefersDarkTheme ? '#171717' : '#ffffff');
+				} else if (localStorage.theme === 'oled-dark') {
+					document.documentElement.style.setProperty('--color-gray-800', '#101010');
+					document.documentElement.style.setProperty('--color-gray-850', '#050505');
+					document.documentElement.style.setProperty('--color-gray-900', '#000000');
+					document.documentElement.style.setProperty('--color-gray-950', '#000000');
+					document.documentElement.classList.add('dark');
+					metaThemeColorTag.setAttribute('content', '#000000');
+				} else if (localStorage.theme === 'light') {
+					document.documentElement.classList.add('light');
+					metaThemeColorTag.setAttribute('content', '#ffffff');
+				} else if (localStorage.theme === 'her') {
+					document.documentElement.classList.add('dark');
+					document.documentElement.classList.add('her');
+					metaThemeColorTag.setAttribute('content', '#983724');
+				} else {
+					document.documentElement.classList.add('dark');
+					metaThemeColorTag.setAttribute('content', '#171717');
+				}
+
+				window.matchMedia('(prefers-color-scheme: dark)').addListener((e) => {
+					if (localStorage.theme === 'system') {
+						if (e.matches) {
+							document.documentElement.classList.add('dark');
+							document.documentElement.classList.remove('light');
+							metaThemeColorTag.setAttribute('content', '#171717');
+						} else {
+							document.documentElement.classList.add('light');
+							document.documentElement.classList.remove('dark');
+							metaThemeColorTag.setAttribute('content', '#ffffff');
+						}
+					}
+				});
+			})();
+		</script>
+
+		<title>
+		Open WebUI
+	</title>
+
+		
+		<link rel="modulepreload" href="/_app/immutable/entry/start.CvnUP7qt.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/entry.B8fD72CW.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/scheduler.Dyt_jldW.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/index.54C13eIa.js">
+		<link rel="modulepreload" href="/_app/immutable/entry/app.-avRMMde.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/preload-helper.C1FmrZbK.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/index.g9C97g6-.js">
+	<link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/nodes/0.ZacN6j3I.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/globals.D0QH3NT1.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.xtjo_MT3.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/stores.OQBBa4_L.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/spread.CNdYb9hD.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Toaster.svelte_svelte_type_style_lang.Ch2gtda1.js"><link rel="stylesheet" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/assets/Toaster.436keKGd.css"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.CxQpycXY.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.DCC_8n_d.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.DYRpuY7k.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.DZurUHyx.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/sha256.DmKfZSHC.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/_commonjsHelpers.BosuxZz1.js"><link rel="stylesheet" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/assets/0.DxMwAQRg.css"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/nodes/1.DhpqvYcE.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/nodes/2.DwKZr11W.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/FileSaver.min.CimDdHIv.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.DQ1nQfFj.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.DMdt0oYD.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.BQLFZN4S.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.zcblikgR.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.CpV5Khgt.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.C6ZRZdXb.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.YNTKd4LH.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/SensitiveInput.ClgpCtmv.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/dayjs.min.CnqrW7zs.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Modal.BzaZoDzz.js"><link rel="stylesheet" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/assets/Modal.B2SnuaI5.css"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/updater.Bv58epJr.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.D7If1Ac7.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/menu-trigger.F67SP9zA.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/AdvancedParams.DcnOAREg.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Switch.B56OFMep.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Dropdown.h2i4vhzY.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/GarbageBin.BLuBf3bx.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/DocumentDuplicate.D6wNc5j7.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/ConfirmDialog.BEvjqHNe.js"><link rel="stylesheet" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/assets/ConfirmDialog.9RC9XL2T.css"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Spinner.vIt_c_0L.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Loader.CkRmb5Nw.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.D4jr3w6a.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.d46WYQgl.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.MA13Do0R.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.DQfRr7yB.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/XMark.BSetZKJ_.js"><link rel="stylesheet" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/assets/2.MTXp_O5N.css"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/nodes/6.TooRby2q.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Help.CRaTW3LE.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Messages.zyfFJeaD.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.BdLKY1lU.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Selector.svelte_svelte_type_style_lang.DFMaJraB.js"><link rel="stylesheet" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/assets/Selector.BqlJvw3l.css"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/FileItem.B0HeLlJv.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/CodeEditor.ClWGw_M5.js"><link rel="stylesheet" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/assets/Messages.CUpvu0v6.css"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.BuNqLUZE.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.D2xCm61Y.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/index.BbZlkorK.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/AddFilesPlaceholder.1euEy8h4.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/fuse.CU2r43ac.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Selector.BUqa6lBX.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/MenuLines.CMkh8dBr.js"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/chunks/Heart.D5-70PQp.js"><link rel="stylesheet" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/assets/Help.CpMQnX0I.css"><link crossorigin="anonymous" rel="icon" href="/static/favicon.png"><link rel="modulepreload" as="script" crossorigin="" href="https://open-webui.project-saturn.com/_app/immutable/nodes/27.Da-lsYjU.js"></head>
+
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">
+			<script>
+				{
+					__sveltekit_j9mfn7 = {
+						base: ""
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("/_app/immutable/entry/start.CvnUP7qt.js"),
+						import("/_app/immutable/entry/app.-avRMMde.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+				}
+			</script>
+		  <div class="fixed m-10 z-50"><div class="flex space-x-2"><div class="self-center"><img crossorigin="anonymous" src="/static/favicon.png" class="w-8 rounded-full" alt="logo"></div></div></div> <div class="bg-white dark:bg-gray-950 min-h-screen w-full flex justify-center font-primary"><div class="w-full sm:max-w-md px-10 min-h-screen flex flex-col text-center"><div class="my-auto pb-10 w-full dark:text-gray-100"><form class="flex flex-col justify-center"><div class="mb-1"><div class="text-2xl font-medium">Sign in to Open WebUI</div> </div> <div class="flex flex-col mt-4"> <div class="mb-2"><div class="text-sm font-medium text-left mb-1">Email</div> <input type="email" class="px-5 py-3 rounded-2xl w-full text-sm outline-none border dark:border-none dark:bg-gray-900" autocomplete="email" placeholder="Enter Your Email" required=""></div> <div><div class="text-sm font-medium text-left mb-1">Password</div> <input type="password" class="px-5 py-3 rounded-2xl w-full text-sm outline-none border dark:border-none dark:bg-gray-900" placeholder="Enter Your Password" autocomplete="current-password" required=""></div></div> <div class="mt-5"><button class="bg-gray-900 hover:bg-gray-800 w-full rounded-2xl text-white font-medium text-sm py-3 transition" type="submit">Sign in</button> <div class="mt-4 text-sm text-center">Don't have an account? <button class="font-medium underline" type="button">Sign up</button></div></div></form> <div class="inline-flex items-center justify-center w-full"><hr class="w-64 h-px my-8 bg-gray-200 border-0 dark:bg-gray-700"> <span class="absolute px-3 font-medium text-gray-900 -translate-x-1/2 bg-white left-1/2 dark:text-white dark:bg-gray-950">or</span></div> <div class="flex flex-col space-y-2">  <button class="flex items-center px-6 border-2 dark:border-gray-800 duration-300 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 w-full rounded-2xl dark:text-white text-sm py-3 transition"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 mr-3"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z"></path></svg> <span>Continue with Authelia</span></button></div></div></div></div>  <div id="svelte-announcer" aria-live="assertive" aria-atomic="true" style="position: absolute; left: 0px; top: 0px; clip: rect(0px, 0px, 0px, 0px); clip-path: inset(50%); overflow: hidden; white-space: nowrap; width: 1px; height: 1px;">Open WebUI</div></div>
+
+		
+	
+
+
+<style type="text/css" nonce="">
+	html {
+		overflow-y: hidden !important;
+	}
+
+	#splash-screen {
+		background: #fff;
+	}
+
+	html.dark #splash-screen {
+		background: #000;
+	}
+
+	html.dark #splash-screen img {
+		filter: invert(1);
+	}
+
+	html.her #splash-screen {
+		background: #983724;
+	}
+
+	#logo-her {
+		display: none;
+	}
+
+	#progress-background {
+		display: none;
+	}
+
+	#progress-bar {
+		display: none;
+	}
+
+	html.her #logo {
+		display: none;
+	}
+
+	html.her #logo-her {
+		display: block;
+		filter: invert(1);
+	}
+
+	html.her #progress-background {
+		display: block;
+	}
+
+	html.her #progress-bar {
+		display: block;
+	}
+
+	@media (max-width: 24rem) {
+		html.her #progress-background {
+			display: none;
+		}
+
+		html.her #progress-bar {
+			display: none;
+		}
+	}
+
+	@keyframes pulse {
+		50% {
+			opacity: 0.65;
+		}
+	}
+
+	.animate-pulse-fast {
+		animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+	}
+</style>
+</body></html>

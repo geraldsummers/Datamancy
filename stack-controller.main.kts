@@ -338,6 +338,85 @@ private fun bringUpStack() {
 }
 
 /**
+ * Starts the Datamancy stack with specific profiles.
+ *
+ * Parameters:
+ * - profiles: List of profile names to activate
+ *
+ * Side effects:
+ * - Same as bringUpStack() but with profile-specific services
+ */
+private fun bringUpStackWithProfiles(profiles: List<String>) {
+    val root = projectRoot()
+    val dataDir = ensureDatamancyDataDir()
+    val runtimeEnv = dataDir.resolve(".env.runtime")
+    val ldapBootstrap = dataDir.resolve("bootstrap_ldap.ldif")
+    val configsDir = dataDir.resolve("configs")
+    val volumesDir = dataDir.resolve("volumes")
+
+    info("Starting Datamancy stack with profiles: ${profiles.joinToString(", ")}")
+    info("Data directory: $dataDir")
+    println()
+
+    // Step 1: Generate environment configuration if needed
+    if (!Files.exists(runtimeEnv)) {
+        info("Step 1/5: Generating environment configuration")
+        generateEnvironmentConfig()
+    } else {
+        info("Step 1/5: Environment config exists, validating")
+        validateEnvFile(runtimeEnv)
+    }
+
+    // Validate DOMAIN
+    val envContent = Files.readString(runtimeEnv)
+    val domainMatch = "DOMAIN=(.+)".toRegex().find(envContent)
+    if (domainMatch != null) {
+        val domain = domainMatch.groupValues[1].trim().removeSurrounding("\"", "'")
+        validateDomain(domain)
+    }
+
+    // Step 2: Generate LDAP bootstrap if needed
+    if (!Files.exists(ldapBootstrap)) {
+        info("Step 2/5: Generating LDAP bootstrap data")
+        generateLdapBootstrap(dryRun = false, force = false)
+    } else {
+        info("Step 2/5: LDAP bootstrap exists")
+    }
+
+    // Step 3: Process configuration templates if needed
+    if (!Files.exists(configsDir) || Files.list(configsDir).count() == 0L) {
+        info("Step 3/5: Processing configuration templates")
+        processConfigurationTemplates()
+    } else {
+        info("Step 3/5: Configuration files exist")
+    }
+
+    // Step 4: Create volume directories if needed
+    info("Step 4/5: Volume directories exist")
+    createVolumeDirectories()
+
+    // Step 5: Disk space check
+    checkDiskSpace(volumesDir, requiredGB = 50)
+
+    // Step 6: Start services with profiles
+    info("Step 5/5: Starting Docker Compose services with profiles: ${profiles.joinToString(", ")}")
+    val args = mutableListOf("docker", "compose", "--env-file", runtimeEnv.toString())
+    profiles.forEach { profile ->
+        args.add("--profile")
+        args.add(profile)
+    }
+    args.addAll(listOf("up", "-d"))
+    run(*args.toTypedArray(), cwd = root)
+
+    success("Stack started successfully with profiles: ${profiles.joinToString(", ")}")
+    println()
+    println("${ANSI_GREEN}Next steps:${ANSI_RESET}")
+    println("1. Wait 2-3 minutes for services to initialize")
+    println("2. Check service health: ./stack-controller status")
+    println("3. View service URLs: ./stack-controller urls")
+}
+
+/**
  * Stops all Datamancy stack services.
  *
  * What it does:
@@ -507,8 +586,14 @@ private fun showServiceLogs(service: String, follow: Boolean = false) {
  */
 private fun showStackStatus() {
     val root = projectRoot()
+    val runtimeDir = runtimeConfigDir()
+    val runtimeEnv = runtimeDir.resolve(".env.runtime")
     info("Stack status:")
-    println(run("docker", "compose", "ps", cwd = root))
+    if (Files.exists(runtimeEnv)) {
+        println(run("docker", "compose", "--env-file", runtimeEnv.toString(), "ps", cwd = root))
+    } else {
+        println(run("docker", "compose", "ps", cwd = root))
+    }
 }
 
 private fun cmdHealth() {
@@ -932,7 +1017,23 @@ private fun cmdConfigGenerate() {
 
     success("Environment configuration generated")
     info("Location: $runtimeEnv")
+    info("Note: OAuth client secret hashes are set to PENDING")
+    info("Run './stack-controller hash-oidc' after starting Authelia to generate hashes")
     info("Ready to use with: ./stack-controller up")
+}
+
+private fun cmdHashOidc() {
+    val root = projectRoot()
+    val script = root.resolve("scripts/security/generate-oidc-hashes.main.kts")
+
+    if (!Files.exists(script)) {
+        err("Hash generation script not found at: $script")
+    }
+
+    info("Generating OAuth/OIDC client secret hashes for Authelia")
+    run("kotlin", script.toString(), cwd = root)
+    success("Hashes generated successfully")
+    info("Run './stack-controller config process' to apply changes to Authelia config")
 }
 
 // ============================================================================
@@ -1436,15 +1537,17 @@ private fun showHelp() {
         |  docs/SECURITY.md               Security setup
         |
         |Stack Operations:
-        |  up                      Start stack with full automated setup
+        |  up [--profiles=p1,p2]   Start stack with full automated setup
+        |                          Profiles: applications, bootstrap, databases, infrastructure
         |  down                    Stop all services
         |  recreate [options]      Full recreate: down → clean → regenerate → up
         |    --clean-volumes         Clean volumes (DELETES DATA - prompts for confirmation)
         |    --skip-configs          Skip config regeneration
         |  restart <service>       Restart a service
-        |  logs <service>          View service logs (add -f to follow)
+        |  logs <service> [-f]     View service logs (-f to follow)
         |  status                  Show stack status
         |  health                  Check health of all services (exit 1 if any unhealthy)
+        |  ps                      Alias for 'status'
         |
         |Diagnostics & Testing:
         |  diagnose [service]      Show logs and status for unhealthy services
@@ -1506,7 +1609,19 @@ when (args[0]) {
     // Stack operations
     "up" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        bringUpStack()
+        // Check for --profiles argument
+        val profilesArg = args.find { it.startsWith("--profiles=") }
+        if (profilesArg != null) {
+            val profiles = profilesArg.substringAfter("=").split(",").map { it.trim() }
+            info("Starting stack with profiles: ${profiles.joinToString(", ")}")
+            bringUpStackWithProfiles(profiles)
+        } else {
+            bringUpStack()
+        }
+    }
+    "ps" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        showStackStatus()
     }
     "down" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
@@ -1562,15 +1677,24 @@ when (args[0]) {
     "test-all" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         val root = projectRoot()
+        val runtimeDir = runtimeConfigDir()
+        val runtimeEnv = runtimeDir.resolve(".env.runtime")
+
         info("Testing all services...")
-        val result = run("docker", "compose", "ps", "--format", "json", cwd = root, allowFail = true)
+
+        // Use table format instead of JSON for more reliable parsing
+        val result = if (Files.exists(runtimeEnv)) {
+            run("docker", "compose", "--env-file", runtimeEnv.toString(), "ps", "--format", "table {{.Service}}\t{{.State}}\t{{.Health}}", cwd = root, allowFail = true)
+        } else {
+            run("docker", "compose", "ps", "--format", "table {{.Service}}\t{{.State}}\t{{.Health}}", cwd = root, allowFail = true)
+        }
 
         if (result.trim().isEmpty()) {
             warn("No services running")
             exitProcess(1)
         }
 
-        val lines = result.trim().lines().filter { it.isNotBlank() }
+        val lines = result.trim().lines().filter { it.isNotBlank() }.drop(1)  // Skip header
         var healthyCount = 0
         var unhealthyCount = 0
         var noHealthcheckCount = 0
@@ -1578,24 +1702,24 @@ when (args[0]) {
 
         lines.forEach { line ->
             try {
-                val service = line.substringAfter("\"Service\":\"").substringBefore("\"")
-                val state = line.substringAfter("\"State\":\"").substringBefore("\"")
-                val health = if (line.contains("\"Health\":\"")) {
-                    line.substringAfter("\"Health\":\"").substringBefore("\"")
-                } else {
-                    "none"
-                }
+                // Split by whitespace to handle table format
+                val parts = line.split(Regex("\\s+"), limit = 3)
+                if (parts.size >= 2) {
+                    val service = parts[0]
+                    val state = parts[1]
+                    val health = if (parts.size >= 3) parts[2] else ""
 
-                when {
-                    state != "running" -> {
-                        unhealthyCount++
-                        unhealthyServices.add("$service: $state")
-                    }
-                    health == "healthy" -> healthyCount++
-                    health == "none" -> noHealthcheckCount++
-                    else -> {
-                        unhealthyCount++
-                        unhealthyServices.add("$service: $health")
+                    when {
+                        state != "running" -> {
+                            unhealthyCount++
+                            unhealthyServices.add("$service: $state")
+                        }
+                        health == "healthy" -> healthyCount++
+                        health.isEmpty() -> noHealthcheckCount++
+                        else -> {
+                            unhealthyCount++
+                            unhealthyServices.add("$service: $health")
+                        }
                     }
                 }
             } catch (_: Exception) {}
@@ -1639,6 +1763,12 @@ when (args[0]) {
                 exitProcess(1)
             }
         }
+    }
+
+    // Generate OAuth/OIDC client secret hashes for Authelia
+    "hash-oidc" -> {
+        if (isRoot()) err("Hash generation must not be run as root. Run without sudo.")
+        cmdHashOidc()
     }
 
     // Deployment
