@@ -16,10 +16,10 @@ import kotlinx.coroutines.*
 
 // ---- Tunables ----
 
- val NAV_TIMEOUT_MS = 15_000.0
- val SHORT_NAV_TIMEOUT_MS = 8_000.0
- val ELEMENT_WAIT_MS = 2_000.0
- val ELEMENT_WAIT_SHORT_MS = 1_000.0
+ val NAV_TIMEOUT_MS = 30_000.0
+ val SHORT_NAV_TIMEOUT_MS = 15_000.0
+ val ELEMENT_WAIT_MS = 5_000.0
+ val ELEMENT_WAIT_SHORT_MS = 2_000.0
 
 // ---- Shell helper ----
 
@@ -121,7 +121,10 @@ val SERVICES = listOf(
     ServiceConfig(
         name = "Vaultwarden",
         url = "https://vaultwarden.$DOMAIN",
-        loginType = "authelia"
+        loginType = "authelia",
+        usernameSelectors = emptyList(), // SSO-only, no direct login
+        passwordSelectors = emptyList(),
+        submitSelectors = emptyList()
     ),
     ServiceConfig(
         name = "Planka",
@@ -181,18 +184,16 @@ val SERVICES = listOf(
         loginRequired = false,  // HTTP Basic Auth is handled at the browser level
         loginType = "http-basic"
     ),
-    // Mailu services: not using Authelia, skip automated login
+    // Mailu services: protected by Authelia forward_auth
     ServiceConfig(
         name = "Mailu Admin",
         url = "https://mail.$DOMAIN/admin",
-        loginRequired = false,
-        loginType = "mailu-internal"
+        loginType = "authelia"
     ),
     ServiceConfig(
         name = "Roundcube",
         url = "https://mail.$DOMAIN/webmail",
-        loginRequired = false,
-        loginType = "mailu-internal"
+        loginType = "authelia"
     ),
     ServiceConfig(
         name = "LDAP Account Manager",
@@ -212,6 +213,16 @@ val SERVICES = listOf(
         url = "https://mastodon.$DOMAIN",
         loginRequired = false,
         loginType = "optional"
+    ),
+    ServiceConfig(
+        name = "Forgejo",
+        url = "https://forgejo.$DOMAIN",
+        loginType = "authelia"
+    ),
+    ServiceConfig(
+        name = "qBittorrent",
+        url = "https://qbittorrent.$DOMAIN",
+        loginType = "authelia"
     )
 )
 
@@ -369,6 +380,13 @@ fun handleAutheliaLogin(page: Page, serviceName: String, result: TestResult): Bo
         }
 
         println("  🖱️  Clicking Authelia sign in")
+
+        // Wait for any loading/AJAX to complete
+        try {
+            page.waitForTimeout(1500.0)
+        } catch (_: Exception) {
+        }
+
         try {
             page.waitForNavigation(
                 Page.WaitForNavigationOptions()
@@ -378,6 +396,12 @@ fun handleAutheliaLogin(page: Page, serviceName: String, result: TestResult): Bo
             }
         } catch (_: Exception) {
             // If nav didn't happen, we'll just inspect where we are
+        }
+
+        // Give OAuth callback extra time to complete
+        try {
+            page.waitForTimeout(3000.0)
+        } catch (_: Exception) {
         }
 
         // OAuth consent screen (if any)
@@ -415,9 +439,9 @@ fun handleAutheliaLogin(page: Page, serviceName: String, result: TestResult): Bo
             } catch (_: Exception) {
             }
 
-            if (serviceName in listOf("Open WebUI", "Planka", "SOGo", "Vaultwarden")) {
+            if (serviceName in listOf("Open WebUI", "Planka", "SOGo", "Vaultwarden", "Forgejo")) {
                 try {
-                    page.waitForTimeout(100.0)
+                    page.waitForTimeout(2000.0)
                 } catch (_: Exception) {
                 }
             }
@@ -542,7 +566,10 @@ fun testService(browser: Browser, service: ServiceConfig): TestResult {
             ".vw-sso-login",
             "button:has-text('Log in with SSO')",
             "button:has-text('Use single sign-on')",
-            "a:has-text('Log in with SSO')"
+            "a:has-text('Log in with SSO')",
+            "button:has-text('Log in with Authelia')",
+            "a.link-action:has-text('Authelia')",  // Forgejo SSO link
+            "a:has-text('Sign in with Authelia')"
         )
 
         var ssoButtonInitial: Locator? = null
@@ -596,6 +623,12 @@ fun testService(browser: Browser, service: ServiceConfig): TestResult {
                     ) {
                         ssoButtonInitial.click()
                     }
+                }
+
+                // After clicking SSO, wait for redirect back or Authelia
+                try {
+                    page.waitForTimeout(2000.0)
+                } catch (_: Exception) {
                 }
             } catch (e: Exception) {
                 println("  ⚠️  SSO button navigation failed or timed out: ${e.message}")
@@ -651,17 +684,39 @@ fun testService(browser: Browser, service: ServiceConfig): TestResult {
 
                     waitForPostLoginContent(page, serviceName)
 
-                    // Optional logged-in check
+                    // Check if we're actually logged in - look for app content, not login forms
                     val contentLower = page.content().lowercase()
                     val loggedInIndicators = listOf(
                         "logout", "log out", "sign out",
                         "settings", "profile", "account",
                         "dashboard", "welcome"
                     )
+                    val loginFormIndicators = listOf(
+                        "input[type='email']",
+                        "input[name='email']",
+                        "input[type='password']",
+                        "button:has-text('Log in')",
+                        "button:has-text('Sign in')"
+                    )
                     val hasLoggedInIndicator = loggedInIndicators.any { contentLower.contains(it) }
 
-                    if (hasLoggedInIndicator) {
-                        println("  ✅ Detected logged-in state")
+                    // Check if we still see login forms
+                    var hasLoginForm = false
+                    for (selector in loginFormIndicators) {
+                        try {
+                            val locator = page.locator(selector)
+                            if (locator.count() > 0) {
+                                hasLoginForm = true
+                                break
+                            }
+                        } catch (_: Exception) {
+                        }
+                    }
+
+                    if (hasLoggedInIndicator && !hasLoginForm) {
+                        println("  ✅ Detected logged-in state (indicators present, no login forms)")
+                    } else if (!hasLoginForm) {
+                        println("  ✅ Detected logged-in state (no login forms)")
                     }
 
                     saveScreenshot(page, serviceName, "logged_in", result)

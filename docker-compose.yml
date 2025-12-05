@@ -259,6 +259,24 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT:-./volumes}/sogo_data
+  forgejo_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT:-./volumes}/forgejo_data
+  qbittorrent_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT:-./volumes}/qbittorrent_config
+  qbittorrent_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT:-./volumes}/qbittorrent_data
   proofs:
     driver: local
     driver_opts:
@@ -297,6 +315,8 @@ services:
           - mail.${DOMAIN}
           - agent-tool-server.${DOMAIN}
           - lam.${DOMAIN}
+          - forgejo.${DOMAIN}
+          - qbittorrent.${DOMAIN}
     ports:
       - "80:80"
       - "443:443"
@@ -486,6 +506,7 @@ services:
       - VAULTWARDEN_DB_PASSWORD=${VAULTWARDEN_DB_PASSWORD}
       - OPENWEBUI_DB_PASSWORD=${OPENWEBUI_DB_PASSWORD}
       - MASTODON_DB_PASSWORD=${MASTODON_DB_PASSWORD}
+      - FORGEJO_DB_PASSWORD=${FORGEJO_DB_PASSWORD}
       - HOMEASSISTANT_DB_PASSWORD=${HOMEASSISTANT_DB_PASSWORD:-}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -808,10 +829,10 @@ services:
       # Minimal read-only permissions for security
       # See: https://github.com/Tecnativa/docker-socket-proxy
       - CONTAINERS=1  # Read container status (needed for health checks, logs)
-      - IMAGES=0      # Disabled - prevents image enumeration attacks
-      - NETWORKS=0    # Disabled - prevents network topology discovery
+      - IMAGES=1      # Enabled for JupyterHub spawner to check image availability
+      - NETWORKS=1    # Enabled for JupyterHub spawner to attach containers
       - VOLUMES=0     # Disabled - prevents volume path disclosure
-      - POST=0        # Disabled - no container creation/modification
+      - POST=1        # Enabled for JupyterHub to spawn notebook containers
       - BUILD=0       # Disabled - no image builds
       - COMMIT=0
       - CONFIGS=0
@@ -966,7 +987,7 @@ services:
       - SIGNUPS_ALLOWED=false
       - SIGNUPS_VERIFY=true
       - SIGNUPS_DOMAINS_WHITELIST=${MAIL_DOMAIN}
-      - INVITATIONS_ALLOWED=true
+      - INVITATIONS_ALLOWED=false
       - SHOW_PASSWORD_HINT=false
       - SSO_ENABLED=true
       - SSO_ONLY=true
@@ -1022,6 +1043,11 @@ services:
       - OIDC_EMAIL_ATTRIBUTE=email
       - OIDC_NAME_ATTRIBUTE=name
       - OIDC_USERNAME_ATTRIBUTE=preferred_username
+      - OIDC_REDIRECT_URI=https://planka.${DOMAIN}/oidc-callback
+      - OIDC_AUTHORIZATION_ENDPOINT=https://auth.${DOMAIN}/api/oidc/authorization
+      - OIDC_TOKEN_ENDPOINT=http://authelia:9091/api/oidc/token
+      - OIDC_USERINFO_ENDPOINT=http://authelia:9091/api/oidc/userinfo
+      - OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
     volumes:
       - planka_data:/app/public/user-avatars
@@ -1353,6 +1379,68 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:9
+    container_name: forgejo
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    depends_on:
+      postgres:
+        condition: service_healthy
+      authelia:
+        condition: service_healthy
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - FORGEJO__database__DB_TYPE=postgres
+      - FORGEJO__database__HOST=postgres:5432
+      - FORGEJO__database__NAME=forgejo
+      - FORGEJO__database__USER=forgejo
+      - FORGEJO__database__PASSWD=${FORGEJO_DB_PASSWORD}
+      - FORGEJO__server__DOMAIN=forgejo.${DOMAIN}
+      - FORGEJO__server__SSH_DOMAIN=forgejo.${DOMAIN}
+      - FORGEJO__server__ROOT_URL=https://forgejo.${DOMAIN}/
+      - FORGEJO__security__INSTALL_LOCK=true
+      - FORGEJO__service__DISABLE_REGISTRATION=true
+      - FORGEJO__openid__ENABLE_OPENID_SIGNIN=false
+      - FORGEJO__openid__ENABLE_OPENID_SIGNUP=false
+    volumes:
+      - forgejo_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    networks:
+      - backend
+    depends_on:
+      authelia:
+        condition: service_healthy
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - WEBUI_PORT=8080
+    volumes:
+      - qbittorrent_config:/config
+      - qbittorrent_data:/downloads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   vllm:
     image: vllm/vllm-openai:latest

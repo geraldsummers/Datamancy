@@ -267,7 +267,7 @@ identity_providers:
           - query
           - fragment
           - form_post
-        token_endpoint_auth_method: client_secret_basic
+        token_endpoint_auth_method: client_secret_post
 
       # BookStack (protected via Caddy forward_auth; no direct OIDC client required)
       # This section intentionally left without a client for BookStack because
@@ -328,6 +328,7 @@ identity_providers:
           - authorization_code
         response_types:
           - code
+        token_endpoint_auth_method: client_secret_post
 
       # Mastodon
       - client_id: mastodon
@@ -354,6 +355,25 @@ identity_providers:
         authorization_policy: one_factor
         redirect_uris:
           - https://bookstack.{{DOMAIN}}/oidc/callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+        token_endpoint_auth_method: client_secret_post
+
+      # Forgejo (Git Forge)
+      - client_id: forgejo
+        client_name: Forgejo
+        client_secret: '{{FORGEJO_OAUTH_SECRET_HASH}}'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://forgejo.{{DOMAIN}}/user/oauth2/Authelia/callback
         scopes:
           - openid
           - profile

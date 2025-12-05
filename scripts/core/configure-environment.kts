@@ -259,6 +259,7 @@ private fun cmdInit() {
         appendLine("DIM_OAUTH_SECRET_HASH=PENDING")
         appendLine("MASTODON_OAUTH_SECRET_HASH=PENDING")
         appendLine("BOOKSTACK_OAUTH_SECRET_HASH=PENDING")
+        appendLine("FORGEJO_OAUTH_SECRET_HASH=PENDING")
         appendLine()
 
         // Application secrets
@@ -282,6 +283,10 @@ private fun cmdInit() {
         appendLine("MASTODON_ENCRYPTION_DETERMINISTIC_KEY=${generateSecretHex(32)}")
         appendLine("MASTODON_ENCRYPTION_KEY_DERIVATION_SALT=${generateSecretHex(32)}")
         appendLine("MASTODON_ENCRYPTION_PRIMARY_KEY=${generateSecretHex(32)}")
+        appendLine()
+
+        // Forgejo database password
+        appendLine("FORGEJO_DB_PASSWORD=${generatePassword(32)}")
         appendLine("MASTODON_SMTP_USER=${mastodonSmtpUser}")
         appendLine("MASTODON_SMTP_PASSWORD=${generatePassword(24)}")
         appendLine("MASTODON_OIDC_SECRET=${generateSecretHex(48)}")
@@ -397,6 +402,7 @@ private fun cmdExport() {
     putIfMissing("MASTODON_ENCRYPTION_DETERMINISTIC_KEY") { generateSecretHex(32) }
     putIfMissing("MASTODON_ENCRYPTION_KEY_DERIVATION_SALT") { generateSecretHex(32) }
     putIfMissing("MASTODON_ENCRYPTION_PRIMARY_KEY") { generateSecretHex(32) }
+    putIfMissing("FORGEJO_DB_PASSWORD") { generatePassword(32) }
     putIfMissing("MASTODON_SMTP_USER") { mastodonSmtpUserBackfill }
     putIfMissing("MASTODON_SMTP_PASSWORD") { generatePassword(24) }
     // Secret for BookStack database user
@@ -466,6 +472,7 @@ private fun cmdExport() {
     putIfMissing("HOMEASSISTANT_OAUTH_SECRET_HASH") { "PENDING" }
     putIfMissing("DIM_OAUTH_SECRET_HASH") { "PENDING" }
     putIfMissing("MASTODON_OAUTH_SECRET_HASH") { "PENDING" }
+    putIfMissing("FORGEJO_OAUTH_SECRET_HASH") { "PENDING" }
 
     if (changed) {
         // Rebuild plaintext in the original order as much as possible.

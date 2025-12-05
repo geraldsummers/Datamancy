@@ -53,8 +53,29 @@ couchdb.{{DOMAIN}} {
     }
 }
 
-# Mailu front (web UI only; mail ports handled by Mailu directly)
+# Mailu front (web UI with Authelia forward_auth for admin/webmail)
 mail.{{DOMAIN}} {
+    # Admin interface - protected by Authelia
+    @admin path /admin /admin/*
+    handle @admin {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy mailu-admin:8080
+    }
+
+    # Webmail interface - protected by Authelia
+    @webmail path /webmail /webmail/*
+    handle @webmail {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy mailu-webmail:80
+    }
+
+    # SSO endpoints and other paths - no auth required
     reverse_proxy mailu-front:80
 }
 
@@ -248,5 +269,21 @@ vllm-router.{{DOMAIN}} {
             copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
         }
         reverse_proxy vllm-router:8010
+    }
+}
+
+# Forgejo (Git Forge with OIDC)
+forgejo.{{DOMAIN}} {
+    reverse_proxy forgejo:3000
+}
+
+# qBittorrent (protected)
+qbittorrent.{{DOMAIN}} {
+    route {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy qbittorrent:8080
     }
 }

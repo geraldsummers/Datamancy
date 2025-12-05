@@ -58,3 +58,4 @@ id_ed25519*
 !*.pem.example
 
 # No encrypted secrets - all secrets in ~/.config/datamancy
+venv/

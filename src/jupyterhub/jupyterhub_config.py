@@ -77,6 +77,12 @@ c.GenericOAuthenticator.admin_users = set()
 # OAuth scopes
 c.GenericOAuthenticator.scope = ['openid', 'profile', 'email', 'groups']
 
+# Group-based authorization
+c.GenericOAuthenticator.manage_groups = True
+c.GenericOAuthenticator.claim_groups_key = 'groups'
+c.GenericOAuthenticator.allowed_groups = ['admins', 'users']
+c.GenericOAuthenticator.admin_groups = ['admins']
+
 # TLS verification not needed - token/userinfo endpoints use internal HTTP
 # Only authorize_url (browser redirect) uses external HTTPS
 

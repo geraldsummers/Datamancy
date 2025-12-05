@@ -14,6 +14,7 @@ GRAFANA_DB_PASSWORD="${GRAFANA_DB_PASSWORD:?ERROR: GRAFANA_DB_PASSWORD not set}"
 VAULTWARDEN_DB_PASSWORD="${VAULTWARDEN_DB_PASSWORD:?ERROR: VAULTWARDEN_DB_PASSWORD not set}"
 OPENWEBUI_DB_PASSWORD="${OPENWEBUI_DB_PASSWORD:?ERROR: OPENWEBUI_DB_PASSWORD not set}"
 MASTODON_DB_PASSWORD="${MASTODON_DB_PASSWORD:?ERROR: MASTODON_DB_PASSWORD not set}"
+FORGEJO_DB_PASSWORD="${FORGEJO_DB_PASSWORD:?ERROR: FORGEJO_DB_PASSWORD not set}"
 HOMEASSISTANT_DB_PASSWORD="${HOMEASSISTANT_DB_PASSWORD:-}"  # Optional - HA may use SQLite
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
@@ -69,6 +70,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             ALTER USER mastodon WITH PASSWORD '$MASTODON_DB_PASSWORD';
         END IF;
 
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'forgejo') THEN
+            CREATE USER forgejo WITH PASSWORD '$FORGEJO_DB_PASSWORD';
+        ELSE
+            ALTER USER forgejo WITH PASSWORD '$FORGEJO_DB_PASSWORD';
+        END IF;
+
         -- Home Assistant user creation is optional (may use SQLite)
         -- Skip if no password provided
     END
@@ -105,6 +112,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE mastodon OWNER mastodon'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mastodon')\gexec
 
+    SELECT 'CREATE DATABASE forgejo OWNER forgejo'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'forgejo')\gexec
+
     -- Home Assistant database creation skipped (uses SQLite by default)
 
     -- Grant privileges (these are idempotent)
@@ -118,6 +128,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE vaultwarden TO vaultwarden;
     GRANT ALL PRIVILEGES ON DATABASE openwebui TO openwebui;
     GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
+    GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
 EOSQL
 
 # Grant schema privileges (PostgreSQL 15+)
@@ -129,6 +140,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "grafana" -c "GRANT
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "vaultwarden" -c "GRANT ALL ON SCHEMA public TO vaultwarden;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRANT ALL ON SCHEMA public TO openwebui;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT ALL ON SCHEMA public TO forgejo;"
 
 # Note: Mailu manages its own database schema via SQLAlchemy migrations
 # The init-mailu-schema.sql file should not run before Mailu Admin initializes
