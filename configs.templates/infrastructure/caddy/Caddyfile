@@ -122,12 +122,12 @@ open-webui.{{DOMAIN}} {
     }
 }
 
-# Vaultwarden
+# Vaultwarden (uses SSO_ONLY mode - no forward_auth needed)
 vaultwarden.{{DOMAIN}} {
     reverse_proxy vaultwarden:80
 }
 
-# Planka
+# Planka (uses OIDC - no forward_auth needed)
 planka.{{DOMAIN}} {
     reverse_proxy planka:1337
 }

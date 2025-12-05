@@ -59,3 +59,8 @@ id_ed25519*
 
 # No encrypted secrets - all secrets in ~/.config/datamancy
 venv/
+
+# Test artifacts
+
+*.png
+*.html
