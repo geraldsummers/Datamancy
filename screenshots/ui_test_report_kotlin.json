@@ -1,17 +1,17 @@
 {
-  "timestamp": "2025-12-05T17:39:20.873575412",
+  "timestamp": "2025-12-05T20:30:04.742699653",
   "summary": {
     "totalServices": 18,
-    "accessible": 16,
-    "loginAttempts": 15,
-    "loginSuccessful": 15,
-    "totalScreenshots": 16
+    "accessible": 17,
+    "loginAttempts": 16,
+    "loginSuccessful": 14,
+    "totalScreenshots": 17
   },
   "results": [
     {
       "service": "Authelia",
       "url": "https://auth.project-saturn.com",
-      "timestamp": "2025-12-05T17:33:38.609792948",
+      "timestamp": "2025-12-05T20:24:55.458075175",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -28,7 +28,7 @@
     {
       "service": "Grafana",
       "url": "https://grafana.project-saturn.com",
-      "timestamp": "2025-12-05T17:34:02.212640081",
+      "timestamp": "2025-12-05T20:25:16.000092924",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -45,7 +45,7 @@
     {
       "service": "Open WebUI",
       "url": "https://open-webui.project-saturn.com",
-      "timestamp": "2025-12-05T17:34:24.701792942",
+      "timestamp": "2025-12-05T20:25:36.347905991",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -57,12 +57,12 @@
           "filename": "Open_WebUI_logged_in.png"
         }
       ],
-      "finalUrl": "https://open-webui.project-saturn.com/auth"
+      "finalUrl": "https://open-webui.project-saturn.com/"
     },
     {
       "service": "Vaultwarden",
       "url": "https://vaultwarden.project-saturn.com",
-      "timestamp": "2025-12-05T17:34:52.56108197",
+      "timestamp": "2025-12-05T20:25:56.769406669",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": false,
@@ -79,7 +79,7 @@
     {
       "service": "Planka",
       "url": "https://planka.project-saturn.com",
-      "timestamp": "2025-12-05T17:35:14.275002012",
+      "timestamp": "2025-12-05T20:26:15.255582348",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -96,7 +96,7 @@
     {
       "service": "Bookstack",
       "url": "https://bookstack.project-saturn.com",
-      "timestamp": "2025-12-05T17:35:31.749911605",
+      "timestamp": "2025-12-05T20:26:25.339906823",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -113,7 +113,7 @@
     {
       "service": "Seafile",
       "url": "https://seafile.project-saturn.com",
-      "timestamp": "2025-12-05T17:35:53.269427101",
+      "timestamp": "2025-12-05T20:26:44.570164369",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -130,7 +130,7 @@
     {
       "service": "OnlyOffice",
       "url": "https://onlyoffice.project-saturn.com",
-      "timestamp": "2025-12-05T17:36:15.252288747",
+      "timestamp": "2025-12-05T20:27:04.37849515",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -147,7 +147,7 @@
     {
       "service": "JupyterHub",
       "url": "https://jupyterhub.project-saturn.com",
-      "timestamp": "2025-12-05T17:36:37.552094825",
+      "timestamp": "2025-12-05T20:27:24.351233003",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -164,7 +164,7 @@
     {
       "service": "Homepage",
       "url": "https://homepage.project-saturn.com",
-      "timestamp": "2025-12-05T17:37:00.313776538",
+      "timestamp": "2025-12-05T20:27:45.077379145",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -181,7 +181,7 @@
     {
       "service": "SOGo",
       "url": "https://sogo.project-saturn.com",
-      "timestamp": "2025-12-05T17:37:22.280704034",
+      "timestamp": "2025-12-05T20:28:04.795827958",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -198,7 +198,7 @@
     {
       "service": "Home Assistant",
       "url": "https://homeassistant.project-saturn.com",
-      "timestamp": "2025-12-05T17:37:48.439719306",
+      "timestamp": "2025-12-05T20:28:24.09149552",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -215,46 +215,52 @@
     {
       "service": "Kopia",
       "url": "https://kopia.project-saturn.com",
-      "timestamp": "2025-12-05T17:38:09.444100615",
-      "accessible": true,
-      "loginAttempted": true,
-      "loginSuccessful": true,
+      "timestamp": "2025-12-05T20:28:43.418789053",
+      "accessible": false,
+      "loginAttempted": false,
+      "loginSuccessful": false,
       "loginType": "authelia",
-      "screenshots": [
-        {
-          "step": "logged_in",
-          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Kopia_logged_in.png",
-          "filename": "Kopia_logged_in.png"
-        }
-      ],
-      "finalUrl": "https://kopia.project-saturn.com/"
+      "error": "Navigation error: Error {\n  message\u003d\u0027net::ERR_INVALID_AUTH_CREDENTIALS at https://kopia.project-saturn.com/\n  name\u003d\u0027Error\n  stack\u003d\u0027Error: net::ERR_INVALID_AUTH_CREDENTIALS at https://kopia.project-saturn.com/\n    at FrameSession._navigate (/tmp/playwright-java-11503590979985459132/package/lib/server/chromium/crPage.js:508:35)\n    at async Frame._gotoAction (/tmp/playwright-java-11503590979985459132/package/lib/server/frames.js:534:28)\n}\nCall log:\n- navigating to \"https://kopia.project-saturn.com/\", waiting until \"domcontentloaded\"\n",
+      "screenshots": []
     },
     {
       "service": "Mailu Admin",
       "url": "https://mail.project-saturn.com/admin",
-      "timestamp": "2025-12-05T17:38:30.463425179",
-      "accessible": false,
-      "loginAttempted": false,
+      "timestamp": "2025-12-05T20:28:43.845486659",
+      "accessible": true,
+      "loginAttempted": true,
       "loginSuccessful": false,
       "loginType": "direct",
-      "error": "Navigation error: Error {\n  message\u003d\u0027NS_ERROR_REDIRECT_LOOP\n  name\u003d\u0027Error\n  stack\u003d\u0027Error: NS_ERROR_REDIRECT_LOOP\n    at FrameManager.frameAbortedNavigation (/tmp/playwright-java-6324104720363563717/package/lib/server/frames.js:216:14)\n    at FrameManager.requestFailed (/tmp/playwright-java-6324104720363563717/package/lib/server/frames.js:276:12)\n    at FFNetworkManager._onRequestFailed (/tmp/playwright-java-6324104720363563717/package/lib/server/firefox/ffNetworkManager.js:136:30)\n    at FFSession.emit (node:events:514:28)\n    at /tmp/playwright-java-6324104720363563717/package/lib/server/firefox/ffConnection.js:154:41\n}\nCall log:\n- navigating to \"https://mail.project-saturn.com/admin\", waiting until \"domcontentloaded\"\n",
-      "screenshots": []
+      "error": "Submit button not found",
+      "screenshots": [
+        {
+          "step": "error_no_submit",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Mailu_Admin_error_no_submit.png",
+          "filename": "Mailu_Admin_error_no_submit.png"
+        }
+      ]
     },
     {
       "service": "Roundcube",
       "url": "https://mail.project-saturn.com/webmail",
-      "timestamp": "2025-12-05T17:38:32.620110102",
-      "accessible": false,
-      "loginAttempted": false,
+      "timestamp": "2025-12-05T20:29:01.731728927",
+      "accessible": true,
+      "loginAttempted": true,
       "loginSuccessful": false,
       "loginType": "direct",
-      "error": "Navigation error: Error {\n  message\u003d\u0027NS_ERROR_REDIRECT_LOOP\n  name\u003d\u0027Error\n  stack\u003d\u0027Error: NS_ERROR_REDIRECT_LOOP\n    at FrameManager.frameAbortedNavigation (/tmp/playwright-java-6324104720363563717/package/lib/server/frames.js:216:14)\n    at FrameManager.requestFailed (/tmp/playwright-java-6324104720363563717/package/lib/server/frames.js:276:12)\n    at FFNetworkManager._onRequestFailed (/tmp/playwright-java-6324104720363563717/package/lib/server/firefox/ffNetworkManager.js:136:30)\n    at FFSession.emit (node:events:514:28)\n    at /tmp/playwright-java-6324104720363563717/package/lib/server/firefox/ffConnection.js:154:41\n}\nCall log:\n- navigating to \"https://mail.project-saturn.com/webmail\", waiting until \"domcontentloaded\"\n",
-      "screenshots": []
+      "error": "Username field not found",
+      "screenshots": [
+        {
+          "step": "error_no_username",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Roundcube_error_no_username.png",
+          "filename": "Roundcube_error_no_username.png"
+        }
+      ]
     },
     {
       "service": "LDAP Account Manager",
       "url": "https://lam.project-saturn.com",
-      "timestamp": "2025-12-05T17:38:34.747142336",
+      "timestamp": "2025-12-05T20:29:24.578369181",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -271,7 +277,7 @@
     {
       "service": "Dockge",
       "url": "https://dockge.project-saturn.com",
-      "timestamp": "2025-12-05T17:38:55.713301921",
+      "timestamp": "2025-12-05T20:29:43.982280394",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -288,7 +294,7 @@
     {
       "service": "Mastodon",
       "url": "https://mastodon.project-saturn.com",
-      "timestamp": "2025-12-05T17:39:17.808839975",
+      "timestamp": "2025-12-05T20:30:03.439055785",
       "accessible": true,
       "loginAttempted": false,
       "loginSuccessful": true,

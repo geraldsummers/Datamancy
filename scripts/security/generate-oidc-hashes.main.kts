@@ -129,7 +129,8 @@ fun main() {
         "PGADMIN_OAUTH_SECRET",
         "NEXTCLOUD_OIDC_SECRET",
         "HOMEASSISTANT_OAUTH_SECRET",
-        "MASTODON_OIDC_SECRET"
+        "MASTODON_OIDC_SECRET",
+        "BOOKSTACK_OAUTH_SECRET"
     )
 
     val secretToHash = mutableMapOf<String, String>()

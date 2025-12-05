@@ -65,7 +65,7 @@ sogo.{{DOMAIN}} {
             uri /api/authz/forward-auth
             copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
         }
-        reverse_proxy sogo:20000
+        reverse_proxy sogo:80
     }
 }
 
@@ -80,15 +80,9 @@ dockge.{{DOMAIN}} {
     }
 }
 
-# Kopia UI
+# Kopia UI (uses built-in authentication; no forward_auth)
 kopia.{{DOMAIN}} {
-    route {
-        forward_auth authelia:9091 {
-            uri /api/authz/forward-auth
-            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }
-        reverse_proxy kopia:51515
-    }
+    reverse_proxy kopia:51515
 }
 
 # Grafana (uses OIDC within the app; no edge forward_auth)

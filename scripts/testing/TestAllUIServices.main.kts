@@ -2,6 +2,7 @@
 
 @file:DependsOn("com.microsoft.playwright:playwright:1.40.0")
 @file:DependsOn("com.google.code.gson:gson:2.10.1")
+@file:DependsOn("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
 import com.google.gson.GsonBuilder
 import com.microsoft.playwright.*
@@ -11,10 +12,16 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.*
 
-/**
- * Comprehensive UI testing with Playwright - Login automation for all services
- */
+// ---- Tunables ----
+
+ val NAV_TIMEOUT_MS = 15_000.0
+ val SHORT_NAV_TIMEOUT_MS = 8_000.0
+ val ELEMENT_WAIT_MS = 2_000.0
+ val ELEMENT_WAIT_SHORT_MS = 1_000.0
+
+// ---- Shell helper ----
 
 fun runCmd(vararg cmd: String): CommandResult {
     val process = ProcessBuilder(*cmd).start()
@@ -26,12 +33,20 @@ fun runCmd(vararg cmd: String): CommandResult {
 
 data class CommandResult(val out: String, val err: String, val exitCode: Int)
 
-// Configuration
-val SCRIPT_DIR = runCmd("bash", "-c", "cd \$(dirname \${BASH_SOURCE[0]:-\${0}}) && pwd").out.trim().let { Path.of(it) }
+// ---- Configuration ----
+
+val SCRIPT_DIR: Path = runCmd(
+    "bash",
+    "-c",
+    "cd \$(dirname \${BASH_SOURCE[0]:-\${0}}) && pwd"
+).out.trim().let { Path.of(it) }
+
 val DOMAIN = "project-saturn.com"
 val ADMIN_USER = "admin"
 val ADMIN_PASSWORD = "dKnoXMO7y-MJR6YHl22NQtFmsf3GR2tV"
 val SCREENSHOT_DIR = SCRIPT_DIR.resolve("screenshots").toFile()
+
+// ---- Data classes ----
 
 data class ServiceConfig(
     val name: String,
@@ -76,7 +91,8 @@ data class TestReport(
     val results: List<TestResult>
 )
 
-// UI Services to test
+// ---- Services ----
+
 val SERVICES = listOf(
     ServiceConfig(
         name = "Authelia",
@@ -162,23 +178,21 @@ val SERVICES = listOf(
     ServiceConfig(
         name = "Kopia",
         url = "https://kopia.$DOMAIN",
-        loginType = "authelia"
+        loginRequired = false,  // HTTP Basic Auth is handled at the browser level
+        loginType = "http-basic"
     ),
+    // Mailu services: not using Authelia, skip automated login
     ServiceConfig(
         name = "Mailu Admin",
         url = "https://mail.$DOMAIN/admin",
-        loginType = "direct",
-        usernameSelectors = listOf("input[name='email']"),
-        passwordSelectors = listOf("input[name='pw']", "input[name='password']"),
-        submitSelectors = listOf("button[type='submit']")
+        loginRequired = false,
+        loginType = "mailu-internal"
     ),
     ServiceConfig(
         name = "Roundcube",
         url = "https://mail.$DOMAIN/webmail",
-        loginType = "direct",
-        usernameSelectors = listOf("input[name='_user']", "#rcmloginuser"),
-        passwordSelectors = listOf("input[name='_pass']", "#rcmloginpwd"),
-        submitSelectors = listOf("button[type='submit']", "#rcmloginsubmit")
+        loginRequired = false,
+        loginType = "mailu-internal"
     ),
     ServiceConfig(
         name = "LDAP Account Manager",
@@ -201,16 +215,24 @@ val SERVICES = listOf(
     )
 )
 
+// ---- Helpers ----
+
 fun saveScreenshot(page: Page, serviceName: String, step: String, result: TestResult): String? {
     return try {
         val safeName = serviceName.replace(" ", "_").replace("/", "_")
         val filename = "${safeName}_${step}.png"
         val filepath = File(SCREENSHOT_DIR, filename).absolutePath
 
-        page.screenshot(Page.ScreenshotOptions().setPath(Paths.get(filepath)).setFullPage(true))
+        runBlocking { delay(500) }
+
+        page.screenshot(
+            Page.ScreenshotOptions()
+                .setPath(Paths.get(filepath))
+                .setFullPage(true)
+        )
         println("  📸 Screenshot: $filename")
 
-        // Save HTML/DOM dump alongside screenshot
+        // HTML dump alongside screenshot
         try {
             val htmlFilename = "${safeName}_${step}.html"
             val htmlFilepath = File(SCREENSHOT_DIR, htmlFilename).absolutePath
@@ -229,41 +251,106 @@ fun saveScreenshot(page: Page, serviceName: String, step: String, result: TestRe
     }
 }
 
-fun findElement(page: Page, selectors: List<String>, timeout: Double = 5000.0): Pair<Locator?, String?> {
+fun findElement(
+    page: Page,
+    selectors: List<String>,
+    timeout: Double = ELEMENT_WAIT_MS,
+    requireVisible: Boolean = true
+): Pair<Locator?, String?> {
     for (selector in selectors) {
         try {
             val locator = page.locator(selector)
-            locator.waitFor(Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.VISIBLE))
+            val options = Locator.WaitForOptions()
+                .setTimeout(timeout)
+                .setState(
+                    if (requireVisible) WaitForSelectorState.VISIBLE
+                    else WaitForSelectorState.ATTACHED
+                )
+            locator.waitFor(options)
+
             if (locator.count() > 0) {
-                return Pair(locator.first(), selector)
+                return locator.first() to selector
             }
-        } catch (e: Exception) {
-            continue
+        } catch (_: Exception) {
+            // Try next selector
         }
     }
-    return Pair(null, null)
+    return null to null
 }
 
+/**
+ * Light "post-login" settle:
+ * - Try to detect typical logged-in/app-shell elements.
+ * - Fallback to a very short wait if nothing obvious appears.
+ */
+fun waitForPostLoginContent(page: Page, serviceName: String) {
+    val candidates = listOf(
+        "text=Logout",
+        "text=Log out",
+        "text=Sign out",
+        "a[href*='logout']",
+        "button:has-text('Logout')",
+        "button:has-text('Log out')",
+        "nav",
+        "main"
+    )
+
+    for (selector in candidates) {
+        try {
+            page.waitForSelector(
+                selector,
+                Page.WaitForSelectorOptions().setTimeout(1_500.0)
+            )
+            return
+        } catch (_: Exception) {
+            // Try next
+        }
+    }
+
+    // If nothing matched, tiny fallback pause
+    try {
+        page.waitForTimeout(500.0)
+    } catch (_: Exception) {
+    }
+}
+
+// ---- Authelia ----
+
 fun handleAutheliaLogin(page: Page, serviceName: String, result: TestResult): Boolean {
-    println("  🔐 Detected Authelia login redirect")
+    println("  🔐 Handling Authelia login")
 
     return try {
-        // Wait for Authelia login page
-        page.waitForURL("**/auth.project-saturn.com/**", Page.WaitForURLOptions().setTimeout(10000.0))
+        // Make sure we're actually on Authelia
+        try {
+            page.waitForURL(
+                "**/auth.project-saturn.com/**",
+                Page.WaitForURLOptions().setTimeout(SHORT_NAV_TIMEOUT_MS)
+            )
+        } catch (_: Exception) {
+            if (!page.url().contains("auth.project-saturn.com")) {
+                result.error = "Expected Authelia but URL is ${page.url()}"
+                saveScreenshot(page, serviceName, "error_authelia_not_reached", result)
+                return false
+            }
+        }
 
-        // Find username field
-        val (usernameInput, usernameSel) = findElement(page, listOf("#username-textfield", "input[name='username']"))
+        val (usernameInput, _) = findElement(
+            page,
+            listOf("#username-textfield", "input[name='username']")
+        )
         if (usernameInput == null) {
             result.error = "Authelia username field not found"
-            saveScreenshot(page, serviceName, "error_authelia", result)
+            saveScreenshot(page, serviceName, "error_authelia_no_username", result)
             return false
         }
 
-        // Find password field
-        val (passwordInput, passwordSel) = findElement(page, listOf("#password-textfield", "input[name='password']"))
+        val (passwordInput, _) = findElement(
+            page,
+            listOf("#password-textfield", "input[name='password']")
+        )
         if (passwordInput == null) {
             result.error = "Authelia password field not found"
-            saveScreenshot(page, serviceName, "error_authelia", result)
+            saveScreenshot(page, serviceName, "error_authelia_no_password", result)
             return false
         }
 
@@ -271,73 +358,86 @@ fun handleAutheliaLogin(page: Page, serviceName: String, result: TestResult): Bo
         usernameInput.fill(ADMIN_USER)
         passwordInput.fill(ADMIN_PASSWORD)
 
-        // Find and click sign in button
-        val (submitButton, submitSel) = findElement(page, listOf("#sign-in-button", "button[type='submit']"))
-        if (submitButton != null) {
-            println("  🖱️  Clicking Authelia sign in")
+        val (submitButton, _) = findElement(
+            page,
+            listOf("#sign-in-button", "button[type='submit']")
+        )
+        if (submitButton == null) {
+            result.error = "Authelia submit button not found"
+            saveScreenshot(page, serviceName, "error_authelia_no_submit", result)
+            return false
+        }
 
-            // Wait for navigation to complete - use response/navigation waiters
-            val navigationPromise = page.waitForNavigation(Page.WaitForNavigationOptions()
-                .setTimeout(15000.0)
-                .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.NETWORKIDLE)) {
+        println("  🖱️  Clicking Authelia sign in")
+        try {
+            page.waitForNavigation(
+                Page.WaitForNavigationOptions()
+                    .setTimeout(NAV_TIMEOUT_MS)
+            ) {
                 submitButton.click()
             }
+        } catch (_: Exception) {
+            // If nav didn't happen, we'll just inspect where we are
+        }
 
-            // Check for OAuth consent screen
-            val currentUrl = page.url()
-            if (currentUrl.contains("auth.project-saturn.com") && page.content().contains("Consent Request")) {
-                println("  🔐 OAuth consent screen detected, clicking Accept")
-                val (acceptButton, _) = findElement(page, listOf("button:has-text('ACCEPT')", "button:has-text('Accept')"), 5000.0)
-                if (acceptButton != null) {
-                    page.waitForNavigation(Page.WaitForNavigationOptions()
-                        .setTimeout(15000.0)
-                        .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.NETWORKIDLE)) {
+        // OAuth consent screen (if any)
+        val currentUrl = page.url()
+        if (currentUrl.contains("auth.project-saturn.com") &&
+            page.content().contains("Consent Request")
+        ) {
+            println("  🔐 OAuth consent screen detected, clicking Accept")
+            val (acceptButton, _) = findElement(
+                page,
+                listOf("button:has-text('ACCEPT')", "button:has-text('Accept')"),
+                timeout = ELEMENT_WAIT_MS
+            )
+            if (acceptButton != null) {
+                try {
+                    page.waitForNavigation(
+                        Page.WaitForNavigationOptions()
+                            .setTimeout(NAV_TIMEOUT_MS)
+                    ) {
                         acceptButton.click()
                     }
+                } catch (_: Exception) {
                 }
             }
+        }
 
-            // Check if we're back at the service
-            val finalUrl = page.url()
-            if (!finalUrl.contains("auth.project-saturn.com")) {
-                println("  ✅ Redirected back to service: $finalUrl")
-                // Wait a bit more for the service to fully load
+        val finalUrl = page.url()
+        if (!finalUrl.contains("auth.project-saturn.com")) {
+            println("  ✅ Redirected back to service: $finalUrl")
+            try {
+                page.waitForLoadState(
+                    com.microsoft.playwright.options.LoadState.LOAD,
+                    Page.WaitForLoadStateOptions().setTimeout(SHORT_NAV_TIMEOUT_MS)
+                )
+            } catch (_: Exception) {
+            }
+
+            if (serviceName in listOf("Open WebUI", "Planka", "SOGo", "Vaultwarden")) {
                 try {
-                    page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE,
-                        Page.WaitForLoadStateOptions().setTimeout(10000.0))
-                } catch (e: Exception) {
-                    // Continue
+                    page.waitForTimeout(100.0)
+                } catch (_: Exception) {
                 }
-
-                // Extra wait for SPA applications to initialize
-                if (serviceName in listOf("Open WebUI", "Planka", "SOGo", "Vaultwarden")) {
-                    println("  ⏱️  Extra wait for SPA initialization...")
-                    try {
-                        page.waitForTimeout(5000.0)
-                    } catch (e: Exception) {
-                        // Continue
-                    }
-                }
-
-                return true
-            } else {
-                result.error = "Still on Authelia after login attempt"
-                saveScreenshot(page, serviceName, "error_authelia", result)
-                return false
             }
+
+            return true
         } else {
-            result.error = "Authelia submit button not found"
-            saveScreenshot(page, serviceName, "error_authelia", result)
+            result.error = "Still on Authelia after login attempt"
+            saveScreenshot(page, serviceName, "error_authelia_still_here", result)
             return false
         }
     } catch (e: Exception) {
         result.error = "Authelia login error: ${e.message}"
-        saveScreenshot(page, serviceName, "error_authelia", result)
+        saveScreenshot(page, serviceName, "error_authelia_exception", result)
         false
     }
 }
 
-fun testService(browser: Browser, service: ServiceConfig, resultsList: MutableList<TestResult>): TestResult {
+// ---- Core test ----
+
+fun testService(browser: Browser, service: ServiceConfig): TestResult {
     val serviceName = service.name
     val url = service.url
 
@@ -354,141 +454,247 @@ fun testService(browser: Browser, service: ServiceConfig, resultsList: MutableLi
     )
 
     var context: BrowserContext? = null
+
     try {
-        // Create browser context
-        context = browser.newContext(Browser.NewContextOptions()
+        val contextOptions = Browser.NewContextOptions()
             .setIgnoreHTTPSErrors(true)
-            .setViewportSize(1920, 1080))
+            .setViewportSize(1920, 1080)
+
+        if (serviceName == "Kopia") {
+            contextOptions.setHttpCredentials(ADMIN_USER, ADMIN_PASSWORD)
+        }
+
+        context = browser.newContext(contextOptions)
         val page = context.newPage()
 
-        // Navigate to service
+        // Navigate
         println("  🌐 Navigating to $url")
         try {
-            val response = page.navigate(url, Page.NavigateOptions()
-                .setTimeout(30000.0)
-                .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.DOMCONTENTLOADED))
+            val response = page.navigate(
+                url,
+                Page.NavigateOptions()
+                    .setTimeout(NAV_TIMEOUT_MS)
+                    .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.DOMCONTENTLOADED)
+            )
             result.accessible = response?.status()?.let { it < 400 } ?: false
             println("  📊 HTTP Status: ${response?.status() ?: "N/A"}")
         } catch (e: TimeoutError) {
             result.error = "Navigation timeout"
             println("  ❌ Navigation timeout")
-            context?.close()
-            resultsList.add(result)
+            saveScreenshot(page, serviceName, "error_nav_timeout", result)
             return result
         } catch (e: Exception) {
             result.error = "Navigation error: ${e.message}"
             println("  ❌ Navigation error: ${e.message}")
-            context?.close()
-            resultsList.add(result)
+            saveScreenshot(page, serviceName, "error_nav_exception", result)
             return result
         }
 
-        // Wait for page to stabilize
+        // Light stabilisation (no NETWORKIDLE)
         try {
-            page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE,
-                Page.WaitForLoadStateOptions().setTimeout(5000.0))
-        } catch (e: Exception) {
-            // Continue even if networkidle times out
+            page.waitForLoadState(
+                com.microsoft.playwright.options.LoadState.LOAD,
+                Page.WaitForLoadStateOptions().setTimeout(SHORT_NAV_TIMEOUT_MS)
+            )
+        } catch (_: Exception) {
         }
 
-        // Check if we need to login
+        // No-login services
         if (!service.loginRequired) {
             println("  ℹ️  No login required")
             result.loginSuccessful = true
             result.finalUrl = page.url()
+
+            waitForPostLoginContent(page, serviceName)
             saveScreenshot(page, serviceName, "logged_in", result)
-            context?.close()
-            resultsList.add(result)
+
             return result
         }
 
         result.loginAttempted = true
 
-        // Check for SSO button on services that support it
-        val ssoButtonSelectors = listOf(
-            "button:has-text('Log in with SSO')",
-            "button:has-text('Use single sign-on')",
-            "a:has-text('Log in with SSO')",
-            "a:has-text('Use single sign-on')"
+        // Mailu / Roundcube Sign in link (informational)
+        val signInLinkSelectors = listOf(
+            "a[href='/sso/login']",
+            "a:has-text('Sign in')"
         )
-
-        val (ssoButton, ssoSel) = findElement(page, ssoButtonSelectors, 3000.0)
-        if (ssoButton != null) {
-            println("  🔑 Found SSO button, clicking: $ssoSel")
+        val (signInLink, _) = findElement(
+            page,
+            signInLinkSelectors,
+            timeout = ELEMENT_WAIT_SHORT_MS
+        )
+        if (signInLink != null && page.url().contains("mail.project-saturn.com")) {
+            println("  🔑 Found Sign in link, clicking")
             try {
-                page.waitForNavigation(Page.WaitForNavigationOptions()
-                    .setTimeout(10000.0)
-                    .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.NETWORKIDLE)) {
-                    ssoButton.click()
+                page.waitForNavigation(
+                    Page.WaitForNavigationOptions()
+                        .setTimeout(SHORT_NAV_TIMEOUT_MS)
+                ) {
+                    signInLink.click()
                 }
-            } catch (e: Exception) {
-                // Continue even if navigation times out
+            } catch (_: Exception) {
             }
         }
 
-        // Check if redirected to Authelia (or if service expects it)
-        val currentUrl = page.url()
-        if ((currentUrl.contains("auth.project-saturn.com") || service.loginType == "authelia") && service.loginType == "authelia") {
-            // If not yet on Authelia, wait a bit longer for redirect
+        // SSO/OIDC button before Authelia redirect
+        val ssoButtonSelectorsInitial = listOf(
+            "button.vw-sso-login",
+            ".vw-sso-login",
+            "button:has-text('Log in with SSO')",
+            "button:has-text('Use single sign-on')",
+            "a:has-text('Log in with SSO')"
+        )
+
+        var ssoButtonInitial: Locator? = null
+        var ssoSelInitial: String? = null
+
+        val (visibleButton, visibleSel) = findElement(
+            page,
+            ssoButtonSelectorsInitial,
+            timeout = ELEMENT_WAIT_SHORT_MS,
+            requireVisible = true
+        )
+        if (visibleButton != null) {
+            ssoButtonInitial = visibleButton
+            ssoSelInitial = visibleSel
+        } else {
+            val (attachedButton, attachedSel) = findElement(
+                page,
+                ssoButtonSelectorsInitial,
+                timeout = ELEMENT_WAIT_SHORT_MS,
+                requireVisible = false
+            )
+            if (attachedButton != null) {
+                ssoButtonInitial = attachedButton
+                ssoSelInitial = attachedSel
+                println("  ℹ️  Found SSO button (not visible), will try JS click")
+            }
+        }
+
+        if (ssoButtonInitial != null && ssoSelInitial != null) {
+            println("  🔑 Found SSO button on initial page, clicking: $ssoSelInitial")
+            try {
+                val isVisible = try {
+                    ssoButtonInitial.isVisible()
+                } catch (_: Exception) {
+                    false
+                }
+
+                if (!isVisible) {
+                    page.evaluate("document.querySelector('${ssoSelInitial}').click()")
+                    try {
+                        page.waitForLoadState(
+                            com.microsoft.playwright.options.LoadState.LOAD,
+                            Page.WaitForLoadStateOptions().setTimeout(SHORT_NAV_TIMEOUT_MS)
+                        )
+                    } catch (_: Exception) {
+                    }
+                } else {
+                    page.waitForNavigation(
+                        Page.WaitForNavigationOptions()
+                            .setTimeout(SHORT_NAV_TIMEOUT_MS)
+                    ) {
+                        ssoButtonInitial.click()
+                    }
+                }
+            } catch (e: Exception) {
+                println("  ⚠️  SSO button navigation failed or timed out: ${e.message}")
+            }
+        }
+
+        // Authelia handling if expected
+        var currentUrl = page.url()
+        if ((currentUrl.contains("auth.project-saturn.com") || service.loginType == "authelia") &&
+            service.loginType == "authelia"
+        ) {
             if (!currentUrl.contains("auth.project-saturn.com")) {
                 try {
-                    page.waitForURL("**/auth.project-saturn.com/**", Page.WaitForURLOptions().setTimeout(5000.0))
-                } catch (e: Exception) {
-                    // Didn't redirect to Authelia, treat as direct login
+                    page.waitForURL(
+                        "**/auth.project-saturn.com/**",
+                        Page.WaitForURLOptions().setTimeout(SHORT_NAV_TIMEOUT_MS)
+                    )
+                } catch (_: Exception) {
                     println("  ℹ️  Expected Authelia redirect but didn't happen, trying direct login")
                 }
             }
 
-            // Check again after waiting
             if (page.url().contains("auth.project-saturn.com")) {
                 val success = handleAutheliaLogin(page, serviceName, result)
                 if (success) {
+                    // Some apps (e.g. Bookstack) show OIDC button after Authelia
+                    val oidcButtonSelectors = listOf(
+                        "button#oidc-login",
+                        "button:has-text('Login with Authelia')",
+                        "button:has-text('Use single sign-on')"
+                    )
+
+                    val (oidcButton, _) = findElement(
+                        page,
+                        oidcButtonSelectors,
+                        timeout = ELEMENT_WAIT_SHORT_MS
+                    )
+                    if (oidcButton != null && page.url().contains("/login")) {
+                        println("  🔑 Clicking OIDC/SSO button after Authelia")
+                        try {
+                            page.waitForNavigation(
+                                Page.WaitForNavigationOptions()
+                                    .setTimeout(NAV_TIMEOUT_MS)
+                            ) {
+                                oidcButton.click()
+                            }
+                        } catch (_: Exception) {
+                        }
+                    }
+
                     result.loginSuccessful = true
                     result.finalUrl = page.url()
 
-                    // Wait for content to actually load (not just login screens)
-                    println("  ⏱️  Waiting for application content to load...")
-                    try {
-                        page.waitForTimeout(5000.0)
-                        // Try to detect if we're still on a login/setup screen
-                        val pageContent = page.content().lowercase()
-                        if (pageContent.contains("log in") || pageContent.contains("login") ||
-                            pageContent.contains("sign in") || pageContent.contains("create your")) {
-                            println("  ⚠️  Still appears to be on login/setup screen")
-                        }
-                    } catch (e: Exception) {
-                        // Continue
+                    waitForPostLoginContent(page, serviceName)
+
+                    // Optional logged-in check
+                    val contentLower = page.content().lowercase()
+                    val loggedInIndicators = listOf(
+                        "logout", "log out", "sign out",
+                        "settings", "profile", "account",
+                        "dashboard", "welcome"
+                    )
+                    val hasLoggedInIndicator = loggedInIndicators.any { contentLower.contains(it) }
+
+                    if (hasLoggedInIndicator) {
+                        println("  ✅ Detected logged-in state")
                     }
 
                     saveScreenshot(page, serviceName, "logged_in", result)
                 }
-                context?.close()
-                resultsList.add(result)
+
                 return result
             }
         }
 
-        // Direct login (not Authelia)
+        // Direct login
         println("  🔑 Attempting direct login")
 
-        // Find login form elements
-        val (usernameInput, usernameSel) = findElement(page, service.usernameSelectors)
+        val (usernameInput, usernameSel) = findElement(
+            page,
+            service.usernameSelectors,
+            timeout = ELEMENT_WAIT_MS
+        )
         if (usernameInput == null) {
             result.error = "Username field not found"
             println("  ❌ Username field not found")
             saveScreenshot(page, serviceName, "error_no_username", result)
-            context?.close()
-            resultsList.add(result)
             return result
         }
 
-        val (passwordInput, passwordSel) = findElement(page, service.passwordSelectors)
+        val (passwordInput, passwordSel) = findElement(
+            page,
+            service.passwordSelectors,
+            timeout = ELEMENT_WAIT_MS
+        )
         if (passwordInput == null) {
             result.error = "Password field not found"
             println("  ❌ Password field not found")
             saveScreenshot(page, serviceName, "error_no_password", result)
-            context?.close()
-            resultsList.add(result)
             return result
         }
 
@@ -499,72 +705,97 @@ fun testService(browser: Browser, service: ServiceConfig, resultsList: MutableLi
         usernameInput.fill(ADMIN_USER)
         passwordInput.fill(ADMIN_PASSWORD)
 
-        // Find and click submit
-        val (submitButton, submitSel) = findElement(page, service.submitSelectors)
-        if (submitButton != null) {
-            println("  🖱️  Clicking submit button: $submitSel")
-
-            // Wait for navigation to complete
-            try {
-                page.waitForNavigation(Page.WaitForNavigationOptions()
-                    .setTimeout(15000.0)
-                    .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.NETWORKIDLE)) {
-                    submitButton.click()
-                }
-            } catch (e: Exception) {
-                // Continue even if navigation times out
-            }
-
-            // Check if login was successful
-            val finalUrl = page.url()
-            result.finalUrl = finalUrl
-
-            // Heuristics to determine success
-            when {
-                finalUrl != url && !finalUrl.contains("login", ignoreCase = true) && !finalUrl.contains("sign-in", ignoreCase = true) -> {
-                    result.loginSuccessful = true
-                    println("  ✅ Login successful (URL: $finalUrl)")
-                    saveScreenshot(page, serviceName, "logged_in", result)
-                }
-                finalUrl.contains("login", ignoreCase = true) || finalUrl.contains("sign-in", ignoreCase = true) -> {
-                    result.loginSuccessful = false
-                    result.error = "Still on login page after submit"
-                    println("  ⚠️  Still on login page")
-                    saveScreenshot(page, serviceName, "error_login_failed", result)
-                }
-                else -> {
-                    // Assume success if no obvious error
-                    result.loginSuccessful = true
-                    println("  ✅ Login appears successful")
-                    saveScreenshot(page, serviceName, "logged_in", result)
-                }
-            }
-        } else {
+        val (submitButton, submitSel) = findElement(
+            page,
+            service.submitSelectors,
+            timeout = ELEMENT_WAIT_MS
+        )
+        if (submitButton == null) {
             result.error = "Submit button not found"
             println("  ❌ Submit button not found")
             saveScreenshot(page, serviceName, "error_no_submit", result)
+            return result
         }
 
-        context?.close()
+        println("  🖱️  Clicking submit button: $submitSel")
+        try {
+            page.waitForNavigation(
+                Page.WaitForNavigationOptions()
+                    .setTimeout(NAV_TIMEOUT_MS)
+            ) {
+                submitButton.click()
+            }
+        } catch (_: Exception) {
+            // If no nav, we'll just inspect URL
+        }
+
+        val finalUrl = page.url()
+        result.finalUrl = finalUrl
+
+        when {
+            finalUrl != url &&
+                    !finalUrl.contains("login", ignoreCase = true) &&
+                    !finalUrl.contains("sign-in", ignoreCase = true) -> {
+                result.loginSuccessful = true
+                println("  ✅ Login successful (URL: $finalUrl)")
+
+                waitForPostLoginContent(page, serviceName)
+                saveScreenshot(page, serviceName, "logged_in", result)
+            }
+
+            finalUrl.contains("login", ignoreCase = true) ||
+                    finalUrl.contains("sign-in", ignoreCase = true) -> {
+                result.loginSuccessful = false
+                result.error = "Still on login page after submit"
+                println("  ⚠️  Still on login page")
+                saveScreenshot(page, serviceName, "error_login_failed", result)
+            }
+
+            else -> {
+                result.loginSuccessful = true
+                println("  ✅ Login appears successful")
+
+                waitForPostLoginContent(page, serviceName)
+                saveScreenshot(page, serviceName, "logged_in", result)
+            }
+        }
 
     } catch (e: Exception) {
         result.error = "Unexpected error: ${e.message}"
         println("  ❌ Unexpected error: ${e.message}")
+    } finally {
         try {
             context?.close()
-        } catch (ignored: Exception) {
+        } catch (_: Exception) {
         }
     }
 
-    resultsList.add(result)
     return result
 }
+
+// ---- Per-service browser wrapper ----
+
+fun testServiceWithOwnBrowser(service: ServiceConfig): TestResult {
+    Playwright.create().use { playwright ->
+        val browser = playwright.chromium().launch(
+            BrowserType.LaunchOptions()
+                .setHeadless(true)
+                .setSlowMo(0.0)
+        )
+        return testService(browser, service)
+    }
+}
+
+// ---- Reporting ----
 
 fun generateReport(results: List<TestResult>) {
     println("\n${"=".repeat(80)}")
     println("DATAMANCY UI SERVICES - COMPREHENSIVE TEST REPORT")
     println("=".repeat(80))
-    println("Test Date: ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))}")
+    println(
+        "Test Date: " +
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+    )
     println("Total Services: ${results.size}")
     println("=".repeat(80))
 
@@ -604,7 +835,6 @@ fun generateReport(results: List<TestResult>) {
         }
     }
 
-    // Save JSON report
     val reportPath = File(SCREENSHOT_DIR, "ui_test_report_kotlin.json")
     val gson = GsonBuilder().setPrettyPrinting().create()
     val report = TestReport(
@@ -627,27 +857,19 @@ fun generateReport(results: List<TestResult>) {
     println("=".repeat(80))
 }
 
-fun main() {
+// ---- Entry point ----
+
+fun main() = runBlocking {
     println("🚀 Starting Datamancy UI Services Comprehensive Test (Kotlin)")
     println("📂 Screenshot directory: ${SCREENSHOT_DIR.absolutePath}\n")
 
-    // Ensure screenshot directory exists
     SCREENSHOT_DIR.mkdirs()
 
-    val results = mutableListOf<TestResult>()
-
-    Playwright.create().use { playwright ->
-        println("🌐 Launching Chromium browser...")
-        val browser = playwright.chromium().launch(
-            BrowserType.LaunchOptions().setHeadless(true)
-        )
-
-        for (service in SERVICES) {
-            testService(browser, service, results)
+    val results = SERVICES.map { service ->
+        async(Dispatchers.IO) {
+            testServiceWithOwnBrowser(service)
         }
-
-        browser.close()
-    }
+    }.awaitAll()
 
     generateReport(results)
 

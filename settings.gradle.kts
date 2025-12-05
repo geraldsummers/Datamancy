@@ -21,3 +21,9 @@ project(":stack-discovery").projectDir = file("src/stack-discovery")
 project(":playwright-controller").projectDir = file("src/playwright-controller")
 project(":ldap-sync-service").projectDir = file("src/ldap-sync-service")
 project(":vm-provisioner").projectDir = file("src/vm-provisioner")
+
+// New services
+include(":task-scheduler")
+include(":rag-gateway")
+project(":task-scheduler").projectDir = file("src/task-scheduler")
+project(":rag-gateway").projectDir = file("src/rag-gateway")

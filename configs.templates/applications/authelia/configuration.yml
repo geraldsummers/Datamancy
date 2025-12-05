@@ -345,3 +345,22 @@ identity_providers:
           - authorization_code
         response_types:
           - code
+
+      # Bookstack (Wiki/Documentation) - Seamless OIDC SSO
+      - client_id: bookstack
+        client_name: Bookstack
+        client_secret: '{{BOOKSTACK_OAUTH_SECRET_HASH}}'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://bookstack.{{DOMAIN}}/oidc/callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+        token_endpoint_auth_method: client_secret_post

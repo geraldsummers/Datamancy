@@ -17,6 +17,21 @@ input:
           path: /ingest/text
           allowed_verbs: [ POST ]
         processors:
+          # Check with RAG gateway if ingestion should proceed
+          - branch:
+              request_map: 'root = {}'
+              processors:
+                - try:
+                  - http:
+                      url: ${RAG_GATEWAY_URL:http://rag-gateway:8094}/api/ingestion/should-accept-data
+                      verb: GET
+                      rate_limit: ""
+                      timeout: 5s
+                      retries: 2
+              result_map: |
+                root.should_accept = this.shouldAccept.or(true)
+          # Drop message if ingestion is paused
+          - bloblang: 'root = if !this.should_accept { deleted() }'
           - mapping: |
               root = this
               root.route = "text"

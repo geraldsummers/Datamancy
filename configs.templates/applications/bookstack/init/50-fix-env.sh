@@ -53,9 +53,33 @@ if [ -n "$DB_DATABASE" ]; then
     sed -i "s|^DB_DATABASE=.*|DB_DATABASE=$DB_DATABASE|" "$ENV_FILE"
 fi
 
-# Enable LDAP authentication through Authelia's LDAP backend
-sed -i "s|^AUTH_METHOD=.*|AUTH_METHOD=ldap|" "$ENV_FILE"
-grep -q "^AUTH_METHOD=" "$ENV_FILE" || echo "AUTH_METHOD=ldap" >> "$ENV_FILE"
+# Use authentication via reverse proxy headers (from Authelia)
+# This enables seamless SSO - users authenticated by Authelia are auto-logged in
+sed -i "s|^AUTH_METHOD=.*|AUTH_METHOD=oidc|" "$ENV_FILE"
+grep -q "^AUTH_METHOD=" "$ENV_FILE" || echo "AUTH_METHOD=oidc" >> "$ENV_FILE"
+
+# Configure OIDC for Authelia
+sed -i "s|^OIDC_NAME=.*|OIDC_NAME=Authelia|" "$ENV_FILE"
+grep -q "^OIDC_NAME=" "$ENV_FILE" || echo "OIDC_NAME=Authelia" >> "$ENV_FILE"
+
+sed -i "s|^OIDC_DISPLAY_NAME_CLAIMS=.*|OIDC_DISPLAY_NAME_CLAIMS=name|" "$ENV_FILE"
+grep -q "^OIDC_DISPLAY_NAME_CLAIMS=" "$ENV_FILE" || echo "OIDC_DISPLAY_NAME_CLAIMS=name" >> "$ENV_FILE"
+
+sed -i "s|^OIDC_CLIENT_ID=.*|OIDC_CLIENT_ID=bookstack|" "$ENV_FILE"
+grep -q "^OIDC_CLIENT_ID=" "$ENV_FILE" || echo "OIDC_CLIENT_ID=bookstack" >> "$ENV_FILE"
+
+sed -i "s|^OIDC_CLIENT_SECRET=.*|OIDC_CLIENT_SECRET=\${BOOKSTACK_OAUTH_SECRET}|" "$ENV_FILE"
+grep -q "^OIDC_CLIENT_SECRET=" "$ENV_FILE" || echo "OIDC_CLIENT_SECRET=\${BOOKSTACK_OAUTH_SECRET}" >> "$ENV_FILE"
+
+sed -i "s|^OIDC_ISSUER=.*|OIDC_ISSUER=https://auth.\${DOMAIN}|" "$ENV_FILE"
+grep -q "^OIDC_ISSUER=" "$ENV_FILE" || echo "OIDC_ISSUER=https://auth.\${DOMAIN}" >> "$ENV_FILE"
+
+# Auto-register users from OIDC (seamless SSO)
+sed -i "s|^OIDC_AUTO_DISCOVER=.*|OIDC_AUTO_DISCOVER=true|" "$ENV_FILE"
+grep -q "^OIDC_AUTO_DISCOVER=" "$ENV_FILE" || echo "OIDC_AUTO_DISCOVER=true" >> "$ENV_FILE"
+
+sed -i "s|^OIDC_AUTO_CONFIRM_EMAIL=.*|OIDC_AUTO_CONFIRM_EMAIL=true|" "$ENV_FILE"
+grep -q "^OIDC_AUTO_CONFIRM_EMAIL=" "$ENV_FILE" || echo "OIDC_AUTO_CONFIRM_EMAIL=true" >> "$ENV_FILE"
 
 # LDAP server configuration
 sed -i "s|^LDAP_SERVER=.*|LDAP_SERVER=ldap://ldap:389|" "$ENV_FILE"

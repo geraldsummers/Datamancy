@@ -1,0 +1,164 @@
+<!DOCTYPE html><html lang="en" data-static="/static/" style="height: auto;"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Admin page for Project Saturn Mail">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>Mailu-Admin | Project Saturn Mail</title>
+    <link rel="stylesheet" href="/static/vendor.css">
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body class="sidebar-mini layout-fixed" style="height: auto;">
+    <div class="wrapper">
+      <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+          <li class="nav-item">
+            <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars" title="toggle sidebar" aria-expanded="false"></i><span class="sr-only">toggle sidebar</span></a>
+          </li>
+          <li class="nav-item">
+          </li>
+        </ul>
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item dropdown">
+            <a class="nav-link" data-toggle="dropdown" href="#" aria-expanded="false">
+              <i class="fas fa-language text-xl" aria-hidden="true" title="change language"></i><span class="sr-only">change language</span>
+              <span class="badge badge-primary navbar-badge">en</span></a>
+            <div class="dropdown-menu dropdown-menu-right p-0" id="mailu-languages">
+              <a class="dropdown-item" href="/sso/language/ca">Català</a>
+              <a class="dropdown-item" href="/sso/language/da">Dansk</a>
+              <a class="dropdown-item" href="/sso/language/de">Deutsch</a>
+              <a class="dropdown-item" href="/sso/language/en">English</a>
+              <a class="dropdown-item" href="/sso/language/es">Español</a>
+              <a class="dropdown-item" href="/sso/language/eu">Euskara</a>
+              <a class="dropdown-item" href="/sso/language/fr">Français</a>
+              <a class="dropdown-item" href="/sso/language/it">Italiano</a>
+              <a class="dropdown-item" href="/sso/language/hu">Magyar</a>
+              <a class="dropdown-item" href="/sso/language/nl">Nederlands</a>
+              <a class="dropdown-item" href="/sso/language/nb_NO">Norsk Bokmål</a>
+              <a class="dropdown-item" href="/sso/language/pl">Polski</a>
+              <a class="dropdown-item" href="/sso/language/pt">Português</a>
+              <a class="dropdown-item" href="/sso/language/sv">Svenska</a>
+              <a class="dropdown-item" href="/sso/language/is">Íslenska</a>
+              <a class="dropdown-item" href="/sso/language/cs">Čeština</a>
+              <a class="dropdown-item" href="/sso/language/be_BY">Беларуская</a>
+              <a class="dropdown-item" href="/sso/language/ru">Русский</a>
+              <a class="dropdown-item" href="/sso/language/uk">Українська</a>
+              <a class="dropdown-item" href="/sso/language/he">עברית</a>
+              <a class="dropdown-item" href="/sso/language/fa">فارسی</a>
+              <a class="dropdown-item" href="/sso/language/zh_Hant_TW">中文</a>
+              <a class="dropdown-item" href="/sso/language/zh">中文</a>
+              <a class="dropdown-item" href="/sso/language/ja">日本語</a>
+            </div>
+          </li>
+        </ul>
+      </nav>
+      <aside class="main-sidebar sidebar-dark-primary nav-compact elevation-4">
+        <a class="brand-link bg-mailu-logo">
+          <img src="/static/mailu.png" width="33" height="33" alt="Mailu" class="brand-image mailu-logo img-circle elevation-3">
+          <span class="brand-text font-weight-light">Project Saturn Mail</span>
+        </a><div class="sidebar text-sm" style="overflow-y: auto;">
+  <nav class="mt-2">
+    <ul class="nav nav-pills nav-sidebar flex-column" role="menu">
+    <li class="nav-header text-uppercase text-primary" role="none">Go to</li>
+      <li class="nav-item">
+        <a href="/admin/client" class="nav-link">
+          <i class="nav-icon fa fa-laptop"></i>
+          <p class="text">Client setup</p>
+        </a>
+      </li>
+      <li class="nav-item" role="none">
+        <a href="https://project-saturn.com" target="_blank" class="nav-link" role="menuitem" rel="noreferrer">
+          <i class="nav-icon fa fa-globe"></i>
+          <p>Website <i class="fas fa-external-link-alt text-xs"></i></p>
+        </a>
+      </li>
+      <li class="nav-item" role="none">
+        <a href="https://mailu.io" target="_blank" class="nav-link" role="menuitem">
+          <i class="nav-icon fa fa-life-ring"></i>
+          <p class="text">Help <i class="fas fa-external-link-alt text-xs"></i></p>
+        </a>
+      </li>
+      <li class="nav-item" role="none">
+        <a href="/sso/login" class="nav-link" role="menuitem">
+          <i class="nav-icon fas fa-sign-in-alt"></i>
+          <p>Sign in</p>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</div>
+      </aside>
+      <div class="content-wrapper text-sm" style="min-height: 966px;">
+        <section class="content-header">
+          <div class="container-fluid">
+            <div class="row mb-2">
+              <div class="col-sm-6">
+                <h1 class="m-0">
+Sign in</h1>
+                <small></small>
+              </div>
+              <div class="col-sm-6">
+              </div>
+            </div>
+          </div>
+        </section>
+        <div class="content">
+          
+<div class="row">
+  <div class="col-lg-12">
+    <div class="card card-outline card-primary">
+      <div class="card-header border-0">
+      </div>
+      <div class="card-body">
+<form class="form" method="post" role="form">
+  <input id="pwned" name="pwned" type="hidden" value="-1">
+  
+  <div class="form-group">
+    <div class="row">
+      <div class="col-lg-12 col-xs-12">
+          
+    <label for="email">E-mail</label>
+      <input autofocus="" class="form-control" id="email" name="email" required="" type="text" value="">
+      </div>
+    </div>
+  </div>
+  
+  <div class="form-group">
+    <div class="row">
+      <div class="col-lg-12 col-xs-12">
+          
+    <label for="pw">Password</label>
+      <input class="form-control" id="pw" name="pw" required="" type="password" value="">
+      </div>
+    </div>
+  </div>
+  
+  <div class="form-group">
+    <div class="row">
+      <div class="col-lg-12 col-xs-12">
+            
+    
+      <input class="btn btn-default" id="submitAdmin" name="submitAdmin" type="submit" value="Sign in">
+      </div>
+    </div>
+  </div>
+</form>
+      </div>
+    </div>
+  </div>
+</div>
+        </div>
+      </div>
+      <footer class="main-footer">
+        Built with <i class="fa fa-heart text-danger" aria-hidden="true"></i><span class="sr-only">love</span>
+        using <a href="https://flask.palletsprojects.com/">Flask</a>
+        and <a href="https://adminlte.io/themes/v3/index3.html">AdminLTE</a>.
+        <span class="fa-pull-right">
+          <i class="fa fa-code-branch" aria-hidden="true"></i><span class="sr-only">fork</span>
+          on <a href="https://github.com/Mailu/Mailu">Github</a>
+        </span>
+      </footer>
+    <div id="sidebar-overlay"></div></div>
+    <script src="/static/vendor.js"></script>
+    <script src="/static/app.js"></script>
+  
+</body></html>

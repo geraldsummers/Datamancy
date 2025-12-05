@@ -929,6 +929,9 @@ services:
       - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
       - OAUTH_PROVIDER_NAME=Authelia
       - OAUTH_SCOPES=openid profile email groups
+      # Seamless SSO - skip login form, go straight to OAuth
+      - ENABLE_LOGIN_FORM=false
+      - WEBUI_AUTH=false
     volumes:
       - open_webui_data:/app/backend/data
     healthcheck:
@@ -966,7 +969,7 @@ services:
       - INVITATIONS_ALLOWED=true
       - SHOW_PASSWORD_HINT=false
       - SSO_ENABLED=true
-      - SSO_ONLY=false
+      - SSO_ONLY=true
       - SSO_SIGNUPS_MATCH_EMAIL=true
       - SSO_AUTHORITY=https://auth.${DOMAIN}
       - SSO_ISSUER=https://auth.${DOMAIN}
@@ -1701,6 +1704,54 @@ services:
       retries: 1
       start_period: 5s
 
+  task-scheduler:
+    build:
+      dockerfile: ./src/task-scheduler/Dockerfile
+      context: .
+    container_name: task-scheduler
+    restart: unless-stopped
+    networks:
+      - backend
+    environment:
+      - PORT=8093
+      - CPU_IDLE_THRESHOLD=30.0
+      - CHECK_INTERVAL_SECONDS=10
+      - RAG_GATEWAY_URL=http://rag-gateway:8094
+    depends_on:
+      rag-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8093/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  rag-gateway:
+    build:
+      dockerfile: ./src/rag-gateway/Dockerfile
+      context: .
+    container_name: rag-gateway
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    environment:
+      - PORT=8094
+      - BENTHOS_URL=http://benthos:4195
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      benthos:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8094/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   benthos:
     image: jeffail/benthos:4.27.0
     container_name: benthos
@@ -1719,6 +1770,7 @@ services:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://${STACK_ADMIN_USER}:${STACK_ADMIN_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
       - EMBED_MODEL=${EMBED_MODEL:-embed-small}
+      - RAG_GATEWAY_URL=${RAG_GATEWAY_URL:-http://rag-gateway:8094}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
