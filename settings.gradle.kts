@@ -27,3 +27,7 @@ include(":task-scheduler")
 include(":rag-gateway")
 project(":task-scheduler").projectDir = file("src/task-scheduler")
 project(":rag-gateway").projectDir = file("src/rag-gateway")
+
+// Test framework module (Playwright-based stack testing)
+include(":test-framework")
+project(":test-framework").projectDir = file("test-framework")

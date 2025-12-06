@@ -1,0 +1,35 @@
+services:
+  - name: "Vaultwarden"
+    url: "https://vaultwarden.${DOMAIN}"
+    authType: OIDC
+    oidcButtonSelector: "button:has-text('Use single sign-on')"
+    credentials:
+      username: "${STACK_ADMIN_USER}"
+      password: "${STACK_ADMIN_PASSWORD}"
+    finalWaitSelector: ".vault-filters"
+
+  - name: "Planka"
+    url: "https://planka.${DOMAIN}/login"
+    authType: OIDC
+    oidcButtonSelector: "button:has-text('Log in with SSO')"
+    credentials:
+      username: "${STACK_ADMIN_USER}"
+      password: "${STACK_ADMIN_PASSWORD}"
+    finalWaitSelector: ".board"
+
+  - name: "JupyterHub"
+    url: "https://jupyterhub.${DOMAIN}"
+    authType: OIDC
+    credentials:
+      username: "${STACK_ADMIN_USER}"
+      password: "${STACK_ADMIN_PASSWORD}"
+    finalWaitSelector: ".home-logo"
+
+  - name: "Mastodon"
+    url: "https://mastodon.${DOMAIN}/auth/sign_in"
+    authType: OIDC
+    oidcButtonSelector: "a.button-openid_connect"
+    credentials:
+      username: "${STACK_ADMIN_USER}"
+      password: "${STACK_ADMIN_PASSWORD}"
+    finalWaitSelector: ".compose-form"

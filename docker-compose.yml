@@ -901,50 +901,51 @@ services:
       retries: 3
       start_period: 30s
 
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:0.3.32
-    container_name: open-webui
-    restart: unless-stopped
-    networks:
-      - backend
-      - frontend
-      - database
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    depends_on:
-      postgres:
-        condition: service_healthy
-      litellm:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
-    environment:
-      - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
-      # PostgreSQL database - use URL-encoded password for special characters
-      - DATABASE_URL=postgresql://openwebui:${OPENWEBUI_DB_PASSWORD_ENCODED}@postgres:5432/openwebui
-      - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-true}
-      - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
-      - ENABLE_OPENAI_API=true
-      - OPENAI_API_BASE_URL=${OPENWEBUI_OPENAI_API_BASE_URL:-http://litellm:4000/v1}
-      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
-      # OIDC SSO Configuration
-      - OPENID_PROVIDER_URL=https://auth.${DOMAIN}
-      - OAUTH_CLIENT_ID=open-webui
-      - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
-      - OAUTH_PROVIDER_NAME=Authelia
-      - OAUTH_SCOPES=openid profile email groups
-      # Seamless SSO - skip login form, go straight to OAuth
-      - ENABLE_LOGIN_FORM=false
-      - WEBUI_AUTH=false
-    volumes:
-      - open_webui_data:/app/backend/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+  # Temporarily disabled - depends on litellm (ai profile)
+  # open-webui:
+  #   image: ghcr.io/open-webui/open-webui:0.3.32
+  #   container_name: open-webui
+  #   restart: unless-stopped
+  #   networks:
+  #     - backend
+  #     - frontend
+  #     - database
+  #   dns:
+  #     - 8.8.8.8
+  #     - 1.1.1.1
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     litellm:
+  #       condition: service_healthy
+  #     authelia:
+  #       condition: service_healthy
+  #   environment:
+  #     - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
+  #     # PostgreSQL database - use URL-encoded password for special characters
+  #     - DATABASE_URL=postgresql://openwebui:${OPENWEBUI_DB_PASSWORD_ENCODED}@postgres:5432/openwebui
+  #     - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-true}
+  #     - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
+  #     - ENABLE_OPENAI_API=true
+  #     - OPENAI_API_BASE_URL=${OPENWEBUI_OPENAI_API_BASE_URL:-http://litellm:4000/v1}
+  #     - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
+  #     # OIDC SSO Configuration
+  #     - OPENID_PROVIDER_URL=https://auth.${DOMAIN}
+  #     - OAUTH_CLIENT_ID=open-webui
+  #     - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
+  #     - OAUTH_PROVIDER_NAME=Authelia
+  #     - OAUTH_SCOPES=openid profile email groups
+  #     # Seamless SSO - skip login form, go straight to OAuth
+  #     - ENABLE_LOGIN_FORM=false
+  #     - WEBUI_AUTH=false
+  #   volumes:
+  #     - open_webui_data:/app/backend/data
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 30s
 
   vaultwarden:
     image: vaultwarden/server:1.34.3
@@ -1165,8 +1166,6 @@ services:
     volumes:
       - synapse_data:/data
     command: chown -R 991:991 /data
-    profiles:
-      - applications
 
   synapse:
     build:
@@ -1206,8 +1205,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    profiles:
-      - applications
 
   mastodon-web:
     image: ghcr.io/mastodon/mastodon:v4.3.3
@@ -1447,6 +1444,7 @@ services:
       start_period: 30s
 
   vllm:
+    profiles: ["ai"]
     image: vllm/vllm-openai:latest
     container_name: vllm
     restart: unless-stopped
@@ -1489,6 +1487,7 @@ services:
       start_period: 2m
 
   vllm-router:
+    profiles: ["ai"]
     build:
       dockerfile: ./src/vllm-router/Dockerfile
       context: .
@@ -1512,6 +1511,7 @@ services:
       start_period: 30s
 
   embedding-service:
+    profiles: ["ai"]
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.2
     container_name: embedding-service
     restart: unless-stopped
@@ -1528,6 +1528,7 @@ services:
       start_period: 60s
 
   litellm:
+    profiles: ["ai"]
     image: ghcr.io/berriai/litellm:v1.74.9-stable.patch.1
     container_name: litellm
     restart: unless-stopped
@@ -1558,6 +1559,7 @@ services:
       start_period: 15s
 
   agent-tool-server:
+    profiles: ["ai"]
     build:
       dockerfile: ./src/agent-tool-server/Dockerfile
       context: .
@@ -1611,6 +1613,7 @@ services:
 
 
   probe-orchestrator:
+    profiles: ["ai"]
     build:
       dockerfile: ./src/probe-orchestrator/Dockerfile
       context: .
@@ -1649,6 +1652,7 @@ services:
 
   # Kotlin speech gateway service (Whisper ASR + Piper TTS proxy)
   ktspeechgateway:
+    profiles: ["ai"]
     build:
       dockerfile: ./src/speech-gateway/Dockerfile
       context: .
@@ -1674,6 +1678,7 @@ services:
 
   # Whisper ASR service (OpenAI-compatible)
   whisper:
+    profiles: ["ai"]
     image: onerahmet/openai-whisper-asr-webservice:v1.6.0
     container_name: whisper
     restart: unless-stopped
@@ -1693,6 +1698,7 @@ services:
 
   # Piper TTS HTTP service
   piper:
+    profiles: ["ai"]
     image: rhasspy/wyoming-piper
     container_name: piper
     restart: unless-stopped

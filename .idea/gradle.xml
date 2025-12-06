@@ -5,6 +5,7 @@
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="gradleJvm" value="temurin-21" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
@@ -18,6 +19,7 @@
             <option value="$PROJECT_DIR$/src/task-scheduler" />
             <option value="$PROJECT_DIR$/src/vllm-router" />
             <option value="$PROJECT_DIR$/src/vm-provisioner" />
+            <option value="$PROJECT_DIR$/test-framework" />
           </set>
         </option>
       </GradleProjectSettings>
