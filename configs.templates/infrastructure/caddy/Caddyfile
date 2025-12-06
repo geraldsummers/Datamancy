@@ -65,15 +65,6 @@ mail.{{DOMAIN}} {
         reverse_proxy mailu-admin:8080
     }
 
-    # Webmail interface - protected by Authelia
-    @webmail path /webmail /webmail/*
-    handle @webmail {
-        forward_auth authelia:9091 {
-            uri /api/authz/forward-auth
-            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }
-        reverse_proxy mailu-webmail:80
-    }
 
     # SSO endpoints and other paths - no auth required
     reverse_proxy mailu-front:80
@@ -272,8 +263,12 @@ vllm-router.{{DOMAIN}} {
     }
 }
 
-# Forgejo (Git Forge with OIDC)
+# Forgejo (Git Forge) - with Authelia forward_auth for seamless SSO
 forgejo.{{DOMAIN}} {
+    forward_auth authelia:9091 {
+        uri /api/authz/forward-auth
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
     reverse_proxy forgejo:3000
 }
 

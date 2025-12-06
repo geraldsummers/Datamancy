@@ -1,17 +1,17 @@
 {
-  "timestamp": "2025-12-06T08:37:29.084378401",
+  "timestamp": "2025-12-06T12:38:02.076792218",
   "summary": {
-    "totalServices": 20,
+    "totalServices": 19,
     "accessible": 19,
-    "loginAttempts": 18,
-    "loginSuccessful": 17,
-    "totalScreenshots": 20
+    "loginAttempts": 17,
+    "loginSuccessful": 18,
+    "totalScreenshots": 22
   },
   "results": [
     {
       "service": "Authelia",
       "url": "https://auth.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.817818358",
+      "timestamp": "2025-12-06T12:37:02.1967145",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
@@ -28,11 +28,11 @@
     {
       "service": "Grafana",
       "url": "https://grafana.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.824182664",
+      "timestamp": "2025-12-06T12:37:02.264790071",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "oidc",
       "screenshots": [
         {
           "step": "logged_in",
@@ -45,12 +45,17 @@
     {
       "service": "Open WebUI",
       "url": "https://open-webui.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.813072196",
+      "timestamp": "2025-12-06T12:37:02.431095597",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "oidc",
       "screenshots": [
+        {
+          "step": "error_oidc_button_not_found",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Open_WebUI_error_oidc_button_not_found.png",
+          "filename": "Open_WebUI_error_oidc_button_not_found.png"
+        },
         {
           "step": "logged_in",
           "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Open_WebUI_logged_in.png",
@@ -62,62 +67,67 @@
     {
       "service": "Vaultwarden",
       "url": "https://vaultwarden.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.804635837",
+      "timestamp": "2025-12-06T12:37:02.050054365",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": false,
-      "loginType": "authelia",
-      "error": "Username field not found",
+      "loginType": "oidc",
+      "error": "OIDC flow: expected Authelia redirect",
       "screenshots": [
         {
-          "step": "error_no_username",
-          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Vaultwarden_error_no_username.png",
-          "filename": "Vaultwarden_error_no_username.png"
+          "step": "error_no_authelia_redirect",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Vaultwarden_error_no_authelia_redirect.png",
+          "filename": "Vaultwarden_error_no_authelia_redirect.png"
         }
       ]
     },
     {
       "service": "Planka",
       "url": "https://planka.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.794063421",
+      "timestamp": "2025-12-06T12:37:02.019489767",
       "accessible": true,
       "loginAttempted": true,
-      "loginSuccessful": false,
-      "loginType": "authelia",
-      "error": "Still on Authelia after login attempt",
+      "loginSuccessful": true,
+      "loginType": "oidc",
       "screenshots": [
         {
-          "step": "error_authelia_still_here",
-          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Planka_error_authelia_still_here.png",
-          "filename": "Planka_error_authelia_still_here.png"
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Planka_logged_in.png",
+          "filename": "Planka_logged_in.png"
         }
-      ]
+      ],
+      "finalUrl": "https://planka.project-saturn.com/login"
     },
     {
       "service": "Bookstack",
       "url": "https://bookstack.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.927326146",
+      "timestamp": "2025-12-06T12:37:02.357011609",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "oidc",
       "screenshots": [
+        {
+          "step": "error_oidc_button_not_found",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Bookstack_error_oidc_button_not_found.png",
+          "filename": "Bookstack_error_oidc_button_not_found.png"
+        },
         {
           "step": "logged_in",
           "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Bookstack_logged_in.png",
           "filename": "Bookstack_logged_in.png"
         }
       ],
-      "finalUrl": "https://bookstack.project-saturn.com/oidc/login"
+      "finalUrl": "https://bookstack.project-saturn.com/"
     },
     {
       "service": "Seafile",
       "url": "https://seafile.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.80508688",
+      "timestamp": "2025-12-06T12:37:02.073584016",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "forward-auth",
       "screenshots": [
         {
           "step": "logged_in",
@@ -130,11 +140,11 @@
     {
       "service": "OnlyOffice",
       "url": "https://onlyoffice.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.787657324",
+      "timestamp": "2025-12-06T12:37:02.63418086",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "forward-auth",
       "screenshots": [
         {
           "step": "logged_in",
@@ -147,11 +157,11 @@
     {
       "service": "JupyterHub",
       "url": "https://jupyterhub.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.943808188",
+      "timestamp": "2025-12-06T12:37:02.229692105",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "oidc-auto",
       "screenshots": [
         {
           "step": "logged_in",
@@ -164,11 +174,11 @@
     {
       "service": "Homepage",
       "url": "https://homepage.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.855634017",
+      "timestamp": "2025-12-06T12:37:02.09588728",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "forward-auth",
       "screenshots": [
         {
           "step": "logged_in",
@@ -180,12 +190,12 @@
     },
     {
       "service": "SOGo",
-      "url": "https://sogo.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.908454677",
+      "url": "https://sogo.project-saturn.com/SOGo",
+      "timestamp": "2025-12-06T12:37:02.320089977",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "forward-auth",
       "screenshots": [
         {
           "step": "logged_in",
@@ -193,16 +203,16 @@
           "filename": "SOGo_logged_in.png"
         }
       ],
-      "finalUrl": "https://sogo.project-saturn.com/"
+      "finalUrl": "https://sogo.project-saturn.com/SOGo/"
     },
     {
       "service": "Home Assistant",
       "url": "https://homeassistant.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.81799497",
+      "timestamp": "2025-12-06T12:37:02.570045827",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "forward-auth",
       "screenshots": [
         {
           "step": "logged_in",
@@ -210,13 +220,13 @@
           "filename": "Home_Assistant_logged_in.png"
         }
       ],
-      "finalUrl": "https://homeassistant.project-saturn.com/"
+      "finalUrl": "https://homeassistant.project-saturn.com/onboarding.html"
     },
     {
       "service": "Kopia",
       "url": "https://kopia.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.803888529",
-      "accessible": false,
+      "timestamp": "2025-12-06T12:37:02.276859066",
+      "accessible": true,
       "loginAttempted": false,
       "loginSuccessful": true,
       "loginType": "http-basic",
@@ -232,11 +242,11 @@
     {
       "service": "Mailu Admin",
       "url": "https://mail.project-saturn.com/admin",
-      "timestamp": "2025-12-06T08:36:14.801105289",
+      "timestamp": "2025-12-06T12:37:02.228940759",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "forward-auth",
       "screenshots": [
         {
           "step": "logged_in",
@@ -247,30 +257,13 @@
       "finalUrl": "https://mail.project-saturn.com/sso/login?url\u003dhttps://mail.project-saturn.com/admin/"
     },
     {
-      "service": "Roundcube",
-      "url": "https://mail.project-saturn.com/webmail",
-      "timestamp": "2025-12-06T08:36:14.797016039",
-      "accessible": true,
-      "loginAttempted": true,
-      "loginSuccessful": true,
-      "loginType": "authelia",
-      "screenshots": [
-        {
-          "step": "logged_in",
-          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Roundcube_logged_in.png",
-          "filename": "Roundcube_logged_in.png"
-        }
-      ],
-      "finalUrl": "https://mail.project-saturn.com/webmail/sso.php"
-    },
-    {
       "service": "LDAP Account Manager",
       "url": "https://lam.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.923509835",
+      "timestamp": "2025-12-06T12:37:02.375274801",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "forward-auth",
       "screenshots": [
         {
           "step": "logged_in",
@@ -283,11 +276,11 @@
     {
       "service": "Dockge",
       "url": "https://dockge.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.949470705",
+      "timestamp": "2025-12-06T12:37:02.606959532",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "forward-auth",
       "screenshots": [
         {
           "step": "logged_in",
@@ -300,7 +293,7 @@
     {
       "service": "Mastodon",
       "url": "https://mastodon.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:15.016918542",
+      "timestamp": "2025-12-06T12:37:02.317542599",
       "accessible": true,
       "loginAttempted": false,
       "loginSuccessful": true,
@@ -316,29 +309,34 @@
     },
     {
       "service": "Forgejo",
-      "url": "https://forgejo.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.829985673",
+      "url": "https://forgejo.project-saturn.com/user/login",
+      "timestamp": "2025-12-06T12:37:02.300663551",
       "accessible": true,
       "loginAttempted": true,
-      "loginSuccessful": false,
-      "loginType": "authelia",
-      "error": "Username field not found",
+      "loginSuccessful": true,
+      "loginType": "oidc",
       "screenshots": [
         {
-          "step": "error_no_username",
-          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Forgejo_error_no_username.png",
-          "filename": "Forgejo_error_no_username.png"
+          "step": "error_oidc_button_not_found",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Forgejo_error_oidc_button_not_found.png",
+          "filename": "Forgejo_error_oidc_button_not_found.png"
+        },
+        {
+          "step": "logged_in",
+          "path": "/home/gerald/IdeaProjects/Datamancy/screenshots/Forgejo_logged_in.png",
+          "filename": "Forgejo_logged_in.png"
         }
-      ]
+      ],
+      "finalUrl": "https://forgejo.project-saturn.com/user/login"
     },
     {
       "service": "qBittorrent",
       "url": "https://qbittorrent.project-saturn.com",
-      "timestamp": "2025-12-06T08:36:14.794640518",
+      "timestamp": "2025-12-06T12:37:02.229574147",
       "accessible": true,
       "loginAttempted": true,
       "loginSuccessful": true,
-      "loginType": "authelia",
+      "loginType": "forward-auth",
       "screenshots": [
         {
           "step": "logged_in",

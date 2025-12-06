@@ -13,6 +13,7 @@ import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.*
+import kotlin.collections.fill
 
 // ---- Tunables ----
 
@@ -52,7 +53,7 @@ data class ServiceConfig(
     val name: String,
     val url: String,
     val loginRequired: Boolean = true,
-    val loginType: String = "direct",
+    val loginType: String = "direct", // "direct", "oidc", "forward-auth", "http-basic", "optional"
     val usernameSelectors: List<String> = emptyList(),
     val passwordSelectors: List<String> = emptyList(),
     val submitSelectors: List<String> = emptyList()
@@ -105,78 +106,57 @@ val SERVICES = listOf(
     ServiceConfig(
         name = "Grafana",
         url = "https://grafana.$DOMAIN",
-        loginType = "authelia",
-        usernameSelectors = listOf("input[name='user']", "input[name='username']"),
-        passwordSelectors = listOf("input[name='password']"),
-        submitSelectors = listOf("button[type='submit']")
+        loginType = "oidc"
     ),
     ServiceConfig(
         name = "Open WebUI",
         url = "https://open-webui.$DOMAIN",
-        loginType = "authelia",
-        usernameSelectors = listOf("input[name='email']", "input[type='email']"),
-        passwordSelectors = listOf("input[name='password']", "input[type='password']"),
-        submitSelectors = listOf("button[type='submit']")
+        loginType = "oidc"
     ),
     ServiceConfig(
         name = "Vaultwarden",
         url = "https://vaultwarden.$DOMAIN",
-        loginType = "authelia",
-        usernameSelectors = emptyList(), // SSO-only, no direct login
-        passwordSelectors = emptyList(),
-        submitSelectors = emptyList()
+        loginType = "oidc"
     ),
     ServiceConfig(
         name = "Planka",
         url = "https://planka.$DOMAIN",
-        loginType = "authelia"
+        loginType = "oidc"
     ),
     ServiceConfig(
         name = "Bookstack",
         url = "https://bookstack.$DOMAIN",
-        loginType = "authelia",
-        usernameSelectors = listOf("input[name='username']"),
-        passwordSelectors = listOf("input[name='password']"),
-        submitSelectors = listOf("button[type='submit']")
+        loginType = "oidc"  // Currently uses OIDC, will be forward-auth after OBLITERATE
     ),
     ServiceConfig(
         name = "Seafile",
         url = "https://seafile.$DOMAIN",
-        loginType = "authelia",
-        usernameSelectors = listOf("input[name='login']"),
-        passwordSelectors = listOf("input[name='password']"),
-        submitSelectors = listOf("button[type='submit']")
+        loginType = "forward-auth"
     ),
     ServiceConfig(
         name = "OnlyOffice",
         url = "https://onlyoffice.$DOMAIN",
-        loginType = "authelia",
-        usernameSelectors = listOf("input[type='email']"),
-        passwordSelectors = listOf("input[type='password']"),
-        submitSelectors = listOf("button[type='submit']")
+        loginType = "forward-auth"
     ),
     ServiceConfig(
         name = "JupyterHub",
         url = "https://jupyterhub.$DOMAIN",
-        loginType = "authelia"
+        loginType = "oidc-auto"  // Auto-redirects to Authelia, no button click needed
     ),
     ServiceConfig(
         name = "Homepage",
         url = "https://homepage.$DOMAIN",
-        loginType = "authelia"
+        loginType = "forward-auth"
     ),
     ServiceConfig(
         name = "SOGo",
-        url = "https://sogo.$DOMAIN",
-        loginType = "authelia"
+        url = "https://sogo.$DOMAIN/SOGo",
+        loginType = "forward-auth"
     ),
     ServiceConfig(
         name = "Home Assistant",
         url = "https://homeassistant.$DOMAIN",
-        loginType = "authelia",
-        usernameSelectors = listOf("input[name='username']"),
-        passwordSelectors = listOf("input[name='password']"),
-        submitSelectors = listOf("button[type='submit']")
+        loginType = "forward-auth"  // Uses Authelia forward auth, not OIDC
     ),
     ServiceConfig(
         name = "Kopia",
@@ -188,25 +168,17 @@ val SERVICES = listOf(
     ServiceConfig(
         name = "Mailu Admin",
         url = "https://mail.$DOMAIN/admin",
-        loginType = "authelia"
-    ),
-    ServiceConfig(
-        name = "Roundcube",
-        url = "https://mail.$DOMAIN/webmail",
-        loginType = "authelia"
+        loginType = "forward-auth"
     ),
     ServiceConfig(
         name = "LDAP Account Manager",
         url = "https://lam.$DOMAIN",
-        loginType = "authelia"
+        loginType = "forward-auth"
     ),
     ServiceConfig(
         name = "Dockge",
         url = "https://dockge.$DOMAIN",
-        loginType = "authelia",
-        usernameSelectors = listOf("input[name='username']"),
-        passwordSelectors = listOf("input[name='password']"),
-        submitSelectors = listOf("button[type='submit']")
+        loginType = "forward-auth"
     ),
     ServiceConfig(
         name = "Mastodon",
@@ -216,13 +188,13 @@ val SERVICES = listOf(
     ),
     ServiceConfig(
         name = "Forgejo",
-        url = "https://forgejo.$DOMAIN",
-        loginType = "authelia"
+        url = "https://forgejo.$DOMAIN/user/login",
+        loginType = "oidc"  // Currently uses OIDC, will be forward-auth after OBLITERATE
     ),
     ServiceConfig(
         name = "qBittorrent",
         url = "https://qbittorrent.$DOMAIN",
-        loginType = "authelia"
+        loginType = "forward-auth"
     )
 )
 
@@ -234,7 +206,7 @@ fun saveScreenshot(page: Page, serviceName: String, step: String, result: TestRe
         val filename = "${safeName}_${step}.png"
         val filepath = File(SCREENSHOT_DIR, filename).absolutePath
 
-        runBlocking { delay(500) }
+        runBlocking { delay(5000) }
 
         page.screenshot(
             Page.ScreenshotOptions()
@@ -294,36 +266,6 @@ fun findElement(
  * - Try to detect typical logged-in/app-shell elements.
  * - Fallback to a very short wait if nothing obvious appears.
  */
-fun waitForPostLoginContent(page: Page, serviceName: String) {
-    val candidates = listOf(
-        "text=Logout",
-        "text=Log out",
-        "text=Sign out",
-        "a[href*='logout']",
-        "button:has-text('Logout')",
-        "button:has-text('Log out')",
-        "nav",
-        "main"
-    )
-
-    for (selector in candidates) {
-        try {
-            page.waitForSelector(
-                selector,
-                Page.WaitForSelectorOptions().setTimeout(1_500.0)
-            )
-            return
-        } catch (_: Exception) {
-            // Try next
-        }
-    }
-
-    // If nothing matched, tiny fallback pause
-    try {
-        page.waitForTimeout(500.0)
-    } catch (_: Exception) {
-    }
-}
 
 // ---- Authelia ----
 
@@ -383,7 +325,7 @@ fun handleAutheliaLogin(page: Page, serviceName: String, result: TestResult): Bo
 
         // Wait for any loading/AJAX to complete
         try {
-            page.waitForTimeout(1500.0)
+            page.waitForTimeout(2000.0)
         } catch (_: Exception) {
         }
 
@@ -398,33 +340,79 @@ fun handleAutheliaLogin(page: Page, serviceName: String, result: TestResult): Bo
             // If nav didn't happen, we'll just inspect where we are
         }
 
-        // Give OAuth callback extra time to complete
+        // Wait for redirect away from Authelia (either to consent screen or back to service)
+        println("  ⏱️  Waiting for redirect away from Authelia...")
         try {
-            page.waitForTimeout(3000.0)
+            // Wait up to 15 seconds for URL to change away from Authelia login
+            page.waitForURL(
+                "**/*",
+                Page.WaitForURLOptions()
+                    .setTimeout(15000.0)
+                    .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.LOAD)
+            )
+        } catch (_: Exception) {
+            println("  ⚠️  Timeout waiting for redirect")
+        }
+
+        // Give page time to fully load and render
+        try {
+            page.waitForTimeout(2000.0)
         } catch (_: Exception) {
         }
 
-        // OAuth consent screen (if any)
+        // Check for OAuth consent screen
         val currentUrl = page.url()
-        if (currentUrl.contains("auth.project-saturn.com") &&
-            page.content().contains("Consent Request")
-        ) {
-            println("  🔐 OAuth consent screen detected, clicking Accept")
-            val (acceptButton, _) = findElement(
-                page,
-                listOf("button:has-text('ACCEPT')", "button:has-text('Accept')"),
-                timeout = ELEMENT_WAIT_MS
-            )
-            if (acceptButton != null) {
-                try {
-                    page.waitForNavigation(
-                        Page.WaitForNavigationOptions()
-                            .setTimeout(NAV_TIMEOUT_MS)
-                    ) {
-                        acceptButton.click()
+        println("  🔍 Current URL after login: $currentUrl")
+
+        if (currentUrl.contains("auth.project-saturn.com")) {
+            val content = page.content()
+            println("  🔍 Checking for consent screen...")
+
+            if (content.contains("Consent Request") || content.contains("Accept") || content.contains("ACCEPT")) {
+                println("  🔐 OAuth consent screen detected, clicking Accept")
+
+                // Try multiple consent button selectors
+                val consentButtonSelectors = listOf(
+                    "button:has-text('ACCEPT')",
+                    "button:has-text('Accept')",
+                    "button:has-text('accept')",
+                    "button[type='submit']:has-text('ACCEPT')",
+                    "input[type='submit'][value='ACCEPT']",
+                    "//button[contains(text(), 'ACCEPT')]",
+                    "//button[contains(text(), 'Accept')]"
+                )
+
+                val (acceptButton, acceptSel) = findElement(
+                    page,
+                    consentButtonSelectors,
+                    timeout = ELEMENT_WAIT_MS
+                )
+
+                if (acceptButton != null) {
+                    println("  ✓ Found consent accept button: $acceptSel")
+                    try {
+                        page.waitForNavigation(
+                            Page.WaitForNavigationOptions()
+                                .setTimeout(NAV_TIMEOUT_MS)
+                        ) {
+                            acceptButton.click()
+                            println("  🖱️  Clicked ACCEPT button")
+                        }
+                    } catch (e: Exception) {
+                        println("  ⚠️  Navigation after clicking consent: ${e.message}")
                     }
-                } catch (_: Exception) {
+
+                    // Wait again for redirect back to service
+                    try {
+                        page.waitForTimeout(5000.0)
+                    } catch (_: Exception) {
+                    }
+                } else {
+                    println("  ⚠️  Consent screen detected but ACCEPT button not found")
+                    saveScreenshot(page, serviceName, "error_consent_button_not_found", result)
                 }
+            } else {
+                println("  ℹ️  No consent screen detected in page content")
             }
         }
 
@@ -439,11 +427,10 @@ fun handleAutheliaLogin(page: Page, serviceName: String, result: TestResult): Bo
             } catch (_: Exception) {
             }
 
-            if (serviceName in listOf("Open WebUI", "Planka", "SOGo", "Vaultwarden", "Forgejo")) {
-                try {
-                    page.waitForTimeout(2000.0)
-                } catch (_: Exception) {
-                }
+            // Extra wait for services that need time to settle after OAuth callback
+            try {
+                page.waitForTimeout(3000.0)
+            } catch (_: Exception) {
             }
 
             return true
@@ -537,192 +524,275 @@ fun testService(browser: Browser, service: ServiceConfig): TestResult {
 
         result.loginAttempted = true
 
-        // Mailu / Roundcube Sign in link (informational)
-        val signInLinkSelectors = listOf(
-            "a[href='/sso/login']",
-            "a:has-text('Sign in')"
-        )
-        val (signInLink, _) = findElement(
-            page,
-            signInLinkSelectors,
-            timeout = ELEMENT_WAIT_SHORT_MS
-        )
-        if (signInLink != null && page.url().contains("mail.project-saturn.com")) {
-            println("  🔑 Found Sign in link, clicking")
-            try {
-                page.waitForNavigation(
-                    Page.WaitForNavigationOptions()
-                        .setTimeout(SHORT_NAV_TIMEOUT_MS)
-                ) {
-                    signInLink.click()
-                }
-            } catch (_: Exception) {
-            }
-        }
+        // Handle OIDC and forward-auth flows
+        var currentUrl = page.url()
 
-        // SSO/OIDC button before Authelia redirect
-        val ssoButtonSelectorsInitial = listOf(
-            "button.vw-sso-login",
-            ".vw-sso-login",
-            "button:has-text('Log in with SSO')",
-            "button:has-text('Use single sign-on')",
-            "a:has-text('Log in with SSO')",
-            "button:has-text('Log in with Authelia')",
-            "a.link-action:has-text('Authelia')",  // Forgejo SSO link
-            "a:has-text('Sign in with Authelia')"
-        )
+        when (service.loginType) {
+            "oidc" -> {
+                // OIDC services should have an SSO/OIDC button on their login page
+                println("  🔐 OIDC flow: Looking for SSO button on service login page")
 
-        var ssoButtonInitial: Locator? = null
-        var ssoSelInitial: String? = null
+                // Vaultwarden: SSO button is already visible on the login page, no email entry needed
+                // The "Continue" button is for password login, not SSO
 
-        val (visibleButton, visibleSel) = findElement(
-            page,
-            ssoButtonSelectorsInitial,
-            timeout = ELEMENT_WAIT_SHORT_MS,
-            requireVisible = true
-        )
-        if (visibleButton != null) {
-            ssoButtonInitial = visibleButton
-            ssoSelInitial = visibleSel
-        } else {
-            val (attachedButton, attachedSel) = findElement(
-                page,
-                ssoButtonSelectorsInitial,
-                timeout = ELEMENT_WAIT_SHORT_MS,
-                requireVisible = false
-            )
-            if (attachedButton != null) {
-                ssoButtonInitial = attachedButton
-                ssoSelInitial = attachedSel
-                println("  ℹ️  Found SSO button (not visible), will try JS click")
-            }
-        }
+                val oidcButtonSelectors = listOf(
+                    "button#oidc-login",  // Bookstack
+                    "button.vw-sso-login",  // Vaultwarden
+                    "a.vw-sso-login",  // Vaultwarden (link variant)
+                    "button:has-text('Login with Authelia')",  // Bookstack
+                    "button:has-text('Use single sign-on')",  // Vaultwarden
+                    "a:has-text('Use single sign-on')",  // Vaultwarden (link)
+                    "button:has-text('Sign in with Authelia')",
+                    "a:has-text('Sign in with Authelia')",
+                    "button:has-text('Sign in with SSO')",
+                    "a:has-text('Sign in with SSO')",
+                    "button:has-text('SSO')",
+                    "a:has-text('SSO')",
+                    "button:has-text('Enterprise single sign-on')",  // Vaultwarden enterprise
+                    "a:has-text('Enterprise single sign-on')",
+                    "a.link-action:has-text('Authelia')",  // Forgejo
+                    "a[href*='/user/oauth2/']",  // Forgejo OAuth link
+                    "a[href*='oauth']",
+                    "a[href*='sso']",  // Generic SSO links
+                    "a[href*='oidc']",
+                    "button[id*='oauth']",
+                    "button[id*='oidc']",
+                    "button[id*='sso']",
+                    "button:has-text('Log in with SSO')",  // JupyterHub
+                    "a:has-text('Log in with SSO')",  // JupyterHub
+                    "button:has-text('OAuth 2.0')",  // Grafana
+                    "a:has-text('OAuth 2.0')"
+                )
 
-        if (ssoButtonInitial != null && ssoSelInitial != null) {
-            println("  🔑 Found SSO button on initial page, clicking: $ssoSelInitial")
-            try {
-                val isVisible = try {
-                    ssoButtonInitial.isVisible()
+                // Wait longer for page to stabilize and buttons to render
+                try {
+                    page.waitForTimeout(3000.0)
                 } catch (_: Exception) {
-                    false
                 }
 
-                if (!isVisible) {
-                    page.evaluate("document.querySelector('${ssoSelInitial}').click()")
+                println("  🔍 Searching for OIDC button with ${oidcButtonSelectors.size} selectors")
+
+                // Try each selector manually with better error reporting
+                var oidcButton: Locator? = null
+                var oidcSel: String? = null
+
+                for (selector in oidcButtonSelectors) {
                     try {
-                        page.waitForLoadState(
-                            com.microsoft.playwright.options.LoadState.LOAD,
-                            Page.WaitForLoadStateOptions().setTimeout(SHORT_NAV_TIMEOUT_MS)
-                        )
+                        val loc = page.locator(selector)
+                        val count = loc.count()
+                        println("     Trying: $selector (found $count elements)")
+
+                        if (count > 0) {
+                            // Check if visible
+                            val first = loc.first()
+                            try {
+                                if (first.isVisible()) {
+                                    oidcButton = first
+                                    oidcSel = selector
+                                    println("     ✓ Found visible button: $selector")
+                                    break
+                                } else {
+                                    println("     - Element exists but not visible, will try as fallback")
+                                    // Store as fallback option for hidden buttons (like Vaultwarden)
+                                    if (oidcButton == null) {
+                                        oidcButton = first
+                                        oidcSel = selector
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                println("     - Visibility check failed: ${e.message}")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // Silently continue to next selector
+                    }
+                }
+
+                if (oidcButton == null) {
+                    println("  ⚠️  OIDC button not found after checking all selectors")
+                    println("  📸 Taking screenshot for debugging...")
+                    saveScreenshot(page, serviceName, "error_oidc_button_not_found", result)
+
+                    // Debug: Print out all buttons and links on the page
+                    try {
+                        val allButtons = page.locator("button").all()
+                        println("  🔍 Found ${allButtons.size} button elements on page")
+                        allButtons.take(10).forEachIndexed { idx, btn ->
+                            try {
+                                val text = btn.textContent()?.trim()?.take(50) ?: ""
+                                val classes = btn.getAttribute("class") ?: ""
+                                val id = btn.getAttribute("id") ?: ""
+                                println("     Button $idx: text='$text' class='$classes' id='$id'")
+                            } catch (_: Exception) {}
+                        }
+
+                        val allLinks = page.locator("a").all()
+                        println("  🔍 Found ${allLinks.size} link elements on page")
+                        allLinks.take(10).forEachIndexed { idx, link ->
+                            try {
+                                val text = link.textContent()?.trim()?.take(50) ?: ""
+                                val href = link.getAttribute("href") ?: ""
+                                val classes = link.getAttribute("class") ?: ""
+                                println("     Link $idx: text='$text' href='$href' class='$classes'")
+                            } catch (_: Exception) {}
+                        }
+                    } catch (e: Exception) {
+                        println("  ⚠️  Error debugging page elements: ${e.message}")
+                    }
+                }
+
+                if (oidcButton != null) {
+                    val isVisible = try { oidcButton.isVisible() } catch (_: Exception) { false }
+                    println("  🔑 Found OIDC button: $oidcSel (visible: $isVisible)")
+
+                    // Wait for button to be fully visible and clickable
+                    try {
+                        page.waitForTimeout(1000.0)
                     } catch (_: Exception) {
                     }
-                } else {
-                    page.waitForNavigation(
-                        Page.WaitForNavigationOptions()
-                            .setTimeout(SHORT_NAV_TIMEOUT_MS)
-                    ) {
-                        ssoButtonInitial.click()
-                    }
-                }
 
-                // After clicking SSO, wait for redirect back or Authelia
-                try {
-                    page.waitForTimeout(2000.0)
-                } catch (_: Exception) {
-                }
-            } catch (e: Exception) {
-                println("  ⚠️  SSO button navigation failed or timed out: ${e.message}")
-            }
-        }
-
-        // Authelia handling if expected
-        var currentUrl = page.url()
-        if ((currentUrl.contains("auth.project-saturn.com") || service.loginType == "authelia") &&
-            service.loginType == "authelia"
-        ) {
-            if (!currentUrl.contains("auth.project-saturn.com")) {
-                try {
-                    page.waitForURL(
-                        "**/auth.project-saturn.com/**",
-                        Page.WaitForURLOptions().setTimeout(SHORT_NAV_TIMEOUT_MS)
-                    )
-                } catch (_: Exception) {
-                    println("  ℹ️  Expected Authelia redirect but didn't happen, trying direct login")
-                }
-            }
-
-            if (page.url().contains("auth.project-saturn.com")) {
-                val success = handleAutheliaLogin(page, serviceName, result)
-                if (success) {
-                    // Some apps (e.g. Bookstack) show OIDC button after Authelia
-                    val oidcButtonSelectors = listOf(
-                        "button#oidc-login",
-                        "button:has-text('Login with Authelia')",
-                        "button:has-text('Use single sign-on')"
-                    )
-
-                    val (oidcButton, _) = findElement(
-                        page,
-                        oidcButtonSelectors,
-                        timeout = ELEMENT_WAIT_SHORT_MS
-                    )
-                    if (oidcButton != null && page.url().contains("/login")) {
-                        println("  🔑 Clicking OIDC/SSO button after Authelia")
-                        try {
+                    try {
+                        if (!isVisible) {
+                            // For hidden buttons (like Vaultwarden), use JavaScript click directly
+                            println("  🔄 Button not visible, using JavaScript click")
+                            page.evaluate("document.querySelector('$oidcSel')?.click()")
+                            page.waitForTimeout(3000.0)
+                        } else {
+                            // For visible buttons, use normal click with navigation wait
                             page.waitForNavigation(
                                 Page.WaitForNavigationOptions()
                                     .setTimeout(NAV_TIMEOUT_MS)
                             ) {
                                 oidcButton.click()
                             }
-                        } catch (_: Exception) {
+
+                            // Wait for redirect to Authelia
+                            try {
+                                page.waitForTimeout(2000.0)
+                            } catch (_: Exception) {
+                            }
                         }
+                    } catch (e: Exception) {
+                        println("  ⚠️  OIDC button click failed: ${e.message}")
+                        // Try JavaScript click as fallback
+                        println("  🔄 Attempting JavaScript click as fallback")
+                        try {
+                            page.evaluate("document.querySelector('$oidcSel')?.click()")
+                            page.waitForTimeout(3000.0)
+                        } catch (jsE: Exception) {
+                            println("  ⚠️  JavaScript click also failed: ${jsE.message}")
+                        }
+                    }
+                }
+
+                // Now check if we're on Authelia
+                if (page.url().contains("auth.project-saturn.com")) {
+                    val success = handleAutheliaLogin(page, serviceName, result)
+                    if (!success) {
+                        return result
+                    }
+                    // After Authelia login, wait for OAuth callback
+                    // This includes consent screen and redirect back to service
+                    println("  🔄 Waiting for OAuth callback to complete")
+                    try {
+                        page.waitForURL(
+                            "**//*",
+                            Page.WaitForURLOptions().setTimeout(15000.0)
+                        )
+                        page.waitForTimeout(3000.0)
+                    } catch (_: Exception) {
                     }
 
                     result.loginSuccessful = true
                     result.finalUrl = page.url()
-
                     waitForPostLoginContent(page, serviceName)
-
-                    // Check if we're actually logged in - look for app content, not login forms
-                    val contentLower = page.content().lowercase()
-                    val loggedInIndicators = listOf(
-                        "logout", "log out", "sign out",
-                        "settings", "profile", "account",
-                        "dashboard", "welcome"
-                    )
-                    val loginFormIndicators = listOf(
-                        "input[type='email']",
-                        "input[name='email']",
-                        "input[type='password']",
-                        "button:has-text('Log in')",
-                        "button:has-text('Sign in')"
-                    )
-                    val hasLoggedInIndicator = loggedInIndicators.any { contentLower.contains(it) }
-
-                    // Check if we still see login forms
-                    var hasLoginForm = false
-                    for (selector in loginFormIndicators) {
-                        try {
-                            val locator = page.locator(selector)
-                            if (locator.count() > 0) {
-                                hasLoginForm = true
-                                break
-                            }
-                        } catch (_: Exception) {
-                        }
-                    }
-
-                    if (hasLoggedInIndicator && !hasLoginForm) {
-                        println("  ✅ Detected logged-in state (indicators present, no login forms)")
-                    } else if (!hasLoginForm) {
-                        println("  ✅ Detected logged-in state (no login forms)")
-                    }
-
                     saveScreenshot(page, serviceName, "logged_in", result)
+                    return result
+                } else {
+                    println("  ⚠️  Expected Authelia redirect but didn't happen")
+                    result.error = "OIDC flow: expected Authelia redirect"
+                    saveScreenshot(page, serviceName, "error_no_authelia_redirect", result)
+                    return result
+                }
+            }
+
+            "oidc-auto" -> {
+                // OIDC services that automatically redirect to Auth elia (no button click needed)
+                println("  🔐 OIDC auto-redirect flow: Service should automatically redirect to Authelia")
+
+                // Wait for automatic redirect to Authelia
+                try {
+                    page.waitForURL(
+                        "**/auth.project-saturn.com/**",
+                        Page.WaitForURLOptions().setTimeout(10000.0)
+                    )
+                } catch (_: Exception) {
+                    if (!page.url().contains("auth.project-saturn.com")) {
+                        result.error = "Expected automatic redirect to Authelia but didn't happen"
+                        saveScreenshot(page, serviceName, "error_no_authelia_redirect", result)
+                        return result
+                    }
                 }
 
-                return result
+                // Handle Authelia login
+                if (page.url().contains("auth.project-saturn.com")) {
+                    val success = handleAutheliaLogin(page, serviceName, result)
+                    if (!success) {
+                        return result
+                    }
+
+                    // Wait for OAuth callback
+                    println("  🔄 Waiting for OAuth callback to complete")
+                    try {
+                        page.waitForURL(
+                            "**//*",
+                            Page.WaitForURLOptions().setTimeout(15000.0)
+                        )
+                        page.waitForTimeout(3000.0)
+                    } catch (_: Exception) {
+                    }
+
+                    result.loginSuccessful = true
+                    result.finalUrl = page.url()
+                    waitForPostLoginContent(page, serviceName)
+                    saveScreenshot(page, serviceName, "logged_in", result)
+                    return result
+                } else {
+                    result.error = "oidc-auto: expected Authelia redirect but didn't happen"
+                    saveScreenshot(page, serviceName, "error_no_authelia_redirect", result)
+                    return result
+                }
+            }
+
+            "forward-auth" -> {
+                // Forward-auth services should automatically redirect to Authelia
+                println("  🔐 Forward-auth flow: Expecting automatic redirect to Authelia")
+
+                if (!currentUrl.contains("auth.project-saturn.com")) {
+                    try {
+                        page.waitForURL(
+                            "**/auth.project-saturn.com/**",
+                            Page.WaitForURLOptions().setTimeout(SHORT_NAV_TIMEOUT_MS)
+                        )
+                    } catch (_: Exception) {
+                        println("  ⚠️  No Authelia redirect detected")
+                        result.error = "Forward-auth: expected Authelia redirect"
+                        saveScreenshot(page, serviceName, "error_no_authelia_redirect", result)
+                        return result
+                    }
+                }
+
+                if (page.url().contains("auth.project-saturn.com")) {
+                    val success = handleAutheliaLogin(page, serviceName, result)
+                    if (success) {
+                        result.loginSuccessful = true
+                        result.finalUrl = page.url()
+
+                        waitForPostLoginContent(page, serviceName)
+                        saveScreenshot(page, serviceName, "logged_in", result)
+                    }
+                    return result
+                }
             }
         }
 
@@ -932,3 +1002,123 @@ fun main() = runBlocking {
 }
 
 main()
+
+/**
+ * Light "post-login" settle:
+ * - Try to detect typical logged-in/app-shell elements.
+ * - Fallback to a very short wait if nothing obvious appears.
+ */
+fun waitForPostLoginContent(page: Page, serviceName: String) {
+    val candidates = listOf(
+        "text=Logout",
+        "text=Log out",
+        "text=Sign out",
+        "a[href*='logout']",
+        "button:has-text('Logout')",
+        "button:has-text('Log out')",
+        "nav",
+        "main"
+    )
+
+    for (selector in candidates) {
+        try {
+            page.waitForSelector(
+                selector,
+                Page.WaitForSelectorOptions().setTimeout(1_500.0)
+            )
+            return
+        } catch (_: Exception) {
+            // Try next
+        }
+    }
+
+    // If nothing matched, tiny fallback pause
+    try {
+        page.waitForTimeout(500.0)
+    } catch (_: Exception) {
+    }
+}
+
+/**
+ * Retry helper.
+ */
+fun withRetries(times: Int = 3, pauseMs: Double = 200.0, block: () -> Boolean): Boolean {
+    repeat(times) { attempt ->
+        if (block()) return true
+        try { Thread.sleep(pauseMs.toLong()) } catch (_: Exception) {}
+    }
+    return false
+}
+
+/**
+ * Read current value of an input.
+ */
+fun getInputValue(locator: Locator): String? {
+    return try {
+        locator.inputValue()
+    } catch (_: Exception) {
+        try {
+            locator.evaluate("el => el && 'value' in el ? el.value : null") as? String
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
+
+/**
+ * Robustly fill an input:
+ * - Scrolls into view
+ * - Focus/click
+ * - Clears current value
+ * - Types with small delay (to trigger listeners)
+ * - Verifies value
+ * - Falls back to JS set + input/change events if needed
+ */
+fun robustFillInput(page: Page, locator: Locator, value: String, label: String = "field"): Boolean {
+    return withRetries(times = 3) {
+        try {
+            try { locator.scrollIntoViewIfNeeded() } catch (_: Exception) {}
+            try { locator.waitFor(Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE).setTimeout(ELEMENT_WAIT_MS)) } catch (_: Exception) {}
+
+            // Focus/click
+            try { locator.click(Locator.ClickOptions().setTimeout(1_500.0)) } catch (_: Exception) {}
+
+            // Clear current value
+            try { locator.fill("") } catch (_: Exception) {}
+            try {
+                locator.type(value, Locator.TypeOptions().setDelay(25.0))
+            } catch (_: Exception) {
+                try { locator.fill(value) } catch (_: Exception) {}
+            }
+
+            // Verify and fallback if needed
+            val current = getInputValue(locator)
+            if (current == value) return@withRetries true
+
+            // Fallback via JS direct set + events
+            val escaped = value.replace("'", "\\'")
+            try {
+                locator.evaluate(
+                    "el => { " +
+                            "el.value = '$escaped'; " +
+                            "el.dispatchEvent(new Event('input', { bubbles: true })); " +
+                            "el.dispatchEvent(new Event('change', { bubbles: true })); " +
+                            "}"
+                )
+            } catch (_: Exception) {
+            }
+
+            val after = getInputValue(locator)
+            if (after == value) return@withRetries true
+
+            false
+        } catch (e: Exception) {
+            println("  ⚠️  Failed to fill $label: ${e.message}")
+            false
+        }
+    }.also { ok ->
+        if (!ok) println("  ❌ Could not reliably fill $label")
+    }
+}
+
+// ---- Authelia ----

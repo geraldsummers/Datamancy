@@ -512,8 +512,23 @@ private fun cmdRecreate(cleanVolumes: Boolean = false, skipConfigs: Boolean = fa
     }
 
     // Step 5: Up
-    info("Step 5/5: Starting services")
+    info("Step 5/7: Starting services")
     bringUpStack()
+
+    info("Step 6/7: Waiting for Authelia to be ready...")
+    Thread.sleep(10000)  // Wait for Authelia to start
+
+    try {
+        info("Step 7/7: Generating OAuth/OIDC client secret hashes...")
+        cmdHashOidc()
+        info("Reprocessing config templates with hashes...")
+        cmdConfigProcess()
+        info("Restarting Authelia to load new config...")
+        restartService("authelia")
+    } catch (e: Exception) {
+        warn("Hash generation failed (may need manual fix): ${e.message}")
+        warn("Run './stack-controller hash-oidc' and './stack-controller config process' manually")
+    }
 
     println("""
         |
@@ -858,14 +873,29 @@ private fun cmdQuickStart() {
     info("Step 2/5: Bootstrapping LDAP...")
     cmdLdapBootstrap()
 
-    info("Step 3/5: Processing config templates...")
+    info("Step 3/7: Processing initial config templates...")
     cmdConfigProcess()
 
-    info("Step 4/5: Creating volume directories...")
+    info("Step 4/7: Creating volume directories...")
     cmdVolumesCreate()
 
-    info("Step 5/5: Starting all services...")
+    info("Step 5/7: Starting all services...")
     bringUpStack()
+
+    info("Step 6/7: Waiting for Authelia to be ready...")
+    Thread.sleep(10000)  // Wait for Authelia to start
+
+    try {
+        info("Step 7/7: Generating OAuth/OIDC client secret hashes...")
+        cmdHashOidc()
+        info("Reprocessing config templates with hashes...")
+        cmdConfigProcess()
+        info("Restarting Authelia to load new config...")
+        restartService("authelia")
+    } catch (e: Exception) {
+        warn("Hash generation failed (may need manual fix): ${e.message}")
+        warn("Run './stack-controller hash-oidc' and './stack-controller config process' manually")
+    }
 
     success("Quick start complete!")
     println("\n${ANSI_GREEN}Next steps:$ANSI_RESET")

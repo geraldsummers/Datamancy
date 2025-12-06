@@ -126,11 +126,6 @@
       "external": ["https://mail.${DOMAIN}/admin/"]
     },
     {
-      "name": "mailu-webmail",
-      "internal": ["http://mailu-webmail:80"],
-      "external": ["https://mail.${DOMAIN}/webmail/"]
-    },
-    {
       "name": "dockge",
       "internal": ["http://dockge:5001"],
       "external": ["https://dockge.${DOMAIN}"]

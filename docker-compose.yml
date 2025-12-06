@@ -690,29 +690,6 @@ services:
       retries: 10
       start_period: 30s
 
-  mailu-webmail:
-    image: ghcr.io/mailu/webmail:2024.06.45
-    container_name: mailu-webmail
-    restart: unless-stopped
-    env_file:
-      - ${HOME}/.datamancy/configs/applications/mailu/mailu.env
-    volumes:
-      - ${HOME}/.datamancy/configs/applications/mailu/nginx-override.conf:/overrides/nginx/roundcube.conf:ro
-    networks:
-      - backend
-    depends_on:
-      mailu-admin:
-        condition: service_healthy
-      mailu-imap:
-        condition: service_healthy
-      mailu-front:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
   sogo:
     image: pmietlicki/sogo:v5
@@ -728,6 +705,11 @@ services:
       - SOGO_SOGOSMTPSERVERS=mailu-smtp:587
       - SOGO_SOGoSMTPAuthenticationType=PLAIN
       - SOGO_SOGoIMAPServer=imap
+      # LDAP authentication (seamless with forward_auth + LDAP sync)
+      - SOGO_SOGoUserSources={"type":"ldap","CNFieldName":"cn","UIDFieldName":"uid","IDFieldName":"uid","bindDN":"cn=admin,dc=stack,dc=local","bindPassword":"${STACK_ADMIN_PASSWORD}","baseDN":"ou=users,dc=stack,dc=local","hostname":"ldap://ldap:389","canAuthenticate":true,"displayName":"LDAP Users","id":"ldap_auth"}
+      # Trust authentication from reverse proxy (Authelia forward_auth)
+      - SOGO_SOGoTrustProxyAuthentication=YES
+      - SOGO_SOGoAuthProxyHeaderValue=Remote-User
       - TZ=UTC
     volumes:
       - sogo_data:/var/lib/sogo
@@ -831,15 +813,16 @@ services:
       - CONTAINERS=1  # Read container status (needed for health checks, logs)
       - IMAGES=1      # Enabled for JupyterHub spawner to check image availability
       - NETWORKS=1    # Enabled for JupyterHub spawner to attach containers
-      - VOLUMES=0     # Disabled - prevents volume path disclosure
+      - VOLUMES=1     # Enabled for JupyterHub to mount volumes
       - POST=1        # Enabled for JupyterHub to spawn notebook containers
+      - DELETE=1      # Enabled for JupyterHub to stop/remove containers
       - BUILD=0       # Disabled - no image builds
       - COMMIT=0
       - CONFIGS=0
       - DISTRIBUTION=0
       - EXEC=0        # Disabled - prevents arbitrary command execution
       - GRPC=0
-      - INFO=0        # Disabled - prevents daemon information disclosure
+      - INFO=1        # Enabled for JupyterHub to query Docker info
       - PLUGINS=0
       - SERVICES=0
       - SESSION=0
@@ -897,6 +880,7 @@ services:
       - GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name
       - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'users') && 'Editor' || 'Viewer'
       - GF_AUTH_GENERIC_OAUTH_USE_PKCE=true
+      - GF_AUTH_GENERIC_OAUTH_AUTH_STYLE=2  # 2 = pass client credentials in POST body (client_secret_post)
       - GF_AUTH_SIGNOUT_REDIRECT_URL=https://auth.${DOMAIN}/logout
       - GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC=false
       - GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=false
@@ -1085,6 +1069,13 @@ services:
       - DB_PASS=${BOOKSTACK_DB_PASSWORD}
       - DB_DATABASE=bookstack
       - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
+      # Enable header-based SSO from Authelia (seamless single-layer auth)
+      - AUTH_METHOD=http_header
+      - AUTH_AUTO_INITIATE=true
+      - AUTH_HEADER_NAME=Remote-User
+      - AUTH_HEADER_EMAIL_NAME=Remote-Email
+      - AUTH_HEADER_DISPLAY_NAME_NAME=Remote-Name
+      - AUTH_AUTO_REGISTER=true
     volumes:
       - bookstack_data:/config
       - ${VOLUMES_ROOT}/bookstack_init:/custom-cont-init.d:ro
@@ -1373,6 +1364,7 @@ services:
     volumes:
       - homeassistant_config:/config
       - /etc/localtime:/etc/localtime:ro
+      - ${HOME}/.datamancy/configs/applications/homeassistant/configuration.yaml:/config/configuration.yaml:ro
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/"]
       interval: 30s
@@ -1407,6 +1399,14 @@ services:
       - FORGEJO__service__DISABLE_REGISTRATION=true
       - FORGEJO__openid__ENABLE_OPENID_SIGNIN=false
       - FORGEJO__openid__ENABLE_OPENID_SIGNUP=false
+      # Enable reverse proxy auth from Authelia (seamless single-layer SSO)
+      - FORGEJO__service__ENABLE_REVERSE_PROXY_AUTHENTICATION=true
+      - FORGEJO__service__ENABLE_REVERSE_PROXY_AUTO_REGISTRATION=true
+      - FORGEJO__service__ENABLE_REVERSE_PROXY_EMAIL=true
+      - FORGEJO__service__ENABLE_REVERSE_PROXY_FULL_NAME=true
+      - FORGEJO__service__REVERSE_PROXY_AUTHENTICATION_USER=Remote-User
+      - FORGEJO__service__REVERSE_PROXY_AUTHENTICATION_EMAIL=Remote-Email
+      - FORGEJO__service__REVERSE_PROXY_AUTHENTICATION_FULL_NAME=Remote-Name
     volumes:
       - forgejo_data:/data
       - /etc/timezone:/etc/timezone:ro
@@ -1432,6 +1432,10 @@ services:
       - PGID=1000
       - TZ=UTC
       - WEBUI_PORT=8080
+      # Trust auth from reverse proxy (Caddy forward_auth)
+      - QBITTORRENT__BT_Session__DefaultSavePath=/downloads
+      - QBITTORRENT__Preferences__WebUI__AuthSubnetWhitelistEnabled=true
+      - QBITTORRENT__Preferences__WebUI__AuthSubnetWhitelist=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
     volumes:
       - qbittorrent_config:/config
       - qbittorrent_data:/downloads
@@ -1834,7 +1838,7 @@ services:
       qdrant:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8094/health/ready"]
+      test: ["CMD", "curl", "-f", "http://localhost:8094/health/ready"]
       interval: 30s
       timeout: 10s
       retries: 3

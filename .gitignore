@@ -61,6 +61,3 @@ id_ed25519*
 venv/
 
 # Test artifacts
-
-*.png
-*.html

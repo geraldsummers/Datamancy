@@ -1,0 +1,308 @@
+<!DOCTYPE html><html lang="en-US" data-theme="forgejo-auto"><head>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	
+	<title>Sign in - Forgejo: Beyond coding. We forge.</title>
+	<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiRm9yZ2VqbzogQmV5b25kIGNvZGluZy4gV2UgZm9yZ2UuIiwic2hvcnRfbmFtZSI6IkZvcmdlam86IEJleW9uZCBjb2RpbmcuIFdlIGZvcmdlLiIsInN0YXJ0X3VybCI6Imh0dHBzOi8vZm9yZ2Vqby5wcm9qZWN0LXNhdHVybi5jb20vIiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vZm9yZ2Vqby5wcm9qZWN0LXNhdHVybi5jb20vYXNzZXRzL2ltZy9sb2dvLnBuZyIsInR5cGUiOiJpbWFnZS9wbmciLCJzaXplcyI6IjUxMng1MTIifSx7InNyYyI6Imh0dHBzOi8vZm9yZ2Vqby5wcm9qZWN0LXNhdHVybi5jb20vYXNzZXRzL2ltZy9sb2dvLnN2ZyIsInR5cGUiOiJpbWFnZS9zdmcreG1sIiwic2l6ZXMiOiI1MTJ4NTEyIn1dfQ==">
+	<meta name="author" content="Forgejo – Beyond coding. We forge.">
+	<meta name="description" content="Forgejo is a self-hosted lightweight software forge. Easy to install and low maintenance, it just does the job.">
+	<meta name="keywords" content="git,forge,forgejo">
+	<meta name="referrer" content="no-referrer">
+
+
+	<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+	<link rel="alternate icon" href="/assets/img/favicon.png" type="image/png">
+	
+<script>
+	
+	window.addEventListener('error', function(e) {window._globalHandlerErrors=window._globalHandlerErrors||[]; window._globalHandlerErrors.push(e);});
+	window.addEventListener('unhandledrejection', function(e) {window._globalHandlerErrors=window._globalHandlerErrors||[]; window._globalHandlerErrors.push(e);});
+	window.config = {
+		appUrl: 'https:\/\/forgejo.project-saturn.com\/',
+		appSubUrl: '',
+		assetVersionEncoded: encodeURIComponent('9.0.3~gitea-1.22.0'), 
+		assetUrlPrefix: '\/assets',
+		runModeIsProd:  true ,
+		customEmojis: {"codeberg":":codeberg:","forgejo":":forgejo:","git":":git:","gitea":":gitea:","github":":github:","gitlab":":gitlab:","gogs":":gogs:"},
+		csrfToken: 'Eg306XVIL0grbGUTap6yROhLVjg6MTc2NDk4NTAzODE1NjYwODczNw',
+		pageData: {},
+		notificationSettings: {"EventSourceUpdateTime":10000,"MaxTimeout":60000,"MinTimeout":10000,"TimeoutStep":10000}, 
+		enableTimeTracking:  true ,
+		
+		mermaidMaxSourceCharacters:  5000 ,
+		
+		i18n: {
+			copy_success: "Copied!",
+			copy_error: "Copy failed",
+			error_occurred: "An error occurred",
+			network_error: "Network error",
+			remove_label_str: "Remove item \"%s\"",
+			modal_confirm: "Confirm",
+			modal_cancel: "Cancel",
+			more_items: "More items",
+		},
+	};
+	
+	window.config.pageData = window.config.pageData || {};
+</script>
+<script src="/assets/js/webcomponents.js?v=9.0.3~gitea-1.22.0"></script>
+
+	<noscript>
+		<style>
+			.dropdown:hover > .menu { display: block; }
+			.ui.secondary.menu .dropdown.item > .menu { margin-top: 0; }
+		</style>
+	</noscript>
+	
+	<meta property="og:title" content="Forgejo: Beyond coding. We forge.">
+	<meta property="og:type" content="website">
+	<meta property="og:image" content="/assets/img/logo.png">
+	<meta property="og:url" content="https://forgejo.project-saturn.com/">
+	<meta property="og:description" content="Forgejo is a self-hosted lightweight software forge. Easy to install and low maintenance, it just does the job.">
+
+<meta property="og:site_name" content="Forgejo: Beyond coding. We forge.">
+
+	<link rel="stylesheet" href="/assets/css/index.css?v=9.0.3~gitea-1.22.0">
+<link rel="stylesheet" href="/assets/css/theme-forgejo-auto.css?v=9.0.3~gitea-1.22.0">
+
+	
+<style>                      .htmx-indicator{opacity:0}                      .is-loading .htmx-indicator{opacity:1; transition: opacity 200ms ease-in;}                      .is-loading.htmx-indicator{opacity:1; transition: opacity 200ms ease-in;}                    </style></head>
+<body hx-headers="{&quot;x-csrf-token&quot;: &quot;Eg306XVIL0grbGUTap6yROhLVjg6MTc2NDk4NTAzODE1NjYwODczNw&quot;}" hx-swap="outerHTML" hx-ext="morph" hx-push-url="false">
+	
+
+	<div class="full height">
+		<noscript>This website requires JavaScript.</noscript>
+
+		
+
+		
+			
+
+
+<nav id="navbar" aria-label="Navigation bar">
+	<div class="navbar-left ui secondary menu">
+		
+		<a class="item" id="navbar-logo" href="/" aria-label="Home">
+			<img width="30" height="30" src="/assets/img/logo.svg" alt="Logo" aria-hidden="true">
+		</a>
+
+		
+		<div class="ui secondary menu item navbar-mobile-right only-mobile">
+			
+			<button class="item tw-w-auto ui icon mini button tw-p-2 tw-m-0" id="navbar-expand-toggle" aria-label="Toggle menu"><svg viewBox="0 0 16 16" class="svg octicon-three-bars" aria-hidden="true" width="16" height="16"><path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75m0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75M1.75 12h12.5a.75.75 0 0 1 0 1.5H1.75a.75.75 0 0 1 0-1.5"></path></svg></button>
+		</div>
+
+		
+		
+			<a class="item" href="/explore/repos">Explore</a>
+		
+
+		
+
+		
+			<a class="item" target="_blank" rel="noopener noreferrer" href="https://forgejo.org/docs/latest/">Help</a>
+		
+	</div>
+
+	
+	<div class="navbar-right ui secondary menu">
+		
+			
+			<a class="item active" rel="nofollow" href="/user/login">
+				<svg viewBox="0 0 16 16" class="svg octicon-sign-in" aria-hidden="true" width="16" height="16"><path d="M2 2.75C2 1.784 2.784 1 3.75 1h2.5a.75.75 0 0 1 0 1.5h-2.5a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 0 1.5h-2.5A1.75 1.75 0 0 1 2 13.25Zm6.56 4.5h5.69a.75.75 0 0 1 0 1.5H8.56l1.97 1.97a.749.749 0 0 1-.326 1.275.75.75 0 0 1-.734-.215L6.22 8.53a.75.75 0 0 1 0-1.06l3.25-3.25a.749.749 0 0 1 1.275.326.75.75 0 0 1-.215.734Z"></path></svg> Sign in
+			</a>
+		
+	</div>
+</nav>
+
+		
+
+
+
+<div role="main" aria-label="Sign in" class="page-content user signin">
+	<div class="ui middle very relaxed page grid">
+		<div class="column tw-flex tw-flex-col tw-gap-4 tw-max-w-2xl tw-m-auto">
+			<div class="ui container fluid">
+	
+	
+
+
+
+
+	<div id="flash-message" hx-swap-oob="true"></div>
+
+
+	
+	<h4 class="ui top attached header center">
+		
+			Sign in
+		
+	</h4>
+	<div class="ui attached segment">
+		<form class="ui form" action="/user/login" method="post">
+			<input type="hidden" name="_csrf" value="Eg306XVIL0grbGUTap6yROhLVjg6MTc2NDk4NTAzODE1NjYwODczNw">
+			<div class="required field " data-field-patched="true">
+				<label for="user_name">Username or email address</label>
+				<input id="user_name" type="text" name="user_name" value="" autofocus="" required="" dir="auto">
+			</div>
+			
+			<div class="required field " data-field-patched="true">
+				<label for="password">Password</label>
+				<input id="password" name="password" type="password" value="" autocomplete="current-password" required="" dir="auto">
+			</div>
+			
+			
+			<div class="inline field">
+				<div class="ui checkbox" data-checkbox-patched="true">
+					<label for="_aria_auto_id_0">Remember this device</label>
+					<input name="remember" type="checkbox" id="_aria_auto_id_0">
+				</div>
+			</div>
+			
+
+			
+
+
+			<div class="field">
+				<button class="ui primary button tw-w-full">
+					
+						Sign in
+					
+				</button>
+			</div>
+		</form>
+
+		
+
+	</div>
+</div>
+
+<div class="ui container fluid">
+	<div id="webauthn-error" class="ui negative message tw-hidden">
+	<div class="header">Could not read your security key.</div>
+	<div id="webauthn-error-msg" class="tw-pt-2"></div>
+	<div class="tw-hidden">
+		<div data-webauthn-error-msg="browser">Your browser does not currently support WebAuthn.</div>
+		<div data-webauthn-error-msg="unknown">An unknown error occurred. Please retry.</div>
+		<div data-webauthn-error-msg="insecure">WebAuthn only supports secure connections. For testing over HTTP, you can use the origin "localhost" or "127.0.0.1"</div>
+		<div data-webauthn-error-msg="unable-to-process">The server could not process your request.</div>
+		<div data-webauthn-error-msg="duplicated">The security key is not permitted for this request. Please make sure that the key is not already registered.</div>
+		<div data-webauthn-error-msg="empty">You must set a name for this key.</div>
+		<div data-webauthn-error-msg="timeout">Timeout reached before your key could be read. Please reload this page and retry.</div>
+	</div>
+</div>
+
+
+		<div class="ui attached segment header top tw-max-w-2xl tw-m-auto tw-flex tw-flex-col tw-items-center">
+			
+			<div class="field">
+				<a href="/user/forgot_password">Forgot password?</a>
+			</div>
+		</div>
+</div>
+
+		</div>
+	</div>
+</div>
+
+
+	
+
+	</div>
+
+	
+
+	<footer class="page-footer" role="group" aria-label="Footer">
+	<div class="left-links" role="contentinfo" aria-label="About this software">
+		
+			<a target="_blank" rel="noopener noreferrer" href="https://forgejo.org">Powered by Forgejo</a>
+		
+		
+			Version:
+			
+				9.0.3+gitea-1.22.0
+			
+		
+		
+			Page: <strong>1ms</strong>
+			Template: <strong>0ms</strong>
+		
+	</div>
+	<div class="right-links" role="group" aria-label="Links">
+		<div class="ui dropdown upward language" tabindex="0" role="menu" aria-haspopup="" aria-controls="_aria_auto_id_1" aria-expanded="false">
+			<span class="flex-text-inline"><svg viewBox="0 0 16 16" class="svg octicon-globe" aria-hidden="true" width="14" height="14"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M5.78 8.75a9.64 9.64 0 0 0 1.363 4.177q.383.64.857 1.215c.245-.296.551-.705.857-1.215A9.64 9.64 0 0 0 10.22 8.75Zm4.44-1.5a9.64 9.64 0 0 0-1.363-4.177c-.307-.51-.612-.919-.857-1.215a10 10 0 0 0-.857 1.215A9.64 9.64 0 0 0 5.78 7.25Zm-5.944 1.5H1.543a6.51 6.51 0 0 0 4.666 5.5q-.184-.271-.352-.552c-.715-1.192-1.437-2.874-1.581-4.948m-2.733-1.5h2.733c.144-2.074.866-3.756 1.58-4.948q.18-.295.353-.552a6.51 6.51 0 0 0-4.666 5.5m10.181 1.5c-.144 2.074-.866 3.756-1.58 4.948q-.18.296-.353.552a6.51 6.51 0 0 0 4.666-5.5Zm2.733-1.5a6.51 6.51 0 0 0-4.666-5.5q.184.272.353.552c.714 1.192 1.436 2.874 1.58 4.948Z"></path></svg> English</span>
+			<div class="menu language-menu" tabindex="-1" id="_aria_auto_id_1" role="">
+				
+					<a lang="id-ID" data-url="/?lang=id-ID" class="item " id="_aria_auto_id_2" role="menuitem" tabindex="-1">Bahasa Indonesia</a>
+				
+					<a lang="de-DE" data-url="/?lang=de-DE" class="item " id="_aria_auto_id_3" role="menuitem" tabindex="-1">Deutsch</a>
+				
+					<a lang="en-US" data-url="/?lang=en-US" class="item active selected" id="_aria_auto_id_4" role="menuitem" tabindex="-1">English</a>
+				
+					<a lang="es-ES" data-url="/?lang=es-ES" class="item " id="_aria_auto_id_5" role="menuitem" tabindex="-1">Español</a>
+				
+					<a lang="eo" data-url="/?lang=eo" class="item " id="_aria_auto_id_6" role="menuitem" tabindex="-1">Esperanto</a>
+				
+					<a lang="fil" data-url="/?lang=fil" class="item " id="_aria_auto_id_7" role="menuitem" tabindex="-1">Filipino</a>
+				
+					<a lang="fr-FR" data-url="/?lang=fr-FR" class="item " id="_aria_auto_id_8" role="menuitem" tabindex="-1">Français</a>
+				
+					<a lang="it-IT" data-url="/?lang=it-IT" class="item " id="_aria_auto_id_9" role="menuitem" tabindex="-1">Italiano</a>
+				
+					<a lang="lv-LV" data-url="/?lang=lv-LV" class="item " id="_aria_auto_id_10" role="menuitem" tabindex="-1">Latviešu</a>
+				
+					<a lang="hu-HU" data-url="/?lang=hu-HU" class="item " id="_aria_auto_id_11" role="menuitem" tabindex="-1">Magyar nyelv</a>
+				
+					<a lang="nl-NL" data-url="/?lang=nl-NL" class="item " id="_aria_auto_id_12" role="menuitem" tabindex="-1">Nederlands</a>
+				
+					<a lang="pl-PL" data-url="/?lang=pl-PL" class="item " id="_aria_auto_id_13" role="menuitem" tabindex="-1">Polski</a>
+				
+					<a lang="pt-PT" data-url="/?lang=pt-PT" class="item " id="_aria_auto_id_14" role="menuitem" tabindex="-1">Português de Portugal</a>
+				
+					<a lang="pt-BR" data-url="/?lang=pt-BR" class="item " id="_aria_auto_id_15" role="menuitem" tabindex="-1">Português do Brasil</a>
+				
+					<a lang="sl" data-url="/?lang=sl" class="item " id="_aria_auto_id_16" role="menuitem" tabindex="-1">Slovenščina</a>
+				
+					<a lang="fi-FI" data-url="/?lang=fi-FI" class="item " id="_aria_auto_id_17" role="menuitem" tabindex="-1">Suomi</a>
+				
+					<a lang="sv-SE" data-url="/?lang=sv-SE" class="item " id="_aria_auto_id_18" role="menuitem" tabindex="-1">Svenska</a>
+				
+					<a lang="tr-TR" data-url="/?lang=tr-TR" class="item " id="_aria_auto_id_19" role="menuitem" tabindex="-1">Türkçe</a>
+				
+					<a lang="cs-CZ" data-url="/?lang=cs-CZ" class="item " id="_aria_auto_id_20" role="menuitem" tabindex="-1">Čeština</a>
+				
+					<a lang="el-GR" data-url="/?lang=el-GR" class="item " id="_aria_auto_id_21" role="menuitem" tabindex="-1">Ελληνικά</a>
+				
+					<a lang="bg" data-url="/?lang=bg" class="item " id="_aria_auto_id_22" role="menuitem" tabindex="-1">Български</a>
+				
+					<a lang="ru-RU" data-url="/?lang=ru-RU" class="item " id="_aria_auto_id_23" role="menuitem" tabindex="-1">Русский</a>
+				
+					<a lang="uk-UA" data-url="/?lang=uk-UA" class="item " id="_aria_auto_id_24" role="menuitem" tabindex="-1">Українська</a>
+				
+					<a lang="fa-IR" data-url="/?lang=fa-IR" class="item " id="_aria_auto_id_25" role="menuitem" tabindex="-1">فارسی</a>
+				
+					<a lang="ja-JP" data-url="/?lang=ja-JP" class="item " id="_aria_auto_id_26" role="menuitem" tabindex="-1">日本語</a>
+				
+					<a lang="zh-CN" data-url="/?lang=zh-CN" class="item " id="_aria_auto_id_27" role="menuitem" tabindex="-1">简体中文</a>
+				
+					<a lang="zh-TW" data-url="/?lang=zh-TW" class="item " id="_aria_auto_id_28" role="menuitem" tabindex="-1">繁體中文（台灣）</a>
+				
+					<a lang="zh-HK" data-url="/?lang=zh-HK" class="item " id="_aria_auto_id_29" role="menuitem" tabindex="-1">繁體中文（香港）</a>
+				
+					<a lang="ko-KR" data-url="/?lang=ko-KR" class="item " id="_aria_auto_id_30" role="menuitem" tabindex="-1">한국어</a>
+				
+			</div>
+		</div>
+		<a href="/assets/licenses.txt">Licenses</a>
+		<a href="/api/swagger">API</a>
+		
+	</div>
+</footer>
+
+
+	<script src="/assets/js/index.js?v=9.0.3~gitea-1.22.0" onerror="alert('Failed to load asset files from ' + this.src + '. Please make sure the asset files can be accessed.')"></script>
+
+	
+
+
+
+</body></html>

@@ -68,6 +68,12 @@ c.GenericOAuthenticator.username_claim = 'preferred_username'
 # Automatically redirect to Authelia (no manual login button click needed)
 c.GenericOAuthenticator.auto_login = True
 
+# Token endpoint authentication method (must match Authelia client config)
+# Use client_secret_post: send credentials in POST body, not HTTP Basic Auth header
+# basic_auth = False means use form-based authentication (client_secret_post)
+# basic_auth = True means use HTTP Basic authentication (client_secret_basic)
+c.GenericOAuthenticator.basic_auth = False
+
 # Allow all authenticated users
 c.GenericOAuthenticator.allow_all = True
 
