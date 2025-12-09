@@ -1,44 +1,7 @@
 ###############################################
-# Datamancy — docker-compose.yml
-#
-# 📚 Documentation:
-# - Quick Start: README.md
-# - Deployment Guide: docs/DEPLOYMENT.md (includes troubleshooting)
-# - Stack Controller: docs/STACK_CONTROLLER_GUIDE.md
-# - Architecture: docs/ARCHITECTURE.md
-# - Security: docs/SECURITY.md
-# - LDAP Setup: docs/LDAP_BOOTSTRAP.md
-#
-# 🚀 Quick Deploy:
-#   ./stack-controller.main.kts config generate
-#   ./stack-controller.main.kts config process
-#   ./stack-controller.main.kts ldap bootstrap
-#   ./stack-controller.main.kts volumes create
-#   docker compose --env-file ~/.datamancy/.env.runtime \
-#     --profile bootstrap --profile databases --profile vector-dbs \
-#     --profile infrastructure --profile applications up -d
-#
-# 🐛 Common Issues:
-#   - Bookstack DB errors: See docs/DEPLOYMENT.md#bookstack-database-connection-errors
-#   - Mailu antispam stuck: See docs/DEPLOYMENT.md#mailu-antispam-service-waiting-for-admin
-#   - Seafile timeout: docker restart seafile
-#
-# 🌐 Networks:
-#   frontend (172.20.0.0/24)  - Caddy reverse proxy
-#   backend (172.21.0.0/24)   - Application services
-#   database (172.22.0.0/24)  - Database services
-#   Note: MariaDB & Postgres on BOTH backend + database for compatibility
-#
-# ⚙️ Key Fixes Applied (persistent in templates and config generation):
-#   - Password Generation: Removed URL-unsafe characters (:=/) from database passwords
-#     (scripts/core/configure-environment.kts lines 141-144, 291-293)
-#   - Planka: Added URL-encoded password support with fallback
-#     (docker-compose.yml line 1036, configure-environment.kts line 293)
-#   - MariaDB: Added backend network for Bookstack connectivity
-#   - Mailu: Fixed SUBNET to 172.21.0.0/24, added 'admin' alias
-#   - Bookstack: Auto-fix .env via init script (configs.templates/applications/bookstack/init/)
-#   - Antispam: Fixed healthcheck command (pgrep rspamd)
-#   - Seafile: Init container applies MySQL config after first startup (seafile-db-init service)
+#Important Notes:
+#All changes need to be here or in the template files
+#Within stack-controller.main.kts is a command called obliterate which will delete all containers, networks, volumes, and images approximating the change to a new computer
 ###############################################
 networks:
   frontend:
@@ -696,23 +659,11 @@ services:
     container_name: sogo
     restart: unless-stopped
     environment:
-      - SOGO_WORKERS=1
-      - SOGO_SIEVE_SCRIPTS_ENABLED=YES
-      - SOGO_DOMAIN=${MAIL_DOMAIN}
-      - SOGO_WEB_LOGIN_ENABLE_EMAIL_LOGIN=YES
-      - SOGO_MAIL_SERVER=mailu-imap
-      - SOGO_SOGOIMAPSERVERS=mailu-imap:143
-      - SOGO_SOGOSMTPSERVERS=mailu-smtp:587
-      - SOGO_SOGoSMTPAuthenticationType=PLAIN
-      - SOGO_SOGoIMAPServer=imap
-      # LDAP authentication (seamless with forward_auth + LDAP sync)
-      - SOGO_SOGoUserSources={"type":"ldap","CNFieldName":"cn","UIDFieldName":"uid","IDFieldName":"uid","bindDN":"cn=admin,dc=stack,dc=local","bindPassword":"${STACK_ADMIN_PASSWORD}","baseDN":"ou=users,dc=stack,dc=local","hostname":"ldap://ldap:389","canAuthenticate":true,"displayName":"LDAP Users","id":"ldap_auth"}
-      # Trust authentication from reverse proxy (Authelia forward_auth)
-      - SOGO_SOGoTrustProxyAuthentication=YES
-      - SOGO_SOGoAuthProxyHeaderValue=Remote-User
       - TZ=UTC
     volumes:
       - sogo_data:/var/lib/sogo
+      - ${HOME}/.datamancy/configs/applications/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
+      - ${HOME}/.datamancy/configs/applications/sogo/init-apache.sh:/docker-entrypoint.d/init-apache.sh:ro
     depends_on:
       mailu-imap:
         condition: service_healthy
@@ -726,6 +677,17 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  sogo-init:
+    image: docker:27-cli
+    container_name: sogo-init
+    restart: "no"
+    depends_on:
+      sogo:
+        condition: service_healthy
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    command: docker exec sogo bash /docker-entrypoint.d/init-apache.sh
 
   dockge:
     image: louislam/dockge:1
@@ -1033,6 +995,7 @@ services:
       - OIDC_TOKEN_ENDPOINT=http://authelia:9091/api/oidc/token
       - OIDC_USERINFO_ENDPOINT=http://authelia:9091/api/oidc/userinfo
       - OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post
+      - OIDC_ENFORCED=true
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
     volumes:
       - planka_data:/app/public/user-avatars
@@ -1070,13 +1033,9 @@ services:
       - DB_PASS=${BOOKSTACK_DB_PASSWORD}
       - DB_DATABASE=bookstack
       - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
-      # Enable header-based SSO from Authelia (seamless single-layer auth)
-      - AUTH_METHOD=http_header
-      - AUTH_AUTO_INITIATE=true
-      - AUTH_HEADER_NAME=Remote-User
-      - AUTH_HEADER_EMAIL_NAME=Remote-Email
-      - AUTH_HEADER_DISPLAY_NAME_NAME=Remote-Name
-      - AUTH_AUTO_REGISTER=true
+      - BOOKSTACK_OAUTH_SECRET=${BOOKSTACK_OAUTH_SECRET}
+      # OIDC SSO configuration - init script will configure .env file
+      # AUTH_METHOD, OIDC_* settings are configured by 50-fix-env.sh
     volumes:
       - bookstack_data:/config
       - ${VOLUMES_ROOT}/bookstack_init:/custom-cont-init.d:ro
@@ -1362,6 +1321,9 @@ services:
       - homeassistant_config:/config
       - /etc/localtime:/etc/localtime:ro
       - ${HOME}/.datamancy/configs/applications/homeassistant/configuration.yaml:/config/configuration.yaml:ro
+      - ${HOME}/.datamancy/configs/applications/homeassistant/automations.yaml:/config/automations.yaml:rw
+      - ${HOME}/.datamancy/configs/applications/homeassistant/scripts.yaml:/config/scripts.yaml:rw
+      - ${HOME}/.datamancy/configs/applications/homeassistant/scenes.yaml:/config/scenes.yaml:rw
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/"]
       interval: 30s
@@ -1394,6 +1356,7 @@ services:
       - FORGEJO__server__ROOT_URL=https://forgejo.${DOMAIN}/
       - FORGEJO__security__INSTALL_LOCK=true
       - FORGEJO__service__DISABLE_REGISTRATION=true
+      - FORGEJO__service__REQUIRE_SIGNIN_VIEW=true
       - FORGEJO__openid__ENABLE_OPENID_SIGNIN=false
       - FORGEJO__openid__ENABLE_OPENID_SIGNUP=false
       # Enable reverse proxy auth from Authelia (seamless single-layer SSO)
@@ -1429,13 +1392,11 @@ services:
       - PGID=1000
       - TZ=UTC
       - WEBUI_PORT=8080
-      # Trust auth from reverse proxy (Caddy forward_auth)
-      - QBITTORRENT__BT_Session__DefaultSavePath=/downloads
-      - QBITTORRENT__Preferences__WebUI__AuthSubnetWhitelistEnabled=true
-      - QBITTORRENT__Preferences__WebUI__AuthSubnetWhitelist=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
     volumes:
       - qbittorrent_config:/config
       - qbittorrent_data:/downloads
+      # Mount pre-configured qBittorrent.conf with subnet whitelist
+      - ${VOLUMES_ROOT}/qbittorrent_init:/custom-cont-init.d:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
@@ -1899,55 +1860,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
-
-  # LDAP Sync Service - Syncs LDAP users to services without LDAP support
-  ldap-sync-service:
-    build:
-      dockerfile: ./src/ldap-sync-service/Dockerfile
-      context: .
-    container_name: ldap-sync-service
-    restart: "no"  # Run on-demand or via cron
-    networks:
-      - backend
-    depends_on:
-      ldap:
-        condition: service_healthy
-      docker-proxy:
-        condition: service_healthy
-      # mailu-admin dependency removed - service will check availability at runtime
-    environment:
-      # LDAP connection
-      - LDAP_HOST=ldap
-      - LDAP_PORT=389
-      - LDAP_BIND_DN=cn=admin,dc=stack,dc=local
-      - LDAP_BIND_PASSWORD=${STACK_ADMIN_PASSWORD}
-      - LDAP_BASE_DN=dc=stack,dc=local
-      - LDAP_USERS_OU=ou=users
-      - LDAP_GROUPS_OU=ou=groups
-      # Enable plugins
-      - ENABLE_MAILU_SYNC=true
-      - ENABLE_DOCKGE_SYNC=true
-      - ENABLE_KOPIA_SYNC=true
-      - ENABLE_SOGO_SYNC=true
-      # Mailu configuration
-      - MAILU_ADMIN_CONTAINER=mailu-admin
-      - MAIL_DOMAIN=${MAIL_DOMAIN}
-      - MAILU_DEFAULT_QUOTA_MB=5000
-      - MAILU_DEFAULT_PASSWORD=ChangeMe123!
-      # Dockge configuration
-      - DOCKGE_API_URL=http://dockge:5001
-      - DOCKGE_DEFAULT_PASSWORD=ChangeMe123!
-      # Kopia configuration
-      - KOPIA_API_URL=http://kopia:51515
-      - KOPIA_SERVER_PASSWORD=${STACK_ADMIN_PASSWORD}
-      - KOPIA_DEFAULT_USER_PASSWORD=ChangeMe123!
-      # SOGo configuration
-      - SOGO_CONTAINER=sogo
-      # Docker socket for CLI-based sync (Mailu, SOGo) via proxy
-      - DOCKER_HOST=tcp://docker-proxy:2375
-    volumes:
-      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
-    command: ["sync"]
 
   # VM Provisioner - Manages VMs via libvirt/QEMU with SSH key management
   # SECURITY NOTE: Uses CAP_NET_ADMIN for libvirt networking instead of privileged mode

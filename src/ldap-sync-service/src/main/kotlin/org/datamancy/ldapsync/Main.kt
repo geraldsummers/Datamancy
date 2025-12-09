@@ -7,6 +7,7 @@ import org.datamancy.ldapsync.plugins.MailuSyncPlugin
 import org.datamancy.ldapsync.plugins.DockgeSyncPlugin
 import org.datamancy.ldapsync.plugins.KopiaSyncPlugin
 import org.datamancy.ldapsync.plugins.SOGoSyncPlugin
+import org.datamancy.ldapsync.plugins.MastodonSyncPlugin
 import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
 
@@ -173,8 +174,22 @@ private suspend fun initializePlugins(config: Map<String, String>): List<org.dat
         plugins.add(sogoPlugin)
     }
 
+    // Mastodon plugin - pre-create accounts for OIDC auto-login
+    if (config["ENABLE_MASTODON_SYNC"]?.toBoolean() == true) {
+        log.info("Enabling Mastodon sync plugin")
+        val mastodonPlugin = MastodonSyncPlugin()
+        mastodonPlugin.init(
+            mapOf(
+                "mastodon_container" to (config["MASTODON_CONTAINER"] ?: "mastodon-web"),
+                "default_domain" to (config["MAIL_DOMAIN"] ?: error("MAIL_DOMAIN required for Mastodon sync")),
+                "auto_confirm" to (config["MASTODON_AUTO_CONFIRM"] ?: "true"),
+                "auto_approve" to (config["MASTODON_AUTO_APPROVE"] ?: "true")
+            )
+        )
+        plugins.add(mastodonPlugin)
+    }
+
     // Future plugins can be added here:
-    // - Mastodon (if not using OIDC)
     // - Matrix/Synapse (for admin user creation)
     // - Custom LDAP-less services
 

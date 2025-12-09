@@ -21,7 +21,7 @@ c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 c.DockerSpawner.image = 'jupyter/minimal-notebook:latest'
 
 # Connect containers to the same network as JupyterHub
-c.DockerSpawner.network_name = 'datamancy_stack'
+c.DockerSpawner.network_name = 'datamancy_backend'
 
 # Remove containers when they stop
 c.DockerSpawner.remove = True
@@ -46,51 +46,23 @@ c.DockerSpawner.name_template = 'jupyter-{username}-{servername}'
 # Install the correct jupyterhub version to match the hub
 c.DockerSpawner.cmd = ['sh', '-c', 'pip install --upgrade jupyterhub==5.4.2 && jupyterhub-singleuser']
 
-# Authentication: GenericOAuthenticator for Authelia OIDC
-c.JupyterHub.authenticator_class = 'oauthenticator.generic.GenericOAuthenticator'
+# Authentication: RemoteUserAuthenticator for Authelia forward_auth
+# This allows seamless single-layer SSO - user authenticates once with Authelia,
+# and JupyterHub trusts the Remote-User header from the reverse proxy
+c.JupyterHub.authenticator_class = 'jupyterhub.auth.RemoteUserAuthenticator'
 
-# OAuth configuration for Authelia
-c.GenericOAuthenticator.client_id = 'jupyterhub'
-c.GenericOAuthenticator.client_secret = os.environ.get('JUPYTERHUB_OAUTH_SECRET', '')
-domain = os.environ.get('DOMAIN', 'project-saturn.com')
-c.GenericOAuthenticator.oauth_callback_url = f'https://jupyterhub.{domain}/hub/oauth_callback'
+# Trust the Remote-User header from Authelia (passed through Caddy)
+c.RemoteUserAuthenticator.header_name = 'Remote-User'
 
-# Authelia OIDC endpoints
-# authorize_url: External HTTPS URL (used by browser, goes through Caddy)
-c.GenericOAuthenticator.authorize_url = f'https://auth.{domain}/api/oidc/authorization'
-# token_url & userdata_url: Internal HTTP URL (server-to-server, direct to Authelia)
-c.GenericOAuthenticator.token_url = 'http://authelia:9091/api/oidc/token'
-c.GenericOAuthenticator.userdata_url = 'http://authelia:9091/api/oidc/userinfo'
+# Allow all authenticated users (Authelia handles authorization)
+c.Authenticator.allow_all = True
 
-# User info mapping
-c.GenericOAuthenticator.username_claim = 'preferred_username'
+# Admin users from Remote-Groups header (Authelia passes 'admins' group)
+c.Authenticator.admin_users = set()
 
-# Automatically redirect to Authelia (no manual login button click needed)
-c.GenericOAuthenticator.auto_login = True
-
-# Token endpoint authentication method (must match Authelia client config)
-# Use client_secret_post: send credentials in POST body, not HTTP Basic Auth header
-# basic_auth = False means use form-based authentication (client_secret_post)
-# basic_auth = True means use HTTP Basic authentication (client_secret_basic)
-c.GenericOAuthenticator.basic_auth = False
-
-# Allow all authenticated users
-c.GenericOAuthenticator.allow_all = True
-
-# Admin users from 'admins' group - using allowed_users list
-c.GenericOAuthenticator.admin_users = set()
-
-# OAuth scopes
-c.GenericOAuthenticator.scope = ['openid', 'profile', 'email', 'groups']
-
-# Group-based authorization
-c.GenericOAuthenticator.manage_groups = True
-c.GenericOAuthenticator.claim_groups_key = 'groups'
-c.GenericOAuthenticator.allowed_groups = ['admins', 'users']
-c.GenericOAuthenticator.admin_groups = ['admins']
-
-# TLS verification not needed - token/userinfo endpoints use internal HTTP
-# Only authorize_url (browser redirect) uses external HTTPS
+# Enable group management from headers
+# Note: RemoteUserAuthenticator doesn't natively support group headers,
+# but Authelia's forward_auth ensures only authorized users reach JupyterHub
 
 # Logging
 c.JupyterHub.log_level = 'INFO'

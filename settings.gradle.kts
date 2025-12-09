@@ -30,4 +30,4 @@ project(":rag-gateway").projectDir = file("src/rag-gateway")
 
 // Test framework module (Playwright-based stack testing)
 include(":test-framework")
-project(":test-framework").projectDir = file("test-framework")
+project(":test-framework").projectDir = file("src/test-framework")

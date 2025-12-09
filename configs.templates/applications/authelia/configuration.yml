@@ -82,7 +82,7 @@ session:
     - domain: {{DOMAIN}}
       name: authelia_session
       authelia_url: https://auth.{{DOMAIN}}
-      default_redirection_url: https://homepage.{{DOMAIN}}
+#      default_redirection_url: https://homepage.{{DOMAIN}}
       same_site: lax
       expiration: 1h
       inactivity: 5m
@@ -297,6 +297,7 @@ identity_providers:
         client_secret: '{{JUPYTERHUB_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
+        consent_mode: implicit
         redirect_uris:
           - https://jupyterhub.{{DOMAIN}}/hub/oauth_callback
         scopes:
@@ -333,7 +334,7 @@ identity_providers:
       # Mastodon
       - client_id: mastodon
         client_name: Mastodon
-        client_secret: '{{MASTODON_OAUTH_SECRET_HASH}}'
+        client_secret: '{{MASTODON_OIDC_SECRET}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -353,6 +354,7 @@ identity_providers:
         client_secret: '{{BOOKSTACK_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
+        consent_mode: implicit
         redirect_uris:
           - https://bookstack.{{DOMAIN}}/oidc/callback
         scopes:

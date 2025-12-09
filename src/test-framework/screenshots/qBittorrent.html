@@ -1,0 +1,48 @@
+<!DOCTYPE html><html lang="C"><head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="light dark">
+    <meta name="description" content="qBittorrent WebUI">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>qBittorrent WebUI</title>
+
+    <link rel="icon" type="image/png" href="images/qbittorrent32.png">
+    <link rel="icon" type="image/svg+xml" href="images/qbittorrent-tray.svg">
+    <link rel="stylesheet" type="text/css" href="css/login.css?v=1iqmsqz">
+    <noscript>
+        <link rel="stylesheet" type="text/css" href="css/noscript.css?v=1iqmsqz">
+    </noscript>
+
+    <script defer="" src="scripts/login.js?locale=C&amp;v=1iqmsqz"></script>
+</head>
+
+<body>
+    <noscript id="noscript">
+        <h1>JavaScript Required! You must enable JavaScript for the WebUI to work properly</h1>
+    </noscript>
+    <div id="main">
+        <h1>qBittorrent WebUI</h1>
+        <div id="logo" class="col">
+            <img src="images/qbittorrent-tray.svg" alt="qBittorrent logo">
+        </div>
+        <div id="formplace" class="col">
+            <form id="loginform" method="POST">
+                <div class="row">
+                    <label for="username">Username</label><br>
+                    <input type="text" id="username" name="username" autocomplete="username" autofocus="" required="" style="">
+                </div>
+                <div class="row">
+                    <label for="password">Password</label><br>
+                    <input type="password" id="password" name="password" autocomplete="current-password" required="" style="">
+                </div>
+                <div class="row">
+                    <input type="submit" id="loginButton" value="Login" style="">
+                </div>
+            </form>
+        </div>
+        <div id="error_msg"></div>
+    </div>
+
+
+
+</body></html>

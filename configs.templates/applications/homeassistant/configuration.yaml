@@ -1,11 +1,11 @@
-
 # Loads default set of integrations. Do not remove.
 default_config:
 
-# HTTP configuration for reverse proxy (Caddy)
+# HTTP configuration for reverse proxy (Caddy with Authelia forward_auth)
 http:
   use_x_forwarded_for: true
   trusted_proxies:
+    - 172.20.0.0/24  # frontend network (Caddy)
     - 172.21.0.0/24  # backend network
     - 127.0.0.1
     - ::1

@@ -42,10 +42,9 @@ echo "[kopia-init] Current global policy:"
 kopia policy show --global || true
 
 echo "[kopia-init] Repository ready"
-echo "[kopia-init] Starting Kopia server on :51515"
+echo "[kopia-init] Starting Kopia server on :51515 (authentication via Authelia forward-auth)"
 exec kopia server start \
     --insecure \
     --address=0.0.0.0:51515 \
     --ui \
-    --server-username=admin \
-    --server-password="$KOPIA_PASSWORD"
+    --without-password
