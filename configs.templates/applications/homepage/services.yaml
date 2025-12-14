@@ -5,10 +5,6 @@
         description: Monitoring Dashboard
         icon: grafana.png
 
-    - Dockge:
-        href: https://dockge.{{DOMAIN}}
-        description: Docker Manager
-        icon: dockge.png
 
     - Authelia:
         href: https://auth.{{DOMAIN}}

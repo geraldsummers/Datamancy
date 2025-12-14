@@ -1,7 +1,7 @@
 FROM jupyterhub/jupyterhub:latest
 
-# Install dockerspawner and jupyterlab (oauthenticator no longer needed - using RemoteUserAuthenticator)
-RUN pip install --no-cache-dir dockerspawner jupyterlab certifi
+# Install dockerspawner, jupyterlab, and remote user authenticator
+RUN pip install --no-cache-dir dockerspawner jupyterlab certifi jupyterhub-remote-user-authenticator
 
 # Install ca-certificates for custom CA support
 USER root

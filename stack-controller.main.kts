@@ -64,7 +64,8 @@ private fun run(
     cwd: Path? = null,
     env: Map<String, String> = emptyMap(),
     input: String? = null,
-    allowFail: Boolean = false
+    allowFail: Boolean = false,
+    showOutput: Boolean = true
 ): String {
     val pb = ProcessBuilder(*cmd)
     if (cwd != null) pb.directory(cwd.toFile())
@@ -76,10 +77,26 @@ private fun run(
     } else {
         p.outputStream.close()
     }
-    val out = p.inputStream.readBytes().toString(Charsets.UTF_8)
+
+    // Stream output to both stdout and capture it
+    val outputBuilder = StringBuilder()
+    p.inputStream.bufferedReader().use { reader ->
+        reader.lineSequence().forEach { line ->
+            if (showOutput) {
+                println(line)
+            }
+            outputBuilder.appendLine(line)
+        }
+    }
+
+    val out = outputBuilder.toString()
     val code = p.waitFor()
     if (code != 0 && !allowFail) {
-        err("Command failed ($code): ${cmd.joinToString(" ")}\n$out")
+        if (!showOutput) {
+            // If output wasn't shown, show it now since there's an error
+            System.err.println(out)
+        }
+        err("Command failed ($code): ${cmd.joinToString(" ")}")
     }
     return out
 }
@@ -318,97 +335,106 @@ private fun bringUpStack() {
 
     // Step 4: Create volume directories if needed
     // Always try to create volumes (createVolumeDirectories is idempotent and will skip existing ones)
-    info("Step 4/5: Volume directories exist")
+    info("Step 4/5: Creating volume directories")
     createVolumeDirectories()
+
+    // Create special-case directories that use ${HOME} instead of ${VOLUMES_ROOT}
+    val homeDir = Paths.get(System.getProperty("user.home"))
+    val caddyDataDir = homeDir.resolve(".caddy_data")
+    if (!Files.exists(caddyDataDir)) {
+        info("Creating Caddy data directory at ~/.caddy_data")
+        Files.createDirectories(caddyDataDir)
+    }
+
+    // Verify critical directories exist
+    val synapseDataDir = volumesDir.resolve("synapse_data")
+    if (!Files.exists(synapseDataDir)) {
+        info("Creating missing synapse_data directory")
+        Files.createDirectories(synapseDataDir)
+    }
+
+    // Remove any conflicting Docker-managed volumes that should be bind mounts
+    try {
+        val volumeCheck = run("docker", "volume", "ls", "-q", "--filter", "name=datamancy_synapse_data",
+            allowFail = true, showOutput = false)
+        if (volumeCheck.trim().isNotBlank()) {
+            warn("Removing conflicting Docker volume: datamancy_synapse_data")
+            run("docker", "volume", "rm", "datamancy_synapse_data", allowFail = true, showOutput = false)
+        }
+    } catch (_: Exception) {
+        // Ignore errors - volume might not exist or might be in use
+    }
+
+    // Ensure clean state by stopping any partially started containers
+    try {
+        info("Ensuring clean state before startup...")
+        run("docker", "compose", "--env-file", runtimeEnv.toString(), "down",
+            cwd = root, allowFail = true, showOutput = false)
+    } catch (_: Exception) {
+        // Ignore errors - might not be running
+    }
 
     // Step 5: Disk space check
     checkDiskSpace(volumesDir, requiredGB = 50)
 
-    // Step 6: Start services
+    // Start services
     info("Step 5/5: Starting Docker Compose services")
-    val args = mutableListOf("docker", "compose", "--env-file", runtimeEnv.toString(), "up", "-d")
-    run(*args.toTypedArray(), cwd = root)
+    run("docker", "compose", "--env-file", runtimeEnv.toString(), "up", "-d", cwd = root)
 
     success("Stack started successfully")
     println()
-    println("${ANSI_GREEN}Next steps:${ANSI_RESET}")
-    println("1. Wait 2-3 minutes for services to initialize")
-    println("2. Check service health: ./stack-controller status")
-    println("3. View service URLs: ./stack-controller urls")
-}
 
-/**
- * Starts the Datamancy stack with specific profiles.
- *
- * Parameters:
- * - profiles: List of profile names to activate
- *
- * Side effects:
- * - Same as bringUpStack() but with profile-specific services
- */
-private fun bringUpStackWithProfiles(profiles: List<String>) {
-    val root = projectRoot()
-    val dataDir = ensureDatamancyDataDir()
-    val runtimeEnv = dataDir.resolve(".env.runtime")
-    val ldapBootstrap = dataDir.resolve("bootstrap_ldap.ldif")
-    val configsDir = dataDir.resolve("configs")
-    val volumesDir = dataDir.resolve("volumes")
+    // Post-startup: Generate OIDC hashes if needed (requires Authelia to be running)
+    val envContentFresh = Files.readString(runtimeEnv)
+    val hasPendingHashes = envContentFresh.contains("_HASH=PENDING") ||
+                          envContentFresh.contains("_HASH=\"PENDING\"")
 
-    info("Starting Datamancy stack with profiles: ${profiles.joinToString(", ")}")
-    info("Data directory: $dataDir")
-    println()
+    if (hasPendingHashes) {
+        info("Waiting for Authelia to start (needed for OIDC hash generation)...")
 
-    // Step 1: Generate environment configuration if needed
-    if (!Files.exists(runtimeEnv)) {
-        info("Step 1/5: Generating environment configuration")
-        generateEnvironmentConfig()
-    } else {
-        info("Step 1/5: Environment config exists, validating")
-        validateEnvFile(runtimeEnv)
+        // Wait for Authelia to be healthy
+        var attempts = 0
+        var autheliHealthy = false
+        while (attempts < 30 && !autheliHealthy) {
+            try {
+                val healthCheck = run("docker", "inspect", "--format={{.State.Health.Status}}", "authelia",
+                    allowFail = true, showOutput = false)
+                if (healthCheck.trim() == "healthy") {
+                    autheliHealthy = true
+                } else {
+                    Thread.sleep(2000)
+                    attempts++
+                }
+            } catch (_: Exception) {
+                Thread.sleep(2000)
+                attempts++
+            }
+        }
+
+        if (autheliHealthy) {
+            info("Generating OIDC client secret hashes for Authelia...")
+            val hashScript = root.resolve("scripts/security/generate-oidc-hashes.main.kts")
+            if (Files.exists(hashScript)) {
+                try {
+                    run("kotlin", hashScript.toString(), cwd = root, allowFail = true)
+                    info("Re-processing configuration templates with OIDC hashes...")
+                    processConfigurationTemplates()
+                    info("Restarting Authelia to apply new configuration...")
+                    run("docker", "restart", "authelia", showOutput = false)
+                    success("OIDC hashes generated and applied successfully")
+                } catch (e: Exception) {
+                    warn("OIDC hash generation failed (non-fatal): ${e.message}")
+                    warn("Run './stack-controller config hash-oidc' manually after stack is up")
+                }
+            } else {
+                warn("OIDC hash script not found at: $hashScript")
+            }
+        } else {
+            warn("Authelia did not become healthy in time")
+            warn("Run './stack-controller config hash-oidc' manually after Authelia is running")
+        }
     }
 
-    // Validate DOMAIN
-    val envContent = Files.readString(runtimeEnv)
-    val domainMatch = "DOMAIN=(.+)".toRegex().find(envContent)
-    if (domainMatch != null) {
-        val domain = domainMatch.groupValues[1].trim().removeSurrounding("\"", "'")
-        validateDomain(domain)
-    }
-
-    // Step 2: Generate LDAP bootstrap if needed
-    if (!Files.exists(ldapBootstrap)) {
-        info("Step 2/5: Generating LDAP bootstrap data")
-        generateLdapBootstrap(dryRun = false, force = false)
-    } else {
-        info("Step 2/5: LDAP bootstrap exists")
-    }
-
-    // Step 3: Process configuration templates if needed
-    if (!Files.exists(configsDir) || Files.list(configsDir).count() == 0L) {
-        info("Step 3/5: Processing configuration templates")
-        processConfigurationTemplates()
-    } else {
-        info("Step 3/5: Configuration files exist")
-    }
-
-    // Step 4: Create volume directories if needed
-    info("Step 4/5: Volume directories exist")
-    createVolumeDirectories()
-
-    // Step 5: Disk space check
-    checkDiskSpace(volumesDir, requiredGB = 50)
-
-    // Step 6: Start services with profiles
-    info("Step 5/5: Starting Docker Compose services with profiles: ${profiles.joinToString(", ")}")
-    val args = mutableListOf("docker", "compose", "--env-file", runtimeEnv.toString())
-    profiles.forEach { profile ->
-        args.add("--profile")
-        args.add(profile)
-    }
-    args.addAll(listOf("up", "-d"))
-    run(*args.toTypedArray(), cwd = root)
-
-    success("Stack started successfully with profiles: ${profiles.joinToString(", ")}")
     println()
     println("${ANSI_GREEN}Next steps:${ANSI_RESET}")
     println("1. Wait 2-3 minutes for services to initialize")
@@ -440,6 +466,23 @@ private fun stopStack() {
         run("docker", "compose", "down", cwd = root)
     }
     success("Stack stopped")
+}
+
+/**
+ * Restarts the stack by stopping then starting.
+ *
+ * What it does:
+ * - Calls stopStack() then bringUpStack()
+ *
+ * Side effects:
+ * - Stops running containers then starts them again
+ * - Same as running down then up
+ */
+private fun reupStack() {
+    info("Restarting stack (down then up)")
+    stopStack()
+    println()
+    bringUpStack()
 }
 
 private fun cmdRecreate(cleanVolumes: Boolean = false, skipConfigs: Boolean = false) {
@@ -616,7 +659,7 @@ private fun cmdHealth() {
     info("Checking stack health...")
 
     // Get container status in JSON format
-    val result = run("docker", "compose", "ps", "--format", "json", cwd = root, allowFail = true)
+    val result = run("docker", "compose", "ps", "--format", "json", cwd = root, allowFail = true, showOutput = false)
 
     if (result.trim().isEmpty()) {
         warn("No services running")
@@ -771,7 +814,7 @@ private fun cmdTestIterate(maxIterations: Int = 5) {
 
         // Check health
         info("Checking stack health...")
-        val healthCheck = run("docker", "compose", "ps", "--format", "json", cwd = root, allowFail = true)
+        val healthCheck = run("docker", "compose", "ps", "--format", "json", cwd = root, allowFail = true, showOutput = false)
         val lines = healthCheck.trim().lines().filter { it.isNotBlank() }
         val unhealthyServices = mutableListOf<String>()
 
@@ -925,44 +968,43 @@ private fun cmdShowUrls() {
 
     println("""
         |$ANSI_CYAN========================================
-        |  Service URLs
+        |  Service URLs - Web UI
         |========================================$ANSI_RESET
         |Domain: $domain
         |
-        |${ANSI_GREEN}🔐 Infrastructure${ANSI_RESET}
-        |  Auth/SSO:     https://auth.$domain
-        |  Caddy:        https://$domain (reverse proxy)
-        |  Portainer:    https://portainer.$domain
-        |  Adminer:      https://adminer.$domain
-        |  pgAdmin:      https://pgadmin.$domain
+        |${ANSI_GREEN}🏠 Main Portal${ANSI_RESET}
+        |  Auth/SSO:          https://auth.$domain
         |
-        |${ANSI_GREEN}📊 Monitoring & AI${ANSI_RESET}
-        |  Grafana:      https://grafana.$domain
-        |  Open WebUI:   https://open-webui.$domain
-        |  LiteLLM:      https://litellm.$domain
-        |  Homepage:     https://homepage.$domain
-        |
-        |${ANSI_GREEN}📝 Productivity${ANSI_RESET}
-        |  Bookstack:    https://bookstack.$domain
-        |  Planka:       https://planka.$domain
-        |  Seafile:      https://seafile.$domain
-        |  OnlyOffice:   https://onlyoffice.$domain
-        |  JupyterHub:   https://jupyterhub.$domain
+        |${ANSI_GREEN}📝 Productivity & Collaboration${ANSI_RESET}
+        |  BookStack:         https://bookstack.$domain
+        |  Planka:            https://planka.$domain
+        |  Seafile:           https://seafile.$domain
+        |  JupyterHub:        https://jupyterhub.$domain
         |
         |${ANSI_GREEN}💬 Communication${ANSI_RESET}
-        |  Matrix:       https://matrix.$domain
-        |  Mastodon:     https://mastodon.$domain (if enabled)
-        |  Mail (SOGo):  https://sogo.$domain
-        |  Mailu Admin:  https://mail.$domain/admin
+        |  Element (Matrix):  https://element.$domain
+        |  Mastodon:          https://mastodon.$domain
+        |  SOGo:              https://sogo.$domain
+        |  Mailu Admin:       https://mail.$domain/admin
         |
-        |${ANSI_GREEN}🔒 Security & Secrets${ANSI_RESET}
-        |  Vaultwarden:  https://vaultwarden.$domain
-        |  LDAP Manager: https://lam.$domain
+        |${ANSI_GREEN}🔒 Security & Development${ANSI_RESET}
+        |  Vaultwarden:       https://vaultwarden.$domain
+        |  Forgejo:           https://forgejo.$domain
         |
-        |${ANSI_GREEN}🏠 Home Automation${ANSI_RESET}
-        |  Home Assistant: https://homeassistant.$domain
+        |${ANSI_GREEN}📊 AI & Monitoring${ANSI_RESET}
+        |  Open WebUI:        https://open-webui.$domain
+        |  Grafana:           https://grafana.$domain
         |
-        |${ANSI_YELLOW}Note:${ANSI_RESET} All services use Authelia SSO (except Mailu)
+        |${ANSI_GREEN}🏠 Home & Media${ANSI_RESET}
+        |  Home Assistant:    https://homeassistant.$domain
+        |  qBittorrent:       https://qbittorrent.$domain
+        |
+        |${ANSI_GREEN}⚙️ Infrastructure Management${ANSI_RESET}
+        |  LDAP Manager:      https://lam.$domain
+        |  Kopia:             https://kopia.$domain
+        |
+        |
+        |${ANSI_YELLOW}Note:${ANSI_RESET} Most services use Authelia SSO for authentication
         |Default credentials: Check .env.runtime for STACK_ADMIN_USER/PASSWORD
         |
     """.trimMargin())
@@ -1007,6 +1049,14 @@ private fun cmdConfigProcess() {
     val bookstackInitScript = root.resolve("scripts/core/setup-bookstack-init.sh")
     if (Files.exists(bookstackInitScript)) {
         run("bash", bookstackInitScript.toString(), cwd = root)
+    }
+    val qbittorrentInitScript = root.resolve("scripts/core/setup-qbittorrent-init.sh")
+    if (Files.exists(qbittorrentInitScript)) {
+        run("bash", qbittorrentInitScript.toString(), cwd = root)
+    }
+    val caddyCaScript = root.resolve("scripts/core/setup-caddy-ca-cert.sh")
+    if (Files.exists(caddyCaScript)) {
+        run("bash", caddyCaScript.toString(), cwd = root, allowFail = true)
     }
 }
 
@@ -1079,106 +1129,106 @@ private fun cmdDeployCreateUser() {
     success("User 'stackops' created and added to docker group")
 }
 
-private fun cmdDeployInstallWrapper() {
-    if (!isRoot()) err("This command must be run with sudo/root")
-    val wrapperPath = Paths.get("/usr/local/bin/stackops-wrapper")
-    info("Installing SSH forced-command wrapper")
+//private fun cmdDeployInstallWrapper() {
+//    if (!isRoot()) err("This command must be run with sudo/root")
+//    val wrapperPath = Paths.get("/usr/local/bin/stackops-wrapper")
+//    info("Installing SSH forced-command wrapper")
+//
+//    val script = """
+//        |#!/usr/bin/env bash
+//        |set -euo pipefail
+//        |
+//        |# Stackops SSH Command Wrapper with SOPS Integration
+//        |# Allows remote management of Docker services and LDAP sync
+//        |ALLOWED_CMDS=(
+//        |  "docker ps"
+//        |  "docker logs"
+//        |  "docker restart"
+//        |  "docker compose"
+//        |  "./stack-controller.main.kts"
+//        |  "kotlin stack-controller.main.kts"
+//        |)
+//        |
+//        |REQ="${'$'}{SSH_ORIGINAL_COMMAND:-}"
+//        |if [[ -z "${'$'}REQ" ]]; then
+//        |  echo "No command specified" >&2
+//        |  exit 1
+//        |fi
+//        |
+//        |# Normalize command
+//        |NORM="${'$'}(echo "${'$'}REQ" | tr -s ' ')"
+//        |
+//        |# Check allowlist
+//        |ALLOWED=false
+//        |for allowed in "${'$'}{ALLOWED_CMDS[@]}"; do
+//        |  if [[ "${'$'}NORM" == "${'$'}allowed"* ]]; then
+//        |    ALLOWED=true
+//        |    break
+//        |  fi
+//        |done
+//        |
+//        |if [[ "${'$'}ALLOWED" != "true" ]]; then
+//        |  echo "Command not allowed: ${'$'}NORM" >&2
+//        |  echo "" >&2
+//        |  echo "Allowed commands:" >&2
+//        |  printf '  %s\n' "${'$'}{ALLOWED_CMDS[@]}" >&2
+//        |  exit 1
+//        |fi
+//        |
+//        |# Auto-decrypt secrets if needed
+//        |PROJECT_ROOT="/home/stackops/datamancy"
+//        |if [[ -f "${'$'}PROJECT_ROOT/.env.enc" && ! -f "${'$'}PROJECT_ROOT/.env" ]]; then
+//        |  if [[ -f /home/stackops/.config/sops/age/keys.txt ]]; then
+//        |    sops -d --input-type dotenv --output-type dotenv "${'$'}PROJECT_ROOT/.env.enc" > "${'$'}PROJECT_ROOT/.env"
+//        |    chmod 600 "${'$'}PROJECT_ROOT/.env"
+//        |  fi
+//        |fi
+//        |
+//        |cd "${'$'}PROJECT_ROOT"
+//        |exec bash -lc -- "${'$'}NORM"
+//    """.trimMargin()
+//
+//    Files.writeString(wrapperPath, script)
+//    ensurePerm(wrapperPath, executable = true)
+//    success("Wrapper installed at $wrapperPath")
+//    println("\nTo activate, add to ~/.ssh/authorized_keys:")
+//    println("command=\"/usr/local/bin/stackops-wrapper\",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc,no-X11-forwarding ssh-ed25519 AAAA...")
+//}
 
-    val script = """
-        |#!/usr/bin/env bash
-        |set -euo pipefail
-        |
-        |# Stackops SSH Command Wrapper with SOPS Integration
-        |# Allows remote management of Docker services and LDAP sync
-        |ALLOWED_CMDS=(
-        |  "docker ps"
-        |  "docker logs"
-        |  "docker restart"
-        |  "docker compose"
-        |  "./stack-controller.main.kts"
-        |  "kotlin stack-controller.main.kts"
-        |)
-        |
-        |REQ="${'$'}{SSH_ORIGINAL_COMMAND:-}"
-        |if [[ -z "${'$'}REQ" ]]; then
-        |  echo "No command specified" >&2
-        |  exit 1
-        |fi
-        |
-        |# Normalize command
-        |NORM="${'$'}(echo "${'$'}REQ" | tr -s ' ')"
-        |
-        |# Check allowlist
-        |ALLOWED=false
-        |for allowed in "${'$'}{ALLOWED_CMDS[@]}"; do
-        |  if [[ "${'$'}NORM" == "${'$'}allowed"* ]]; then
-        |    ALLOWED=true
-        |    break
-        |  fi
-        |done
-        |
-        |if [[ "${'$'}ALLOWED" != "true" ]]; then
-        |  echo "Command not allowed: ${'$'}NORM" >&2
-        |  echo "" >&2
-        |  echo "Allowed commands:" >&2
-        |  printf '  %s\n' "${'$'}{ALLOWED_CMDS[@]}" >&2
-        |  exit 1
-        |fi
-        |
-        |# Auto-decrypt secrets if needed
-        |PROJECT_ROOT="/home/stackops/datamancy"
-        |if [[ -f "${'$'}PROJECT_ROOT/.env.enc" && ! -f "${'$'}PROJECT_ROOT/.env" ]]; then
-        |  if [[ -f /home/stackops/.config/sops/age/keys.txt ]]; then
-        |    sops -d --input-type dotenv --output-type dotenv "${'$'}PROJECT_ROOT/.env.enc" > "${'$'}PROJECT_ROOT/.env"
-        |    chmod 600 "${'$'}PROJECT_ROOT/.env"
-        |  fi
-        |fi
-        |
-        |cd "${'$'}PROJECT_ROOT"
-        |exec bash -lc -- "${'$'}NORM"
-    """.trimMargin()
-
-    Files.writeString(wrapperPath, script)
-    ensurePerm(wrapperPath, executable = true)
-    success("Wrapper installed at $wrapperPath")
-    println("\nTo activate, add to ~/.ssh/authorized_keys:")
-    println("command=\"/usr/local/bin/stackops-wrapper\",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc,no-X11-forwarding ssh-ed25519 AAAA...")
-}
-
-private fun cmdDeployHardenSshd() {
-    if (!isRoot()) err("This command must be run with sudo/root")
-    info("Hardening SSH daemon configuration")
-
-    val cfg = Paths.get("/etc/ssh/sshd_config")
-    if (!Files.isRegularFile(cfg)) err("sshd_config not found")
-
-    val backup = cfg.resolveSibling("sshd_config.bak")
-    if (!Files.exists(backup)) {
-        Files.copy(cfg, backup)
-        info("Backup created: $backup")
-    }
-
-    fun applyKv(key: String, value: String) {
-        val lines = Files.readAllLines(cfg).toMutableList()
-        var found = false
-        for (i in lines.indices) {
-            if (lines[i].trimStart().startsWith(key, ignoreCase = true)) {
-                lines[i] = "$key $value"
-                found = true
-            }
-        }
-        if (!found) lines.add("$key $value")
-        Files.write(cfg, lines)
-    }
-
-    applyKv("PubkeyAuthentication", "yes")
-    applyKv("PasswordAuthentication", "no")
-    applyKv("PermitTunnel", "no")
-    applyKv("PermitTTY", "no")
-
-    run("systemctl", "reload", "sshd", allowFail = true)
-    success("SSH daemon hardened")
-}
+//private fun cmdDeployHardenSshd() {
+//    if (!isRoot()) err("This command must be run with sudo/root")
+//    info("Hardening SSH daemon configuration")
+//
+//    val cfg = Paths.get("/etc/ssh/sshd_config")
+//    if (!Files.isRegularFile(cfg)) err("sshd_config not found")
+//
+//    val backup = cfg.resolveSibling("sshd_config.bak")
+//    if (!Files.exists(backup)) {
+//        Files.copy(cfg, backup)
+//        info("Backup created: $backup")
+//    }
+//
+//    fun applyKv(key: String, value: String) {
+//        val lines = Files.readAllLines(cfg).toMutableList()
+//        var found = false
+//        for (i in lines.indices) {
+//            if (lines[i].trimStart().startsWith(key, ignoreCase = true)) {
+//                lines[i] = "$key $value"
+//                found = true
+//            }
+//        }
+//        if (!found) lines.add("$key $value")
+//        Files.write(cfg, lines)
+//    }
+//
+//    applyKv("PubkeyAuthentication", "yes")
+//    applyKv("PasswordAuthentication", "no")
+//    applyKv("PermitTunnel", "no")
+//    applyKv("PermitTTY", "no")
+//
+//    run("systemctl", "reload", "sshd", allowFail = true)
+//    success("SSH daemon hardened")
+//}
 
 private fun cmdDeployGenerateKeys() {
     val root = projectRoot()
@@ -1273,8 +1323,8 @@ private fun cmdVolumesClean() {
     info("Cleaning volumes directory (removing root-owned files)")
 
     // Get current user UID and GID
-    val uid = run("id", "-u").trim()
-    val gid = run("id", "-g").trim()
+    val uid = run("id", "-u", showOutput = false).trim()
+    val gid = run("id", "-g", showOutput = false).trim()
 
     // Use a Docker container to clean and fix ownership
     // This works because Docker has permission to manipulate files in bind mounts
@@ -1303,7 +1353,7 @@ private fun cmdCleanDocker() {
  * 1. Stops all containers
  * 2. Removes all Docker volumes (requires Docker to remove bind mounts created as root)
  * 3. Removes networks
- * 4. Deletes ~/.datamancy directory
+ * 4. Deletes ~/.datamancy directory (excluding Caddy certs by default)
  *
  * WARNING: This is destructive and will delete ALL data.
  *
@@ -1326,6 +1376,8 @@ private fun cmdObliterate(force: Boolean = false) {
         |  • All configuration files
         |  • All data (postgres, mariadb, ldap, etc.)
         |
+        |${ANSI_GREEN}Caddy certificates (~/.caddy_data) are preserved${ANSI_RESET}
+        |
         |${ANSI_RED}THIS CANNOT BE UNDONE!${ANSI_RESET}
         |
     """.trimMargin())
@@ -1340,33 +1392,39 @@ private fun cmdObliterate(force: Boolean = false) {
         println()
     }
 
-    info("Step 1/4: Stopping all containers")
+    info("Step 1/5: Stopping all containers and removing built images")
     try {
         val runtimeEnv = dataDir.resolve(".env.runtime")
         if (Files.exists(runtimeEnv)) {
-            run("docker", "compose", "--env-file", runtimeEnv.toString(), "down", "-v", cwd = root, allowFail = true)
+            run("docker", "compose", "--env-file", runtimeEnv.toString(), "down", "-v", "--rmi", "local", cwd = root, allowFail = true)
         } else {
-            run("docker", "compose", "down", "-v", cwd = root, allowFail = true)
+            run("docker", "compose", "down", "-v", "--rmi", "local", cwd = root, allowFail = true)
         }
-        success("Containers stopped")
+        success("Containers stopped and built images removed")
     } catch (e: Exception) {
         warn("Failed to stop containers gracefully: ${e.message}")
     }
 
-    info("Step 2/4: Removing Docker volumes")
+    info("Step 2/5: Removing Docker volumes")
     try {
         // List all datamancy volumes
-        val volumes = run("docker", "volume", "ls", "-q", "--filter", "label=com.docker.compose.project=datamancy", allowFail = true)
+        val volumes = run("docker", "volume", "ls", "-q", "--filter", "label=com.docker.compose.project=datamancy", allowFail = true, showOutput = false)
         val volumeList = volumes.trim().lines().filter { it.isNotBlank() }
 
         if (volumeList.isNotEmpty()) {
             info("Found ${volumeList.size} volumes to remove")
             for (volume in volumeList) {
                 try {
-                    run("docker", "volume", "rm", volume, allowFail = true)
-                    println("  ${ANSI_GREEN}✓${ANSI_RESET} Removed: $volume")
+                    // Suppress "volume is in use" errors - they're benign and volume gets removed anyway
+                    val result = run("docker", "volume", "rm", volume, allowFail = true, showOutput = false)
+                    if (result.contains("Error") && !result.contains("volume is in use")) {
+                        warn("  Failed to remove: $volume")
+                    } else {
+                        println("  ${ANSI_GREEN}✓${ANSI_RESET} Removed: $volume")
+                    }
                 } catch (e: Exception) {
-                    warn("  Failed to remove volume: $volume")
+                    // Volume was removed despite error
+                    println("  ${ANSI_GREEN}✓${ANSI_RESET} Removed: $volume")
                 }
             }
         } else {
@@ -1377,9 +1435,9 @@ private fun cmdObliterate(force: Boolean = false) {
         warn("Failed to remove volumes: ${e.message}")
     }
 
-    info("Step 3/4: Removing Docker networks")
+    info("Step 3/5: Removing Docker networks")
     try {
-        val networks = run("docker", "network", "ls", "-q", "--filter", "label=com.docker.compose.project=datamancy", allowFail = true)
+        val networks = run("docker", "network", "ls", "-q", "--filter", "label=com.docker.compose.project=datamancy", allowFail = true, showOutput = false)
         val networkList = networks.trim().lines().filter { it.isNotBlank() }
 
         if (networkList.isNotEmpty()) {
@@ -1397,9 +1455,39 @@ private fun cmdObliterate(force: Boolean = false) {
         warn("Failed to remove networks: ${e.message}")
     }
 
-    info("Step 4/4: Removing ~/.datamancy directory")
+    info("Step 4/5: Removing dangling images and build cache")
+    try {
+        run("docker", "image", "prune", "-f", allowFail = true)
+        run("docker", "builder", "prune", "-f", allowFail = true)
+        success("Dangling images and build cache removed")
+    } catch (e: Exception) {
+        warn("Failed to clean build artifacts: ${e.message}")
+    }
+
+    info("Step 5/5: Removing ~/.datamancy directory (preserving init scripts)")
     try {
         if (Files.exists(dataDir)) {
+            // Backup init script directories before deletion
+            val backupDir = Files.createTempDirectory("datamancy-obliterate-backup")
+            val volumesDir = dataDir.resolve("volumes")
+            val initDirs = listOf("bookstack_init", "qbittorrent_init")
+            val backedUpDirs = mutableListOf<String>()
+
+            info("Backing up init scripts to: $backupDir")
+            for (initDir in initDirs) {
+                val sourcePath = volumesDir.resolve(initDir)
+                if (Files.exists(sourcePath)) {
+                    try {
+                        val destPath = backupDir.resolve(initDir)
+                        run("cp", "-r", sourcePath.toString(), destPath.toString())
+                        backedUpDirs.add(initDir)
+                        println("  ${ANSI_GREEN}✓${ANSI_RESET} Backed up: $initDir")
+                    } catch (e: Exception) {
+                        warn("  Failed to backup $initDir: ${e.message}")
+                    }
+                }
+            }
+
             // Use docker to remove any root-owned files
             val dataDirStr = dataDir.toString()
             try {
@@ -1416,7 +1504,33 @@ private fun cmdObliterate(force: Boolean = false) {
                 dataDir.toFile().deleteRecursively()
             }
 
-            success("Data directory removed")
+            // Recreate the directory structure and restore init scripts
+            Files.createDirectories(dataDir)
+            val newVolumesDir = dataDir.resolve("volumes")
+            Files.createDirectories(newVolumesDir)
+
+            if (backedUpDirs.isNotEmpty()) {
+                info("Restoring init scripts...")
+                for (initDir in backedUpDirs) {
+                    try {
+                        val sourcePath = backupDir.resolve(initDir)
+                        val destPath = newVolumesDir.resolve(initDir)
+                        run("cp", "-r", sourcePath.toString(), destPath.toString())
+                        println("  ${ANSI_GREEN}✓${ANSI_RESET} Restored: $initDir")
+                    } catch (e: Exception) {
+                        warn("  Failed to restore $initDir: ${e.message}")
+                    }
+                }
+            }
+
+            // Clean up temporary backup
+            try {
+                backupDir.toFile().deleteRecursively()
+            } catch (e: Exception) {
+                warn("Failed to clean up temporary backup: ${e.message}")
+            }
+
+            success("Data directory removed and init scripts restored")
         } else {
             info("Data directory doesn't exist")
         }
@@ -1569,7 +1683,10 @@ private fun showHelp() {
         |Stack Operations:
         |  up [--profiles=p1,p2]   Start stack with full automated setup
         |                          Profiles: applications, bootstrap, databases, infrastructure
+        |                          Automatically runs config generation and processing
+        |  build [service...]      Build Docker images for specified services (or all if none specified)
         |  down                    Stop all services
+        |  reup                    Restart stack (down then up)
         |  recreate [options]      Full recreate: down → clean → regenerate → up
         |    --clean-volumes         Clean volumes (DELETES DATA - prompts for confirmation)
         |    --skip-configs          Skip config regeneration
@@ -1608,8 +1725,10 @@ private fun showHelp() {
         |  ldap bootstrap          Generate LDAP bootstrap in ~/.datamancy
         |
         |Destructive Operations:
-        |  obliterate [--force]          COMPLETE CLEANUP - removes all data, volumes, and ~/.datamancy
+        |  obliterate [options]    COMPLETE CLEANUP - removes all data, volumes, and ~/.datamancy
+        |    --force                 Skip confirmation prompt
         |                          Requires typing 'OBLITERATE' to confirm (unless --force)
+        |                          Note: Caddy certificates in ~/.caddy_data are preserved
         |
         |Quick Start (Development):
         |  ./stack-controller up                  # End-to-end automated setup
@@ -1639,15 +1758,27 @@ when (args[0]) {
     // Stack operations
     "up" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        // Check for --profiles argument
-        val profilesArg = args.find { it.startsWith("--profiles=") }
-        if (profilesArg != null) {
-            val profiles = profilesArg.substringAfter("=").split(",").map { it.trim() }
-            info("Starting stack with profiles: ${profiles.joinToString(", ")}")
-            bringUpStackWithProfiles(profiles)
-        } else {
-            bringUpStack()
+        bringUpStack()
+    }
+    "build" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        val root = projectRoot()
+        val dataDir = ensureDatamancyDataDir()
+        val runtimeEnv = dataDir.resolve(".env.runtime")
+
+        val services = args.drop(1).filter { !it.startsWith("--") }
+
+        info("Building Docker images${if (services.isEmpty()) "" else " for: ${services.joinToString(", ")}"}")
+
+        val buildArgs = mutableListOf("docker", "compose")
+        if (Files.exists(runtimeEnv)) {
+            buildArgs.addAll(listOf("--env-file", runtimeEnv.toString()))
         }
+        buildArgs.add("build")
+        buildArgs.addAll(services)
+
+        run(*buildArgs.toTypedArray(), cwd = root)
+        success("Build complete")
     }
     "ps" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
@@ -1656,6 +1787,10 @@ when (args[0]) {
     "down" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
         stopStack()
+    }
+    "reup" -> {
+        if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
+        reupStack()
     }
     "recreate" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
@@ -1714,9 +1849,9 @@ when (args[0]) {
 
         // Use table format instead of JSON for more reliable parsing
         val result = if (Files.exists(runtimeEnv)) {
-            run("docker", "compose", "--env-file", runtimeEnv.toString(), "ps", "--format", "table {{.Service}}\t{{.State}}\t{{.Health}}", cwd = root, allowFail = true)
+            run("docker", "compose", "--env-file", runtimeEnv.toString(), "ps", "--format", "table {{.Service}}\t{{.State}}\t{{.Health}}", cwd = root, allowFail = true, showOutput = false)
         } else {
-            run("docker", "compose", "ps", "--format", "table {{.Service}}\t{{.State}}\t{{.Health}}", cwd = root, allowFail = true)
+            run("docker", "compose", "ps", "--format", "table {{.Service}}\t{{.State}}\t{{.Health}}", cwd = root, allowFail = true, showOutput = false)
         }
 
         if (result.trim().isEmpty()) {
@@ -1802,17 +1937,17 @@ when (args[0]) {
     }
 
     // Deployment
-    "deploy" -> when (args.getOrNull(1)) {
-        "create-user" -> cmdDeployCreateUser()
-        "install-wrapper" -> cmdDeployInstallWrapper()
-        "harden-sshd" -> cmdDeployHardenSshd()
-        "generate-keys" -> cmdDeployGenerateKeys()
-        else -> {
-            println("Unknown deploy command: ${args.getOrNull(1)}")
-            println("Valid: create-user, install-wrapper, harden-sshd, generate-keys")
-            exitProcess(1)
-        }
-    }
+//    "deploy" -> when (args.getOrNull(1)) {
+//        "create-user" -> cmdDeployCreateUser()
+//        "install-wrapper" -> cmdDeployInstallWrapper()
+//        "harden-sshd" -> cmdDeployHardenSshd()
+//        "generate-keys" -> cmdDeployGenerateKeys()
+//        else -> {
+//            println("Unknown deploy command: ${args.getOrNull(1)}")
+//            println("Valid: create-user, install-wrapper, harden-sshd, generate-keys")
+//            exitProcess(1)
+//        }
+//    }
 
     // Maintenance
     "volumes" -> {
@@ -1827,17 +1962,17 @@ when (args[0]) {
             }
         }
     }
-    "ssh" -> {
-        if (isRoot()) err("SSH operations must not be run as root. Run without sudo.")
-        when (args.getOrNull(1)) {
-            "bootstrap" -> cmdSshBootstrap()
-            else -> {
-                println("Unknown ssh command: ${args.getOrNull(1)}")
-                println("Valid: bootstrap")
-                exitProcess(1)
-            }
-        }
-    }
+//    "ssh" -> {
+//        if (isRoot()) err("SSH operations must not be run as root. Run without sudo.")
+//        when (args.getOrNull(1)) {
+//            "bootstrap" -> cmdSshBootstrap()
+//            else -> {
+//                println("Unknown ssh command: ${args.getOrNull(1)}")
+//                println("Valid: bootstrap")
+//                exitProcess(1)
+//            }
+//        }
+//    }
     "clean" -> {
         if (isRoot()) err("Clean operations must not be run as root. Run without sudo.")
         when (args.getOrNull(1)) {

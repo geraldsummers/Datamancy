@@ -75,9 +75,17 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         ELSE
             ALTER USER forgejo WITH PASSWORD '$FORGEJO_DB_PASSWORD';
         END IF;
+    END
+    \$\$;
 
-        -- Home Assistant user creation is optional (may use SQLite)
-        -- Skip if no password provided
+    -- Create Home Assistant database if password is provided
+    DO \$\$
+    BEGIN
+        IF '$HOMEASSISTANT_DB_PASSWORD' != '' THEN
+            IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'homeassistant') THEN
+                CREATE DATABASE homeassistant OWNER $POSTGRES_USER;
+            END IF;
+        END IF;
     END
     \$\$;
 
@@ -115,8 +123,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE forgejo OWNER forgejo'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'forgejo')\gexec
 
-    -- Home Assistant database creation skipped (uses SQLite by default)
-
     -- Grant privileges (these are idempotent)
     GRANT ALL PRIVILEGES ON DATABASE planka TO planka;
     GRANT ALL PRIVILEGES ON DATABASE langgraph TO $POSTGRES_USER;
@@ -130,6 +136,11 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
     GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
 EOSQL
+
+# Grant Home Assistant privileges if database was created
+if [ -n "$HOMEASSISTANT_DB_PASSWORD" ]; then
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO $POSTGRES_USER;"
+fi
 
 # Grant schema privileges (PostgreSQL 15+)
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "planka" -c "GRANT ALL ON SCHEMA public TO planka;"

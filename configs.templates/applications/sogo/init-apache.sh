@@ -15,14 +15,13 @@ sed -i 's|^#RedirectMatch \^/\$ .*|RedirectMatch ^/$ /SOGo|' "$SOGO_CONF"
 sed -i 's|^    RequestHeader unset "x-webobjects-remote-user"|#    RequestHeader unset "x-webobjects-remote-user"|' "$SOGO_CONF"
 
 # Enable reading Remote-User header from Caddy and pass to SOGo as x-webobjects-remote-user
-# Apache must map the incoming Remote-User header to x-webobjects-remote-user
-if ! grep -q 'RequestHeader set "x-webobjects-remote-user" "%{Remote-User}i"' "$SOGO_CONF"; then
-    # Insert after the comment about proxy-side authentication
-    sed -i '/## When using proxy-side autentication/a\    RequestHeader set "x-webobjects-remote-user" "%{Remote-User}i"' "$SOGO_CONF"
-else
-    # Already exists, ensure it's uncommented and correct
-    sed -i 's|^#*    RequestHeader set "x-webobjects-remote-user".*|    RequestHeader set "x-webobjects-remote-user" "%{Remote-User}i"|' "$SOGO_CONF"
+# Apache mod_rewrite is required to capture HTTP headers as environment variables
+if ! grep -q 'RewriteEngine On' "$SOGO_CONF"; then
+    sed -i '/## When using proxy-side autentication/a\    RewriteEngine On\n    RewriteCond %{HTTP:Remote-User} (.+)\n    RewriteRule .* - [E=REMOTE_USER:%1]' "$SOGO_CONF"
 fi
+
+# Change the RequestHeader line to use REMOTE_USER environment variable instead of Remote-User input header
+sed -i 's|RequestHeader set "x-webobjects-remote-user" "%{Remote-User}i"|RequestHeader set "x-webobjects-remote-user" "%{REMOTE_USER}e"|' "$SOGO_CONF"
 
 echo "[sogo-init] Apache configuration updated successfully"
 

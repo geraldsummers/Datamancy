@@ -12,7 +12,6 @@
             <option value="$PROJECT_DIR$/src/agent-tool-server" />
             <option value="$PROJECT_DIR$/src/ldap-sync-service" />
             <option value="$PROJECT_DIR$/src/playwright-controller" />
-            <option value="$PROJECT_DIR$/src/probe-orchestrator" />
             <option value="$PROJECT_DIR$/src/rag-gateway" />
             <option value="$PROJECT_DIR$/src/speech-gateway" />
             <option value="$PROJECT_DIR$/src/stack-discovery" />

@@ -22,6 +22,7 @@
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.PosixFilePermission
 import kotlin.system.exitProcess
 
 // ANSI colors
@@ -224,6 +225,20 @@ fun processTemplate(content: String, env: Map<String, String>, filePath: String,
     return Pair(result, missingVars)
 }
 
+fun setExecutable(file: File) {
+    try {
+        val perms = Files.getPosixFilePermissions(file.toPath()).toMutableSet()
+        perms.add(PosixFilePermission.OWNER_EXECUTE)
+        perms.add(PosixFilePermission.GROUP_EXECUTE)
+        Files.setPosixFilePermissions(file.toPath(), perms)
+    } catch (e: UnsupportedOperationException) {
+        // Non-POSIX filesystem (Windows), use setExecutable instead
+        file.setExecutable(true, false)
+    } catch (e: Exception) {
+        warn("Failed to set executable permission on ${file.name}: ${e.message}")
+    }
+}
+
 fun copyFileStructure(
     sourceDir: File,
     targetDir: File,
@@ -252,7 +267,13 @@ fun copyFileStructure(
         if (!sourceFile.isFile) return@forEach
 
         val relativePath = sourceFile.relativeTo(sourceDir).path
-        val targetFile = File(targetDir, relativePath)
+        // Strip .template extension from output file name
+        val outputPath = if (relativePath.endsWith(".template")) {
+            relativePath.removeSuffix(".template")
+        } else {
+            relativePath
+        }
+        val targetFile = File(targetDir, outputPath)
 
         // Determine if file should be processed as template
         val shouldProcess = sourceFile.extension in listOf("yml", "yaml", "conf", "json", "env", "toml", "sql", "xml", "ini", "py")
@@ -272,6 +293,11 @@ fun copyFileStructure(
             if (!args.dryRun) {
                 targetFile.parentFile?.mkdirs()
                 targetFile.writeText(processed)
+
+                // Set executable if source is executable or is a .sh file
+                if (sourceFile.canExecute() || sourceFile.extension == "sh") {
+                    setExecutable(targetFile)
+                }
             }
 
             processedCount++
@@ -281,6 +307,11 @@ fun copyFileStructure(
             if (!args.dryRun) {
                 targetFile.parentFile?.mkdirs()
                 Files.copy(sourceFile.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+
+                // Preserve executable permission for scripts and binaries
+                if (sourceFile.canExecute() || sourceFile.extension == "sh") {
+                    setExecutable(targetFile)
+                }
             }
 
             copiedCount++

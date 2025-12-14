@@ -53,12 +53,11 @@ if [ -n "$DB_DATABASE" ]; then
     sed -i "s|^DB_DATABASE=.*|DB_DATABASE=$DB_DATABASE|" "$ENV_FILE"
 fi
 
-# Use authentication via reverse proxy headers (from Authelia)
-# This enables seamless SSO - users authenticated by Authelia are auto-logged in
+# Use OIDC authentication for SSO
 sed -i "s|^AUTH_METHOD=.*|AUTH_METHOD=oidc|" "$ENV_FILE"
 grep -q "^AUTH_METHOD=" "$ENV_FILE" || echo "AUTH_METHOD=oidc" >> "$ENV_FILE"
 
-# Configure OIDC for Authelia
+# OIDC configuration for Authelia
 sed -i "s|^OIDC_NAME=.*|OIDC_NAME=Authelia|" "$ENV_FILE"
 grep -q "^OIDC_NAME=" "$ENV_FILE" || echo "OIDC_NAME=Authelia" >> "$ENV_FILE"
 
@@ -68,73 +67,55 @@ grep -q "^OIDC_DISPLAY_NAME_CLAIMS=" "$ENV_FILE" || echo "OIDC_DISPLAY_NAME_CLAI
 sed -i "s|^OIDC_CLIENT_ID=.*|OIDC_CLIENT_ID=bookstack|" "$ENV_FILE"
 grep -q "^OIDC_CLIENT_ID=" "$ENV_FILE" || echo "OIDC_CLIENT_ID=bookstack" >> "$ENV_FILE"
 
-# Get OIDC secret from container environment (passed from docker-compose)
 if [ -n "$BOOKSTACK_OAUTH_SECRET" ]; then
     sed -i "s|^OIDC_CLIENT_SECRET=.*|OIDC_CLIENT_SECRET=$BOOKSTACK_OAUTH_SECRET|" "$ENV_FILE"
     grep -q "^OIDC_CLIENT_SECRET=" "$ENV_FILE" || echo "OIDC_CLIENT_SECRET=$BOOKSTACK_OAUTH_SECRET" >> "$ENV_FILE"
 fi
 
-# Get domain from APP_URL environment variable
-DOMAIN_FROM_URL=$(echo "$APP_URL" | sed -E 's|https?://[^.]+\.||' | sed 's|/.*||')
-if [ -n "$DOMAIN_FROM_URL" ]; then
-    sed -i "s|^OIDC_ISSUER=.*|OIDC_ISSUER=https://auth.$DOMAIN_FROM_URL|" "$ENV_FILE"
-    grep -q "^OIDC_ISSUER=" "$ENV_FILE" || echo "OIDC_ISSUER=https://auth.$DOMAIN_FROM_URL" >> "$ENV_FILE"
+sed -i "s|^OIDC_ISSUER=.*|OIDC_ISSUER=https://auth.\${APP_URL#https://bookstack.}|" "$ENV_FILE"
+grep -q "^OIDC_ISSUER=" "$ENV_FILE" || echo 'OIDC_ISSUER=https://auth.${APP_URL#https://bookstack.}' >> "$ENV_FILE"
+
+# Construct the issuer URL from APP_URL (e.g., https://bookstack.domain.com -> https://auth.domain.com)
+if [ -n "$APP_URL" ]; then
+    DOMAIN="${APP_URL#https://bookstack.}"
+    OIDC_ISSUER="https://auth.${DOMAIN}"
+    sed -i "s|^OIDC_ISSUER=.*|OIDC_ISSUER=$OIDC_ISSUER|" "$ENV_FILE"
 fi
 
-# Auto-register users from OIDC (seamless SSO)
-sed -i "s|^OIDC_AUTO_DISCOVER=.*|OIDC_AUTO_DISCOVER=true|" "$ENV_FILE"
-grep -q "^OIDC_AUTO_DISCOVER=" "$ENV_FILE" || echo "OIDC_AUTO_DISCOVER=true" >> "$ENV_FILE"
+# Leave these empty to use OIDC discovery (recommended)
+sed -i "s|^OIDC_PUBLIC_KEY=.*|OIDC_PUBLIC_KEY=|" "$ENV_FILE"
+grep -q "^OIDC_PUBLIC_KEY=" "$ENV_FILE" || echo "OIDC_PUBLIC_KEY=" >> "$ENV_FILE"
 
-sed -i "s|^OIDC_AUTO_CONFIRM_EMAIL=.*|OIDC_AUTO_CONFIRM_EMAIL=true|" "$ENV_FILE"
-grep -q "^OIDC_AUTO_CONFIRM_EMAIL=" "$ENV_FILE" || echo "OIDC_AUTO_CONFIRM_EMAIL=true" >> "$ENV_FILE"
+sed -i "s|^OIDC_AUTH_ENDPOINT=.*|OIDC_AUTH_ENDPOINT=|" "$ENV_FILE"
+grep -q "^OIDC_AUTH_ENDPOINT=" "$ENV_FILE" || echo "OIDC_AUTH_ENDPOINT=" >> "$ENV_FILE"
 
-# Auto-initiate OIDC login on login page
-sed -i "s|^OIDC_AUTO_INITIATE=.*|OIDC_AUTO_INITIATE=true|" "$ENV_FILE"
-grep -q "^OIDC_AUTO_INITIATE=" "$ENV_FILE" || echo "OIDC_AUTO_INITIATE=true" >> "$ENV_FILE"
+sed -i "s|^OIDC_TOKEN_ENDPOINT=.*|OIDC_TOKEN_ENDPOINT=|" "$ENV_FILE"
+grep -q "^OIDC_TOKEN_ENDPOINT=" "$ENV_FILE" || echo "OIDC_TOKEN_ENDPOINT=" >> "$ENV_FILE"
 
-# LDAP server configuration
-sed -i "s|^LDAP_SERVER=.*|LDAP_SERVER=ldap://ldap:389|" "$ENV_FILE"
-grep -q "^LDAP_SERVER=" "$ENV_FILE" || echo "LDAP_SERVER=ldap://ldap:389" >> "$ENV_FILE"
+# Set OIDC issuer discovery to true (uses .well-known/openid-configuration)
+sed -i "s|^OIDC_ISSUER_DISCOVER=.*|OIDC_ISSUER_DISCOVER=true|" "$ENV_FILE"
+grep -q "^OIDC_ISSUER_DISCOVER=" "$ENV_FILE" || echo "OIDC_ISSUER_DISCOVER=true" >> "$ENV_FILE"
 
-# LDAP base DN
-sed -i "s|^LDAP_BASE_DN=.*|LDAP_BASE_DN=dc=stack,dc=local|" "$ENV_FILE"
-grep -q "^LDAP_BASE_DN=" "$ENV_FILE" || echo "LDAP_BASE_DN=dc=stack,dc=local" >> "$ENV_FILE"
+sed -i "s|^OIDC_DUMP_USER_DETAILS=.*|OIDC_DUMP_USER_DETAILS=false|" "$ENV_FILE"
+grep -q "^OIDC_DUMP_USER_DETAILS=" "$ENV_FILE" || echo "OIDC_DUMP_USER_DETAILS=false" >> "$ENV_FILE"
 
-# LDAP bind user (for searching)
-sed -i "s|^LDAP_DN=.*|LDAP_DN=cn=admin,dc=stack,dc=local|" "$ENV_FILE"
-grep -q "^LDAP_DN=" "$ENV_FILE" || echo "LDAP_DN=cn=admin,dc=stack,dc=local" >> "$ENV_FILE"
+sed -i "s|^OIDC_ADDITIONAL_SCOPES=.*|OIDC_ADDITIONAL_SCOPES=profile,email|" "$ENV_FILE"
+grep -q "^OIDC_ADDITIONAL_SCOPES=" "$ENV_FILE" || echo "OIDC_ADDITIONAL_SCOPES=profile,email" >> "$ENV_FILE"
 
-# LDAP bind password
-if [ -n "$LDAP_ADMIN_PASSWORD" ]; then
-    sed -i "s|^LDAP_PASS=.*|LDAP_PASS=$LDAP_ADMIN_PASSWORD|" "$ENV_FILE"
-    grep -q "^LDAP_PASS=" "$ENV_FILE" || echo "LDAP_PASS=$LDAP_ADMIN_PASSWORD" >> "$ENV_FILE"
-fi
+sed -i "s|^OIDC_USER_TO_GROUPS=.*|OIDC_USER_TO_GROUPS=true|" "$ENV_FILE"
+grep -q "^OIDC_USER_TO_GROUPS=" "$ENV_FILE" || echo "OIDC_USER_TO_GROUPS=true" >> "$ENV_FILE"
 
-# LDAP user filter
-sed -i "s|^LDAP_USER_FILTER=.*|LDAP_USER_FILTER=(&(uid=\${user}))|" "$ENV_FILE"
-grep -q "^LDAP_USER_FILTER=" "$ENV_FILE" || echo 'LDAP_USER_FILTER=(&(uid=${user}))' >> "$ENV_FILE"
+sed -i "s|^OIDC_GROUPS_CLAIM=.*|OIDC_GROUPS_CLAIM=groups|" "$ENV_FILE"
+grep -q "^OIDC_GROUPS_CLAIM=" "$ENV_FILE" || echo "OIDC_GROUPS_CLAIM=groups" >> "$ENV_FILE"
 
-# LDAP version
-sed -i "s|^LDAP_VERSION=.*|LDAP_VERSION=3|" "$ENV_FILE"
-grep -q "^LDAP_VERSION=" "$ENV_FILE" || echo "LDAP_VERSION=3" >> "$ENV_FILE"
+sed -i "s|^OIDC_REMOVE_FROM_GROUPS=.*|OIDC_REMOVE_FROM_GROUPS=false|" "$ENV_FILE"
+grep -q "^OIDC_REMOVE_FROM_GROUPS=" "$ENV_FILE" || echo "OIDC_REMOVE_FROM_GROUPS=false" >> "$ENV_FILE"
 
-# LDAP user to DN
-sed -i "s|^LDAP_USER_TO_GROUPS=.*|LDAP_USER_TO_GROUPS=false|" "$ENV_FILE"
-grep -q "^LDAP_USER_TO_GROUPS=" "$ENV_FILE" || echo "LDAP_USER_TO_GROUPS=false" >> "$ENV_FILE"
+# Set token endpoint auth method to match Authelia configuration
+sed -i "s|^OIDC_TOKEN_ENDPOINT_AUTH_METHOD=.*|OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post|" "$ENV_FILE"
+grep -q "^OIDC_TOKEN_ENDPOINT_AUTH_METHOD=" "$ENV_FILE" || echo "OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post" >> "$ENV_FILE"
 
-# LDAP ID attribute
-sed -i "s|^LDAP_ID_ATTRIBUTE=.*|LDAP_ID_ATTRIBUTE=uid|" "$ENV_FILE"
-grep -q "^LDAP_ID_ATTRIBUTE=" "$ENV_FILE" || echo "LDAP_ID_ATTRIBUTE=uid" >> "$ENV_FILE"
-
-# LDAP email attribute
-sed -i "s|^LDAP_EMAIL_ATTRIBUTE=.*|LDAP_EMAIL_ATTRIBUTE=mail|" "$ENV_FILE"
-grep -q "^LDAP_EMAIL_ATTRIBUTE=" "$ENV_FILE" || echo "LDAP_EMAIL_ATTRIBUTE=mail" >> "$ENV_FILE"
-
-# LDAP display name attribute
-sed -i "s|^LDAP_DISPLAY_NAME_ATTRIBUTE=.*|LDAP_DISPLAY_NAME_ATTRIBUTE=cn|" "$ENV_FILE"
-grep -q "^LDAP_DISPLAY_NAME_ATTRIBUTE=" "$ENV_FILE" || echo "LDAP_DISPLAY_NAME_ATTRIBUTE=cn" >> "$ENV_FILE"
-
-echo "BookStack .env file updated successfully with LDAP authentication"
+echo "BookStack .env file updated successfully with OIDC authentication"
 
 # Clear Laravel cache to ensure new credentials are used
 # This is critical because Laravel may have cached the old database_username placeholder
@@ -143,4 +124,28 @@ if [ -f "/app/www/artisan" ]; then
     cd /app/www && php artisan config:clear 2>/dev/null || true
     cd /app/www && php artisan cache:clear 2>/dev/null || true
     echo "Laravel cache cleared"
+fi
+
+# Run migrations if needed (this is safe to run multiple times)
+# Check if the users table exists to determine if migrations have been run
+if [ -f "/app/www/artisan" ]; then
+    echo "Checking if database migrations are needed..."
+    cd /app/www
+
+    # Try to check if migrations table exists
+    if ! php artisan migrate:status >/dev/null 2>&1; then
+        echo "Running database migrations..."
+        php artisan migrate --force
+        echo "Migrations completed"
+    else
+        echo "Database already migrated"
+    fi
+fi
+
+# Check if this is first boot (DB_USERNAME was placeholder) and trigger restart if needed
+# This ensures Laravel picks up the corrected database credentials
+if grep -q "database_username" /config/www/.env.backup 2>/dev/null || [ ! -f /config/www/.env.backup ]; then
+    echo "First boot detected - credentials were updated."
+    # Create backup to avoid restart loop
+    cp /config/www/.env /config/www/.env.backup
 fi

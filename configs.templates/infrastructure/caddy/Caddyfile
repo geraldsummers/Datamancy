@@ -75,30 +75,23 @@ mail.{{DOMAIN}} {
 
 # SOGo (groupware UI)
 sogo.{{DOMAIN}} {
-    route {
-        forward_auth authelia:9091 {
-            uri /api/authz/forward-auth
-            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }
+    # SOGo serves at /SOGo path, redirect root to it
+    @root path /
+    redir @root /SOGo
 
-        # SOGo serves at /SOGo path, redirect root to it
-        @root path /
-        redir @root /SOGo
+    forward_auth authelia:9091 {
+        uri /api/authz/forward-auth
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
 
-        reverse_proxy sogo:80
+    reverse_proxy sogo:80 {
+        # Pass authentication headers to SOGo
+        header_up Remote-User {header.Remote-User}
+        header_up Remote-Email {header.Remote-Email}
+        header_up Remote-Name {header.Remote-Name}
     }
 }
 
-# Dockge
-dockge.{{DOMAIN}} {
-    route {
-        forward_auth authelia:9091 {
-            uri /api/authz/forward-auth
-            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }
-        reverse_proxy dockge:5001
-    }
-}
 
 # Kopia UI (protected with forward_auth)
 kopia.{{DOMAIN}} {
@@ -133,8 +126,18 @@ open-webui.{{DOMAIN}} {
     }
 }
 
-# Vaultwarden (uses OIDC via SSO_ONLY mode)
+# Vaultwarden - Protocol-based routing
 vaultwarden.{{DOMAIN}} {
+    # API requests (JSON Accept header) -> app subdomain
+    @api header Accept *application/json*
+    reverse_proxy @api vaultwarden:80
+
+    # Browser requests -> redirect to app with SSO params
+    redir https://app.vaultwarden.{{DOMAIN}}/#/sso?identifier={{MAIL_DOMAIN}} temporary
+}
+
+# Vaultwarden app (OIDC SSO endpoint)
+app.vaultwarden.{{DOMAIN}} {
     reverse_proxy vaultwarden:80
 }
 
@@ -143,18 +146,12 @@ planka.{{DOMAIN}} {
     reverse_proxy planka:1337
 }
 
-# BookStack (uses Authelia forward_auth)
+# BookStack (uses OIDC)
 bookstack.{{DOMAIN}} {
-    route {
-        forward_auth authelia:9091 {
-            uri /api/authz/forward-auth
-            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }
-        reverse_proxy bookstack:80
-    }
+    reverse_proxy bookstack:80
 }
 
-# Seafile
+# Seafile - Uses remote user authentication with forward_auth
 seafile.{{DOMAIN}} {
     route {
         forward_auth authelia:9091 {
@@ -180,6 +177,11 @@ seafile.{{DOMAIN}} {
 # Matrix (Synapse)
 matrix.{{DOMAIN}} {
     reverse_proxy synapse:8008
+}
+
+# Element (Matrix Web Client)
+element.{{DOMAIN}} {
+    reverse_proxy element:80
 }
 
 # Mastodon (web)
@@ -218,29 +220,36 @@ www.{{DOMAIN}} {
         reverse_proxy homepage:3000
     }
 }
-# JupyterHub
+# JupyterHub - Uses RemoteUserAuthenticator with forward_auth
 jupyterhub.{{DOMAIN}} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
             copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
         }
-        reverse_proxy jupyterhub:8000 {
-            header_up Remote-User {header.Remote-User}
-            header_up Remote-Email {header.Remote-Email}
-            header_up Remote-Name {header.Remote-Name}
-        }
+        reverse_proxy jupyterhub:8000
     }
 }
 
-# Home Assistant
+# Home Assistant - Uses trusted_networks + LDAP auth
+# Webhooks must bypass auth
 homeassistant.{{DOMAIN}} {
+    # Webhook paths bypass forward_auth
+    @webhooks path /api/webhook/*
+    handle @webhooks {
+        reverse_proxy homeassistant:8123
+    }
+
+    # All other paths use forward_auth
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
             copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
         }
-        reverse_proxy homeassistant:8123
+        reverse_proxy homeassistant:8123 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Real-IP {remote_host}
+        }
     }
 }
 
@@ -295,24 +304,9 @@ vllm-router.{{DOMAIN}} {
     }
 }
 
-# Forgejo (Git Forge) - with Authelia forward_auth for seamless SSO
+# Forgejo (Git Forge) - with OIDC authentication via Authelia
 forgejo.{{DOMAIN}} {
-    route {
-        forward_auth authelia:9091 {
-            uri /api/authz/forward-auth
-            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }
-
-        # Redirect root to user login page for auto-authentication
-        @root path /
-        redir @root /user/login
-
-        reverse_proxy forgejo:3000 {
-            header_up Remote-User {header.Remote-User}
-            header_up Remote-Email {header.Remote-Email}
-            header_up Remote-Name {header.Remote-Name}
-        }
-    }
+    reverse_proxy forgejo:3000
 }
 
 # qBittorrent (protected)

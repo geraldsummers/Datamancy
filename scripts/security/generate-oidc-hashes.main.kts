@@ -73,11 +73,10 @@ private fun updateEnvFile(envPath: Path, secretToHash: Map<String, String>) {
         val hashVarName = secretName.replace("_OAUTH_SECRET", "_OAUTH_SECRET_HASH")
             .replace("_OIDC_SECRET", "_OIDC_SECRET_HASH")
 
-        // Escape $ symbols for Docker Compose by doubling them
-        val escapedHash = hash.replace("$", "$$")
-
+        // Use hash directly - no escaping needed for .env files
+        // The template processor will handle any necessary escaping for YAML
         val oldLine = "$hashVarName=PENDING"
-        val newLine = "$hashVarName=$escapedHash"
+        val newLine = "$hashVarName=$hash"
 
         if (updatedContent.contains(oldLine)) {
             updatedContent = updatedContent.replace(oldLine, newLine)

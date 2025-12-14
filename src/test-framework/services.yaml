@@ -27,14 +27,6 @@ services:
   #     password: "PieV6U8PunUJsBhXvePKh1GSsTuw0Oay"
   #   finalWaitSelector: "a[href*='tree']"
 
-  - name: "Dockge"
-    url: "https://dockge.project-saturn.com"
-    authType: AUTHELIA_FORWARD
-    credentials:
-      username: "admin"
-      password: "PieV6U8PunUJsBhXvePKh1GSsTuw0Oay"
-    finalWaitSelector: ".stack-list"
-
   - name: "Homepage"
     url: "https://homepage.project-saturn.com"
     authType: AUTHELIA_FORWARD
@@ -84,16 +76,6 @@ services:
       username: "admin"
       password: "PieV6U8PunUJsBhXvePKh1GSsTuw0Oay"
     finalWaitSelector: ".library-list"
-
-  # OnlyOffice - Document editing server (not a user portal)
-  # Accessed internally via Seafile/Nextcloud integration
-  # - name: "OnlyOffice"
-  #   url: "https://onlyoffice.project-saturn.com"
-  #   authType: AUTHELIA_FORWARD
-  #   credentials:
-  #     username: "admin"
-  #     password: "PieV6U8PunUJsBhXvePKh1GSsTuw0Oay"
-  #   finalWaitSelector: "#id-portal"
 
   - name: "JupyterHub"
     url: "https://jupyterhub.project-saturn.com"

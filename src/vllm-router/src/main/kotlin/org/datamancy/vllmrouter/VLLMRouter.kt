@@ -53,8 +53,8 @@ class ModelManager(private val client: HttpClient, private val vllmBase: String)
         // Load requested model. Use the same string for served_model_name so requests match.
         loadModel(requestedModel, requestedModel)
 
-        // Poll until the model shows up in /v1/models
-        val deadlineMs = System.currentTimeMillis() + 20 * 60_000 // up to 20 minutes for big models
+        // Poll for a short time to see if it loads quickly
+        val deadlineMs = System.currentTimeMillis() + 5_000 // 5 seconds
         while (System.currentTimeMillis() < deadlineMs) {
             val now = listLoadedModels()
             if (now.contains(requestedModel)) {
@@ -63,9 +63,9 @@ class ModelManager(private val client: HttpClient, private val vllmBase: String)
                 lruOrder.addLast(requestedModel)
                 return requestedModel
             }
-            delay(2000)
+            delay(500)
         }
-        error("Timed out waiting for model to load: $requestedModel")
+        error("Model '$requestedModel' is loading. Please try again in a moment.")
     }
 
     private suspend fun listLoadedModels(): Set<String> {

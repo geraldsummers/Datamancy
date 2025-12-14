@@ -49,7 +49,7 @@ c.DockerSpawner.cmd = ['sh', '-c', 'pip install --upgrade jupyterhub==5.4.2 && j
 # Authentication: RemoteUserAuthenticator for Authelia forward_auth
 # This allows seamless single-layer SSO - user authenticates once with Authelia,
 # and JupyterHub trusts the Remote-User header from the reverse proxy
-c.JupyterHub.authenticator_class = 'jupyterhub.auth.RemoteUserAuthenticator'
+c.JupyterHub.authenticator_class = 'remote_user_authenticator.RemoteUserAuthenticator'
 
 # Trust the Remote-User header from Authelia (passed through Caddy)
 c.RemoteUserAuthenticator.header_name = 'Remote-User'

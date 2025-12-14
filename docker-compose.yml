@@ -29,7 +29,7 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/caddy_data
+      device: ${HOME}/.caddy_data
   caddy_config:
     driver: local
     driver_opts:
@@ -84,6 +84,12 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT:-./volumes}/synapse_data
+  element_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VOLUMES_ROOT:-./volumes}/element_data
   mastodon_data:
     driver: local
     driver_opts:
@@ -162,12 +168,6 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT:-./volumes}/benthos_data
-  dockge_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/dockge_data
   kopia_data:
     driver: local
     driver_opts:
@@ -260,6 +260,7 @@ services:
           - ${DOMAIN}
           - grafana.${DOMAIN}
           - open-webui.${DOMAIN}
+          - app.vaultwarden.${DOMAIN}
           - vaultwarden.${DOMAIN}
           - planka.${DOMAIN}
           - bookstack.${DOMAIN}
@@ -268,6 +269,7 @@ services:
           - seafile.${DOMAIN}
           - onlyoffice.${DOMAIN}
           - matrix.${DOMAIN}
+          - element.${DOMAIN}
           - sogo.${DOMAIN}
           - homeassistant.${DOMAIN}
           - litellm.${DOMAIN}
@@ -291,6 +293,8 @@ services:
       # To enable Let's Encrypt for a specific site, edit configs/infrastructure/caddy/Caddyfile
       # and add `tls you@example.com` inside that site's block.
       - ${HOME}/.datamancy/configs/infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Custom landing page for Vaultwarden SSO auto-redirect
+      - ${HOME}/.datamancy/configs/applications/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
     environment:
       # Domain for vhosts in Caddyfile
       DOMAIN: "${DOMAIN}"
@@ -689,50 +693,6 @@ services:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
     command: docker exec sogo bash /docker-entrypoint.d/init-apache.sh
 
-  dockge:
-    image: louislam/dockge:1
-    container_name: dockge
-    restart: unless-stopped
-    networks:
-      - backend
-    depends_on:
-      - docker-proxy
-    volumes:
-      - dockge_data:/app/data
-      - ./stacks:/opt/stacks
-    environment:
-      - DOCKGE_STACKS_DIR=/opt/stacks
-      - DOCKER_HOST=tcp://docker-proxy:2375
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 10s
-
-  dockge-init:
-    image: node:20.18.1
-    container_name: dockge-init
-    networks:
-      - backend
-    depends_on:
-      dockge:
-        condition: service_healthy
-    volumes:
-      - ${HOME}/.datamancy/configs/applications/dockge/init-dockge.js:/init-dockge.js:ro
-    environment:
-      - DOCKGE_HOST=dockge
-      - DOCKGE_PORT=5001
-      - DOCKGE_ADMIN_USER=${STACK_ADMIN_USER}
-      - DOCKGE_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
-    command: node /init-dockge.js
-    restart: "no"
-    healthcheck:
-      test: ["CMD", "node", "-v"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
 
   kopia:
     image: kopia/kopia:0.18.2
@@ -863,54 +823,53 @@ services:
       retries: 3
       start_period: 30s
 
-  # Temporarily disabled - depends on litellm (ai profile)
-  # open-webui:
-  #   image: ghcr.io/open-webui/open-webui:0.3.32
-  #   container_name: open-webui
-  #   restart: unless-stopped
-  #   networks:
-  #     - backend
-  #     - frontend
-  #     - database
-  #   dns:
-  #     - 8.8.8.8
-  #     - 1.1.1.1
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     litellm:
-  #       condition: service_healthy
-  #     authelia:
-  #       condition: service_healthy
-  #   environment:
-  #     - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
-  #     # PostgreSQL database - use URL-encoded password for special characters
-  #     - DATABASE_URL=postgresql://openwebui:${OPENWEBUI_DB_PASSWORD_ENCODED}@postgres:5432/openwebui
-  #     - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-true}
-  #     - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
-  #     - ENABLE_OPENAI_API=true
-  #     - OPENAI_API_BASE_URL=${OPENWEBUI_OPENAI_API_BASE_URL:-http://litellm:4000/v1}
-  #     - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
-  #     # OIDC SSO Configuration
-  #     - OPENID_PROVIDER_URL=https://auth.${DOMAIN}
-  #     - OAUTH_CLIENT_ID=open-webui
-  #     - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
-  #     - OAUTH_PROVIDER_NAME=Authelia
-  #     - OAUTH_SCOPES=openid profile email groups
-  #     # Seamless SSO - skip login form, go straight to OAuth
-  #     - ENABLE_LOGIN_FORM=false
-  #     - WEBUI_AUTH=false
-  #   volumes:
-  #     - open_webui_data:/app/backend/data
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 30s
+  open-webui:
+     image: ghcr.io/open-webui/open-webui:0.3.32
+     container_name: open-webui
+     restart: unless-stopped
+     networks:
+       - backend
+       - frontend
+       - database
+     dns:
+       - 8.8.8.8
+       - 1.1.1.1
+     depends_on:
+       postgres:
+         condition: service_healthy
+       litellm:
+         condition: service_healthy
+       authelia:
+         condition: service_healthy
+     environment:
+       - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
+       # PostgreSQL database - use URL-encoded password for special characters
+       - DATABASE_URL=postgresql://openwebui:${OPENWEBUI_DB_PASSWORD_ENCODED}@postgres:5432/openwebui
+       - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-true}
+       - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
+       - ENABLE_OPENAI_API=true
+       - OPENAI_API_BASE_URL=${OPENWEBUI_OPENAI_API_BASE_URL:-http://litellm:4000/v1}
+       - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
+       # OIDC SSO Configuration
+       - OPENID_PROVIDER_URL=https://auth.${DOMAIN}
+       - OAUTH_CLIENT_ID=open-webui
+       - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
+       - OAUTH_PROVIDER_NAME=Authelia
+       - OAUTH_SCOPES=openid profile email groups
+       # Seamless SSO - skip login form, go straight to OAuth
+       - ENABLE_LOGIN_FORM=false
+       - WEBUI_AUTH=false
+     volumes:
+       - open_webui_data:/app/backend/data
+     healthcheck:
+       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+       interval: 30s
+       timeout: 10s
+       retries: 3
+       start_period: 30s
 
   vaultwarden:
-    image: vaultwarden/server:1.34.3
+    image: vaultwarden/server:testing
     container_name: vaultwarden
     restart: unless-stopped
     networks:
@@ -929,22 +888,23 @@ services:
       mailu-smtp:
         condition: service_healthy
     environment:
-      - DOMAIN=https://vaultwarden.${DOMAIN}
+      - DOMAIN=https://app.vaultwarden.${DOMAIN}
       - DATABASE_URL=postgresql://vaultwarden:${VAULTWARDEN_DB_PASSWORD}@postgres:5432/vaultwarden
       - SIGNUPS_ALLOWED=false
       - SIGNUPS_VERIFY=true
       - SIGNUPS_DOMAINS_WHITELIST=${MAIL_DOMAIN}
       - INVITATIONS_ALLOWED=false
       - SHOW_PASSWORD_HINT=false
+      # SSO/OIDC Configuration
       - SSO_ENABLED=true
       - SSO_ONLY=true
-      - SSO_SIGNUPS_MATCH_EMAIL=true
       - SSO_AUTHORITY=https://auth.${DOMAIN}
-      - SSO_ISSUER=https://auth.${DOMAIN}
       - SSO_CLIENT_ID=vaultwarden
       - SSO_CLIENT_SECRET=${VAULTWARDEN_OAUTH_SECRET}
       - SSO_SCOPES=openid email profile
       - SSO_CALLBACK_PATH=/identity/connect/oidc-signin
+      - SSO_SIGNUPS_MATCH_EMAIL=true
+      # Admin and SMTP
       - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
       - SMTP_HOST=mailu-smtp
       - SMTP_FROM=vaultwarden@${MAIL_DOMAIN}
@@ -986,7 +946,7 @@ services:
       - OIDC_CLIENT_ID=planka
       - OIDC_CLIENT_SECRET=${PLANKA_OAUTH_SECRET}
       - OIDC_SCOPES=openid profile email groups
-      - OIDC_ADMIN_ROLES=planka-admin
+      - OIDC_ADMIN_ROLES=admins
       - OIDC_EMAIL_ATTRIBUTE=email
       - OIDC_NAME_ATTRIBUTE=name
       - OIDC_USERNAME_ATTRIBUTE=preferred_username
@@ -995,7 +955,7 @@ services:
       - OIDC_TOKEN_ENDPOINT=http://authelia:9091/api/oidc/token
       - OIDC_USERINFO_ENDPOINT=http://authelia:9091/api/oidc/userinfo
       - OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post
-      - OIDC_ENFORCED=true
+      - OIDC_ENFORCED=false
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/caddy-ca.crt
     volumes:
       - planka_data:/app/public/user-avatars
@@ -1165,6 +1125,25 @@ services:
       retries: 3
       start_period: 60s
 
+  element:
+    image: vectorim/element-web:v1.11.88
+    container_name: element
+    restart: unless-stopped
+    networks:
+      - backend
+    depends_on:
+      synapse:
+        condition: service_healthy
+    volumes:
+      - element_data:/app/config
+      - ${HOME}/.datamancy/configs/applications/element/config.json:/app/config.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   mastodon-web:
     image: ghcr.io/mastodon/mastodon:v4.3.3
     container_name: mastodon-web
@@ -1310,13 +1289,26 @@ services:
     restart: unless-stopped
     networks:
       - backend
+      - database
     depends_on:
       authelia:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      ldap:
+        condition: service_healthy
     environment:
       - TZ=UTC
+      - HOMEASSISTANT_DB_URL=postgresql://${STACK_ADMIN_USER}:${HOMEASSISTANT_DB_PASSWORD}@postgres:5432/homeassistant
+      - STACK_ADMIN_USER=${STACK_ADMIN_USER}
+      - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - STACK_ADMIN_EMAIL=${STACK_ADMIN_EMAIL}
+      - LDAP_HOST=ldap
+      - LDAP_PORT=389
+      - LDAP_BASE_DN=dc=stack,dc=local
+      - LDAP_BIND_DN=cn=admin,dc=stack,dc=local
+      - LDAP_BIND_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - LDAP_USER_FILTER=(uid={username})
     volumes:
       - homeassistant_config:/config
       - /etc/localtime:/etc/localtime:ro
@@ -1324,6 +1316,10 @@ services:
       - ${HOME}/.datamancy/configs/applications/homeassistant/automations.yaml:/config/automations.yaml:rw
       - ${HOME}/.datamancy/configs/applications/homeassistant/scripts.yaml:/config/scripts.yaml:rw
       - ${HOME}/.datamancy/configs/applications/homeassistant/scenes.yaml:/config/scenes.yaml:rw
+      - ${HOME}/.datamancy/configs/applications/homeassistant/init-homeassistant.sh:/init-homeassistant.sh:ro
+      - ${HOME}/.datamancy/configs/applications/homeassistant/entrypoint.sh:/entrypoint-wrapper.sh:ro
+      - ${HOME}/.datamancy/configs/applications/homeassistant/auth_ldap.py:/usr/src/homeassistant/homeassistant/auth/providers/auth_ldap.py:ro
+    entrypoint: ["/entrypoint-wrapper.sh"]
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/"]
       interval: 30s
@@ -1357,16 +1353,10 @@ services:
       - FORGEJO__security__INSTALL_LOCK=true
       - FORGEJO__service__DISABLE_REGISTRATION=true
       - FORGEJO__service__REQUIRE_SIGNIN_VIEW=true
-      - FORGEJO__openid__ENABLE_OPENID_SIGNIN=false
-      - FORGEJO__openid__ENABLE_OPENID_SIGNUP=false
-      # Enable reverse proxy auth from Authelia (seamless single-layer SSO)
-      - FORGEJO__service__ENABLE_REVERSE_PROXY_AUTHENTICATION=true
-      - FORGEJO__service__ENABLE_REVERSE_PROXY_AUTO_REGISTRATION=true
-      - FORGEJO__service__ENABLE_REVERSE_PROXY_EMAIL=true
-      - FORGEJO__service__ENABLE_REVERSE_PROXY_FULL_NAME=true
-      - FORGEJO__service__REVERSE_PROXY_AUTHENTICATION_USER=Remote-User
-      - FORGEJO__service__REVERSE_PROXY_AUTHENTICATION_EMAIL=Remote-Email
-      - FORGEJO__service__REVERSE_PROXY_AUTHENTICATION_FULL_NAME=Remote-Name
+      - FORGEJO__openid__ENABLE_OPENID_SIGNIN=true
+      - FORGEJO__openid__ENABLE_OPENID_SIGNUP=true
+      - FORGEJO_OAUTH_SECRET=${FORGEJO_OAUTH_SECRET}
+      - DOMAIN=${DOMAIN}
     volumes:
       - forgejo_data:/data
       - /etc/timezone:/etc/timezone:ro
@@ -1377,6 +1367,22 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+
+  forgejo-init:
+    image: codeberg.org/forgejo/forgejo:9
+    container_name: forgejo-init
+    restart: "no"
+    networks:
+      - backend
+    depends_on:
+      forgejo:
+        condition: service_healthy
+    environment:
+      - FORGEJO_OAUTH_SECRET=${FORGEJO_OAUTH_SECRET}
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ${HOME}/.datamancy/configs/applications/forgejo/init-forgejo.sh:/init-forgejo.sh:ro
+    command: ["bash", "/init-forgejo.sh"]
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -1405,7 +1411,6 @@ services:
       start_period: 30s
 
   vllm:
-    profiles: ["ai"]
     image: vllm/vllm-openai:latest
     container_name: vllm
     restart: unless-stopped
@@ -1418,15 +1423,14 @@ services:
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - HF_HUB_ENABLE_HF_TRANSFER=0
     command: [
-      "--model", "solidrust/Hermes-2-Pro-Mistral-7B-AWQ",
-      "--served-model-name", "hermes-2-pro-mistral-7b",
-      "--max-model-len", "4096",
-      "--quantization", "awq",
-      "--gpu-memory-utilization", "0.80",
-      "--max-num-seqs", "128",
+      "--model", "Qwen/Qwen2.5-0.5B-Instruct",
+      "--served-model-name", "qwen2.5-0.5b",
+      "--max-model-len", "2048",
+      "--max-num-seqs", "64",
       "--dtype", "auto",
       "--enable-auto-tool-choice",
-      "--tool-call-parser", "hermes"
+      "--tool-call-parser", "hermes",
+      "--gpu-memory-utilization", "0.3"
     ]
     volumes:
       - ${VOLUMES_ROOT}/vllm/hf-cache:/root/.cache/huggingface
@@ -1448,7 +1452,6 @@ services:
       start_period: 2m
 
   vllm-router:
-    profiles: ["ai"]
     build:
       dockerfile: ./src/vllm-router/Dockerfile
       context: .
@@ -1472,7 +1475,6 @@ services:
       start_period: 30s
 
   embedding-service:
-    profiles: ["ai"]
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.2
     container_name: embedding-service
     restart: unless-stopped
@@ -1489,7 +1491,6 @@ services:
       start_period: 60s
 
   litellm:
-    profiles: ["ai"]
     image: ghcr.io/berriai/litellm:v1.74.9-stable.patch.1
     container_name: litellm
     restart: unless-stopped
@@ -1520,7 +1521,6 @@ services:
       start_period: 15s
 
   agent-tool-server:
-    profiles: ["ai"]
     build:
       dockerfile: ./src/agent-tool-server/Dockerfile
       context: .
@@ -1573,47 +1573,8 @@ services:
       start_period: 10s
 
 
-  probe-orchestrator:
-    profiles: ["ai"]
-    build:
-      dockerfile: ./src/probe-orchestrator/Dockerfile
-      context: .
-    container_name: probe-orchestrator
-    restart: unless-stopped
-    networks:
-      - backend
-    depends_on:
-      agent-tool-server:
-        condition: service_healthy
-      litellm:
-        condition: service_healthy
-      playwright:
-        condition: service_healthy
-    environment:
-      - DOMAIN=${DOMAIN}
-      - LLM_BASE_URL=${LLM_BASE_URL:-http://litellm:4000/v1}
-      - LLM_API_KEY=${LITELLM_MASTER_KEY}
-      - LLM_MODEL=${LLM_MODEL:-hermes-2-pro-mistral-7b}
-      # Optional: OCR via LLM vision model (disabled by default)
-      - OCR_MODEL=${OCR_MODEL:-none}
-      - KFUN_URL=${KFUN_URL:-http://agent-tool-server:8081}
-      - PROOFS_DIR=/proofs
-      - SERVICES_MANIFEST_PATH=/app/configs/probe-orchestrator/services_manifest.json
-      - MAX_STEPS=${MAX_STEPS:-8}
-      - HTTP_TIMEOUT=${HTTP_TIMEOUT:-30}
-    volumes:
-      - proofs:/proofs
-      - ${HOME}/.datamancy/configs/probe-orchestrator:/app/configs/probe-orchestrator:ro
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8089/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
   # Kotlin speech gateway service (Whisper ASR + Piper TTS proxy)
   ktspeechgateway:
-    profiles: ["ai"]
     build:
       dockerfile: ./src/speech-gateway/Dockerfile
       context: .
@@ -1639,7 +1600,6 @@ services:
 
   # Whisper ASR service (OpenAI-compatible)
   whisper:
-    profiles: ["ai"]
     image: onerahmet/openai-whisper-asr-webservice:v1.6.0
     container_name: whisper
     restart: unless-stopped
@@ -1659,7 +1619,6 @@ services:
 
   # Piper TTS HTTP service
   piper:
-    profiles: ["ai"]
     image: rhasspy/wyoming-piper
     container_name: piper
     restart: unless-stopped
@@ -1762,29 +1721,6 @@ services:
       timeout: 10s
       retries: 1
       start_period: 5s
-
-  task-scheduler:
-    build:
-      dockerfile: ./src/task-scheduler/Dockerfile
-      context: .
-    container_name: task-scheduler
-    restart: unless-stopped
-    networks:
-      - backend
-    environment:
-      - PORT=8093
-      - CPU_IDLE_THRESHOLD=30.0
-      - CHECK_INTERVAL_SECONDS=10
-      - RAG_GATEWAY_URL=http://rag-gateway:8094
-    depends_on:
-      rag-gateway:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8093/health/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   rag-gateway:
     build:

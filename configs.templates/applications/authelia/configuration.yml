@@ -65,16 +65,15 @@ access_control:
       policy: bypass
       resources:
         - "^/api/webhook/.*$"
-    # Container management requires admin access
-    - domain: dockge.{{DOMAIN}}
+    # qBittorrent - one_factor for all authenticated users (admins, operators, users)
+    - domain: qbittorrent.{{DOMAIN}}
       policy: one_factor
-      subject:
-        - "group:admins"
-    # All other services accessible to admins and users
+    # All other services accessible to admins, operators, and users
     - domain: "*.{{DOMAIN}}"
       policy: one_factor
       subject:
         - "group:admins"
+        - "group:operators"
         - "group:users"
 
 session:
@@ -84,8 +83,8 @@ session:
       authelia_url: https://auth.{{DOMAIN}}
 #      default_redirection_url: https://homepage.{{DOMAIN}}
       same_site: lax
-      expiration: 1h
-      inactivity: 5m
+      expiration: 8h
+      inactivity: 1h
   # Security: 7 days is safer than 1 month for production
   # If stolen, "remember me" cookie is only valid for 1 week
   remember_me: 7d
@@ -171,24 +170,6 @@ identity_providers:
         response_types:
           - code
 
-      # Dockge (Container Management)
-      # NOTE: Dockge doesn't support OIDC yet - protected via Caddy forward_auth
-      - client_id: dockge
-        client_name: Dockge
-        client_secret: 'PENDING'
-        public: false
-        authorization_policy: one_factor
-        redirect_uris:
-          - https://dockge.{{DOMAIN}}/
-        scopes:
-          - openid
-          - profile
-          - email
-          - groups
-        grant_types:
-          - authorization_code
-        response_types:
-          - code
 
       # Open WebUI
       - client_id: open-webui
@@ -252,6 +233,7 @@ identity_providers:
         client_secret: '{{PLANKA_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
+        token_endpoint_auth_method: client_secret_basic
         redirect_uris:
           - https://planka.{{DOMAIN}}/oidc-callback
         scopes:
@@ -267,11 +249,6 @@ identity_providers:
           - query
           - fragment
           - form_post
-        token_endpoint_auth_method: client_secret_post
-
-      # BookStack (protected via Caddy forward_auth; no direct OIDC client required)
-      # This section intentionally left without a client for BookStack because
-      # access control is handled by Caddy's forward_auth to Authelia.
 
       # Home Assistant
       - client_id: home-assistant
@@ -320,7 +297,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://vaultwarden.{{DOMAIN}}/identity/connect/oidc-signin
+          - https://app.vaultwarden.{{DOMAIN}}/identity/connect/oidc-signin
         scopes:
           - openid
           - profile
@@ -329,7 +306,7 @@ identity_providers:
           - authorization_code
         response_types:
           - code
-        token_endpoint_auth_method: client_secret_basic  # Vaultwarden doesn't support client_secret_post
+        token_endpoint_auth_method: client_secret_basic
 
       # Mastodon
       - client_id: mastodon
@@ -366,7 +343,7 @@ identity_providers:
           - authorization_code
         response_types:
           - code
-        token_endpoint_auth_method: client_secret_post
+        token_endpoint_auth_method: client_secret_basic
 
       # Forgejo (Git Forge)
       - client_id: forgejo
