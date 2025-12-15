@@ -1,10 +1,12 @@
 FROM matrixdotorg/synapse:v1.141.0
 
-# Switch to root to install LDAP module
+# Switch to root to install modules
 USER root
 
-# Install LDAP authentication module
-RUN pip install --no-cache-dir matrix-synapse-ldap3==0.3.0
+# Install LDAP authentication module and OIDC dependencies
+RUN pip install --no-cache-dir \
+    matrix-synapse-ldap3==0.3.0 \
+    authlib==1.3.0
 
 # Install LDAP client libraries
 RUN apt-get update && \

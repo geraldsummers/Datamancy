@@ -8,7 +8,6 @@ set -e
 # Read passwords from environment (fail if not set - security)
 PLANKA_DB_PASSWORD="${PLANKA_DB_PASSWORD:?ERROR: PLANKA_DB_PASSWORD not set}"
 SYNAPSE_DB_PASSWORD="${SYNAPSE_DB_PASSWORD:?ERROR: SYNAPSE_DB_PASSWORD not set}"
-MAILU_DB_PASSWORD="${MAILU_DB_PASSWORD:?ERROR: MAILU_DB_PASSWORD not set}"
 AUTHELIA_DB_PASSWORD="${AUTHELIA_DB_PASSWORD:?ERROR: AUTHELIA_DB_PASSWORD not set}"
 GRAFANA_DB_PASSWORD="${GRAFANA_DB_PASSWORD:?ERROR: GRAFANA_DB_PASSWORD not set}"
 VAULTWARDEN_DB_PASSWORD="${VAULTWARDEN_DB_PASSWORD:?ERROR: VAULTWARDEN_DB_PASSWORD not set}"
@@ -33,12 +32,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             CREATE USER synapse WITH PASSWORD '$SYNAPSE_DB_PASSWORD';
         ELSE
             ALTER USER synapse WITH PASSWORD '$SYNAPSE_DB_PASSWORD';
-        END IF;
-
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mailu') THEN
-            CREATE USER mailu WITH PASSWORD '$MAILU_DB_PASSWORD';
-        ELSE
-            ALTER USER mailu WITH PASSWORD '$MAILU_DB_PASSWORD';
         END IF;
 
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authelia') THEN
@@ -109,9 +102,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE synapse OWNER synapse'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'synapse')\gexec
 
-    SELECT 'CREATE DATABASE mailu OWNER mailu'
-    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mailu')\gexec
-
     SELECT 'CREATE DATABASE authelia OWNER authelia'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'authelia')\gexec
 
@@ -138,7 +128,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE langgraph TO $POSTGRES_USER;
     GRANT ALL PRIVILEGES ON DATABASE litellm TO $POSTGRES_USER;
     GRANT ALL PRIVILEGES ON DATABASE synapse TO synapse;
-    GRANT ALL PRIVILEGES ON DATABASE mailu TO mailu;
     GRANT ALL PRIVILEGES ON DATABASE authelia TO authelia;
     GRANT ALL PRIVILEGES ON DATABASE grafana TO grafana;
     GRANT ALL PRIVILEGES ON DATABASE vaultwarden TO vaultwarden;
@@ -156,7 +145,6 @@ fi
 # Grant schema privileges (PostgreSQL 15+)
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "planka" -c "GRANT ALL ON SCHEMA public TO planka;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "synapse" -c "GRANT ALL ON SCHEMA public TO synapse;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -c "GRANT ALL ON SCHEMA public TO mailu;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "authelia" -c "GRANT ALL ON SCHEMA public TO authelia;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "grafana" -c "GRANT ALL ON SCHEMA public TO grafana;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "vaultwarden" -c "GRANT ALL ON SCHEMA public TO vaultwarden;"
@@ -164,10 +152,5 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRA
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT ALL ON SCHEMA public TO forgejo;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" -c "GRANT ALL ON SCHEMA public TO sogo;"
-
-# Note: Mailu manages its own database schema via SQLAlchemy migrations
-# The init-mailu-schema.sql file should not run before Mailu Admin initializes
-# Uncomment only if you need custom tables not managed by Mailu
-# psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mailu" -f /docker-entrypoint-initdb.d/init-mailu-schema.sql
 
 echo "PostgreSQL databases and users initialized successfully"

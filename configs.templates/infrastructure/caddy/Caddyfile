@@ -53,24 +53,11 @@ couchdb.{{DOMAIN}} {
     }
 }
 
-# Mailu front (web UI with Authelia forward_auth for admin/webmail)
+# Mail subdomain - generates certificate for docker-mailserver SMTP/IMAP
+# docker-mailserver doesn't have a web UI (SOGo is used for webmail at sogo.{{DOMAIN}})
+# This block just ensures Caddy generates a cert for mail.{{DOMAIN}} that mailserver can use
 mail.{{DOMAIN}} {
-    # Admin interface - protected by Authelia
-    @admin path /admin /admin/*
-    handle @admin {
-        forward_auth authelia:9091 {
-            uri /api/authz/forward-auth
-            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }
-        reverse_proxy mailu-admin:8080 {
-            header_up Remote-User {header.Remote-User}
-            header_up Remote-Email {header.Remote-Email}
-        }
-    }
-
-
-    # SSO endpoints and other paths - no auth required
-    reverse_proxy mailu-front:80
+    respond "Mail services available via SMTP/IMAP. Use sogo.{{DOMAIN}} for webmail." 200
 }
 
 # SOGo (groupware UI)

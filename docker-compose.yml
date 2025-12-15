@@ -192,30 +192,30 @@ volumes:
       type: none
       o: bind
       device: ${VOLUMES_ROOT:-./volumes}/redis_data
-  mailu_data:
+  mailserver_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mailu_data
-  mailu_filter:
+      device: ${VOLUMES_ROOT:-./volumes}/mailserver_data
+  mailserver_state:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mailu_filter
-  mailu_cert:
+      device: ${VOLUMES_ROOT:-./volumes}/mailserver_state
+  mailserver_logs:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mailu_cert
-  mailu_dkim:
+      device: ${VOLUMES_ROOT:-./volumes}/mailserver_logs
+  mailserver_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mailu_dkim
+      device: ${VOLUMES_ROOT:-./volumes}/mailserver_config
   sogo_data:
     driver: local
     driver_opts:
@@ -379,7 +379,6 @@ services:
         aliases:
           - redis
           - redis-synapse
-          - mailu-redis
     volumes:
       - redis_data:/data
     command: valkey-server --appendonly yes --dir /data --databases 16
@@ -472,7 +471,6 @@ services:
       - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
       - PLANKA_DB_PASSWORD=${PLANKA_DB_PASSWORD}
       - SYNAPSE_DB_PASSWORD=${SYNAPSE_DB_PASSWORD}
-      - MAILU_DB_PASSWORD=${MAILU_DB_PASSWORD}
       - AUTHELIA_DB_PASSWORD=${AUTHELIA_DB_PASSWORD}
       - GRAFANA_DB_PASSWORD=${GRAFANA_DB_PASSWORD}
       - VAULTWARDEN_DB_PASSWORD=${VAULTWARDEN_DB_PASSWORD}
@@ -483,7 +481,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ${HOME}/.datamancy/configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
-      - ${HOME}/.datamancy/configs/databases/postgres/init-mailu-schema.sql:/docker-entrypoint-initdb.d/init-mailu-schema.sql:ro
     deploy:
       resources:
         limits:
@@ -531,136 +528,98 @@ services:
       retries: 3
       start_period: 10s
 
-  mailu-front:
-    image: ghcr.io/mailu/nginx:2024.06.45
-    container_name: mailu-front
+  mailserver-cert-init:
+    image: alpine:latest
+    container_name: mailserver-cert-init
+    restart: "no"
+    networks:
+      - backend
+    depends_on:
+      caddy:
+        condition: service_healthy
+    environment:
+      - DOMAIN=${DOMAIN}
+    command: >
+      sh -c "
+        apk add --no-cache curl &&
+        echo 'Triggering Caddy to generate certificate for mail.${DOMAIN}...' &&
+        curl -fsSL -k https://mail.${DOMAIN}/ -o /dev/null &&
+        echo 'Certificate generation triggered successfully'
+      "
+
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:14.0.0
+    container_name: mailserver
+    hostname: mail.${DOMAIN}
     restart: unless-stopped
-    env_file:
-      - ${HOME}/.datamancy/configs/applications/mailu/mailu.env
     ports:
       - "25:25"
       - "465:465"
       - "587:587"
-      - "110:110"
-      - "995:995"
       - "143:143"
       - "993:993"
     volumes:
-      - mailu_cert:/certs
-      - mailu_dkim:/dkim
+      - mailserver_data:/var/mail/
+      - mailserver_state:/var/mail-state/
+      - mailserver_logs:/var/log/mail/
+      - mailserver_config:/tmp/docker-mailserver/
+      - /etc/localtime:/etc/localtime:ro
+      # Mount Caddy's Let's Encrypt certificates
+      - caddy_data:/caddy-certs:ro
+      # Dovecot master user configuration for SOGo
+      - ${HOME}/.datamancy/configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
+      - ${HOME}/.datamancy/configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
+    environment:
+      - ENABLE_RSPAMD=1
+      - ENABLE_CLAMAV=1
+      - ENABLE_FAIL2BAN=0
+      - ENABLE_POSTGREY=0
+      - ENABLE_SPAMASSASSIN=0
+      - SPOOF_PROTECTION=0
+      - ENABLE_SRS=0
+      - PERMIT_DOCKER=network
+      - SSL_TYPE=manual
+      - SSL_CERT_PATH=/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.crt
+      - SSL_KEY_PATH=/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.key
+      - OVERRIDE_HOSTNAME=mail.${DOMAIN}
+      - POSTMASTER_ADDRESS=postmaster@${MAIL_DOMAIN}
+      - ACCOUNT_PROVISIONER=LDAP
+      - LDAP_SERVER_HOST=ldap://ldap:389
+      - LDAP_BIND_DN=cn=admin,dc=stack,dc=local
+      - LDAP_BIND_PW=${STACK_ADMIN_PASSWORD}
+      - LDAP_SEARCH_BASE=ou=users,dc=stack,dc=local
+      - LDAP_QUERY_FILTER_USER=(&(objectClass=inetOrgPerson)(mail=%s))
+      - LDAP_QUERY_FILTER_GROUP=(&(objectClass=groupOfNames)(member=%s))
+      - LDAP_QUERY_FILTER_ALIAS=(&(objectClass=inetOrgPerson)(mail=%s))
+      - DOVECOT_MAILBOX_FORMAT=maildir
+      - DOVECOT_USER_FILTER=(&(objectClass=inetOrgPerson)(mail=%u))
+      - DOVECOT_PASS_FILTER=(&(objectClass=inetOrgPerson)(mail=%u))
+      - DOVECOT_PASS_ATTRS=mail=user,userPassword=password
+      - DOVECOT_USER_ATTRS==home=/var/mail/%Ln,=mail=maildir:~/Maildir
+      - ENABLE_QUOTAS=1
+      - POSTFIX_MESSAGE_SIZE_LIMIT=50000000
     networks:
       backend:
         aliases:
-          - front
+          - smtp
+          - imap
     depends_on:
-      mailu-admin:
+      mailserver-cert-init:
+        condition: service_completed_successfully
+      caddy:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  mailu-antispam:
-    image: ghcr.io/mailu/rspamd:2024.06.45
-    container_name: mailu-antispam
-    restart: unless-stopped
-    env_file:
-      - ${HOME}/.datamancy/configs/applications/mailu/mailu.env
-    volumes:
-      - mailu_filter:/var/lib/rspamd
-    networks:
-      - backend
-    depends_on:
-      mailu-admin:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "sh", "-c", "pgrep rspamd"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  mailu-antivirus:
-    image: ghcr.io/mailu/clamav:2.0.43
-    container_name: mailu-antivirus
-    restart: unless-stopped
-    env_file:
-      - ${HOME}/.datamancy/configs/applications/mailu/mailu.env
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "clamdscan", "--ping", "1"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 5m
-
-  mailu-imap:
-    image: ghcr.io/mailu/dovecot:2024.06.45
-    container_name: mailu-imap
-    restart: unless-stopped
-    env_file:
-      - ${HOME}/.datamancy/configs/applications/mailu/mailu.env
-    volumes:
-      - mailu_data:/data
-    networks:
-      - backend
-    depends_on:
-      mailu-admin:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "doveadm", "log", "test"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  mailu-smtp:
-    image: ghcr.io/mailu/postfix:2024.06.45
-    container_name: mailu-smtp
-    restart: unless-stopped
-    env_file:
-      - ${HOME}/.datamancy/configs/applications/mailu/mailu.env
-    volumes:
-      - mailu_data:/data
-      - mailu_dkim:/dkim
-    networks:
-      - backend
-    depends_on:
-      mailu-admin:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "postfix", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  mailu-admin:
-    image: ghcr.io/mailu/admin:2024.06.45
-    container_name: mailu-admin
-    restart: unless-stopped
-    env_file:
-      - ${HOME}/.datamancy/configs/applications/mailu/mailu.env
-    volumes:
-      - mailu_data:/data
-    networks:
-      backend:
-        aliases:
-          - admin
-    depends_on:
-      postgres:
+      ldap:
         condition: service_healthy
       valkey:
         condition: service_healthy
+    cap_add:
+      - NET_ADMIN
     healthcheck:
-      test: ["CMD", "curl", "-f", "-L", "http://localhost:8080/admin/ui"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      test: ["CMD-SHELL", "ss -lntp | grep -E ':25|:587|:993'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
 
   sogo:
@@ -678,9 +637,7 @@ services:
         condition: service_healthy
       ldap:
         condition: service_healthy
-      mailu-imap:
-        condition: service_healthy
-      mailu-smtp:
+      mailserver:
         condition: service_healthy
     networks:
       - backend
@@ -894,7 +851,7 @@ services:
         condition: service_healthy
       authelia:
         condition: service_healthy
-      mailu-smtp:
+      mailserver:
         condition: service_healthy
     environment:
       - DOMAIN=https://app.vaultwarden.${DOMAIN}
@@ -915,7 +872,7 @@ services:
       - SSO_SIGNUPS_MATCH_EMAIL=true
       # Admin and SMTP
       - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
-      - SMTP_HOST=mailu-smtp
+      - SMTP_HOST=mailserver
       - SMTP_FROM=vaultwarden@${MAIL_DOMAIN}
       - SMTP_PORT=587
       - SMTP_SECURITY=starttls
@@ -1166,7 +1123,7 @@ services:
         condition: service_healthy
       authelia:
         condition: service_healthy
-      mailu-smtp:
+      mailserver:
         condition: service_healthy
     env_file:
       - ${HOME}/.datamancy/configs/applications/mastodon/mastodon.env
@@ -1381,6 +1338,7 @@ services:
     image: codeberg.org/forgejo/forgejo:9
     container_name: forgejo-init
     restart: "no"
+    user: "1000:1000"
     networks:
       - backend
     depends_on:
@@ -1390,6 +1348,7 @@ services:
       - FORGEJO_OAUTH_SECRET=${FORGEJO_OAUTH_SECRET}
       - DOMAIN=${DOMAIN}
     volumes:
+      - forgejo_data:/data
       - ${HOME}/.datamancy/configs/applications/forgejo/init-forgejo.sh:/init-forgejo.sh:ro
     command: ["bash", "/init-forgejo.sh"]
 

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Forgejo OIDC Configuration Script
 # This script configures Authelia as an OIDC authentication source in Forgejo
+# NOTE: This script must run as the git user (UID 1000), not root
 
 set -e
 

@@ -32,19 +32,16 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CADDY_CONTAINER}$"; then
     exit 0
 fi
 
-# Try to extract the CA certificate from Caddy's internal PKI
-echo "Extracting Caddy CA certificate..."
-
-# Caddy stores its internal CA at /data/caddy/pki/authorities/local/root.crt
+# Check if Caddy is using internal CA (local_certs) or public CA (Let's Encrypt/ZeroSSL)
 if docker exec "$CADDY_CONTAINER" test -f /data/caddy/pki/authorities/local/root.crt 2>/dev/null; then
+    echo "Extracting Caddy internal CA certificate..."
     docker exec "$CADDY_CONTAINER" cat /data/caddy/pki/authorities/local/root.crt > "$CERT_FILE"
-    echo "✓ Caddy CA certificate extracted successfully"
+    echo "✓ Caddy internal CA certificate extracted successfully"
 else
-    echo "⚠ Warning: Caddy CA certificate not found in container, creating placeholder"
-    # Create a placeholder
+    echo "Caddy is using a public CA (ZeroSSL/Let's Encrypt) - no custom CA certificate needed"
+    # Create an empty placeholder file (required for volume mount in Planka)
     touch "$CERT_FILE"
-    echo "# Caddy CA certificate not yet generated - will be populated after Caddy creates it" > "$CERT_FILE"
-    echo "Note: For production with real TLS certs, Planka doesn't need this file"
+    echo "# Caddy is using a public CA - this file is not needed but kept for compatibility" > "$CERT_FILE"
 fi
 
 chmod 644 "$CERT_FILE"

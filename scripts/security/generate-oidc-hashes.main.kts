@@ -133,7 +133,8 @@ fun main() {
         "HOMEASSISTANT_OAUTH_SECRET",
         "MASTODON_OIDC_SECRET",
         "BOOKSTACK_OAUTH_SECRET",
-        "FORGEJO_OAUTH_SECRET"
+        "FORGEJO_OAUTH_SECRET",
+        "MATRIX_OAUTH_SECRET"
     )
 
     val secretToHash = mutableMapOf<String, String>()

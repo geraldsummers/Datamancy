@@ -74,7 +74,7 @@ report_stats: true
 enable_registration: false
 enable_registration_without_verification: false
 
-# LDAP Authentication
+# LDAP Authentication (Fallback)
 password_providers:
   - module: "ldap_auth_provider.LdapAuthProvider"
     config:
@@ -90,6 +90,36 @@ password_providers:
         name: "displayName"
       # User filter - only allow inetOrgPerson objects
       filter: "(&(objectClass=inetOrgPerson)(uid={uid}))"
+
+# OIDC SSO Authentication via Authelia
+oidc_providers:
+  - idp_id: authelia
+    idp_name: "Authelia SSO"
+    idp_brand: "authelia"
+    discover: true
+    issuer: "https://auth.{{DOMAIN}}"
+    client_id: "matrix"
+    client_secret: "{{MATRIX_OAUTH_SECRET}}"
+    client_auth_method: "client_secret_post"
+    scopes:
+      - "openid"
+      - "profile"
+      - "email"
+      - "groups"
+    authorization_endpoint: "https://auth.{{DOMAIN}}/api/oidc/authorization"
+    token_endpoint: "https://auth.{{DOMAIN}}/api/oidc/token"
+    userinfo_endpoint: "https://auth.{{DOMAIN}}/api/oidc/userinfo"
+    user_mapping_provider:
+      config:
+        # Map OIDC claims to Matrix user attributes
+        # Authelia provides 'name' claim which contains the LDAP uid
+        # Matrix localpart must be lowercase alphanumeric with hyphens/underscores
+        localpart_template: "{{ user.name|lower }}"
+        display_name_template: "{{ user.name }}"
+    # Allow SSO for existing LDAP users
+    allow_existing_users: true
+    # Enable SSO login button in Element
+    backchannel_logout_enabled: false
 
 # URL preview
 url_preview_enabled: true
