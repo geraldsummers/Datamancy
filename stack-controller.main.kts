@@ -1054,6 +1054,10 @@ private fun cmdConfigProcess() {
     if (Files.exists(qbittorrentInitScript)) {
         run("bash", qbittorrentInitScript.toString(), cwd = root)
     }
+    val ldapInitScript = root.resolve("scripts/core/setup-ldap-init.sh")
+    if (Files.exists(ldapInitScript)) {
+        run("bash", ldapInitScript.toString(), cwd = root)
+    }
     val caddyCaScript = root.resolve("scripts/core/setup-caddy-ca-cert.sh")
     if (Files.exists(caddyCaScript)) {
         run("bash", caddyCaScript.toString(), cwd = root, allowFail = true)

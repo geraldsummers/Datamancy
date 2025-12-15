@@ -8,19 +8,32 @@ SOGO_CONF="/etc/apache2/conf-enabled/SOGo.conf"
 
 echo "[sogo-init] Configuring Apache for proxy authentication..."
 
+# Enable necessary Apache modules
+a2enmod rewrite headers 2>&1 || true
+
 # Enable redirect from / to /SOGo
 sed -i 's|^#RedirectMatch \^/\$ .*|RedirectMatch ^/$ /SOGo|' "$SOGO_CONF"
 
-# Comment out the line that unsets the remote user header
-sed -i 's|^    RequestHeader unset "x-webobjects-remote-user"|#    RequestHeader unset "x-webobjects-remote-user"|' "$SOGO_CONF"
+# Remove any existing RewriteEngine rules from wrong locations
+sed -i "/  <IfModule headers_module>/,/<\/IfModule>/ {
+  /RewriteEngine On/d
+  /RewriteCond %{HTTP:Remote-User}/d
+  /RewriteRule .* - \[E=REMOTE_USER:/d
+}" "$SOGO_CONF"
 
-# Enable reading Remote-User header from Caddy and pass to SOGo as x-webobjects-remote-user
-# Apache mod_rewrite is required to capture HTTP headers as environment variables
-if ! grep -q 'RewriteEngine On' "$SOGO_CONF"; then
-    sed -i '/## When using proxy-side autentication/a\    RewriteEngine On\n    RewriteCond %{HTTP:Remote-User} (.+)\n    RewriteRule .* - [E=REMOTE_USER:%1]' "$SOGO_CONF"
+# Add RewriteEngine rules in correct location (right after <Proxy> line, in rewrite_module block)
+if ! grep -A5 "<Proxy http://127.0.0.1:20000/SOGo>" "$SOGO_CONF" | grep -q "RewriteEngine On"; then
+    sed -i "/<Proxy http:\/\/127.0.0.1:20000\/SOGo>/a\  <IfModule rewrite_module>\n    RewriteEngine On\n    RewriteCond %{HTTP:Remote-User} (.+)\n    RewriteRule .* - [E=REMOTE_USER:%1]\n  </IfModule>" "$SOGO_CONF"
+    echo "[sogo-init] Added RewriteEngine rules in rewrite_module block"
 fi
 
-# Change the RequestHeader line to use REMOTE_USER environment variable instead of Remote-User input header
+# Comment out the RequestHeader unset line
+sed -i 's|^    RequestHeader unset "x-webobjects-remote-user"|#    RequestHeader unset "x-webobjects-remote-user"|' "$SOGO_CONF"
+
+# Uncomment the RequestHeader line for x-webobjects-remote-user
+sed -i 's|^#    RequestHeader set "x-webobjects-remote-user"|    RequestHeader set "x-webobjects-remote-user"|' "$SOGO_CONF"
+
+# Ensure it uses REMOTE_USER environment variable
 sed -i 's|RequestHeader set "x-webobjects-remote-user" "%{Remote-User}i"|RequestHeader set "x-webobjects-remote-user" "%{REMOTE_USER}e"|' "$SOGO_CONF"
 
 echo "[sogo-init] Apache configuration updated successfully"

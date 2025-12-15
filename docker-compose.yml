@@ -327,6 +327,10 @@ services:
       - LDAP_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
       - LDAP_CONFIG_PASSWORD=${STACK_ADMIN_PASSWORD}
       - LDAP_TLS=false
+      # Configure memberOf overlay for Authelia group membership detection
+      - LDAP_MEMBEROF_OVERLAY=true
+      - LDAP_MEMBEROF_GROUP_OC=groupOfNames
+      - LDAP_MEMBEROF_MEMBER_AD=member
     volumes:
       - ldap_data:/var/lib/ldap
       - ldap_config:/etc/ldap/slapd.d
@@ -465,6 +469,7 @@ services:
       - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
       - POSTGRES_USER=${STACK_ADMIN_USER}
       - POSTGRES_DB=postgres
+      - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
       - PLANKA_DB_PASSWORD=${PLANKA_DB_PASSWORD}
       - SYNAPSE_DB_PASSWORD=${SYNAPSE_DB_PASSWORD}
       - MAILU_DB_PASSWORD=${MAILU_DB_PASSWORD}
@@ -669,6 +674,10 @@ services:
       - ${HOME}/.datamancy/configs/applications/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
       - ${HOME}/.datamancy/configs/applications/sogo/init-apache.sh:/docker-entrypoint.d/init-apache.sh:ro
     depends_on:
+      postgres:
+        condition: service_healthy
+      ldap:
+        condition: service_healthy
       mailu-imap:
         condition: service_healthy
       mailu-smtp:

@@ -16,6 +16,7 @@ OPENWEBUI_DB_PASSWORD="${OPENWEBUI_DB_PASSWORD:?ERROR: OPENWEBUI_DB_PASSWORD not
 MASTODON_DB_PASSWORD="${MASTODON_DB_PASSWORD:?ERROR: MASTODON_DB_PASSWORD not set}"
 FORGEJO_DB_PASSWORD="${FORGEJO_DB_PASSWORD:?ERROR: FORGEJO_DB_PASSWORD not set}"
 HOMEASSISTANT_DB_PASSWORD="${HOMEASSISTANT_DB_PASSWORD:-}"  # Optional - HA may use SQLite
+STACK_ADMIN_PASSWORD="${STACK_ADMIN_PASSWORD:?ERROR: STACK_ADMIN_PASSWORD not set}"  # For SOGo
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create users with passwords from environment (must be created before databases for ownership)
@@ -75,6 +76,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         ELSE
             ALTER USER forgejo WITH PASSWORD '$FORGEJO_DB_PASSWORD';
         END IF;
+
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'sogo') THEN
+            CREATE USER sogo WITH PASSWORD '$STACK_ADMIN_PASSWORD';
+        ELSE
+            ALTER USER sogo WITH PASSWORD '$STACK_ADMIN_PASSWORD';
+        END IF;
     END
     \$\$;
 
@@ -123,6 +130,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE forgejo OWNER forgejo'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'forgejo')\gexec
 
+    SELECT 'CREATE DATABASE sogo OWNER sogo'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sogo')\gexec
+
     -- Grant privileges (these are idempotent)
     GRANT ALL PRIVILEGES ON DATABASE planka TO planka;
     GRANT ALL PRIVILEGES ON DATABASE langgraph TO $POSTGRES_USER;
@@ -135,6 +145,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE openwebui TO openwebui;
     GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
     GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
+    GRANT ALL PRIVILEGES ON DATABASE sogo TO sogo;
 EOSQL
 
 # Grant Home Assistant privileges if database was created
@@ -152,6 +163,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "vaultwarden" -c "G
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRANT ALL ON SCHEMA public TO openwebui;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT ALL ON SCHEMA public TO forgejo;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" -c "GRANT ALL ON SCHEMA public TO sogo;"
 
 # Note: Mailu manages its own database schema via SQLAlchemy migrations
 # The init-mailu-schema.sql file should not run before Mailu Admin initializes
