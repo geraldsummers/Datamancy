@@ -177,9 +177,9 @@ EOF
 echo "Starting Home Assistant initialization..."
 
 create_admin_user
-mark_onboarding_complete
-create_empty_home
+mark_onboarding_user_complete
 
 echo "Home Assistant initialization complete."
 echo "Admin user: ${STACK_ADMIN_USER}"
-echo "Note: LDAP sync requires manual configuration via Home Assistant integrations."
+echo "User will be prompted to create or restore home on first login."
+echo "LDAP users can login via the mobile app or API using their LDAP credentials."

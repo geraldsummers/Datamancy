@@ -6,22 +6,19 @@
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="fff">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/element/config.json" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/element/config.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/forgejo/init-forgejo.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/forgejo/init-forgejo.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mailu/mailu.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mailu/nginx-override.conf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homeassistant/init-homeassistant.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homeassistant/init-homeassistant.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homepage/bookmarks.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homepage/bookmarks.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homepage/docker.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homepage/docker.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homepage/services.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homepage/services.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homepage/settings.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homepage/settings.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homepage/widgets.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homepage/widgets.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/applications/mastodon/mastodon.env" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mastodon/mastodon.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/applications/sogo/sogo.conf" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/sogo/sogo.conf" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/applications/synapse/homeserver.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/synapse/homeserver.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/ensure-users.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/ensure-users.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/ldap/bootstrap_ldap.ldif.template" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/ldap/bootstrap_ldap.ldif.template" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/core/configure-environment.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/configure-environment.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/core/setup-caddy-ca-cert.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/setup-caddy-ca-cert.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/security/generate-oidc-hashes.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/security/generate-oidc-hashes.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/synapse/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/synapse/Dockerfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -173,7 +170,15 @@
       <option name="project" value="LOCAL" />
       <updated>1765243106582</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="fff">
+      <option name="closed" value="true" />
+      <created>1765791365804</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1765791365804</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

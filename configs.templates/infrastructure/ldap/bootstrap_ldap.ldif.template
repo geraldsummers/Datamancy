@@ -23,8 +23,9 @@ objectClass: inetOrgPerson
 objectClass: posixAccount
 objectClass: shadowAccount
 uid: {{STACK_ADMIN_USER}}
-cn: Administrator
-sn: Admin
+cn: System Administrator
+sn: Administrator
+givenName: System
 mail: {{STACK_ADMIN_EMAIL}}
 displayName: System Administrator
 uidNumber: 10000
@@ -41,8 +42,9 @@ objectClass: inetOrgPerson
 objectClass: posixAccount
 objectClass: shadowAccount
 uid: user
-cn: User
-sn: Regular
+cn: Regular User
+sn: User
+givenName: Regular
 mail: user@{{DOMAIN}}
 displayName: Regular User
 uidNumber: 10001

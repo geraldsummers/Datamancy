@@ -1,28 +1,22 @@
 ---
-title: Datamancy Dashboard
-favicon: https://gethomepage.dev/img/favicon.ico
+title: Datamancy
 theme: dark
 color: slate
 headerStyle: boxed
+hideVersion: true
 layout:
-  Authentication & Management:
+  AI & Development:
     style: row
     columns: 3
-  AI & Machine Learning:
+  Collaboration:
     style: row
-    columns: 4
-  Collaboration & Productivity:
+    columns: 3
+  Productivity:
     style: row
-    columns: 4
-  Data & Storage:
-    style: row
-    columns: 2
-  Databases:
-    style: row
-    columns: 5
-  Infrastructure:
-    style: row
-    columns: 4
-  Database Tools:
+    columns: 3
+  Social & Media:
     style: row
     columns: 2
+  System:
+    style: row
+    columns: 3

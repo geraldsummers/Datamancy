@@ -83,7 +83,7 @@ password_providers:
       start_tls: false
       base: "ou=users,dc=stack,dc=local"
       bind_dn: "cn=admin,dc=stack,dc=local"
-      bind_password: "{{STACK_ADMIN_PASSWORD}}"
+      bind_password: "{{LDAP_ADMIN_PASSWORD}}"
       attributes:
         uid: "uid"
         mail: "mail"
@@ -112,10 +112,11 @@ oidc_providers:
     user_mapping_provider:
       config:
         # Map OIDC claims to Matrix user attributes
-        # Authelia provides 'name' claim which contains the LDAP uid
+        # Use preferred_username (LDAP uid) for Matrix ID, name (displayName) for display
         # Matrix localpart must be lowercase alphanumeric with hyphens/underscores
-        localpart_template: "{{ user.name|lower }}"
+        localpart_template: "{{ user.preferred_username|lower }}"
         display_name_template: "{{ user.name }}"
+        email_template: "{{ user.email }}"
     # Allow SSO for existing LDAP users
     allow_existing_users: true
     # Enable SSO login button in Element

@@ -214,8 +214,17 @@ private fun cmdInit() {
         appendLine()
 
         // Stack admin credentials
-        appendLine("STACK_ADMIN_USER=admin")
+        appendLine("STACK_ADMIN_USER=sysadmin")
         appendLine("STACK_ADMIN_PASSWORD=${generatePassword(32)}")
+        appendLine()
+
+        // Database root/admin passwords (separate for security isolation)
+        appendLine("# Database root/admin passwords - isolated per database")
+        appendLine("LDAP_ADMIN_PASSWORD=${generatePassword(32)}")
+        appendLine("POSTGRES_ROOT_PASSWORD=${generatePassword(32)}")
+        appendLine("MARIADB_ROOT_PASSWORD=${generatePassword(32)}")
+        appendLine("COUCHDB_ADMIN_PASSWORD=${generatePassword(32)}")
+        appendLine("CLICKHOUSE_ADMIN_PASSWORD=${generatePassword(32)}")
         appendLine()
 
         // Authelia secrets
@@ -444,6 +453,13 @@ private fun cmdExport() {
     putIfMissing("HOMEASSISTANT_OAUTH_SECRET") { generateSecretHex(32) }
     putIfMissing("DIM_OAUTH_SECRET") { generateSecretHex(32) }
     putIfMissing("MATRIX_OAUTH_SECRET") { generateSecretHex(32) }
+
+    // Database root/admin passwords (security isolation)
+    putIfMissing("LDAP_ADMIN_PASSWORD") { generatePassword(32) }
+    putIfMissing("POSTGRES_ROOT_PASSWORD") { generatePassword(32) }
+    putIfMissing("MARIADB_ROOT_PASSWORD") { generatePassword(32) }
+    putIfMissing("COUCHDB_ADMIN_PASSWORD") { generatePassword(32) }
+    putIfMissing("CLICKHOUSE_ADMIN_PASSWORD") { generatePassword(32) }
 
     // BookStack APP_KEY
     putIfMissing("BOOKSTACK_APP_KEY") { "base64:${generateSecretB64(32)}" }

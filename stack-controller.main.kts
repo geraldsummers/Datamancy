@@ -490,7 +490,13 @@ private fun cmdObliterate(force: Boolean = false) {
         |
         |${ANSI_GREEN}Preserved:${ANSI_RESET}
         |  • Caddy certificates (~/.caddy_data)
+        |  • Source code and templates (configs.templates/)
+        |
+        |${ANSI_YELLOW}Will be regenerated on next 'up':${ANSI_RESET}
+        |  • All configuration files from templates
         |  • Init scripts (bookstack_init, qbittorrent_init)
+        |  • LDAP bootstrap data
+        |  • Secrets (if not already generated)
         |
         |${ANSI_RED}THIS CANNOT BE UNDONE!${ANSI_RESET}
         |
@@ -575,36 +581,16 @@ private fun cmdObliterate(force: Boolean = false) {
         warn("Failed to clean build artifacts: ${e.message}")
     }
 
-    info("Step 5/5: Removing ~/.datamancy directory (preserving init scripts)")
+    info("Step 5/5: Removing ~/.datamancy directory")
     try {
         if (Files.exists(dataDir)) {
-            // Backup init script directories before deletion
-            val backupDir = Files.createTempDirectory("datamancy-obliterate-backup")
-            val volumesDir = dataDir.resolve("volumes")
-            val initDirs = listOf("bookstack_init", "qbittorrent_init")
-            val backedUpDirs = mutableListOf<String>()
-
-            info("Backing up init scripts to: $backupDir")
-            for (initDir in initDirs) {
-                val sourcePath = volumesDir.resolve(initDir)
-                if (Files.exists(sourcePath)) {
-                    try {
-                        val destPath = backupDir.resolve(initDir)
-                        run("cp", "-r", sourcePath.toString(), destPath.toString())
-                        backedUpDirs.add(initDir)
-                        println("  ${ANSI_GREEN}✓${ANSI_RESET} Backed up: $initDir")
-                    } catch (e: Exception) {
-                        warn("  Failed to backup $initDir: ${e.message}")
-                    }
-                }
-            }
-
             // Use docker to remove any root-owned files
+            // Must delete contents first, then directory structure
             val dataDirStr = dataDir.toString()
             try {
                 run("docker", "run", "--rm",
                     "-v", "$dataDirStr:/data",
-                    "alpine", "rm", "-rf", "/data",
+                    "alpine", "sh", "-c", "rm -rf /data/* /data/.[!.]* /data/..?* 2>/dev/null || true",
                     allowFail = true)
             } catch (e: Exception) {
                 warn("Docker cleanup failed, trying direct removal: ${e.message}")
@@ -615,33 +601,7 @@ private fun cmdObliterate(force: Boolean = false) {
                 dataDir.toFile().deleteRecursively()
             }
 
-            // Recreate the directory structure and restore init scripts
-            Files.createDirectories(dataDir)
-            val newVolumesDir = dataDir.resolve("volumes")
-            Files.createDirectories(newVolumesDir)
-
-            if (backedUpDirs.isNotEmpty()) {
-                info("Restoring init scripts...")
-                for (initDir in backedUpDirs) {
-                    try {
-                        val sourcePath = backupDir.resolve(initDir)
-                        val destPath = newVolumesDir.resolve(initDir)
-                        run("cp", "-r", sourcePath.toString(), destPath.toString())
-                        println("  ${ANSI_GREEN}✓${ANSI_RESET} Restored: $initDir")
-                    } catch (e: Exception) {
-                        warn("  Failed to restore $initDir: ${e.message}")
-                    }
-                }
-            }
-
-            // Clean up temporary backup
-            try {
-                backupDir.toFile().deleteRecursively()
-            } catch (e: Exception) {
-                warn("Failed to clean up temporary backup: ${e.message}")
-            }
-
-            success("Data directory removed and init scripts restored")
+            success("Data directory removed completely")
         } else {
             info("Data directory doesn't exist")
         }

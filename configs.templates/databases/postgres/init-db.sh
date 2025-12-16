@@ -23,57 +23,57 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     DO \$\$
     BEGIN
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'planka') THEN
-            CREATE USER planka WITH PASSWORD '$PLANKA_DB_PASSWORD';
+            CREATE USER planka WITH PASSWORD \$pwd\$$PLANKA_DB_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER planka WITH PASSWORD '$PLANKA_DB_PASSWORD';
+            ALTER USER planka WITH PASSWORD \$pwd\$$PLANKA_DB_PASSWORD\$pwd\$;
         END IF;
 
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'synapse') THEN
-            CREATE USER synapse WITH PASSWORD '$SYNAPSE_DB_PASSWORD';
+            CREATE USER synapse WITH PASSWORD \$pwd\$$SYNAPSE_DB_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER synapse WITH PASSWORD '$SYNAPSE_DB_PASSWORD';
+            ALTER USER synapse WITH PASSWORD \$pwd\$$SYNAPSE_DB_PASSWORD\$pwd\$;
         END IF;
 
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authelia') THEN
-            CREATE USER authelia WITH PASSWORD '$AUTHELIA_DB_PASSWORD';
+            CREATE USER authelia WITH PASSWORD \$pwd\$$AUTHELIA_DB_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER authelia WITH PASSWORD '$AUTHELIA_DB_PASSWORD';
+            ALTER USER authelia WITH PASSWORD \$pwd\$$AUTHELIA_DB_PASSWORD\$pwd\$;
         END IF;
 
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'grafana') THEN
-            CREATE USER grafana WITH PASSWORD '$GRAFANA_DB_PASSWORD';
+            CREATE USER grafana WITH PASSWORD \$pwd\$$GRAFANA_DB_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER grafana WITH PASSWORD '$GRAFANA_DB_PASSWORD';
+            ALTER USER grafana WITH PASSWORD \$pwd\$$GRAFANA_DB_PASSWORD\$pwd\$;
         END IF;
 
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'vaultwarden') THEN
-            CREATE USER vaultwarden WITH PASSWORD '$VAULTWARDEN_DB_PASSWORD';
+            CREATE USER vaultwarden WITH PASSWORD \$pwd\$$VAULTWARDEN_DB_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER vaultwarden WITH PASSWORD '$VAULTWARDEN_DB_PASSWORD';
+            ALTER USER vaultwarden WITH PASSWORD \$pwd\$$VAULTWARDEN_DB_PASSWORD\$pwd\$;
         END IF;
 
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'openwebui') THEN
-            CREATE USER openwebui WITH PASSWORD '$OPENWEBUI_DB_PASSWORD';
+            CREATE USER openwebui WITH PASSWORD \$pwd\$$OPENWEBUI_DB_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER openwebui WITH PASSWORD '$OPENWEBUI_DB_PASSWORD';
+            ALTER USER openwebui WITH PASSWORD \$pwd\$$OPENWEBUI_DB_PASSWORD\$pwd\$;
         END IF;
 
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mastodon') THEN
-            CREATE USER mastodon WITH PASSWORD '$MASTODON_DB_PASSWORD';
+            CREATE USER mastodon WITH PASSWORD \$pwd\$$MASTODON_DB_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER mastodon WITH PASSWORD '$MASTODON_DB_PASSWORD';
+            ALTER USER mastodon WITH PASSWORD \$pwd\$$MASTODON_DB_PASSWORD\$pwd\$;
         END IF;
 
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'forgejo') THEN
-            CREATE USER forgejo WITH PASSWORD '$FORGEJO_DB_PASSWORD';
+            CREATE USER forgejo WITH PASSWORD \$pwd\$$FORGEJO_DB_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER forgejo WITH PASSWORD '$FORGEJO_DB_PASSWORD';
+            ALTER USER forgejo WITH PASSWORD \$pwd\$$FORGEJO_DB_PASSWORD\$pwd\$;
         END IF;
 
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'sogo') THEN
-            CREATE USER sogo WITH PASSWORD '$STACK_ADMIN_PASSWORD';
+            CREATE USER sogo WITH PASSWORD \$pwd\$$STACK_ADMIN_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER sogo WITH PASSWORD '$STACK_ADMIN_PASSWORD';
+            ALTER USER sogo WITH PASSWORD \$pwd\$$STACK_ADMIN_PASSWORD\$pwd\$;
         END IF;
     END
     \$\$;

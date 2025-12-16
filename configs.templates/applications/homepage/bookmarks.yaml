@@ -1,16 +1,3 @@
 ---
-- Documentation:
-    - Authelia Docs:
-        - icon: authelia.png
-          href: https://www.authelia.com/
-    - Homepage Docs:
-        - icon: homepage.png
-          href: https://gethomepage.dev/
-    - Caddy Docs:
-        - icon: caddy.png
-          href: https://caddyserver.com/docs/
-
-- Services:
-    - Project Repository:
-        - icon: git.png
-          href: https://github.com/
+# Optional external bookmarks section
+# Uncomment and customize as needed

@@ -1,17 +1,5 @@
 ---
-- Management:
-    - Grafana:
-        href: https://grafana.{{DOMAIN}}
-        description: Monitoring Dashboard
-        icon: grafana.png
-
-
-    - Authelia:
-        href: https://auth.{{DOMAIN}}
-        description: SSO Authentication
-        icon: authelia.png
-
-- AI Services:
+- AI & Development:
     - Open WebUI:
         href: https://open-webui.{{DOMAIN}}
         description: AI Chat Interface
@@ -19,67 +7,67 @@
 
     - JupyterHub:
         href: https://jupyterhub.{{DOMAIN}}
-        description: Data Science
+        description: Data Science Notebooks
         icon: jupyter.png
 
-- Collaboration:
-    - Nextcloud:
-        href: https://nextcloud.{{DOMAIN}}
-        description: File Storage
-        icon: nextcloud.png
+    - Forgejo:
+        href: https://forgejo.{{DOMAIN}}
+        description: Git Repository
+        icon: forgejo.png
 
+- Collaboration:
     - BookStack:
         href: https://bookstack.{{DOMAIN}}
-        description: Team Wiki
+        description: Documentation Wiki
         icon: bookstack.png
 
     - Planka:
         href: https://planka.{{DOMAIN}}
-        description: Project Board
+        description: Project Management
         icon: planka.png
 
-- Data & Storage:
-    - FileBrowser:
-        href: https://filebrowser.{{DOMAIN}}
-        description: File Manager
-        icon: filebrowser.png
+    - Element:
+        href: https://element.{{DOMAIN}}
+        description: Secure Messaging
+        icon: element.png
+
+- Productivity:
+    - Seafile:
+        href: https://seafile.{{DOMAIN}}
+        description: File Sync & Share
+        icon: seafile.png
+
+    - SOGo:
+        href: https://sogo.{{DOMAIN}}
+        description: Email & Calendar
+        icon: sogo.png
+
+    - Vaultwarden:
+        href: https://vaultwarden.{{DOMAIN}}
+        description: Password Manager
+        icon: bitwarden.png
+
+- Social & Media:
+    - Mastodon:
+        href: https://mastodon.{{DOMAIN}}
+        description: Social Network
+        icon: mastodon.png
+
+    - qBittorrent:
+        href: https://qbittorrent.{{DOMAIN}}
+        description: Torrent Client
+        icon: qbittorrent.png
+
+- System:
+    - Grafana:
+        href: https://grafana.{{DOMAIN}}
+        description: Monitoring Dashboard
+        icon: grafana.png
 
     - Kopia:
         href: https://kopia.{{DOMAIN}}
-        description: Backups
+        description: Backup System
         icon: kopia.png
-
-- Databases:
-    - pgAdmin:
-        href: https://pgadmin.{{DOMAIN}}
-        description: PostgreSQL
-        icon: si-postgresql
-
-    - Adminer:
-        href: https://adminer.{{DOMAIN}}
-        description: DB Admin
-        icon: adminer.png
-
-    - CouchDB:
-        href: https://couchdb.{{DOMAIN}}
-        description: NoSQL DB
-        icon: couchdb.png
-
-    - ClickHouse:
-        href: https://clickhouse.{{DOMAIN}}
-        description: Analytics DB
-        icon: si-clickhouse
-
-- Infrastructure:
-    - Caddy:
-        href: https://homepage.{{DOMAIN}}
-        description: Reverse Proxy
-        icon: caddy.png
-
-    - Benthos:
-        href: https://benthos.{{DOMAIN}}
-        description: Data Pipeline
-        icon: si-databricks
 
     - Home Assistant:
         href: https://homeassistant.{{DOMAIN}}

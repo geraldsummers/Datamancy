@@ -324,8 +324,8 @@ services:
       - LDAP_ORGANISATION=Datamancy
       - LDAP_DOMAIN=stack.local
       - LDAP_BASE_DN=dc=stack,dc=local
-      - LDAP_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
-      - LDAP_CONFIG_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
+      - LDAP_CONFIG_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - LDAP_TLS=false
       # Configure memberOf overlay for Authelia group membership detection
       - LDAP_MEMBEROF_OVERLAY=true
@@ -337,7 +337,7 @@ services:
       - ${HOME}/.datamancy/bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
     command: --copy-service --loglevel info
     healthcheck:
-      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=stack,dc=local", "-D", "cn=admin,dc=stack,dc=local", "-w", "${STACK_ADMIN_PASSWORD}"]
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=stack,dc=local", "-D", "cn=admin,dc=stack,dc=local", "-w", "${LDAP_ADMIN_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -359,8 +359,8 @@ services:
       - LDAP_DOMAIN=stack.local
       - LDAP_BASE_DN=dc=stack,dc=local
       - LDAP_USER=cn=admin,dc=stack,dc=local
-      - LDAP_PASSWORD=${STACK_ADMIN_PASSWORD}
-      - LAM_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
+      - LAM_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - LAM_LANG=en_US
     # Note: No volume mount - LAM uses container-internal storage and connects to persistent LDAP
     healthcheck:
@@ -415,7 +415,7 @@ services:
       - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET}
       - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET}
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
-      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_OIDC_HMAC_SECRET}
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY}
       - AUTHELIA_STORAGE_POSTGRES_HOST=postgres
@@ -440,16 +440,16 @@ services:
         aliases:
           - mysql
     environment:
-      - MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
       - MYSQL_DATABASE=datamancy
       - MYSQL_USER=${STACK_ADMIN_USER}
-      - MYSQL_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - MYSQL_PASSWORD=${MARIADB_ROOT_PASSWORD}
     volumes:
       - mariadb_data:/var/lib/mysql
       - ${HOME}/.datamancy/configs/databases/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${STACK_ADMIN_PASSWORD}"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -465,10 +465,10 @@ services:
           - db
       backend: {}
     environment:
-      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
       - POSTGRES_USER=${STACK_ADMIN_USER}
       - POSTGRES_DB=postgres
-      - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - POSTGRES_ROOT_PASSWORD=${POSTGRES_ROOT_PASSWORD}
       - PLANKA_DB_PASSWORD=${PLANKA_DB_PASSWORD}
       - SYNAPSE_DB_PASSWORD=${SYNAPSE_DB_PASSWORD}
       - AUTHELIA_DB_PASSWORD=${AUTHELIA_DB_PASSWORD}
@@ -478,6 +478,7 @@ services:
       - MASTODON_DB_PASSWORD=${MASTODON_DB_PASSWORD}
       - FORGEJO_DB_PASSWORD=${FORGEJO_DB_PASSWORD}
       - HOMEASSISTANT_DB_PASSWORD=${HOMEASSISTANT_DB_PASSWORD:-}
+      - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ${HOME}/.datamancy/configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
@@ -488,7 +489,7 @@ services:
           cpus: '2.0'
     command: postgres -c 'max_connections=300' -c 'shared_buffers=1GB'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${STACK_ADMIN_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${STACK_ADMIN_USER} -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -502,7 +503,7 @@ services:
       - database
     environment:
       - COUCHDB_USER=${STACK_ADMIN_USER}
-      - COUCHDB_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - COUCHDB_PASSWORD=${COUCHDB_ADMIN_PASSWORD}
     volumes:
       - couchdb_data:/opt/couchdb/data
       - ${HOME}/.datamancy/configs/databases/couchdb/init-wrapper.sh:/usr/local/bin/init-wrapper.sh:ro
@@ -572,7 +573,7 @@ services:
     environment:
       - ENABLE_RSPAMD=1
       - ENABLE_CLAMAV=1
-      - ENABLE_FAIL2BAN=0
+      - ENABLE_FAIL2BAN=1
       - ENABLE_POSTGREY=0
       - ENABLE_SPAMASSASSIN=0
       - SPOOF_PROTECTION=0
@@ -586,7 +587,7 @@ services:
       - ACCOUNT_PROVISIONER=LDAP
       - LDAP_SERVER_HOST=ldap://ldap:389
       - LDAP_BIND_DN=cn=admin,dc=stack,dc=local
-      - LDAP_BIND_PW=${STACK_ADMIN_PASSWORD}
+      - LDAP_BIND_PW=${LDAP_ADMIN_PASSWORD}
       - LDAP_SEARCH_BASE=ou=users,dc=stack,dc=local
       - LDAP_QUERY_FILTER_USER=(&(objectClass=inetOrgPerson)(mail=%s))
       - LDAP_QUERY_FILTER_GROUP=(&(objectClass=groupOfNames)(member=%s))
@@ -986,12 +987,12 @@ services:
     environment:
       - TZ=UTC
       - DB_HOST=mysql  # Use alias for mariadb-seafile
-      - DB_ROOT_PASSWD=${STACK_ADMIN_PASSWORD}
+      - DB_ROOT_PASSWD=${MARIADB_ROOT_PASSWORD}
       - SEAFILE_MYSQL_DB_HOST=mysql
       - SEAFILE_MYSQL_DB_PORT=3306
       - SEAFILE_MYSQL_DB_USER=seafile
       - SEAFILE_MYSQL_DB_PASSWORD=${MARIADB_SEAFILE_PASSWORD}
-      - INIT_SEAFILE_MYSQL_ROOT_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - INIT_SEAFILE_MYSQL_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
       - SEAFILE_SERVER_HOSTNAME=seafile.${DOMAIN}
       - SEAFILE_ADMIN_EMAIL=${STACK_ADMIN_EMAIL}
       - SEAFILE_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
@@ -1078,7 +1079,7 @@ services:
       - POSTGRES_USER=synapse
       - POSTGRES_PASSWORD=${SYNAPSE_DB_PASSWORD}
       - REDIS_HOST=redis-synapse
-      - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
     volumes:
       - synapse_data:/data
       - ${HOME}/.datamancy/configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
@@ -1273,7 +1274,7 @@ services:
       - LDAP_PORT=389
       - LDAP_BASE_DN=dc=stack,dc=local
       - LDAP_BIND_DN=cn=admin,dc=stack,dc=local
-      - LDAP_BIND_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - LDAP_BIND_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - LDAP_USER_FILTER=(uid={username})
     volumes:
       - homeassistant_config:/config
@@ -1318,7 +1319,9 @@ services:
       - FORGEJO__server__ROOT_URL=https://forgejo.${DOMAIN}/
       - FORGEJO__security__INSTALL_LOCK=true
       - FORGEJO__service__DISABLE_REGISTRATION=true
+      - FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION=true
       - FORGEJO__service__REQUIRE_SIGNIN_VIEW=true
+      - FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION=true
       - FORGEJO__openid__ENABLE_OPENID_SIGNIN=true
       - FORGEJO__openid__ENABLE_OPENID_SIGNUP=true
       - FORGEJO_OAUTH_SECRET=${FORGEJO_OAUTH_SECRET}
@@ -1641,7 +1644,7 @@ services:
     environment:
       - CLICKHOUSE_DB=default
       - CLICKHOUSE_USER=${STACK_ADMIN_USER}
-      - CLICKHOUSE_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ${HOME}/.datamancy/configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
@@ -1731,7 +1734,7 @@ services:
       - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       - LITELLM_URL=${LITELLM_URL:-http://litellm:4000/v1}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://${STACK_ADMIN_USER}:${STACK_ADMIN_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
+      - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://${STACK_ADMIN_USER}:${CLICKHOUSE_ADMIN_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
       - EMBED_MODEL=${EMBED_MODEL:-embed-small}
       - RAG_GATEWAY_URL=${RAG_GATEWAY_URL:-http://rag-gateway:8094}
     extra_hosts:
