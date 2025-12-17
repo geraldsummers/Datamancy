@@ -16,6 +16,7 @@ MASTODON_DB_PASSWORD="${MASTODON_DB_PASSWORD:?ERROR: MASTODON_DB_PASSWORD not se
 FORGEJO_DB_PASSWORD="${FORGEJO_DB_PASSWORD:?ERROR: FORGEJO_DB_PASSWORD not set}"
 HOMEASSISTANT_DB_PASSWORD="${HOMEASSISTANT_DB_PASSWORD:-}"  # Optional - HA may use SQLite
 STACK_ADMIN_PASSWORD="${STACK_ADMIN_PASSWORD:?ERROR: STACK_ADMIN_PASSWORD not set}"  # For SOGo
+AGENT_POSTGRES_OBSERVER_PASSWORD="${AGENT_POSTGRES_OBSERVER_PASSWORD:?ERROR: AGENT_POSTGRES_OBSERVER_PASSWORD not set}"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create users with passwords from environment (must be created before databases for ownership)
@@ -74,6 +75,13 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             CREATE USER sogo WITH PASSWORD \$pwd\$$STACK_ADMIN_PASSWORD\$pwd\$;
         ELSE
             ALTER USER sogo WITH PASSWORD \$pwd\$$STACK_ADMIN_PASSWORD\$pwd\$;
+        END IF;
+
+        -- Create agent-tool-server observer account (read-only access to all databases)
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'agent_observer') THEN
+            CREATE USER agent_observer WITH PASSWORD \$pwd\$$AGENT_POSTGRES_OBSERVER_PASSWORD\$pwd\$;
+        ELSE
+            ALTER USER agent_observer WITH PASSWORD \$pwd\$$AGENT_POSTGRES_OBSERVER_PASSWORD\$pwd\$;
         END IF;
     END
     \$\$;
@@ -135,6 +143,21 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
     GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
     GRANT ALL PRIVILEGES ON DATABASE sogo TO sogo;
+
+    -- Grant CONNECT to agent_observer on safe databases only
+    -- SECURITY: Only databases with safe public data
+    GRANT CONNECT ON DATABASE grafana TO agent_observer;
+    GRANT CONNECT ON DATABASE planka TO agent_observer;
+    GRANT CONNECT ON DATABASE mastodon TO agent_observer;
+    GRANT CONNECT ON DATABASE forgejo TO agent_observer;
+
+    -- Explicitly DENY access to sensitive databases
+    -- (revoke is redundant but explicit for documentation)
+    -- vaultwarden: passwords/secrets
+    -- authelia: auth sessions/tokens
+    -- synapse: private messages
+    -- openwebui: conversation history
+    -- sogo: emails
 EOSQL
 
 # Grant Home Assistant privileges if database was created
@@ -152,5 +175,19 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRA
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT ALL ON SCHEMA public TO forgejo;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" -c "GRANT ALL ON SCHEMA public TO sogo;"
+
+# Create agent_observer schema in safe databases for public views
+# These schemas will hold views that expose only public/non-sensitive data
+for db in grafana planka mastodon forgejo; do
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" <<-EOSQL
+        -- Create dedicated schema for observer views
+        CREATE SCHEMA IF NOT EXISTS agent_observer;
+        GRANT USAGE ON SCHEMA agent_observer TO agent_observer;
+
+        -- NOTE: Individual views must be created by running create-observer-views.sql
+        -- after applications have initialized their schemas
+        -- This is a manual step to ensure safety
+EOSQL
+done
 
 echo "PostgreSQL databases and users initialized successfully"

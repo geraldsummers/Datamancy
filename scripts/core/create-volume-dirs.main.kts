@@ -48,26 +48,42 @@ fun main(args: Array<String>) {
         Paths.get("").toAbsolutePath().normalize()
     }
 
-    // Determine VOLUMES_ROOT
-    var volumesRootStr: String? = null
-    if (args.isNotEmpty()) {
-        volumesRootStr = args[0]
-    } else {
-        // Prefer ~/.datamancy/.env.runtime; fallback to project .env
-        val home = System.getProperty("user.home")
-        val runtimeEnv = Paths.get(home, ".datamancy/.env.runtime").toFile()
-        val dotEnv = if (runtimeEnv.isFile) runtimeEnv else projectRoot.resolve(".env").toFile()
-        volumesRootStr = readEnvVarFromDotEnv(dotEnv, "VOLUMES_ROOT")
-        if (volumesRootStr.isNullOrBlank()) {
-            println("${YELLOW}Warning: VOLUMES_ROOT not found in env, using default${NC}")
-            volumesRootStr = "$home/.datamancy/volumes"
-        }
+    // Read storage paths from .env.runtime or .env
+    val home = System.getProperty("user.home")
+    val runtimeEnv = Paths.get(home, ".datamancy/.env.runtime").toFile()
+    val dotEnv = if (runtimeEnv.isFile) runtimeEnv else projectRoot.resolve(".env").toFile()
+
+    var volumesRootStr = readEnvVarFromDotEnv(dotEnv, "VOLUMES_ROOT")
+    if (volumesRootStr.isNullOrBlank()) {
+        println("${YELLOW}Warning: VOLUMES_ROOT not found in env, using default${NC}")
+        volumesRootStr = "$home/.datamancy/volumes"
     }
 
-    val volumesRoot = makeAbsolute(projectRoot, volumesRootStr!!)
+    var nonVectorDbsPath = readEnvVarFromDotEnv(dotEnv, "NON_VECTOR_DBS_PATH")
+    if (nonVectorDbsPath.isNullOrBlank()) {
+        nonVectorDbsPath = "$home/.datamancy/volumes/databases"
+    }
+
+    var vectorDbsPath = readEnvVarFromDotEnv(dotEnv, "VECTOR_DBS_PATH")
+    if (vectorDbsPath.isNullOrBlank()) {
+        vectorDbsPath = "$home/.datamancy/volumes/vector-dbs"
+    }
+
+    var applicationDataPath = readEnvVarFromDotEnv(dotEnv, "APPLICATION_DATA_PATH")
+    if (applicationDataPath.isNullOrBlank()) {
+        applicationDataPath = "$home/.datamancy/volumes/applications"
+    }
+
+    val volumesRoot = makeAbsolute(projectRoot, volumesRootStr)
+    val nonVectorDbsRoot = makeAbsolute(projectRoot, nonVectorDbsPath)
+    val vectorDbsRoot = makeAbsolute(projectRoot, vectorDbsPath)
+    val applicationDataRoot = makeAbsolute(projectRoot, applicationDataPath)
 
     println("${GREEN}=== Creating Volume Directories ===${NC}")
     println("VOLUMES_ROOT: $volumesRoot")
+    println("NON_VECTOR_DBS_PATH: $nonVectorDbsRoot")
+    println("VECTOR_DBS_PATH: $vectorDbsRoot")
+    println("APPLICATION_DATA_PATH: $applicationDataRoot")
     println()
 
     val composeFile = projectRoot.resolve("docker-compose.yml").toFile()
@@ -76,27 +92,87 @@ fun main(args: Array<String>) {
         exitProcess(1)
     }
 
-    // Collect directories referenced as ${VOLUMES_ROOT}/... in docker-compose.yml
-    val volumeDirs = linkedSetOf<String>()
+    // Collect directories referenced in docker-compose.yml with their base paths
+    data class VolumeEntry(val base: Path, val rel: String)
+    val volumeDirs = linkedSetOf<VolumeEntry>()
     val lines = composeFile.readLines()
 
-    val longSyntaxRegex = Regex("^\\s*device: \\\\?\\$\\{VOLUMES_ROOT(?::-[^}]+)?\\}/(.+)$")
-    // Matches short syntax mount entries like: - ${VOLUMES_ROOT}/path:/container or "${VOLUMES_ROOT}/path:/container:ro"
-    // Also matches default value syntax: ${VOLUMES_ROOT:-./volumes}/path
-    val shortSyntaxRegex = Regex("\\$\\{VOLUMES_ROOT(?::-[^}]+)?\\}/([^\\s:]+)")
+    // Patterns for different volume path variables
+    val patterns = listOf(
+        "NON_VECTOR_DBS_PATH" to nonVectorDbsRoot,
+        "VECTOR_DBS_PATH" to vectorDbsRoot,
+        "APPLICATION_DATA_PATH" to applicationDataRoot,
+        "VOLUMES_ROOT" to volumesRoot
+    )
 
     for (rawLine in lines) {
         val line = rawLine.trimEnd()
-        val m1 = longSyntaxRegex.find(line)
-        if (m1 != null) {
-            val rel = m1.groupValues[1].trim().removeSurrounding("\"", "\"")
-            if (rel.isNotBlank()) volumeDirs.add(rel)
-            continue
-        }
-        // Short syntax may include multiple matches per line; extract all
-        shortSyntaxRegex.findAll(line).forEach { match ->
-            val rel = match.groupValues[1].trim().removeSurrounding("\"", "\"")
-            if (rel.isNotBlank()) volumeDirs.add(rel)
+        for ((varName, basePath) in patterns) {
+            // Match lines like: device: ${VAR}/path or device: ${VAR:-${NESTED:-default}/fallback}/path
+            // Strategy: Find ${VAR... then skip to the last } before a /, then extract path after /
+
+            // For long syntax (device: ...)
+            if (line.trim().startsWith("device:") && line.contains("\${$varName")) {
+                // Find the position after the variable closes and extract the path
+                val varStart = line.indexOf("\${$varName")
+                if (varStart >= 0) {
+                    val afterVar = line.substring(varStart + 2) // Skip ${
+                    // Find the matching closing brace by counting braces
+                    var braceCount = 1
+                    var endPos = 0
+                    for (i in afterVar.indices) {
+                        when (afterVar[i]) {
+                            '{' -> braceCount++
+                            '}' -> {
+                                braceCount--
+                                if (braceCount == 0) {
+                                    endPos = i
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    if (endPos > 0 && endPos < afterVar.length - 1 && afterVar[endPos + 1] == '/') {
+                        val rel = afterVar.substring(endPos + 2).trim().removeSurrounding("\"", "\"")
+                        if (rel.isNotBlank()) {
+                            volumeDirs.add(VolumeEntry(basePath, rel))
+                            break
+                        }
+                    }
+                }
+            }
+
+            // For short syntax (volume mounts)
+            val shortPattern = "\\$\\{$varName"
+            if (line.contains(shortPattern)) {
+                val varStart = line.indexOf(shortPattern)
+                if (varStart >= 0) {
+                    val afterVar = line.substring(varStart + 2) // Skip ${
+                    var braceCount = 1
+                    var endPos = 0
+                    for (i in afterVar.indices) {
+                        when (afterVar[i]) {
+                            '{' -> braceCount++
+                            '}' -> {
+                                braceCount--
+                                if (braceCount == 0) {
+                                    endPos = i
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    if (endPos > 0 && endPos < afterVar.length - 1 && afterVar[endPos + 1] == '/') {
+                        val remaining = afterVar.substring(endPos + 2)
+                        val pathEnd = remaining.indexOfAny(charArrayOf(':', ' ', '\t'))
+                        val rel = if (pathEnd > 0) remaining.substring(0, pathEnd) else remaining
+                        val cleaned = rel.trim().removeSurrounding("\"", "\"")
+                        if (cleaned.isNotBlank()) {
+                            volumeDirs.add(VolumeEntry(basePath, cleaned))
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -113,19 +189,19 @@ fun main(args: Array<String>) {
     println("Found $total volume directories to check/create")
     println()
 
-    for (rel in volumeDirs) {
-        val fullPath = volumesRoot.resolve(rel)
+    for ((basePath, rel) in volumeDirs) {
+        val fullPath = basePath.resolve(rel)
         try {
             if (Files.isDirectory(fullPath)) {
-                println("${GREEN}✓${NC} Already exists: $rel")
+                println("${GREEN}✓${NC} Already exists: $fullPath")
                 existed++
             } else {
                 Files.createDirectories(fullPath)
-                println("${GREEN}✓${NC} Created: $rel")
+                println("${GREEN}✓${NC} Created: $fullPath")
                 created++
             }
         } catch (e: Exception) {
-            println("${RED}✗${NC} Failed to create: $rel (${e.message})")
+            println("${RED}✗${NC} Failed to create: $fullPath (${e.message})")
             failed++
         }
     }
@@ -167,7 +243,7 @@ fun main(args: Array<String>) {
     println("${GREEN}=== Fixing Service-Specific Permissions ===${NC}")
 
     // Synapse runs as UID 991
-    val synapseDataDir = volumesRoot.resolve("synapse_data")
+    val synapseDataDir = applicationDataRoot.resolve("synapse_data")
     if (Files.isDirectory(synapseDataDir)) {
         try {
             val process = ProcessBuilder("chown", "-R", "991:991", synapseDataDir.toString())

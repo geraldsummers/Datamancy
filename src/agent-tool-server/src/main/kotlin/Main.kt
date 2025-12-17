@@ -10,6 +10,7 @@ import org.example.plugins.HostToolsPlugin
 import org.example.plugins.BrowserToolsPlugin
 import org.example.plugins.LlmCompletionPlugin
 import org.example.plugins.OpsSshPlugin
+import org.example.plugins.DataSourceQueryPlugin
 import org.example.host.HostConfig
 import org.example.host.PluginFactories
 import org.example.host.PluginManager
@@ -34,6 +35,7 @@ fun main() {
     PluginFactories.register(BrowserToolsPlugin::class.qualifiedName!!) { BrowserToolsPlugin() }
     PluginFactories.register(LlmCompletionPlugin::class.qualifiedName!!) { LlmCompletionPlugin() }
     PluginFactories.register(OpsSshPlugin::class.qualifiedName!!) { OpsSshPlugin() }
+    PluginFactories.register(DataSourceQueryPlugin::class.qualifiedName!!) { DataSourceQueryPlugin() }
 
     // Instantiate all built-in plugins directly via constructors (no reflection),
     // while also supporting external plugins loaded via PluginManager using the factory registry.
@@ -42,7 +44,8 @@ fun main() {
         HostToolsPlugin(),
         BrowserToolsPlugin(),
         LlmCompletionPlugin(),
-        OpsSshPlugin()
+        OpsSshPlugin(),
+        DataSourceQueryPlugin()
     )
 
     // Initialize plugins and check capabilities

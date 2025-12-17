@@ -23,8 +23,10 @@ project(":vm-provisioner").projectDir = file("src/vm-provisioner")
 // New services
 include(":task-scheduler")
 include(":rag-gateway")
+include(":data-fetcher")
 project(":task-scheduler").projectDir = file("src/task-scheduler")
 project(":rag-gateway").projectDir = file("src/rag-gateway")
+project(":data-fetcher").projectDir = file("src/data-fetcher")
 
 // Test framework module (Playwright-based stack testing)
 include(":test-framework")

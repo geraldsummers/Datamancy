@@ -144,15 +144,24 @@ val domain = env["DOMAIN"]!!
 // Optional: separate user password (defaults to same as admin for dev/test)
 val userPassword = env["STACK_USER_PASSWORD"] ?: adminPassword
 
+// Agent observer password
+val agentObserverPassword = env["AGENT_LDAP_OBSERVER_PASSWORD"]
+if (agentObserverPassword.isNullOrBlank()) {
+    error("AGENT_LDAP_OBSERVER_PASSWORD not set in environment")
+    exitProcess(1)
+}
+
 info("Generating SSHA password hashes")
 val adminSSHA = generateSSHA(adminPassword)
 val userSSHA = generateSSHA(userPassword)
+val agentObserverSSHA = generateSSHA(agentObserverPassword!!)
 
 info("Admin user: $adminUser")
 info("Admin email: $adminEmail")
 info("Domain: $domain")
 info("Generated admin SSHA hash: ${adminSSHA.take(20)}...")
 info("Generated user SSHA hash: ${userSSHA.take(20)}...")
+info("Generated agent observer SSHA hash: ${agentObserverSSHA.take(20)}...")
 
 // Process template
 info("Processing template: ${templateFile.name}")
@@ -165,6 +174,7 @@ val replacements = mapOf(
     "{{DOMAIN}}" to domain,
     "{{ADMIN_SSHA_PASSWORD}}" to adminSSHA,
     "{{USER_SSHA_PASSWORD}}" to userSSHA,
+    "{{AGENT_OBSERVER_SSHA_PASSWORD}}" to agentObserverSSHA,
     "{{GENERATION_TIMESTAMP}}" to Instant.now().toString()
 )
 

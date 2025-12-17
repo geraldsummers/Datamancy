@@ -1,0 +1,48 @@
+FROM jupyter/minimal-notebook:latest
+
+USER root
+
+# Install Node.js for JavaScript kernel (ijavascript) with build tools
+RUN apt-get update && \
+    apt-get install -y curl gnupg build-essential python3 && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Java/Kotlin dependencies
+RUN apt-get update && \
+    apt-get install -y openjdk-17-jdk wget unzip && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Kotlin compiler
+RUN cd /opt && \
+    wget -q https://github.com/JetBrains/kotlin/releases/download/v2.1.0/kotlin-compiler-2.1.0.zip && \
+    unzip kotlin-compiler-2.1.0.zip && \
+    rm kotlin-compiler-2.1.0.zip && \
+    ln -s /opt/kotlinc/bin/kotlin /usr/local/bin/kotlin && \
+    ln -s /opt/kotlinc/bin/kotlinc /usr/local/bin/kotlinc
+
+# Install JavaScript kernel (ijavascript) - as root for system-wide installation
+RUN npm install -g --unsafe-perm ijavascript && \
+    ijsinstall --install=global
+
+USER ${NB_UID}
+
+# Install Kotlin kernel
+RUN pip install --no-cache-dir kotlin-jupyter-kernel && \
+    python -m kotlin_kernel add-kernel
+
+#  Install core LM libraries (minimal set)
+RUN pip install --no-cache-dir \
+    'openai>=1.0.0' \
+    'langchain>=0.3.0' \
+    'langchain-openai>=0.2.0' \
+    'python-dotenv>=1.0.0'
+
+# Verify kernels are installed
+RUN jupyter kernelspec list
+
+USER ${NB_UID}
+WORKDIR /home/jovyan

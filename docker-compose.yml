@@ -35,217 +35,223 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/caddy_config
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/caddy_config
   grafana_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/grafana_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/grafana_data
   open_webui_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/open_webui_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/open_webui_data
   vaultwarden_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/vaultwarden_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/vaultwarden_data
   planka_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/planka_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/planka_data
   bookstack_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/bookstack_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/bookstack_data
   seafile_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/seafile_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/seafile_data
   onlyoffice_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/onlyoffice_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/onlyoffice_data
   synapse_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/synapse_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/synapse_data
   element_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/element_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/element_data
   mastodon_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mastodon_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mastodon_data
   jupyterhub_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/jupyterhub_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/jupyterhub_data
   homeassistant_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/homeassistant_config
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/homeassistant_config
   litellm_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/litellm_config
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/litellm_config
   ldap_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/ldap_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/ldap_data
   ldap_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/ldap_config
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/ldap_config
   lam_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/lam_config
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/lam_config
   mariadb_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mariadb_data
+      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/mariadb_data
   postgres_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/postgres_data
+      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/postgres_data
   couchdb_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/couchdb_data
+      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/couchdb_data
   clickhouse_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/clickhouse_data
+      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/clickhouse_data
   qdrant_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/qdrant_data
+      device: ${VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/vector-dbs}/qdrant_data
   benthos_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/benthos_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/benthos_data
   kopia_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/kopia_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/kopia_data
   kopia_cache:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/kopia_cache
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/kopia_cache
   kopia_repository:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/kopia_repository
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/kopia_repository
   redis_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/redis_data
+      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/redis_data
   mailserver_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mailserver_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_data
   mailserver_state:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mailserver_state
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_state
   mailserver_logs:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mailserver_logs
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_logs
   mailserver_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/mailserver_config
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_config
   sogo_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/sogo_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/sogo_data
   forgejo_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/forgejo_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/forgejo_data
   qbittorrent_config:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/qbittorrent_config
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/qbittorrent_config
   qbittorrent_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/qbittorrent_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/qbittorrent_data
   proofs:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${VOLUMES_ROOT:-./volumes}/proofs
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/proofs
+  data_fetcher:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/data_fetcher
 
 services:
   caddy:
@@ -350,11 +356,6 @@ services:
     networks:
       - backend
       - frontend
-    depends_on:
-      ldap:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
     environment:
       - LDAP_DOMAIN=stack.local
       - LDAP_BASE_DN=dc=stack,dc=local
@@ -397,13 +398,6 @@ services:
       - backend
       - frontend
       - database
-    depends_on:
-      ldap:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
     volumes:
       - ${VOLUMES_ROOT}/authelia:/config
       - ${HOME}/.datamancy/configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
@@ -479,6 +473,7 @@ services:
       - FORGEJO_DB_PASSWORD=${FORGEJO_DB_PASSWORD}
       - HOMEASSISTANT_DB_PASSWORD=${HOMEASSISTANT_DB_PASSWORD:-}
       - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - AGENT_POSTGRES_OBSERVER_PASSWORD=${AGENT_POSTGRES_OBSERVER_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ${HOME}/.datamancy/configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
@@ -607,12 +602,6 @@ services:
     depends_on:
       mailserver-cert-init:
         condition: service_completed_successfully
-      caddy:
-        condition: service_healthy
-      ldap:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
     cap_add:
       - NET_ADMIN
     healthcheck:
@@ -633,13 +622,6 @@ services:
       - sogo_data:/var/lib/sogo
       - ${HOME}/.datamancy/configs/applications/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
       - ${HOME}/.datamancy/configs/applications/sogo/init-apache.sh:/docker-entrypoint.d/init-apache.sh:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      ldap:
-        condition: service_healthy
-      mailserver:
-        condition: service_healthy
     networks:
       - backend
     healthcheck:
@@ -740,11 +722,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
     environment:
       - GF_DEFAULT_LOCALE=en_US
       - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN}
@@ -801,13 +778,6 @@ services:
      dns:
        - 8.8.8.8
        - 1.1.1.1
-     depends_on:
-       postgres:
-         condition: service_healthy
-       litellm:
-         condition: service_healthy
-       authelia:
-         condition: service_healthy
      environment:
        - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
        # PostgreSQL database - use URL-encoded password for special characters
@@ -847,13 +817,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
-      mailserver:
-        condition: service_healthy
     environment:
       - DOMAIN=https://app.vaultwarden.${DOMAIN}
       - DATABASE_URL=postgresql://vaultwarden:${VAULTWARDEN_DB_PASSWORD}@postgres:5432/vaultwarden
@@ -899,11 +862,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
     environment:
       - BASE_URL=https://planka.${DOMAIN}
       # Use URL-encoded password for PostgreSQL connection string (encoded version of PLANKA_DB_PASSWORD)
@@ -943,11 +901,6 @@ services:
       - backend
     links:
       - mariadb:mariadb
-    depends_on:
-      mariadb:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
     environment:
       - PUID=1000
       - PGID=1000
@@ -977,13 +930,6 @@ services:
     image: seafileltd/seafile-mc:13.0.12
     container_name: seafile
     restart: unless-stopped
-    depends_on:
-      memcached:
-        condition: service_healthy
-      mariadb:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
     environment:
       - TZ=UTC
       - DB_HOST=mysql  # Use alias for mariadb-seafile
@@ -1062,12 +1008,6 @@ services:
     depends_on:
       synapse-init:
         condition: service_completed_successfully
-      valkey:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      ldap:
-        condition: service_healthy
     environment:
       - SYNAPSE_SERVER_NAME=matrix.${DOMAIN}
       - SYNAPSE_REPORT_STATS=yes
@@ -1098,9 +1038,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    depends_on:
-      synapse:
-        condition: service_healthy
     volumes:
       - element_data:/app/config
       - ${HOME}/.datamancy/configs/applications/element/config.json:/app/config.json:ro
@@ -1117,15 +1054,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    depends_on:
-      postgres:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
-      mailserver:
-        condition: service_healthy
     env_file:
       - ${HOME}/.datamancy/configs/applications/mastodon/mastodon.env
     volumes:
@@ -1150,13 +1078,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    depends_on:
-      mastodon-web:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
     env_file:
       - ${HOME}/.datamancy/configs/applications/mastodon/mastodon.env
     healthcheck:
@@ -1172,13 +1093,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    depends_on:
-      mastodon-web:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
     env_file:
       - ${HOME}/.datamancy/configs/applications/mastodon/mastodon.env
     command: bundle exec sidekiq
@@ -1202,9 +1116,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    depends_on:
-      docker-proxy:
-        condition: service_healthy
     environment:
       - PUID=1000
       - PGID=1000
@@ -1223,6 +1134,17 @@ services:
       retries: 3
       start_period: 10s
 
+  jupyter-notebook-builder:
+    build:
+      dockerfile: ./src/jupyter-notebook/Dockerfile.ai-ide
+      context: .
+      tags:
+        - datamancy-jupyter-notebook:latest
+    image: datamancy-jupyter-notebook:latest
+    container_name: jupyter-notebook-builder
+    command: ["echo", "AI-powered Jupyter IDE image built successfully"]
+    restart: "no"
+
   jupyterhub:
     build:
       dockerfile: ./src/jupyterhub/Dockerfile
@@ -1232,14 +1154,13 @@ services:
     networks:
       - backend
     depends_on:
-      authelia:
-        condition: service_healthy
-      docker-proxy:
-        condition: service_started
+      jupyter-notebook-builder:
+        condition: service_completed_successfully
     environment:
       - DOMAIN=${DOMAIN}
       - JUPYTERHUB_OAUTH_SECRET=${JUPYTERHUB_OAUTH_SECRET}
       - DOCKER_HOST=tcp://docker-proxy:2375
+      - LITELLM_API_KEY=${LITELLM_MASTER_KEY}
     volumes:
       - jupyterhub_data:/srv/jupyterhub
       - ./src/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
@@ -1257,13 +1178,6 @@ services:
     networks:
       - backend
       - database
-    depends_on:
-      authelia:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      ldap:
-        condition: service_healthy
     environment:
       - TZ=UTC
       - HOMEASSISTANT_DB_URL=postgresql://${STACK_ADMIN_USER}:${HOMEASSISTANT_DB_PASSWORD}@postgres:5432/homeassistant
@@ -1301,11 +1215,6 @@ services:
     networks:
       - backend
       - database
-    depends_on:
-      postgres:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
     environment:
       - USER_UID=1000
       - USER_GID=1000
@@ -1361,9 +1270,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    depends_on:
-      authelia:
-        condition: service_healthy
     environment:
       - PUID=1000
       - PGID=1000
@@ -1387,9 +1293,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    depends_on:
-      authelia:
-        condition: service_healthy
     environment:
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - HF_HUB_ENABLE_HF_TRANSFER=0
@@ -1422,29 +1325,6 @@ services:
       retries: 5
       start_period: 2m
 
-  vllm-router:
-    build:
-      dockerfile: ./src/vllm-router/Dockerfile
-      context: .
-    container_name: vllm-router
-    restart: unless-stopped
-    networks:
-      - backend
-    depends_on:
-      vllm:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
-    environment:
-      - VLLM_BASE_URL=http://vllm:8000
-      - PORT=8010
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8010/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
   embedding-service:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.2
     container_name: embedding-service
@@ -1468,13 +1348,6 @@ services:
     networks:
       - backend
       - frontend
-    depends_on:
-      vllm-router:
-        condition: service_healthy
-      authelia:
-        condition: service_healthy
-      embedding-service:
-        condition: service_healthy
     volumes:
       - litellm_config:/app/config
       - ${HOME}/.datamancy/configs/infrastructure/litellm/config.yaml:/app/config.yaml:ro
@@ -1500,16 +1373,10 @@ services:
     networks:
       - backend
       - frontend
+      - database
     user: "1000:1000"
     group_add:
       - "985"  # docker group on host for socket access
-    depends_on:
-      authelia:
-        condition: service_healthy
-      playwright:
-        condition: service_healthy
-      litellm:
-        condition: service_healthy
     environment:
       - TOOLSERVER_PORT=8081
       - TOOLSERVER_PLUGINS_DIR=/app/plugins
@@ -1528,6 +1395,31 @@ services:
       # LiteLLM connection for LLM completions
       - LITELLM_BASE_URL=http://litellm:4000
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      # Data source observation credentials
+      - POSTGRES_OBSERVER_USER=agent_observer
+      - POSTGRES_OBSERVER_PASSWORD=${AGENT_POSTGRES_OBSERVER_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - MARIADB_OBSERVER_USER=agent_observer
+      - MARIADB_OBSERVER_PASSWORD=${AGENT_MARIADB_OBSERVER_PASSWORD}
+      - MARIADB_HOST=mariadb
+      - MARIADB_PORT=3306
+      - CLICKHOUSE_OBSERVER_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_OBSERVER_PASSWORD=${AGENT_CLICKHOUSE_OBSERVER_PASSWORD}
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - COUCHDB_OBSERVER_USER=agent_observer
+      - COUCHDB_OBSERVER_PASSWORD=${AGENT_COUCHDB_OBSERVER_PASSWORD}
+      - COUCHDB_HOST=couchdb
+      - COUCHDB_PORT=5984
+      - QDRANT_OBSERVER_API_KEY=${AGENT_QDRANT_API_KEY}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - LDAP_OBSERVER_DN=cn=agent_observer,dc=stack,dc=local
+      - LDAP_OBSERVER_PASSWORD=${AGENT_LDAP_OBSERVER_PASSWORD}
+      - LDAP_HOST=ldap
+      - LDAP_PORT=389
+      - LDAP_BASE_DN=dc=stack,dc=local
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
@@ -1542,71 +1434,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-
-
-  # Kotlin speech gateway service (Whisper ASR + Piper TTS proxy)
-  ktspeechgateway:
-    build:
-      dockerfile: ./src/speech-gateway/Dockerfile
-      context: .
-    container_name: ktspeechgateway
-    restart: unless-stopped
-    networks:
-      - backend
-    depends_on:
-      whisper:
-        condition: service_healthy
-      piper:
-        condition: service_healthy
-    environment:
-      - WHISPER_BASE_URL=${WHISPER_BASE_URL:-http://whisper:9000}
-      - PIPER_BASE_URL=${PIPER_BASE_URL:-http://piper:8080}
-      - PIPER_VOICE=${PIPER_VOICE:-en_US-lessac-medium}
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8091/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  # Whisper ASR service (OpenAI-compatible)
-  whisper:
-    image: onerahmet/openai-whisper-asr-webservice:v1.6.0
-    container_name: whisper
-    restart: unless-stopped
-    networks:
-      - backend
-    environment:
-      - ASR_MODEL=base
-      - ASR_ENGINE=faster_whisper
-    volumes:
-      - ${VOLUMES_ROOT}/whisper/models:/root/.cache/whisper
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9000/"]
-      interval: 60s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
-  # Piper TTS HTTP service
-  piper:
-    image: rhasspy/wyoming-piper
-    container_name: piper
-    restart: unless-stopped
-    networks:
-      - backend
-    environment:
-      - PIPER_VOICE=${PIPER_VOICE:-en_US-lessac-medium}
-    command: ["--voice", "en_US-lessac-medium"]
-    volumes:
-      - ${VOLUMES_ROOT}/piper/data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/10200'"]
-      interval: 60s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
 
   ###############################################
   # Vector Stack (profile: bootstrap_vector_dbs)
@@ -1667,9 +1494,7 @@ services:
       start_period: 30s
 
   vector-bootstrap:
-    build:
-      dockerfile: ./src/debiankotlin/Dockerfile
-      context: .
+    image: zenika/kotlin:latest
     container_name: vector-bootstrap
     restart: "no"
     networks:
@@ -1706,11 +1531,6 @@ services:
       - PORT=8094
       - BENTHOS_URL=http://benthos:4195
       - QDRANT_URL=http://qdrant:6333
-    depends_on:
-      benthos:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8094/health/ready"]
       interval: 30s
@@ -1739,11 +1559,6 @@ services:
       - RAG_GATEWAY_URL=${RAG_GATEWAY_URL:-http://rag-gateway:8094}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      qdrant:
-        condition: service_started
-      clickhouse:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4195/ready"]
       interval: 30s
@@ -1751,54 +1566,51 @@ services:
       retries: 3
       start_period: 10s
 
-  # Headless browser for automation - Playwright with chromium
-  playwright:
+  data-fetcher:
     build:
-      dockerfile: ./src/playwright-controller/Dockerfile
+      dockerfile: ./src/data-fetcher/Dockerfile
       context: .
-    container_name: playwright
+    container_name: data-fetcher
     restart: unless-stopped
     networks:
       - backend
-    shm_size: '2gb'
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/healthz')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-
-  # VM Provisioner - Manages VMs via libvirt/QEMU with SSH key management
-  # SECURITY NOTE: Uses CAP_NET_ADMIN for libvirt networking instead of privileged mode
-  # If this fails, see docs/PRE_DEPLOYMENT_REVIEW.md for troubleshooting
-  vm-provisioner:
-    build:
-      dockerfile: ./src/vm-provisioner/Dockerfile
-      context: .
-    container_name: vm-provisioner
-    restart: unless-stopped
-    networks:
-      - backend
-    # Use specific capabilities instead of privileged mode
-    cap_add:
-      - NET_ADMIN       # Required for libvirt network management
-      - SYS_ADMIN       # Required for mounting and cgroups access
-      - DAC_OVERRIDE    # Required for accessing libvirt socket
-    security_opt:
-      - apparmor=unconfined  # Libvirt requires this for QEMU operations
-    volumes:
-      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock
-      - ${VOLUMES_ROOT}/vm-provisioner/ssh_keys:/app/ssh_keys
-      - ${VOLUMES_ROOT}/vm-provisioner/vms:/var/lib/libvirt/images
+      - database
     environment:
-      - VM_PROVISIONER_PORT=8092
-      - LIBVIRT_URI=qemu:///system
-      - SSH_KEY_DIR=/app/ssh_keys
-      - LIBVIRT_STORAGE_POOL=default
-      - LIBVIRT_STORAGE_PATH=/var/lib/libvirt/images
+      - DATAFETCHER_PORT=8095
+      # Database connections
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=datamancy
+      - POSTGRES_USER=${STACK_ADMIN_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      # API keys (optional, from .env)
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY:-}
+      - COINGECKO_API_KEY=${COINGECKO_API_KEY:-}
+      - SERP_API_KEY=${SERP_API_KEY:-}
+      - FRED_API_KEY=${FRED_API_KEY:-}
+      # Config paths
+      - FETCH_SCHEDULES_PATH=/app/config/schedules.yaml
+      - FETCH_SOURCES_PATH=/app/config/sources.yaml
+      - DATAFETCHER_DATA_PATH=/app/data
+    volumes:
+      - ${HOME}/.datamancy/configs/applications/data-fetcher/schedules.yaml:/app/config/schedules.yaml:ro
+      - ${HOME}/.datamancy/configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
+      - ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/data_fetcher:/app/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8092/healthz"]
-      interval: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:8095/health"]
+      interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+

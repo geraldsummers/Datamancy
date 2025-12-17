@@ -19,4 +19,14 @@ GRANT ALL PRIVILEGES ON ccnet_db.* TO 'seafile'@'%';
 GRANT ALL PRIVILEGES ON seafile_db.* TO 'seafile'@'%';
 GRANT ALL PRIVILEGES ON seahub_db.* TO 'seafile'@'%';
 
+-- Create agent-tool-server observer account
+-- SECURITY: No direct table access - must use views created manually later
+CREATE USER IF NOT EXISTS 'agent_observer'@'%' IDENTIFIED BY '{{AGENT_MARIADB_OBSERVER_PASSWORD}}';
+
+-- Note: Views for public data should be created manually after application initialization
+-- Example views to create:
+--   bookstack.agent_observer_pages (title, slug, created_at, book_id)
+--   bookstack.agent_observer_books (name, slug, created_at)
+-- Do NOT grant SELECT on full tables - they contain HTML content, user data, etc.
+
 FLUSH PRIVILEGES;

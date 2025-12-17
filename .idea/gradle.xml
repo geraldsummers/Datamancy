@@ -10,6 +10,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/src/agent-tool-server" />
+            <option value="$PROJECT_DIR$/src/data-fetcher" />
             <option value="$PROJECT_DIR$/src/ldap-sync-service" />
             <option value="$PROJECT_DIR$/src/playwright-controller" />
             <option value="$PROJECT_DIR$/src/rag-gateway" />

@@ -12,6 +12,9 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
     // SSH client for OpsSshPlugin
     implementation("com.hierynomus:sshj:0.37.0")
+    // JDBC drivers for DataSourceQueryPlugin
+    implementation("org.postgresql:postgresql:42.7.4")
+    implementation("org.mariadb.jdbc:mariadb-java-client:3.5.1")
 }
 
 tasks.test {

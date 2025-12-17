@@ -17,8 +17,8 @@ c.JupyterHub.hub_connect_url = 'http://jupyterhub:8081'
 # Use DockerSpawner to spawn notebook servers in containers
 c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 
-# Docker image for single-user notebook servers
-c.DockerSpawner.image = 'jupyter/minimal-notebook:latest'
+# Docker image for single-user notebook servers (custom image with JS and Kotlin kernels)
+c.DockerSpawner.image = 'datamancy-jupyter-notebook:latest'
 
 # Connect containers to the same network as JupyterHub
 c.DockerSpawner.network_name = 'datamancy_backend'
@@ -41,6 +41,13 @@ c.DockerSpawner.start_timeout = 120
 
 # Format container names
 c.DockerSpawner.name_template = 'jupyter-{username}-{servername}'
+
+# Pass environment variables to spawned containers
+c.DockerSpawner.environment = {
+    'LITELLM_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
+    'OPENAI_API_BASE': 'http://litellm:4000/v1',
+    'OPENAI_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
+}
 
 # Ensure compatible jupyterhub version in spawned containers
 # Install the correct jupyterhub version to match the hub

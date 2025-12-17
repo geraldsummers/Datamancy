@@ -17,7 +17,9 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
         val srv = HttpServer.create(InetSocketAddress(port), 0)
         srv.createContext("/tools", ToolsHandler(tools))
         srv.createContext("/call-tool", CallToolHandler(tools))
-        srv.createContext("/healthz", HealthHandler())
+        val healthHandler = HealthHandler()
+        srv.createContext("/health", healthHandler)
+        srv.createContext("/healthz", healthHandler)
         srv.createContext("/admin/refresh-ssh-keys", RefreshSshKeysHandler())
         srv.createContext("/v1/chat/completions", OpenAIProxyHandler(tools))
         // Use a cached pool but cap thread creation via system property if needed
@@ -39,11 +41,11 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
 private class ToolsHandler(private val tools: ToolRegistry) : HttpHandler {
     override fun handle(exchange: HttpExchange) {
         try {
-            if (exchange.requestMethod != "GET") {
-                respond(exchange, 405, mapOf("error" to "Method not allowed"))
-                return
+            when (exchange.requestMethod) {
+                "GET" -> respond(exchange, 200, tools.listTools())
+                "HEAD" -> respondHead(exchange, 200)
+                else -> respond(exchange, 405, mapOf("error" to "Method not allowed"))
             }
-            respond(exchange, 200, tools.listTools())
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
         }
@@ -119,10 +121,23 @@ private fun respond(exchange: HttpExchange, status: Int, payload: Any) {
     // Basic CORS to allow browser-based callers
     headers.add("Access-Control-Allow-Origin", "*")
     headers.add("Access-Control-Allow-Headers", "content-type")
-    headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    headers.add("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
     headers.add("Access-Control-Max-Age", "600")
     exchange.sendResponseHeaders(status, bytes.size.toLong())
     exchange.responseBody.use { it.write(bytes) }
+}
+
+private fun respondHead(exchange: HttpExchange, status: Int) {
+    val headers = exchange.responseHeaders
+    headers.add("Content-Type", "application/json; charset=utf-8")
+    headers.add("Connection", "close")
+    // Basic CORS to allow browser-based callers
+    headers.add("Access-Control-Allow-Origin", "*")
+    headers.add("Access-Control-Allow-Headers", "content-type")
+    headers.add("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
+    headers.add("Access-Control-Max-Age", "600")
+    exchange.sendResponseHeaders(status, -1)
+    exchange.close()
 }
 
 // ---- helpers ----
@@ -175,11 +190,11 @@ private fun <T> invokeWithTimeout(block: () -> T, timeoutMs: Long): T {
 private class HealthHandler : HttpHandler {
     override fun handle(exchange: HttpExchange) {
         try {
-            if (exchange.requestMethod != "GET") {
-                respond(exchange, 405, mapOf("error" to "Method not allowed"))
-                return
+            when (exchange.requestMethod) {
+                "GET" -> respond(exchange, 200, mapOf("status" to "ok"))
+                "HEAD" -> respondHead(exchange, 200)
+                else -> respond(exchange, 405, mapOf("error" to "Method not allowed"))
             }
-            respond(exchange, 200, mapOf("status" to "ok"))
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("status" to "error", "message" to (e.message ?: "internal error")))
         }

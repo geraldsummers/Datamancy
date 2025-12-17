@@ -53,6 +53,16 @@ homeDirectory: /home/user
 loginShell: /bin/bash
 userPassword: {{USER_SSHA_PASSWORD}}
 
+# Agent Tool Server Observer Account (read-only access for LM queries)
+# Username: agent_observer
+# Password: From AGENT_LDAP_OBSERVER_PASSWORD environment variable
+dn: cn=agent_observer,dc=stack,dc=local
+objectClass: simpleSecurityObject
+objectClass: organizationalRole
+cn: agent_observer
+userPassword: {{AGENT_OBSERVER_SSHA_PASSWORD}}
+description: Read-only account for agent-tool-server to query LDAP
+
 # Admins Group
 dn: cn=admins,ou=groups,dc=stack,dc=local
 objectClass: groupOfNames

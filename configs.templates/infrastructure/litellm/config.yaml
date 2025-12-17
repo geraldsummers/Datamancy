@@ -1,28 +1,12 @@
 model_list:
-  # Primary chat model served by vLLM
-  - model_name: hermes-2-pro-mistral-7b
+  # Qwen 0.5B model served by vLLM
+  - model_name: qwen2.5-0.5b
     litellm_params:
-      model: openai/hermes-2-pro-mistral-7b
-      api_base: http://vllm-router:8010/v1
-      api_key: unused
-      max_tokens: 2048
-    supports_function_calling: true
-
-  # Alias for coding tasks - routed to same vLLM model
-  - model_name: qwen-code
-    litellm_params:
-      model: openai/hermes-2-pro-mistral-7b
-      api_base: http://vllm-router:8010/v1
-      api_key: unused
-      max_tokens: 2048
-
-  # Simple router alias - also routed to main model
-  - model_name: router
-    litellm_params:
-      model: openai/hermes-2-pro-mistral-7b
-      api_base: http://vllm-router:8010/v1
+      model: openai/qwen2.5-0.5b
+      api_base: http://vllm:8000/v1
       api_key: unused
       max_tokens: 1024
+    supports_function_calling: true
 
   # Embedding model via Hugging Face TEI
   - model_name: embed-small
