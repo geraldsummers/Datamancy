@@ -18,6 +18,10 @@ import org.datamancy.datafetcher.api.configureDryRunEndpoints
 import org.datamancy.datafetcher.api.configureMarkdownEndpoints
 import org.datamancy.datafetcher.config.FetchConfig
 import org.datamancy.datafetcher.scheduler.FetchScheduler
+import org.datamancy.datafetcher.storage.CheckpointStore
+import org.datamancy.datafetcher.storage.ClickHouseStore
+import org.datamancy.datafetcher.storage.DedupeStore
+import org.datamancy.datafetcher.storage.PostgresStore
 import java.io.File
 
 private val logger = KotlinLogging.logger {}
@@ -34,6 +38,18 @@ fun main() {
     } catch (e: Exception) {
         logger.error(e) { "Failed to load configuration from $configPath and $sourcesPath" }
         FetchConfig.default()
+    }
+
+    // Initialize database schemas (Phase 0 infrastructure)
+    logger.info { "Initializing Phase 0 infrastructure..." }
+    try {
+        PostgresStore().ensureSchema()
+        ClickHouseStore().ensureSchema()
+        CheckpointStore().ensureSchema()
+        DedupeStore().ensureSchema()
+        logger.info { "Phase 0 infrastructure initialized successfully" }
+    } catch (e: Exception) {
+        logger.error(e) { "Failed to initialize Phase 0 infrastructure - continuing anyway" }
     }
 
     // Initialize scheduler

@@ -1,77 +1,143 @@
 package org.datamancy.datafetcher.fetchers
 
+import com.google.gson.Gson
 import com.rometools.rome.io.SyndFeedInput
 import com.rometools.rome.io.XmlReader
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.datetime.Clock
 import org.datamancy.datafetcher.config.RssConfig
+import org.datamancy.datafetcher.scheduler.FetchExecutionContext
 import org.datamancy.datafetcher.scheduler.FetchResult
-import org.datamancy.datafetcher.storage.FileSystemStore
+import org.datamancy.datafetcher.storage.ContentHasher
+import org.datamancy.datafetcher.storage.DedupeResult
 import org.datamancy.datafetcher.storage.PostgresStore
 import java.net.URI
 
 private val logger = KotlinLogging.logger {}
+private val gson = Gson()
 
 class RssFetcher(private val config: RssConfig) : Fetcher {
-    private val fsStore = FileSystemStore()
     private val pgStore = PostgresStore()
 
     override suspend fun fetch(): FetchResult {
-        logger.info { "Fetching ${config.feeds.size} RSS feeds..." }
-        var totalItems = 0
-        val errors = mutableListOf<String>()
+        return FetchExecutionContext.execute("rss_feeds", version = "2.0.0") { ctx ->
+            logger.info { "Fetching ${config.feeds.size} RSS feeds..." }
 
-        config.feeds.forEach { feed ->
-            try {
-                logger.debug { "Fetching RSS feed: ${feed.url}" }
-                val syndFeed = SyndFeedInput().build(XmlReader(URI(feed.url).toURL()))
+            config.feeds.forEach { feed ->
+                try {
+                    logger.debug { "Fetching RSS feed: ${feed.url}" }
 
-                val items = syndFeed.entries?.map { entry ->
-                    mapOf<String, Any>(
-                        "title" to (entry.title ?: ""),
-                        "link" to (entry.link ?: ""),
-                        "description" to (entry.description?.value ?: ""),
-                        "publishedDate" to (entry.publishedDate?.toInstant()?.toString() ?: ""),
-                        "author" to (entry.author ?: ""),
-                        "categories" to (entry.categories?.map { it.name } ?: emptyList<String>())
-                    )
-                } ?: emptyList()
+                    // Use standardized HTTP client with retry/backoff
+                    val response = ctx.http.get(feed.url)
 
-                totalItems += items.size
+                    if (!response.isSuccessful) {
+                        logger.warn { "HTTP ${response.code} for ${feed.url}" }
+                        ctx.recordError("HTTP_ERROR", "HTTP ${response.code}", feed.url)
+                        response.close()
+                        return@forEach
+                    }
 
-                // Store raw feed data
-                val filename = "${feed.category}_${Clock.System.now().epochSeconds}.json"
-                val json = com.google.gson.Gson().toJson(mapOf(
-                    "feedUrl" to feed.url,
-                    "feedTitle" to syndFeed.title,
-                    "fetchedAt" to Clock.System.now().toString(),
-                    "items" to items
-                ))
-                fsStore.storeRawText("rss", filename, json)
+                    val feedXml = response.body?.string()
+                    response.close()
 
-                // Store metadata
-                pgStore.storeFetchMetadata(
-                    source = "rss",
-                    category = feed.category,
-                    itemCount = items.size,
-                    fetchedAt = Clock.System.now(),
-                    metadata = mapOf(
-                        "feedUrl" to feed.url,
-                        "feedTitle" to (syndFeed.title ?: "")
-                    )
-                )
+                    if (feedXml == null) {
+                        ctx.recordError("EMPTY_RESPONSE", "Empty response", feed.url)
+                        return@forEach
+                    }
 
-                logger.info { "Fetched ${items.size} items from ${feed.category}" }
-            } catch (e: Exception) {
-                logger.error(e) { "Failed to fetch RSS feed: ${feed.url}" }
-                errors.add("${feed.url}: ${e.message}")
+                    // Parse RSS feed
+                    val syndFeed = SyndFeedInput().build(feedXml.reader())
+
+                    // Process each entry individually with dedupe
+                    syndFeed.entries?.forEach { entry ->
+                        ctx.markAttempted()
+
+                        try {
+                            // Create deterministic item ID from GUID or link
+                            val itemId = entry.uri ?: entry.link
+                            if (itemId == null) {
+                                ctx.markSkipped()
+                                return@forEach
+                            }
+                            val safeItemId = itemId.hashCode().toString()
+
+                            // Build normalized entry data
+                            val entryData = mapOf(
+                                "guid" to (entry.uri ?: ""),
+                                "title" to (entry.title ?: ""),
+                                "link" to (entry.link ?: ""),
+                                "description" to (entry.description?.value ?: ""),
+                                "publishedDate" to (entry.publishedDate?.toInstant()?.toString() ?: ""),
+                                "author" to (entry.author ?: ""),
+                                "categories" to (entry.categories?.map { it.name } ?: emptyList<String>()),
+                                "feedUrl" to feed.url,
+                                "feedCategory" to feed.category
+                            )
+
+                            // Compute content hash for dedupe
+                            val contentJson = gson.toJson(entryData)
+                            val contentHash = ContentHasher.hashJson(contentJson)
+
+                            // Dedupe check
+                            when (ctx.dedupe.shouldUpsert(safeItemId, contentHash)) {
+                                DedupeResult.NEW -> {
+                                    // Store raw entry data
+                                    ctx.storage.storeRawText(
+                                        itemId = safeItemId,
+                                        content = contentJson,
+                                        extension = "json"
+                                    )
+
+                                    // Store metadata
+                                    pgStore.storeFetchMetadata(
+                                        source = "rss",
+                                        category = feed.category,
+                                        itemCount = 1,
+                                        fetchedAt = Clock.System.now(),
+                                        metadata = mapOf(
+                                            "feedUrl" to feed.url,
+                                            "itemId" to safeItemId,
+                                            "title" to entryData["title"].toString()
+                                        )
+                                    )
+
+                                    ctx.markNew()
+                                    ctx.markFetched()
+                                }
+                                DedupeResult.UPDATED -> {
+                                    // Content changed, update
+                                    ctx.storage.storeRawText(
+                                        itemId = safeItemId,
+                                        content = contentJson,
+                                        extension = "json"
+                                    )
+                                    ctx.markUpdated()
+                                    ctx.markFetched()
+                                }
+                                DedupeResult.UNCHANGED -> {
+                                    ctx.markSkipped()
+                                }
+                            }
+
+                        } catch (e: Exception) {
+                            logger.error(e) { "Failed to process RSS entry: ${entry.link}" }
+                            ctx.markFailed()
+                            ctx.recordError("ENTRY_PROCESSING_ERROR", e.message ?: "Unknown error", entry.link)
+                        }
+                    }
+
+                    logger.info { "Processed feed ${feed.category}: ${syndFeed.entries?.size ?: 0} entries" }
+
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to fetch RSS feed: ${feed.url}" }
+                    ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", feed.url)
+                }
             }
-        }
 
-        return if (errors.isEmpty()) {
-            FetchResult.Success("Fetched $totalItems items from ${config.feeds.size} feeds", totalItems)
-        } else {
-            FetchResult.Error("Fetched $totalItems items with ${errors.size} errors: ${errors.joinToString("; ")}")
+            // Update checkpoint
+            ctx.checkpoint.set("last_fetch_time", Clock.System.now().toString())
+
+            "Processed ${ctx.metrics.attempted} entries: ${ctx.metrics.new} new, ${ctx.metrics.updated} updated, ${ctx.metrics.skipped} skipped (${ctx.metrics.failed} failed)"
         }
     }
 

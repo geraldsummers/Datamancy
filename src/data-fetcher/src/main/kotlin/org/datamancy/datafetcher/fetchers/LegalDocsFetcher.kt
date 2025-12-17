@@ -9,8 +9,8 @@ import okhttp3.Request
 import org.datamancy.datafetcher.clients.BookStackClient
 import org.datamancy.datafetcher.config.LegalConfig
 import org.datamancy.datafetcher.converters.HtmlToMarkdownConverter
+import org.datamancy.datafetcher.scheduler.FetchExecutionContext
 import org.datamancy.datafetcher.scheduler.FetchResult
-import org.datamancy.datafetcher.storage.FileSystemStore
 import org.datamancy.datafetcher.storage.PostgresStore
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -45,7 +45,6 @@ data class LegislationSection(
 )
 
 class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
-    private val fsStore = FileSystemStore()
     private val pgStore = PostgresStore()
     private val gson = Gson()
     private val bookstack = BookStackClient()
@@ -62,59 +61,53 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
     private val requestDelay = 1000L
 
     override suspend fun fetch(): FetchResult {
-        logger.info { "Starting Australian legislation fetch from ${1 + config.stateUrls.size} jurisdictions..." }
+        return FetchExecutionContext.execute("legal_docs", version = "2.0.0") { ctx ->
+            logger.info { "Starting Australian legislation fetch from ${1 + config.stateUrls.size} jurisdictions..." }
 
-        val allItems = mutableListOf<LegislationItem>()
-        val errors = mutableListOf<String>()
-
-        // Fetch federal legislation
-        try {
-            logger.info { "Fetching federal legislation from ${config.ausLegislationUrl}" }
-            val federalItems = fetchFederalLegislation()
-            allItems.addAll(federalItems)
-            logger.info { "Fetched ${federalItems.size} federal legislation items" }
-            delay(requestDelay)
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to fetch federal legislation" }
-            errors.add("Federal: ${e.message}")
-        }
-
-        // Fetch state/territory legislation
-        for ((state, url) in config.stateUrls) {
+            // Fetch federal legislation
+            ctx.markAttempted()
             try {
-                logger.info { "Fetching ${state.uppercase()} legislation from $url" }
-                val stateItems = fetchStateLegislation(state, url)
-                allItems.addAll(stateItems)
-                logger.info { "Fetched ${stateItems.size} ${state.uppercase()} legislation items" }
+                logger.info { "Fetching federal legislation from ${config.ausLegislationUrl}" }
+                val federalItems = fetchFederalLegislation(ctx)
+                logger.info { "Fetched ${federalItems.size} federal legislation items" }
                 delay(requestDelay)
             } catch (e: Exception) {
-                logger.error(e) { "Failed to fetch ${state.uppercase()} legislation" }
-                errors.add("${state.uppercase()}: ${e.message}")
+                logger.error(e) { "Failed to fetch federal legislation" }
+                ctx.markFailed()
+                ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", "Federal")
             }
-        }
 
-        // Store results
-        if (allItems.isNotEmpty()) {
-            storeResults(allItems)
-        }
+            // Fetch state/territory legislation
+            for ((state, url) in config.stateUrls) {
+                ctx.markAttempted()
+                try {
+                    logger.info { "Fetching ${state.uppercase()} legislation from $url" }
+                    val stateItems = fetchStateLegislation(ctx, state, url)
+                    logger.info { "Fetched ${stateItems.size} ${state.uppercase()} legislation items" }
+                    delay(requestDelay)
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to fetch ${state.uppercase()} legislation" }
+                    ctx.markFailed()
+                    ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", state.uppercase())
+                }
+            }
 
-        // Store metadata
-        pgStore.storeFetchMetadata(
-            source = "legal",
-            category = "australian_legislation",
-            itemCount = allItems.size,
-            fetchedAt = Clock.System.now(),
-            metadata = mapOf(
-                "jurisdictions" to (1 + config.stateUrls.size),
-                "errors" to errors.size,
-                "errorDetails" to errors.joinToString("; ")
+            // Store metadata
+            pgStore.storeFetchMetadata(
+                source = "legal",
+                category = "australian_legislation",
+                itemCount = ctx.metrics.new + ctx.metrics.updated,
+                fetchedAt = Clock.System.now(),
+                metadata = mapOf(
+                    "jurisdictions" to (1 + config.stateUrls.size),
+                    "new" to ctx.metrics.new,
+                    "updated" to ctx.metrics.updated,
+                    "skipped" to ctx.metrics.skipped,
+                    "failed" to ctx.metrics.failed
+                )
             )
-        )
 
-        return if (errors.isEmpty()) {
-            FetchResult.Success("Fetched ${allItems.size} legislation items from ${1 + config.stateUrls.size} jurisdictions", allItems.size)
-        } else {
-            FetchResult.Error("Fetched ${allItems.size} items with ${errors.size} errors: ${errors.joinToString("; ")}")
+            "Processed ${ctx.metrics.attempted} items: ${ctx.metrics.new} new, ${ctx.metrics.updated} updated, ${ctx.metrics.skipped} skipped (${ctx.metrics.failed} failed)"
         }
     }
 
@@ -123,56 +116,57 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
      * For testing - fetches first N Acts from federal legislation.
      */
     suspend fun fetchWithMarkdown(limitPerJurisdiction: Int = 1): FetchResult {
-        logger.info { "Fetching legislation with full markdown content (limit: $limitPerJurisdiction per jurisdiction)..." }
+        return FetchExecutionContext.execute("legal_docs_markdown") { ctx ->
+            logger.info { "Fetching legislation with full markdown content (limit: $limitPerJurisdiction per jurisdiction)..." }
 
-        val allSections = mutableListOf<LegislationSection>()
-        val errors = mutableListOf<String>()
+            val allSections = mutableListOf<LegislationSection>()
 
-        // Fetch federal - limit to N Acts
-        try {
-            logger.info { "Fetching federal legislation with markdown..." }
-            val federalItems = fetchFederalLegislation().take(limitPerJurisdiction)
+            // Fetch federal - limit to N Acts
+            ctx.markAttempted()
+            try {
+                logger.info { "Fetching federal legislation with markdown..." }
+                val federalItems = fetchFederalLegislation(ctx).take(limitPerJurisdiction)
 
-            for (item in federalItems) {
-                try {
-                    delay(requestDelay)
-                    val sections = fetchActSections(item)
-                    allSections.addAll(sections)
-                    logger.info { "Fetched ${sections.size} sections from ${item.title}" }
-                } catch (e: Exception) {
-                    logger.error(e) { "Failed to fetch sections for ${item.title}" }
-                    errors.add("${item.title}: ${e.message}")
+                for (item in federalItems) {
+                    ctx.markAttempted()
+                    try {
+                        delay(requestDelay)
+                        val sections = fetchActSections(item)
+                        allSections.addAll(sections)
+                        ctx.markFetched()
+                        ctx.markNew(sections.size)
+                        logger.info { "Fetched ${sections.size} sections from ${item.title}" }
+                    } catch (e: Exception) {
+                        logger.error(e) { "Failed to fetch sections for ${item.title}" }
+                        ctx.markFailed()
+                        ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", item.title)
+                    }
                 }
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to fetch federal legislation" }
+                ctx.markFailed()
+                ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", "Federal")
             }
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to fetch federal legislation" }
-            errors.add("Federal: ${e.message}")
-        }
 
-        // Store markdown sections
-        if (allSections.isNotEmpty()) {
-            storeMarkdownSections(allSections)
-        }
+            // Store markdown sections
+            if (allSections.isNotEmpty()) {
+                storeMarkdownSections(ctx, allSections)
+            }
 
-        // Store metadata
-        pgStore.storeFetchMetadata(
-            source = "legal_markdown",
-            category = "australian_legislation_sections",
-            itemCount = allSections.size,
-            fetchedAt = Clock.System.now(),
-            metadata = mapOf(
-                "acts_fetched" to allSections.map { it.actTitle }.distinct().size,
-                "errors" to errors.size
+            // Store metadata
+            pgStore.storeFetchMetadata(
+                source = "legal_markdown",
+                category = "australian_legislation_sections",
+                itemCount = allSections.size,
+                fetchedAt = Clock.System.now(),
+                metadata = mapOf(
+                    "acts_fetched" to allSections.map { it.actTitle }.distinct().size,
+                    "fetched" to ctx.metrics.fetched,
+                    "failed" to ctx.metrics.failed
+                )
             )
-        )
 
-        return if (errors.isEmpty()) {
-            FetchResult.Success(
-                "Fetched ${allSections.size} sections from ${allSections.map { it.actTitle }.distinct().size} Acts",
-                allSections.size
-            )
-        } else {
-            FetchResult.Error("Fetched ${allSections.size} sections with ${errors.size} errors: ${errors.joinToString("; ")}")
+            "Fetched ${allSections.size} sections from ${allSections.map { it.actTitle }.distinct().size} Acts (${ctx.metrics.failed} failed)"
         }
     }
 
@@ -238,62 +232,64 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
      * Creates shelf per jurisdiction, book per Act, page per section.
      */
     suspend fun fetchToBookStack(limitPerJurisdiction: Int = 1): FetchResult {
-        logger.info { "Fetching legislation to BookStack (limit: $limitPerJurisdiction per jurisdiction)..." }
+        return FetchExecutionContext.execute("legal_docs_bookstack") { ctx ->
+            logger.info { "Fetching legislation to BookStack (limit: $limitPerJurisdiction per jurisdiction)..." }
 
-        val allSections = mutableListOf<LegislationSection>()
-        val errors = mutableListOf<String>()
-        var pagesCreated = 0
+            val allSections = mutableListOf<LegislationSection>()
+            var pagesCreated = 0
 
-        // Fetch federal - limit to N Acts
-        try {
-            logger.info { "Fetching federal legislation..." }
-            val federalItems = fetchFederalLegislation().take(limitPerJurisdiction)
+            // Fetch federal - limit to N Acts
+            ctx.markAttempted()
+            try {
+                logger.info { "Fetching federal legislation..." }
+                val federalItems = fetchFederalLegislation(ctx).take(limitPerJurisdiction)
 
-            for (item in federalItems) {
-                try {
-                    delay(requestDelay)
-                    val sections = fetchActSections(item)
-                    allSections.addAll(sections)
-                    logger.info { "Fetched ${sections.size} sections from ${item.title}" }
+                for (item in federalItems) {
+                    ctx.markAttempted()
+                    try {
+                        delay(requestDelay)
+                        val sections = fetchActSections(item)
+                        allSections.addAll(sections)
+                        ctx.markFetched()
+                        logger.info { "Fetched ${sections.size} sections from ${item.title}" }
 
-                    // Push to BookStack
-                    pagesCreated += pushActToBookStack(sections)
-                } catch (e: Exception) {
-                    logger.error(e) { "Failed to process ${item.title}" }
-                    errors.add("${item.title}: ${e.message}")
+                        // Push to BookStack
+                        val created = pushActToBookStack(sections)
+                        pagesCreated += created
+                        ctx.markNew(created)
+                    } catch (e: Exception) {
+                        logger.error(e) { "Failed to process ${item.title}" }
+                        ctx.markFailed()
+                        ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", item.title)
+                    }
                 }
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to fetch federal legislation" }
+                ctx.markFailed()
+                ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", "Federal")
             }
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to fetch federal legislation" }
-            errors.add("Federal: ${e.message}")
-        }
 
-        // Store backup to filesystem
-        if (allSections.isNotEmpty()) {
-            storeMarkdownSections(allSections)
-        }
+            // Store backup to filesystem
+            if (allSections.isNotEmpty()) {
+                storeMarkdownSections(ctx, allSections)
+            }
 
-        // Store metadata
-        pgStore.storeFetchMetadata(
-            source = "legal_bookstack",
-            category = "australian_legislation_bookstack",
-            itemCount = pagesCreated,
-            fetchedAt = Clock.System.now(),
-            metadata = mapOf(
-                "acts_fetched" to allSections.map { it.actTitle }.distinct().size,
-                "sections_fetched" to allSections.size,
-                "pages_created" to pagesCreated,
-                "errors" to errors.size
+            // Store metadata
+            pgStore.storeFetchMetadata(
+                source = "legal_bookstack",
+                category = "australian_legislation_bookstack",
+                itemCount = pagesCreated,
+                fetchedAt = Clock.System.now(),
+                metadata = mapOf(
+                    "acts_fetched" to allSections.map { it.actTitle }.distinct().size,
+                    "sections_fetched" to allSections.size,
+                    "pages_created" to pagesCreated,
+                    "fetched" to ctx.metrics.fetched,
+                    "failed" to ctx.metrics.failed
+                )
             )
-        )
 
-        return if (errors.isEmpty()) {
-            FetchResult.Success(
-                "Created $pagesCreated BookStack pages from ${allSections.map { it.actTitle }.distinct().size} Acts",
-                pagesCreated
-            )
-        } else {
-            FetchResult.Error("Created $pagesCreated pages with ${errors.size} errors: ${errors.joinToString("; ")}")
+            "Created $pagesCreated BookStack pages from ${allSections.map { it.actTitle }.distinct().size} Acts (${ctx.metrics.failed} failed)"
         }
     }
 
@@ -378,7 +374,7 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
     /**
      * Stores markdown sections to filesystem.
      */
-    private fun storeMarkdownSections(sections: List<LegislationSection>) {
+    private fun storeMarkdownSections(ctx: FetchExecutionContext, sections: List<LegislationSection>) {
         try {
             val timestamp = Clock.System.now().epochSeconds
 
@@ -392,7 +388,7 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
                     .replace(Regex("\\s+"), "_")
                     .take(50)
 
-                val filename = "act_${safeFilename}_${timestamp}.json"
+                val itemId = "act_${safeFilename}_${timestamp}"
 
                 val data = mapOf(
                     "actTitle" to actTitle,
@@ -412,8 +408,8 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
                 )
 
                 val json = gson.toJson(data)
-                fsStore.storeRawText("legal/markdown", filename, json)
-                logger.info { "Stored ${actSections.size} sections for $actTitle to $filename" }
+                ctx.storage.storeRawText(itemId, json, "json")
+                logger.info { "Stored ${actSections.size} sections for $actTitle to $itemId" }
             }
 
         } catch (e: Exception) {
@@ -421,12 +417,22 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
         }
     }
 
-    private fun fetchFederalLegislation(): List<LegislationItem> {
+    private suspend fun fetchFederalLegislation(ctx: FetchExecutionContext): List<LegislationItem> {
         val items = mutableListOf<LegislationItem>()
 
-        // Fetch the search page with in-force Acts
+        // Fetch the search page with in-force Acts using standardized HTTP client
         val url = "${config.ausLegislationUrl}search/status(InForce)/collection(Act)"
-        val doc = fetchPage(url)
+        val response = ctx.http.get(url)
+        if (!response.isSuccessful) {
+            response.close()
+            throw Exception("HTTP ${response.code}")
+        }
+        val html = response.body?.string()
+        response.close()
+        if (html == null) {
+            throw Exception("Empty response")
+        }
+        val doc = Jsoup.parse(html, url)
 
         // Try to find CSV download link for bulk data
         val csvLink = doc.select("a[href*='csv'], a[href*='download']").firstOrNull()?.attr("abs:href")
@@ -449,7 +455,7 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
                 val href = link.attr("abs:href")
 
                 if (title.isNotEmpty() && href.isNotEmpty()) {
-                    items.add(LegislationItem(
+                    val item = LegislationItem(
                         title = title,
                         jurisdiction = "federal",
                         year = extractYear(title),
@@ -458,7 +464,9 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
                         url = href,
                         status = "In force",
                         registrationDate = null
-                    ))
+                    )
+                    items.add(item)
+                    storeLegislationItem(ctx, item)
                 }
             }
         } else {
@@ -477,7 +485,7 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
                     val year = extractYear(title) ?: extractYear(metaText)
                     val regDate = extractDate(metaText)
 
-                    items.add(LegislationItem(
+                    val item = LegislationItem(
                         title = title,
                         jurisdiction = "federal",
                         year = year,
@@ -486,7 +494,9 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
                         url = url,
                         status = status,
                         registrationDate = regDate
-                    ))
+                    )
+                    items.add(item)
+                    storeLegislationItem(ctx, item)
                 } catch (e: Exception) {
                     logger.warn(e) { "Failed to parse listing item" }
                 }
@@ -497,7 +507,7 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
         return items
     }
 
-    private fun fetchStateLegislation(state: String, baseUrl: String): List<LegislationItem> {
+    private suspend fun fetchStateLegislation(ctx: FetchExecutionContext, state: String, baseUrl: String): List<LegislationItem> {
         val items = mutableListOf<LegislationItem>()
 
         // Different states have different URL structures
@@ -515,7 +525,17 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
 
         for (searchUrl in searchUrls.take(1)) { // Try first URL for each state
             try {
-                val doc = fetchPage(searchUrl)
+                val response = ctx.http.get(searchUrl)
+                if (!response.isSuccessful) {
+                    response.close()
+                    continue
+                }
+                val html = response.body?.string()
+                response.close()
+                if (html == null) {
+                    continue
+                }
+                val doc = Jsoup.parse(html, searchUrl)
 
                 // Look for legislation links with various patterns
                 val linkSelectors = listOf(
@@ -542,7 +562,7 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
                         continue
                     }
 
-                    items.add(LegislationItem(
+                    val item = LegislationItem(
                         title = title,
                         jurisdiction = state.uppercase(),
                         year = extractYear(title),
@@ -551,7 +571,9 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
                         url = href,
                         status = "In force",
                         registrationDate = null
-                    ))
+                    )
+                    items.add(item)
+                    storeLegislationItem(ctx, item)
                 }
 
                 // If we found items, break (don't try other URLs)
@@ -585,38 +607,35 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
         }
     }
 
-    private fun storeResults(items: List<LegislationItem>) {
+    /**
+     * Stores individual legislation item with content-based dedupe
+     */
+    private fun storeLegislationItem(ctx: FetchExecutionContext, item: LegislationItem) {
         try {
-            // Store as JSON
-            val timestamp = Clock.System.now().epochSeconds
-            val filename = "legislation_${timestamp}.json"
+            val itemJson = gson.toJson(item)
+            val contentHash = org.datamancy.datafetcher.storage.ContentHasher.hashJson(itemJson)
 
-            val data = mapOf(
-                "fetchedAt" to Clock.System.now().toString(),
-                "itemCount" to items.size,
-                "jurisdictions" to items.groupBy { it.jurisdiction }.mapValues { it.value.size },
-                "items" to items
-            )
+            // Use URL hash as deterministic ID
+            val itemId = "leg_${item.url.hashCode()}"
 
-            val json = gson.toJson(data)
-            fsStore.storeRawText("legal", filename, json)
-
-            logger.info { "Stored ${items.size} legislation items to $filename" }
-
-            // Also store per-jurisdiction files
-            for ((jurisdiction, jurisdictionItems) in items.groupBy { it.jurisdiction }) {
-                val jFilename = "legislation_${jurisdiction.lowercase()}_${timestamp}.json"
-                val jData = mapOf(
-                    "jurisdiction" to jurisdiction,
-                    "fetchedAt" to Clock.System.now().toString(),
-                    "itemCount" to jurisdictionItems.size,
-                    "items" to jurisdictionItems
-                )
-                fsStore.storeRawText("legal", jFilename, gson.toJson(jData))
+            when (ctx.dedupe.shouldUpsert(itemId, contentHash)) {
+                org.datamancy.datafetcher.storage.DedupeResult.NEW -> {
+                    ctx.storage.storeRawText(itemId, itemJson, "json")
+                    ctx.markNew()
+                    ctx.markFetched()
+                }
+                org.datamancy.datafetcher.storage.DedupeResult.UPDATED -> {
+                    ctx.storage.storeRawText(itemId, itemJson, "json")
+                    ctx.markUpdated()
+                    ctx.markFetched()
+                }
+                org.datamancy.datafetcher.storage.DedupeResult.UNCHANGED -> {
+                    ctx.markSkipped()
+                }
             }
-
         } catch (e: Exception) {
-            logger.error(e) { "Failed to store legislation results" }
+            logger.error(e) { "Failed to store legislation item: ${item.title}" }
+            ctx.recordError("STORAGE_ERROR", e.message ?: "Unknown error", item.url)
         }
     }
 

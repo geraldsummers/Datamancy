@@ -45,12 +45,12 @@ dependencies {
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.3")
 
     // Ktor server for API and SSE
-    implementation("io.ktor:ktor-server-core:2.3.12")
-    implementation("io.ktor:ktor-server-netty:2.3.12")
-    implementation("io.ktor:ktor-server-content-negotiation:2.3.12")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
-    implementation("io.ktor:ktor-server-html-builder:2.3.12")
-    implementation("io.ktor:ktor-server-sse:2.3.12")
+    implementation("io.ktor:ktor-server-core:3.0.0")
+    implementation("io.ktor:ktor-server-netty:3.0.0")
+    implementation("io.ktor:ktor-server-content-negotiation:3.0.0")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.0")
+    implementation("io.ktor:ktor-server-html-builder:3.0.0")
+    implementation("io.ktor:ktor-server-sse:3.0.0")
 }
 
 application {

@@ -1,96 +1,174 @@
 package org.datamancy.datafetcher.fetchers
 
+import com.google.gson.Gson
 import com.google.gson.JsonParser
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.datetime.Clock
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import kotlinx.datetime.Instant
 import org.datamancy.datafetcher.config.MarketDataConfig
+import org.datamancy.datafetcher.scheduler.FetchExecutionContext
 import org.datamancy.datafetcher.scheduler.FetchResult
 import org.datamancy.datafetcher.storage.ClickHouseStore
-import org.datamancy.datafetcher.storage.FileSystemStore
+import org.datamancy.datafetcher.storage.ContentHasher
+import org.datamancy.datafetcher.storage.DedupeResult
 import org.datamancy.datafetcher.storage.PostgresStore
-import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
+private val gson = Gson()
+
+data class InstrumentMapping(val symbol: String, val provider: String, val providerId: String, val instrumentType: String)
 
 class MarketDataFetcher(private val config: MarketDataConfig) : Fetcher {
     private val clickHouseStore = ClickHouseStore()
-    private val fsStore = FileSystemStore()
     private val pgStore = PostgresStore()
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .build()
-
     override suspend fun fetch(): FetchResult {
-        logger.info { "Fetching market data for ${config.symbols.size} symbols..." }
-        var totalFetched = 0
-        val errors = mutableListOf<String>()
+        return FetchExecutionContext.execute("market_data", version = "2.0.0") { ctx ->
+            logger.info { "Fetching market data for ${config.symbols.size} symbols..." }
 
-        // Fetch crypto data from CoinGecko (free tier)
-        config.symbols.filter { it.length <= 5 && it.all { c -> c.isUpperCase() } }.forEach { symbol ->
-            try {
-                fetchCryptoFromCoinGecko(symbol.lowercase())
-                totalFetched++
-            } catch (e: Exception) {
-                logger.error(e) { "Failed to fetch crypto data for $symbol" }
-                errors.add("$symbol: ${e.message}")
+            // Build/refresh instrument registry
+            val instrumentRegistry = buildInstrumentRegistry(ctx)
+
+            // Fetch data for each instrument
+            instrumentRegistry.forEach { instrument ->
+                ctx.markAttempted()
+                try {
+                    when (instrument.provider) {
+                        "coingecko" -> fetchCryptoFromCoinGecko(ctx, instrument)
+                        else -> {
+                            ctx.markSkipped()
+                            logger.warn { "Unknown provider: ${instrument.provider}" }
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to fetch ${instrument.symbol}" }
+                    ctx.markFailed()
+                    ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", instrument.symbol)
+                }
             }
-        }
 
-        // Store fetch metadata
-        pgStore.storeFetchMetadata(
-            source = "market_data",
-            category = "crypto",
-            itemCount = totalFetched,
-            fetchedAt = Clock.System.now()
-        )
-
-        return if (errors.isEmpty()) {
-            FetchResult.Success("Fetched market data for $totalFetched symbols", totalFetched)
-        } else {
-            FetchResult.Error("Fetched $totalFetched with ${errors.size} errors: ${errors.joinToString("; ")}")
+            "Processed ${ctx.metrics.attempted} instruments: ${ctx.metrics.new} new, ${ctx.metrics.updated} updated, ${ctx.metrics.skipped} skipped"
         }
     }
 
-    private fun fetchCryptoFromCoinGecko(coinId: String) {
-        // CoinGecko free API - no key required for basic endpoints
-        val url = "https://api.coingecko.com/api/v3/simple/price?ids=$coinId&vs_currencies=usd&include_24hr_vol=true"
+    private suspend fun buildInstrumentRegistry(ctx: FetchExecutionContext): List<InstrumentMapping> {
+        val registry = mutableListOf<InstrumentMapping>()
 
-        val request = Request.Builder()
-            .url(url)
-            .get()
-            .build()
+        // Map symbols to providers (simple heuristic for MVP)
+        config.symbols.forEach { symbol ->
+            val instrumentType = when {
+                symbol.length <= 5 && symbol.all { it.isUpperCase() || it.isDigit() } -> "crypto"
+                else -> "unknown"
+            }
 
-        client.newCall(request).execute().use { response ->
-            if (response.isSuccessful) {
-                val body = response.body?.string() ?: return
-                val json = JsonParser.parseString(body).asJsonObject
+            when (instrumentType) {
+                "crypto" -> {
+                    // Check cache for CoinGecko ID mapping
+                    val cacheKey = "coingecko_id_$symbol"
+                    val coinGeckoId = ctx.checkpoint.get(cacheKey) ?: symbol.lowercase()
 
-                if (json.has(coinId)) {
-                    val data = json.getAsJsonObject(coinId)
-                    val price = data.get("usd")?.asDouble ?: 0.0
-                    val volume = data.get("usd_24h_vol")?.asDouble
+                    // For MVP, assume symbol.lowercase() == coinGeckoId
+                    // Production would query CoinGecko /coins/list endpoint
+                    ctx.checkpoint.set(cacheKey, coinGeckoId)
 
-                    // Store in ClickHouse
-                    clickHouseStore.storeMarketData(
-                        symbol = coinId.uppercase(),
-                        price = price,
-                        volume = volume,
-                        timestamp = Clock.System.now(),
-                        source = "coingecko"
-                    )
-
-                    // Also store raw JSON
-                    val filename = "${coinId}_${Clock.System.now().epochSeconds}.json"
-                    fsStore.storeRawText("market_data/crypto", filename, body)
-
-                    logger.info { "Fetched crypto data: $coinId = $$price" }
+                    registry.add(InstrumentMapping(
+                        symbol = symbol,
+                        provider = "coingecko",
+                        providerId = coinGeckoId,
+                        instrumentType = "crypto"
+                    ))
                 }
-            } else {
-                throw Exception("HTTP ${response.code}: ${response.message}")
+            }
+        }
+
+        return registry
+    }
+
+    private suspend fun fetchCryptoFromCoinGecko(ctx: FetchExecutionContext, instrument: InstrumentMapping) {
+        val url = "https://api.coingecko.com/api/v3/simple/price?ids=${instrument.providerId}&vs_currencies=usd&include_24hr_vol=true&include_last_updated_at=true"
+
+        val response = ctx.http.get(url)
+        if (!response.isSuccessful) {
+            response.close()
+            throw Exception("HTTP ${response.code}")
+        }
+
+        val body = response.body?.string()
+        response.close()
+
+        if (body == null || body == "{}") {
+            throw Exception("Empty or invalid response")
+        }
+
+        val json = JsonParser.parseString(body).asJsonObject
+
+        if (!json.has(instrument.providerId)) {
+            throw Exception("Instrument not found: ${instrument.providerId}")
+        }
+
+        val data = json.getAsJsonObject(instrument.providerId)
+        val price = data.get("usd")?.asDouble ?: 0.0
+        val volume = data.get("usd_24h_vol")?.asDouble
+        val lastUpdated = data.get("last_updated_at")?.asLong?.let { Instant.fromEpochSeconds(it) }
+            ?: Clock.System.now()
+
+        // Normalize market data
+        val marketData = mapOf(
+            "symbol" to instrument.symbol,
+            "price" to price,
+            "volume" to (volume ?: 0.0),
+            "timestamp" to lastUpdated.toString(),
+            "source" to "coingecko",
+            "instrumentType" to instrument.instrumentType
+        )
+
+        val dataJson = gson.toJson(marketData)
+        val contentHash = ContentHasher.hashJson(dataJson)
+
+        // Dedupe by instrument + timestamp (minute precision)
+        val timestampKey = lastUpdated.toString().take(16) // YYYY-MM-DDTHH:MM
+        val itemId = "${instrument.symbol}_$timestampKey"
+
+        when (ctx.dedupe.shouldUpsert(itemId, contentHash)) {
+            DedupeResult.NEW -> {
+                // Store in ClickHouse time-series
+                clickHouseStore.storeMarketData(
+                    symbol = instrument.symbol,
+                    price = price,
+                    volume = volume,
+                    timestamp = lastUpdated,
+                    source = "coingecko",
+                    metadata = mapOf(
+                        "instrumentType" to instrument.instrumentType,
+                        "providerId" to instrument.providerId
+                    )
+                )
+
+                // Store raw JSON
+                ctx.storage.storeRawText(itemId, body, "json")
+
+                pgStore.storeFetchMetadata(
+                    source = "market_data",
+                    category = instrument.instrumentType,
+                    itemCount = 1,
+                    fetchedAt = Clock.System.now(),
+                    metadata = mapOf(
+                        "symbol" to instrument.symbol,
+                        "price" to price
+                    )
+                )
+
+                ctx.markNew()
+                ctx.markFetched()
+                logger.info { "Market: ${instrument.symbol} = $$price (vol: $volume)" }
+            }
+            DedupeResult.UPDATED -> {
+                ctx.storage.storeRawText(itemId, body, "json")
+                ctx.markUpdated()
+                ctx.markFetched()
+            }
+            DedupeResult.UNCHANGED -> {
+                ctx.markSkipped()
             }
         }
     }

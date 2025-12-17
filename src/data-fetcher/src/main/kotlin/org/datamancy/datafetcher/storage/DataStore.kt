@@ -156,11 +156,114 @@ class ClickHouseStore {
 }
 
 /**
- * Filesystem storage for raw files
+ * Filesystem storage for raw files with canonical path structure.
+ *
+ * Path convention: /raw/{source}/{yyyy}/{mm}/{dd}/{runId}/{itemId}.{ext}
+ * This provides:
+ * - Time-based organization for easy cleanup/archival
+ * - Run-level isolation
+ * - Deterministic paths for retrieval
+ *
+ * Usage:
+ * ```
+ * fileStore.storeRaw(
+ *     source = "rss_feeds",
+ *     runId = "run_123",
+ *     itemId = "article_456",
+ *     content = jsonBytes,
+ *     extension = "json"
+ * )
+ * ```
  */
 class FileSystemStore {
     private val basePath = System.getenv("DATAFETCHER_DATA_PATH") ?: "/app/data"
 
+    /**
+     * Store raw data with canonical path structure.
+     * Path: /raw/{source}/{yyyy}/{mm}/{dd}/{runId}/{itemId}.{ext}
+     */
+    fun storeRaw(
+        source: String,
+        runId: String,
+        itemId: String,
+        content: ByteArray,
+        extension: String = "bin",
+        timestamp: kotlinx.datetime.Instant = kotlinx.datetime.Clock.System.now()
+    ): String {
+        return try {
+            val path = buildCanonicalPath(source, runId, itemId, extension, timestamp)
+            val file = File("$basePath/$path")
+            file.parentFile.mkdirs()
+            file.writeBytes(content)
+            logger.info { "Stored raw data: $path (${content.size} bytes)" }
+            path
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to store raw data: $source/$runId/$itemId" }
+            throw e
+        }
+    }
+
+    /**
+     * Store raw text with canonical path structure.
+     */
+    fun storeRawText(
+        source: String,
+        runId: String,
+        itemId: String,
+        content: String,
+        extension: String = "txt",
+        timestamp: kotlinx.datetime.Instant = kotlinx.datetime.Clock.System.now()
+    ): String {
+        return storeRaw(source, runId, itemId, content.toByteArray(), extension, timestamp)
+    }
+
+    /**
+     * Read raw data from canonical path.
+     */
+    fun readRaw(path: String): ByteArray {
+        return try {
+            File("$basePath/$path").readBytes()
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to read raw data: $path" }
+            throw e
+        }
+    }
+
+    /**
+     * Check if raw data exists at path.
+     */
+    fun exists(path: String): Boolean {
+        return File("$basePath/$path").exists()
+    }
+
+    /**
+     * Build canonical path: raw/{source}/{yyyy}/{mm}/{dd}/{runId}/{itemId}.{ext}
+     */
+    private fun buildCanonicalPath(
+        source: String,
+        runId: String,
+        itemId: String,
+        extension: String,
+        timestamp: kotlinx.datetime.Instant
+    ): String {
+        val instant = java.time.Instant.ofEpochMilli(timestamp.toEpochMilliseconds())
+        val zonedDateTime = java.time.ZonedDateTime.ofInstant(instant, java.time.ZoneOffset.UTC)
+
+        val year = zonedDateTime.year.toString().padStart(4, '0')
+        val month = zonedDateTime.monthValue.toString().padStart(2, '0')
+        val day = zonedDateTime.dayOfMonth.toString().padStart(2, '0')
+
+        // Sanitize itemId for filesystem safety
+        val safeItemId = itemId.replace(Regex("[^a-zA-Z0-9_.-]"), "_")
+
+        return "raw/$source/$year/$month/$day/$runId/$safeItemId.$extension"
+    }
+
+    /**
+     * Legacy method for backward compatibility.
+     * @deprecated Use storeRaw with canonical paths instead.
+     */
+    @Deprecated("Use storeRaw with canonical paths")
     fun storeRawData(category: String, filename: String, content: ByteArray) {
         try {
             val dir = File("$basePath/$category")
@@ -173,7 +276,24 @@ class FileSystemStore {
         }
     }
 
+    /**
+     * Legacy method for backward compatibility.
+     * @deprecated Use storeRawText with canonical paths instead.
+     */
+    @Deprecated("Use storeRawText with canonical paths")
     fun storeRawText(category: String, filename: String, content: String) {
         storeRawData(category, filename, content.toByteArray())
     }
 }
+
+/**
+ * Raw storage metadata record
+ */
+data class RawStorageRecord(
+    val source: String,
+    val runId: String,
+    val itemId: String,
+    val path: String,
+    val sizeBytes: Long,
+    val storedAt: kotlinx.datetime.Instant
+)

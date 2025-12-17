@@ -11,6 +11,8 @@ import io.qdrant.client.ValueFactory.value
 import io.qdrant.client.PointIdFactory.id
 import io.qdrant.client.VectorsFactory.vectors
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -195,8 +197,8 @@ class UnifiedIndexer(
         }
 
         // Store in parallel with concurrency control
-        val semaphore = kotlinx.coroutines.sync.Semaphore(maxConcurrency)
-        contents.zip(embeddings).map { (pageContent, embedding) ->
+        val semaphore = Semaphore(maxConcurrency)
+        val tasks = contents.zip(embeddings).map { (pageContent, embedding) ->
             async {
                 semaphore.withPermit {
                     val (page, content) = pageContent
@@ -219,7 +221,8 @@ class UnifiedIndexer(
                     }
                 }
             }
-        }.awaitAll()
+        }
+        tasks.awaitAll()
     }
 
     /**

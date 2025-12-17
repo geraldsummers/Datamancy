@@ -105,7 +105,8 @@ class FetchScheduler(private val config: FetchConfig) {
     suspend fun executeFetch(name: String) {
         isRunning[name] = true
         val startTime = Clock.System.now()
-        logger.info { "Executing fetch: $name" }
+        val runId = generateRunId(name, startTime)
+        logger.info { "Executing fetch: $name (runId: $runId)" }
 
         try {
             val result = when (name) {
@@ -121,17 +122,27 @@ class FetchScheduler(private val config: FetchConfig) {
                 "agent_functions" -> agentFunctionsFetcher.fetch()
                 else -> {
                     logger.warn { "Unknown fetch job: $name" }
-                    FetchResult.Error("Unknown job: $name")
+                    val endTime = Clock.System.now()
+                    FetchResult.Error(
+                        runId = runId,
+                        startedAt = startTime,
+                        endedAt = endTime,
+                        jobName = name,
+                        message = "Unknown job: $name"
+                    )
                 }
             }
 
             when (result) {
                 is FetchResult.Success -> {
-                    logger.info { "Fetch completed: $name - ${result.message}" }
+                    logger.info { "Fetch completed: $name - ${result.message} | ${result.metrics.summary()}" }
                     runCount[name]?.incrementAndGet()
                 }
                 is FetchResult.Error -> {
-                    logger.error { "Fetch failed: $name - ${result.message}" }
+                    logger.error { "Fetch failed: $name - ${result.message} | ${result.metrics.summary()}" }
+                    if (result.errorSamples.isNotEmpty()) {
+                        logger.error { "Error samples (${result.errorSamples.size}): ${result.errorSamples.take(3)}" }
+                    }
                     errorCount[name]?.incrementAndGet()
                 }
             }
@@ -145,6 +156,11 @@ class FetchScheduler(private val config: FetchConfig) {
             val duration = Clock.System.now() - startTime
             logger.info { "Fetch $name completed in ${duration.inWholeSeconds}s" }
         }
+    }
+
+    private fun generateRunId(jobName: String, timestamp: Instant): String {
+        val epochSeconds = timestamp.epochSeconds
+        return "${jobName}_${epochSeconds}_${(0..999).random()}"
     }
 
     suspend fun executeDryRun(name: String): DryRunResult? {
@@ -235,6 +251,54 @@ data class FetchStatus(
 )
 
 sealed class FetchResult {
-    data class Success(val message: String, val itemCount: Int = 0) : FetchResult()
-    data class Error(val message: String) : FetchResult()
+    abstract val runId: String
+    abstract val startedAt: Instant
+    abstract val endedAt: Instant
+    abstract val jobName: String
+    abstract val version: String
+
+    data class Success(
+        override val runId: String,
+        override val startedAt: Instant,
+        override val endedAt: Instant,
+        override val jobName: String,
+        override val version: String = "1.0.0",
+        val message: String,
+        val metrics: FetchMetrics = FetchMetrics()
+    ) : FetchResult()
+
+    data class Error(
+        override val runId: String,
+        override val startedAt: Instant,
+        override val endedAt: Instant,
+        override val jobName: String,
+        override val version: String = "1.0.0",
+        val message: String,
+        val metrics: FetchMetrics = FetchMetrics(),
+        val errorSamples: List<ErrorSample> = emptyList()
+    ) : FetchResult()
 }
+
+/**
+ * Detailed metrics for a fetch run
+ */
+data class FetchMetrics(
+    val attempted: Int = 0,
+    val fetched: Int = 0,
+    val new: Int = 0,
+    val updated: Int = 0,
+    val skipped: Int = 0,
+    val failed: Int = 0
+) {
+    fun summary(): String = "attempted=$attempted, new=$new, updated=$updated, skipped=$skipped, failed=$failed"
+}
+
+/**
+ * Sample of an error that occurred during fetch
+ */
+data class ErrorSample(
+    val errorType: String,
+    val message: String,
+    val itemId: String? = null,
+    val timestamp: Instant
+)
