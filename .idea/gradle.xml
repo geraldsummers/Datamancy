@@ -10,6 +10,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/src/agent-tool-server" />
+            <option value="$PROJECT_DIR$/src/control-panel" />
             <option value="$PROJECT_DIR$/src/data-fetcher" />
             <option value="$PROJECT_DIR$/src/search-service" />
             <option value="$PROJECT_DIR$/src/unified-indexer" />
