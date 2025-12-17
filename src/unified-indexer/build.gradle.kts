@@ -51,6 +51,12 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.0")
     implementation("io.ktor:ktor-server-html-builder:3.0.0")
     implementation("io.ktor:ktor-server-sse:3.0.0")
+
+    // Tests
+    testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
+    testImplementation("io.mockk:mockk:1.13.13")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }
 
 application {
@@ -64,6 +70,10 @@ tasks {
         archiveVersion.set("")
         mergeServiceFiles()
     }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 kotlin {

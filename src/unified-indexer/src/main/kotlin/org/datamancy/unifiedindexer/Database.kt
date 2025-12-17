@@ -10,11 +10,24 @@ import java.util.*
 
 private val logger = KotlinLogging.logger {}
 
+interface DatabaseApi {
+    fun createJob(collectionName: String): UUID
+    fun updateJobProgress(jobId: UUID, indexedPages: Int, totalPages: Int, currentPageId: Int?)
+    fun completeJob(jobId: UUID, status: String, error: String?)
+    fun getJob(jobId: UUID): IndexingJob?
+    fun getAllJobs(): List<IndexingJob>
+    fun upsertIndexedPage(page: IndexedPage)
+    fun getIndexedPages(collectionName: String): Map<Int, String>
+    fun logError(jobId: UUID, pageId: Int?, pageName: String?, errorMessage: String, stackTrace: String)
+    fun getJobErrors(jobId: UUID): List<IndexingError>
+    fun close()
+}
+
 class Database(
     private val jdbcUrl: String,
     private val username: String,
     private val password: String
-) {
+): DatabaseApi {
     private val dataSource: HikariDataSource
 
     init {
@@ -44,7 +57,7 @@ class Database(
         logger.info { "Database schema initialized" }
     }
 
-    fun createJob(collectionName: String): UUID {
+    override fun createJob(collectionName: String): UUID {
         val jobId = UUID.randomUUID()
         dataSource.connection.use { conn ->
             conn.prepareStatement("""
@@ -59,7 +72,7 @@ class Database(
         return jobId
     }
 
-    fun updateJobProgress(jobId: UUID, indexedPages: Int, totalPages: Int, currentPageId: Int? = null) {
+    override fun updateJobProgress(jobId: UUID, indexedPages: Int, totalPages: Int, currentPageId: Int?) {
         dataSource.connection.use { conn ->
             conn.prepareStatement("""
                 UPDATE indexing_jobs
@@ -75,7 +88,7 @@ class Database(
         }
     }
 
-    fun completeJob(jobId: UUID, status: String, error: String? = null) {
+    override fun completeJob(jobId: UUID, status: String, error: String?) {
         dataSource.connection.use { conn ->
             conn.prepareStatement("""
                 UPDATE indexing_jobs
@@ -90,7 +103,7 @@ class Database(
         }
     }
 
-    fun getJob(jobId: UUID): IndexingJob? {
+    override fun getJob(jobId: UUID): IndexingJob? {
         dataSource.connection.use { conn ->
             conn.prepareStatement("""
                 SELECT * FROM indexing_jobs WHERE job_id = ?
@@ -102,7 +115,7 @@ class Database(
         }
     }
 
-    fun getAllJobs(): List<IndexingJob> {
+    override fun getAllJobs(): List<IndexingJob> {
         dataSource.connection.use { conn ->
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery("""
@@ -119,7 +132,7 @@ class Database(
         }
     }
 
-    fun upsertIndexedPage(page: IndexedPage) {
+    override fun upsertIndexedPage(page: IndexedPage) {
         dataSource.connection.use { conn ->
             conn.prepareStatement("""
                 INSERT INTO indexed_pages
@@ -141,7 +154,7 @@ class Database(
         }
     }
 
-    fun getIndexedPages(collectionName: String): Map<Int, String> {
+    override fun getIndexedPages(collectionName: String): Map<Int, String> {
         val result = mutableMapOf<Int, String>()
         dataSource.connection.use { conn ->
             conn.prepareStatement("""
@@ -159,7 +172,7 @@ class Database(
         return result
     }
 
-    fun logError(jobId: UUID, pageId: Int?, pageName: String?, errorMessage: String, stackTrace: String) {
+    override fun logError(jobId: UUID, pageId: Int?, pageName: String?, errorMessage: String, stackTrace: String) {
         dataSource.connection.use { conn ->
             conn.prepareStatement("""
                 INSERT INTO indexing_errors
@@ -176,7 +189,7 @@ class Database(
         }
     }
 
-    fun getJobErrors(jobId: UUID): List<IndexingError> {
+    override fun getJobErrors(jobId: UUID): List<IndexingError> {
         dataSource.connection.use { conn ->
             conn.prepareStatement("""
                 SELECT * FROM indexing_errors
@@ -216,7 +229,7 @@ class Database(
         errorMessage = getString("error_message")
     )
 
-    fun close() {
+    override fun close() {
         dataSource.close()
     }
 }

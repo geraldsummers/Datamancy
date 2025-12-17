@@ -31,7 +31,7 @@ const val EMBEDDING_VERSION = "all-MiniLM-L6-v2-v1"
  * Unified Indexer with batch processing, diff detection, resumability, and progress tracking.
  */
 class UnifiedIndexer(
-    private val database: Database,
+    private val database: DatabaseApi,
     private val sourceAdapter: SourceAdapter,
     private val qdrantUrl: String,
     private val clickhouseUrl: String,
@@ -90,11 +90,11 @@ class UnifiedIndexer(
                 diff.new + diff.modified
             }
 
-            database.updateJobProgress(jobId, 0, pagesToIndex.size)
+            database.updateJobProgress(jobId, 0, pagesToIndex.size, null)
 
             if (pagesToIndex.isEmpty()) {
                 logger.info { "No pages to index for $collectionName" }
-                database.completeJob(jobId, "completed")
+                database.completeJob(jobId, "completed", null)
                 return jobId
             }
 
@@ -104,7 +104,7 @@ class UnifiedIndexer(
                 try {
                     indexBatch(collectionName, batch, jobId)
                     indexed += batch.size
-                    database.updateJobProgress(jobId, indexed, pagesToIndex.size)
+                    database.updateJobProgress(jobId, indexed, pagesToIndex.size, null)
                     logger.info { "Progress: $indexed/${pagesToIndex.size} pages indexed" }
                 } catch (e: Exception) {
                     logger.error(e) { "Failed to index batch" }
@@ -113,7 +113,7 @@ class UnifiedIndexer(
                 delay(100) // Rate limiting
             }
 
-            database.completeJob(jobId, "completed")
+            database.completeJob(jobId, "completed", null)
             logger.info { "Completed indexing $collectionName: $indexed/${pagesToIndex.size} pages" }
 
         } catch (e: Exception) {
@@ -128,7 +128,7 @@ class UnifiedIndexer(
     /**
      * Compute diff between source and indexed pages.
      */
-    private suspend fun computeDiff(collectionName: String, sourcePages: List<PageInfo>): PageDiff {
+    internal suspend fun computeDiff(collectionName: String, sourcePages: List<PageInfo>): PageDiff {
         val indexedPages = database.getIndexedPages(collectionName)
         val sourcePageIds = sourcePages.map { it.id }.toSet()
         val indexedPageIds = indexedPages.keys
@@ -373,7 +373,7 @@ class UnifiedIndexer(
         }
     }
 
-    private fun computeContentHash(content: String): String {
+    internal fun computeContentHash(content: String): String {
         return MessageDigest.getInstance("SHA-256")
             .digest(content.toByteArray())
             .joinToString("") { "%02x".format(it) }

@@ -42,6 +42,12 @@ dependencies {
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.15")
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.3")
+
+    // Tests
+    testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
+    testImplementation("io.mockk:mockk:1.13.13")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }
 
 application {
@@ -55,6 +61,10 @@ tasks {
         archiveVersion.set("")
         mergeServiceFiles()
     }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 kotlin {
