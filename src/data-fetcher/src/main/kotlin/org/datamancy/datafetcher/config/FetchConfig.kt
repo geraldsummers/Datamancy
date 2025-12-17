@@ -55,9 +55,12 @@ data class FetchConfig(
         private fun defaultSchedules(): Map<String, ScheduleConfig> = mapOf(
             "rss_feeds" to ScheduleConfig(cron = "*/30 * * * *", enabled = true),
             "market_data" to ScheduleConfig(cron = "*/15 * * * *", enabled = true),
-            "weather" to ScheduleConfig(cron = "0 * * * *", enabled = true),
             "economic_data" to ScheduleConfig(cron = "0 9 * * 1", enabled = false),
-            "wiki_dumps" to ScheduleConfig(cron = "0 2 * * 0", enabled = false)
+            "wiki_dumps" to ScheduleConfig(cron = "0 2 * * 0", enabled = false),
+            "docs" to ScheduleConfig(cron = "0 3 * * 0", enabled = false),
+            "torrents" to ScheduleConfig(cron = "0 */6 * * *", enabled = false),
+            "agent_functions" to ScheduleConfig(cron = "0 0 * * *", enabled = false),
+            "legal_docs" to ScheduleConfig(cron = "0 4 * * 0", enabled = false)
         )
     }
 }
@@ -78,7 +81,6 @@ data class SourcesConfig(
     val wiki: WikiConfig = WikiConfig(),
     val rss: RssConfig = RssConfig(),
     val marketData: MarketDataConfig = MarketDataConfig(),
-    val weather: WeatherConfig = WeatherConfig(),
     val economic: EconomicConfig = EconomicConfig(),
     val search: SearchConfig = SearchConfig(),
     val legal: LegalConfig = LegalConfig(),
@@ -128,12 +130,6 @@ data class MarketDataConfig(
     val symbols: List<String> = listOf("BTC", "ETH", "AAPL", "GOOGL"),
     val cryptoSources: List<String> = listOf("coingecko"),
     val stockSources: List<String> = listOf("yahoo")
-)
-
-@Serializable
-data class WeatherConfig(
-    val locations: List<String> = listOf("Sydney", "Melbourne", "Brisbane"),
-    val apiKey: String = System.getenv("OPENWEATHER_API_KEY") ?: ""
 )
 
 @Serializable

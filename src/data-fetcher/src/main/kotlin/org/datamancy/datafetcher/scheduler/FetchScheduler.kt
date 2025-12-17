@@ -22,7 +22,6 @@ class FetchScheduler(private val config: FetchConfig) {
     // Fetcher instances
     private lateinit var rssFetcher: RssFetcher
     private lateinit var marketDataFetcher: MarketDataFetcher
-    private lateinit var weatherFetcher: WeatherFetcher
     private lateinit var wikiProjectsFetcher: WikiProjectsFetcher
     private lateinit var economicDataFetcher: EconomicDataFetcher
     private lateinit var searchFetcher: SearchFetcher
@@ -37,7 +36,6 @@ class FetchScheduler(private val config: FetchConfig) {
         // Initialize fetchers
         rssFetcher = RssFetcher(config.sources.rss)
         marketDataFetcher = MarketDataFetcher(config.sources.marketData)
-        weatherFetcher = WeatherFetcher(config.sources.weather)
         wikiProjectsFetcher = WikiProjectsFetcher(config.sources.wiki)
         economicDataFetcher = EconomicDataFetcher(config.sources.economic)
         searchFetcher = SearchFetcher(config.sources.search)
@@ -112,7 +110,6 @@ class FetchScheduler(private val config: FetchConfig) {
             val result = when (name) {
                 "rss_feeds" -> rssFetcher.fetch()
                 "market_data" -> marketDataFetcher.fetch()
-                "weather" -> weatherFetcher.fetch()
                 "wiki_dumps" -> wikiProjectsFetcher.fetch()
                 "economic_data" -> economicDataFetcher.fetch()
                 "search" -> searchFetcher.fetch()
@@ -170,7 +167,6 @@ class FetchScheduler(private val config: FetchConfig) {
             when (name) {
                 "rss_feeds" -> rssFetcher.dryRun()
                 "market_data" -> marketDataFetcher.dryRun()
-                "weather" -> weatherFetcher.dryRun()
                 "wiki_dumps" -> wikiProjectsFetcher.dryRun()
                 "economic_data" -> economicDataFetcher.dryRun()
                 "search" -> searchFetcher.dryRun()
