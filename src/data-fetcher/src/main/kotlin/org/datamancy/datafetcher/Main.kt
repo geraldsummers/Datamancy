@@ -15,6 +15,7 @@ import org.datamancy.datafetcher.api.configureHealthEndpoints
 import org.datamancy.datafetcher.api.configureStatusEndpoints
 import org.datamancy.datafetcher.api.configureTriggerEndpoints
 import org.datamancy.datafetcher.api.configureDryRunEndpoints
+import org.datamancy.datafetcher.api.configureMarkdownEndpoints
 import org.datamancy.datafetcher.config.FetchConfig
 import org.datamancy.datafetcher.scheduler.FetchScheduler
 import java.io.File
@@ -84,5 +85,8 @@ fun Application.configureServer(scheduler: FetchScheduler, config: FetchConfig) 
 
         // Dry-run endpoints
         configureDryRunEndpoints(scheduler)
+
+        // Markdown fetch endpoints
+        configureMarkdownEndpoints(config)
     }
 }

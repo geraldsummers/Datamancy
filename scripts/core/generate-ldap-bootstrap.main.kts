@@ -198,6 +198,31 @@ if (dryRun) {
     outputFile.writeText(content)
     info("Generated: ${outputFile.absolutePath}")
     info("File size: ${outputFile.length()} bytes")
+
+    // Persist SSHA hashes to .env.runtime for template processing
+    info("Updating .env.runtime with generated SSHA hashes")
+    val envContent = envFile.readText()
+    var updatedContent = envContent
+
+    // Add or update SSHA password variables
+    val sshaVars = mapOf(
+        "ADMIN_SSHA_PASSWORD" to adminSSHA,
+        "USER_SSHA_PASSWORD" to userSSHA,
+        "AGENT_OBSERVER_SSHA_PASSWORD" to agentObserverSSHA
+    )
+
+    sshaVars.forEach { (key, value) ->
+        val regex = Regex("^$key=.*$", RegexOption.MULTILINE)
+        if (regex.containsMatchIn(updatedContent)) {
+            updatedContent = regex.replace(updatedContent, "$key=\"$value\"")
+        } else {
+            // Append at the end
+            updatedContent += "\n$key=\"$value\""
+        }
+    }
+
+    envFile.writeText(updatedContent)
+    info("SSHA hashes saved to ${envFile.name}")
     info("✓ Ready for deployment")
 }
 

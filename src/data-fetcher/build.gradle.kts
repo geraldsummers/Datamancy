@@ -52,6 +52,12 @@ dependencies {
     // JSON parsing
     implementation("com.google.code.gson:gson:2.11.0")
 
+    // HTML parsing
+    implementation("org.jsoup:jsoup:1.18.1")
+
+    // HTML to Markdown conversion
+    implementation("com.vladsch.flexmark:flexmark-all:0.64.8")
+
     // Date/time
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
 }

@@ -319,3 +319,36 @@ qbittorrent.{{DOMAIN}} {
         }
     }
 }
+
+# Data Fetcher (protected - admin only)
+data-fetcher.{{DOMAIN}} {
+    route {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy data-fetcher:8095
+    }
+}
+
+# Search Indexer (protected - admin only)
+search-indexer.{{DOMAIN}} {
+    route {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy search-indexer:8096
+    }
+}
+
+# Search Gateway (protected - all authenticated users)
+search.{{DOMAIN}} {
+    route {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy search-gateway:8097
+    }
+}

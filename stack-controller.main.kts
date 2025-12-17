@@ -343,27 +343,6 @@ private fun bringUpStack() {
         Files.createDirectories(synapseDataDir)
     }
 
-    // Remove conflicting Docker-managed volumes
-    try {
-        val volumeCheck = run("docker", "volume", "ls", "-q", "--filter", "name=datamancy_synapse_data",
-            allowFail = true, showOutput = false)
-        if (volumeCheck.trim().isNotBlank()) {
-            warn("Removing conflicting Docker volume: datamancy_synapse_data")
-            run("docker", "volume", "rm", "datamancy_synapse_data", allowFail = true, showOutput = false)
-        }
-    } catch (_: Exception) {
-        // Ignore errors
-    }
-
-    // Ensure clean state
-    try {
-        info("Ensuring clean state before startup...")
-        run("docker", "compose", "--env-file", runtimeEnv.toString(), "down",
-            cwd = root, allowFail = true, showOutput = false)
-    } catch (_: Exception) {
-        // Ignore errors
-    }
-
     // Step 5: Start services
     info("Step 5/5: Starting Docker Compose services")
     run("docker", "compose", "--env-file", runtimeEnv.toString(), "up", "-d", cwd = root)

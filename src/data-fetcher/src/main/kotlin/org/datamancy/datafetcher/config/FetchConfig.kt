@@ -154,7 +154,12 @@ data class LegalConfig(
     val stateUrls: Map<String, String> = mapOf(
         "nsw" to "https://legislation.nsw.gov.au/",
         "vic" to "https://www.legislation.vic.gov.au/",
-        "qld" to "https://www.legislation.qld.gov.au/"
+        "qld" to "https://www.legislation.qld.gov.au/",
+        "wa" to "https://www.legislation.wa.gov.au/",
+        "sa" to "https://www.legislation.sa.gov.au/",
+        "tas" to "https://www.legislation.tas.gov.au/",
+        "act" to "https://legislation.act.gov.au/",
+        "nt" to "https://legislation.nt.gov.au/"
     )
 )
 
