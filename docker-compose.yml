@@ -1594,6 +1594,10 @@ services:
       - COINGECKO_API_KEY=${COINGECKO_API_KEY:-}
       - SERP_API_KEY=${SERP_API_KEY:-}
       - FRED_API_KEY=${FRED_API_KEY:-}
+      # BookStack integration
+      - BOOKSTACK_URL=${BOOKSTACK_URL:-http://bookstack:80}
+      - BOOKSTACK_API_TOKEN_ID=${BOOKSTACK_API_TOKEN_ID:-}
+      - BOOKSTACK_API_TOKEN_SECRET=${BOOKSTACK_API_TOKEN_SECRET:-}
       # Config paths
       - FETCH_SCHEDULES_PATH=/app/config/schedules.yaml
       - FETCH_SOURCES_PATH=/app/config/sources.yaml
@@ -1612,5 +1616,70 @@ services:
       postgres:
         condition: service_healthy
       clickhouse:
+        condition: service_healthy
+      bookstack:
+        condition: service_healthy
+
+  search-indexer:
+    build:
+      dockerfile: ./src/search-indexer/Dockerfile
+      context: .
+    container_name: search-indexer
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    environment:
+      - BOOKSTACK_URL=${BOOKSTACK_URL:-http://bookstack:80}
+      - BOOKSTACK_API_TOKEN_ID=${BOOKSTACK_API_TOKEN_ID:-}
+      - BOOKSTACK_API_TOKEN_SECRET=${BOOKSTACK_API_TOKEN_SECRET:-}
+      - QDRANT_URL=http://qdrant:6334
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - CLICKHOUSE_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
+      - EMBEDDING_SERVICE_URL=http://embedding-service:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      bookstack:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      embedding-service:
+        condition: service_healthy
+
+  search-gateway:
+    build:
+      dockerfile: ./src/search-gateway/Dockerfile
+      context: .
+    container_name: search-gateway
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    environment:
+      - QDRANT_URL=http://qdrant:6334
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - CLICKHOUSE_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
+      - EMBEDDING_SERVICE_URL=http://embedding-service:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8097/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      embedding-service:
         condition: service_healthy
 

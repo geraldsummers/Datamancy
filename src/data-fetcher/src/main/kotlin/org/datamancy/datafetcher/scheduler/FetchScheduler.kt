@@ -117,7 +117,7 @@ class FetchScheduler(private val config: FetchConfig) {
                 "search" -> searchFetcher.fetch()
                 "docs" -> docsFetcher.fetch()
                 "torrents" -> torrentsFetcher.fetch()
-                "legal_docs" -> legalDocsFetcher.fetch()
+                "legal_docs" -> legalDocsFetcher.fetchToBookStack(limitPerJurisdiction = 1)
                 "agent_functions" -> agentFunctionsFetcher.fetch()
                 else -> {
                     logger.warn { "Unknown fetch job: $name" }

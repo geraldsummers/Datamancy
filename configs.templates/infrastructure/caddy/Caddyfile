@@ -138,6 +138,16 @@ bookstack.{{DOMAIN}} {
     reverse_proxy bookstack:80
 }
 
+# BookStack API (internal network only - for data-fetcher and search services)
+# Bypasses auth for API token authentication
+api.bookstack.{{DOMAIN}} {
+    # Only allow from internal Docker networks
+    @notinternal not remote_ip 172.20.0.0/24 172.21.0.0/24 172.22.0.0/24
+    respond @notinternal "Access denied: Internal API only" 403
+
+    reverse_proxy bookstack:80
+}
+
 # Seafile - Uses remote user authentication with forward_auth
 seafile.{{DOMAIN}} {
     route {
