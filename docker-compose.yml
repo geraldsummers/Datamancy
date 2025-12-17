@@ -1670,3 +1670,42 @@ services:
       embedding-service:
         condition: service_healthy
 
+  control-panel:
+    build:
+      dockerfile: ./src/control-panel/Dockerfile
+      context: .
+    container_name: control-panel
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+      - database
+    environment:
+      - PANEL_PORT=8097
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=datamancy
+      - POSTGRES_USER=datamancer
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - DATA_FETCHER_URL=http://data-fetcher:8095
+      - UNIFIED_INDEXER_URL=http://unified-indexer:8096
+      - SEARCH_SERVICE_URL=http://search-service:8000
+    ports:
+      - "8097:8097"
+    labels:
+      - "caddy=control.${DOMAIN}"
+      - "caddy.reverse_proxy={{upstreams 8097}}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8097/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      data-fetcher:
+        condition: service_started
+      unified-indexer:
+        condition: service_started
+

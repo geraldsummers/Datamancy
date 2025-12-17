@@ -1,30 +1,23 @@
 package org.datamancy.controlpanel.api
 
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.datamancy.controlpanel.services.DatabaseService
 
-fun Route.configureStorageApi() {
+fun Route.configureStorageApi(database: DatabaseService) {
     get("/overview") {
-        call.respond(
-            mapOf(
-                "postgres" to mapOf(
-                    "sizeGB" to 0.0,
-                    "tables" to emptyMap<String, Any>()
-                ),
-                "clickhouse" to mapOf(
-                    "sizeGB" to 0.0,
-                    "tables" to emptyMap<String, Any>()
-                ),
-                "qdrant" to mapOf(
-                    "sizeGB" to 0.0,
-                    "collections" to emptyMap<String, Any>()
-                )
-            )
-        )
+        try {
+            val stats = database.getStorageStats()
+            call.respond(stats)
+        } catch (e: Exception) {
+            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Unknown error")))
+        }
     }
 
     get("/timeseries") {
-        call.respond(emptyList<Map<String, Any>>())
+        // TODO: Implement historical storage growth from metrics
+        call.respond(emptyList<Any>())
     }
 }

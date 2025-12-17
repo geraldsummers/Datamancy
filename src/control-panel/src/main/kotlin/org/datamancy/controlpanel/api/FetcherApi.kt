@@ -8,12 +8,14 @@ import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import org.datamancy.controlpanel.services.ProxyService
 
-fun Route.configureFetcherApi(proxy: ProxyService) {
+fun Route.configureFetcherApi(proxy: ProxyService, database: org.datamancy.controlpanel.services.DatabaseService) {
     get("/status") {
-        // Return placeholder list until DB integration is implemented
-        call.respond(listOf(
-            FetcherStatus("wiki", true, null, null, "idle", 0, 0, 0)
-        ))
+        try {
+            val sources = database.getSourceConfigs()
+            call.respond(sources)
+        } catch (e: Exception) {
+            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Unknown error")))
+        }
     }
 
     post("/trigger/{source}") {
