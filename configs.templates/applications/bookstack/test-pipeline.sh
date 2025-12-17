@@ -28,7 +28,7 @@ echo
 # Test 1: Fetch 1 Act to BookStack
 echo -e "${YELLOW}Test 1: Fetching legislation to BookStack${NC}"
 echo "Triggering legal_docs fetch (limit=1 per jurisdiction)..."
-curl -X POST "http://localhost:8095/trigger/legal_docs" || {
+curl -X POST "http://data-fetcher:8095/trigger/legal_docs" || {
     echo -e "${RED}✗ Failed to trigger fetch${NC}"
     exit 1
 }
@@ -53,7 +53,7 @@ echo
 # Test 3: Index BookStack content
 echo -e "${YELLOW}Test 3: Indexing BookStack content${NC}"
 echo "Triggering indexing of all collections..."
-curl -X POST "http://localhost:8096/index/all" || {
+curl -X POST "http://search-indexer:8096/index/all" || {
     echo -e "${RED}✗ Failed to trigger indexing${NC}"
     exit 1
 }
@@ -63,7 +63,7 @@ sleep 60
 
 # Check indexing status
 echo "Checking indexing status..."
-curl -s "http://localhost:8096/status" || {
+curl -s "http://search-indexer:8096/status" || {
     echo -e "${RED}✗ Failed to check indexing status${NC}"
     exit 1
 }
@@ -73,7 +73,7 @@ echo
 # Test 4: Search via gateway
 echo -e "${YELLOW}Test 4: Testing hybrid search${NC}"
 echo "Searching for 'misleading conduct'..."
-SEARCH_RESULT=$(curl -s -X POST "http://localhost:8097/search" \
+SEARCH_RESULT=$(curl -s -X POST "http://search-gateway:8097/search" \
     -H "Content-Type: application/json" \
     -d '{
         "query": "misleading conduct",
@@ -105,6 +105,7 @@ echo "✓ Search Indexer: Indexed content to Qdrant + ClickHouse"
 echo "✓ Search Gateway: Responding to queries ($RESULT_COUNT results)"
 echo
 echo "Next steps:"
-echo "1. Check BookStack UI: http://bookstack.{{DOMAIN}}"
-echo "2. Query search API: http://localhost:8097/search"
-echo "3. Check indexer status: http://localhost:8096/status"
+echo "1. BookStack UI: https://bookstack.{{DOMAIN}}"
+echo "2. Data Fetcher: https://data-fetcher.{{DOMAIN}}"
+echo "3. Search Indexer: https://search-indexer.{{DOMAIN}}"
+echo "4. Search Gateway: https://search.{{DOMAIN}}"
