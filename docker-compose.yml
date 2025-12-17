@@ -1518,26 +1518,6 @@ services:
       retries: 1
       start_period: 5s
 
-  rag-gateway:
-    build:
-      dockerfile: ./src/rag-gateway/Dockerfile
-      context: .
-    container_name: rag-gateway
-    restart: unless-stopped
-    networks:
-      - backend
-      - database
-    environment:
-      - PORT=8094
-      - BENTHOS_URL=http://benthos:4195
-      - QDRANT_URL=http://qdrant:6333
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8094/health/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
   benthos:
     image: jeffail/benthos:4.27.0
     container_name: benthos
@@ -1556,7 +1536,7 @@ services:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://${STACK_ADMIN_USER}:${CLICKHOUSE_ADMIN_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
       - EMBED_MODEL=${EMBED_MODEL:-embed-small}
-      - RAG_GATEWAY_URL=${RAG_GATEWAY_URL:-http://rag-gateway:8094}
+      - UNIFIED_INDEXER_URL=${UNIFIED_INDEXER_URL:-http://unified-indexer:8096}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -1620,16 +1600,21 @@ services:
       bookstack:
         condition: service_healthy
 
-  search-indexer:
+  unified-indexer:
     build:
-      dockerfile: ./src/search-indexer/Dockerfile
+      dockerfile: ./src/unified-indexer/Dockerfile
       context: .
-    container_name: search-indexer
+    container_name: unified-indexer
     restart: unless-stopped
     networks:
       - backend
       - database
     environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=datamancy
+      - POSTGRES_USER=${STACK_ADMIN_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
       - BOOKSTACK_URL=${BOOKSTACK_URL:-http://bookstack:80}
       - BOOKSTACK_API_TOKEN_ID=${BOOKSTACK_API_TOKEN_ID:-}
       - BOOKSTACK_API_TOKEN_SECRET=${BOOKSTACK_API_TOKEN_SECRET:-}
@@ -1645,6 +1630,8 @@ services:
       retries: 3
       start_period: 30s
     depends_on:
+      postgres:
+        condition: service_healthy
       bookstack:
         condition: service_healthy
       qdrant:
@@ -1654,11 +1641,11 @@ services:
       embedding-service:
         condition: service_healthy
 
-  search-gateway:
+  search-service:
     build:
-      dockerfile: ./src/search-gateway/Dockerfile
+      dockerfile: ./src/search-service/Dockerfile
       context: .
-    container_name: search-gateway
+    container_name: search-service
     restart: unless-stopped
     networks:
       - backend

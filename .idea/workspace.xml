@@ -5,27 +5,35 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="fff">
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/md5-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/md5-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/sha1-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/sha1-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DATASOURCE_OBSERVER_SECURITY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OBLITERATE_PERSISTENCE_FIXES.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/SEARCH_PIPELINE_SETUP.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/SECURITY_UPDATE_DB_CREDENTIALS.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/bookstack/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/sogo/README.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/core/generate-ldap-bootstrap.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/core/generate-ldap-bootstrap.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/config/FetchConfig.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/config/FetchConfig.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/fetchers/LegalDocsFetcher.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/fetchers/LegalDocsFetcher.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/DRY-RUN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/LEGAL_FETCHER_EXAMPLES.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/LEGAL_FETCHER_README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/jupyter-notebook/AI-IDE-FEATURES.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/jupyter-notebook/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rag-gateway/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rag-gateway/build.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rag-gateway/src/main/kotlin/org/datamancy/rag/RagGateway.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-gateway/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-gateway/build.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-gateway/settings.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-gateway/src/main/kotlin/org/datamancy/searchgateway/Main.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-gateway/src/main/kotlin/org/datamancy/searchgateway/SearchGateway.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-indexer/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-indexer/build.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-indexer/settings.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-indexer/src/main/kotlin/org/datamancy/searchindexer/Main.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-indexer/src/main/kotlin/org/datamancy/searchindexer/SearchIndexer.kt" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
