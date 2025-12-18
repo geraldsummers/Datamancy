@@ -1,0 +1,26 @@
+FROM eclipse-temurin:21-jdk
+
+WORKDIR /workspace
+
+# Install required tools
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy gradle wrapper and build files
+COPY gradlew .
+COPY gradle gradle
+COPY build.gradle.kts .
+COPY settings.gradle.kts .
+
+# Copy source code
+COPY src src
+
+# Make gradlew executable
+RUN chmod +x gradlew
+
+# Download dependencies (cache this layer)
+RUN ./gradlew dependencies --no-daemon || true
+
+# Default command runs all integration tests
+CMD ["./gradlew", "test", "--tests", "*RealIntegrationTest", "--tests", "*IntegrationTest", "--no-daemon", "--stacktrace"]
