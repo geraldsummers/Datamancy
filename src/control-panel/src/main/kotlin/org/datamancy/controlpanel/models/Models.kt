@@ -96,17 +96,3 @@ data class ServiceInfo(
     val name: String,
     val hasLogs: Boolean
 )
-
-@Serializable
-data class ScheduleInfo(
-    val source: String,
-    val interval: String,
-    val nextScheduled: String?,
-    val enabled: Boolean
-)
-
-@Serializable
-data class ServiceInfo(
-    val name: String,
-    val hasLogs: Boolean
-)

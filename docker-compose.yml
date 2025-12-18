@@ -1686,7 +1686,7 @@ services:
       - POSTGRES_PORT=5432
       - POSTGRES_DB=datamancy
       - POSTGRES_USER=datamancer
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD=datamancy
       - DATA_FETCHER_URL=http://data-fetcher:8095
       - UNIFIED_INDEXER_URL=http://unified-indexer:8096
       - SEARCH_SERVICE_URL=http://search-service:8000
