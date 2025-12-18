@@ -3,6 +3,7 @@ package org.datamancy.datafetcher.integration
 import io.mockk.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
+import org.datamancy.datafetcher.IntegrationTest
 import org.datamancy.datafetcher.config.*
 import org.datamancy.datafetcher.scheduler.FetchScheduler
 import org.datamancy.datafetcher.scheduler.FetchResult
@@ -10,14 +11,10 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 
 /**
  * Integration tests for the data fetching pipeline.
  * These tests verify end-to-end workflows involving multiple components.
- *
- * Note: Some tests require actual services (Postgres, ClickHouse) to be running.
- * Use @EnabledIfEnvironmentVariable to conditionally run based on CI environment.
  */
 class DataPipelineIntegrationTest {
 
@@ -172,11 +169,9 @@ class DataPipelineIntegrationTest {
     }
 
     @Test
-    @EnabledIfEnvironmentVariable(named = "RUN_INTEGRATION_TESTS", matches = "true")
+    @IntegrationTest(requiredServices = ["postgres", "clickhouse"])
     fun `full pipeline - fetch, dedupe, store, checkpoint`() = runBlocking {
         // This test requires actual database connections
-        // Run only in CI environment with services available
-
         every { mockConfig.schedules } returns mapOf(
             "rss_feeds" to ScheduleConfig(enabled = true, cron = "*/5 * * * *")
         )

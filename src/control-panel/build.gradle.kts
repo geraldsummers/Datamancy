@@ -60,13 +60,11 @@ tasks {
 
 tasks.test {
     useJUnitPlatform {
-        // Integration tests MUST run inside Docker network
-        // Unit tests can run anywhere
         if (File("/.dockerenv").exists()) {
-            // We're inside Docker - run all tests
+            // Inside Docker - run all tests (unit + integration)
             includeTags("integration", "unit")
         } else {
-            // We're on host - only run unit tests, delegate integration tests to Docker
+            // On host - only run unit tests, integration tests will be delegated to Docker
             excludeTags("integration")
         }
     }
@@ -79,9 +77,56 @@ tasks.test {
     systemProperty("postgres.password", System.getenv("STACK_ADMIN_PASSWORD") ?: "")
     systemProperty("clickhouse.url", System.getenv("CLICKHOUSE_URL") ?: "http://clickhouse:8123")
 
-    // If running on host, automatically delegate integration tests to Docker
+    // Show test execution details
+    testLogging {
+        events("passed", "skipped", "failed", "standardOut", "standardError")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
+
+        // Show progress
+        showStandardStreams = true
+    }
+
+    // Print test summary
+    afterSuite(KotlinClosure2<TestDescriptor, TestResult, Unit>({ desc, result ->
+        if (desc.parent == null) { // Root suite
+            val inDocker = File("/.dockerenv").exists()
+            val testType = if (inDocker) "All Tests" else "Unit Tests"
+
+            println("\n╔════════════════════════════════════════════════════════════════╗")
+            println("║                    $testType Summary                    ║")
+            println("╚════════════════════════════════════════════════════════════════╝")
+            println("  Total:   ${result.testCount}")
+            println("  ✓ Passed: ${result.successfulTestCount}")
+            println("  ✗ Failed: ${result.failedTestCount}")
+            println("  ⊘ Skipped: ${result.skippedTestCount}")
+            println("  ⏱️  Duration: ${result.endTime - result.startTime}ms")
+
+            if (result.failedTestCount > 0) {
+                println("\n  ❌ Some tests failed!")
+            } else {
+                println("\n  ✅ All tests passed!")
+            }
+            println()
+        }
+    }))
+
+    // On host, automatically delegate integration tests to Docker after unit tests complete
     if (!File("/.dockerenv").exists()) {
+        doFirst {
+            println("\n╔════════════════════════════════════════════════════════════════╗")
+            println("║                    Running Unit Tests                         ║")
+            println("╚════════════════════════════════════════════════════════════════╝")
+        }
         finalizedBy("runIntegrationTestsInDocker")
+    } else {
+        doFirst {
+            println("\n╔════════════════════════════════════════════════════════════════╗")
+            println("║              Running All Tests (Unit + Integration)           ║")
+            println("╚════════════════════════════════════════════════════════════════╝")
+        }
     }
 }
 
@@ -90,22 +135,29 @@ val runIntegrationTestsInDocker by tasks.registering(Exec::class) {
     group = "verification"
     description = "Runs @IntegrationTest annotated tests inside Docker network"
 
-    // Only run if there are integration tests to run
-    onlyIf {
-        // Check if any tests were skipped due to integration tag
-        val testResults = tasks.test.get().reports.junitXml.outputLocation.get().asFile
-        testResults.exists() && testResults.walk().any {
-            it.extension == "xml" && it.readText().contains("skipped")
-        }
-    }
+    // Always run - integration tests are important
+    onlyIf { true }
 
-    val envFile = rootProject.file(".env")
+    val runtimeEnvFile = File(System.getProperty("user.home"), ".datamancy/.env.runtime")
     doFirst {
-        if (!envFile.exists()) {
-            throw GradleException("""
-                Integration tests require Docker network access.
-                Run './stack-controller.main.kts up' first to start services.
-            """.trimIndent())
+        // Generate .env.runtime if it doesn't exist
+        if (!runtimeEnvFile.exists()) {
+            println("\n╔═══════════════════════════════════════════════════════╗")
+            println("║   Generating credentials via stack-controller...     ║")
+            println("╚═══════════════════════════════════════════════════════╝\n")
+
+            val result = exec {
+                workingDir = rootProject.projectDir
+                commandLine("./stack-controller.main.kts", "config", "generate")
+                isIgnoreExitValue = true
+            }
+
+            if (result.exitValue != 0 || !runtimeEnvFile.exists()) {
+                throw GradleException("""
+                    Failed to generate environment configuration.
+                    Try manually: ./stack-controller.main.kts config generate
+                """.trimIndent())
+            }
         }
 
         println("\n╔═══════════════════════════════════════════════════════╗")
@@ -113,13 +165,16 @@ val runIntegrationTestsInDocker by tasks.registering(Exec::class) {
         println("╚═══════════════════════════════════════════════════════╝\n")
     }
 
+    environment("GRADLE_USER_HOME", "/tmp/gradle-integration-test")
+
+    // No volumes are mounted, so running as root in container is safe
     commandLine(
         "docker", "compose",
-        "--env-file", envFile.absolutePath,
-        "--profile", "testing",
+        "--env-file", runtimeEnvFile.absolutePath,
         "run", "--rm",
+        "-e", "GRADLE_USER_HOME=/tmp/gradle-integration-test",
         "integration-test-runner",
-        "gradle", ":${project.name}:test", "--tests", "*", "--no-daemon"
+        "./gradlew", ":${project.name}:test", "--no-daemon"
     )
 }
 

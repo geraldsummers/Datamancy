@@ -567,7 +567,10 @@ services:
     hostname: mail.${DOMAIN}
     restart: unless-stopped
     depends_on:
-      - ldap
+      ldap:
+        condition: service_started
+      mailserver-cert-init:
+        condition: service_completed_successfully
     ports:
       - "25:25"
       - "465:465"
@@ -619,9 +622,6 @@ services:
         aliases:
           - smtp
           - imap
-    depends_on:
-      mailserver-cert-init:
-        condition: service_completed_successfully
     cap_add:
       - NET_ADMIN
     healthcheck:
@@ -1860,8 +1860,4 @@ services:
       - DATA_FETCHER_URL=http://data-fetcher:8095
       - UNIFIED_INDEXER_URL=http://unified-indexer:8096
       - SEARCH_SERVICE_URL=http://search-service:8098
-    volumes:
-      - ./src:/workspace/src
-      - ./build:/workspace/build
-      - ./.gradle:/workspace/.gradle
-
+    # No volumes needed - source code is baked into the image at build time

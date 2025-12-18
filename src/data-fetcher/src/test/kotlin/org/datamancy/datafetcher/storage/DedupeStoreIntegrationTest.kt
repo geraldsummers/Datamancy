@@ -1,31 +1,25 @@
 package org.datamancy.datafetcher.storage
 
+import org.datamancy.datafetcher.IntegrationTest
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
-import org.testcontainers.containers.PostgreSQLContainer
-import org.testcontainers.junit.jupiter.Container
-import org.testcontainers.junit.jupiter.Testcontainers
 
-@Disabled("Requires Docker socket configuration for Testcontainers")
-@Testcontainers
+@IntegrationTest(requiredServices = ["postgres"])
 class DedupeStoreIntegrationTest {
 
-    companion object {
-        @Container
-        val postgres = PostgreSQLContainer("postgres:16-alpine")
-            .withDatabaseName("testdb")
-            .withUsername("test")
-            .withPassword("test")
-    }
-
     private fun createStore(): DedupeStore {
+        val pgHost = System.getenv("POSTGRES_HOST") ?: "postgres"
+        val pgPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
+        val pgDb = System.getenv("POSTGRES_DB") ?: "datamancy"
+        val pgUser = System.getenv("POSTGRES_USER") ?: "datamancer"
+        val pgPassword = System.getenv("POSTGRES_PASSWORD") ?: "datamancy123"
+
         return DedupeStore(
-            host = postgres.host,
-            port = postgres.firstMappedPort,
-            database = postgres.databaseName,
-            user = postgres.username,
-            password = postgres.password
+            host = pgHost,
+            port = pgPort,
+            database = pgDb,
+            user = pgUser,
+            password = pgPassword
         )
     }
 
