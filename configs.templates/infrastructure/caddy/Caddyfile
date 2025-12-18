@@ -53,14 +53,37 @@ couchdb.{{DOMAIN}} {
     }
 }
 
-# Mail subdomain - generates certificate for docker-mailserver SMTP/IMAP
-# docker-mailserver doesn't have a web UI (SOGo is used for webmail at sogo.{{DOMAIN}})
-# This block just ensures Caddy generates a cert for mail.{{DOMAIN}} that mailserver can use
+# Roundcube Webmail - Proxy auth with Dovecot master user
+# Also generates certificate for docker-mailserver SMTP/IMAP
 mail.{{DOMAIN}} {
-    respond "Mail services available via SMTP/IMAP. Use sogo.{{DOMAIN}} for webmail." 200
+    forward_auth authelia:9091 {
+        uri /api/authz/forward-auth
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
+
+    reverse_proxy roundcube:80 {
+        # Pass authentication headers to Roundcube
+        header_up Remote-User {header.Remote-User}
+        header_up Remote-Email {header.Remote-Email}
+        header_up Remote-Name {header.Remote-Name}
+    }
 }
 
-# SOGo (groupware UI)
+# Radicale CalDAV/CardDAV Server
+calendar.{{DOMAIN}} {
+    forward_auth authelia:9091 {
+        uri /api/authz/forward-auth
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
+
+    reverse_proxy radicale:5232 {
+        # Pass authentication headers to Radicale
+        header_up X-Remote-User {header.Remote-User}
+        header_up X-Remote-Email {header.Remote-Email}
+    }
+}
+
+# SOGo (groupware UI) - Alternative calendar/contacts interface
 sogo.{{DOMAIN}} {
     # SOGo serves at /SOGo path, redirect root to it
     @root path /

@@ -96,3 +96,30 @@ data class ServiceInfo(
     val name: String,
     val hasLogs: Boolean
 )
+
+@Serializable
+data class IndexerStatusResponse(
+    val isRunning: Boolean,
+    val status: String,
+    val jobs: List<IndexingJob> = emptyList(),
+    val error: String? = null
+)
+
+@Serializable
+data class QueueInfoResponse(
+    val queueDepth: Int,
+    val estimatedTimeMinutes: Int,
+    val processingRate: Int
+)
+
+@Serializable
+data class TriggerResponse(
+    val status: String,
+    val collection: String
+)
+
+@Serializable
+data class JobStatusResponse(
+    val jobId: String,
+    val status: String
+)

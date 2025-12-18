@@ -22,5 +22,5 @@ RUN chmod +x gradlew
 # Download dependencies (cache this layer)
 RUN ./gradlew dependencies --no-daemon || true
 
-# Default command runs all integration tests
-CMD ["./gradlew", "test", "--tests", "*RealIntegrationTest", "--tests", "*IntegrationTest", "--no-daemon", "--stacktrace"]
+# Default command runs integration tests only for modules that have them
+CMD ["./gradlew", ":data-fetcher:test", ":control-panel:test", "--tests", "*RealIntegrationTest", "--tests", "*IntegrationTest", "--no-daemon", "--stacktrace"]

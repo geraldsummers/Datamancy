@@ -12,10 +12,57 @@
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile.test" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile.test" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/INTEGRATION_TESTS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/INTEGRATION_TEST_SETUP_COMPLETE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/PHASE_0_COMPLETE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/PHASE_1_MVP_FETCHERS_COMPLETE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/QUICK_REFERENCE_MVP_FETCHERS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README_TESTING.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/TESTING.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/TEST_PLAN_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/TEST_RESULTS.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mailserver/local.conf" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mailserver/local.conf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/sogo/sogo.conf" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/sogo/sogo.conf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.test.yml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/run-integration-tests.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/run-integration-tests.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/run-ui-tests.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/cleandocker.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/cleandocker.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/configure-environment.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/create-volume-dirs.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/generate-ldap-bootstrap.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/process-config-templates.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/setup-bookstack-init.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/setup-caddy-ca-cert.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/setup-ldap-init.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/core/setup-qbittorrent-init.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/deployment/debian_flavour/create_debian_distribution.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/debian_flavour/create_debian_distribution.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/security/generate-oidc-hashes.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/control-panel/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/Main.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/api/IndexerApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/api/IndexerApi.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/models/Models.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/models/Models.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/services/DatabaseService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/services/DatabaseService.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/services/ProxyService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/services/ProxyService.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/control-panel/src/test/kotlin/org/datamancy/controlpanel/RealIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/src/test/kotlin/org/datamancy/controlpanel/RealIntegrationTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/storage/StorageRealIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/storage/StorageRealIntegrationTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-all.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-e2e-pipeline.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-integration.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-stack-health.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-unit.sh" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -79,26 +126,27 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Gradle.Build Datamancy.executor": "Run",
-    "Gradle.Datamancy [build].executor": "Run",
-    "Gradle.Datamancy [test].executor": "Coverage",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "master",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/gerald/IdeaProjects/Datamancy",
-    "settings.editor.selected.configurable": "reference.settingsdialog.project.gradle",
-    "to.speed.mode.migration.done": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Gradle.Build Datamancy.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Datamancy [build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Datamancy [test].executor&quot;: &quot;Coverage&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/gerald/IdeaProjects/Datamancy&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;reference.settingsdialog.project.gradle&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/scripts" />
       <recent name="$PROJECT_DIR$/src" />
     </key>
     <key name="K2MoveDeclarationsDialog.RECENT_PACKAGE_KEY">
@@ -107,11 +155,11 @@
   </component>
   <component name="RunAnythingCache">
     <option name="myCommands">
-      <command value="gradle build" />
       <command value="gradle test --continue" />
+      <command value="gradle build" />
     </option>
   </component>
-  <component name="RunManager" selected="Gradle.Datamancy [test]">
+  <component name="RunManager" selected="Gradle.Datamancy [build]">
     <configuration name="Datamancy [build]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -275,7 +323,15 @@
       <option name="project" value="LOCAL" />
       <updated>1766028324812</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="test writing">
+      <option name="closed" value="true" />
+      <created>1766029890026</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1766029890026</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

@@ -20,6 +20,7 @@ import org.datamancy.controlpanel.api.configureFetcherApi
 import org.datamancy.controlpanel.api.configureIndexerApi
 import org.datamancy.controlpanel.api.configureLogsApi
 import org.datamancy.controlpanel.api.configureStorageApi
+import org.datamancy.controlpanel.api.configureSystemApi
 import org.datamancy.controlpanel.services.ProxyService
 import org.datamancy.controlpanel.services.DatabaseService
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -245,6 +246,7 @@ fun main() {
             route("/api/storage") { configureStorageApi(database) }
             route("/api/logs") { configureLogsApi(database) }
             route("/api/config") { configureConfigApi(database) }
+            route("/api/system") { configureSystemApi(database) }
 
             get("/events/dashboard") {
                 call.response.headers.append(HttpHeaders.CacheControl, "no-cache")

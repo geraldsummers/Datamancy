@@ -1,0 +1,2 @@
+# Radicale users file (not used with proxy auth, but required by container)
+# Authentication handled by Authelia via X-Remote-User header

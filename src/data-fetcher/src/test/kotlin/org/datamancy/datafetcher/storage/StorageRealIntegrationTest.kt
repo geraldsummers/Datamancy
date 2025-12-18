@@ -2,6 +2,7 @@ package org.datamancy.datafetcher.storage
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import org.datamancy.datafetcher.IntegrationTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -13,6 +14,7 @@ import kotlin.test.assertTrue
 /**
  * Real integration tests for storage classes connecting to actual databases.
  */
+@IntegrationTest(requiredServices = ["postgres", "clickhouse"])
 class StorageRealIntegrationTest {
 
     private lateinit var postgresStore: PostgresStore

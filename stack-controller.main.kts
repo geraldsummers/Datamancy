@@ -189,7 +189,7 @@ private fun generateEnvironmentConfig() {
     info("Generating .env from defaults")
     info("Output: $runtimeEnv")
 
-    val script = root.resolve("scripts/core/configure-environment.kts")
+    val script = root.resolve("scripts/stack-control/configure-environment.kts")
 
     if (!Files.exists(script)) {
         err("configure-environment.kts not found at: $script")
@@ -211,35 +211,83 @@ private fun generateEnvironmentConfig() {
     info("Run 'up' to complete setup (hashes generated automatically)")
 }
 
-private fun generateLdapBootstrap() {
-    val root = projectRoot()
-    val dataDir = ensureDatamancyDataDir()
-    val runtimeEnv = dataDir.resolve(".env.runtime")
-    val outputFile = dataDir.resolve("bootstrap_ldap.ldif")
+private fun copyInitScripts(root: Path, homeDir: Path) {
+    val initScriptMappings = mapOf(
+        "configs.templates/applications/bookstack/init" to ".datamancy/volumes/bookstack_init",
+        "configs.templates/applications/qbittorrent/init" to ".datamancy/volumes/qbittorrent_init",
+        "configs.templates/infrastructure/ldap" to ".datamancy/volumes/ldap_init"
+    )
 
-    info("Generating LDAP bootstrap file")
-    info("Output: $outputFile")
+    for ((templatePath, targetPath) in initScriptMappings) {
+        val templateDir = root.resolve(templatePath)
+        val targetDir = homeDir.resolve(targetPath)
 
-    val script = root.resolve("scripts/core/generate-ldap-bootstrap.main.kts")
+        if (!Files.exists(templateDir) || !Files.isDirectory(templateDir)) continue
 
-    if (!Files.exists(script)) {
-        err("LDAP bootstrap generator not found: $script")
+        Files.createDirectories(targetDir)
+        Files.list(templateDir)
+            .filter { it.fileName.toString().endsWith(".sh") }
+            .forEach { script ->
+                val target = targetDir.resolve(script.fileName)
+                Files.copy(script, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                ensurePerm(target, executable = true)
+            }
+    }
+}
+
+private fun setupCaddyCert(homeDir: Path) {
+    val targetDir = homeDir.resolve(".datamancy/configs/applications/planka")
+    val certFile = targetDir.resolve("caddy-ca.crt")
+
+    Files.createDirectories(targetDir)
+
+    // Remove if it's a directory
+    if (Files.exists(certFile) && Files.isDirectory(certFile)) {
+        certFile.toFile().deleteRecursively()
     }
 
-    run("kotlin", script.toString(), "--output=$outputFile", "--env=$runtimeEnv", "--force", cwd = root)
-    success("LDAP bootstrap file generated")
+    // Check if Caddy container is running
+    val psOutput = run("docker", "ps", "--format", "{{.Names}}", allowFail = true, showOutput = false)
+    val caddyRunning = psOutput.lines().any { it.trim() == "caddy" }
+
+    if (!caddyRunning) {
+        Files.writeString(certFile, "# Caddy CA certificate placeholder - will be populated when Caddy starts\n")
+        return
+    }
+
+    // Check if Caddy is using internal CA
+    val testExitCode = try {
+        val pb = ProcessBuilder("docker", "exec", "caddy", "test", "-f", "/data/caddy/pki/authorities/local/root.crt")
+        pb.start().waitFor()
+    } catch (e: Exception) {
+        1
+    }
+
+    if (testExitCode == 0) {
+        try {
+            val certContent = run("docker", "exec", "caddy", "cat", "/data/caddy/pki/authorities/local/root.crt", showOutput = false)
+            Files.writeString(certFile, certContent)
+        } catch (e: Exception) {
+            Files.writeString(certFile, "# Caddy CA certificate placeholder\n")
+        }
+    } else {
+        Files.writeString(certFile, "# Caddy is using a public CA - this file is not needed but kept for compatibility\n")
+    }
+
+    ensurePerm(certFile, executable = false)
 }
 
 private fun processConfigTemplates() {
     val root = projectRoot()
     val dataDir = ensureDatamancyDataDir()
+    val homeDir = Paths.get(System.getProperty("user.home"))
     val runtimeEnv = dataDir.resolve(".env.runtime")
     val configsDir = dataDir.resolve("configs")
 
     info("Processing configuration templates")
     info("Output: $configsDir")
 
-    val script = root.resolve("scripts/core/process-config-templates.main.kts")
+    val script = root.resolve("scripts/stack-control/process-config-templates.main.kts")
 
     if (!Files.exists(script)) {
         err("process-config-templates.main.kts not found at: $script")
@@ -249,27 +297,19 @@ private fun processConfigTemplates() {
 
     success("Configuration templates processed")
 
-    // Setup application-specific init scripts
+    // Copy application init scripts
     info("Setting up application init scripts")
-    val initScripts = listOf(
-        "setup-bookstack-init.sh",
-        "setup-qbittorrent-init.sh",
-        "setup-ldap-init.sh",
-        "setup-caddy-ca-cert.sh"
-    )
+    copyInitScripts(root, homeDir)
 
-    initScripts.forEach { scriptName ->
-        val scriptPath = root.resolve("scripts/core/$scriptName")
-        if (Files.exists(scriptPath)) {
-            run("bash", scriptPath.toString(), cwd = root, allowFail = true)
-        }
-    }
+    // Setup Caddy CA certificate
+    info("Setting up Caddy CA certificate")
+    setupCaddyCert(homeDir)
 }
 
 private fun createVolumeDirectories() {
     val root = projectRoot()
     info("Creating volume directory structure")
-    val script = root.resolve("scripts/core/create-volume-dirs.main.kts")
+    val script = root.resolve("scripts/stack-control/create-volume-dirs.main.kts")
 
     if (!Files.exists(script)) {
         err("create-volume-dirs.main.kts not found")
@@ -308,43 +348,33 @@ private fun bringUpStack() {
         validateDomain(domain)
     }
 
-    // Step 2: Generate LDAP bootstrap if needed
-    if (!Files.exists(ldapBootstrap)) {
-        info("Step 2/5: Generating LDAP bootstrap data")
-        generateLdapBootstrap()
-    } else {
-        info("Step 2/5: LDAP bootstrap exists")
-    }
-
-    // Step 3: Process configuration templates if needed
-    if (!Files.exists(configsDir) || Files.list(configsDir).count() == 0L) {
-        info("Step 3/5: Processing configuration templates")
+    // Step 2: Process configuration templates (includes LDAP bootstrap generation)
+    if (!Files.exists(configsDir) || Files.list(configsDir).count() == 0L || !Files.exists(ldapBootstrap)) {
+        info("Step 2/5: Processing configuration templates (includes LDAP bootstrap)")
         processConfigTemplates()
     } else {
-        info("Step 3/5: Configuration files exist")
+        info("Step 2/5: Configuration files and LDAP bootstrap exist")
     }
 
-    // Step 4: Create volume directories
-    info("Step 4/5: Creating volume directories")
+    // Step 3: Create volume directories
+    info("Step 3/5: Creating volume directories")
     createVolumeDirectories()
 
-    // Create special-case directories that use ${HOME}
-    val homeDir = Paths.get(System.getProperty("user.home"))
-    val caddyDataDir = homeDir.resolve(".caddy_data")
-    if (!Files.exists(caddyDataDir)) {
-        info("Creating Caddy data directory at ~/.caddy_data")
-        Files.createDirectories(caddyDataDir)
+    // Create build test directories to avoid Docker creating them as root
+    val testDirs = listOf(
+        root.resolve("src/control-panel/build/test-results/test/binary"),
+        root.resolve("src/data-fetcher/build/test-results/test/binary"),
+        root.resolve("src/unified-indexer/build/test-results/test/binary"),
+        root.resolve("src/search-service/build/test-results/test/binary")
+    )
+    testDirs.forEach { testDir ->
+        if (!Files.exists(testDir)) {
+            Files.createDirectories(testDir)
+        }
     }
 
-    // Verify critical directories exist
-    val synapseDataDir = volumesDir.resolve("synapse_data")
-    if (!Files.exists(synapseDataDir)) {
-        info("Creating missing synapse_data directory")
-        Files.createDirectories(synapseDataDir)
-    }
-
-    // Step 5: Start services
-    info("Step 5/5: Starting Docker Compose services")
+    // Step 4: Start services
+    info("Step 4/4: Starting Docker Compose services")
     run("docker", "compose", "--env-file", runtimeEnv.toString(), "up", "-d", cwd = root)
 
     success("Stack started successfully")
@@ -378,7 +408,7 @@ private fun bringUpStack() {
 
         if (autheliHealthy) {
             info("Generating OIDC client secret hashes for Authelia...")
-            val hashScript = root.resolve("scripts/security/generate-oidc-hashes.main.kts")
+            val hashScript = root.resolve("scripts/stack-control/generate-oidc-hashes.main.kts")
             if (Files.exists(hashScript)) {
                 try {
                     run("kotlin", hashScript.toString(), cwd = root, allowFail = true)

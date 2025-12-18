@@ -7,6 +7,7 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
+import org.datamancy.controlpanel.models.IndexingJob
 
 class ProxyService(
     private val dataFetcherUrl: String,
@@ -21,9 +22,9 @@ class ProxyService(
         client.post("${'$'}dataFetcherUrl/trigger/${'$'}source").body()
     }
 
-    suspend fun getIndexerJobs(): Any = runCatching {
-        client.get("${'$'}indexerUrl/jobs").body<Any>()
-    }.getOrElse { emptyList<Any>() }
+    suspend fun getIndexerJobs(): List<IndexingJob> = runCatching {
+        client.get("${'$'}indexerUrl/jobs").body<List<IndexingJob>>()
+    }.getOrElse { emptyList() }
 }
 
 @Serializable

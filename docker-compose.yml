@@ -216,12 +216,24 @@ volumes:
       type: none
       o: bind
       device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_config
-  sogo_data:
+#  sogo_data:
+#    driver: local
+#    driver_opts:
+#      type: none
+#      o: bind
+#      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/sogo_data
+  roundcube_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/sogo_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/roundcube_data
+  radicale_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/radicale_data
   forgejo_data:
     driver: local
     driver_opts:
@@ -364,6 +376,8 @@ services:
       - LAM_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - LAM_LANG=en_US
     # Note: No volume mount - LAM uses container-internal storage and connects to persistent LDAP
+    depends_on:
+      - ldap
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/lam/"]
       interval: 10s
@@ -398,6 +412,10 @@ services:
       - backend
       - frontend
       - database
+    depends_on:
+      - ldap
+      - postgres
+      - valkey
     volumes:
       - ${VOLUMES_ROOT}/authelia:/config
       - ${HOME}/.datamancy/configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
@@ -518,7 +536,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/11211'"]
+      test: ["CMD-SHELL", "timeout 2 bash -c 'echo stats | nc 127.0.0.1 11211' | grep -q 'STAT version' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -548,6 +566,8 @@ services:
     container_name: mailserver
     hostname: mail.${DOMAIN}
     restart: unless-stopped
+    depends_on:
+      - ldap
     ports:
       - "25:25"
       - "465:465"
@@ -605,42 +625,92 @@ services:
     cap_add:
       - NET_ADMIN
     healthcheck:
-      test: ["CMD-SHELL", "ss -lntp | grep -E ':25|:587|:993'"]
+      test: ["CMD-SHELL", "supervisorctl status postfix | grep -q RUNNING && supervisorctl status dovecot | grep -q RUNNING"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 90s
 
 
-  sogo:
-    image: pmietlicki/sogo:v5
-    container_name: sogo
+  roundcube:
+    image: roundcube/roundcubemail:latest
+    container_name: roundcube
     restart: unless-stopped
     environment:
-      - TZ=UTC
+      - ROUNDCUBEMAIL_DB_TYPE=pgsql
+      - ROUNDCUBEMAIL_DB_HOST=postgres
+      - ROUNDCUBEMAIL_DB_PORT=5432
+      - ROUNDCUBEMAIL_DB_USER=roundcube
+      - ROUNDCUBEMAIL_DB_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - ROUNDCUBEMAIL_DB_NAME=roundcube
+      - ROUNDCUBEMAIL_DEFAULT_HOST=mailserver
+      - ROUNDCUBEMAIL_DEFAULT_PORT=143
+      - ROUNDCUBEMAIL_SMTP_SERVER=mailserver
+      - ROUNDCUBEMAIL_SMTP_PORT=587
+      - ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE=50M
     volumes:
-      - sogo_data:/var/lib/sogo
-      - ${HOME}/.datamancy/configs/applications/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
-      - ${HOME}/.datamancy/configs/applications/sogo/init-apache.sh:/docker-entrypoint.d/init-apache.sh:ro
+      - roundcube_data:/var/www/html
+      - ${HOME}/.datamancy/configs/applications/roundcube/config.inc.php:/var/www/html/config/config.inc.php:ro
     networks:
       - backend
+    depends_on:
+      - postgres
+      - mailserver
     healthcheck:
-      test: ["CMD-SHELL", "pgrep sogod > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
 
-  sogo-init:
-    image: docker:27-cli
-    container_name: sogo-init
-    restart: "no"
-    depends_on:
-      sogo:
-        condition: service_healthy
+  radicale:
+    image: tomsquest/docker-radicale:latest
+    container_name: radicale
+    restart: unless-stopped
+    environment:
+      - TZ=UTC
     volumes:
-      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
-    command: docker exec sogo bash /docker-entrypoint.d/init-apache.sh
+      - radicale_data:/data
+      - ${HOME}/.datamancy/configs/applications/radicale/config:/config/config:ro
+      - ${HOME}/.datamancy/configs/applications/radicale/users:/data/users:ro
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5232/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+#  sogo:
+#    image: pmietlicki/sogo:v5
+#    container_name: sogo
+#    restart: unless-stopped
+#    environment:
+#      - TZ=UTC
+#    volumes:
+#      - sogo_data:/var/lib/sogo
+#      - ${HOME}/.datamancy/configs/applications/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
+#      - ${HOME}/.datamancy/configs/applications/sogo/init-apache.sh:/docker-entrypoint.d/init-apache.sh:ro
+#    networks:
+#      - backend
+#    healthcheck:
+#      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/20000' || exit 1"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 60s
+#
+#  sogo-init:
+#    image: docker:27-cli
+#    container_name: sogo-init
+#    restart: "no"
+#    depends_on:
+#      sogo:
+#        condition: service_healthy
+#    volumes:
+#      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+#    command: docker exec sogo bash /docker-entrypoint.d/init-apache.sh
 
 
   kopia:
@@ -717,6 +787,9 @@ services:
     networks:
       - backend
       - database
+    depends_on:
+      - postgres
+      - authelia
     logging:
       driver: "json-file"
       options:
@@ -775,6 +848,10 @@ services:
        - backend
        - frontend
        - database
+     depends_on:
+       - postgres
+       - litellm
+       - authelia
      dns:
        - 8.8.8.8
        - 1.1.1.1
@@ -812,6 +889,10 @@ services:
     networks:
       - backend
       - database
+    depends_on:
+      - postgres
+      - mailserver
+      - authelia
     logging:
       driver: "json-file"
       options:
@@ -857,6 +938,9 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    depends_on:
+      - postgres
+      - authelia
     logging:
       driver: "json-file"
       options:
@@ -899,6 +983,8 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    depends_on:
+      - mariadb
     links:
       - mariadb:mariadb
     environment:
@@ -930,6 +1016,9 @@ services:
     image: seafileltd/seafile-mc:13.0.12
     container_name: seafile
     restart: unless-stopped
+    depends_on:
+      - mariadb
+      - memcached
     environment:
       - TZ=UTC
       - DB_HOST=mysql  # Use alias for mariadb-seafile
@@ -976,6 +1065,8 @@ services:
     image: onlyoffice/documentserver:8.2.2
     container_name: onlyoffice
     restart: unless-stopped
+    depends_on:
+      - seafile
     environment:
       - TZ=UTC
       - JWT_ENABLED=true
@@ -1008,6 +1099,12 @@ services:
     depends_on:
       synapse-init:
         condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      valkey:
+        condition: service_started
+      ldap:
+        condition: service_started
     environment:
       - SYNAPSE_SERVER_NAME=matrix.${DOMAIN}
       - SYNAPSE_REPORT_STATS=yes
@@ -1054,6 +1151,9 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    depends_on:
+      - postgres
+      - valkey
     env_file:
       - ${HOME}/.datamancy/configs/applications/mastodon/mastodon.env
     volumes:
@@ -1078,6 +1178,9 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    depends_on:
+      - postgres
+      - valkey
     env_file:
       - ${HOME}/.datamancy/configs/applications/mastodon/mastodon.env
     healthcheck:
@@ -1093,6 +1196,9 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    depends_on:
+      - postgres
+      - valkey
     env_file:
       - ${HOME}/.datamancy/configs/applications/mastodon/mastodon.env
     command: bundle exec sidekiq
@@ -1116,6 +1222,8 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    depends_on:
+      - docker-proxy
     environment:
       - PUID=1000
       - PGID=1000
@@ -1156,6 +1264,12 @@ services:
     depends_on:
       jupyter-notebook-builder:
         condition: service_completed_successfully
+      docker-proxy:
+        condition: service_started
+      litellm:
+        condition: service_started
+      authelia:
+        condition: service_started
     environment:
       - DOMAIN=${DOMAIN}
       - JUPYTERHUB_OAUTH_SECRET=${JUPYTERHUB_OAUTH_SECRET}
@@ -1178,6 +1292,9 @@ services:
     networks:
       - backend
       - database
+    depends_on:
+      - postgres
+      - ldap
     environment:
       - TZ=UTC
       - HOMEASSISTANT_DB_URL=postgresql://${STACK_ADMIN_USER}:${HOMEASSISTANT_DB_PASSWORD}@postgres:5432/homeassistant
@@ -1215,6 +1332,8 @@ services:
     networks:
       - backend
       - database
+    depends_on:
+      - postgres
     environment:
       - USER_UID=1000
       - USER_GID=1000
@@ -1348,6 +1467,8 @@ services:
     networks:
       - backend
       - frontend
+    depends_on:
+      - vllm
     volumes:
       - litellm_config:/app/config
       - ${HOME}/.datamancy/configs/infrastructure/litellm/config.yaml:/app/config.yaml:ro
@@ -1358,7 +1479,7 @@ services:
       - UI_PASSWORD=${STACK_ADMIN_PASSWORD}
     command: --config /app/config.yaml --port 4000 --num_workers 4
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c 'import socket; s=socket.socket(); s.settimeout(1); s.connect((\"127.0.0.1\", 4000)); s.close()' || exit 1"]
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -1374,6 +1495,14 @@ services:
       - backend
       - frontend
       - database
+    depends_on:
+      - litellm
+      - postgres
+      - mariadb
+      - clickhouse
+      - couchdb
+      - qdrant
+      - ldap
     user: "1000:1000"
     group_add:
       - "985"  # docker group on host for socket access
@@ -1501,8 +1630,7 @@ services:
       - backend
       - database
     depends_on:
-      qdrant:
-        condition: service_started
+      - qdrant
     environment:
       - QDRANT_URL=http://qdrant:6333
       - VECTOR_SIZE=${VECTOR_EMBED_SIZE:-384}
@@ -1525,6 +1653,10 @@ services:
     networks:
       - backend
       - database
+    depends_on:
+      - qdrant
+      - clickhouse
+      - litellm
     volumes:
       - ${HOME}/.datamancy/configs/infrastructure/benthos/benthos.yaml:/benthos.yaml:ro
       - benthos_data:/data
@@ -1555,6 +1687,10 @@ services:
     networks:
       - backend
       - database
+    depends_on:
+      - postgres
+      - clickhouse
+      - bookstack
     environment:
       - DATAFETCHER_PORT=8095
       # Database connections
@@ -1592,13 +1728,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      clickhouse:
-        condition: service_healthy
-      bookstack:
-        condition: service_healthy
 
   unified-indexer:
     build:
@@ -1609,6 +1738,12 @@ services:
     networks:
       - backend
       - database
+    depends_on:
+      - postgres
+      - bookstack
+      - qdrant
+      - clickhouse
+      - embedding-service
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
@@ -1629,17 +1764,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      bookstack:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      clickhouse:
-        condition: service_healthy
-      embedding-service:
-        condition: service_healthy
 
   search-service:
     build:
@@ -1650,6 +1774,10 @@ services:
     networks:
       - backend
       - database
+    depends_on:
+      - qdrant
+      - clickhouse
+      - embedding-service
     environment:
       - QDRANT_URL=http://qdrant:6334
       - CLICKHOUSE_URL=http://clickhouse:8123
@@ -1662,13 +1790,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    depends_on:
-      qdrant:
-        condition: service_healthy
-      clickhouse:
-        condition: service_healthy
-      embedding-service:
-        condition: service_healthy
 
   control-panel:
     build:
@@ -1680,6 +1801,10 @@ services:
       - frontend
       - backend
       - database
+    depends_on:
+      - postgres
+      - data-fetcher
+      - unified-indexer
     environment:
       - PANEL_PORT=8097
       - POSTGRES_HOST=postgres
@@ -1701,13 +1826,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      data-fetcher:
-        condition: service_started
-      unified-indexer:
-        condition: service_started
 
   integration-test-runner:
     build:
@@ -1719,6 +1837,12 @@ services:
     networks:
       - backend
       - database
+    depends_on:
+      - postgres
+      - clickhouse
+      - control-panel
+      - data-fetcher
+      - unified-indexer
     environment:
       # PostgreSQL connection
       - POSTGRES_HOST=postgres
@@ -1740,15 +1864,4 @@ services:
       - ./src:/workspace/src
       - ./build:/workspace/build
       - ./.gradle:/workspace/.gradle
-    depends_on:
-      postgres:
-        condition: service_healthy
-      clickhouse:
-        condition: service_healthy
-      control-panel:
-        condition: service_started
-      data-fetcher:
-        condition: service_started
-      unified-indexer:
-        condition: service_started
 

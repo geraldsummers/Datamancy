@@ -383,3 +383,21 @@ identity_providers:
         response_types:
           - code
         token_endpoint_auth_method: client_secret_post
+
+      # SOGo Groupware (Webmail/Calendar/Contacts)
+      - client_id: sogo
+        client_name: SOGo
+        client_secret: '{{SOGO_OAUTH_SECRET_HASH}}'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://sogo.{{DOMAIN}}/SOGo/
+        scopes:
+          - openid
+          - profile
+          - email
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+        token_endpoint_auth_method: client_secret_post

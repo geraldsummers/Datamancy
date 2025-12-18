@@ -73,33 +73,44 @@ open class DatabaseService(
 
     open fun getSourceConfigs(): List<SourceConfig> {
         val configs = mutableListOf<SourceConfig>()
-        getConnection().use { conn ->
-            conn.createStatement().use { stmt ->
-                val rs = stmt.executeQuery("""
-                    SELECT
-                        source_name,
-                        enabled,
-                        schedule_interval,
-                        last_fetch_at,
-                        items_new,
-                        items_updated,
-                        items_failed,
-                        next_scheduled_at
-                    FROM source_status
-                    ORDER BY source_name
-                """)
-                while (rs.next()) {
-                    configs.add(SourceConfig(
-                        name = rs.getString("source_name"),
-                        enabled = rs.getBoolean("enabled"),
-                        scheduleInterval = rs.getString("schedule_interval") ?: "6h",
-                        lastFetch = rs.getTimestamp("last_fetch_at")?.toInstant()?.toString(),
-                        itemsNew = rs.getInt("items_new"),
-                        itemsUpdated = rs.getInt("items_updated"),
-                        itemsFailed = rs.getInt("items_failed"),
-                        nextScheduled = rs.getTimestamp("next_scheduled_at")?.toInstant()?.toString()
-                    ))
+        try {
+            getConnection().use { conn ->
+                conn.createStatement().use { stmt ->
+                    val rs = stmt.executeQuery("""
+                        SELECT
+                            source_name,
+                            enabled,
+                            schedule_interval,
+                            last_fetch_at,
+                            items_new,
+                            items_updated,
+                            items_failed,
+                            next_scheduled_at
+                        FROM source_status
+                        ORDER BY source_name
+                    """)
+                    while (rs.next()) {
+                        configs.add(SourceConfig(
+                            name = rs.getString("source_name"),
+                            enabled = rs.getBoolean("enabled"),
+                            scheduleInterval = rs.getString("schedule_interval") ?: "6h",
+                            lastFetch = rs.getTimestamp("last_fetch_at")?.toInstant()?.toString(),
+                            itemsNew = rs.getInt("items_new"),
+                            itemsUpdated = rs.getInt("items_updated"),
+                            itemsFailed = rs.getInt("items_failed"),
+                            nextScheduled = rs.getTimestamp("next_scheduled_at")?.toInstant()?.toString()
+                        ))
+                    }
                 }
+            }
+        } catch (e: Exception) {
+            // If query fails, ensure schema exists and retry
+            try {
+                ensureSchema()
+                return getSourceConfigs()
+            } catch (retryException: Exception) {
+                // Return empty list if still failing
+                return emptyList()
             }
         }
         return configs

@@ -20,12 +20,13 @@ import kotlin.test.assertTrue
 
 /**
  * Real integration tests that connect to actual running services.
- * Run with: docker-compose up
+ * Requires Docker network access - automatically handled by gradle test.
  */
+@IntegrationTest(requiredServices = ["control-panel"])
 class RealIntegrationTest {
 
     private lateinit var client: HttpClient
-    private val controlPanelUrl = System.getenv("CONTROL_PANEL_URL") ?: "http://localhost:8097"
+    private val controlPanelUrl = System.getProperty("control.panel.url", "http://control-panel:8097")
 
     @BeforeEach
     fun setup() {
