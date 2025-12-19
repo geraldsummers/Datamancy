@@ -34,9 +34,20 @@ fun Route.configureFetcherApi(proxy: ProxyService, database: org.datamancy.contr
 
     get("/logs/{source}") {
         val tail = call.request.queryParameters["tail"]?.toIntOrNull() ?: 100
-        call.respond(mapOf("source" to (call.parameters["source"] ?: "unknown"), "tail" to tail, "logs" to emptyList<String>()))
+        call.respond(FetcherLogs(
+            source = call.parameters["source"] ?: "unknown",
+            tail = tail,
+            logs = emptyList()
+        ))
     }
 }
+
+@Serializable
+data class FetcherLogs(
+    val source: String,
+    val tail: Int,
+    val logs: List<String>
+)
 
 @Serializable
 data class FetcherStatus(

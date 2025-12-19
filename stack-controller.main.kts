@@ -183,11 +183,10 @@ private fun validateDomain(domain: String) {
 
 private fun generateEnvironmentConfig() {
     val root = projectRoot()
-    val dataDir = ensureDatamancyDataDir()
-    val runtimeEnv = dataDir.resolve(".env.runtime")
+    val projectEnv = root.resolve(".env")
 
     info("Generating .env from defaults")
-    info("Output: $runtimeEnv")
+    info("Output: $projectEnv")
 
     val script = root.resolve("scripts/stack-control/configure-environment.kts")
 
@@ -197,16 +196,14 @@ private fun generateEnvironmentConfig() {
 
     run("kotlin", script.toString(), "export", cwd = root)
 
-    val projectEnv = root.resolve(".env")
     if (Files.exists(projectEnv)) {
-        Files.move(projectEnv, runtimeEnv, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-        ensurePerm(runtimeEnv, executable = false)
+        ensurePerm(projectEnv, executable = false)
     } else {
         err("Script did not generate .env file")
     }
 
     success("Environment configuration generated")
-    info("Location: $runtimeEnv")
+    info("Location: $projectEnv")
     info("Note: OAuth client secret hashes are set to PENDING")
     info("Run 'up' to complete setup (hashes generated automatically)")
 }
@@ -281,7 +278,7 @@ private fun processConfigTemplates() {
     val root = projectRoot()
     val dataDir = ensureDatamancyDataDir()
     val homeDir = Paths.get(System.getProperty("user.home"))
-    val runtimeEnv = dataDir.resolve(".env.runtime")
+    val projectEnv = root.resolve(".env")
     val configsDir = dataDir.resolve("configs")
 
     info("Processing configuration templates")
@@ -293,7 +290,7 @@ private fun processConfigTemplates() {
         err("process-config-templates.main.kts not found at: $script")
     }
 
-    run("kotlin", script.toString(), "--force", "--output=$configsDir", "--env=$runtimeEnv", cwd = root)
+    run("kotlin", script.toString(), "--force", "--output=$configsDir", "--env=$projectEnv", cwd = root)
 
     success("Configuration templates processed")
 
@@ -322,7 +319,7 @@ private fun createVolumeDirectories() {
 private fun bringUpStack() {
     val root = projectRoot()
     val dataDir = ensureDatamancyDataDir()
-    val runtimeEnv = dataDir.resolve(".env.runtime")
+    val projectEnv = root.resolve(".env")
     val ldapBootstrap = dataDir.resolve("bootstrap_ldap.ldif")
     val configsDir = dataDir.resolve("configs")
     val volumesDir = dataDir.resolve("volumes")
@@ -332,16 +329,16 @@ private fun bringUpStack() {
     println()
 
     // Step 1: Generate environment configuration if needed
-    if (!Files.exists(runtimeEnv)) {
+    if (!Files.exists(projectEnv)) {
         info("Step 1/5: Generating environment configuration")
         generateEnvironmentConfig()
     } else {
         info("Step 1/5: Environment config exists, validating")
-        validateEnvFile(runtimeEnv)
+        validateEnvFile(projectEnv)
     }
 
     // Validate DOMAIN
-    val envContent = Files.readString(runtimeEnv)
+    val envContent = Files.readString(projectEnv)
     val domainMatch = "DOMAIN=(.+)".toRegex().find(envContent)
     if (domainMatch != null) {
         val domain = domainMatch.groupValues[1].trim().removeSurrounding("\"", "'")
@@ -375,13 +372,13 @@ private fun bringUpStack() {
 
     // Step 4: Start services
     info("Step 4/4: Starting Docker Compose services")
-    run("docker", "compose", "--env-file", runtimeEnv.toString(), "up", "-d", cwd = root)
+    run("docker", "compose", "--env-file", projectEnv.toString(), "up", "-d", cwd = root)
 
     success("Stack started successfully")
     println()
 
     // Post-startup: Generate OIDC hashes if needed
-    val envContentFresh = Files.readString(runtimeEnv)
+    val envContentFresh = Files.readString(projectEnv)
     val hasPendingHashes = envContentFresh.contains("_HASH=PENDING") ||
                           envContentFresh.contains("_HASH=\"PENDING\"")
 
@@ -456,11 +453,11 @@ private fun bringUpStack() {
 private fun stopStack() {
     val root = projectRoot()
     val dataDir = datamancyDataDir()
-    val runtimeEnv = dataDir.resolve(".env.runtime")
+    val projectEnv = root.resolve(".env")
 
     info("Stopping stack")
-    if (Files.exists(runtimeEnv)) {
-        run("docker", "compose", "--env-file", runtimeEnv.toString(), "down", cwd = root)
+    if (Files.exists(projectEnv)) {
+        run("docker", "compose", "--env-file", projectEnv.toString(), "down", cwd = root)
     } else {
         run("docker", "compose", "down", cwd = root)
     }
@@ -470,11 +467,11 @@ private fun stopStack() {
 private fun showStackStatus() {
     val root = projectRoot()
     val dataDir = datamancyDataDir()
-    val runtimeEnv = dataDir.resolve(".env.runtime")
+    val projectEnv = root.resolve(".env")
 
     info("Stack status:")
-    if (Files.exists(runtimeEnv)) {
-        println(run("docker", "compose", "--env-file", runtimeEnv.toString(), "ps", cwd = root))
+    if (Files.exists(projectEnv)) {
+        println(run("docker", "compose", "--env-file", projectEnv.toString(), "ps", cwd = root))
     } else {
         println(run("docker", "compose", "ps", cwd = root))
     }
@@ -523,9 +520,9 @@ private fun cmdObliterate(force: Boolean = false) {
 
     info("Step 1/5: Stopping all containers and removing built images")
     try {
-        val runtimeEnv = dataDir.resolve(".env.runtime")
-        if (Files.exists(runtimeEnv)) {
-            run("docker", "compose", "--env-file", runtimeEnv.toString(), "down", "-v", "--rmi", "local", cwd = root, allowFail = true)
+        val projectEnv = root.resolve(".env")
+        if (Files.exists(projectEnv)) {
+            run("docker", "compose", "--env-file", projectEnv.toString(), "down", "-v", "--rmi", "local", cwd = root, allowFail = true)
         } else {
             run("docker", "compose", "down", "-v", "--rmi", "local", cwd = root, allowFail = true)
         }
@@ -660,7 +657,7 @@ private fun showHelp() {
         |  status          Show stack status (docker compose ps)
         |
         |  config          Configuration operations
-        |    generate      Generate .env.runtime in ~/.datamancy
+        |    generate      Generate .env in project root
         |    process       Process templates to ~/.datamancy/configs
         |
         |  help            Show this help message

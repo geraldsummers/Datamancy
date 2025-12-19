@@ -3,6 +3,8 @@ package org.datamancy.unifiedindexer
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Contextual
 import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.Timestamp
@@ -234,8 +236,9 @@ class Database(
     }
 }
 
+@Serializable
 data class IndexingJob(
-    val jobId: UUID,
+    @Contextual val jobId: UUID,
     val collectionName: String,
     val status: String,
     val startedAt: Long?,

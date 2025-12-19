@@ -264,6 +264,10 @@ volumes:
       type: none
       o: bind
       device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/data_fetcher
+  gradle-test-cache:
+    driver: local
+  kotlin-cache:
+    driver: local
 
 services:
   caddy:
@@ -1810,8 +1814,8 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=datamancy
-      - POSTGRES_USER=datamancer
-      - POSTGRES_PASSWORD=datamancy
+      - POSTGRES_USER=${STACK_ADMIN_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
       - DATA_FETCHER_URL=http://data-fetcher:8095
       - UNIFIED_INDEXER_URL=http://unified-indexer:8096
       - SEARCH_SERVICE_URL=http://search-service:8000
@@ -1861,3 +1865,30 @@ services:
       - UNIFIED_INDEXER_URL=http://unified-indexer:8096
       - SEARCH_SERVICE_URL=http://search-service:8098
     # No volumes needed - source code is baked into the image at build time
+
+  stack-test-runner:
+    image: eclipse-temurin:21-jdk
+    container_name: stack-test-runner
+    profiles:
+      - testing
+    networks:
+      - backend
+      - database
+    working_dir: /workspace
+    environment:
+      # Use separate Gradle directories to avoid lock conflicts with host
+      - GRADLE_USER_HOME=/tmp/gradle-home
+    volumes:
+      # Simple approach: mount everything read-write
+      - .:/workspace:rw
+    command:
+      - ./gradlew
+      - :stack-tests:test
+      - --no-daemon
+      - --console=plain
+      - --project-cache-dir=/tmp/gradle-project-cache
+    depends_on:
+      - control-panel
+      - data-fetcher
+      - unified-indexer
+      - search-service

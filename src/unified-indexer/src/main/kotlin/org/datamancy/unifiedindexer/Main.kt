@@ -14,6 +14,7 @@ import io.ktor.server.sse.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.html.*
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import java.util.UUID
 
@@ -315,38 +316,58 @@ fun Application.configureServer(database: Database, indexer: UnifiedIndexer) {
         route("/api/ingestion") {
             // Check if ingestion should be accepted (always true for now)
             get("/should-accept-data") {
-                call.respond(mapOf(
-                    "shouldAccept" to true,
-                    "reason" to "Ingestion is active"
+                call.respond(IngestionAcceptResponse(
+                    shouldAccept = true,
+                    reason = "Ingestion is active"
                 ))
             }
 
             // Get ingestion status
             get("/status") {
-                call.respond(mapOf(
-                    "isRunning" to true,
-                    "lastStateChange" to System.currentTimeMillis(),
-                    "message" to "Ingestion is active"
+                call.respond(IngestionStatusResponse(
+                    isRunning = true,
+                    lastStateChange = System.currentTimeMillis(),
+                    message = "Ingestion is active"
                 ))
             }
 
             // Start ingestion (no-op for now)
             post("/start") {
-                call.respond(mapOf(
-                    "success" to true,
-                    "message" to "Ingestion is always active",
-                    "previousState" to true
+                call.respond(IngestionControlResponse(
+                    success = true,
+                    message = "Ingestion is always active",
+                    previousState = true
                 ))
             }
 
             // Stop ingestion (no-op for now)
             post("/stop") {
-                call.respond(mapOf(
-                    "success" to true,
-                    "message" to "Ingestion control not implemented",
-                    "previousState" to true
+                call.respond(IngestionControlResponse(
+                    success = true,
+                    message = "Ingestion control not implemented",
+                    previousState = true
                 ))
             }
         }
     }
 }
+
+@Serializable
+data class IngestionAcceptResponse(
+    val shouldAccept: Boolean,
+    val reason: String
+)
+
+@Serializable
+data class IngestionStatusResponse(
+    val isRunning: Boolean,
+    val lastStateChange: Long,
+    val message: String
+)
+
+@Serializable
+data class IngestionControlResponse(
+    val success: Boolean,
+    val message: String,
+    val previousState: Boolean
+)

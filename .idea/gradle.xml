@@ -13,6 +13,7 @@
             <option value="$PROJECT_DIR$/src/control-panel" />
             <option value="$PROJECT_DIR$/src/data-fetcher" />
             <option value="$PROJECT_DIR$/src/search-service" />
+            <option value="$PROJECT_DIR$/src/stack-tests" />
             <option value="$PROJECT_DIR$/src/unified-indexer" />
           </set>
         </option>

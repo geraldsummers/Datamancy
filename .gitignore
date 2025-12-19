@@ -61,4 +61,4 @@ id_ed25519*
 venv/
 
 # Test artifacts
-htmlReport/
+htmlReport/.gradle-container/

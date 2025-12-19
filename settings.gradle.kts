@@ -32,6 +32,8 @@ project(":unified-indexer").projectDir = file("src/unified-indexer")
 project(":search-service").projectDir = file("src/search-service")
 project(":control-panel").projectDir = file("src/control-panel")
 
-// Test framework module (Playwright-based stack testing)
+// Test framework modules
+include(":stack-tests")
+project(":stack-tests").projectDir = file("src/stack-tests")
 //include(":test-framework")
 //project(":test-framework").projectDir = file("src/test-framework")

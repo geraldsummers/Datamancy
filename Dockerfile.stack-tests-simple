@@ -1,0 +1,15 @@
+FROM eclipse-temurin:21-jre
+
+WORKDIR /test
+
+# Copy pre-compiled test classes and dependencies
+COPY build /test/build
+COPY src/stack-tests/build /test/src/stack-tests/build
+
+# Run tests using JUnit console launcher
+CMD ["java", "-cp", \
+    "/test/src/stack-tests/build/classes/kotlin/test:/test/src/stack-tests/build/classes/kotlin/main:/test/build/*", \
+    "org.junit.platform.console.ConsoleLauncher", \
+    "--scan-classpath", \
+    "/test/src/stack-tests/build/classes/kotlin/test", \
+    "--reports-dir=/test/build/test-results"]
