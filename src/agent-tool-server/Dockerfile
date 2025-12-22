@@ -2,7 +2,7 @@
 FROM gradle:8.10.2-jdk21-alpine AS build
 WORKDIR /workspace
 # Copy gradle wrapper and configuration
-COPY gradlew gradlew.bat ./
+COPY gradlew ./
 COPY gradle ./gradle
 COPY build.gradle.kts settings.gradle.kts gradle.properties* ./
 # Copy agent-tool-server source and build file

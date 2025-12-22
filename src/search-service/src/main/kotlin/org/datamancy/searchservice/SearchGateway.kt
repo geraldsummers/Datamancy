@@ -235,10 +235,11 @@ class SearchGateway(
      * Generates embedding using embedding service.
      */
     private fun generateEmbedding(text: String): List<Float> {
-        val payload = gson.toJson(mapOf("text" to text))
+        // Embedding service expects {"inputs": text} format
+        val payload = gson.toJson(mapOf("inputs" to text))
 
         val request = Request.Builder()
-            .url("$embeddingServiceUrl/embed")
+            .url(embeddingServiceUrl) // Root endpoint, not /embed
             .post(payload.toRequestBody(jsonMediaType))
             .build()
 
@@ -247,8 +248,10 @@ class SearchGateway(
                 throw Exception("Failed to generate embedding: ${response.code}")
             }
 
-            val json = gson.fromJson(response.body?.string(), JsonObject::class.java)
-            val embeddingArray = json.getAsJsonArray("embedding")
+            // Response is [[embedding]] - double array
+            val responseBody = response.body?.string()
+            val json = gson.fromJson(responseBody, com.google.gson.JsonArray::class.java)
+            val embeddingArray = json.get(0).asJsonArray
             return embeddingArray.map { it.asFloat }
         }
     }

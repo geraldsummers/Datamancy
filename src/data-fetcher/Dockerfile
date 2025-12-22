@@ -1,42 +1,32 @@
-FROM gradle:8.11.1-jdk21 AS builder
-
-WORKDIR /app
-
-# Copy Gradle files first for better caching
-COPY src/data-fetcher/build.gradle.kts .
-COPY src/data-fetcher/settings.gradle.kts .
-COPY src/data-fetcher/gradle.properties .
-
-# Download dependencies
-RUN gradle dependencies --no-daemon || true
-
-# Copy source code
-COPY src/data-fetcher/src ./src
-
-# Build the application
-RUN gradle shadowJar --no-daemon
+# Build stage
+FROM gradle:8.10.2-jdk21-alpine AS build
+WORKDIR /workspace
+COPY . /workspace
+RUN gradle :data-fetcher:shadowJar --no-daemon
 
 # Runtime stage
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Install curl for healthchecks
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
-    rm -rf /var/lib/apt/lists/*
+# Install wget for healthchecks
+RUN apk add --no-cache wget
 
 # Copy the built JAR from builder
-COPY --from=builder /app/build/libs/data-fetcher.jar /app/data-fetcher.jar
+COPY --from=build /workspace/src/data-fetcher/build/libs/data-fetcher.jar /app/data-fetcher.jar
 
 # Create directories
 RUN mkdir -p /app/config /app/data
 
 # Set permissions for non-root user
-RUN useradd -m -u 1000 datamancer && \
+RUN addgroup -S datamancer && adduser -S datamancer -G datamancer && \
     chown -R datamancer:datamancer /app
 
 USER datamancer
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 -O /dev/null http://localhost:8095/health || exit 1
 
 EXPOSE 8095
 

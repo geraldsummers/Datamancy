@@ -33,6 +33,8 @@ project(":search-service").projectDir = file("src/search-service")
 project(":control-panel").projectDir = file("src/control-panel")
 
 // Test framework modules
+include(":test-commons")
+project(":test-commons").projectDir = file("src/test-commons")
 include(":stack-tests")
 project(":stack-tests").projectDir = file("src/stack-tests")
 //include(":test-framework")

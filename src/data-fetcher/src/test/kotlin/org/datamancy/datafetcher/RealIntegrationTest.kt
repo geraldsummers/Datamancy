@@ -1,5 +1,6 @@
 package org.datamancy.datafetcher
 
+import org.datamancy.test.IntegrationTest
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -11,21 +12,22 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.junit.After
-import org.junit.Before
-import org.junit.Test
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
  * Real integration tests connecting to actual data-fetcher service.
  */
+@IntegrationTest(requiredServices = ["data-fetcher", "postgres", "clickhouse", "bookstack"])
 class RealIntegrationTest {
 
     private lateinit var client: HttpClient
-    private val dataFetcherUrl = System.getenv("DATA_FETCHER_URL") ?: "http://data-fetcher:8095"
+    private val dataFetcherUrl = System.getenv("DATA_FETCHER_URL") ?: "http://localhost:18095"
 
-    @Before
+    @BeforeEach
     fun setup() {
         client = HttpClient(CIO) {
             install(ContentNegotiation) {
@@ -37,7 +39,7 @@ class RealIntegrationTest {
         }
     }
 
-    @After
+    @AfterEach
     fun teardown() {
         client.close()
     }

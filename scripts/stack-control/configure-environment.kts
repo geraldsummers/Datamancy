@@ -370,6 +370,7 @@ private fun cmdInit() {
         appendLine("AUTHELIA_DB_PASSWORD=${generatePassword(32)}")
         appendLine("GRAFANA_DB_PASSWORD=${generatePassword(32)}")
         appendLine("VAULTWARDEN_DB_PASSWORD=${generatePassword(32)}")
+        appendLine("HOMEASSISTANT_DB_PASSWORD=${generatePassword(32)}")
         val openwebuiPassword = generatePassword(32)
         appendLine("OPENWEBUI_DB_PASSWORD=$openwebuiPassword")
         appendLine("OPENWEBUI_DB_PASSWORD_ENCODED=${urlEncode(openwebuiPassword)}")
@@ -425,18 +426,13 @@ private fun cmdExport() {
         kotlin.system.exitProcess(1)
     }
 
-    // Determine output path: project root .env file
-    // SECRETS_DIR is typically ~/.local/share/stack-secrets or ./volumes/secrets
-    // We want to write to the project root, so go up from SECRETS_DIR
-    val projectRoot = if (SECRETS_DIR.toString().contains("/.local/share/")) {
-        // If using ~/.local/share/stack-secrets, assume CWD is project root
-        Path.of(System.getProperty("user.dir"))
+    // Determine output path: Use ENV_OUTPUT_PATH if set, otherwise ~/.datamancy/.env
+    val envFile = if (env["ENV_OUTPUT_PATH"] != null) {
+        Path.of(env["ENV_OUTPUT_PATH"])
     } else {
-        // If using relative path like ./volumes/secrets, go up two levels
-        SECRETS_DIR.parent?.parent ?: Path.of(".")
+        val homeDir = System.getProperty("user.home")
+        Path.of(homeDir, ".datamancy", ".env")
     }
-
-    val envFile = projectRoot.resolve(".env")
 
     logInfo("Decrypting secrets...")
     var plaintextRaw = decryptSecrets()
@@ -523,6 +519,7 @@ private fun cmdExport() {
     putIfMissing("MARIADB_ROOT_PASSWORD") { generatePassword(32) }
     putIfMissing("COUCHDB_ADMIN_PASSWORD") { generatePassword(32) }
     putIfMissing("CLICKHOUSE_ADMIN_PASSWORD") { generatePassword(32) }
+    putIfMissing("HOMEASSISTANT_DB_PASSWORD") { generatePassword(32) }
 
     // BookStack APP_KEY
     putIfMissing("BOOKSTACK_APP_KEY") { "base64:${generateSecretB64(32)}" }
@@ -610,6 +607,10 @@ private fun cmdExport() {
     }
 
     logInfo("Writing to ${envFile.toAbsolutePath()}")
+
+    // Ensure parent directory exists
+    envFile.parent?.let { Files.createDirectories(it) }
+
     val header = buildConfigHeader()
     val combined = buildString {
         append(header)

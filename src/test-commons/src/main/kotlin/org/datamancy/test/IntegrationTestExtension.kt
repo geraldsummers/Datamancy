@@ -1,4 +1,4 @@
-package org.datamancy.datafetcher
+package org.datamancy.test
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.junit.jupiter.api.extension.BeforeAllCallback
@@ -12,43 +12,79 @@ import java.util.concurrent.TimeUnit
 private val logger = KotlinLogging.logger {}
 
 /**
- * JUnit extension that ensures required Docker services are healthy before integration tests run.
+ * Shared JUnit extension that ensures required Docker services are healthy before integration tests run.
  *
  * This extension:
  * 1. Detects if running inside Docker (via /.dockerenv)
- * 2. If inside Docker, resolves service dependencies from docker-compose depends_on
- * 3. Automatically starts services and all their dependencies if not running
- * 4. Waits for services to be healthy before allowing tests to proceed
- * 5. Fails fast if services don't become healthy within timeout
+ * 2. Resolves service dependencies from docker-compose depends_on
+ * 3. Waits for services to be healthy before allowing tests to proceed
+ * 4. Fails fast if services don't become healthy within timeout
  */
 class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
 
     companion object {
-        private const val HEALTH_CHECK_TIMEOUT_SECONDS = 120
+        private const val HEALTH_CHECK_TIMEOUT_SECONDS = 120 // Reduced from 300
         private const val HEALTH_CHECK_INTERVAL_MS = 2000L
-        private const val SERVICE_START_TIMEOUT_SECONDS = 180
 
-        private val serviceHealthEndpoints = mapOf(
+        // Docker hostnames (for when running inside Docker network)
+        private val dockerServiceHealthEndpoints = mapOf(
             "postgres" to "tcp://postgres:5432",
             "clickhouse" to "http://clickhouse:8123/ping",
             "control-panel" to "http://control-panel:8097/health",
             "data-fetcher" to "http://data-fetcher:8095/health",
             "unified-indexer" to "http://unified-indexer:8096/health",
             "search-service" to "http://search-service:8098/health",
-            "qdrant" to "http://qdrant:6333/health",
+            "qdrant" to "http://qdrant:6333/readyz",
             "caddy" to "http://caddy:80/health",
             "bookstack" to "http://bookstack:80",
-            "embedding-service" to "http://embedding-service:4195/ready",
+            "embedding-service" to "http://embedding-service:8080/health",
             "ldap" to "tcp://ldap:389",
-            "valkey" to "tcp://valkey:6379"
+            "valkey" to "tcp://valkey:6379",
+            "agent-tool-server" to "http://agent-tool-server:8081/healthz",
+            "mariadb" to "tcp://mariadb:3306",
+            "couchdb" to "http://couchdb:5984",
+            "litellm" to "http://litellm:4000/health",
+            "docker-proxy" to "tcp://docker-proxy:2375"
         )
+
+        // Localhost ports (for when running on host machine)
+        private val localhostServiceHealthEndpoints = mapOf(
+            "postgres" to "tcp://localhost:15432",
+            "clickhouse" to "http://localhost:18123/ping",
+            "control-panel" to "http://localhost:18097/health",
+            "data-fetcher" to "http://localhost:18095/health",
+            "unified-indexer" to "http://localhost:18096/health",
+            "search-service" to "http://localhost:18098/health",
+            "qdrant" to "http://localhost:16333/readyz",
+            "caddy" to "http://localhost:10080/health",
+            "bookstack" to "http://localhost:10080",
+            "embedding-service" to "http://localhost:18080/health",
+            "ldap" to "tcp://localhost:10389",
+            "valkey" to "tcp://localhost:16379",
+            "agent-tool-server" to "http://localhost:18091/healthz",
+            "mariadb" to "tcp://localhost:13306",
+            "couchdb" to "http://localhost:15984",
+            "litellm" to "http://localhost:14001/health",
+            "docker-proxy" to "tcp://localhost:12375"
+        )
+
+        // Services that are optional (won't fail tests if unhealthy)
+        private val optionalServices = setOf("litellm", "seafile-memcached", "seafile", "radicale")
+
+        private val serviceHealthEndpoints: Map<String, String>
+            get() = if (java.io.File("/.dockerenv").exists()) {
+                dockerServiceHealthEndpoints
+            } else {
+                localhostServiceHealthEndpoints
+            }
 
         // Define service dependencies (matches docker-compose depends_on)
         private val serviceDependencies = mapOf(
             "control-panel" to listOf("postgres", "data-fetcher", "unified-indexer"),
-            "data-fetcher" to listOf("postgres", "clickhouse", "bookstack"),
-            "unified-indexer" to listOf("postgres", "bookstack", "qdrant", "clickhouse", "embedding-service"),
+            "data-fetcher" to listOf("postgres", "clickhouse"),
+            "unified-indexer" to listOf("postgres", "qdrant", "clickhouse", "embedding-service"),
             "search-service" to listOf("qdrant", "clickhouse"),
+            "agent-tool-server" to listOf("postgres", "docker-proxy"),
             "bookstack" to listOf("postgres"),
             "embedding-service" to listOf(),
             "qdrant" to listOf(),
@@ -56,11 +92,13 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
             "postgres" to listOf(),
             "ldap" to listOf(),
             "valkey" to listOf(),
-            "caddy" to listOf()
+            "caddy" to listOf(),
+            "mariadb" to listOf(),
+            "couchdb" to listOf(),
+            "docker-proxy" to listOf()
         )
 
         private val checkedServices = mutableSetOf<String>()
-        private val startedServices = mutableSetOf<String>()
     }
 
     override fun beforeAll(context: ExtensionContext) {
@@ -71,10 +109,6 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
     override fun beforeEach(context: ExtensionContext) {
         val annotation = context.testMethod.orElse(null)?.getAnnotation(IntegrationTest::class.java)
         annotation?.let { ensureServicesReady(it.requiredServices.toList()) }
-    }
-
-    private fun isRunningInDocker(): Boolean {
-        return java.io.File("/.dockerenv").exists()
     }
 
     private fun ensureServicesReady(services: List<String>) {
@@ -89,95 +123,25 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
 
         // Resolve all dependencies
         val allServices = resolveServiceDependencies(services)
-        println("📋 Required services: ${allServices.joinToString(", ")}")
-        logger.info { "Required services with dependencies: ${allServices.joinToString()}" }
+        val requiredServices = allServices.filter { it !in optionalServices }
+        val optionalServicesInList = allServices.filter { it in optionalServices }
 
-        // Check if any required services are not running
-        println("\n🔍 Checking service availability...")
-        val notRunning = allServices.filter { service ->
-            val healthy = checkServiceHealth(service)
-            if (healthy) {
-                println("  ✓ $service - accessible")
-            } else {
-                println("  ✗ $service - not accessible")
-            }
-            !healthy
+        println("📋 Required services: ${requiredServices.joinToString(", ")}")
+        if (optionalServicesInList.isNotEmpty()) {
+            println("📋 Optional services: ${optionalServicesInList.joinToString(", ")}")
         }
 
-        if (notRunning.isNotEmpty()) {
-            logger.info { "Services not accessible: ${notRunning.joinToString()}" }
+        // Wait for required services to be healthy
+        println("\n⏳ Waiting for required services to be healthy...")
+        waitForServicesHealthy(requiredServices, failOnTimeout = true)
 
-            // Only try to start services if we're on host (not inside Docker test container)
-            val runningInDocker = isRunningInDocker()
-            if (!runningInDocker) {
-                // On host - use stack-controller to start services
-                println("\n⚡ Starting Docker stack via stack-controller...")
-                logger.info { "Starting Docker stack via stack-controller..." }
-                ensureStackRunning()
-            } else {
-                // Inside Docker test container - services should already be running
-                println("\n⚠️  Running inside Docker but services not accessible")
-                println("   Make sure the stack is running: ./stack-controller.main.kts up")
-                logger.warn { "Running inside Docker but services not accessible. Stack may not be started." }
-            }
-        } else {
-            println("\n✅ All required services are accessible")
-            logger.info { "All required services already accessible" }
+        // Check optional services but don't fail if unhealthy
+        if (optionalServicesInList.isNotEmpty()) {
+            println("\n⏳ Checking optional services...")
+            waitForServicesHealthy(optionalServicesInList, failOnTimeout = false)
         }
 
-        // Wait for all services to be healthy
-        println("\n⏳ Waiting for services to be healthy...")
-        waitForServicesHealthy(allServices)
-        println("✅ All services are healthy and ready\n")
-    }
-
-    private fun ensureStackRunning() {
-        try {
-            // Check if .env exists, if not generate it
-            val envFile = java.io.File(".env")
-            if (!envFile.exists()) {
-                logger.info { "Generating environment configuration..." }
-                val process = ProcessBuilder(
-                    "./stack-controller.main.kts", "config", "generate"
-                ).redirectErrorStream(true).start()
-
-                val output = process.inputStream.bufferedReader().use { it.readText() }
-                val exitCode = process.waitFor()
-
-                if (exitCode != 0) {
-                    logger.error { "Failed to generate config:\n$output" }
-                    throw IllegalStateException("Failed to generate environment configuration")
-                }
-
-                logger.info { "✓ Configuration generated" }
-            }
-
-            // Start the stack
-            logger.info { "Starting Docker stack..." }
-            val process = ProcessBuilder(
-                "./stack-controller.main.kts", "up"
-            ).redirectErrorStream(true).start()
-
-            // Stream output
-            process.inputStream.bufferedReader().use { reader ->
-                reader.lineSequence().forEach { line ->
-                    logger.debug { line }
-                }
-            }
-
-            val exitCode = process.waitFor()
-            if (exitCode != 0) {
-                throw IllegalStateException("Failed to start stack (exit code: $exitCode)")
-            }
-
-            logger.info { "✓ Stack started successfully" }
-
-            // Give services a moment to initialize
-            Thread.sleep(5000)
-
-        } catch (e: Exception) {
-            throw IllegalStateException("Failed to start Docker stack: ${e.message}", e)
-        }
+        println("✅ All required services are healthy and ready\n")
     }
 
     private fun resolveServiceDependencies(services: List<String>): List<String> {
@@ -201,7 +165,6 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
 
         // Return in dependency order (dependencies first)
         return resolved.sortedBy { service ->
-            // Services with fewer dependencies come first
             countTransitiveDependencies(service)
         }
     }
@@ -211,57 +174,10 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
         return deps.size + deps.sumOf { countTransitiveDependencies(it) }
     }
 
-    private fun isServiceRunning(service: String): Boolean {
-        if (service in startedServices) return true
-
-        return try {
-            val process = ProcessBuilder(
-                "docker", "compose", "ps", "--filter", "status=running", "--format", "{{.Service}}"
-            ).redirectErrorStream(true).start()
-
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-
-            val running = output.lines().any { it.trim() == service }
-            if (running) {
-                startedServices.add(service)
-            }
-            running
-        } catch (e: Exception) {
-            logger.warn { "Failed to check if service '$service' is running: ${e.message}" }
-            false
-        }
-    }
-
-    private fun startServices(services: List<String>) {
-        if (services.isEmpty()) return
-
-        logger.info { "⬆ Starting services: ${services.joinToString()}" }
-
-        try {
-            val process = ProcessBuilder(
-                listOf("docker", "compose", "up", "-d") + services
-            ).redirectErrorStream(true).start()
-
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            val exitCode = process.waitFor(SERVICE_START_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
-
-            if (!exitCode || process.exitValue() != 0) {
-                logger.error { "Failed to start services. Output:\n$output" }
-                throw IllegalStateException("Failed to start services: ${services.joinToString()}")
-            }
-
-            startedServices.addAll(services)
-            logger.info { "✓ Services started successfully" }
-        } catch (e: Exception) {
-            throw IllegalStateException("Error starting services: ${e.message}", e)
-        }
-    }
-
-    private fun waitForServicesHealthy(services: List<String>) {
+    private fun waitForServicesHealthy(services: List<String>, failOnTimeout: Boolean) {
         val servicesToCheck = services.filter { it !in checkedServices }
         if (servicesToCheck.isEmpty()) {
-            logger.debug { "All required services already verified healthy" }
+            logger.debug { "All services already verified healthy" }
             return
         }
 
@@ -274,11 +190,17 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
         while (unhealthyServices.isNotEmpty()) {
             val elapsed = System.currentTimeMillis() - startTime
             if (elapsed > timeout) {
-                println("\n❌ Timeout waiting for services:")
-                unhealthyServices.forEach { println("  ✗ $it") }
-                throw IllegalStateException(
-                    "Timeout waiting for services to become healthy: ${unhealthyServices.joinToString()}"
-                )
+                if (failOnTimeout) {
+                    println("\n❌ Timeout waiting for services:")
+                    unhealthyServices.forEach { println("  ✗ $it") }
+                    throw IllegalStateException(
+                        "Timeout waiting for services to become healthy: ${unhealthyServices.joinToString()}"
+                    )
+                } else {
+                    println("\n⚠️  Optional services not healthy (continuing anyway):")
+                    unhealthyServices.forEach { println("  ⚠️  $it") }
+                    break
+                }
             }
 
             // Show progress every 10 seconds
@@ -292,7 +214,7 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
             while (iterator.hasNext()) {
                 val service = iterator.next()
                 if (checkServiceHealth(service)) {
-                    println("  ✓ $service is now healthy")
+                    println("  ✓ $service is healthy")
                     logger.info { "✓ Service '$service' is healthy" }
                     checkedServices.add(service)
                     iterator.remove()
@@ -306,7 +228,7 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
             }
         }
 
-        logger.info { "✓ All required services are healthy" }
+        logger.info { "✓ Required services are healthy" }
     }
 
     private fun checkServiceHealth(service: String): Boolean {

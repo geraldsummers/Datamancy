@@ -1,6 +1,6 @@
 package org.datamancy.datafetcher.storage
 
-import org.datamancy.datafetcher.IntegrationTest
+import org.datamancy.test.IntegrationTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 

@@ -66,7 +66,7 @@ fun parseArgs(argv: Array<String>): Args {
                       --verbose, -v         Show detailed processing information
                       --force, -f           Overwrite existing configs/ directory
                       --output=<path>       Output directory (default: ~/.datamancy/configs)
-                      --env=<path>          Environment file path (default: ~/.datamancy/.env.runtime or ./.env)
+                      --env=<path>          Environment file path (default: ~/.datamancy/.env)
                       --help, -h            Show this help message
                 """.trimIndent())
                 exitProcess(0)
@@ -247,9 +247,16 @@ fun processTemplate(content: String, env: Map<String, String>, filePath: String,
 
 fun setExecutable(file: File) {
     try {
-        val perms = Files.getPosixFilePermissions(file.toPath()).toMutableSet()
-        perms.add(PosixFilePermission.OWNER_EXECUTE)
-        perms.add(PosixFilePermission.GROUP_EXECUTE)
+        // Set to 755: rwxr-xr-x (readable and executable by all, writable by owner)
+        val perms = setOf(
+            PosixFilePermission.OWNER_READ,
+            PosixFilePermission.OWNER_WRITE,
+            PosixFilePermission.OWNER_EXECUTE,
+            PosixFilePermission.GROUP_READ,
+            PosixFilePermission.GROUP_EXECUTE,
+            PosixFilePermission.OTHERS_READ,
+            PosixFilePermission.OTHERS_EXECUTE
+        )
         Files.setPosixFilePermissions(file.toPath(), perms)
     } catch (e: UnsupportedOperationException) {
         // Non-POSIX filesystem (Windows), use setExecutable instead
@@ -392,7 +399,7 @@ fun copyFileStructure(
         }
         println()
         error("Action required:")
-        error("1. Edit .env or ~/.datamancy/.env.runtime")
+        error("1. Edit ~/.datamancy/.env")
         error("2. Add missing variables (run: ./stack-controller config generate)")
         error("3. Re-run config processing")
         exitProcess(1)
@@ -421,9 +428,8 @@ fun main(argv: Array<String>) {
     // Determine env file location
     val envFile = when {
         args.envFile != null -> File(args.envFile)
-        File(System.getProperty("user.home") + "/.datamancy/.env.runtime").exists() -> File(System.getProperty("user.home") + "/.datamancy/.env.runtime")
-        File(projectRoot, ".env").exists() -> File(projectRoot, ".env")
-        else -> File(System.getProperty("user.home") + "/.datamancy/.env.runtime")
+        File(System.getProperty("user.home") + "/.datamancy/.env").exists() -> File(System.getProperty("user.home") + "/.datamancy/.env")
+        else -> File(System.getProperty("user.home") + "/.datamancy/.env")
     }
 
     // Validate

@@ -100,17 +100,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     END
     \$\$;
 
-    -- Create Home Assistant database if password is provided
-    DO \$\$
-    BEGIN
-        IF '$HOMEASSISTANT_DB_PASSWORD' != '' THEN
-            IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'homeassistant') THEN
-                CREATE DATABASE homeassistant OWNER $POSTGRES_USER;
-            END IF;
-        END IF;
-    END
-    \$\$;
-
     -- Create databases with correct owners (IF NOT EXISTS requires PostgreSQL 9.1+)
     SELECT 'CREATE DATABASE planka OWNER planka'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'planka')\gexec
@@ -151,6 +140,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE datamancy OWNER datamancer'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'datamancy')\gexec
 
+    SELECT 'CREATE DATABASE homeassistant OWNER $POSTGRES_USER'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'homeassistant')\gexec
+
     -- Grant privileges (these are idempotent)
     GRANT ALL PRIVILEGES ON DATABASE planka TO planka;
     GRANT ALL PRIVILEGES ON DATABASE langgraph TO $POSTGRES_USER;
@@ -165,6 +157,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE sogo TO sogo;
     GRANT ALL PRIVILEGES ON DATABASE roundcube TO roundcube;
     GRANT ALL PRIVILEGES ON DATABASE datamancy TO datamancer;
+    GRANT ALL PRIVILEGES ON DATABASE homeassistant TO $POSTGRES_USER;
 
     -- Grant CONNECT to agent_observer on safe databases only
     -- SECURITY: Only databases with safe public data

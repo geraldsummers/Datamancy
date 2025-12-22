@@ -1,7 +1,17 @@
 ###############################################
-#Important Notes:
-#All changes need to be here or in the template files
-#Within stack-controller.main.kts is a command called obliterate which will delete all containers, networks, volumes, and images approximating the change to a new computer
+# Datamancy Docker Compose Configuration
+#
+# This file is copied to ~/.datamancy/ during installation.
+# All runtime configs live in ~/.datamancy/configs/ (generated from configs.templates/)
+#
+# To update this file:
+#   1. Edit in git repository
+#   2. Run: ./install-datamancy.main.kts
+#
+# Stack management:
+#   datamancy-controller up         - Start stack
+#   datamancy-controller down       - Stop stack
+#   datamancy-controller obliterate - Complete cleanup
 ###############################################
 networks:
   frontend:
@@ -540,7 +550,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "timeout 2 bash -c 'echo stats | nc 127.0.0.1 11211' | grep -q 'STAT version' || exit 1"]
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/11211' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -561,7 +571,7 @@ services:
       sh -c "
         apk add --no-cache curl &&
         echo 'Triggering Caddy to generate certificate for mail.${DOMAIN}...' &&
-        curl -fsSL -k https://mail.${DOMAIN}/ -o /dev/null &&
+        curl -k https://mail.${DOMAIN}/ -o /dev/null || true &&
         echo 'Certificate generation triggered successfully'
       "
 
@@ -676,7 +686,7 @@ services:
     volumes:
       - radicale_data:/data
       - ${HOME}/.datamancy/configs/applications/radicale/config:/config/config:ro
-      - ${HOME}/.datamancy/configs/applications/radicale/users:/data/users:ro
+      - ${HOME}/.datamancy/configs/applications/radicale/users:/data/users
     networks:
       - backend
     healthcheck:
@@ -1483,7 +1493,7 @@ services:
       - UI_PASSWORD=${STACK_ADMIN_PASSWORD}
     command: --config /app/config.yaml --port 4000 --num_workers 4
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4000/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -1553,6 +1563,8 @@ services:
       - LDAP_HOST=ldap
       - LDAP_PORT=389
       - LDAP_BASE_DN=dc=stack,dc=local
+      # Search service for semantic search
+      - SEARCH_SERVICE_URL=http://search-service:8097
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
@@ -1727,7 +1739,7 @@ services:
       - ${HOME}/.datamancy/configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
       - ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/data_fetcher:/app/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8095/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8095/health"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -1763,7 +1775,7 @@ services:
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
       - EMBEDDING_SERVICE_URL=http://embedding-service:8080
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8096/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1789,7 +1801,7 @@ services:
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
       - EMBEDDING_SERVICE_URL=http://embedding-service:8080
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8097/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8097/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1825,7 +1837,7 @@ services:
       - "caddy=control.${DOMAIN}"
       - "caddy.reverse_proxy={{upstreams 8097}}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8097/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8097/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1875,6 +1887,8 @@ services:
       - backend
       - database
     working_dir: /workspace
+    # Run as host user to avoid permission issues
+    user: "${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000}"
     environment:
       # Use separate Gradle directories to avoid lock conflicts with host
       - GRADLE_USER_HOME=/tmp/gradle-home

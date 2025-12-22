@@ -2,7 +2,7 @@ package org.datamancy.datafetcher.storage
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import org.datamancy.datafetcher.IntegrationTest
+import org.datamancy.test.IntegrationTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test

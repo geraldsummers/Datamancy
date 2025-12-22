@@ -68,12 +68,17 @@ class DataSourceQueryPlugin : Plugin {
         val baseDn: String
     )
 
+    internal data class SearchServiceConfig(
+        val url: String
+    )
+
     private var postgresConfig: PostgresConfig? = null
     private var mariadbConfig: MariaDBConfig? = null
     private var clickhouseConfig: ClickHouseConfig? = null
     private var couchdbConfig: CouchDBConfig? = null
     private var qdrantConfig: QdrantConfig? = null
     private var ldapConfig: LdapConfig? = null
+    private var searchServiceConfig: SearchServiceConfig? = null
 
     override fun manifest() = PluginManifest(
         id = "org.example.plugins.datasource",
@@ -142,13 +147,18 @@ class DataSourceQueryPlugin : Plugin {
             )
         }
 
+        searchServiceConfig = env["SEARCH_SERVICE_URL"]?.let {
+            SearchServiceConfig(url = it)
+        }
+
         println("[DataSourceQueryPlugin] Initialized with ${listOfNotNull(
             postgresConfig?.let { "postgres" },
             mariadbConfig?.let { "mariadb" },
             clickhouseConfig?.let { "clickhouse" },
             couchdbConfig?.let { "couchdb" },
             qdrantConfig?.let { "qdrant" },
-            ldapConfig?.let { "ldap" }
+            ldapConfig?.let { "ldap" },
+            searchServiceConfig?.let { "search-service" }
         ).joinToString(", ")}")
     }
 
@@ -158,7 +168,8 @@ class DataSourceQueryPlugin : Plugin {
         clickhouseConfig,
         couchdbConfig,
         qdrantConfig,
-        ldapConfig
+        ldapConfig,
+        searchServiceConfig
     ))
 
     override fun registerTools(registry: ToolRegistry) {
@@ -169,7 +180,8 @@ class DataSourceQueryPlugin : Plugin {
             clickhouseConfig,
             couchdbConfig,
             qdrantConfig,
-            ldapConfig
+            ldapConfig,
+            searchServiceConfig
         )
 
         if (postgresConfig != null) {
@@ -282,6 +294,38 @@ class DataSourceQueryPlugin : Plugin {
                 }
             )
         }
+
+        // Register semantic search tool if search-service is configured
+        if (searchServiceConfig != null) {
+            registry.register(
+                ToolDefinition(
+                    name = "semantic_search",
+                    description = "Semantic search across document collections using natural language queries",
+                    shortDescription = "Search documents semantically",
+                    longDescription = "Perform semantic search across document collections. Automatically handles embedding generation and hybrid search (vector + BM25). Returns relevant documents with scores.",
+                    parameters = listOf(
+                        ToolParam("query", "string", true, "Natural language search query"),
+                        ToolParam("collections", "array", false, "Collection names to search (default: all collections). Use ['*'] for all."),
+                        ToolParam("mode", "string", false, "Search mode: 'hybrid' (default), 'vector', or 'bm25'"),
+                        ToolParam("limit", "integer", false, "Max results (default 20)")
+                    ),
+                    paramsSpec = """{"type":"object","required":["query"],"properties":{"query":{"type":"string"},"collections":{"type":"array","items":{"type":"string"},"default":["*"]},"mode":{"type":"string","enum":["hybrid","vector","bm25"],"default":"hybrid"},"limit":{"type":"integer","default":20}}}""",
+                    pluginId = pluginId
+                ),
+                ToolHandler { args ->
+                    val query = args.get("query")?.asText() ?: throw IllegalArgumentException("query required")
+                    val collectionsNode = args.get("collections")
+                    val collections = if (collectionsNode != null && collectionsNode.isArray) {
+                        collectionsNode.map { it.asText() }
+                    } else {
+                        listOf("*")
+                    }
+                    val mode = args.get("mode")?.asText() ?: "hybrid"
+                    val limit = args.get("limit")?.asInt() ?: 20
+                    tools.semantic_search(query, collections, mode, limit)
+                }
+            )
+        }
     }
 
     override fun shutdown() {
@@ -294,7 +338,8 @@ class DataSourceQueryPlugin : Plugin {
         private val clickhouseConfig: ClickHouseConfig?,
         private val couchdbConfig: CouchDBConfig?,
         private val qdrantConfig: QdrantConfig?,
-        private val ldapConfig: LdapConfig?
+        private val ldapConfig: LdapConfig?,
+        private val searchServiceConfig: SearchServiceConfig?
     ) {
 
         @LlmTool(
@@ -398,6 +443,33 @@ class DataSourceQueryPlugin : Plugin {
                     conn.inputStream.bufferedReader().use { it.readText() }
                 } else {
                     "ERROR: HTTP ${conn.responseCode}"
+                }
+            } catch (e: Exception) {
+                "ERROR: ${e.message}"
+            }
+        }
+
+        fun semantic_search(query: String, collections: List<String> = listOf("*"), mode: String = "hybrid", limit: Int = 20): String {
+            val config = searchServiceConfig ?: return "ERROR: Search service not configured"
+
+            return try {
+                val url = URI("${config.url}/search").toURL()
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.connectTimeout = 30000
+                conn.readTimeout = 30000
+
+                val collectionsJson = collections.joinToString(",", "[", "]") { "\"$it\"" }
+                val payload = """{"query":"${query.replace("\"", "\\\"")}","collections":$collectionsJson,"mode":"$mode","limit":$limit}"""
+                conn.outputStream.write(payload.toByteArray())
+
+                if (conn.responseCode == 200) {
+                    conn.inputStream.bufferedReader().use { it.readText() }
+                } else {
+                    val errorBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                    "ERROR: HTTP ${conn.responseCode} - $errorBody"
                 }
             } catch (e: Exception) {
                 "ERROR: ${e.message}"

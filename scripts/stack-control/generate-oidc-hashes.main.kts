@@ -3,10 +3,10 @@
 /**
  * Generate pbkdf2-sha512 hashes for OAuth client secrets used by Authelia.
  *
- * This script reads OAuth secrets from .env.runtime and generates the corresponding
+ * This script reads OAuth secrets from .env and generates the corresponding
  * pbkdf2-sha512 hashes that Authelia requires for OIDC client authentication.
  *
- * The hashes are updated in-place in the .env.runtime file.
+ * The hashes are updated in-place in the .env file.
  *
  * Usage:
  *   kotlin scripts/security/generate-oidc-hashes.main.kts
@@ -60,7 +60,7 @@ private fun generateHash(secret: String): String {
 }
 
 /**
- * Update .env.runtime file with generated hashes.
+ * Update .env file with generated hashes.
  */
 private fun updateEnvFile(envPath: Path, secretToHash: Map<String, String>) {
     info("Updating ${envPath}")
@@ -98,8 +98,8 @@ private fun updateEnvFile(envPath: Path, secretToHash: Map<String, String>) {
 fun main() {
     info("Generating OIDC client secret hashes for Authelia")
 
-    // Path to .env.runtime
-    val envPath = Paths.get(System.getProperty("user.home"), ".datamancy", ".env.runtime")
+    // Path to .env
+    val envPath = Paths.get(System.getProperty("user.home"), ".datamancy", ".env")
 
     if (!Files.exists(envPath)) {
         error("${envPath} not found. Run './stack-controller config generate' first.")

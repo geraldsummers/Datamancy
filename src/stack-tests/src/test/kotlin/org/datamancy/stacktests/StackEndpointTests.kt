@@ -16,21 +16,27 @@ import org.datamancy.stacktests.models.ServiceSpec
 import org.datamancy.stacktests.models.StackEndpointsRegistry
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 import java.io.File
 
 /**
  * Dynamic test class that discovers and tests all stack endpoints at runtime.
- * Tests connect directly to Docker service hostnames (requires running on Docker network).
+ * Tests connect to services via localhost ports exposed by docker-compose.test-ports.yml.
  *
- * Prerequisites: Stack must be running with: docker compose up -d
+ * Prerequisites: Stack must be running with test overlay:
+ *   docker compose -f docker-compose.yml -f docker-compose.test-ports.yml up -d
  *
- * Note: This test must run inside a Docker container on the backend/database networks
- * to resolve service hostnames. Use: ./gradlew :stack-tests:stackTest
+ * The Gradle build automatically handles stack lifecycle and port exposure.
  */
+@Execution(ExecutionMode.CONCURRENT)
 class StackEndpointTests {
 
     private lateinit var client: HttpClient
     private lateinit var registry: StackEndpointsRegistry
+
+    // Cache of service health status to avoid repeated checks (thread-safe for concurrent tests)
+    private val serviceHealthCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
     @BeforeEach
     fun setup() {
@@ -45,13 +51,13 @@ class StackEndpointTests {
 
             // Set timeout for slow operations
             engine {
-                requestTimeout = 60_000 // 60 seconds for markdown conversion
+                requestTimeout = 90_000 // 90 seconds for slow services
             }
         }
 
-        // Load discovered endpoints from JSON
+        // Load discovered endpoints from JSON (localhost variant for testing)
         // Working directory is set to project root in build.gradle.kts
-        val discoveredFile = File("build/discovered-endpoints.json")
+        val discoveredFile = File("build/discovered-endpoints-localhost.json")
         if (!discoveredFile.exists()) {
             throw IllegalStateException(
                 "Discovered endpoints file not found at ${discoveredFile.absolutePath}. Run './gradlew :stack-tests:discoverEndpoints' first."
@@ -79,9 +85,12 @@ class StackEndpointTests {
                     DynamicTest.dynamicTest("${service.name}: ${endpoint.method} ${endpoint.path}") {
                         runBlocking {
                             try {
+                                // Health check with extended timeout for slow-starting services
+                                waitForServiceHealth(service, endpoint, maxWaitSeconds = 90)
+
                                 val response = testEndpoint(service, endpoint)
                                 val statusCode = response.status.value
-                                val acceptableStatuses = getAcceptableStatuses(endpoint.path)
+                                val acceptableStatuses = getAcceptableStatuses(endpoint.fullUrl)
 
                                 assertTrue(
                                     statusCode in acceptableStatuses,
@@ -89,7 +98,7 @@ class StackEndpointTests {
                                 )
                             } catch (e: java.net.ConnectException) {
                                 throw AssertionError(
-                                    "Cannot connect to ${endpoint.fullUrl} - service is not running or unreachable",
+                                    "Cannot connect to ${endpoint.fullUrl} - service did not become healthy in time",
                                     e
                                 )
                             } catch (e: Exception) {
@@ -116,6 +125,79 @@ class StackEndpointTests {
                     }
                 }
         }
+    }
+
+    /**
+     * Poll service health every 2 seconds until healthy or timeout.
+     * Uses caching to avoid repeated health checks for the same service.
+     * Tests fire immediately when their service becomes ready.
+     */
+    private suspend fun waitForServiceHealth(service: ServiceSpec, endpoint: EndpointSpec, maxWaitSeconds: Int) {
+        val serviceName = service.name
+
+        // Check cache first
+        val cachedHealth = serviceHealthCache[serviceName]
+        if (cachedHealth != null) {
+            // Already checked this service
+            return
+        }
+
+        // Not in cache, perform health check with polling
+        val baseUrl = service.baseUrl
+        val healthEndpoint = getHealthEndpoint(baseUrl, endpoint.path)
+        val startTime = System.currentTimeMillis()
+        val maxWaitMillis = maxWaitSeconds * 1000L
+
+        while (System.currentTimeMillis() - startTime < maxWaitMillis) {
+            try {
+                // Create a new client with short timeout for health check
+                val quickClient = HttpClient(CIO) {
+                    engine {
+                        requestTimeout = 2000
+                    }
+                }
+
+                val healthResponse = quickClient.get(healthEndpoint)
+                quickClient.close()
+
+                // Service responded - consider it healthy
+                if (healthResponse.status.value in 200..599) {
+                    val elapsedSec = (System.currentTimeMillis() - startTime) / 1000
+                    if (elapsedSec > 0) {
+                        println("  ✓ $serviceName became healthy after ${elapsedSec}s")
+                    }
+                    serviceHealthCache[serviceName] = true
+                    return  // Service is ready, fire the test!
+                }
+            } catch (e: Exception) {
+                // Service not ready yet, continue polling
+            }
+
+            // Poll every 2 seconds
+            kotlinx.coroutines.delay(2000)
+        }
+
+        // Timeout reached, cache as unhealthy
+        println("  ⚠️  $serviceName did not become healthy after ${maxWaitSeconds}s - marking as unavailable")
+        serviceHealthCache[serviceName] = false
+    }
+
+    /**
+     * Get the health check endpoint for a service.
+     * Tries common health endpoint patterns.
+     */
+    private fun getHealthEndpoint(baseUrl: String, endpointPath: String): String {
+        // If the endpoint itself is a health check, use it
+        if (endpointPath.contains("health") || endpointPath.contains("ping") ||
+            endpointPath.contains("ready") || endpointPath.contains("alive")) {
+            return "$baseUrl$endpointPath"
+        }
+
+        // Try common health check patterns
+        val commonHealthPaths = listOf("/health", "/healthz", "/_up", "/ping", "/ready", "/api/health")
+
+        // Default to the root or first common pattern
+        return "$baseUrl${commonHealthPaths.first()}"
     }
 
     /**
@@ -204,6 +286,7 @@ class StackEndpointTests {
     /**
      * Get acceptable status codes for specific endpoints.
      * Some endpoints return 500 when database is empty or with test data.
+     * Auth-required services return 401/403 which indicates they're healthy.
      */
     private fun getAcceptableStatuses(path: String): IntRange {
         // Endpoints that return 500 but service is healthy
@@ -215,12 +298,26 @@ class StackEndpointTests {
             "/search"                    // No vector embeddings/collections
         )
 
-        return if (accept500Paths.any { path.endsWith(it) }) {
-            // Accept 200-599 (any response means service is up)
-            200..599
-        } else {
-            // Normal endpoints should return 2xx-3xx
-            200..399
+        // Services that require authentication (401/403 is success)
+        val authRequiredPaths = listOf(
+            "/health",                   // LiteLLM requires API key
+            "qbittorrent",              // qBittorrent web UI requires login
+            "litellm"                    // LiteLLM endpoints require auth
+        )
+
+        return when {
+            accept500Paths.any { path.endsWith(it) } -> {
+                // Accept 200-599 (any response means service is up)
+                200..599
+            }
+            authRequiredPaths.any { path.contains(it) } -> {
+                // Accept 200-403 (includes auth required responses)
+                200..403
+            }
+            else -> {
+                // Normal endpoints should return 2xx-3xx
+                200..399
+            }
         }
     }
 

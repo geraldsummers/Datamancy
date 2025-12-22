@@ -48,10 +48,9 @@ fun main(args: Array<String>) {
         Paths.get("").toAbsolutePath().normalize()
     }
 
-    // Read storage paths from .env.runtime or .env
+    // Read storage paths from .env
     val home = System.getProperty("user.home")
-    val runtimeEnv = Paths.get(home, ".datamancy/.env.runtime").toFile()
-    val dotEnv = if (runtimeEnv.isFile) runtimeEnv else projectRoot.resolve(".env").toFile()
+    val dotEnv = Paths.get(home, ".datamancy/.env").toFile()
 
     var volumesRootStr = readEnvVarFromDotEnv(dotEnv, "VOLUMES_ROOT")
     if (volumesRootStr.isNullOrBlank()) {
@@ -163,6 +162,11 @@ fun main(args: Array<String>) {
             }
         }
     }
+
+    // Add init script directories (not in docker-compose volumes but needed for bind mounts)
+    volumeDirs.add(volumesRoot.resolve("bookstack_init"))
+    volumeDirs.add(volumesRoot.resolve("qbittorrent_init"))
+    volumeDirs.add(volumesRoot.resolve("ldap_init"))
 
     if (volumeDirs.isEmpty()) {
         System.err.println("${RED}Error: No volume directories found in docker-compose.yml${NC}")

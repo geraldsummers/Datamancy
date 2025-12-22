@@ -1,0 +1,161 @@
+# Docker Compose overlay for exposing service ports during testing
+# This file is used automatically by Gradle stack-tests to expose
+# backend services on localhost so tests can run on the host with full
+# code coverage tracking.
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.test-ports.yml up
+
+services:
+  # Core Databases
+  postgres:
+    ports:
+      - "15432:5432"
+
+  mariadb:
+    ports:
+      - "13306:3306"
+
+  clickhouse:
+    ports:
+      - "18123:8123"  # HTTP interface
+      - "19000:9000"  # Native protocol
+
+  qdrant:
+    ports:
+      - "16333:6333"  # HTTP API
+
+  couchdb:
+    ports:
+      - "15984:5984"
+
+  # Datamancy Application Services
+  control-panel:
+    ports:
+      - "18097:8097"
+
+  data-fetcher:
+    ports:
+      - "18095:8095"
+
+  unified-indexer:
+    ports:
+      - "18096:8096"
+
+  search-service:
+    ports:
+      - "18098:8098"
+
+  embedding-service:
+    ports:
+      - "18080:8080"
+
+  agent-tool-server:
+    ports:
+      - "18091:8081"
+
+  # Infrastructure Services
+  authelia:
+    ports:
+      - "19091:9091"
+
+  benthos:
+    ports:
+      - "14195:4195"
+
+  docker-proxy:
+    ports:
+      - "12375:2375"
+
+  # Web Applications
+  bookstack:
+    ports:
+      - "10080:80"
+
+  forgejo:
+    ports:
+      - "13000:3000"
+
+  grafana:
+    ports:
+      - "13001:3000"
+
+  homepage:
+    ports:
+      - "13002:3000"
+
+  jupyterhub:
+    ports:
+      - "18000:8000"
+
+  open-webui:
+    ports:
+      - "18081:8080"
+
+  planka:
+    ports:
+      - "11337:1337"
+
+  vaultwarden:
+    ports:
+      - "10081:80"
+
+  # Communication & Collaboration
+  element:
+    ports:
+      - "10082:80"
+
+  synapse:
+    ports:
+      - "18008:8008"
+
+  mastodon-web:
+    ports:
+      - "13003:3000"
+
+  mastodon-streaming:
+    ports:
+      - "14000:4000"
+
+  roundcube:
+    ports:
+      - "10083:80"
+
+  # File & Document Services
+  seafile:
+    ports:
+      - "18001:8000"
+
+  onlyoffice:
+    ports:
+      - "10084:80"
+
+  radicale:
+    ports:
+      - "15232:5232"
+
+  # Smart Home & Utilities
+  homeassistant:
+    ports:
+      - "18124:8123"
+
+  qbittorrent:
+    ports:
+      - "18082:8080"
+
+  # LDAP
+  ldap:
+    ports:
+      - "10389:389"
+
+  ldap-account-manager:
+    ports:
+      - "10085:80"
+
+  # AI/ML Services
+  litellm:
+    ports:
+      - "14001:4000"
+
+  vllm:
+    ports:
+      - "18002:8000"

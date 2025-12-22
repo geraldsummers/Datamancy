@@ -22,3 +22,17 @@ subprojects {
         // Common dependencies for all subprojects can go here
     }
 }
+
+// Root-level test task runs tests from all subprojects
+tasks.named("test") {
+    dependsOn(
+        ":agent-tool-server:test",
+        ":data-fetcher:test",
+        ":control-panel:test",
+        ":search-service:test",
+        ":unified-indexer:test",
+        ":stack-tests:test"
+    )
+
+    // Note: test-commons has no tests (it's a library module)
+}

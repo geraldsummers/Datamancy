@@ -1,3 +1,5 @@
+import java.io.ByteArrayOutputStream
+
 plugins {
     kotlin("jvm") version "2.0.21"
     kotlin("plugin.serialization") version "2.0.21"
@@ -41,6 +43,7 @@ dependencies {
 
     // Tests
     testImplementation(kotlin("test"))
+    testImplementation(project(":test-commons"))
     testImplementation("io.ktor:ktor-server-test-host:2.3.12")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
 }
@@ -59,44 +62,80 @@ tasks {
 }
 
 tasks.test {
-    useJUnitPlatform {
-        if (File("/.dockerenv").exists()) {
-            // Inside Docker - run all tests (unit + integration)
-            includeTags("integration", "unit")
+    useJUnitPlatform()
+
+    // Use localhost URLs since services are exposed via docker-compose overlay
+    systemProperty("control.panel.url", System.getenv("CONTROL_PANEL_URL") ?: "http://localhost:18097")
+    systemProperty("data.fetcher.url", System.getenv("DATA_FETCHER_URL") ?: "http://localhost:18095")
+    systemProperty("postgres.url", System.getenv("POSTGRES_URL") ?: "jdbc:postgresql://localhost:15432/datamancy")
+    systemProperty("postgres.user", System.getenv("POSTGRES_USER") ?: "datamancer")
+    systemProperty("postgres.password", System.getenv("STACK_ADMIN_PASSWORD") ?: "")
+    systemProperty("clickhouse.url", System.getenv("CLICKHOUSE_URL") ?: "http://localhost:18123")
+
+    // Bring up the whole stack before running tests
+    doFirst {
+        // Check if stack is already running
+        val checkResult = ByteArrayOutputStream()
+        exec {
+            workingDir = rootProject.projectDir
+            commandLine("docker", "compose", "ps", "-q")
+            standardOutput = checkResult
+        }
+
+        val isStackRunning = checkResult.toString().trim().isNotEmpty()
+
+        if (isStackRunning) {
+            println("\n✅ Stack is already running - skipping startup\n")
         } else {
-            // On host - only run unit tests, integration tests will be delegated to Docker
-            excludeTags("integration")
+            println("\n╔════════════════════════════════════════════════════════════════╗")
+            println("║              Bringing up stack for tests                      ║")
+            println("╚════════════════════════════════════════════════════════════════╝\n")
+
+            val envFile = File(System.getProperty("user.home"), ".datamancy/.env")
+            val testOverlay = rootProject.file("docker-compose.test-ports.yml")
+
+            // Bring up the full stack with test overlay to expose ports
+            // Ignore exit code - some services may fail but core services will be up
+            exec {
+                workingDir = rootProject.projectDir
+                commandLine(
+                    "docker", "compose",
+                    "-f", "docker-compose.yml",
+                    "-f", testOverlay.absolutePath,
+                    "--env-file", envFile.absolutePath,
+                    "up", "-d"
+                )
+                isIgnoreExitValue = true
+            }
+
+            println("✅ Stack is up\n")
         }
     }
 
-    // Always use Docker service names (only works inside Docker network)
-    systemProperty("control.panel.url", System.getenv("CONTROL_PANEL_URL") ?: "http://control-panel:8097")
-    systemProperty("data.fetcher.url", System.getenv("DATA_FETCHER_URL") ?: "http://data-fetcher:8080")
-    systemProperty("postgres.url", System.getenv("POSTGRES_URL") ?: "jdbc:postgresql://postgres:5432/datamancy")
-    systemProperty("postgres.user", System.getenv("POSTGRES_USER") ?: "datamancer")
-    systemProperty("postgres.password", System.getenv("STACK_ADMIN_PASSWORD") ?: "")
-    systemProperty("clickhouse.url", System.getenv("CLICKHOUSE_URL") ?: "http://clickhouse:8123")
-
     // Show test execution details
     testLogging {
-        events("passed", "skipped", "failed", "standardOut", "standardError")
+        events("passed", "skipped", "failed", "started")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
         showExceptions = true
         showCauses = true
         showStackTraces = true
-
-        // Show progress
-        showStandardStreams = true
+        showStandardStreams = false
     }
+
+    // Show progress as tests run
+    var testCount = 0
+    afterTest(KotlinClosure2<TestDescriptor, TestResult, Unit>({ desc, result ->
+        testCount++
+        if (testCount % 10 == 0) {
+            println("  ... $testCount tests completed ...")
+        }
+    }))
 
     // Print test summary
     afterSuite(KotlinClosure2<TestDescriptor, TestResult, Unit>({ desc, result ->
         if (desc.parent == null) { // Root suite
-            val inDocker = File("/.dockerenv").exists()
-            val testType = if (inDocker) "All Tests" else "Unit Tests"
-
             println("\n╔════════════════════════════════════════════════════════════════╗")
-            println("║                    $testType Summary                    ║")
+            println("║                    Tests Summary                    ║")
             println("╚════════════════════════════════════════════════════════════════╝")
             println("  Total:   ${result.testCount}")
             println("  ✓ Passed: ${result.successfulTestCount}")
@@ -112,70 +151,6 @@ tasks.test {
             println()
         }
     }))
-
-    // On host, automatically delegate integration tests to Docker after unit tests complete
-    if (!File("/.dockerenv").exists()) {
-        doFirst {
-            println("\n╔════════════════════════════════════════════════════════════════╗")
-            println("║                    Running Unit Tests                         ║")
-            println("╚════════════════════════════════════════════════════════════════╝")
-        }
-        finalizedBy("runIntegrationTestsInDocker")
-    } else {
-        doFirst {
-            println("\n╔════════════════════════════════════════════════════════════════╗")
-            println("║              Running All Tests (Unit + Integration)           ║")
-            println("╚════════════════════════════════════════════════════════════════╝")
-        }
-    }
-}
-
-// Task to run integration tests inside Docker network
-val runIntegrationTestsInDocker by tasks.registering(Exec::class) {
-    group = "verification"
-    description = "Runs @IntegrationTest annotated tests inside Docker network"
-
-    // Always run - integration tests are important
-    onlyIf { true }
-
-    val runtimeEnvFile = File(System.getProperty("user.home"), ".datamancy/.env.runtime")
-    doFirst {
-        // Generate .env.runtime if it doesn't exist
-        if (!runtimeEnvFile.exists()) {
-            println("\n╔═══════════════════════════════════════════════════════╗")
-            println("║   Generating credentials via stack-controller...     ║")
-            println("╚═══════════════════════════════════════════════════════╝\n")
-
-            val result = exec {
-                workingDir = rootProject.projectDir
-                commandLine("./stack-controller.main.kts", "config", "generate")
-                isIgnoreExitValue = true
-            }
-
-            if (result.exitValue != 0 || !runtimeEnvFile.exists()) {
-                throw GradleException("""
-                    Failed to generate environment configuration.
-                    Try manually: ./stack-controller.main.kts config generate
-                """.trimIndent())
-            }
-        }
-
-        println("\n╔═══════════════════════════════════════════════════════╗")
-        println("║   Running @IntegrationTest tests in Docker network   ║")
-        println("╚═══════════════════════════════════════════════════════╝\n")
-    }
-
-    environment("GRADLE_USER_HOME", "/tmp/gradle-integration-test")
-
-    // No volumes are mounted, so running as root in container is safe
-    commandLine(
-        "docker", "compose",
-        "--env-file", runtimeEnvFile.absolutePath,
-        "run", "--rm",
-        "-e", "GRADLE_USER_HOME=/tmp/gradle-integration-test",
-        "integration-test-runner",
-        "./gradlew", ":${project.name}:test", "--no-daemon"
-    )
 }
 
 kotlin {

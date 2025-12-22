@@ -141,7 +141,7 @@ if (!checkServicesRunning()) {
 val root = projectRoot()
 
 // Locate env file
-val envFile = Paths.get(System.getProperty("user.home")).resolve(".datamancy/.env.runtime")
+val envFile = Paths.get(System.getProperty("user.home")).resolve(".datamancy/.env")
 if (!envFile.toFile().exists()) {
     error("Environment file not found: $envFile")
     println("Please run './stack-controller.main.kts up' first to generate it.")

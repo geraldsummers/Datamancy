@@ -3,7 +3,7 @@ package org.datamancy.datafetcher.integration
 import io.mockk.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
-import org.datamancy.datafetcher.IntegrationTest
+import org.datamancy.test.IntegrationTest
 import org.datamancy.datafetcher.config.*
 import org.datamancy.datafetcher.scheduler.FetchScheduler
 import org.datamancy.datafetcher.scheduler.FetchResult

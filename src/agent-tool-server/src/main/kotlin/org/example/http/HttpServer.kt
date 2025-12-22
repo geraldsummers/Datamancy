@@ -15,6 +15,7 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
 
     fun start() {
         val srv = HttpServer.create(InetSocketAddress(port), 0)
+        srv.createContext("/tools/", ToolExecutionHandler(tools)) // Must come before /tools
         srv.createContext("/tools", ToolsHandler(tools))
         srv.createContext("/call-tool", CallToolHandler(tools))
         val healthHandler = HealthHandler()
@@ -42,10 +43,59 @@ private class ToolsHandler(private val tools: ToolRegistry) : HttpHandler {
     override fun handle(exchange: HttpExchange) {
         try {
             when (exchange.requestMethod) {
-                "GET" -> respond(exchange, 200, tools.listTools())
+                "GET" -> respond(exchange, 200, mapOf("tools" to tools.listTools()))
                 "HEAD" -> respondHead(exchange, 200)
                 else -> respond(exchange, 405, mapOf("error" to "Method not allowed"))
             }
+        } catch (e: Exception) {
+            respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
+        }
+    }
+}
+
+private class ToolExecutionHandler(private val tools: ToolRegistry) : HttpHandler {
+    private val bodyMaxBytes: Long = 1_000_000L
+    private val bodyReadTimeoutMs: Long = 5_000L
+    private val callTimeoutMs: Long = 30_000L
+
+    override fun handle(exchange: HttpExchange) {
+        try {
+            if (exchange.requestMethod != "POST") {
+                respond(exchange, 405, mapOf("error" to "Method not allowed"))
+                return
+            }
+
+            // Extract tool name from path: /tools/{toolName}
+            val path = exchange.requestURI.path
+            val toolName = path.removePrefix("/tools/")
+            
+            if (toolName.isEmpty() || toolName == path) {
+                respond(exchange, 400, mapOf("error" to "Tool name required"))
+                return
+            }
+
+            val raw = readBodyLimited(exchange, bodyMaxBytes, bodyReadTimeoutMs)
+            val body = raw.toString(StandardCharsets.UTF_8)
+            val args = if (body.isBlank() || body == "{}") {
+                Json.mapper.createObjectNode()
+            } else {
+                Json.mapper.readTree(body)
+            }
+
+            val start = System.nanoTime()
+            val result = invokeWithTimeout({ tools.invoke(toolName, args) }, callTimeoutMs)
+            val elapsedMs = (System.nanoTime() - start) / 1_000_000
+            respond(exchange, 200, mapOf("result" to result, "elapsedMs" to elapsedMs))
+        } catch (to: java.util.concurrent.TimeoutException) {
+            respond(exchange, 504, mapOf("error" to "tool_timeout", "message" to "tool execution exceeded timeout"))
+        } catch (nf: NoSuchElementException) {
+            respond(exchange, 404, mapOf("error" to nf.message))
+        } catch (iae: IllegalArgumentException) {
+            respond(exchange, 400, mapOf("error" to iae.message))
+        } catch (oom: BodyTooLargeException) {
+            respond(exchange, 413, mapOf("error" to "payload_too_large", "limitBytes" to bodyMaxBytes))
+        } catch (rt: BodyReadTimeoutException) {
+            respond(exchange, 408, mapOf("error" to "request_timeout", "message" to "request body read exceeded timeout"))
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
         }
