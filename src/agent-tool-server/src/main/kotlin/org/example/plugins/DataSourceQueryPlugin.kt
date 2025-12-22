@@ -295,6 +295,37 @@ class DataSourceQueryPlugin : Plugin {
             )
         }
 
+        if (ldapConfig != null) {
+            registry.register(
+                ToolDefinition(
+                    name = "search_ldap",
+                    description = "Search LDAP directory for users, groups, or organizational units",
+                    shortDescription = "Search LDAP directory",
+                    longDescription = "Search LDAP directory for users, groups, or organizational units. Returns matching entries with their attributes. Read-only access.",
+                    parameters = listOf(
+                        ToolParam("filter", "string", true, "LDAP search filter (e.g., '(cn=*)' or '(objectClass=person)')"),
+                        ToolParam("base_dn", "string", false, "Search base DN (defaults to configured base DN)"),
+                        ToolParam("attributes", "array", false, "Attributes to return (defaults to all)"),
+                        ToolParam("limit", "integer", false, "Max results (default 100)")
+                    ),
+                    paramsSpec = """{"type":"object","required":["filter"],"properties":{"filter":{"type":"string"},"base_dn":{"type":"string"},"attributes":{"type":"array","items":{"type":"string"}},"limit":{"type":"integer","default":100}}}""",
+                    pluginId = pluginId
+                ),
+                ToolHandler { args ->
+                    val filter = args.get("filter")?.asText() ?: throw IllegalArgumentException("filter required")
+                    val baseDn = args.get("base_dn")?.asText()
+                    val attributesNode = args.get("attributes")
+                    val attributes = if (attributesNode != null && attributesNode.isArray) {
+                        attributesNode.map { it.asText() }
+                    } else {
+                        null
+                    }
+                    val limit = args.get("limit")?.asInt() ?: 100
+                    tools.search_ldap(filter, baseDn, attributes, limit)
+                }
+            )
+        }
+
         // Register semantic search tool if search-service is configured
         if (searchServiceConfig != null) {
             registry.register(
@@ -444,6 +475,76 @@ class DataSourceQueryPlugin : Plugin {
                 } else {
                     "ERROR: HTTP ${conn.responseCode}"
                 }
+            } catch (e: Exception) {
+                "ERROR: ${e.message}"
+            }
+        }
+
+        @LlmTool(
+            shortDescription = "Search LDAP directory",
+            longDescription = "Search LDAP directory for users, groups, or organizational units. Returns matching entries with their attributes.",
+            paramsSpec = """{"type":"object","required":["filter"],"properties":{"filter":{"type":"string","description":"LDAP search filter (e.g., '(cn=*)' or '(objectClass=person)')"},"base_dn":{"type":"string","description":"Search base DN (defaults to configured base DN)"},"attributes":{"type":"array","items":{"type":"string"},"description":"Attributes to return (defaults to all)"},"limit":{"type":"integer","default":100,"description":"Max results"}}}"""
+        )
+        fun search_ldap(filter: String, baseDn: String? = null, attributes: List<String>? = null, limit: Int = 100): String {
+            val config = ldapConfig ?: return "ERROR: LDAP not configured"
+            
+            // Basic safety checks
+            if (filter.isBlank()) {
+                return "ERROR: Filter cannot be empty"
+            }
+            
+            // Prevent potentially dangerous operations
+            val forbiddenPatterns = listOf("userPassword", "sambaNTPassword", "sambaLMPassword")
+            if (forbiddenPatterns.any { filter.contains(it, ignoreCase = true) }) {
+                return "ERROR: Cannot query password attributes"
+            }
+            
+            return try {
+                val env = java.util.Hashtable<String, String>()
+                env["java.naming.factory.initial"] = "com.sun.jndi.ldap.LdapCtxFactory"
+                env["java.naming.provider.url"] = "ldap://${config.host}:${config.port}"
+                env["java.naming.security.authentication"] = "simple"
+                env["java.naming.security.principal"] = config.bindDn
+                env["java.naming.security.credentials"] = config.password
+                
+                val ctx = javax.naming.directory.InitialDirContext(env)
+                val searchBase = baseDn ?: config.baseDn
+                val searchControls = javax.naming.directory.SearchControls()
+                searchControls.searchScope = javax.naming.directory.SearchControls.SUBTREE_SCOPE
+                searchControls.countLimit = limit.toLong()
+                if (attributes != null) {
+                    searchControls.returningAttributes = attributes.toTypedArray()
+                }
+                
+                val results = ctx.search(searchBase, filter, searchControls)
+                val entries = mutableListOf<ObjectNode>()
+                
+                while (results.hasMore() && entries.size < limit) {
+                    val result = results.next()
+                    val entry = JsonNodeFactory.instance.objectNode()
+                    entry.put("dn", result.nameInNamespace)
+                    
+                    val attrs = result.attributes
+                    val attrIds = attrs.iDs
+                    while (attrIds.hasMore()) {
+                        val attrId = attrIds.next()
+                        val attr = attrs.get(attrId)
+                        if (attr.size() == 1) {
+                            entry.put(attrId, attr.get().toString())
+                        } else {
+                            val values = JsonNodeFactory.instance.arrayNode()
+                            val enum = attr.all
+                            while (enum.hasMore()) {
+                                values.add(enum.next().toString())
+                            }
+                            entry.set<ObjectNode>(attrId, values)
+                        }
+                    }
+                    entries.add(entry)
+                }
+                
+                ctx.close()
+                entries.toString()
             } catch (e: Exception) {
                 "ERROR: ${e.message}"
             }

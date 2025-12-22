@@ -5,27 +5,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="test writing">
-      <change afterPath="$PROJECT_DIR$/INSTALLATION.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/RAG_TEST_SUMMARY.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/RUNNING_TESTS.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/TEST_COVERAGE_SUMMARY.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/TEST_RUN_SUMMARY.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/TOOL_INTEGRATION_COMPLETE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Test Results - Datamancy_[test].html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datamancy-controller.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docker-compose.test-ports.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/install-datamancy.main.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/AgentToolServerIntegrationTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/DataSourceQueryPluginTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/OpsSshPluginTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/stack-tests/src/test/kotlin/org/datamancy/stacktests/EndToEndWorkflowTests.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/stack-tests/src/test/kotlin/org/datamancy/stacktests/RagEndToEndTests.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/test-commons/build.gradle.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/test-commons/src/main/kotlin/org/datamancy/test/IntegrationTest.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/test-commons/src/main/kotlin/org/datamancy/test/IntegrationTestExtension.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/md5-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/md5-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/sha1-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/sha1-checksums.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
@@ -33,45 +12,15 @@
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AGENT_PROMPT.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/CONTINUE_STACK_TESTS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Dockerfile.stack-tests-simple" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/STACK_TESTS_FIX_PLAN.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/STACK_TESTS_NO_GENERATION.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/STACK_TESTS_SIMPLE_FIX.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/run-integration-tests.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/run-integration-tests.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/stack-control/configure-environment.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/stack-control/configure-environment.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/stack-control/create-volume-dirs.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/stack-control/create-volume-dirs.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/stack-control/generate-oidc-hashes.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/stack-control/generate-oidc-hashes.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/stack-control/process-config-templates.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/stack-control/process-config-templates.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/datamancy-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/datamancy-controller.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/HttpServer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/HttpServer.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/DataSourceQueryPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/DataSourceQueryPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/control-panel/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/control-panel/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/control-panel/src/test/kotlin/org/datamancy/controlpanel/IntegrationTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/control-panel/src/test/kotlin/org/datamancy/controlpanel/IntegrationTestExtension.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/PHASE_0_USAGE_GUIDE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/IntegrationTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/IntegrationTestExtension.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/RealIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/RealIntegrationTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/search-service/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/SearchGateway.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/SearchGateway.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/stack-tests/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/stack-tests/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/stack-tests/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/stack-tests/src/test/kotlin/org/datamancy/stacktests/StackEndpointTests.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/stack-tests/src/test/kotlin/org/datamancy/stacktests/StackEndpointTests.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/unified-indexer/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/unified-indexer/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/stack-controller.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/AgentToolServerIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/AgentToolServerIntegrationTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/DataSourceQueryPluginTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/DataSourceQueryPluginTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/OpsSshPluginTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/OpsSshPluginTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -390,7 +339,15 @@
       <option name="project" value="LOCAL" />
       <updated>1766141752077</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="test writing">
+      <option name="closed" value="true" />
+      <created>1766435532824</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1766435532824</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

@@ -234,6 +234,9 @@ private fun <T> invokeWithTimeout(block: () -> T, timeoutMs: Long): T {
     } catch (e: java.util.concurrent.TimeoutException) {
         future.cancel(true)
         throw e
+    } catch (e: java.util.concurrent.ExecutionException) {
+        // Unwrap the cause to preserve the original exception type
+        throw e.cause ?: e
     }
 }
 

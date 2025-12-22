@@ -362,7 +362,7 @@ private fun bringUpStack() {
 
     // Step 4: Start services
     info("Step 4/4: Starting Docker Compose services")
-    run("docker", "compose", "--env-file", envFile.toString(), "up", "-d", cwd = root)
+    run("docker", "compose", "--env-file", envFile.toString(), "up", "-d", "--build", cwd = root)
 
     success("Stack started successfully")
     println()

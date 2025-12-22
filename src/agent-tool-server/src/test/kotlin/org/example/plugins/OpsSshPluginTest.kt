@@ -53,7 +53,8 @@ class OpsSshPluginTest {
     @Test
     fun `test SSH tool is available`() = runBlocking {
         val response = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(response.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val toolNames = tools.map { it.jsonObject["name"]?.jsonPrimitive?.content }
 
@@ -85,7 +86,8 @@ class OpsSshPluginTest {
     fun `test SSH command execution via forced command wrapper`() = runBlocking {
         // Find SSH tool
         val toolsResponse = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val sshTool = tools.find {
             it.jsonObject["name"]?.jsonPrimitive?.content?.contains("ssh") == true ||
@@ -120,7 +122,8 @@ class OpsSshPluginTest {
         // Attempts to execute arbitrary commands should be restricted
 
         val toolsResponse = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val sshTool = tools.find {
             it.jsonObject["name"]?.jsonPrimitive?.content?.contains("ssh") == true
@@ -147,7 +150,8 @@ class OpsSshPluginTest {
     @Test
     fun `test SSH timeout handling`() = runBlocking {
         val toolsResponse = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val sshTool = tools.find {
             it.jsonObject["name"]?.jsonPrimitive?.content?.contains("ssh") == true

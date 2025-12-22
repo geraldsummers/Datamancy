@@ -65,7 +65,8 @@ class AgentToolServerIntegrationTest {
         val response = client.get("$toolServerUrl/tools")
 
         assertEquals(HttpStatusCode.OK, response.status)
-        val tools = Json.parseToJsonElement(response.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         assertTrue(tools.size > 0, "Should have at least one tool registered")
 
@@ -79,7 +80,8 @@ class AgentToolServerIntegrationTest {
     @Test
     fun `test core tools are registered`() = runBlocking {
         val response = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(response.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val toolNames = tools.map { it.jsonObject["name"]?.jsonPrimitive?.content }
 
@@ -91,7 +93,8 @@ class AgentToolServerIntegrationTest {
     @Test
     fun `test docker inspect tool is available`() = runBlocking {
         val response = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(response.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val toolNames = tools.map { it.jsonObject["name"]?.jsonPrimitive?.content }
 
@@ -105,7 +108,8 @@ class AgentToolServerIntegrationTest {
     @Test
     fun `test data source query tools are registered`() = runBlocking {
         val response = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(response.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val toolNames = tools.map { it.jsonObject["name"]?.jsonPrimitive?.content }
 
@@ -166,7 +170,8 @@ class AgentToolServerIntegrationTest {
         // This depends on TOOLSERVER_ALLOW_CAPS environment variable
 
         val response = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(response.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val hasDockerTools = tools.any {
             it.jsonObject["name"]?.jsonPrimitive?.content?.contains("docker") == true

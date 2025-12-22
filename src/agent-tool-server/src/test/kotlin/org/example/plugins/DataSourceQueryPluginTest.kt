@@ -53,7 +53,8 @@ class DataSourceQueryPluginTest {
     @Test
     fun `test postgres query tool is available`() = runBlocking {
         val response = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(response.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val toolNames = tools.map { it.jsonObject["name"]?.jsonPrimitive?.content }
 
@@ -67,7 +68,8 @@ class DataSourceQueryPluginTest {
     fun `test postgres query execution`() = runBlocking {
         // Find the postgres tool
         val toolsResponse = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val postgresTool = tools.find {
             it.jsonObject["name"]?.jsonPrimitive?.content?.contains("postgres") == true
@@ -149,7 +151,8 @@ class DataSourceQueryPluginTest {
     @Test
     fun `test error handling for invalid SQL`() = runBlocking {
         val toolsResponse = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val postgresTool = tools.find {
             it.jsonObject["name"]?.jsonPrimitive?.content?.contains("postgres") == true
@@ -184,7 +187,8 @@ class DataSourceQueryPluginTest {
     fun `test read-only enforcement`() = runBlocking {
         // Observer credentials should only have SELECT privileges
         val toolsResponse = client.get("$toolServerUrl/tools")
-        val tools = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonArray
+        val json = Json.parseToJsonElement(toolsResponse.bodyAsText()).jsonObject
+        val tools = json["tools"]?.jsonArray ?: error("No tools in response")
 
         val postgresTool = tools.find {
             it.jsonObject["name"]?.jsonPrimitive?.content?.contains("postgres") == true
