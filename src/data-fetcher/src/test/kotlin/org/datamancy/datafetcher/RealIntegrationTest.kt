@@ -25,7 +25,7 @@ import kotlin.test.assertTrue
 class RealIntegrationTest {
 
     private lateinit var client: HttpClient
-    private val dataFetcherUrl = System.getenv("DATA_FETCHER_URL") ?: "http://localhost:18095"
+    private val dataFetcherUrl = "http://localhost:18095"
 
     @BeforeEach
     fun setup() {
@@ -60,100 +60,85 @@ class RealIntegrationTest {
         assertEquals(HttpStatusCode.OK, response.status)
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
 
-        // Should have information about sources or jobs
-        assertTrue(
-            json.containsKey("sources") ||
-            json.containsKey("activeJobs") ||
-            json.containsKey("queuedJobs") ||
-            json.containsKey("status")
-        )
+        // Should have jobs information
+        assertTrue(json.containsKey("jobs"))
     }
 
     @Test
     fun `test get all jobs`() = runBlocking {
-        val response = client.get("$dataFetcherUrl/jobs")
+        val response = client.get("$dataFetcherUrl/status")
 
         assertEquals(HttpStatusCode.OK, response.status)
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
 
         // Should have job information
-        assertTrue(
-            json.containsKey("active") ||
-            json.containsKey("queued") ||
-            json.containsKey("jobs")
-        )
+        assertTrue(json.containsKey("jobs"))
     }
 
     @Test
     fun `test dry-run all sources`() = runBlocking {
-        val response = client.get("$dataFetcherUrl/dry-run")
+        val response = client.get("$dataFetcherUrl/dry-run-all")
 
         assertEquals(HttpStatusCode.OK, response.status)
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
 
-        // Should have checks
-        assertTrue(json.containsKey("checks") || json.containsKey("sources"))
+        // Should have jobs and check counts
+        assertTrue(json.containsKey("jobs"))
+        assertTrue(json.containsKey("totalChecks"))
     }
 
     @Test
     fun `test dry-run specific source - RSS`() = runBlocking {
-        val response = client.get("$dataFetcherUrl/dry-run/rss")
+        val response = client.get("$dataFetcherUrl/dry-run/rss_feeds")
 
         assertEquals(HttpStatusCode.OK, response.status)
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
 
-        assertTrue(json.containsKey("source") || json.containsKey("checks"))
-
-        if (json.containsKey("source")) {
-            assertEquals("rss", json["source"]?.jsonPrimitive?.content)
-        }
+        assertTrue(json.containsKey("job"))
+        assertTrue(json.containsKey("checks"))
+        assertEquals("rss_feeds", json["job"]?.jsonPrimitive?.content)
     }
 
     @Test
     fun `test dry-run specific source - Wiki`() = runBlocking {
-        val response = client.get("$dataFetcherUrl/dry-run/wiki")
+        // wiki_dumps job is disabled, so it should return BadRequest
+        val response = client.get("$dataFetcherUrl/dry-run/wiki_dumps")
 
-        assertEquals(HttpStatusCode.OK, response.status)
-        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-
-        assertTrue(json.containsKey("source") || json.containsKey("checks"))
+        assertTrue(response.status in listOf(HttpStatusCode.BadRequest, HttpStatusCode.OK))
     }
 
     @Test
     fun `test metrics endpoint`() = runBlocking {
-        val response = client.get("$dataFetcherUrl/metrics")
+        // No /metrics endpoint exists - test /status instead which has similar info
+        val response = client.get("$dataFetcherUrl/status")
 
         assertEquals(HttpStatusCode.OK, response.status)
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
 
-        // Should have some metrics
-        assertTrue(
-            json.containsKey("totalFetches") ||
-            json.containsKey("successRate") ||
-            json.containsKey("metrics") ||
-            json.size > 0
-        )
+        // Should have jobs with run counts
+        assertTrue(json.containsKey("jobs"))
     }
 
     @Test
     fun `test trigger fetch for RSS source`() = runBlocking {
-        val response = client.post("$dataFetcherUrl/trigger/rss")
+        val response = client.post("$dataFetcherUrl/trigger/rss_feeds")
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(HttpStatusCode.Accepted, response.status)
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
 
-        assertEquals("triggered", json["status"]?.jsonPrimitive?.content)
-        assertTrue(json.containsKey("jobId") || json.containsKey("source"))
+        assertEquals("Fetch job triggered", json["message"]?.jsonPrimitive?.content)
+        assertEquals("rss_feeds", json["job"]?.jsonPrimitive?.content)
     }
 
     @Test
     fun `test trigger all sources`() = runBlocking {
         val response = client.post("$dataFetcherUrl/trigger-all")
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(HttpStatusCode.Accepted, response.status)
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
 
-        assertTrue(json.containsKey("triggered") || json.containsKey("status"))
+        assertTrue(json.containsKey("jobs"))
+        assertTrue(json.containsKey("count"))
     }
 
     @Test
@@ -166,7 +151,7 @@ class RealIntegrationTest {
 
     @Test
     fun `test get nonexistent job returns 404`() = runBlocking {
-        val response = client.get("$dataFetcherUrl/jobs/nonexistent-job-id-12345")
+        val response = client.post("$dataFetcherUrl/trigger/nonexistent-job-id-12345")
 
         assertEquals(HttpStatusCode.NotFound, response.status)
     }

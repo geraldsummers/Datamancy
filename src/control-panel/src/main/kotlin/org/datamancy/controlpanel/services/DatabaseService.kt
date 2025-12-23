@@ -154,8 +154,8 @@ open class DatabaseService(
                 val rs = stmt.executeQuery("""
                     SELECT
                         schemaname,
-                        tablename,
-                        pg_total_relation_size(schemaname||'.'||tablename) as size_bytes,
+                        relname as tablename,
+                        pg_total_relation_size(schemaname||'.'||relname) as size_bytes,
                         n_live_tup as row_count
                     FROM pg_stat_user_tables
                     WHERE schemaname = 'public'

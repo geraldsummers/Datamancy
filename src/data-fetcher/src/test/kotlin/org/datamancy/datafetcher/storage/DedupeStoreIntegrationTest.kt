@@ -8,19 +8,15 @@ import org.junit.jupiter.api.Test
 class DedupeStoreIntegrationTest {
 
     private fun createStore(): DedupeStore {
-        val pgHost = System.getenv("POSTGRES_HOST") ?: "postgres"
-        val pgPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
-        val pgDb = System.getenv("POSTGRES_DB") ?: "datamancy"
-        val pgUser = System.getenv("POSTGRES_USER") ?: "datamancer"
-        val pgPassword = System.getenv("POSTGRES_PASSWORD") ?: "datamancy123"
-
-        return DedupeStore(
-            host = pgHost,
-            port = pgPort,
-            database = pgDb,
-            user = pgUser,
-            password = pgPassword
+        val store = DedupeStore(
+            host = "localhost",
+            port = 15432,
+            database = "datamancy",
+            user = "datamancer",
+            password = "datamancy123"
         )
+        store.ensureSchema()
+        return store
     }
 
     @Test
@@ -36,7 +32,8 @@ class DedupeStoreIntegrationTest {
         val store = createStore()
         store.ensureSchema()
 
-        val result = store.shouldUpsert("test_source", "item1", "hash1", "run1")
+        val uniqueItem = "item1_${System.currentTimeMillis()}_${System.nanoTime()}"
+        val result = store.shouldUpsert("test_source", uniqueItem, "hash1", "run1")
 
         assertEquals(DedupeResult.NEW, result)
     }
@@ -46,8 +43,9 @@ class DedupeStoreIntegrationTest {
         val store = createStore()
         store.ensureSchema()
 
-        store.shouldUpsert("source", "item1", "hash1", "run1")
-        val result = store.shouldUpsert("source", "item1", "hash1", "run2")
+        val uniqueItem = "item1_${System.currentTimeMillis()}_${System.nanoTime()}"
+        store.shouldUpsert("source", uniqueItem, "hash1", "run1")
+        val result = store.shouldUpsert("source", uniqueItem, "hash1", "run2")
 
         assertEquals(DedupeResult.UNCHANGED, result)
     }
@@ -57,8 +55,9 @@ class DedupeStoreIntegrationTest {
         val store = createStore()
         store.ensureSchema()
 
-        store.shouldUpsert("source", "item1", "hash1", "run1")
-        val result = store.shouldUpsert("source", "item1", "hash2", "run2")
+        val uniqueItem = "item1_${System.currentTimeMillis()}_${System.nanoTime()}"
+        store.shouldUpsert("source", uniqueItem, "hash1", "run1")
+        val result = store.shouldUpsert("source", uniqueItem, "hash2", "run2")
 
         assertEquals(DedupeResult.UPDATED, result)
     }
@@ -68,11 +67,15 @@ class DedupeStoreIntegrationTest {
         val store = createStore()
         store.ensureSchema()
 
-        store.shouldUpsert("source1", "item1", "hash1", "run1")
-        store.shouldUpsert("source1", "item2", "hash2", "run1")
+        val uniqueSource = "source1_${System.currentTimeMillis()}_${System.nanoTime()}"
+        val item1 = "item1_${System.nanoTime()}"
+        val item2 = "item2_${System.nanoTime()}"
+
+        store.shouldUpsert(uniqueSource, item1, "hash1", "run1")
+        store.shouldUpsert(uniqueSource, item2, "hash2", "run1")
         store.shouldUpsert("source2", "item3", "hash3", "run1")
 
-        val stats = store.getStats("source1")
+        val stats = store.getStats(uniqueSource)
 
         assertEquals(2, stats.totalItems)
         assertTrue(stats.lastActivity != null)
@@ -83,14 +86,17 @@ class DedupeStoreIntegrationTest {
         val store = createStore()
         store.ensureSchema()
 
-        store.shouldUpsert("source", "item1", "hash1", "run1")
+        val uniqueSource = "source_${System.currentTimeMillis()}_${System.nanoTime()}"
+        val uniqueItem = "item1_${System.nanoTime()}"
+
+        store.shouldUpsert(uniqueSource, uniqueItem, "hash1", "run1")
 
         // Second call with same hash should be UNCHANGED
-        val result = store.shouldUpsert("source", "item1", "hash1", "run2")
+        val result = store.shouldUpsert(uniqueSource, uniqueItem, "hash1", "run2")
         assertEquals(DedupeResult.UNCHANGED, result)
 
         // Stats should still show only 1 item
-        val stats = store.getStats("source")
+        val stats = store.getStats(uniqueSource)
         assertEquals(1, stats.totalItems)
     }
 }

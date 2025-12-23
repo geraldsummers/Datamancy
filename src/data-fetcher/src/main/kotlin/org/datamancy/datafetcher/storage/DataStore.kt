@@ -16,12 +16,13 @@ private val gson = Gson()
 /**
  * PostgreSQL storage for structured metadata
  */
-class PostgresStore {
-    private val host = System.getenv("POSTGRES_HOST") ?: "postgres"
-    private val port = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
-    private val database = System.getenv("POSTGRES_DB") ?: "datamancy"
-    private val user = System.getenv("POSTGRES_USER") ?: "datamancer"
-    private val password = System.getenv("POSTGRES_PASSWORD") ?: ""
+class PostgresStore(
+    private val host: String = System.getenv("POSTGRES_HOST") ?: "postgres",
+    private val port: Int = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432,
+    private val database: String = System.getenv("POSTGRES_DB") ?: "datamancy",
+    private val user: String = System.getenv("POSTGRES_USER") ?: "datamancer",
+    private val password: String = System.getenv("POSTGRES_PASSWORD") ?: ""
+) {
 
     private fun getConnection(): Connection {
         val url = "jdbc:postgresql://$host:$port/$database"
@@ -87,11 +88,12 @@ class PostgresStore {
 /**
  * ClickHouse storage for time-series data
  */
-class ClickHouseStore {
-    private val host = System.getenv("CLICKHOUSE_HOST") ?: "clickhouse"
-    private val port = System.getenv("CLICKHOUSE_PORT")?.toIntOrNull() ?: 8123
-    private val user = System.getenv("CLICKHOUSE_USER") ?: "default"
-    private val password = System.getenv("CLICKHOUSE_PASSWORD") ?: ""
+class ClickHouseStore(
+    private val host: String = System.getenv("CLICKHOUSE_HOST") ?: "clickhouse",
+    private val port: Int = System.getenv("CLICKHOUSE_PORT")?.toIntOrNull() ?: 8123,
+    private val user: String = System.getenv("CLICKHOUSE_USER") ?: "default",
+    private val password: String = System.getenv("CLICKHOUSE_PASSWORD") ?: ""
+) {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)

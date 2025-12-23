@@ -27,7 +27,7 @@ import kotlin.test.assertTrue
 class RealIntegrationTest {
 
     private lateinit var client: HttpClient
-    private val controlPanelUrl = System.getProperty("control.panel.url", "http://control-panel:8097")
+    private val controlPanelUrl = "http://localhost:18097"
 
     @BeforeEach
     fun setup() {
@@ -121,7 +121,8 @@ class RealIntegrationTest {
 
         // Each should have storage info
         val postgres = json["postgres"]?.jsonObject
-        assertTrue(postgres?.containsKey("connected") ?: false || postgres?.containsKey("status") ?: false)
+        assertTrue(postgres?.containsKey("sizeGB") ?: false, "Postgres should have sizeGB")
+        assertTrue(postgres?.containsKey("tables") ?: false, "Postgres should have tables")
     }
 
     @Test

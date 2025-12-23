@@ -8,37 +8,32 @@ import org.junit.jupiter.api.Test
 class CheckpointStoreIntegrationTest {
 
     private fun createStore(): CheckpointStore {
-        val pgHost = System.getenv("POSTGRES_HOST") ?: "postgres"
-        val pgPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
-        val pgDb = System.getenv("POSTGRES_DB") ?: "datamancy"
-        val pgUser = System.getenv("POSTGRES_USER") ?: "datamancer"
-        val pgPassword = System.getenv("POSTGRES_PASSWORD") ?: "datamancy123"
-
-        return CheckpointStore(
-            host = pgHost,
-            port = pgPort,
-            database = pgDb,
-            user = pgUser,
-            password = pgPassword
+        val store = CheckpointStore(
+            host = "localhost",
+            port = 15432,
+            database = "datamancy",
+            user = "datamancer",
+            password = "datamancy123"
         )
+        store.ensureSchema()
+        return store
     }
 
     @Test
     fun `can initialize schema`() {
         val store = createStore()
-        store.ensureSchema()
 
-        // No exception means success
+        // No exception means success (schema is created in createStore())
         assertTrue(true)
     }
 
     @Test
     fun `can store and retrieve checkpoint`() {
         val store = createStore()
-        store.ensureSchema()
 
-        store.set("test_source", "test_key", "test_value")
-        val value = store.get("test_source", "test_key")
+        val testKey = "test_key_${System.currentTimeMillis()}_${System.nanoTime()}"
+        store.set("test_source", testKey, "test_value")
+        val value = store.get("test_source", testKey)
 
         assertEquals("test_value", value)
     }
@@ -58,9 +53,10 @@ class CheckpointStoreIntegrationTest {
         val store = createStore()
         store.ensureSchema()
 
-        store.set("source", "key", "value1")
-        store.set("source", "key", "value2")
-        val value = store.get("source", "key")
+        val testKey = "key_${System.currentTimeMillis()}_${System.nanoTime()}"
+        store.set("source", testKey, "value1")
+        store.set("source", testKey, "value2")
+        val value = store.get("source", testKey)
 
         assertEquals("value2", value)
     }
@@ -70,9 +66,10 @@ class CheckpointStoreIntegrationTest {
         val store = createStore()
         store.ensureSchema()
 
-        store.set("source", "key", "value")
-        store.delete("source", "key")
-        val value = store.get("source", "key")
+        val testKey = "key_${System.currentTimeMillis()}_${System.nanoTime()}"
+        store.set("source", testKey, "value")
+        store.delete("source", testKey)
+        val value = store.get("source", testKey)
 
         assertNull(value)
     }
@@ -82,15 +79,19 @@ class CheckpointStoreIntegrationTest {
         val store = createStore()
         store.ensureSchema()
 
-        store.set("source", "key1", "value1")
-        store.set("source", "key2", "value2")
+        val uniqueSource = "source_${System.currentTimeMillis()}_${System.nanoTime()}"
+        val key1 = "key1_${System.nanoTime()}"
+        val key2 = "key2_${System.nanoTime()}"
+
+        store.set(uniqueSource, key1, "value1")
+        store.set(uniqueSource, key2, "value2")
         store.set("other_source", "key3", "value3")
 
-        val checkpoints = store.getAll("source")
+        val checkpoints = store.getAll(uniqueSource)
 
         assertEquals(2, checkpoints.size)
-        assertEquals("value1", checkpoints["key1"])
-        assertEquals("value2", checkpoints["key2"])
+        assertEquals("value1", checkpoints[key1])
+        assertEquals("value2", checkpoints[key2])
         assertFalse(checkpoints.containsKey("key3"))
     }
 

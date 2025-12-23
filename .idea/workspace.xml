@@ -5,22 +5,37 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="test writing">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile.test" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/INSTALLATION.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/RAG_TEST_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/RUNNING_TESTS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/TEST_COVERAGE_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/TEST_RUN_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/TOOL_INTEGRATION_COMPLETE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Test Results - Datamancy_[test].html" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/datamancy-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/datamancy-controller.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/HttpServer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/http/HttpServer.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/DataSourceQueryPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/DataSourceQueryPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/AgentToolServerIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/AgentToolServerIntegrationTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/DataSourceQueryPluginTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/DataSourceQueryPluginTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/OpsSshPluginTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/test/kotlin/org/example/plugins/OpsSshPluginTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/stack-controller.main.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/datamancy-controller.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/stack-control/datamancy-controller.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/install-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/install-datamancy.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/debian_flavour/create_debian_distribution.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/debian_flavour/create_debian_distribution.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/services/DatabaseService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/services/DatabaseService.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/control-panel/src/test/kotlin/org/datamancy/controlpanel/RealIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/src/test/kotlin/org/datamancy/controlpanel/RealIntegrationTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/storage/DataStore.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/storage/DataStore.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/RealIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/RealIntegrationTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/storage/CheckpointStoreIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/storage/CheckpointStoreIntegrationTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/storage/DedupeStoreIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/storage/DedupeStoreIntegrationTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/storage/StorageRealIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/test/kotlin/org/datamancy/datafetcher/storage/StorageRealIntegrationTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/stack-tests/src/test/kotlin/org/datamancy/stacktests/EndToEndWorkflowTests.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/stack-tests/src/test/kotlin/org/datamancy/stacktests/EndToEndWorkflowTests.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ssh-keystore/debian13-sysop.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ssh-keystore/id_ed25519_debian13-sysop.pub" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -116,11 +131,11 @@
   <component name="RunAnythingCache">
     <option name="myCommands">
       <command value="gradle clean" />
-      <command value="gradle test --continue" />
       <command value="gradle build" />
+      <command value="gradle test --continue" />
     </option>
   </component>
-  <component name="RunManager" selected="Gradle.Datamancy [build]">
+  <component name="RunManager" selected="Gradle.Datamancy [test]">
     <configuration name="Datamancy [build]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -347,7 +362,15 @@
       <option name="project" value="LOCAL" />
       <updated>1766435532824</updated>
     </task>
-    <option name="localTasksCounter" value="19" />
+    <task id="LOCAL-00019" summary="test writing">
+      <option name="closed" value="true" />
+      <created>1766441943994</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1766441943994</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

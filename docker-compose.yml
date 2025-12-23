@@ -1564,7 +1564,7 @@ services:
       - LDAP_PORT=389
       - LDAP_BASE_DN=dc=stack,dc=local
       # Search service for semantic search
-      - SEARCH_SERVICE_URL=http://search-service:8097
+      - SEARCH_SERVICE_URL=http://search-service:8098
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
@@ -1795,13 +1795,14 @@ services:
       - clickhouse
       - embedding-service
     environment:
-      - QDRANT_URL=http://qdrant:6334
+      - GATEWAY_PORT=8098
+      - QDRANT_URL=http://qdrant:6333
       - CLICKHOUSE_URL=http://clickhouse:8123
       - CLICKHOUSE_USER=${STACK_ADMIN_USER}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
       - EMBEDDING_SERVICE_URL=http://embedding-service:8080
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8097/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8098/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1830,7 +1831,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
       - DATA_FETCHER_URL=http://data-fetcher:8095
       - UNIFIED_INDEXER_URL=http://unified-indexer:8096
-      - SEARCH_SERVICE_URL=http://search-service:8000
+      - SEARCH_SERVICE_URL=http://search-service:8098
     ports:
       - "8097:8097"
     labels:

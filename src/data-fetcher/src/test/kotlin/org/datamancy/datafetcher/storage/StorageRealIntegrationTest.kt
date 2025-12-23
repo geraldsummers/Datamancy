@@ -20,23 +20,28 @@ class StorageRealIntegrationTest {
     private lateinit var postgresStore: PostgresStore
     private lateinit var clickHouseStore: ClickHouseStore
 
-    private val pgHost = System.getenv("POSTGRES_HOST") ?: "postgres"
-    private val pgPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
-    private val pgDb = System.getenv("POSTGRES_DB") ?: "datamancy"
-    private val pgUser = System.getenv("POSTGRES_USER") ?: "datamancer"
-    private val pgPassword = System.getenv("POSTGRES_PASSWORD") ?: "datamancy123"
+    private val pgHost = "localhost"
+    private val pgPort = 15432
+    private val pgDb = "datamancy"
+    private val pgUser = "datamancer"
+    private val pgPassword = "datamancy123"
 
     @BeforeEach
     fun setup() {
-        // Set environment variables for stores
-        System.setProperty("POSTGRES_HOST", pgHost)
-        System.setProperty("POSTGRES_PORT", pgPort.toString())
-        System.setProperty("POSTGRES_DB", pgDb)
-        System.setProperty("POSTGRES_USER", pgUser)
-        System.setProperty("POSTGRES_PASSWORD", pgPassword)
+        postgresStore = PostgresStore(
+            host = pgHost,
+            port = pgPort,
+            database = pgDb,
+            user = pgUser,
+            password = pgPassword
+        )
 
-        postgresStore = PostgresStore()
-        clickHouseStore = ClickHouseStore()
+        clickHouseStore = ClickHouseStore(
+            host = "localhost",
+            port = 18123,
+            user = "default",
+            password = ""
+        )
 
         // Ensure schema exists
         postgresStore.ensureSchema()
@@ -45,15 +50,6 @@ class StorageRealIntegrationTest {
         } catch (e: Exception) {
             println("ClickHouse schema creation failed (may not be running): ${e.message}")
         }
-    }
-
-    @AfterEach
-    fun cleanup() {
-        System.clearProperty("POSTGRES_HOST")
-        System.clearProperty("POSTGRES_PORT")
-        System.clearProperty("POSTGRES_DB")
-        System.clearProperty("POSTGRES_USER")
-        System.clearProperty("POSTGRES_PASSWORD")
     }
 
     @Test
@@ -216,7 +212,14 @@ class StorageRealIntegrationTest {
 
     @Test
     fun `test DedupeStore tracks content changes`() {
-        val dedupeStore = DedupeStore()
+        val dedupeStore = DedupeStore(
+            host = "localhost",
+            port = 15432,
+            database = "datamancy",
+            user = "datamancer",
+            password = "datamancy123"
+        )
+        dedupeStore.ensureSchema()
 
         val source = "test_source"
         val itemId = "test_item_${System.currentTimeMillis()}"
@@ -239,7 +242,14 @@ class StorageRealIntegrationTest {
 
     @Test
     fun `test CheckpointStore persists values`() {
-        val checkpointStore = CheckpointStore()
+        val checkpointStore = CheckpointStore(
+            host = "localhost",
+            port = 15432,
+            database = "datamancy",
+            user = "datamancer",
+            password = "datamancy123"
+        )
+        checkpointStore.ensureSchema()
 
         val source = "test_source_${System.currentTimeMillis()}"
         val key = "test_checkpoint"
@@ -259,7 +269,14 @@ class StorageRealIntegrationTest {
 
     @Test
     fun `test CheckpointStore handles multiple keys`() {
-        val checkpointStore = CheckpointStore()
+        val checkpointStore = CheckpointStore(
+            host = "localhost",
+            port = 15432,
+            database = "datamancy",
+            user = "datamancer",
+            password = "datamancy123"
+        )
+        checkpointStore.ensureSchema()
 
         val source = "test_multi_${System.currentTimeMillis()}"
 

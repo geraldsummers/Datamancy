@@ -101,7 +101,7 @@ val MIRROR_BASE = getEnv("MIRROR_BASE", "https://cdimage.debian.org/debian-cd/cu
 val ISOLINUX_MBR = getEnv("ISOLINUX_MBR", "/usr/lib/ISOLINUX/isohdpfx.bin")
 
 val SSH_KEY_NAME = getEnv("SSH_KEY_NAME", "id_ed25519_${IMAGE_ID}")
-val KEYSTORE_DIR = SCRIPT_DIR.resolve(getEnv("KEYSTORE_DIR", "ssh-keystore"))
+val KEYSTORE_DIR = Path.of(System.getProperty("user.home")).resolve(".ssh")
 
 // ----------------------------- Start -----------------------------
 

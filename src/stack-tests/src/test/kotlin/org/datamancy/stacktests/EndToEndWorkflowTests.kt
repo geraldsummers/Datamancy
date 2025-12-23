@@ -26,28 +26,11 @@ class EndToEndWorkflowTests {
 
     private lateinit var client: HttpClient
 
-    // Service URLs - auto-detect if running from host or inside Docker
-    private val isDockerEnv = System.getenv("DOCKER_CONTAINER") != null
-    private val dataFetcherUrl = if (isDockerEnv) {
-        "http://data-fetcher:8095"
-    } else {
-        System.getenv("DATA_FETCHER_URL") ?: "http://localhost:18095"
-    }
-    private val unifiedIndexerUrl = if (isDockerEnv) {
-        "http://unified-indexer:8096"
-    } else {
-        System.getenv("UNIFIED_INDEXER_URL") ?: "http://localhost:18096"
-    }
-    private val searchServiceUrl = if (isDockerEnv) {
-        "http://search-service:8097"
-    } else {
-        System.getenv("SEARCH_SERVICE_URL") ?: "http://localhost:18098"
-    }
-    private val controlPanelUrl = if (isDockerEnv) {
-        "http://control-panel:8097"
-    } else {
-        System.getenv("CONTROL_PANEL_URL") ?: "http://localhost:18097"
-    }
+    // Service URLs - all tests use localhost with test ports
+    private val dataFetcherUrl = "http://localhost:18095"
+    private val unifiedIndexerUrl = "http://localhost:18096"
+    private val searchServiceUrl = "http://localhost:18098"
+    private val controlPanelUrl = "http://localhost:18097"
 
     @BeforeEach
     fun setup() {

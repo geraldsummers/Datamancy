@@ -62,3 +62,5 @@ venv/
 
 # Test artifacts
 htmlReport/.gradle-container/
+
+.kotlin/

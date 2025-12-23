@@ -227,14 +227,14 @@ private fun install(force: Boolean) {
 
     // Copy controller script (keep .kts extension for kotlin interpreter)
     info("Step 5/7: Installing controller script")
-    val controllerSource = root.resolve("datamancy-controller.main.kts")
+    val controllerSource = root.resolve("scripts/stack-control/datamancy-controller.main.kts")
     val controllerDest = installDir.resolve("datamancy-controller.main.kts")
     if (Files.exists(controllerSource)) {
         Files.copy(controllerSource, controllerDest, StandardCopyOption.REPLACE_EXISTING)
         ensurePerm(controllerDest, executable = true)
         success("Controller script installed")
     } else {
-        err("datamancy-controller.main.kts not found in source - cannot continue")
+        err("scripts/stack-control/datamancy-controller.main.kts not found in source - cannot continue")
     }
 
     // Copy Dockerfiles and build context (needed for builds)

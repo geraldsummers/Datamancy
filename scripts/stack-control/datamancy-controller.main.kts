@@ -333,10 +333,10 @@ private fun bringUpStack() {
 
     // Step 1: Generate environment configuration if needed
     if (!Files.exists(envFile)) {
-        info("Step 1/4: Generating environment configuration")
+        info("Step 1/5: Generating environment configuration")
         generateEnvironmentConfig()
     } else {
-        info("Step 1/4: Environment config exists, validating")
+        info("Step 1/5: Environment config exists, validating")
         validateEnvFile(envFile)
     }
 
@@ -350,18 +350,23 @@ private fun bringUpStack() {
 
     // Step 2: Process configuration templates (includes LDAP bootstrap generation)
     if (!Files.exists(configsDir) || Files.list(configsDir).count() == 0L || !Files.exists(ldapBootstrap)) {
-        info("Step 2/4: Processing configuration templates (includes LDAP bootstrap)")
+        info("Step 2/5: Processing configuration templates (includes LDAP bootstrap)")
         processConfigTemplates()
     } else {
-        info("Step 2/4: Configuration files and LDAP bootstrap exist")
+        info("Step 2/5: Configuration files and LDAP bootstrap exist")
     }
 
     // Step 3: Create volume directories
-    info("Step 3/4: Creating volume directories")
+    info("Step 3/5: Creating volume directories")
     createVolumeDirectories()
 
-    // Step 4: Start services
-    info("Step 4/4: Starting Docker Compose services")
+    // Step 4: Build Gradle JARs
+    info("Step 4/5: Building Gradle JARs")
+    run("./gradlew", ":search-service:shadowJar", ":unified-indexer:shadowJar", cwd = root)
+    success("Gradle JARs built")
+
+    // Step 5: Start services
+    info("Step 5/5: Starting Docker Compose services")
     run("docker", "compose", "--env-file", envFile.toString(), "up", "-d", "--build", cwd = root)
 
     success("Stack started successfully")
@@ -457,27 +462,32 @@ private fun bringUpStackWithTestPorts() {
 
     // Step 1: Environment config
     if (!Files.exists(envFile)) {
-        info("Step 1/4: Generating environment config")
+        info("Step 1/5: Generating environment config")
         generateEnvironmentConfig()
     } else {
-        info("Step 1/4: Environment config exists, validating")
+        info("Step 1/5: Environment config exists, validating")
         validateEnvFile(envFile)
     }
 
     // Step 2: Config files
     if (!Files.exists(ldapBootstrap) || !Files.isDirectory(configsDir)) {
-        info("Step 2/4: Processing configuration templates")
+        info("Step 2/5: Processing configuration templates")
         processConfigTemplates()
     } else {
-        info("Step 2/4: Configuration files and LDAP bootstrap exist")
+        info("Step 2/5: Configuration files and LDAP bootstrap exist")
     }
 
     // Step 3: Volume directories
-    info("Step 3/4: Creating volume directories")
+    info("Step 3/5: Creating volume directories")
     createVolumeDirectories()
 
-    // Step 4: Bring up stack with both base and test-ports overlay
-    info("Step 4/4: Starting services with test ports exposed")
+    // Step 4: Build Gradle JARs
+    info("Step 4/5: Building Gradle JARs")
+    run("./gradlew", ":search-service:shadowJar", ":unified-indexer:shadowJar", cwd = root)
+    success("Gradle JARs built")
+
+    // Step 5: Bring up stack with both base and test-ports overlay
+    info("Step 5/5: Starting services with test ports exposed")
     run("docker", "compose",
         "-f", "docker-compose.yml",
         "-f", "docker-compose.test-ports.yml",
