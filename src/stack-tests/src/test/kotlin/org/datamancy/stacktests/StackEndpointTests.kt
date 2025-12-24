@@ -247,21 +247,36 @@ class StackEndpointTests {
         return when (endpoint.method) {
             HttpMethod.GET -> client.get(url)
 
-            HttpMethod.POST -> client.post(url) {
-                contentType(ContentType.Application.Json)
-                setBody(getRequestBody(endpoint.path))
+            HttpMethod.POST -> {
+                val body = getRequestBody(endpoint.path)
+                client.post(url) {
+                    if (body.isNotEmpty()) {
+                        contentType(ContentType.Application.Json)
+                        setBody(body)
+                    }
+                }
             }
 
-            HttpMethod.PUT -> client.put(url) {
-                contentType(ContentType.Application.Json)
-                setBody(getRequestBody(endpoint.path))
+            HttpMethod.PUT -> {
+                val body = getRequestBody(endpoint.path)
+                client.put(url) {
+                    if (body.isNotEmpty()) {
+                        contentType(ContentType.Application.Json)
+                        setBody(body)
+                    }
+                }
             }
 
             HttpMethod.DELETE -> client.delete(url)
 
-            HttpMethod.PATCH -> client.patch(url) {
-                contentType(ContentType.Application.Json)
-                setBody(getRequestBody(endpoint.path))
+            HttpMethod.PATCH -> {
+                val body = getRequestBody(endpoint.path)
+                client.patch(url) {
+                    if (body.isNotEmpty()) {
+                        contentType(ContentType.Application.Json)
+                        setBody(body)
+                    }
+                }
             }
 
             HttpMethod.HEAD -> client.head(url)

@@ -24,7 +24,7 @@ class StorageRealIntegrationTest {
     private val pgPort = 15432
     private val pgDb = "datamancy"
     private val pgUser = "datamancer"
-    private val pgPassword = "datamancy123"
+    private val pgPassword = "wUPAptqQ0dRE-uA-JMc0hgTX2L2Va1fx"
 
     @BeforeEach
     fun setup() {
@@ -57,6 +57,7 @@ class StorageRealIntegrationTest {
         // Verify tables exist
         val url = "jdbc:postgresql://$pgHost:$pgPort/$pgDb"
         DriverManager.getConnection(url, pgUser, pgPassword).use { conn ->
+            conn.autoCommit = true
             val meta = conn.metaData
             val tables = mutableListOf<String>()
 
@@ -88,6 +89,7 @@ class StorageRealIntegrationTest {
         // Verify it was stored
         val url = "jdbc:postgresql://$pgHost:$pgPort/$pgDb"
         DriverManager.getConnection(url, pgUser, pgPassword).use { conn ->
+            conn.autoCommit = true
             val sql = "SELECT COUNT(*) FROM fetch_history WHERE source = 'test_integration' AND category = 'unit_test'"
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery(sql)
@@ -115,6 +117,7 @@ class StorageRealIntegrationTest {
         // Verify all were stored
         val url = "jdbc:postgresql://$pgHost:$pgPort/$pgDb"
         DriverManager.getConnection(url, pgUser, pgPassword).use { conn ->
+            conn.autoCommit = true
             val sql = "SELECT COUNT(*) FROM fetch_history WHERE source = 'test_batch'"
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery(sql)
@@ -153,7 +156,8 @@ class StorageRealIntegrationTest {
 
     @Test
     fun `test FileSystemStore creates canonical paths`() {
-        val store = FileSystemStore()
+        val tempDir = System.getProperty("java.io.tmpdir") + "/datamancy-test-" + System.currentTimeMillis()
+        val store = FileSystemStore(tempDir)
         val timestamp = Instant.parse("2024-12-18T10:30:00Z")
 
         val path = store.storeRaw(
@@ -179,7 +183,8 @@ class StorageRealIntegrationTest {
 
     @Test
     fun `test FileSystemStore handles special characters in itemId`() {
-        val store = FileSystemStore()
+        val tempDir = System.getProperty("java.io.tmpdir") + "/datamancy-test-" + System.currentTimeMillis()
+        val store = FileSystemStore(tempDir)
         val timestamp = Clock.System.now()
 
         val path = store.storeRaw(
@@ -212,80 +217,83 @@ class StorageRealIntegrationTest {
 
     @Test
     fun `test DedupeStore tracks content changes`() {
-        val dedupeStore = DedupeStore(
+        DedupeStore(
             host = "localhost",
             port = 15432,
             database = "datamancy",
             user = "datamancer",
-            password = "datamancy123"
-        )
-        dedupeStore.ensureSchema()
+            password = "wUPAptqQ0dRE-uA-JMc0hgTX2L2Va1fx"
+        ).use { dedupeStore ->
+            dedupeStore.ensureSchema()
 
-        val source = "test_source"
-        val itemId = "test_item_${System.currentTimeMillis()}"
-        val runId = "test_run_123"
-        val hash1 = "hash123"
-        val hash2 = "hash456"
+            val source = "test_source"
+            val itemId = "test_item_${System.currentTimeMillis()}"
+            val runId = "test_run_123"
+            val hash1 = "hash123"
+            val hash2 = "hash456"
 
-        // First insert - should be NEW
-        val result1 = dedupeStore.shouldUpsert(source, itemId, hash1, runId)
-        assertEquals(DedupeResult.NEW, result1)
+            // First insert - should be NEW
+            val result1 = dedupeStore.shouldUpsert(source, itemId, hash1, runId)
+            assertEquals(DedupeResult.NEW, result1)
 
-        // Same hash - should be UNCHANGED
-        val result2 = dedupeStore.shouldUpsert(source, itemId, hash1, runId)
-        assertEquals(DedupeResult.UNCHANGED, result2)
+            // Same hash - should be UNCHANGED
+            val result2 = dedupeStore.shouldUpsert(source, itemId, hash1, runId)
+            assertEquals(DedupeResult.UNCHANGED, result2)
 
-        // Different hash - should be UPDATED
-        val result3 = dedupeStore.shouldUpsert(source, itemId, hash2, runId)
-        assertEquals(DedupeResult.UPDATED, result3)
+            // Different hash - should be UPDATED
+            val result3 = dedupeStore.shouldUpsert(source, itemId, hash2, runId)
+            assertEquals(DedupeResult.UPDATED, result3)
+        }
     }
 
     @Test
     fun `test CheckpointStore persists values`() {
-        val checkpointStore = CheckpointStore(
+        CheckpointStore(
             host = "localhost",
             port = 15432,
             database = "datamancy",
             user = "datamancer",
-            password = "datamancy123"
-        )
-        checkpointStore.ensureSchema()
+            password = "wUPAptqQ0dRE-uA-JMc0hgTX2L2Va1fx"
+        ).use { checkpointStore ->
+            checkpointStore.ensureSchema()
 
-        val source = "test_source_${System.currentTimeMillis()}"
-        val key = "test_checkpoint"
-        val value = "checkpoint_value_123"
+            val source = "test_source_${System.currentTimeMillis()}"
+            val key = "test_checkpoint"
+            val value = "checkpoint_value_123"
 
-        // Store a checkpoint
-        checkpointStore.set(source, key, value)
+            // Store a checkpoint
+            checkpointStore.set(source, key, value)
 
-        // Retrieve it
-        val retrieved = checkpointStore.get(source, key)
-        assertEquals(value, retrieved)
+            // Retrieve it
+            val retrieved = checkpointStore.get(source, key)
+            assertEquals(value, retrieved)
 
-        // Non-existent key returns null
-        val missing = checkpointStore.get(source, "nonexistent_key")
-        assertEquals(null, missing)
+            // Non-existent key returns null
+            val missing = checkpointStore.get(source, "nonexistent_key")
+            assertEquals(null, missing)
+        }
     }
 
     @Test
     fun `test CheckpointStore handles multiple keys`() {
-        val checkpointStore = CheckpointStore(
+        CheckpointStore(
             host = "localhost",
             port = 15432,
             database = "datamancy",
             user = "datamancer",
-            password = "datamancy123"
-        )
-        checkpointStore.ensureSchema()
+            password = "wUPAptqQ0dRE-uA-JMc0hgTX2L2Va1fx"
+        ).use { checkpointStore ->
+            checkpointStore.ensureSchema()
 
-        val source = "test_multi_${System.currentTimeMillis()}"
+            val source = "test_multi_${System.currentTimeMillis()}"
 
-        checkpointStore.set(source, "key1", "value1")
-        checkpointStore.set(source, "key2", "value2")
-        checkpointStore.set(source, "key3", "value3")
+            checkpointStore.set(source, "key1", "value1")
+            checkpointStore.set(source, "key2", "value2")
+            checkpointStore.set(source, "key3", "value3")
 
-        assertEquals("value1", checkpointStore.get(source, "key1"))
-        assertEquals("value2", checkpointStore.get(source, "key2"))
-        assertEquals("value3", checkpointStore.get(source, "key3"))
+            assertEquals("value1", checkpointStore.get(source, "key1"))
+            assertEquals("value2", checkpointStore.get(source, "key2"))
+            assertEquals("value3", checkpointStore.get(source, "key3"))
+        }
     }
 }

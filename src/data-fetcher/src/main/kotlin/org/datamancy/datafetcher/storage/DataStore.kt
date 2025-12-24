@@ -38,6 +38,7 @@ class PostgresStore(
     ) {
         try {
             getConnection().use { conn ->
+                conn.autoCommit = true
                 val sql = """
                     INSERT INTO fetch_history (source, category, item_count, fetched_at, metadata)
                     VALUES (?, ?, ?, ?, ?::jsonb)
@@ -61,6 +62,7 @@ class PostgresStore(
     fun ensureSchema() {
         try {
             getConnection().use { conn ->
+                conn.autoCommit = true
                 val sql = """
                     CREATE TABLE IF NOT EXISTS fetch_history (
                         id SERIAL PRIMARY KEY,
@@ -177,8 +179,10 @@ class ClickHouseStore(
  * )
  * ```
  */
-class FileSystemStore {
-    private val basePath = System.getenv("DATAFETCHER_DATA_PATH") ?: "/app/data"
+class FileSystemStore(
+    basePath: String? = null
+) {
+    private val basePath = basePath ?: System.getenv("DATAFETCHER_DATA_PATH") ?: "/app/data"
 
     /**
      * Store raw data with canonical path structure.

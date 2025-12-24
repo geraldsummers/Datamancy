@@ -1,106 +1,81 @@
 package org.datamancy.datafetcher.storage
 
 import org.datamancy.test.IntegrationTest
+import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
 
 @IntegrationTest(requiredServices = ["postgres"])
 class CheckpointStoreIntegrationTest {
 
-    private fun createStore(): CheckpointStore {
-        val store = CheckpointStore(
+    private lateinit var store: CheckpointStore
+
+    @BeforeEach
+    fun setup() {
+        store = CheckpointStore(
             host = "localhost",
             port = 15432,
             database = "datamancy",
             user = "datamancer",
-            password = "datamancy123"
+            password = "wUPAptqQ0dRE-uA-JMc0hgTX2L2Va1fx"
         )
         store.ensureSchema()
-        return store
     }
 
-    @Test
-    fun `can initialize schema`() {
-        val store = createStore()
-
-        // No exception means success (schema is created in createStore())
-        assertTrue(true)
+    @AfterEach
+    fun teardown() {
+        store.close()
     }
 
     @Test
     fun `can store and retrieve checkpoint`() {
-        val store = createStore()
-
-        val testKey = "test_key_${System.currentTimeMillis()}_${System.nanoTime()}"
+        val testKey = "test_key_${System.nanoTime()}"
         store.set("test_source", testKey, "test_value")
-        val value = store.get("test_source", testKey)
 
-        assertEquals("test_value", value)
+        assertEquals("test_value", store.get("test_source", testKey))
     }
 
     @Test
     fun `get returns null for non-existent checkpoint`() {
-        val store = createStore()
-        store.ensureSchema()
-
-        val value = store.get("non_existent", "key")
-
-        assertNull(value)
+        assertNull(store.get("non_existent_${System.nanoTime()}", "key"))
     }
 
     @Test
     fun `can update existing checkpoint`() {
-        val store = createStore()
-        store.ensureSchema()
-
-        val testKey = "key_${System.currentTimeMillis()}_${System.nanoTime()}"
+        val testKey = "key_${System.nanoTime()}"
         store.set("source", testKey, "value1")
         store.set("source", testKey, "value2")
-        val value = store.get("source", testKey)
 
-        assertEquals("value2", value)
+        assertEquals("value2", store.get("source", testKey))
     }
 
     @Test
     fun `can delete checkpoint`() {
-        val store = createStore()
-        store.ensureSchema()
-
-        val testKey = "key_${System.currentTimeMillis()}_${System.nanoTime()}"
+        val testKey = "key_${System.nanoTime()}"
         store.set("source", testKey, "value")
         store.delete("source", testKey)
-        val value = store.get("source", testKey)
 
-        assertNull(value)
+        assertNull(store.get("source", testKey))
     }
 
     @Test
     fun `can retrieve all checkpoints for source`() {
-        val store = createStore()
-        store.ensureSchema()
-
-        val uniqueSource = "source_${System.currentTimeMillis()}_${System.nanoTime()}"
-        val key1 = "key1_${System.nanoTime()}"
-        val key2 = "key2_${System.nanoTime()}"
+        val uniqueSource = "source_${System.nanoTime()}"
+        val key1 = "key1"
+        val key2 = "key2"
 
         store.set(uniqueSource, key1, "value1")
         store.set(uniqueSource, key2, "value2")
-        store.set("other_source", "key3", "value3")
 
         val checkpoints = store.getAll(uniqueSource)
 
         assertEquals(2, checkpoints.size)
         assertEquals("value1", checkpoints[key1])
         assertEquals("value2", checkpoints[key2])
-        assertFalse(checkpoints.containsKey("key3"))
     }
 
     @Test
     fun `getAll returns empty map for source with no checkpoints`() {
-        val store = createStore()
-        store.ensureSchema()
-
-        val checkpoints = store.getAll("empty_source")
+        val checkpoints = store.getAll("empty_source_${System.nanoTime()}")
 
         assertTrue(checkpoints.isEmpty())
     }

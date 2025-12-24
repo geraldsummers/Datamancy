@@ -14,6 +14,13 @@ data class TriggerResponse(
     val job: String
 )
 
+@Serializable
+data class TriggerAllResponse(
+    val message: String,
+    val jobs: List<String>,
+    val count: Int
+)
+
 fun Route.configureTriggerEndpoints(scheduler: FetchScheduler) {
     post("/trigger/{job}") {
         val jobName = call.parameters["job"] ?: return@post call.respond(
@@ -64,10 +71,10 @@ fun Route.configureTriggerEndpoints(scheduler: FetchScheduler) {
 
         call.respond(
             HttpStatusCode.Accepted,
-            mapOf(
-                "message" to "Fetch jobs triggered",
-                "jobs" to triggered,
-                "count" to triggered.size
+            TriggerAllResponse(
+                message = "Fetch jobs triggered",
+                jobs = triggered,
+                count = triggered.size
             )
         )
     }

@@ -30,10 +30,22 @@ class CheckpointStore(
     private val database: String = System.getenv("POSTGRES_DB") ?: "datamancy",
     private val user: String = System.getenv("POSTGRES_USER") ?: "datamancer",
     private val password: String = System.getenv("POSTGRES_PASSWORD") ?: ""
-) {
-    private fun getConnection(): Connection {
+) : AutoCloseable {
+    private val connection: Connection by lazy {
         val url = "jdbc:postgresql://$host:$port/$database"
-        return DriverManager.getConnection(url, user, password)
+        DriverManager.getConnection(url, user, password).apply {
+            autoCommit = true
+        }
+    }
+
+    override fun close() {
+        try {
+            if (!connection.isClosed) {
+                connection.close()
+            }
+        } catch (e: Exception) {
+            // Connection not initialized or already closed
+        }
     }
 
     /**
@@ -42,17 +54,15 @@ class CheckpointStore(
      */
     fun get(source: String, key: String): String? {
         return try {
-            getConnection().use { conn ->
-                val sql = "SELECT value FROM checkpoints WHERE source = ? AND key = ?"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setString(1, source)
-                    stmt.setString(2, key)
-                    val rs = stmt.executeQuery()
-                    if (rs.next()) {
-                        rs.getString("value")
-                    } else {
-                        null
-                    }
+            val sql = "SELECT value FROM checkpoints WHERE source = ? AND key = ?"
+            connection.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, source)
+                stmt.setString(2, key)
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    rs.getString("value")
+                } else {
+                    null
                 }
             }
         } catch (e: Exception) {
@@ -67,25 +77,23 @@ class CheckpointStore(
      */
     fun set(source: String, key: String, value: String) {
         try {
-            getConnection().use { conn ->
-                val sql = """
-                    INSERT INTO checkpoints (source, key, value, updated_at)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT (source, key) DO UPDATE SET
-                        value = EXCLUDED.value,
-                        updated_at = EXCLUDED.updated_at
-                """
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setString(1, source)
-                    stmt.setString(2, key)
-                    stmt.setString(3, value)
-                    stmt.setTimestamp(4, java.sql.Timestamp.from(
-                        java.time.Instant.now()
-                    ))
-                    stmt.executeUpdate()
-                }
-                logger.debug { "Set checkpoint: $source/$key = $value" }
+            val sql = """
+                INSERT INTO checkpoints (source, key, value, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (source, key) DO UPDATE SET
+                    value = EXCLUDED.value,
+                    updated_at = EXCLUDED.updated_at
+            """
+            connection.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, source)
+                stmt.setString(2, key)
+                stmt.setString(3, value)
+                stmt.setTimestamp(4, java.sql.Timestamp.from(
+                    java.time.Instant.now()
+                ))
+                stmt.executeUpdate()
             }
+            logger.debug { "Set checkpoint: $source/$key = $value" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to set checkpoint: $source/$key" }
         }
@@ -96,15 +104,13 @@ class CheckpointStore(
      */
     fun delete(source: String, key: String) {
         try {
-            getConnection().use { conn ->
-                val sql = "DELETE FROM checkpoints WHERE source = ? AND key = ?"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setString(1, source)
-                    stmt.setString(2, key)
-                    stmt.executeUpdate()
-                }
-                logger.debug { "Deleted checkpoint: $source/$key" }
+            val sql = "DELETE FROM checkpoints WHERE source = ? AND key = ?"
+            connection.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, source)
+                stmt.setString(2, key)
+                stmt.executeUpdate()
             }
+            logger.debug { "Deleted checkpoint: $source/$key" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to delete checkpoint: $source/$key" }
         }
@@ -115,17 +121,15 @@ class CheckpointStore(
      */
     fun getAll(source: String): Map<String, String> {
         return try {
-            getConnection().use { conn ->
-                val sql = "SELECT key, value FROM checkpoints WHERE source = ?"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setString(1, source)
-                    val rs = stmt.executeQuery()
-                    val checkpoints = mutableMapOf<String, String>()
-                    while (rs.next()) {
-                        checkpoints[rs.getString("key")] = rs.getString("value")
-                    }
-                    checkpoints
+            val sql = "SELECT key, value FROM checkpoints WHERE source = ?"
+            connection.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, source)
+                val rs = stmt.executeQuery()
+                val checkpoints = mutableMapOf<String, String>()
+                while (rs.next()) {
+                    checkpoints[rs.getString("key")] = rs.getString("value")
                 }
+                checkpoints
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to get all checkpoints for: $source" }
@@ -138,26 +142,24 @@ class CheckpointStore(
      */
     fun ensureSchema() {
         try {
-            getConnection().use { conn ->
-                val sql = """
-                    CREATE TABLE IF NOT EXISTS checkpoints (
-                        id SERIAL PRIMARY KEY,
-                        source VARCHAR(100) NOT NULL,
-                        key VARCHAR(100) NOT NULL,
-                        value TEXT NOT NULL,
-                        updated_at TIMESTAMP NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE(source, key)
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_checkpoints_source ON checkpoints(source);
-                """
-                conn.createStatement().use { stmt ->
-                    stmt.execute(sql)
-                }
-                logger.info { "Checkpoint schema ensured" }
+            val sql = """
+                CREATE TABLE IF NOT EXISTS checkpoints (
+                    id SERIAL PRIMARY KEY,
+                    source VARCHAR(100) NOT NULL,
+                    key VARCHAR(100) NOT NULL,
+                    value TEXT NOT NULL,
+                    updated_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(source, key)
+                );
+                CREATE INDEX IF NOT EXISTS idx_checkpoints_source ON checkpoints(source);
+            """
+            connection.createStatement().use { stmt ->
+                stmt.execute(sql)
             }
+            logger.info { "Checkpoint schema ensured" }
         } catch (e: Exception) {
-            logger.error(e) { "Failed to ensure checkpoint schema" }
+            logger.error(e) { "Failed to ensure checkpoint schema: ${e.message}" }
         }
     }
 }
