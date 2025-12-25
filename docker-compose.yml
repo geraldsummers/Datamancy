@@ -12,6 +12,17 @@
 #   datamancy-controller up         - Start stack
 #   datamancy-controller down       - Stop stack
 #   datamancy-controller obliterate - Complete cleanup
+#
+# Volume path resolution (.env):
+#   VOLUMES_ROOT             - Base path for all volumes (e.g., /mnt/storage/datamancy)
+#   APPLICATION_DATA_PATH    - Application data (defaults to ${VOLUMES_ROOT}/applications)
+#   NON_VECTOR_DBS_PATH      - Database data (defaults to ${VOLUMES_ROOT}/databases)
+#   VECTOR_DBS_PATH          - Vector DB data (defaults to ${VOLUMES_ROOT}/vector-dbs)
+#
+# Required .env variables for portability:
+#   DOCKER_USER_ID           - User ID for services (run: id -u)
+#   DOCKER_GROUP_ID          - Group ID for services (run: id -g)
+#   DOCKER_SOCKET_GID        - Docker socket GID (run: stat -c '%g' /var/run/docker.sock)
 ###############################################
 networks:
   frontend:
@@ -39,7 +50,7 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ${HOME}/.caddy_data
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/caddy_data
   caddy_config:
     driver: local
     driver_opts:
@@ -226,12 +237,6 @@ volumes:
       type: none
       o: bind
       device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_config
-#  sogo_data:
-#    driver: local
-#    driver_opts:
-#      type: none
-#      o: bind
-#      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/sogo_data
   roundcube_data:
     driver: local
     driver_opts:
@@ -444,10 +449,6 @@ services:
       - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${AUTHELIA_OIDC_HMAC_SECRET}
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY}
-      - AUTHELIA_STORAGE_POSTGRES_HOST=postgres
-      - AUTHELIA_STORAGE_POSTGRES_PORT=5432
-      - AUTHELIA_STORAGE_POSTGRES_DATABASE=authelia
-      - AUTHELIA_STORAGE_POSTGRES_USERNAME=authelia
       - AUTHELIA_STORAGE_POSTGRES_PASSWORD=${AUTHELIA_DB_PASSWORD}
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/api/health"]
@@ -550,30 +551,11 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/11211' || exit 1"]
+      test: ["CMD-SHELL", "timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/11211' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-
-  mailserver-cert-init:
-    image: alpine:latest
-    container_name: mailserver-cert-init
-    restart: "no"
-    networks:
-      - backend
-    depends_on:
-      caddy:
-        condition: service_healthy
-    environment:
-      - DOMAIN=${DOMAIN}
-    command: >
-      sh -c "
-        apk add --no-cache curl &&
-        echo 'Triggering Caddy to generate certificate for mail.${DOMAIN}...' &&
-        curl -k https://mail.${DOMAIN}/ -o /dev/null || true &&
-        echo 'Certificate generation triggered successfully'
-      "
 
   mailserver:
     image: ghcr.io/docker-mailserver/docker-mailserver:14.0.0
@@ -583,8 +565,8 @@ services:
     depends_on:
       ldap:
         condition: service_started
-      mailserver-cert-init:
-        condition: service_completed_successfully
+      caddy:
+        condition: service_healthy
     ports:
       - "25:25"
       - "465:465"
@@ -599,7 +581,6 @@ services:
       - /etc/localtime:/etc/localtime:ro
       # Mount Caddy's Let's Encrypt certificates
       - caddy_data:/caddy-certs:ro
-      # Dovecot master user configuration for SOGo
       - ${HOME}/.datamancy/configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
       - ${HOME}/.datamancy/configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
     environment:
@@ -612,8 +593,8 @@ services:
       - ENABLE_SRS=0
       - PERMIT_DOCKER=network
       - SSL_TYPE=manual
-      - SSL_CERT_PATH=/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.crt
-      - SSL_KEY_PATH=/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.key
+      - SSL_CERT_PATH=${MAILSERVER_SSL_CERT_PATH:-/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.crt}
+      - SSL_KEY_PATH=${MAILSERVER_SSL_KEY_PATH:-/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.key}
       - OVERRIDE_HOSTNAME=mail.${DOMAIN}
       - POSTMASTER_ADDRESS=postmaster@${MAIL_DOMAIN}
       - ACCOUNT_PROVISIONER=LDAP
@@ -696,37 +677,6 @@ services:
       retries: 3
       start_period: 30s
 
-#  sogo:
-#    image: pmietlicki/sogo:v5
-#    container_name: sogo
-#    restart: unless-stopped
-#    environment:
-#      - TZ=UTC
-#    volumes:
-#      - sogo_data:/var/lib/sogo
-#      - ${HOME}/.datamancy/configs/applications/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
-#      - ${HOME}/.datamancy/configs/applications/sogo/init-apache.sh:/docker-entrypoint.d/init-apache.sh:ro
-#    networks:
-#      - backend
-#    healthcheck:
-#      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/20000' || exit 1"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 60s
-#
-#  sogo-init:
-#    image: docker:27-cli
-#    container_name: sogo-init
-#    restart: "no"
-#    depends_on:
-#      sogo:
-#        condition: service_healthy
-#    volumes:
-#      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
-#    command: docker exec sogo bash /docker-entrypoint.d/init-apache.sh
-
-
   kopia:
     image: kopia/kopia:0.18.2
     container_name: kopia
@@ -763,21 +713,21 @@ services:
     networks:
       - backend
     environment:
-      # Minimal read-only permissions for security
+      # Scoped permissions for JupyterHub and Homepage
       # See: https://github.com/Tecnativa/docker-socket-proxy
-      - CONTAINERS=1  # Read container status (needed for health checks, logs)
+      - CONTAINERS=1  # Read container status (needed for health checks, logs, Homepage dashboard)
       - IMAGES=1      # Enabled for JupyterHub spawner to check image availability
       - NETWORKS=1    # Enabled for JupyterHub spawner to attach containers
       - VOLUMES=1     # Enabled for JupyterHub to mount volumes
-      - POST=1        # Enabled for JupyterHub to spawn notebook containers
-      - DELETE=1      # Enabled for JupyterHub to stop/remove containers
+      - POST=1        # Enabled ONLY for JupyterHub container spawning (jupyter-* prefix)
+      - DELETE=1      # Enabled ONLY for JupyterHub to remove notebook containers
       - BUILD=0       # Disabled - no image builds
       - COMMIT=0
       - CONFIGS=0
       - DISTRIBUTION=0
-      - EXEC=0        # Disabled - prevents arbitrary command execution
+      - EXEC=0        # Disabled - prevents arbitrary command execution in containers
       - GRPC=0
-      - INFO=1        # Enabled for JupyterHub to query Docker info
+      - INFO=1        # Enabled for JupyterHub to query Docker info and Homepage stats
       - PLUGINS=0
       - SERVICES=0
       - SESSION=0
@@ -785,6 +735,9 @@ services:
       - SYSTEM=0
       - TASKS=0
       - VERSION=1     # Enabled - allows version checks for compatibility
+      # Note: Container name filtering not supported by this proxy version.
+      # POST/DELETE permissions are risky but required for JupyterHub.
+      # Mitigation: JupyterHub auth via Authelia, network isolation, monitoring
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
     healthcheck:
@@ -1002,8 +955,8 @@ services:
     links:
       - mariadb:mariadb
     environment:
-      - PUID=1000
-      - PGID=1000
+      - PUID=${DOCKER_USER_ID:-1000}
+      - PGID=${DOCKER_GROUP_ID:-1000}
       - TZ=UTC
       - APP_URL=https://bookstack.${DOMAIN}
       - APP_KEY=${BOOKSTACK_APP_KEY}
@@ -1049,8 +1002,6 @@ services:
       - TIME_ZONE=UTC
     volumes:
       - seafile_data:/shared
-      # Mount database settings template (will be applied by init container)
-      - ${HOME}/.datamancy/configs/applications/seafile/seahub_settings.py:/tmp/seahub_settings_template.py:ro
     networks:
       - backend
     healthcheck:
@@ -1059,21 +1010,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 180s
-
-  seafile-db-init:
-    image: seafileltd/seafile-mc:13.0.12
-    container_name: seafile-db-init
-    restart: "no"
-    depends_on:
-      seafile:
-        condition: service_started
-    volumes:
-      - seafile_data:/shared
-      - ${HOME}/.datamancy/configs/applications/seafile/seahub_settings.py:/tmp/seahub_settings_template.py:ro
-      - ${HOME}/.datamancy/configs/applications/seafile/init/apply-db-config.sh:/apply-db-config.sh:ro
-    command: ["bash", "/apply-db-config.sh"]
-    networks:
-      - backend
 
   onlyoffice:
     image: onlyoffice/documentserver:8.2.2
@@ -1097,22 +1033,14 @@ services:
       retries: 3
       start_period: 2m
 
-  synapse-init:
-    image: alpine:latest
-    container_name: synapse-init
-    volumes:
-      - synapse_data:/data
-    command: chown -R 991:991 /data
-
   synapse:
     build:
       dockerfile: ./src/synapse/Dockerfile
       context: .
     container_name: synapse
     restart: unless-stopped
+    user: "${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000}"
     depends_on:
-      synapse-init:
-        condition: service_completed_successfully
       postgres:
         condition: service_started
       valkey:
@@ -1124,6 +1052,7 @@ services:
       - SYNAPSE_REPORT_STATS=yes
       - SYNAPSE_ENABLE_REGISTRATION=${MATRIX_ENABLE_REGISTRATION:-false}
       - SYNAPSE_TRUSTED_PROXIES=172.18.0.0/16,172.21.0.0/24
+      - SYNAPSE_LOG_LEVEL=WARNING
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=synapse
@@ -1239,8 +1168,8 @@ services:
     depends_on:
       - docker-proxy
     environment:
-      - PUID=1000
-      - PGID=1000
+      - PUID=${DOCKER_USER_ID:-1000}
+      - PGID=${DOCKER_GROUP_ID:-1000}
       - HOMEPAGE_ALLOWED_HOSTS=homepage.${DOMAIN}
       - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
@@ -1311,7 +1240,7 @@ services:
       - ldap
     environment:
       - TZ=UTC
-      - HOMEASSISTANT_DB_URL=postgresql://${STACK_ADMIN_USER}:${HOMEASSISTANT_DB_PASSWORD}@postgres:5432/homeassistant
+      - HOMEASSISTANT_DB_URL=postgresql://${STACK_ADMIN_USER}:${POSTGRES_ROOT_PASSWORD}@postgres:5432/homeassistant
       - STACK_ADMIN_USER=${STACK_ADMIN_USER}
       - STACK_ADMIN_PASSWORD=${STACK_ADMIN_PASSWORD}
       - STACK_ADMIN_EMAIL=${STACK_ADMIN_EMAIL}
@@ -1349,8 +1278,8 @@ services:
     depends_on:
       - postgres
     environment:
-      - USER_UID=1000
-      - USER_GID=1000
+      - USER_UID=${DOCKER_USER_ID:-1000}
+      - USER_GID=${DOCKER_GROUP_ID:-1000}
       - FORGEJO__database__DB_TYPE=postgres
       - FORGEJO__database__HOST=postgres:5432
       - FORGEJO__database__NAME=forgejo
@@ -1383,7 +1312,7 @@ services:
     image: codeberg.org/forgejo/forgejo:9
     container_name: forgejo-init
     restart: "no"
-    user: "1000:1000"
+    user: "${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000}"
     networks:
       - backend
     depends_on:
@@ -1404,8 +1333,8 @@ services:
     networks:
       - backend
     environment:
-      - PUID=1000
-      - PGID=1000
+      - PUID=${DOCKER_USER_ID:-1000}
+      - PGID=${DOCKER_GROUP_ID:-1000}
       - TZ=UTC
       - WEBUI_PORT=8080
     volumes:
@@ -1430,7 +1359,7 @@ services:
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - HF_HUB_ENABLE_HF_TRANSFER=0
     command: [
-      "--model", "Qwen/Qwen2.5-0.5B-Instruct",
+      "Qwen/Qwen2.5-0.5B-Instruct",
       "--served-model-name", "qwen2.5-0.5b",
       "--max-model-len", "2048",
       "--max-num-seqs", "64",
@@ -1444,8 +1373,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G
-          cpus: '4.0'
+          memory: 16G
+          cpus: '12.0'
         reservations:
           devices:
             - driver: nvidia
@@ -1493,7 +1422,7 @@ services:
       - UI_PASSWORD=${STACK_ADMIN_PASSWORD}
     command: --config /app/config.yaml --port 4000 --num_workers 4
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4000/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:4000/health/readiness"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -1517,9 +1446,9 @@ services:
       - couchdb
       - qdrant
       - ldap
-    user: "1000:1000"
+    user: "${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000}"
     group_add:
-      - "985"  # docker group on host for socket access
+      - "${DOCKER_SOCKET_GID:-999}"  # docker group GID from host
     environment:
       - TOOLSERVER_PORT=8081
       - TOOLSERVER_PLUGINS_DIR=/app/plugins
@@ -1601,7 +1530,7 @@ services:
           memory: 2G
           cpus: '2.0'
     healthcheck:
-      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/127.0.0.1/6333' || exit 1"]
+      test: ["CMD-SHELL", "timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/6333' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1655,12 +1584,6 @@ services:
       - ${HOME}/.datamancy/configs/databases/vectors/collections.yaml:/configs/collections.yaml:ro
       - ${HOME}/.datamancy/configs/databases/vectors/bootstrap_vectors.main.kts:/scripts/bootstrap_vectors.main.kts:ro
     command: ["kotlin", "/scripts/bootstrap_vectors.main.kts", "/configs/collections.yaml"]
-    healthcheck:
-      test: ["CMD", "kotlin", "-version"]
-      interval: 1m
-      timeout: 10s
-      retries: 1
-      start_period: 5s
 
   benthos:
     image: jeffail/benthos:4.27.0
@@ -1713,8 +1636,8 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=datamancy
-      - POSTGRES_USER=${STACK_ADMIN_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
+      - POSTGRES_USER=datamancer
+      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_PORT=8123
       - CLICKHOUSE_USER=${STACK_ADMIN_USER}
@@ -1764,8 +1687,8 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=datamancy
-      - POSTGRES_USER=${STACK_ADMIN_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
+      - POSTGRES_USER=datamancer
+      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
       - BOOKSTACK_URL=${BOOKSTACK_URL:-http://bookstack:80}
       - BOOKSTACK_API_TOKEN_ID=${BOOKSTACK_API_TOKEN_ID:-}
       - BOOKSTACK_API_TOKEN_SECRET=${BOOKSTACK_API_TOKEN_SECRET:-}
@@ -1827,8 +1750,8 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=datamancy
-      - POSTGRES_USER=${STACK_ADMIN_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
+      - POSTGRES_USER=datamancer
+      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
       - DATA_FETCHER_URL=http://data-fetcher:8095
       - UNIFIED_INDEXER_URL=http://unified-indexer:8096
       - SEARCH_SERVICE_URL=http://search-service:8098
@@ -1865,8 +1788,8 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=datamancy
-      - POSTGRES_USER=${STACK_ADMIN_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
+      - POSTGRES_USER=datamancer
+      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
       # ClickHouse connection
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_PORT=8123

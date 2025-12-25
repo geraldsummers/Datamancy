@@ -110,7 +110,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE litellm OWNER $POSTGRES_USER'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'litellm')\gexec
 
-    SELECT 'CREATE DATABASE synapse OWNER synapse'
+    SELECT 'CREATE DATABASE synapse OWNER synapse LC_COLLATE ''C'' LC_CTYPE ''C'' TEMPLATE template0'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'synapse')\gexec
 
     SELECT 'CREATE DATABASE authelia OWNER authelia'

@@ -3,9 +3,10 @@ set -e
 
 # Generate log config in /tmp since /data might not be writable
 LOG_CONFIG="/tmp/${SYNAPSE_SERVER_NAME}.log.config"
+LOG_LEVEL="${SYNAPSE_LOG_LEVEL:-WARNING}"
 
-echo "Generating log config at $LOG_CONFIG"
-cat > "$LOG_CONFIG" << 'EOF'
+echo "Generating log config at $LOG_CONFIG with level $LOG_LEVEL"
+cat > "$LOG_CONFIG" << EOF
 version: 1
 
 formatters:
@@ -18,14 +19,22 @@ handlers:
     formatter: precise
 
 loggers:
-  synapse:
-    level: INFO
+  synapse.storage.databases.main.event_push_actions:
+    level: $LOG_LEVEL
+  synapse.util.caches.lrucache:
+    level: $LOG_LEVEL
+  synapse.util.task_scheduler:
+    level: $LOG_LEVEL
+  synapse.storage.background_updates:
+    level: $LOG_LEVEL
   synapse.storage.SQL:
-    level: INFO
+    level: $LOG_LEVEL
 
 root:
-  level: INFO
+  level: $LOG_LEVEL
   handlers: [console]
+
+disable_existing_loggers: false
 EOF
 
 # Start Synapse

@@ -81,6 +81,7 @@ data class SourcesConfig(
     val wiki: WikiConfig = WikiConfig(),
     val rss: RssConfig = RssConfig(),
     val marketData: MarketDataConfig = MarketDataConfig(),
+    val weather: WeatherConfig = WeatherConfig(),
     val economic: EconomicConfig = EconomicConfig(),
     val search: SearchConfig = SearchConfig(),
     val legal: LegalConfig = LegalConfig(),
@@ -130,6 +131,12 @@ data class MarketDataConfig(
     val symbols: List<String> = listOf("BTC", "ETH", "AAPL", "GOOGL"),
     val cryptoSources: List<String> = listOf("coingecko"),
     val stockSources: List<String> = listOf("yahoo")
+)
+
+@Serializable
+data class WeatherConfig(
+    val locations: List<String> = listOf("Sydney", "Melbourne", "Brisbane"),
+    val apiKey: String = System.getenv("OPENWEATHER_API_KEY") ?: ""
 )
 
 @Serializable

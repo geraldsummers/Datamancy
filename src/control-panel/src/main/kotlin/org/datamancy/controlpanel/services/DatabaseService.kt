@@ -181,23 +181,34 @@ open class DatabaseService(
 
     open fun getRecentEvents(limit: Int = 100): List<SystemEvent> {
         val events = mutableListOf<SystemEvent>()
-        getConnection().use { conn ->
-            conn.prepareStatement("""
-                SELECT event_type, service_name, message, occurred_at
-                FROM system_events
-                ORDER BY occurred_at DESC
-                LIMIT ?
-            """).use { stmt ->
-                stmt.setInt(1, limit)
-                val rs = stmt.executeQuery()
-                while (rs.next()) {
-                    events.add(SystemEvent(
-                        eventType = rs.getString("event_type"),
-                        serviceName = rs.getString("service_name"),
-                        message = rs.getString("message") ?: "",
-                        occurredAt = rs.getTimestamp("occurred_at").toInstant().toString()
-                    ))
+        try {
+            getConnection().use { conn ->
+                conn.prepareStatement("""
+                    SELECT event_type, service_name, message, occurred_at
+                    FROM system_events
+                    ORDER BY occurred_at DESC
+                    LIMIT ?
+                """).use { stmt ->
+                    stmt.setInt(1, limit)
+                    val rs = stmt.executeQuery()
+                    while (rs.next()) {
+                        events.add(SystemEvent(
+                            eventType = rs.getString("event_type"),
+                            serviceName = rs.getString("service_name"),
+                            message = rs.getString("message") ?: "",
+                            occurredAt = rs.getTimestamp("occurred_at").toInstant().toString()
+                        ))
+                    }
                 }
+            }
+        } catch (e: Exception) {
+            // If query fails, ensure schema exists and retry
+            try {
+                ensureSchema()
+                return getRecentEvents(limit)
+            } catch (retryException: Exception) {
+                // Return empty list if still failing
+                return emptyList()
             }
         }
         return events

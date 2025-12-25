@@ -15,18 +15,18 @@ echo "CouchDB is ready. Initializing..."
 
 # Setup single-node cluster with proper configuration
 echo "Configuring single-node cluster..."
-curl -X POST -H "Content-Type: application/json" http://admin:${COUCHDB_PASSWORD}@127.0.0.1:5984/_cluster_setup \
-  -d '{"action": "enable_single_node", "bind_address":"0.0.0.0", "username": "admin", "password": "'"${COUCHDB_PASSWORD}"'"}' 2>/dev/null || true
+curl -X POST -H "Content-Type: application/json" http://${COUCHDB_USER}:${COUCHDB_PASSWORD}@127.0.0.1:5984/_cluster_setup \
+  -d '{"action": "enable_single_node", "bind_address":"0.0.0.0", "username": "'"${COUCHDB_USER}"'", "password": "'"${COUCHDB_PASSWORD}"'"}' 2>/dev/null || true
 
 echo "Finalizing cluster setup..."
-curl -X POST -H "Content-Type: application/json" http://admin:${COUCHDB_PASSWORD}@127.0.0.1:5984/_cluster_setup \
+curl -X POST -H "Content-Type: application/json" http://${COUCHDB_USER}:${COUCHDB_PASSWORD}@127.0.0.1:5984/_cluster_setup \
   -d '{"action": "finish_cluster"}' 2>/dev/null || true
 
 # Create system databases if they don't exist
 echo "Creating system databases..."
-curl -X PUT http://admin:${COUCHDB_PASSWORD}@127.0.0.1:5984/_users 2>/dev/null || true
-curl -X PUT http://admin:${COUCHDB_PASSWORD}@127.0.0.1:5984/_replicator 2>/dev/null || true
-curl -X PUT http://admin:${COUCHDB_PASSWORD}@127.0.0.1:5984/_global_changes 2>/dev/null || true
+curl -X PUT http://${COUCHDB_USER}:${COUCHDB_PASSWORD}@127.0.0.1:5984/_users 2>/dev/null || true
+curl -X PUT http://${COUCHDB_USER}:${COUCHDB_PASSWORD}@127.0.0.1:5984/_replicator 2>/dev/null || true
+curl -X PUT http://${COUCHDB_USER}:${COUCHDB_PASSWORD}@127.0.0.1:5984/_global_changes 2>/dev/null || true
 
 echo "CouchDB initialization complete!"
 

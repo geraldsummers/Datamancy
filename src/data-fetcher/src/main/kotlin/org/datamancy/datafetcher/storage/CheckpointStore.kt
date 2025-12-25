@@ -52,7 +52,7 @@ class CheckpointStore(
      * Get checkpoint value for a source and key.
      * Returns null if checkpoint doesn't exist.
      */
-    fun get(source: String, key: String): String? {
+    fun get(source: String, key: String, retry: Boolean = true): String? {
         return try {
             val sql = "SELECT value FROM checkpoints WHERE source = ? AND key = ?"
             connection.prepareStatement(sql).use { stmt ->
@@ -66,8 +66,19 @@ class CheckpointStore(
                 }
             }
         } catch (e: Exception) {
-            logger.error(e) { "Failed to get checkpoint: $source/$key" }
-            null
+            // If query fails, ensure schema exists and retry once
+            if (retry) {
+                try {
+                    ensureSchema()
+                    return get(source, key, retry = false)
+                } catch (retryException: Exception) {
+                    logger.error(e) { "Failed to get checkpoint after retry: $source/$key" }
+                    return null
+                }
+            } else {
+                logger.error(e) { "Failed to get checkpoint: $source/$key" }
+                return null
+            }
         }
     }
 
@@ -75,7 +86,7 @@ class CheckpointStore(
      * Set checkpoint value for a source and key.
      * Creates or updates the checkpoint.
      */
-    fun set(source: String, key: String, value: String) {
+    fun set(source: String, key: String, value: String, retry: Boolean = true) {
         try {
             val sql = """
                 INSERT INTO checkpoints (source, key, value, updated_at)
@@ -95,7 +106,17 @@ class CheckpointStore(
             }
             logger.debug { "Set checkpoint: $source/$key = $value" }
         } catch (e: Exception) {
-            logger.error(e) { "Failed to set checkpoint: $source/$key" }
+            // If query fails, ensure schema exists and retry once
+            if (retry) {
+                try {
+                    ensureSchema()
+                    set(source, key, value, retry = false)
+                } catch (retryException: Exception) {
+                    logger.error(e) { "Failed to set checkpoint after retry: $source/$key" }
+                }
+            } else {
+                logger.error(e) { "Failed to set checkpoint: $source/$key" }
+            }
         }
     }
 
@@ -119,7 +140,7 @@ class CheckpointStore(
     /**
      * Get all checkpoints for a source.
      */
-    fun getAll(source: String): Map<String, String> {
+    fun getAll(source: String, retry: Boolean = true): Map<String, String> {
         return try {
             val sql = "SELECT key, value FROM checkpoints WHERE source = ?"
             connection.prepareStatement(sql).use { stmt ->
@@ -132,8 +153,19 @@ class CheckpointStore(
                 checkpoints
             }
         } catch (e: Exception) {
-            logger.error(e) { "Failed to get all checkpoints for: $source" }
-            emptyMap()
+            // If query fails, ensure schema exists and retry once
+            if (retry) {
+                try {
+                    ensureSchema()
+                    return getAll(source, retry = false)
+                } catch (retryException: Exception) {
+                    logger.error(e) { "Failed to get all checkpoints after retry for: $source" }
+                    return emptyMap()
+                }
+            } else {
+                logger.error(e) { "Failed to get all checkpoints for: $source" }
+                return emptyMap()
+            }
         }
     }
 

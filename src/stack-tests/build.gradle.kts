@@ -40,6 +40,10 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.+")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.+")
 
+    // JDBC drivers for database testing
+    testImplementation("org.postgresql:postgresql:42.7.+")
+    testImplementation("org.mariadb.jdbc:mariadb-java-client:3.4.+")
+
     // Shared test commons
     testImplementation(project(":test-commons"))
 }
@@ -140,6 +144,22 @@ tasks.test {
         println("\n╔════════════════════════════════════════════════════════════════╗")
         println("║           Stack Tests - Localhost Integration                 ║")
         println("╚════════════════════════════════════════════════════════════════╝\n")
+
+        // Load environment variables from ~/.datamancy/.env
+        val envFile = file("${System.getProperty("user.home")}/.datamancy/.env")
+        if (envFile.exists()) {
+            envFile.readLines()
+                .filter { it.isNotBlank() && !it.startsWith("#") && it.contains("=") }
+                .forEach { line ->
+                    val (key, value) = line.split("=", limit = 2)
+                    // Use both environment() and systemProperty() for maximum compatibility
+                    environment(key.trim(), value.trim())
+                    systemProperty(key.trim(), value.trim())
+                }
+            println("✅ Loaded ${envFile.readLines().count { it.contains("=") && !it.startsWith("#") }} environment variables from .env")
+        } else {
+            println("⚠️  No .env file found at ${envFile.absolutePath}")
+        }
 
         // Generate localhost endpoint mappings
         println("📝 Generating localhost endpoint mappings...")

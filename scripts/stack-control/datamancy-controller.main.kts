@@ -141,12 +141,33 @@ private fun validateEnvFile(envFile: Path) {
     }
 
     val requiredVars = listOf(
+        // Core stack configuration
         "STACK_ADMIN_USER",
         "STACK_ADMIN_PASSWORD",
         "STACK_ADMIN_EMAIL",
         "DOMAIN",
         "MAIL_DOMAIN",
-        "VOLUMES_ROOT"
+        "VOLUMES_ROOT",
+        // Database passwords
+        "POSTGRES_ROOT_PASSWORD",
+        "MARIADB_ROOT_PASSWORD",
+        "COUCHDB_ADMIN_PASSWORD",
+        "CLICKHOUSE_ADMIN_PASSWORD",
+        // Application secrets
+        "LITELLM_MASTER_KEY",
+        "LDAP_ADMIN_PASSWORD",
+        // Authentication secrets
+        "AUTHELIA_JWT_SECRET",
+        "AUTHELIA_SESSION_SECRET",
+        "AUTHELIA_STORAGE_ENCRYPTION_KEY",
+        "AUTHELIA_OIDC_HMAC_SECRET"
+    )
+
+    // Optional but recommended for production
+    val recommendedVars = listOf(
+        "DOCKER_USER_ID",
+        "DOCKER_GROUP_ID",
+        "DOCKER_SOCKET_GID"
     )
 
     val missing = mutableListOf<String>()
@@ -157,7 +178,19 @@ private fun validateEnvFile(envFile: Path) {
     }
 
     if (missing.isNotEmpty()) {
-        err("Missing required variables in .env: ${missing.joinToString(", ")}")
+        err("Missing required variables in .env:\n  ${missing.joinToString("\n  ")}\n\nGenerate a complete .env file with:\n  datamancy-controller config generate")
+    }
+
+    // Check for recommended variables
+    val missingRecommended = mutableListOf<String>()
+    recommendedVars.forEach { varName ->
+        if (!content.contains("$varName=")) {
+            missingRecommended.add(varName)
+        }
+    }
+
+    if (missingRecommended.isNotEmpty()) {
+        warn("Recommended variables not set (will use defaults):\n  ${missingRecommended.joinToString("\n  ")}")
     }
 }
 
@@ -175,6 +208,44 @@ private fun validateDomain(domain: String) {
 
     if (domain.length > 253) {
         err("DOMAIN too long: ${domain.length} chars (max 253)")
+    }
+}
+
+private fun detectSystemIds(): Map<String, String> {
+    val userId = run("id", "-u", showOutput = false, allowFail = true).trim()
+    val groupId = run("id", "-g", showOutput = false, allowFail = true).trim()
+    val dockerGid = run("stat", "-c", "%g", "/var/run/docker.sock", showOutput = false, allowFail = true).trim()
+
+    return mapOf(
+        "DOCKER_USER_ID" to (if (userId.matches("\\d+".toRegex())) userId else "1000"),
+        "DOCKER_GROUP_ID" to (if (groupId.matches("\\d+".toRegex())) groupId else "1000"),
+        "DOCKER_SOCKET_GID" to (if (dockerGid.matches("\\d+".toRegex())) dockerGid else "999")
+    )
+}
+
+private fun validateSystemPortability() {
+    val root = installRoot()
+    val envFile = root.resolve(".env")
+
+    if (!Files.exists(envFile)) {
+        return // Will be caught by validateEnvFile
+    }
+
+    val content = Files.readString(envFile)
+    val detected = detectSystemIds()
+
+    info("System portability check:")
+    detected.forEach { (key, value) ->
+        val envValue = content.lines()
+            .find { it.startsWith("$key=") }
+            ?.substringAfter("=")
+            ?.trim()
+
+        if (envValue != null && envValue != value) {
+            warn("  $key: .env=$envValue, system=$value (may cause permission issues)")
+        } else {
+            println("  $key: $value ✓")
+        }
     }
 }
 
@@ -468,6 +539,9 @@ private fun bringUpStackWithTestPorts() {
         info("Step 1/5: Environment config exists, validating")
         validateEnvFile(envFile)
     }
+
+    // Step 1.5: System portability check
+    validateSystemPortability()
 
     // Step 2: Config files
     if (!Files.exists(ldapBootstrap) || !Files.isDirectory(configsDir)) {

@@ -34,24 +34,8 @@ redis:
   host: redis-synapse
   port: 6379
 
-# Inline logging configuration (avoids permission issues with log_config file)
-log:
-  version: 1
-  formatters:
-    precise:
-      format: '%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(request)s - %(message)s'
-  handlers:
-    console:
-      class: logging.StreamHandler
-      formatter: precise
-  loggers:
-    synapse:
-      level: INFO
-    synapse.storage.SQL:
-      level: INFO
-  root:
-    level: INFO
-    handlers: [console]
+# Logging - use console output (Docker logs)
+# Don't specify log_config to avoid permission issues with file logging
 
 media_store_path: /data/media_store
 uploads_path: /data/uploads

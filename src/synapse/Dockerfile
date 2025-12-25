@@ -17,7 +17,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Switch back to synapse user
-USER 991
+# User is specified in docker-compose.yml via DOCKER_USER_ID/DOCKER_GROUP_ID
+# Don't hardcode USER here
 
 # Default CMD from base image will be used

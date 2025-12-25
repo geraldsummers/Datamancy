@@ -80,7 +80,7 @@ class StackEndpointTests {
     fun `test all discovered endpoints`(): Collection<DynamicTest> {
         return registry.services.flatMap { service ->
             service.endpoints
-                .filter { endpoint -> shouldTestEndpoint(endpoint) }
+                .filter { endpoint -> shouldTestEndpoint(service, endpoint) }
                 .map { endpoint ->
                     DynamicTest.dynamicTest("${service.name}: ${endpoint.method} ${endpoint.path}") {
                         runBlocking {
@@ -204,9 +204,10 @@ class StackEndpointTests {
      * Determine if an endpoint should be included in smoke tests.
      * Excludes endpoints that require real data or authentication.
      */
-    private fun shouldTestEndpoint(endpoint: EndpointSpec): Boolean {
+    private fun shouldTestEndpoint(service: ServiceSpec, endpoint: EndpointSpec): Boolean {
         val path = endpoint.path
         val serviceUrl = endpoint.serviceUrl
+        val serviceName = service.name
         val method = endpoint.method
 
         // Skip endpoints with path parameters (e.g., /api/indexer/jobs/{jobId})
@@ -216,7 +217,7 @@ class StackEndpointTests {
         }
 
         // Skip auth-required services (litellm requires API key)
-        if (serviceUrl.contains("litellm")) {
+        if (serviceName == "litellm" || serviceUrl.contains("litellm")) {
             return false
         }
 
@@ -225,8 +226,8 @@ class StackEndpointTests {
             return false
         }
 
-        // Skip external services that aren't reliably running
-        if (serviceUrl.contains("seafile") || serviceUrl.contains("radicale")) {
+        // Skip external services that aren't reliably running or require auth
+        if (serviceName in listOf("seafile", "radicale", "qbittorrent")) {
             return false
         }
 
@@ -234,8 +235,6 @@ class StackEndpointTests {
         if (path.matches(Regex(".*/api/.*/api/.*"))) {
             return false
         }
-
-        // Re-enabled: Now fixing these instead of skipping!
 
         return true
     }

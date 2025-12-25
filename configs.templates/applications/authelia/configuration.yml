@@ -6,10 +6,10 @@
 # ==============================================
 theme: dark
 server:
-  host: 0.0.0.0
-  port: 9091
-  read_buffer_size: 8192
-  write_buffer_size: 8192
+  address: tcp://0.0.0.0:9091/
+  buffers:
+    read: 8192
+    write: 8192
   endpoints:
     authz:
       forward-auth:
@@ -41,18 +41,19 @@ authentication_backend:
     disable: false
   ldap:
     implementation: custom
-    url: ldap://ldap:389
+    address: ldap://ldap:389
     timeout: 5s
     start_tls: false
     base_dn: dc=stack,dc=local
-    username_attribute: uid
     additional_users_dn: ou=users
     users_filter: (&({username_attribute}={input})(objectClass=inetOrgPerson))
     additional_groups_dn: ou=groups
     groups_filter: (&(member={dn})(objectClass=groupOfNames))
-    group_name_attribute: cn
-    mail_attribute: mail
-    display_name_attribute: displayName
+    attributes:
+      username: uid
+      group_name: cn
+      mail: mail
+      display_name: displayName
     user: cn=admin,dc=stack,dc=local
 
 access_control:
@@ -98,11 +99,14 @@ regulation:
   find_time: 2m
   ban_time: 5m
 
+identity_validation:
+  reset_password:
+    jwt_secret: a_very_important_secret # Will be overridden by env var
+
 storage:
   encryption_key: a_very_important_secret # Will be overridden by env var
   postgres:
-    host: postgres
-    port: 5432
+    address: tcp://postgres:5432
     database: authelia
     schema: public
     username: authelia
@@ -117,10 +121,11 @@ notifier:
 identity_providers:
   oidc:
     hmac_secret: another_very_important_secret # Will be overridden by env var
-    access_token_lifespan: 1h
-    authorize_code_lifespan: 1m
-    id_token_lifespan: 1h
-    refresh_token_lifespan: 90m
+    lifespans:
+      access_token: 1h
+      authorize_code: 1m
+      id_token: 1h
+      refresh_token: 90m
     enable_client_debug_messages: false
     enforce_pkce: public_clients_only
     cors:
@@ -130,8 +135,8 @@ identity_providers:
         - revocation
         - introspection
       allowed_origins_from_client_redirect_uris: true
-    # OIDC signing key loaded from environment variable AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY (base64-encoded)
-    issuer_private_key: ""
+    # OIDC signing key loaded from environment variable AUTHELIA_IDENTITY_PROVIDERS_OIDC_JWKS (base64-encoded)
+    jwks: []
 
     clients:
       # Grafana

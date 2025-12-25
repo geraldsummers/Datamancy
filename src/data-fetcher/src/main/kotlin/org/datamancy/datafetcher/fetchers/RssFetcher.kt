@@ -59,7 +59,8 @@ class RssFetcher(private val config: RssConfig) : Fetcher {
                                 ctx.markSkipped()
                                 return@forEach
                             }
-                            val safeItemId = itemId.hashCode().toString()
+                            // Use absolute value to avoid negative hashcodes which cause filesystem errors
+                            val safeItemId = kotlin.math.abs(itemId.hashCode()).toString()
 
                             // Build normalized entry data
                             val entryData = mapOf(
