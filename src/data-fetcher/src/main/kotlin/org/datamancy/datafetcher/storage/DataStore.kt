@@ -2,6 +2,7 @@ package org.datamancy.datafetcher.storage
 
 import com.google.gson.Gson
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -118,6 +119,25 @@ class ClickHouseStore(
         }
     }
 
+    /**
+     * Execute a SELECT query and return results as list of lines.
+     */
+    private fun executeSelectQuery(query: String): List<String> {
+        val url = "http://$host:$port/?user=$user&password=$password"
+        val request = Request.Builder()
+            .url(url)
+            .post(okhttp3.RequestBody.create(null, query))
+            .build()
+
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw Exception("ClickHouse query failed: ${response.code} - ${response.body?.string()}")
+            }
+            val body = response.body?.string() ?: ""
+            if (body.isBlank()) emptyList() else body.trim().lines()
+        }
+    }
+
     fun storeMarketData(
         symbol: String,
         price: Double,
@@ -201,7 +221,7 @@ class ClickHouseStore(
                 ORDER BY fetched_at DESC
                 LIMIT 1
             """
-            val result = executeQuery(sql)
+            val result = executeSelectQuery(sql)
             if (result.isNotEmpty()) result.first().split("\t").firstOrNull() else null
         } catch (e: Exception) {
             logger.error(e) { "Failed to get hash for $url/$sectionNumber" }
@@ -225,7 +245,7 @@ class ClickHouseStore(
                 FROM legal_documents
                 $whereClause
             """
-            executeQuery(sql).toSet()
+            executeSelectQuery(sql).toSet()
         } catch (e: Exception) {
             logger.error(e) { "Failed to get active document URLs" }
             emptySet()
@@ -272,102 +292,7 @@ class ClickHouseStore(
                 ORDER BY fetched_at DESC
                 LIMIT 1
             """
-            val result = executeQuery(sql)
-            if (result.isNotEmpty()) {
-                Instant.parse(result.first().trim())
-            } else null
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to get last checked time for $url" }
-            null
-        }
-    }
-
-    /**
-     * Get content hash for a specific legal document section.
-     * Returns null if document doesn't exist.
-     */
-    fun getLegalDocumentHash(url: String, sectionNumber: String): String? {
-        return try {
-            val escapedUrl = url.replace("'", "\\'")
-            val sql = """
-                SELECT content_hash
-                FROM legal_documents
-                WHERE url = '$escapedUrl' AND section_number = '$sectionNumber'
-                ORDER BY fetched_at DESC
-                LIMIT 1
-            """
-            val result = executeQuery(sql)
-            if (result.isNotEmpty()) result.first().split("\t").firstOrNull() else null
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to get hash for $url/$sectionNumber" }
-            null
-        }
-    }
-
-    /**
-     * Get all active legal documents (by URL) from database.
-     */
-    fun getAllActiveLegalDocumentUrls(jurisdiction: String? = null): Set<String> {
-        return try {
-            val whereClause = if (jurisdiction != null) {
-                "WHERE jurisdiction = '${jurisdiction.replace("'", "\\'")}' AND (status = 'In force' OR status = '')"
-            } else {
-                "WHERE status = 'In force' OR status = ''"
-            }
-
-            val sql = """
-                SELECT DISTINCT url
-                FROM legal_documents
-                $whereClause
-            """
-            executeQuery(sql).toSet()
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to get active document URLs" }
-            emptySet()
-        }
-    }
-
-    /**
-     * Mark legal documents as repealed by URL.
-     */
-    fun markLegalDocumentRepealed(url: String, repealedAt: Instant = Clock.System.now()) {
-        try {
-            val escapedUrl = url.replace("'", "\\'")
-
-            // Insert new version with Repealed status and valid_to set
-            val sql = """
-                INSERT INTO legal_documents
-                SELECT
-                    doc_id, jurisdiction, doc_type, title, year, identifier, url, 'Repealed' AS status,
-                    section_number, section_title, content, content_markdown,
-                    now64(3) AS fetched_at, content_hash, metadata, superseded_by, valid_from,
-                    '$repealedAt' AS valid_to, now64(3) AS last_checked
-                FROM legal_documents
-                WHERE url = '$escapedUrl'
-                ORDER BY fetched_at DESC
-                LIMIT 1 BY url, section_number
-            """
-            executeQuery(sql)
-            logger.info { "Marked $url as repealed" }
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to mark document as repealed: $url" }
-        }
-    }
-
-    /**
-     * Get last fetch time for a legal document URL.
-     */
-    fun getLastCheckedTime(url: String): Instant? {
-        return try {
-            val escapedUrl = url.replace("'", "\\'")
-            val sql = """
-                SELECT last_checked
-                FROM legal_documents
-                WHERE url = '$escapedUrl'
-                ORDER BY fetched_at DESC
-                LIMIT 1
-            """
-            val result = executeQuery(sql)
+            val result = executeSelectQuery(sql)
             if (result.isNotEmpty()) {
                 Instant.parse(result.first().trim())
             } else null
