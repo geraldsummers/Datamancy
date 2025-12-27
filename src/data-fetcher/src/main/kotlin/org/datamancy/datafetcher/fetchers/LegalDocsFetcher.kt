@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.datamancy.datafetcher.clients.BookStackClient
@@ -12,11 +13,32 @@ import org.datamancy.datafetcher.converters.HtmlToMarkdownConverter
 import org.datamancy.datafetcher.scheduler.FetchExecutionContext
 import org.datamancy.datafetcher.scheduler.FetchResult
 import org.datamancy.datafetcher.storage.PostgresStore
+import org.datamancy.datafetcher.storage.ClickHouseStore
+import org.datamancy.datafetcher.storage.ContentHasher
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
+
+/**
+ * Parse HTTP Date header (RFC 1123 format).
+ * Example: "Wed, 21 Oct 2015 07:28:00 GMT"
+ */
+private fun parseHttpDate(dateString: String): Instant? {
+    return try {
+        val format = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US)
+        format.timeZone = TimeZone.getTimeZone("GMT")
+        val date = format.parse(dateString)
+        Instant.fromEpochMilliseconds(date.time)
+    } catch (e: Exception) {
+        logger.warn { "Failed to parse HTTP date: $dateString" }
+        null
+    }
+}
 
 data class LegislationItem(
     val title: String,
@@ -46,6 +68,7 @@ data class LegislationSection(
 
 class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
     private val pgStore = PostgresStore()
+    private val clickHouseStore = ClickHouseStore()
     private val gson = Gson()
     private val bookstack = BookStackClient()
 
@@ -108,6 +131,238 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
             )
 
             "Processed ${ctx.metrics.attempted} items: ${ctx.metrics.new} new, ${ctx.metrics.updated} updated, ${ctx.metrics.skipped} skipped (${ctx.metrics.failed} failed)"
+        }
+    }
+
+    /**
+     * Fetches legislation directly to ClickHouse with three-way sync (PRIMARY METHOD).
+     * Handles: new Acts, updated Acts, and repealed Acts.
+     * Processes all jurisdictions: Federal + 8 states/territories.
+     */
+    suspend fun fetchToClickHouse(limitPerJurisdiction: Int = Int.MAX_VALUE): FetchResult {
+        return FetchExecutionContext.execute("legal_docs_clickhouse", version = "4.0.0") { ctx ->
+            logger.info { "Starting three-way sync for all Australian legislation (limit: $limitPerJurisdiction per jurisdiction)..." }
+
+            // Ensure schema exists
+            clickHouseStore.ensureSchema()
+
+            var totalSections = 0
+            var totalRepealed = 0
+
+            // Process federal legislation
+            totalSections += processJurisdiction("FEDERAL", null, limitPerJurisdiction, ctx)
+
+            // Process all state/territory legislation
+            for ((state, url) in config.stateUrls) {
+                totalSections += processJurisdiction(state.uppercase(), url, limitPerJurisdiction, ctx)
+            }
+
+            // Store metadata
+            pgStore.storeFetchMetadata(
+                source = "legal_clickhouse",
+                category = "australian_legislation_sync",
+                itemCount = totalSections,
+                fetchedAt = Clock.System.now(),
+                metadata = mapOf(
+                    "jurisdictions" to (1 + config.stateUrls.size),
+                    "sections_stored" to totalSections,
+                    "repealed" to totalRepealed,
+                    "new" to ctx.metrics.new,
+                    "updated" to ctx.metrics.updated,
+                    "skipped" to ctx.metrics.skipped,
+                    "failed" to ctx.metrics.failed
+                )
+            )
+
+            "Synced ${ctx.metrics.new} new, ${ctx.metrics.updated} updated, ${totalRepealed} repealed across ${1 + config.stateUrls.size} jurisdictions (${ctx.metrics.failed} failed)"
+        }
+    }
+
+    /**
+     * Process a single jurisdiction with three-way sync logic.
+     */
+    private suspend fun processJurisdiction(
+        jurisdiction: String,
+        baseUrl: String?,
+        limit: Int,
+        ctx: FetchExecutionContext
+    ): Int {
+        var sectionsProcessed = 0
+
+        try {
+            logger.info { "Processing $jurisdiction legislation..." }
+
+            // 1. Fetch current active Acts from legislation website
+            val currentActiveActs = if (jurisdiction == "FEDERAL") {
+                fetchFederalLegislation(ctx).take(limit)
+            } else {
+                fetchStateLegislation(ctx, jurisdiction.lowercase(), baseUrl!!).take(limit)
+            }
+
+            val currentActiveUrls = currentActiveActs.map { it.url }.toSet()
+            logger.info { "$jurisdiction: Found ${currentActiveActs.size} active Acts" }
+
+            // 2. Get existing Acts from database for this jurisdiction
+            val existingUrls = clickHouseStore.getAllActiveLegalDocumentUrls(jurisdiction)
+            logger.info { "$jurisdiction: ${existingUrls.size} Acts in database" }
+
+            // 3. Three-way comparison
+            val newActUrls = currentActiveUrls - existingUrls
+            val removedUrls = existingUrls - currentActiveUrls
+            val potentialUpdates = currentActiveActs.filter { it.url in existingUrls }
+
+            logger.info { "$jurisdiction: ${newActUrls.size} new, ${potentialUpdates.size} potential updates, ${removedUrls.size} removed" }
+
+            // 4. Mark removed Acts as repealed
+            removedUrls.forEach { url ->
+                try {
+                    clickHouseStore.markLegalDocumentRepealed(url)
+                    ctx.markUpdated()
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to mark $url as repealed" }
+                    ctx.recordError("REPEAL_ERROR", e.message ?: "Unknown error", url)
+                }
+            }
+
+            // 5. Process new Acts
+            currentActiveActs.filter { it.url in newActUrls }.forEach { act ->
+                ctx.markAttempted()
+                try {
+                    delay(requestDelay)
+                    val sections = fetchActSections(act)
+
+                    sections.forEach { section ->
+                        storeSectionToClickHouse(section, ctx, isNew = true)
+                    }
+
+                    sectionsProcessed += sections.size
+                    ctx.markFetched()
+                    ctx.markNew(sections.size)
+                    logger.info { "[$jurisdiction] NEW: ${act.title} - ${sections.size} sections" }
+                } catch (e: Exception) {
+                    logger.error(e) { "[$jurisdiction] Failed to fetch new Act: ${act.title}" }
+                    ctx.markFailed()
+                    ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", act.title)
+                }
+            }
+
+            // 6. Check for updates (light scan with Last-Modified, then hash comparison)
+            potentialUpdates.forEach { act ->
+                ctx.markAttempted()
+                try {
+                    delay(requestDelay)
+
+                    // Optimization: Check Last-Modified header first (saves bandwidth)
+                    val shouldCheck = try {
+                        val headRequest = okhttp3.Request.Builder().url(act.url).head().build()
+                        val headResponse = httpClient.newCall(headRequest).execute()
+
+                        val lastModifiedHeader = headResponse.header("Last-Modified")
+                        val lastChecked = clickHouseStore.getLastCheckedTime(act.url)
+
+                        headResponse.close()
+
+                        // If we have Last-Modified header and last check time, compare
+                        if (lastModifiedHeader != null && lastChecked != null) {
+                            val lastModified = parseHttpDate(lastModifiedHeader)
+                            lastModified?.let { it > lastChecked } ?: true
+                        } else {
+                            // No metadata available, need to check content
+                            true
+                        }
+                    } catch (e: Exception) {
+                        // HEAD request failed or no Last-Modified header - fall back to content check
+                        logger.debug { "[$jurisdiction] HEAD request failed for ${act.title}, checking content" }
+                        true
+                    }
+
+                    if (!shouldCheck) {
+                        ctx.markSkipped()
+                        logger.debug { "[$jurisdiction] UNCHANGED (Last-Modified): ${act.title}" }
+                        return@forEach
+                    }
+
+                    // Full content check: Fetch sections and compare hashes
+                    val sections = fetchActSections(act)
+
+                    var hasChanges = false
+                    sections.forEach { section ->
+                        val existingHash = clickHouseStore.getLegalDocumentHash(section.actUrl, section.sectionNumber)
+                        val newHash = ContentHasher.hashJson(section.markdownContent)
+
+                        if (existingHash == null) {
+                            // New section added to existing Act
+                            storeSectionToClickHouse(section, ctx, isNew = true)
+                            hasChanges = true
+                            ctx.markNew()
+                        } else if (existingHash != newHash) {
+                            // Section content changed
+                            storeSectionToClickHouse(section, ctx, isNew = false)
+                            hasChanges = true
+                            ctx.markUpdated()
+                        } else {
+                            // Unchanged
+                            ctx.markSkipped()
+                        }
+                    }
+
+                    if (hasChanges) {
+                        sectionsProcessed += sections.size
+                        ctx.markFetched()
+                        logger.info { "[$jurisdiction] UPDATED: ${act.title} - ${sections.size} sections" }
+                    } else {
+                        logger.debug { "[$jurisdiction] UNCHANGED (content): ${act.title}" }
+                    }
+                } catch (e: Exception) {
+                    logger.error(e) { "[$jurisdiction] Failed to check Act: ${act.title}" }
+                    ctx.markFailed()
+                    ctx.recordError("UPDATE_CHECK_ERROR", e.message ?: "Unknown error", act.title)
+                }
+            }
+
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to process $jurisdiction legislation" }
+            ctx.markFailed()
+            ctx.recordError("JURISDICTION_ERROR", e.message ?: "Unknown error", jurisdiction)
+        }
+
+        return sectionsProcessed
+    }
+
+    /**
+     * Stores a legislation section to ClickHouse.
+     * With ReplacingMergeTree, newer versions automatically replace older ones.
+     */
+    private fun storeSectionToClickHouse(section: LegislationSection, ctx: FetchExecutionContext, isNew: Boolean) {
+        try {
+            // Generate unique doc ID from URL
+            val docId = section.actUrl.hashCode().toString()
+            val contentHash = ContentHasher.hashJson(section.markdownContent)
+
+            clickHouseStore.storeLegalDocument(
+                docId = docId,
+                jurisdiction = section.jurisdiction,
+                docType = "Act",
+                title = section.actTitle,
+                year = section.year,
+                identifier = section.identifier,
+                url = section.actUrl,
+                status = "In force",
+                sectionNumber = section.sectionNumber,
+                sectionTitle = section.sectionTitle,
+                content = section.markdownContent,
+                contentMarkdown = section.markdownContent,
+                fetchedAt = Clock.System.now(),
+                contentHash = contentHash,
+                metadata = mapOf(
+                    "fetcher_version" to "4.0.0",
+                    "source" to "legislation.gov.au",
+                    "sync_type" to if (isNew) "new" else "updated"
+                )
+            )
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to store section ${section.sectionNumber} to ClickHouse" }
+            ctx.recordError("STORAGE_ERROR", e.message ?: "Unknown error", section.sectionTitle)
         }
     }
 

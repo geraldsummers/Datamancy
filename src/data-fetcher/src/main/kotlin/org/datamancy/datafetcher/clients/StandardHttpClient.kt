@@ -74,6 +74,23 @@ class StandardHttpClient private constructor(
     }
 
     /**
+     * Perform HEAD request to get metadata without downloading body.
+     * Useful for checking Last-Modified headers.
+     */
+    suspend fun head(url: String, headers: Map<String, String> = emptyMap()): Response {
+        val makeRequest: suspend () -> Response = suspend {
+            val request = Request.Builder()
+                .url(url)
+                .head()
+                .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
+                .build()
+
+            executeRateLimited(url, request)
+        }
+        return executeWithRetry(makeRequest)
+    }
+
+    /**
      * Execute request with per-host rate limiting.
      */
     private suspend fun executeRateLimited(url: String, request: Request): Response {

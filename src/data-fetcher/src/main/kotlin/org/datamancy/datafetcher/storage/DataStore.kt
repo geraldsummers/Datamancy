@@ -138,9 +138,249 @@ class ClickHouseStore(
         }
     }
 
+    fun storeLegalDocument(
+        docId: String,
+        jurisdiction: String,
+        docType: String,
+        title: String,
+        year: String?,
+        identifier: String?,
+        url: String,
+        status: String?,
+        sectionNumber: String,
+        sectionTitle: String,
+        content: String,
+        contentMarkdown: String,
+        fetchedAt: Instant,
+        contentHash: String,
+        metadata: Map<String, Any> = emptyMap(),
+        supersededBy: String = "",
+        validFrom: Instant = fetchedAt,
+        validTo: Instant? = null
+    ) {
+        try {
+            val metadataJson = gson.toJson(metadata).replace("'", "\\'")
+            val escapedTitle = title.replace("'", "\\'")
+            val escapedSectionTitle = sectionTitle.replace("'", "\\'")
+            val escapedContent = content.replace("'", "\\'")
+            val escapedMarkdown = contentMarkdown.replace("'", "\\'")
+            val escapedUrl = url.replace("'", "\\'")
+            val escapedSupersededBy = supersededBy.replace("'", "\\'")
+            val validToStr = validTo?.let { "'$it'" } ?: "NULL"
+
+            val sql = """
+                INSERT INTO legal_documents (
+                    doc_id, jurisdiction, doc_type, title, year, identifier, url, status,
+                    section_number, section_title, content, content_markdown,
+                    fetched_at, content_hash, metadata, superseded_by, valid_from, valid_to, last_checked
+                ) VALUES (
+                    '$docId', '$jurisdiction', '$docType', '$escapedTitle',
+                    '${year ?: ""}', '${identifier ?: ""}', '$escapedUrl', '${status ?: ""}',
+                    '$sectionNumber', '$escapedSectionTitle', '$escapedContent', '$escapedMarkdown',
+                    '${fetchedAt}', '$contentHash', '$metadataJson', '$escapedSupersededBy',
+                    '${validFrom}', $validToStr, now64(3)
+                )
+            """
+            executeQuery(sql)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to store legal document: $docId/$sectionNumber" }
+        }
+    }
+
+    /**
+     * Get content hash for a specific legal document section.
+     * Returns null if document doesn't exist.
+     */
+    fun getLegalDocumentHash(url: String, sectionNumber: String): String? {
+        return try {
+            val escapedUrl = url.replace("'", "\\'")
+            val sql = """
+                SELECT content_hash
+                FROM legal_documents
+                WHERE url = '$escapedUrl' AND section_number = '$sectionNumber'
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            """
+            val result = executeQuery(sql)
+            if (result.isNotEmpty()) result.first().split("\t").firstOrNull() else null
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get hash for $url/$sectionNumber" }
+            null
+        }
+    }
+
+    /**
+     * Get all active legal documents (by URL) from database.
+     */
+    fun getAllActiveLegalDocumentUrls(jurisdiction: String? = null): Set<String> {
+        return try {
+            val whereClause = if (jurisdiction != null) {
+                "WHERE jurisdiction = '${jurisdiction.replace("'", "\\'")}' AND (status = 'In force' OR status = '')"
+            } else {
+                "WHERE status = 'In force' OR status = ''"
+            }
+
+            val sql = """
+                SELECT DISTINCT url
+                FROM legal_documents
+                $whereClause
+            """
+            executeQuery(sql).toSet()
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get active document URLs" }
+            emptySet()
+        }
+    }
+
+    /**
+     * Mark legal documents as repealed by URL.
+     */
+    fun markLegalDocumentRepealed(url: String, repealedAt: Instant = Clock.System.now()) {
+        try {
+            val escapedUrl = url.replace("'", "\\'")
+
+            // Insert new version with Repealed status and valid_to set
+            val sql = """
+                INSERT INTO legal_documents
+                SELECT
+                    doc_id, jurisdiction, doc_type, title, year, identifier, url, 'Repealed' AS status,
+                    section_number, section_title, content, content_markdown,
+                    now64(3) AS fetched_at, content_hash, metadata, superseded_by, valid_from,
+                    '$repealedAt' AS valid_to, now64(3) AS last_checked
+                FROM legal_documents
+                WHERE url = '$escapedUrl'
+                ORDER BY fetched_at DESC
+                LIMIT 1 BY url, section_number
+            """
+            executeQuery(sql)
+            logger.info { "Marked $url as repealed" }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to mark document as repealed: $url" }
+        }
+    }
+
+    /**
+     * Get last fetch time for a legal document URL.
+     */
+    fun getLastCheckedTime(url: String): Instant? {
+        return try {
+            val escapedUrl = url.replace("'", "\\'")
+            val sql = """
+                SELECT last_checked
+                FROM legal_documents
+                WHERE url = '$escapedUrl'
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            """
+            val result = executeQuery(sql)
+            if (result.isNotEmpty()) {
+                Instant.parse(result.first().trim())
+            } else null
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get last checked time for $url" }
+            null
+        }
+    }
+
+    /**
+     * Get content hash for a specific legal document section.
+     * Returns null if document doesn't exist.
+     */
+    fun getLegalDocumentHash(url: String, sectionNumber: String): String? {
+        return try {
+            val escapedUrl = url.replace("'", "\\'")
+            val sql = """
+                SELECT content_hash
+                FROM legal_documents
+                WHERE url = '$escapedUrl' AND section_number = '$sectionNumber'
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            """
+            val result = executeQuery(sql)
+            if (result.isNotEmpty()) result.first().split("\t").firstOrNull() else null
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get hash for $url/$sectionNumber" }
+            null
+        }
+    }
+
+    /**
+     * Get all active legal documents (by URL) from database.
+     */
+    fun getAllActiveLegalDocumentUrls(jurisdiction: String? = null): Set<String> {
+        return try {
+            val whereClause = if (jurisdiction != null) {
+                "WHERE jurisdiction = '${jurisdiction.replace("'", "\\'")}' AND (status = 'In force' OR status = '')"
+            } else {
+                "WHERE status = 'In force' OR status = ''"
+            }
+
+            val sql = """
+                SELECT DISTINCT url
+                FROM legal_documents
+                $whereClause
+            """
+            executeQuery(sql).toSet()
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get active document URLs" }
+            emptySet()
+        }
+    }
+
+    /**
+     * Mark legal documents as repealed by URL.
+     */
+    fun markLegalDocumentRepealed(url: String, repealedAt: Instant = Clock.System.now()) {
+        try {
+            val escapedUrl = url.replace("'", "\\'")
+
+            // Insert new version with Repealed status and valid_to set
+            val sql = """
+                INSERT INTO legal_documents
+                SELECT
+                    doc_id, jurisdiction, doc_type, title, year, identifier, url, 'Repealed' AS status,
+                    section_number, section_title, content, content_markdown,
+                    now64(3) AS fetched_at, content_hash, metadata, superseded_by, valid_from,
+                    '$repealedAt' AS valid_to, now64(3) AS last_checked
+                FROM legal_documents
+                WHERE url = '$escapedUrl'
+                ORDER BY fetched_at DESC
+                LIMIT 1 BY url, section_number
+            """
+            executeQuery(sql)
+            logger.info { "Marked $url as repealed" }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to mark document as repealed: $url" }
+        }
+    }
+
+    /**
+     * Get last fetch time for a legal document URL.
+     */
+    fun getLastCheckedTime(url: String): Instant? {
+        return try {
+            val escapedUrl = url.replace("'", "\\'")
+            val sql = """
+                SELECT last_checked
+                FROM legal_documents
+                WHERE url = '$escapedUrl'
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            """
+            val result = executeQuery(sql)
+            if (result.isNotEmpty()) {
+                Instant.parse(result.first().trim())
+            } else null
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get last checked time for $url" }
+            null
+        }
+    }
+
     fun ensureSchema() {
         try {
-            val sql = """
+            // Market data table
+            val marketDataSql = """
                 CREATE TABLE IF NOT EXISTS market_data (
                     timestamp DateTime64(3),
                     symbol String,
@@ -151,7 +391,35 @@ class ClickHouseStore(
                 ) ENGINE = MergeTree()
                 ORDER BY (symbol, timestamp);
             """
-            executeQuery(sql)
+            executeQuery(marketDataSql)
+
+            // Legal documents table
+            val legalDocsSql = """
+                CREATE TABLE IF NOT EXISTS legal_documents (
+                    doc_id String,
+                    jurisdiction String,
+                    doc_type String,
+                    title String,
+                    year String,
+                    identifier String,
+                    url String,
+                    status String,
+                    section_number String,
+                    section_title String,
+                    content String,
+                    content_markdown String,
+                    fetched_at DateTime64(3),
+                    content_hash String,
+                    metadata String,
+                    superseded_by String DEFAULT '',
+                    valid_from DateTime64(3) DEFAULT now64(3),
+                    valid_to Nullable(DateTime64(3)) DEFAULT NULL,
+                    last_checked DateTime64(3) DEFAULT now64(3)
+                ) ENGINE = ReplacingMergeTree(fetched_at)
+                ORDER BY (url, section_number);
+            """
+            executeQuery(legalDocsSql)
+
             logger.info { "ClickHouse schema ensured" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to ensure ClickHouse schema" }
