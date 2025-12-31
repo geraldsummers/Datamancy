@@ -23,15 +23,15 @@ dependencies {
     implementation("io.ktor:ktor-server-content-negotiation:2.3.12")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
 
-    // Qdrant client
-    implementation("io.qdrant:client:1.9.1")
+    // Qdrant client - updated to 1.16.2 for gRPC 1.75.0 compatibility
+    implementation("io.qdrant:client:1.16.2")
     implementation("com.google.protobuf:protobuf-java:3.25.1")
-    implementation("io.grpc:grpc-stub:1.60.0")
-    implementation("io.grpc:grpc-protobuf:1.60.0")
 
     // ClickHouse JDBC
     implementation("com.clickhouse:clickhouse-jdbc:0.6.5")
     implementation("com.clickhouse:clickhouse-http-client:0.6.5")
+    implementation("org.apache.httpcomponents.client5:httpclient5:5.4.1")
+    implementation("org.lz4:lz4-java:1.8.0")
 
     // HTTP client (for embedding service)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

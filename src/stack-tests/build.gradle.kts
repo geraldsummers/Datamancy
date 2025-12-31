@@ -42,7 +42,9 @@ dependencies {
 
     // JDBC drivers for database testing
     testImplementation("org.postgresql:postgresql:42.7.+")
+    testRuntimeOnly("org.postgresql:postgresql:42.7.+")
     testImplementation("org.mariadb.jdbc:mariadb-java-client:3.4.+")
+    testRuntimeOnly("org.mariadb.jdbc:mariadb-java-client:3.4.+")
 
     // Shared test commons
     testImplementation(project(":test-commons"))
@@ -180,7 +182,6 @@ port_map = {
     'search-service': (18098, 8097),
     'embedding-service': (18080, 8080),
     'authelia': (19091, 9091),
-    'benthos': (14195, 4195),
     'docker-proxy': (12375, 2375),
     'bookstack': (10080, 80),
     'forgejo': (13000, 3000),

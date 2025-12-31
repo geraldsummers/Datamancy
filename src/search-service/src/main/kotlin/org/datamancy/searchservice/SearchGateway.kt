@@ -239,7 +239,7 @@ class SearchGateway(
         val payload = gson.toJson(mapOf("inputs" to text))
 
         val request = Request.Builder()
-            .url(embeddingServiceUrl) // Root endpoint, not /embed
+            .url("$embeddingServiceUrl/embed")
             .post(payload.toRequestBody(jsonMediaType))
             .build()
 

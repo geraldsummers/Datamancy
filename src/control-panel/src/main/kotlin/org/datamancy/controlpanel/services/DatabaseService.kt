@@ -58,6 +58,51 @@ open class DatabaseService(
                     )
                 """)
 
+                // Create legal ingestion tracking table
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS legal_ingestion_status (
+                        jurisdiction VARCHAR(50) PRIMARY KEY,
+                        last_sync_at TIMESTAMP,
+                        sync_status VARCHAR(50),
+                        acts_total INTEGER DEFAULT 0,
+                        acts_new INTEGER DEFAULT 0,
+                        acts_updated INTEGER DEFAULT 0,
+                        acts_repealed INTEGER DEFAULT 0,
+                        sections_total INTEGER DEFAULT 0,
+                        errors_count INTEGER DEFAULT 0,
+                        last_error_message TEXT,
+                        metadata JSONB,
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+
+                // Create per-act tracking table
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS legal_acts_tracking (
+                        act_url VARCHAR(500) PRIMARY KEY,
+                        jurisdiction VARCHAR(50) NOT NULL,
+                        act_title TEXT NOT NULL,
+                        year VARCHAR(10),
+                        identifier VARCHAR(100),
+                        status VARCHAR(50) DEFAULT 'active',
+                        sections_count INTEGER DEFAULT 0,
+                        last_checked_at TIMESTAMP,
+                        last_modified_at TIMESTAMP,
+                        content_hash VARCHAR(64),
+                        fetch_status VARCHAR(50),
+                        error_message TEXT,
+                        metadata JSONB,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+
+                // Index for jurisdiction queries
+                stmt.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_legal_acts_jurisdiction
+                    ON legal_acts_tracking(jurisdiction, status)
+                """)
+
                 // Initialize default sources if not exist
                 val sources = listOf("wiki", "rss", "market_data", "economic", "legal", "docs", "search", "torrents", "agent_functions")
                 sources.forEach { source ->
@@ -224,6 +269,176 @@ open class DatabaseService(
                 stmt.setString(2, serviceName)
                 stmt.setString(3, message)
                 stmt.setString(4, if (metadata.isEmpty()) "{}" else metadata.entries.joinToString(",", "{", "}") { """"${it.key}":"${it.value}"""" })
+                stmt.executeUpdate()
+            }
+        }
+    }
+
+    open fun getLegalIngestionStatus(): LegalIngestionStatusResponse {
+        val jurisdictions = mutableListOf<JurisdictionStatus>()
+        var totalActs = 0
+        var totalSections = 0
+        var totalErrors = 0
+
+        try {
+            getConnection().use { conn ->
+                conn.createStatement().use { stmt ->
+                    val rs = stmt.executeQuery("""
+                        SELECT
+                            jurisdiction,
+                            last_sync_at,
+                            sync_status,
+                            acts_total,
+                            acts_new,
+                            acts_updated,
+                            acts_repealed,
+                            sections_total,
+                            errors_count,
+                            last_error_message,
+                            updated_at
+                        FROM legal_ingestion_status
+                        ORDER BY jurisdiction
+                    """)
+                    while (rs.next()) {
+                        val actsTotal = rs.getInt("acts_total")
+                        val sectionsTotal = rs.getInt("sections_total")
+                        val errorsCount = rs.getInt("errors_count")
+
+                        totalActs += actsTotal
+                        totalSections += sectionsTotal
+                        totalErrors += errorsCount
+
+                        jurisdictions.add(JurisdictionStatus(
+                            jurisdiction = rs.getString("jurisdiction"),
+                            lastSyncAt = rs.getTimestamp("last_sync_at")?.toInstant()?.toString(),
+                            syncStatus = rs.getString("sync_status") ?: "pending",
+                            actsTotal = actsTotal,
+                            actsNew = rs.getInt("acts_new"),
+                            actsUpdated = rs.getInt("acts_updated"),
+                            actsRepealed = rs.getInt("acts_repealed"),
+                            sectionsTotal = sectionsTotal,
+                            errorsCount = errorsCount,
+                            lastErrorMessage = rs.getString("last_error_message")
+                        ))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // If table doesn't exist yet, ensure schema and return empty
+            try {
+                ensureSchema()
+            } catch (schemaException: Exception) {
+                // Ignore
+            }
+        }
+
+        return LegalIngestionStatusResponse(
+            totalActs = totalActs,
+            totalSections = totalSections,
+            totalErrors = totalErrors,
+            jurisdictions = jurisdictions
+        )
+    }
+
+    open fun updateLegalIngestionStatus(
+        jurisdiction: String,
+        syncStatus: String,
+        actsTotal: Int,
+        actsNew: Int,
+        actsUpdated: Int,
+        actsRepealed: Int,
+        sectionsTotal: Int,
+        errorsCount: Int,
+        lastErrorMessage: String? = null
+    ) {
+        getConnection().use { conn ->
+            conn.prepareStatement("""
+                INSERT INTO legal_ingestion_status (
+                    jurisdiction,
+                    last_sync_at,
+                    sync_status,
+                    acts_total,
+                    acts_new,
+                    acts_updated,
+                    acts_repealed,
+                    sections_total,
+                    errors_count,
+                    last_error_message,
+                    updated_at
+                ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                ON CONFLICT (jurisdiction) DO UPDATE SET
+                    last_sync_at = NOW(),
+                    sync_status = EXCLUDED.sync_status,
+                    acts_total = EXCLUDED.acts_total,
+                    acts_new = EXCLUDED.acts_new,
+                    acts_updated = EXCLUDED.acts_updated,
+                    acts_repealed = EXCLUDED.acts_repealed,
+                    sections_total = EXCLUDED.sections_total,
+                    errors_count = EXCLUDED.errors_count,
+                    last_error_message = EXCLUDED.last_error_message,
+                    updated_at = NOW()
+            """).use { stmt ->
+                stmt.setString(1, jurisdiction)
+                stmt.setString(2, syncStatus)
+                stmt.setInt(3, actsTotal)
+                stmt.setInt(4, actsNew)
+                stmt.setInt(5, actsUpdated)
+                stmt.setInt(6, actsRepealed)
+                stmt.setInt(7, sectionsTotal)
+                stmt.setInt(8, errorsCount)
+                stmt.setString(9, lastErrorMessage)
+                stmt.executeUpdate()
+            }
+        }
+    }
+
+    open fun trackLegalAct(
+        actUrl: String,
+        jurisdiction: String,
+        actTitle: String,
+        year: String?,
+        identifier: String?,
+        status: String,
+        sectionsCount: Int,
+        contentHash: String?,
+        fetchStatus: String,
+        errorMessage: String? = null
+    ) {
+        getConnection().use { conn ->
+            conn.prepareStatement("""
+                INSERT INTO legal_acts_tracking (
+                    act_url,
+                    jurisdiction,
+                    act_title,
+                    year,
+                    identifier,
+                    status,
+                    sections_count,
+                    last_checked_at,
+                    content_hash,
+                    fetch_status,
+                    error_message,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, NOW())
+                ON CONFLICT (act_url) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    sections_count = EXCLUDED.sections_count,
+                    last_checked_at = NOW(),
+                    content_hash = EXCLUDED.content_hash,
+                    fetch_status = EXCLUDED.fetch_status,
+                    error_message = EXCLUDED.error_message,
+                    updated_at = NOW()
+            """).use { stmt ->
+                stmt.setString(1, actUrl)
+                stmt.setString(2, jurisdiction)
+                stmt.setString(3, actTitle)
+                stmt.setString(4, year)
+                stmt.setString(5, identifier)
+                stmt.setString(6, status)
+                stmt.setInt(7, sectionsCount)
+                stmt.setString(8, contentHash)
+                stmt.setString(9, fetchStatus)
+                stmt.setString(10, errorMessage)
                 stmt.executeUpdate()
             }
         }

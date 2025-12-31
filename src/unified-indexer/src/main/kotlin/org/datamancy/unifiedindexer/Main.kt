@@ -45,13 +45,23 @@ fun main() {
         password = postgresPassword
     )
 
-    // Initialize source adapter (BookStack for now)
-    val sourceAdapter = BookStackAdapter(bookstackUrl, bookstackToken, bookstackSecret)
+    // Initialize source adapters
+    val bookstackAdapter = BookStackAdapter(bookstackUrl, bookstackToken, bookstackSecret)
+    val clickhouseAdapter = ClickHouseSourceAdapter(clickhouseUrl)
 
-    // Initialize indexer
+    // Initialize indexer with ClickHouse as default source adapter
     val indexer = UnifiedIndexer(
         database = database,
-        sourceAdapter = sourceAdapter,
+        sourceAdapter = clickhouseAdapter,  // ClickHouse is now the primary source
+        qdrantUrl = qdrantUrl,
+        clickhouseUrl = clickhouseUrl,
+        embeddingServiceUrl = embeddingUrl
+    )
+
+    // Keep BookStack indexer for backward compatibility
+    val bookstackIndexer = UnifiedIndexer(
+        database = database,
+        sourceAdapter = bookstackAdapter,
         qdrantUrl = qdrantUrl,
         clickhouseUrl = clickhouseUrl,
         embeddingServiceUrl = embeddingUrl
@@ -59,7 +69,7 @@ fun main() {
 
     val port = System.getenv("INDEXER_PORT")?.toIntOrNull() ?: 8096
     val server = embeddedServer(Netty, port = port) {
-        configureServer(database, indexer)
+        configureServer(database, indexer, bookstackIndexer)
     }
 
     Runtime.getRuntime().addShutdownHook(Thread {
@@ -71,7 +81,7 @@ fun main() {
     server.start(wait = true)
 }
 
-fun Application.configureServer(database: Database, indexer: UnifiedIndexer) {
+fun Application.configureServer(database: Database, indexer: UnifiedIndexer, bookstackIndexer: UnifiedIndexer? = null) {
     install(ContentNegotiation) {
         json(Json {
             prettyPrint = true
@@ -256,9 +266,9 @@ fun Application.configureServer(database: Database, indexer: UnifiedIndexer) {
         // Index all collections
         post("/index/all") {
             val collections = listOf(
-                "legislation_federal", "legislation_nsw", "legislation_vic",
-                "legislation_qld", "legislation_wa", "legislation_sa",
-                "legislation_tas", "legislation_act", "legislation_nt"
+                "legal-federal", "legal-nsw", "legal-vic",
+                "legal-qld", "legal-wa", "legal-sa",
+                "legal-tas", "legal-act", "legal-nt"
             )
 
             collections.forEach { collection ->
@@ -276,6 +286,26 @@ fun Application.configureServer(database: Database, indexer: UnifiedIndexer) {
                 HttpStatusCode.Accepted,
                 mapOf("message" to "Indexing started for ${collections.size} collections")
             )
+        }
+
+        // List available collections
+        get("/api/indexer/collections") {
+            try {
+                val adapter = indexer.javaClass.getDeclaredField("sourceAdapter").let { field ->
+                    field.isAccessible = true
+                    field.get(indexer)
+                }
+
+                val collections = when (adapter) {
+                    is ClickHouseSourceAdapter -> adapter.listCollections()
+                    else -> emptyList()
+                }
+
+                call.respond(collections)
+            } catch (e: Exception) {
+                application.log.error("Failed to list collections", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+            }
         }
 
         // Get job status
@@ -312,7 +342,7 @@ fun Application.configureServer(database: Database, indexer: UnifiedIndexer) {
             call.respond(jobs)
         }
 
-        // Ingestion control endpoints (for benthos compatibility)
+        // Ingestion control endpoints
         route("/api/ingestion") {
             // Check if ingestion should be accepted (always true for now)
             get("/should-accept-data") {

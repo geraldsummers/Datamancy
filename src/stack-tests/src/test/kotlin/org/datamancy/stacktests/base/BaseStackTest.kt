@@ -108,7 +108,6 @@ abstract class BaseStackTest {
         val unifiedIndexer: Int = 18096,
         val searchService: Int = 18098,
         val controlPanel: Int = 18097,
-        val benthos: Int = 14195,
 
         // Other
         val dockerProxy: Int = 12375,

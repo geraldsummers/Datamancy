@@ -18,6 +18,15 @@ fun Route.configureFetcherApi(proxy: ProxyService, database: org.datamancy.contr
         }
     }
 
+    get("/legal/status") {
+        try {
+            val status = database.getLegalIngestionStatus()
+            call.respond(status)
+        } catch (e: Exception) {
+            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Unknown error")))
+        }
+    }
+
     post("/trigger/{source}") {
         val source = call.parameters["source"] ?: return@post call.respond(HttpStatusCode.BadRequest)
         val result = proxy.triggerFetch(source)

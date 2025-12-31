@@ -86,6 +86,123 @@ class PostgresStore(
             logger.error(e) { "Failed to ensure PostgreSQL schema" }
         }
     }
+
+    fun updateLegalIngestionStatus(
+        jurisdiction: String,
+        syncStatus: String,
+        actsTotal: Int,
+        actsNew: Int,
+        actsUpdated: Int,
+        actsRepealed: Int,
+        sectionsTotal: Int,
+        errorsCount: Int,
+        lastErrorMessage: String? = null
+    ) {
+        try {
+            getConnection().use { conn ->
+                conn.autoCommit = true
+                val sql = """
+                    INSERT INTO legal_ingestion_status (
+                        jurisdiction,
+                        last_sync_at,
+                        sync_status,
+                        acts_total,
+                        acts_new,
+                        acts_updated,
+                        acts_repealed,
+                        sections_total,
+                        errors_count,
+                        last_error_message,
+                        updated_at
+                    ) VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT (jurisdiction) DO UPDATE SET
+                        last_sync_at = CURRENT_TIMESTAMP,
+                        sync_status = EXCLUDED.sync_status,
+                        acts_total = EXCLUDED.acts_total,
+                        acts_new = EXCLUDED.acts_new,
+                        acts_updated = EXCLUDED.acts_updated,
+                        acts_repealed = EXCLUDED.acts_repealed,
+                        sections_total = EXCLUDED.sections_total,
+                        errors_count = EXCLUDED.errors_count,
+                        last_error_message = EXCLUDED.last_error_message,
+                        updated_at = CURRENT_TIMESTAMP
+                """
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, jurisdiction)
+                    stmt.setString(2, syncStatus)
+                    stmt.setInt(3, actsTotal)
+                    stmt.setInt(4, actsNew)
+                    stmt.setInt(5, actsUpdated)
+                    stmt.setInt(6, actsRepealed)
+                    stmt.setInt(7, sectionsTotal)
+                    stmt.setInt(8, errorsCount)
+                    stmt.setString(9, lastErrorMessage)
+                    stmt.executeUpdate()
+                }
+                logger.debug { "Updated legal ingestion status for $jurisdiction" }
+            }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to update legal ingestion status for $jurisdiction" }
+        }
+    }
+
+    fun trackLegalAct(
+        actUrl: String,
+        jurisdiction: String,
+        actTitle: String,
+        year: String?,
+        identifier: String?,
+        status: String,
+        sectionsCount: Int,
+        contentHash: String?,
+        fetchStatus: String,
+        errorMessage: String? = null
+    ) {
+        try {
+            getConnection().use { conn ->
+                conn.autoCommit = true
+                val sql = """
+                    INSERT INTO legal_acts_tracking (
+                        act_url,
+                        jurisdiction,
+                        act_title,
+                        year,
+                        identifier,
+                        status,
+                        sections_count,
+                        last_checked_at,
+                        content_hash,
+                        fetch_status,
+                        error_message,
+                        updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT (act_url) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        sections_count = EXCLUDED.sections_count,
+                        last_checked_at = CURRENT_TIMESTAMP,
+                        content_hash = EXCLUDED.content_hash,
+                        fetch_status = EXCLUDED.fetch_status,
+                        error_message = EXCLUDED.error_message,
+                        updated_at = CURRENT_TIMESTAMP
+                """
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, actUrl)
+                    stmt.setString(2, jurisdiction)
+                    stmt.setString(3, actTitle)
+                    stmt.setString(4, year)
+                    stmt.setString(5, identifier)
+                    stmt.setString(6, status)
+                    stmt.setInt(7, sectionsCount)
+                    stmt.setString(8, contentHash)
+                    stmt.setString(9, fetchStatus)
+                    stmt.setString(10, errorMessage)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to track legal act: $actTitle" }
+        }
+    }
 }
 
 /**

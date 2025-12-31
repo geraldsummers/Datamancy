@@ -1,6 +1,7 @@
 package org.datamancy.unifiedindexer
 
 import com.google.gson.Gson
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.qdrant.client.QdrantClient
@@ -50,7 +51,7 @@ class UnifiedIndexer(
     private val gson = Gson()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    // Qdrant client
+    // Qdrant client - warning about version check can be ignored
     private val qdrantHost = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":")[0]
     private val qdrantPort = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":").getOrNull(1)?.toIntOrNull() ?: 6334
     private val qdrant = QdrantClient(QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, false).build())
@@ -65,7 +66,11 @@ class UnifiedIndexer(
         try {
             // Ensure storage backends exist
             ensureQdrantCollection(collectionName)
-            ensureClickHouseTable(collectionName)
+            // Skip ClickHouse table creation when using ClickHouseSourceAdapter
+            // (data already exists in source table)
+            if (sourceAdapter !is ClickHouseSourceAdapter) {
+                ensureClickHouseTable(collectionName)
+            }
 
             // Get all pages from source
             val allPages = sourceAdapter.getPages(collectionName)
@@ -229,9 +234,9 @@ class UnifiedIndexer(
      * Generate embeddings for multiple texts in a single batch request.
      */
     private fun generateBatchEmbeddings(texts: List<String>): List<List<Float>> {
-        val payload = gson.toJson(mapOf("texts" to texts))
+        val payload = gson.toJson(mapOf("inputs" to texts))
         val request = Request.Builder()
-            .url("$embeddingServiceUrl/embed/batch")
+            .url("$embeddingServiceUrl/embed")
             .post(payload.toRequestBody(jsonMediaType))
             .build()
 
@@ -240,9 +245,9 @@ class UnifiedIndexer(
                 throw Exception("Failed to generate batch embeddings: ${response.code}")
             }
 
-            val json = gson.fromJson(response.body?.string(), JsonObject::class.java)
-            val embeddingsArray = json.getAsJsonArray("embeddings")
-            return embeddingsArray.map { embArray ->
+            val jsonArray = gson.fromJson(response.body?.string(), JsonArray::class.java)
+            // Response is [[float, ...], [float, ...], ...]
+            return jsonArray.map { embArray ->
                 embArray.asJsonArray.map { it.asFloat }
             }
         }
@@ -252,7 +257,7 @@ class UnifiedIndexer(
      * Generate single embedding (fallback).
      */
     private fun generateEmbedding(text: String): List<Float> {
-        val payload = gson.toJson(mapOf("text" to text))
+        val payload = gson.toJson(mapOf("inputs" to text))
         val request = Request.Builder()
             .url("$embeddingServiceUrl/embed")
             .post(payload.toRequestBody(jsonMediaType))
@@ -263,8 +268,9 @@ class UnifiedIndexer(
                 throw Exception("Failed to generate embedding: ${response.code}")
             }
 
-            val json = gson.fromJson(response.body?.string(), JsonObject::class.java)
-            val embeddingArray = json.getAsJsonArray("embedding")
+            val jsonArray = gson.fromJson(response.body?.string(), JsonArray::class.java)
+            // Response is [[float, float, ...]], take first (and only) embedding
+            val embeddingArray = jsonArray[0].asJsonArray
             return embeddingArray.map { it.asFloat }
         }
     }
@@ -335,7 +341,7 @@ class UnifiedIndexer(
                 qdrant.createCollectionAsync(
                     name,
                     VectorParams.newBuilder()
-                        .setSize(384)
+                        .setSize(768)  // Updated for BAAI/bge-base-en-v1.5
                         .setDistance(Distance.Cosine)
                         .build()
                 ).get()

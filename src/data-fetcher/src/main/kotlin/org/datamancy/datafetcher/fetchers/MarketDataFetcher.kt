@@ -3,6 +3,7 @@ package org.datamancy.datafetcher.fetchers
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import org.datamancy.datafetcher.config.MarketDataConfig
@@ -12,6 +13,9 @@ import org.datamancy.datafetcher.storage.ClickHouseStore
 import org.datamancy.datafetcher.storage.ContentHasher
 import org.datamancy.datafetcher.storage.DedupeResult
 import org.datamancy.datafetcher.storage.PostgresStore
+import kotlin.math.min
+import kotlin.math.pow
+import kotlin.random.Random
 
 private val logger = KotlinLogging.logger {}
 private val gson = Gson()
@@ -21,6 +25,9 @@ data class InstrumentMapping(val symbol: String, val provider: String, val provi
 class MarketDataFetcher(private val config: MarketDataConfig) : Fetcher {
     private val clickHouseStore = ClickHouseStore()
     private val pgStore = PostgresStore()
+    private val maxRetries = 5
+    private val baseDelayMs = 1000L
+    private val maxDelayMs = 60000L
 
     override suspend fun fetch(): FetchResult {
         return FetchExecutionContext.execute("market_data", version = "2.0.0") { ctx ->
@@ -34,7 +41,7 @@ class MarketDataFetcher(private val config: MarketDataConfig) : Fetcher {
                 ctx.markAttempted()
                 try {
                     when (instrument.provider) {
-                        "coingecko" -> fetchCryptoFromCoinGecko(ctx, instrument)
+                        "coingecko" -> fetchCryptoFromCoinGeckoWithRetry(ctx, instrument)
                         else -> {
                             ctx.markSkipped()
                             logger.warn { "Unknown provider: ${instrument.provider}" }
@@ -49,6 +56,45 @@ class MarketDataFetcher(private val config: MarketDataConfig) : Fetcher {
 
             "Processed ${ctx.metrics.attempted} instruments: ${ctx.metrics.new} new, ${ctx.metrics.updated} updated, ${ctx.metrics.skipped} skipped"
         }
+    }
+
+    private suspend fun fetchCryptoFromCoinGeckoWithRetry(ctx: FetchExecutionContext, instrument: InstrumentMapping) {
+        var lastException: Exception? = null
+
+        for (attempt in 0 until maxRetries) {
+            try {
+                fetchCryptoFromCoinGecko(ctx, instrument)
+                return // Success
+            } catch (e: Exception) {
+                lastException = e
+
+                // Check if it's a rate limit error (429)
+                if (e.message?.contains("429") == true) {
+                    val delayMs = calculateBackoffDelay(attempt)
+                    logger.warn { "Rate limited fetching ${instrument.symbol}, retrying in ${delayMs}ms (attempt ${attempt + 1}/$maxRetries)" }
+                    delay(delayMs)
+                } else {
+                    // For other errors, throw immediately (no retry)
+                    throw e
+                }
+            }
+        }
+
+        // All retries exhausted
+        throw lastException ?: Exception("Failed after $maxRetries retries")
+    }
+
+    private fun calculateBackoffDelay(attempt: Int): Long {
+        // Exponential backoff: baseDelay * 2^attempt
+        val exponentialDelay = (baseDelayMs * 2.0.pow(attempt)).toLong()
+
+        // Cap at maxDelayMs
+        val cappedDelay = min(exponentialDelay, maxDelayMs)
+
+        // Add jitter: random value between 0 and 25% of delay
+        val jitter = (cappedDelay * 0.25 * Random.nextDouble()).toLong()
+
+        return cappedDelay + jitter
     }
 
     private suspend fun buildInstrumentRegistry(ctx: FetchExecutionContext): List<InstrumentMapping> {

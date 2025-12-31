@@ -188,9 +188,26 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
         ctx: FetchExecutionContext
     ): Int {
         var sectionsProcessed = 0
+        var jurisdictionActsNew = 0
+        var jurisdictionActsUpdated = 0
+        var jurisdictionActsRepealed = 0
+        var jurisdictionErrors = 0
+        var lastError: String? = null
 
         try {
             logger.info { "Processing $jurisdiction legislation..." }
+
+            // Update status: in_progress
+            pgStore.updateLegalIngestionStatus(
+                jurisdiction = jurisdiction,
+                syncStatus = "in_progress",
+                actsTotal = 0,
+                actsNew = 0,
+                actsUpdated = 0,
+                actsRepealed = 0,
+                sectionsTotal = 0,
+                errorsCount = 0
+            )
 
             // 1. Fetch current active Acts from legislation website
             val currentActiveActs = if (jurisdiction == "FEDERAL") {
@@ -217,9 +234,12 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
             removedUrls.forEach { url ->
                 try {
                     clickHouseStore.markLegalDocumentRepealed(url)
+                    jurisdictionActsRepealed++
                     ctx.markUpdated()
                 } catch (e: Exception) {
                     logger.error(e) { "Failed to mark $url as repealed" }
+                    jurisdictionErrors++
+                    lastError = e.message
                     ctx.recordError("REPEAL_ERROR", e.message ?: "Unknown error", url)
                 }
             }
@@ -235,12 +255,43 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
                         storeSectionToClickHouse(section, ctx, isNew = true)
                     }
 
+                    // Track the Act
+                    pgStore.trackLegalAct(
+                        actUrl = act.url,
+                        jurisdiction = jurisdiction,
+                        actTitle = act.title,
+                        year = act.year,
+                        identifier = act.identifier,
+                        status = "active",
+                        sectionsCount = sections.size,
+                        contentHash = ContentHasher.hashJson(sections.joinToString { it.markdownContent }),
+                        fetchStatus = "success"
+                    )
+
                     sectionsProcessed += sections.size
+                    jurisdictionActsNew++
                     ctx.markFetched()
                     ctx.markNew(sections.size)
                     logger.info { "[$jurisdiction] NEW: ${act.title} - ${sections.size} sections" }
                 } catch (e: Exception) {
                     logger.error(e) { "[$jurisdiction] Failed to fetch new Act: ${act.title}" }
+                    jurisdictionErrors++
+                    lastError = e.message
+
+                    // Track failed Act
+                    pgStore.trackLegalAct(
+                        actUrl = act.url,
+                        jurisdiction = jurisdiction,
+                        actTitle = act.title,
+                        year = act.year,
+                        identifier = act.identifier,
+                        status = "active",
+                        sectionsCount = 0,
+                        contentHash = null,
+                        fetchStatus = "failed",
+                        errorMessage = e.message
+                    )
+
                     ctx.markFailed()
                     ctx.recordError("FETCH_ERROR", e.message ?: "Unknown error", act.title)
                 }
@@ -308,20 +359,81 @@ class LegalDocsFetcher(private val config: LegalConfig) : Fetcher {
 
                     if (hasChanges) {
                         sectionsProcessed += sections.size
+                        jurisdictionActsUpdated++
                         ctx.markFetched()
+
+                        // Track updated Act
+                        pgStore.trackLegalAct(
+                            actUrl = act.url,
+                            jurisdiction = jurisdiction,
+                            actTitle = act.title,
+                            year = act.year,
+                            identifier = act.identifier,
+                            status = "active",
+                            sectionsCount = sections.size,
+                            contentHash = ContentHasher.hashJson(sections.joinToString { it.markdownContent }),
+                            fetchStatus = "success"
+                        )
+
                         logger.info { "[$jurisdiction] UPDATED: ${act.title} - ${sections.size} sections" }
                     } else {
                         logger.debug { "[$jurisdiction] UNCHANGED (content): ${act.title}" }
                     }
                 } catch (e: Exception) {
                     logger.error(e) { "[$jurisdiction] Failed to check Act: ${act.title}" }
+                    jurisdictionErrors++
+                    lastError = e.message
+
+                    // Track failed check
+                    pgStore.trackLegalAct(
+                        actUrl = act.url,
+                        jurisdiction = jurisdiction,
+                        actTitle = act.title,
+                        year = act.year,
+                        identifier = act.identifier,
+                        status = "active",
+                        sectionsCount = 0,
+                        contentHash = null,
+                        fetchStatus = "failed",
+                        errorMessage = e.message
+                    )
+
                     ctx.markFailed()
                     ctx.recordError("UPDATE_CHECK_ERROR", e.message ?: "Unknown error", act.title)
                 }
             }
 
+            // Update final status for jurisdiction
+            pgStore.updateLegalIngestionStatus(
+                jurisdiction = jurisdiction,
+                syncStatus = if (jurisdictionErrors == 0) "completed" else "completed_with_errors",
+                actsTotal = currentActiveActs.size,
+                actsNew = jurisdictionActsNew,
+                actsUpdated = jurisdictionActsUpdated,
+                actsRepealed = jurisdictionActsRepealed,
+                sectionsTotal = sectionsProcessed,
+                errorsCount = jurisdictionErrors,
+                lastErrorMessage = lastError
+            )
+
         } catch (e: Exception) {
             logger.error(e) { "Failed to process $jurisdiction legislation" }
+            lastError = e.message
+            jurisdictionErrors++
+
+            // Update status: failed
+            pgStore.updateLegalIngestionStatus(
+                jurisdiction = jurisdiction,
+                syncStatus = "failed",
+                actsTotal = 0,
+                actsNew = jurisdictionActsNew,
+                actsUpdated = jurisdictionActsUpdated,
+                actsRepealed = jurisdictionActsRepealed,
+                sectionsTotal = sectionsProcessed,
+                errorsCount = jurisdictionErrors,
+                lastErrorMessage = lastError
+            )
+
             ctx.markFailed()
             ctx.recordError("JURISDICTION_ERROR", e.message ?: "Unknown error", jurisdiction)
         }

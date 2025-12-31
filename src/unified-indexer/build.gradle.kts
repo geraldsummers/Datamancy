@@ -24,15 +24,14 @@ dependencies {
     // JSON
     implementation("com.google.code.gson:gson:2.11.0")
 
-    // Qdrant client
-    implementation("io.qdrant:client:1.9.1")
-    implementation("com.google.protobuf:protobuf-java:3.25.1")
-    implementation("io.grpc:grpc-stub:1.60.0")
-    implementation("io.grpc:grpc-protobuf:1.60.0")
+    // Qdrant client - latest version with updated gRPC
+    implementation("io.qdrant:client:1.16.2")
 
-    // ClickHouse JDBC
+    // ClickHouse JDBC with LZ4 compression support
     implementation("com.clickhouse:clickhouse-jdbc:0.6.5")
     implementation("com.clickhouse:clickhouse-http-client:0.6.5")
+    implementation("org.apache.httpcomponents.client5:httpclient5:5.4.1")
+    implementation("org.lz4:lz4-java:1.8.0")
 
     // PostgreSQL JDBC for job state persistence
     implementation("org.postgresql:postgresql:42.7.1")

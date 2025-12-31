@@ -123,3 +123,25 @@ data class JobStatusResponse(
     val jobId: String,
     val status: String
 )
+
+@Serializable
+data class LegalIngestionStatusResponse(
+    val totalActs: Int,
+    val totalSections: Int,
+    val totalErrors: Int,
+    val jurisdictions: List<JurisdictionStatus>
+)
+
+@Serializable
+data class JurisdictionStatus(
+    val jurisdiction: String,
+    val lastSyncAt: String?,
+    val syncStatus: String,
+    val actsTotal: Int,
+    val actsNew: Int,
+    val actsUpdated: Int,
+    val actsRepealed: Int,
+    val sectionsTotal: Int,
+    val errorsCount: Int,
+    val lastErrorMessage: String?
+)

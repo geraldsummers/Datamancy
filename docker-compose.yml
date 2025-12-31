@@ -1,29 +1,32 @@
-###############################################
-# Datamancy Docker Compose Configuration
+# Datamancy Stack - Docker Compose Configuration
 #
-# This file is copied to ~/.datamancy/ during installation.
-# All runtime configs live in ~/.datamancy/configs/ (generated from configs.templates/)
+# Installation & Management:
+#   install-datamancy.main.kts                          - Install from git repo to ~/.datamancy/
+#   ~/.datamancy/datamancy-controller.main.kts          - Control script (ONLY use from installed dir)
 #
-# To update this file:
-#   1. Edit in git repository
-#   2. Run: ./install-datamancy.main.kts
+# Quick Start:
+#   1. From git repo, run installer:     ./install-datamancy.main.kts
+#   2. Start stack from installed dir:   cd ~/.datamancy && ./datamancy-controller.main.kts up
+#   3. Check status:                     cd ~/.datamancy && ./datamancy-controller.main.kts status
 #
-# Stack management:
-#   datamancy-controller up         - Start stack
-#   datamancy-controller down       - Stop stack
-#   datamancy-controller obliterate - Complete cleanup
+# Installation Process:
+#   The installer (install-datamancy.main.kts) copies all necessary files to ~/.datamancy/:
+#   - This docker-compose.yml
+#   - Configuration templates (configs.templates/)
+#   - Management scripts (scripts/)
+#   - Build context (src/, gradle files)
 #
-# Volume path resolution (.env):
-#   VOLUMES_ROOT             - Base path for all volumes (e.g., /mnt/storage/datamancy)
-#   APPLICATION_DATA_PATH    - Application data (defaults to ${VOLUMES_ROOT}/applications)
-#   NON_VECTOR_DBS_PATH      - Database data (defaults to ${VOLUMES_ROOT}/databases)
-#   VECTOR_DBS_PATH          - Vector DB data (defaults to ${VOLUMES_ROOT}/vector-dbs)
+# Stack Control (from ~/.datamancy/ only):
+#   The controller script (datamancy-controller.main.kts) handles:
+#   - Environment configuration generation (.env)
+#   - Template processing (configs/)
+#   - Volume directory creation
+#   - Service orchestration (up, down, status)
+#   - Complete cleanup (obliterate command)
 #
-# Required .env variables for portability:
-#   DOCKER_USER_ID           - User ID for services (run: id -u)
-#   DOCKER_GROUP_ID          - Group ID for services (run: id -g)
-#   DOCKER_SOCKET_GID        - Docker socket GID (run: stat -c '%g' /var/run/docker.sock)
-###############################################
+# IMPORTANT: Always run the controller from ~/.datamancy/ (it operates on local files)
+# For detailed usage: cd ~/.datamancy && ./datamancy-controller.main.kts help
+
 networks:
   frontend:
     driver: bridge
@@ -304,16 +307,17 @@ services:
           - jupyterhub.${DOMAIN}
           - homepage.${DOMAIN}
           - seafile.${DOMAIN}
+          - api.seafile.${DOMAIN}
           - onlyoffice.${DOMAIN}
           - matrix.${DOMAIN}
+          - api.matrix.${DOMAIN}
           - element.${DOMAIN}
-          - sogo.${DOMAIN}
           - homeassistant.${DOMAIN}
+          - api.homeassistant.${DOMAIN}
           - litellm.${DOMAIN}
           - api.litellm.${DOMAIN}
           - auth.${DOMAIN}
           - kopia.${DOMAIN}
-          - portainer.${DOMAIN}
           - mail.${DOMAIN}
           - agent-tool-server.${DOMAIN}
           - lam.${DOMAIN}
@@ -326,16 +330,10 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
-      # Provide the static Caddyfile. Defaults to self-signed (internal CA).
-      # To enable Let's Encrypt for a specific site, edit configs/infrastructure/caddy/Caddyfile
-      # and add `tls you@example.com` inside that site's block.
       - ${HOME}/.datamancy/configs/infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      # Custom landing page for Vaultwarden SSO auto-redirect
       - ${HOME}/.datamancy/configs/applications/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
     environment:
-      # Domain for vhosts in Caddyfile
       DOMAIN: "${DOMAIN}"
-      # Default IP allowlist for api.litellm subdomain (space-separated CIDRs)
       API_LITELLM_ALLOWLIST: "${API_LITELLM_ALLOWLIST:-10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 ::1 fc00::/7 fe80::/10}"
     logging:
       driver: "json-file"
@@ -343,7 +341,6 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      # Use the caddy binary as a lightweight readiness signal
       test: ["CMD", "caddy", "version"]
       interval: 10s
       timeout: 5s
@@ -364,7 +361,6 @@ services:
       - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - LDAP_CONFIG_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - LDAP_TLS=false
-      # Configure memberOf overlay for Authelia group membership detection
       - LDAP_MEMBEROF_OVERLAY=true
       - LDAP_MEMBEROF_GROUP_OC=groupOfNames
       - LDAP_MEMBEROF_MEMBER_AD=member
@@ -394,7 +390,6 @@ services:
       - LDAP_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - LAM_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - LAM_LANG=en_US
-    # Note: No volume mount - LAM uses container-internal storage and connects to persistent LDAP
     depends_on:
       - ldap
     healthcheck:
@@ -579,7 +574,6 @@ services:
       - mailserver_logs:/var/log/mail/
       - mailserver_config:/tmp/docker-mailserver/
       - /etc/localtime:/etc/localtime:ro
-      # Mount Caddy's Let's Encrypt certificates
       - caddy_data:/caddy-certs:ro
       - ${HOME}/.datamancy/configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
       - ${HOME}/.datamancy/configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
@@ -680,13 +674,12 @@ services:
   kopia:
     image: kopia/kopia:0.18.2
     container_name: kopia
-    restart: "no"  # Manual start after all services are up to avoid volume mount race conditions
+    restart: "no"
     networks:
       - backend
     volumes:
       - kopia_data:/app/config
       - kopia_cache:/app/cache
-      # Mount volumes to backup (read-only)
       - postgres_data:/backup/postgres:ro
       - mariadb_data:/backup/mariadb:ro
       - grafana_data:/backup/grafana:ro
@@ -713,31 +706,26 @@ services:
     networks:
       - backend
     environment:
-      # Scoped permissions for JupyterHub and Homepage
-      # See: https://github.com/Tecnativa/docker-socket-proxy
-      - CONTAINERS=1  # Read container status (needed for health checks, logs, Homepage dashboard)
-      - IMAGES=1      # Enabled for JupyterHub spawner to check image availability
-      - NETWORKS=1    # Enabled for JupyterHub spawner to attach containers
-      - VOLUMES=1     # Enabled for JupyterHub to mount volumes
-      - POST=1        # Enabled ONLY for JupyterHub container spawning (jupyter-* prefix)
-      - DELETE=1      # Enabled ONLY for JupyterHub to remove notebook containers
-      - BUILD=0       # Disabled - no image builds
+      - CONTAINERS=1
+      - IMAGES=1    
+      - NETWORKS=1  
+      - VOLUMES=1   
+      - POST=1      
+      - DELETE=1    
+      - BUILD=0     
       - COMMIT=0
       - CONFIGS=0
       - DISTRIBUTION=0
-      - EXEC=0        # Disabled - prevents arbitrary command execution in containers
+      - EXEC=0      
       - GRPC=0
-      - INFO=1        # Enabled for JupyterHub to query Docker info and Homepage stats
+      - INFO=1      
       - PLUGINS=0
       - SERVICES=0
       - SESSION=0
       - SWARM=0
       - SYSTEM=0
       - TASKS=0
-      - VERSION=1     # Enabled - allows version checks for compatibility
-      # Note: Container name filtering not supported by this proxy version.
-      # POST/DELETE permissions are risky but required for JupyterHub.
-      # Mitigation: JupyterHub auth via Authelia, network isolation, monitoring
+      - VERSION=1   
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
     healthcheck:
@@ -786,7 +774,7 @@ services:
       - GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name
       - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'users') && 'Editor' || 'Viewer'
       - GF_AUTH_GENERIC_OAUTH_USE_PKCE=true
-      - GF_AUTH_GENERIC_OAUTH_AUTH_STYLE=2  # 2 = pass client credentials in POST body (client_secret_post)
+      - GF_AUTH_GENERIC_OAUTH_AUTH_STYLE=2
       - GF_AUTH_SIGNOUT_REDIRECT_URL=https://auth.${DOMAIN}/logout
       - GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC=false
       - GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=false
@@ -824,20 +812,17 @@ services:
        - 1.1.1.1
      environment:
        - WEBUI_URL=${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
-       # PostgreSQL database - use URL-encoded password for special characters
        - DATABASE_URL=postgresql://openwebui:${OPENWEBUI_DB_PASSWORD_ENCODED}@postgres:5432/openwebui
        - ENABLE_OAUTH_SIGNUP=${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-true}
        - DEFAULT_USER_ROLE=${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
        - ENABLE_OPENAI_API=true
        - OPENAI_API_BASE_URL=${OPENWEBUI_OPENAI_API_BASE_URL:-http://litellm:4000/v1}
        - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
-       # OIDC SSO Configuration
        - OPENID_PROVIDER_URL=https://auth.${DOMAIN}
        - OAUTH_CLIENT_ID=open-webui
        - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_SECRET}
        - OAUTH_PROVIDER_NAME=Authelia
        - OAUTH_SCOPES=openid profile email groups
-       # Seamless SSO - skip login form, go straight to OAuth
        - ENABLE_LOGIN_FORM=false
        - WEBUI_AUTH=false
      volumes:
@@ -873,7 +858,6 @@ services:
       - SIGNUPS_DOMAINS_WHITELIST=${MAIL_DOMAIN}
       - INVITATIONS_ALLOWED=false
       - SHOW_PASSWORD_HINT=false
-      # SSO/OIDC Configuration
       - SSO_ENABLED=true
       - SSO_ONLY=true
       - SSO_AUTHORITY=https://auth.${DOMAIN}
@@ -882,7 +866,6 @@ services:
       - SSO_SCOPES=openid email profile
       - SSO_CALLBACK_PATH=/identity/connect/oidc-signin
       - SSO_SIGNUPS_MATCH_EMAIL=true
-      # Admin and SMTP
       - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
       - SMTP_HOST=mailserver
       - SMTP_FROM=vaultwarden@${MAIL_DOMAIN}
@@ -915,7 +898,6 @@ services:
         max-file: "3"
     environment:
       - BASE_URL=https://planka.${DOMAIN}
-      # Use URL-encoded password for PostgreSQL connection string (encoded version of PLANKA_DB_PASSWORD)
       - DATABASE_URL=postgresql://planka:${PLANKA_DB_PASSWORD_ENCODED:-${PLANKA_DB_PASSWORD}}@postgres:5432/planka
       - SECRET_KEY=${PLANKA_SECRET_KEY}
       - OIDC_ISSUER=https://auth.${DOMAIN}
@@ -967,8 +949,6 @@ services:
       - DB_DATABASE=bookstack
       - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - BOOKSTACK_OAUTH_SECRET=${BOOKSTACK_OAUTH_SECRET}
-      # OIDC SSO configuration - init script will configure .env file
-      # AUTH_METHOD, OIDC_* settings are configured by 50-fix-env.sh
     volumes:
       - bookstack_data:/config
       - ${VOLUMES_ROOT}/bookstack_init:/custom-cont-init.d:ro
@@ -988,7 +968,7 @@ services:
       - memcached
     environment:
       - TZ=UTC
-      - DB_HOST=mysql  # Use alias for mariadb-seafile
+      - DB_HOST=mysql
       - DB_ROOT_PASSWD=${MARIADB_ROOT_PASSWORD}
       - SEAFILE_MYSQL_DB_HOST=mysql
       - SEAFILE_MYSQL_DB_PORT=3306
@@ -1340,7 +1320,6 @@ services:
     volumes:
       - qbittorrent_config:/config
       - qbittorrent_data:/downloads
-      # Mount pre-configured qBittorrent.conf with subnet whitelist
       - ${VOLUMES_ROOT}/qbittorrent_init:/custom-cont-init.d:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
@@ -1417,7 +1396,6 @@ services:
       - ${HOME}/.datamancy/configs/infrastructure/litellm/config.yaml:/app/config.yaml:ro
     environment:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      # Consolidated admin credentials for UI login
       - UI_USERNAME=${STACK_ADMIN_USER}
       - UI_PASSWORD=${STACK_ADMIN_PASSWORD}
     command: --config /app/config.yaml --port 4000 --num_workers 4
@@ -1448,26 +1426,22 @@ services:
       - ldap
     user: "${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000}"
     group_add:
-      - "${DOCKER_SOCKET_GID:-999}"  # docker group GID from host
+      - "${DOCKER_SOCKET_GID:-999}"
     environment:
       - TOOLSERVER_PORT=8081
       - TOOLSERVER_PLUGINS_DIR=/app/plugins
       - TOOLSERVER_ALLOW_CAPS=host.shell.read,host.docker.write,host.docker.inspect,host.network.http,host.network.ssh
-      # SSH to host via forced-command wrapper (see scripts)
       - TOOLSERVER_SSH_HOST=${TOOLSERVER_SSH_HOST:-host.docker.internal}
       - TOOLSERVER_SSH_USER=${TOOLSERVER_SSH_USER:-stackops}
       - TOOLSERVER_SSH_KEY_PATH=/app/keys/stackops_ed25519
       - TOOLSERVER_SSH_KNOWN_HOSTS=/app/known_hosts
       - TOOLSERVER_SSH_TIMEOUT_MS=20000
-      # Browser service timeouts (login operations need more time)
       - TOOLSERVER_BROWSER_HTTP_TIMEOUT_MS=90000
       - TOOLSERVER_BROWSER_URL=http://playwright:3000
       - TOOLSERVER_SCREENSHOTS_DIR=/app/proofs/screenshots
       - TOOLSERVER_DEBUG=true
-      # LiteLLM connection for LLM completions
       - LITELLM_BASE_URL=http://litellm:4000
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      # Data source observation credentials
       - POSTGRES_OBSERVER_USER=agent_observer
       - POSTGRES_OBSERVER_PASSWORD=${AGENT_POSTGRES_OBSERVER_PASSWORD}
       - POSTGRES_HOST=postgres
@@ -1492,7 +1466,6 @@ services:
       - LDAP_HOST=ldap
       - LDAP_PORT=389
       - LDAP_BASE_DN=dc=stack,dc=local
-      # Search service for semantic search
       - SEARCH_SERVICE_URL=http://search-service:8098
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
@@ -1509,9 +1482,6 @@ services:
       retries: 3
       start_period: 10s
 
-  ###############################################
-  # Vector Stack (profile: bootstrap_vector_dbs)
-  ###############################################
   qdrant:
     image: qdrant/qdrant:v1.12.5
     container_name: qdrant
@@ -1521,7 +1491,6 @@ services:
       - backend
     environment:
       - QDRANT__SERVICE__GRPC_PORT=6334
-    # Do not expose ports publicly; access internally via service name
     volumes:
       - qdrant_data:/qdrant/storage
     deploy:
@@ -1550,7 +1519,6 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - ${HOME}/.datamancy/configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
       - ${HOME}/.datamancy/configs/databases/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    # Do not expose native TCP publicly; use internal networking
     deploy:
       resources:
         limits:
@@ -1632,7 +1600,6 @@ services:
       - bookstack
     environment:
       - DATAFETCHER_PORT=8095
-      # Database connections
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=datamancy
@@ -1644,16 +1611,13 @@ services:
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
-      # API keys (optional, from .env)
       - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY:-}
       - COINGECKO_API_KEY=${COINGECKO_API_KEY:-}
       - SERP_API_KEY=${SERP_API_KEY:-}
       - FRED_API_KEY=${FRED_API_KEY:-}
-      # BookStack integration
       - BOOKSTACK_URL=${BOOKSTACK_URL:-http://bookstack:80}
       - BOOKSTACK_API_TOKEN_ID=${BOOKSTACK_API_TOKEN_ID:-}
       - BOOKSTACK_API_TOKEN_SECRET=${BOOKSTACK_API_TOKEN_SECRET:-}
-      # Config paths
       - FETCH_SCHEDULES_PATH=/app/config/schedules.yaml
       - FETCH_SOURCES_PATH=/app/config/sources.yaml
       - DATAFETCHER_DATA_PATH=/app/data
@@ -1784,23 +1748,19 @@ services:
       - data-fetcher
       - unified-indexer
     environment:
-      # PostgreSQL connection
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=datamancy
       - POSTGRES_USER=datamancer
       - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
-      # ClickHouse connection
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_PORT=8123
       - CLICKHOUSE_USER=${STACK_ADMIN_USER}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
-      # Service URLs
       - CONTROL_PANEL_URL=http://control-panel:8097
       - DATA_FETCHER_URL=http://data-fetcher:8095
       - UNIFIED_INDEXER_URL=http://unified-indexer:8096
       - SEARCH_SERVICE_URL=http://search-service:8098
-    # No volumes needed - source code is baked into the image at build time
 
   stack-test-runner:
     image: eclipse-temurin:21-jdk
@@ -1811,13 +1771,10 @@ services:
       - backend
       - database
     working_dir: /workspace
-    # Run as host user to avoid permission issues
     user: "${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000}"
     environment:
-      # Use separate Gradle directories to avoid lock conflicts with host
       - GRADLE_USER_HOME=/tmp/gradle-home
     volumes:
-      # Simple approach: mount everything read-write
       - .:/workspace:rw
     command:
       - ./gradlew

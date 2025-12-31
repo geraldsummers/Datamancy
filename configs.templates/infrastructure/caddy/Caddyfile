@@ -182,6 +182,19 @@ seafile.{{DOMAIN}} {
     }
 }
 
+# Seafile API (for API token authentication - bypasses forward_auth)
+# API clients authenticate using Seafile API tokens in Authorization header
+api.seafile.{{DOMAIN}} {
+    # Seafile API endpoints
+    @api path /api/* /api2/* /seafdav*
+    handle @api {
+        reverse_proxy seafile:80
+    }
+
+    # Return 404 for non-API paths
+    respond 404
+}
+
 # OnlyOffice Document Server (internal API only - accessed via Seafile/Nextcloud)
 # Not exposed publicly - only accessible on backend network
 # onlyoffice.{{DOMAIN}} {
@@ -194,9 +207,41 @@ seafile.{{DOMAIN}} {
 #     }
 # }
 
-# Matrix (Synapse)
+# Matrix (Synapse) - Client-Server API with access token authentication
+# Matrix clients authenticate using access tokens, so no forward_auth needed
 matrix.{{DOMAIN}} {
     reverse_proxy synapse:8008
+}
+
+# Matrix API (Server-Server Federation)
+# Federation uses Matrix's built-in signature-based authentication
+api.matrix.{{DOMAIN}} {
+    # Federation API endpoint
+    @federation path /_matrix/federation/*
+    handle @federation {
+        reverse_proxy synapse:8008
+    }
+
+    # Client-Server API (for programmatic access with access tokens)
+    @client path /_matrix/client/*
+    handle @client {
+        reverse_proxy synapse:8008
+    }
+
+    # Media API
+    @media path /_matrix/media/*
+    handle @media {
+        reverse_proxy synapse:8008
+    }
+
+    # Admin API (requires Matrix admin access tokens)
+    @admin path /_synapse/admin/*
+    handle @admin {
+        reverse_proxy synapse:8008
+    }
+
+    # Return 404 for other paths
+    respond 404
 }
 
 # Element (Matrix Web Client)
@@ -271,6 +316,37 @@ homeassistant.{{DOMAIN}} {
             header_up X-Real-IP {remote_host}
         }
     }
+}
+
+# Home Assistant API (for programmatic access with long-lived access tokens)
+# API clients authenticate using HA long-lived access tokens in Authorization header
+api.homeassistant.{{DOMAIN}} {
+    # API endpoints (bypass forward_auth, rely on HA's token auth)
+    @api path /api/*
+    handle @api {
+        reverse_proxy homeassistant:8123 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # Webhooks (no auth required - webhook IDs are secret)
+    @webhooks path /api/webhook/*
+    handle @webhooks {
+        reverse_proxy homeassistant:8123
+    }
+
+    # WebSocket API (requires token in connection URL)
+    @websocket path /api/websocket
+    handle @websocket {
+        reverse_proxy homeassistant:8123 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # Return 404 for non-API paths
+    respond 404
 }
 
 # LiteLLM (protected)

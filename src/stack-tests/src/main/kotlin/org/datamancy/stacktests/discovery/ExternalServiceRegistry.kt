@@ -16,50 +16,49 @@ object ExternalServiceRegistry {
     fun getExternalServices(): List<ServiceSpec> {
         return listOf(
             // Databases
-            service("couchdb", "http://couchdb:5984", "/_up"),
-            service("clickhouse", "http://clickhouse:8123", "/ping"),
+            service("couchdb", "http://localhost:15984", "/_up"),
+            service("clickhouse", "http://localhost:18123", "/ping"),
 
             // Authentication & Security
-            service("authelia", "http://authelia:9091", "/api/health"),
-            service("ldap-account-manager", "http://ldap-account-manager", "/lam/"),
+            service("authelia", "http://localhost:19091", "/api/health"),
+            service("ldap-account-manager", "http://localhost:10080", "/lam/"),
 
             // AI/ML Services
-            service("vllm", "http://vllm:8000", "/health"),
-            service("embedding-service", "http://embedding-service:8080", "/health"),
-            service("litellm", "http://litellm:4000", "/health"),
+            service("vllm", "http://localhost:18000", "/health"),
+            service("embedding-service", "http://localhost:18080", "/health"),
+            service("litellm", "http://localhost:14000", "/health"),
 
             // Monitoring & Observability
-            service("grafana", "http://grafana:3000", "/api/health"),
+            service("grafana", "http://localhost:13000", "/api/health"),
 
             // Applications
-            service("open-webui", "http://open-webui:8080", "/health"),
-            service("vaultwarden", "http://vaultwarden:80", "/alive"),
-            service("planka", "http://planka:1337", "/api/health"),
-            service("bookstack", "http://bookstack:80", "/"),
-            service("seafile", "http://seafile:8000", "/"),
-            service("onlyoffice", "http://onlyoffice:80", "/healthcheck"),
-            service("radicale", "http://radicale:5232", "/"),
-            service("roundcube", "http://roundcube", "/"),
-            service("forgejo", "http://forgejo:3000", "/"),
-            service("qbittorrent", "http://qbittorrent:8080", "/"),
+            service("open-webui", "http://localhost:18081", "/health"),
+            service("vaultwarden", "http://localhost:10080", "/alive"),
+            service("planka", "http://localhost:11337", "/api/health"),
+            service("bookstack", "http://localhost:10081", "/"),
+            service("seafile", "http://localhost:18001", "/"),
+            service("onlyoffice", "http://localhost:10082", "/healthcheck"),
+            service("radicale", "http://localhost:15232", "/"),
+            service("roundcube", "http://localhost:10083", "/"),
+            service("forgejo", "http://localhost:13001", "/"),
+            service("qbittorrent", "http://localhost:18082", "/"),
 
             // Matrix
-            service("synapse", "http://synapse:8008", "/health"),
-            service("element", "http://element", "/"),
+            service("synapse", "http://localhost:18008", "/health"),
+            service("element", "http://localhost:10084", "/"),
 
             // Mastodon
-            service("mastodon-web", "http://mastodon-web:3000", "/health"),
-            service("mastodon-streaming", "http://mastodon-streaming:4000", "/api/v1/streaming/health"),
+            service("mastodon-web", "http://localhost:13002", "/health"),
+            service("mastodon-streaming", "http://localhost:14000", "/api/v1/streaming/health"),
 
             // Jupyter & Collaboration
-            service("jupyterhub", "http://jupyterhub:8000", "/hub/health"),
-            service("homepage", "http://homepage:3000", "/"),
-            service("homeassistant", "http://homeassistant:8123", "/"),
+            service("jupyterhub", "http://localhost:18002", "/hub/health"),
+            service("homepage", "http://localhost:13003", "/"),
+            service("homeassistant", "http://localhost:18124", "/"),
 
             // Infrastructure
-            service("benthos", "http://benthos:4195", "/ready"),
-            service("docker-proxy", "http://docker-proxy:2375", "/version"),
-            service("qdrant", "http://qdrant:6333", "/"),
+            service("docker-proxy", "http://localhost:12375", "/version"),
+            service("qdrant", "http://localhost:16333", "/"),
 
             // Vector database (Qdrant) has a healthcheck endpoint but uses TCP check in compose
             // We can still test the root endpoint

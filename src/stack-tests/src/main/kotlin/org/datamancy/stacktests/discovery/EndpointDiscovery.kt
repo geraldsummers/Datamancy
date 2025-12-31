@@ -34,11 +34,11 @@ fun main(args: Array<String>) {
 
     // 1. Scan Kotlin/Ktor services
     val kotlinServices = listOf(
-        KotlinServiceDef("control-panel", "http://control-panel:8097"),
-        KotlinServiceDef("data-fetcher", "http://data-fetcher:8095"),
-        KotlinServiceDef("unified-indexer", "http://unified-indexer:8096"),
-        KotlinServiceDef("search-service", "http://search-service:8097"),
-        KotlinServiceDef("agent-tool-server", "http://agent-tool-server:8081")
+        KotlinServiceDef("control-panel", "http://localhost:18097"),
+        KotlinServiceDef("data-fetcher", "http://localhost:18095"),
+        KotlinServiceDef("unified-indexer", "http://localhost:18096"),
+        KotlinServiceDef("search-service", "http://localhost:18098"),
+        KotlinServiceDef("agent-tool-server", "http://localhost:18091")
     )
 
     val scanner = KtorRouteScanner(projectRoot)
