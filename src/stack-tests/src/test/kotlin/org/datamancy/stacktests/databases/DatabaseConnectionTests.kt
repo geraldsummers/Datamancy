@@ -30,7 +30,7 @@ class DatabaseConnectionTests : BaseStackTest() {
     @Test
     @Order(1)
     fun `PostgreSQL is accessible and accepts connections`() = runBlocking {
-        val postgresUser = getConfig("STACK_ADMIN_USER", "stackadmin")
+        val postgresUser = getConfig("STACK_ADMIN_USER", "sysadmin")
         val postgresPassword = getConfig("POSTGRES_ROOT_PASSWORD", "admin")
         val jdbcUrl = "${localhostPorts.postgresUrl()}/postgres"
 
@@ -53,7 +53,7 @@ class DatabaseConnectionTests : BaseStackTest() {
     @Test
     @Order(2)
     fun `PostgreSQL has expected databases`() = runBlocking {
-        val postgresUser = getConfig("STACK_ADMIN_USER", "stackadmin")
+        val postgresUser = getConfig("STACK_ADMIN_USER", "sysadmin")
         val postgresPassword = getConfig("POSTGRES_ROOT_PASSWORD", "admin")
         val jdbcUrl = "${localhostPorts.postgresUrl()}/postgres"
 
@@ -181,7 +181,7 @@ class DatabaseConnectionTests : BaseStackTest() {
     @Test
     @Order(5)
     fun `ClickHouse is accessible via HTTP API`() = runBlocking {
-        val clickhouseUser = getConfig("STACK_ADMIN_USER", "stackadmin")
+        val clickhouseUser = getConfig("STACK_ADMIN_USER", "sysadmin")
         val clickhousePassword = getConfig("CLICKHOUSE_ADMIN_PASSWORD", "admin")
 
         // Test ping endpoint

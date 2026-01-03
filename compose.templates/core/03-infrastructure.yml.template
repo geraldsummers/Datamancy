@@ -1,0 +1,312 @@
+# Core infrastructure services
+# Reverse proxy, authentication, LDAP, cache, mail
+# Auto-generated from template - image versions from datamancy.config.yaml
+
+services:
+  caddy:
+    image: caddy:{{IMAGE_CADDY}}
+    container_name: caddy
+    restart: unless-stopped
+    networks:
+      frontend: {}
+      backend:
+        aliases:
+          - www.{{DOMAIN}}
+          - {{DOMAIN}}
+          - grafana.{{DOMAIN}}
+          - open-webui.{{DOMAIN}}
+          - app.vaultwarden.{{DOMAIN}}
+          - vaultwarden.{{DOMAIN}}
+          - planka.{{DOMAIN}}
+          - bookstack.{{DOMAIN}}
+          - jupyterhub.{{DOMAIN}}
+          - homepage.{{DOMAIN}}
+          - seafile.{{DOMAIN}}
+          - api.seafile.{{DOMAIN}}
+          - onlyoffice.{{DOMAIN}}
+          - matrix.{{DOMAIN}}
+          - api.matrix.{{DOMAIN}}
+          - element.{{DOMAIN}}
+          - homeassistant.{{DOMAIN}}
+          - api.homeassistant.{{DOMAIN}}
+          - litellm.{{DOMAIN}}
+          - api.litellm.{{DOMAIN}}
+          - auth.{{DOMAIN}}
+          - kopia.{{DOMAIN}}
+          - mail.{{DOMAIN}}
+          - agent-tool-server.{{DOMAIN}}
+          - lam.{{DOMAIN}}
+          - forgejo.{{DOMAIN}}
+          - qbittorrent.{{DOMAIN}}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - {{HOME}}/.datamancy/configs/infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - {{HOME}}/.datamancy/configs/applications/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
+    environment:
+      DOMAIN: "{{DOMAIN}}"
+      API_LITELLM_ALLOWLIST: "{{API_LITELLM_ALLOWLIST}}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  ldap:
+    image: osixia/openldap:{{IMAGE_LDAP}}
+    container_name: ldap
+    restart: unless-stopped
+    networks:
+      - backend
+    environment:
+      - LDAP_ORGANISATION=Datamancy
+      - LDAP_DOMAIN=stack.local
+      - LDAP_BASE_DN=dc=stack,dc=local
+      - LDAP_ADMIN_PASSWORD={{LDAP_ADMIN_PASSWORD}}
+      - LDAP_CONFIG_PASSWORD={{LDAP_ADMIN_PASSWORD}}
+      - LDAP_TLS=false
+      - LDAP_MEMBEROF_OVERLAY=true
+      - LDAP_MEMBEROF_GROUP_OC=groupOfNames
+      - LDAP_MEMBEROF_MEMBER_AD=member
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+      - {{HOME}}/.datamancy/bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
+    command: --copy-service --loglevel info
+    healthcheck:
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=stack,dc=local", "-D", "cn=admin,dc=stack,dc=local", "-w", "{{LDAP_ADMIN_PASSWORD}}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ldap-account-manager:
+    image: ghcr.io/ldapaccountmanager/lam:{{IMAGE_LDAP_ACCOUNT_MANAGER}}
+    container_name: ldap-account-manager
+    restart: unless-stopped
+    networks:
+      - backend
+      - frontend
+    environment:
+      - LDAP_DOMAIN=stack.local
+      - LDAP_BASE_DN=dc=stack,dc=local
+      - LDAP_USER=cn=admin,dc=stack,dc=local
+      - LDAP_PASSWORD={{LDAP_ADMIN_PASSWORD}}
+      - LAM_PASSWORD={{LDAP_ADMIN_PASSWORD}}
+      - LAM_LANG=en_US
+    depends_on:
+      - ldap
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/lam/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  valkey:
+    image: valkey/valkey:{{IMAGE_VALKEY}}
+    container_name: valkey
+    restart: unless-stopped
+    networks:
+      backend:
+        aliases:
+          - redis
+          - redis-synapse
+    volumes:
+      - redis_data:/data
+    command: valkey-server --appendonly yes --dir /data --databases 16
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  authelia:
+    image: authelia/authelia:{{IMAGE_AUTHELIA}}
+    container_name: authelia
+    restart: unless-stopped
+    networks:
+      - backend
+      - frontend
+      - database
+    depends_on:
+      - ldap
+      - postgres
+      - valkey
+    volumes:
+      - {{VOLUMES_ROOT}}/authelia:/config
+      - {{HOME}}/.datamancy/configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
+      - {{HOME}}/.datamancy/configs/applications/authelia/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/entrypoint.sh"]
+    command: ["--config", "/config/configuration.yml"]
+    environment:
+      - TZ=UTC
+      - AUTHELIA_JWT_SECRET={{AUTHELIA_JWT_SECRET}}
+      - AUTHELIA_SESSION_SECRET={{AUTHELIA_SESSION_SECRET}}
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY={{AUTHELIA_STORAGE_ENCRYPTION_KEY}}
+      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD={{LDAP_ADMIN_PASSWORD}}
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET={{AUTHELIA_OIDC_HMAC_SECRET}}
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY={{AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY}}
+      - AUTHELIA_STORAGE_POSTGRES_PASSWORD={{AUTHELIA_DB_PASSWORD}}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  memcached:
+    image: memcached:{{IMAGE_MEMCACHED}}
+    container_name: seafile-memcached
+    restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/11211' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:{{IMAGE_MAILSERVER}}
+    container_name: mailserver
+    hostname: mail.{{DOMAIN}}
+    restart: unless-stopped
+    depends_on:
+      ldap:
+        condition: service_started
+      caddy:
+        condition: service_healthy
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "143:143"
+      - "993:993"
+    volumes:
+      - mailserver_data:/var/mail/
+      - mailserver_state:/var/mail-state/
+      - mailserver_logs:/var/log/mail/
+      - mailserver_config:/tmp/docker-mailserver/
+      - /etc/localtime:/etc/localtime:ro
+      - caddy_data:/caddy-certs:ro
+      - {{HOME}}/.datamancy/configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
+      - {{HOME}}/.datamancy/configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
+    environment:
+      - ENABLE_RSPAMD=1
+      - ENABLE_CLAMAV=1
+      - ENABLE_FAIL2BAN=1
+      - ENABLE_POSTGREY=0
+      - ENABLE_SPAMASSASSIN=0
+      - SPOOF_PROTECTION=0
+      - ENABLE_SRS=0
+      - PERMIT_DOCKER=network
+      - SSL_TYPE=manual
+      - SSL_CERT_PATH={{MAILSERVER_SSL_CERT_PATH}}
+      - SSL_KEY_PATH={{MAILSERVER_SSL_KEY_PATH}}
+      - OVERRIDE_HOSTNAME=mail.{{DOMAIN}}
+      - POSTMASTER_ADDRESS=postmaster@{{MAIL_DOMAIN}}
+      - ACCOUNT_PROVISIONER=LDAP
+      - LDAP_SERVER_HOST=ldap://ldap:389
+      - LDAP_BIND_DN=cn=admin,dc=stack,dc=local
+      - LDAP_BIND_PW={{LDAP_ADMIN_PASSWORD}}
+      - LDAP_SEARCH_BASE=ou=users,dc=stack,dc=local
+      - LDAP_QUERY_FILTER_USER=(&(objectClass=inetOrgPerson)(mail=%s))
+      - LDAP_QUERY_FILTER_GROUP=(&(objectClass=groupOfNames)(member=%s))
+      - LDAP_QUERY_FILTER_ALIAS=(&(objectClass=inetOrgPerson)(mail=%s))
+      - DOVECOT_MAILBOX_FORMAT=maildir
+      - DOVECOT_USER_FILTER=(&(objectClass=inetOrgPerson)(mail=%u))
+      - DOVECOT_PASS_FILTER=(&(objectClass=inetOrgPerson)(mail=%u))
+      - DOVECOT_PASS_ATTRS=mail=user,userPassword=password
+      - DOVECOT_USER_ATTRS==home=/var/mail/%Ln,=mail=maildir:~/Maildir
+      - ENABLE_QUOTAS=1
+      - POSTFIX_MESSAGE_SIZE_LIMIT=50000000
+    networks:
+      backend:
+        aliases:
+          - smtp
+          - imap
+    cap_add:
+      - NET_ADMIN
+    healthcheck:
+      test: ["CMD-SHELL", "supervisorctl status postfix | grep -q RUNNING && supervisorctl status dovecot | grep -q RUNNING"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:{{IMAGE_DOCKER_PROXY}}
+    container_name: docker-proxy
+    restart: unless-stopped
+    networks:
+      - backend
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - VOLUMES=1
+      - POST=1
+      - DELETE=1
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - DISTRIBUTION=0
+      - EXEC=0
+      - GRPC=0
+      - INFO=1
+      - PLUGINS=0
+      - SERVICES=0
+      - SESSION=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0
+      - VERSION=1
+    volumes:
+      - {{DOCKER_SOCKET}}:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2375/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  kopia:
+    image: kopia/kopia:{{IMAGE_KOPIA}}
+    container_name: kopia
+    restart: "no"
+    networks:
+      - backend
+    volumes:
+      - kopia_data:/app/config
+      - kopia_cache:/app/cache
+      - postgres_data:/backup/postgres:ro
+      - mariadb_data:/backup/mariadb:ro
+      - grafana_data:/backup/grafana:ro
+      - open_webui_data:/backup/open_webui:ro
+      - vaultwarden_data:/backup/vaultwarden:ro
+      - kopia_repository:/repository
+      - {{HOME}}/.datamancy/configs/applications/kopia/init-kopia.sh:/init-kopia.sh:ro
+    environment:
+      - KOPIA_PASSWORD={{STACK_ADMIN_PASSWORD}}
+      - KOPIA_REPO_PATH=/repository
+      - USER=kopia
+    entrypoint: ["sh", "/init-kopia.sh"]
+    healthcheck:
+      test: ["CMD", "kopia", "repository", "status"]
+      interval: 5m
+      timeout: 30s
+      retries: 3
+      start_period: 1m

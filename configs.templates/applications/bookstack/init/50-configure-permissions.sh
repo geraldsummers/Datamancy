@@ -1,7 +1,7 @@
 #!/usr/bin/with-contenv bash
 # Configure BookStack permissions via database
 # Requirement:
-# - Admin (sysadmin) has full read/write everywhere
+# - Admin ({{STACK_ADMIN_USER}}) has full read/write everywhere
 # - Users can read all public content
 # - Users can write to their own/shared content
 

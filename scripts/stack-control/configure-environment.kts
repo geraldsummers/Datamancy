@@ -5,7 +5,9 @@
 // Uses openssl for crypto, preserving wire-format compatibility.
 
 @file:Suppress("SameParameterValue")
+@file:DependsOn("org.yaml:snakeyaml:2.0")
 
+import org.yaml.snakeyaml.Yaml
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -14,16 +16,16 @@ import java.nio.file.attribute.PosixFilePermission
 import java.security.SecureRandom
 import java.util.Base64
 
-// ---------- Logging ----------
-private val RED = "\u001B[0;31m"
-private val GREEN = "\u001B[0;32m"
-private val YELLOW = "\u001B[1;33m"
-private val NC = "\u001B[0m"
+// ---------- Shared Utilities (inline minimal version - full version in shared-utils.kts) ----------
+private val ANSI_RESET = "\u001B[0m"
+private val ANSI_RED = "\u001B[31m"
+private val ANSI_GREEN = "\u001B[32m"
+private val ANSI_YELLOW = "\u001B[33m"
 
-private fun logInfo(msg: String) = println("${GREEN}[INFO]${NC} $msg")
-private fun logWarn(msg: String) = println("${YELLOW}[WARN]${NC} $msg")
+private fun logInfo(msg: String) = println("${ANSI_GREEN}[INFO]${ANSI_RESET} $msg")
+private fun logWarn(msg: String) = println("${ANSI_YELLOW}[WARN]${ANSI_RESET} $msg")
 private fun logError(msg: String) {
-    System.err.println("${RED}[ERROR]${NC} $msg")
+    System.err.println("${ANSI_RED}[ERROR]${ANSI_RESET} $msg")
 }
 
 // ---------- Environment & Paths ----------
@@ -32,84 +34,91 @@ private val SECRETS_DIR: Path = Path.of(env["SECRETS_DIR"] ?: "${System.getPrope
 private val SECRETS_FILE: Path = SECRETS_DIR.resolve("stack_secrets.enc")
 private val SECRETS_KEY_FILE: Path = SECRETS_DIR.resolve(".key")
 
-// ---------- Storage Configuration ----------
-// Load storage paths from storage.config.yaml
-private fun loadStorageConfig(): Map<String, String> {
-    val configFile = Path.of(System.getProperty("user.dir"), "storage.config.yaml")
+// ---------- Datamancy Configuration ----------
+// Load all configuration from datamancy.config.yaml
+@Suppress("UNCHECKED_CAST")
+private fun loadDatamancyConfig(): Map<String, Any> {
+    val configFile = Path.of(System.getProperty("user.dir"), "datamancy.config.yaml")
     val homeDir = System.getProperty("user.home")
 
     if (!Files.exists(configFile)) {
-        logWarn("storage.config.yaml not found, using defaults")
+        logWarn("datamancy.config.yaml not found, using defaults")
         return mapOf(
-            "NON_VECTOR_DBS_PATH" to "$homeDir/.datamancy/volumes/databases",
-            "VECTOR_DBS_PATH" to "$homeDir/.datamancy/volumes/vector-dbs",
-            "APPLICATION_DATA_PATH" to "$homeDir/.datamancy/volumes/applications"
+            "storage" to mapOf(
+                "non_vector_dbs" to "$homeDir/.datamancy/volumes/databases",
+                "vector_dbs" to "$homeDir/.datamancy/volumes/vector-dbs",
+                "application_data" to "$homeDir/.datamancy/volumes/applications"
+            ),
+            "runtime" to mapOf(
+                "domain" to "localhost",
+                "admin_email" to "admin@localhost",
+                "admin_user" to "admin"
+            ),
+            "images" to emptyMap<String, String>(),
+            "resources" to emptyMap<String, Map<String, String>>()
         )
     }
 
-    val content = Files.readString(configFile, StandardCharsets.UTF_8)
-    val config = mutableMapOf<String, String>()
+    val yaml = Yaml()
+    val config = yaml.load<Map<String, Any>>(Files.newInputStream(configFile))
 
-    // Simple YAML parsing for storage paths
-    var currentSection = ""
-    content.lines().forEach { line ->
-        val trimmed = line.trim()
-        when {
-            trimmed.startsWith("non_vector_dbs:") -> currentSection = "non_vector_dbs"
-            trimmed.startsWith("vector_dbs:") -> currentSection = "vector_dbs"
-            trimmed.startsWith("application_data:") -> currentSection = "application_data"
-            trimmed.startsWith("path:") && currentSection.isNotEmpty() -> {
-                var path = trimmed.substringAfter("path:").trim().removeSurrounding("\"")
-                // Expand ${HOME} variable
-                path = path.replace("\${HOME}", homeDir)
-                val key = currentSection.uppercase() + "_PATH"
-                config[key] = path
-            }
-        }
+    // Expand ${HOME} in storage paths
+    val storage = config["storage"] as? Map<String, String> ?: emptyMap()
+    val expandedStorage = storage.mapValues { (_, value) ->
+        value.replace("\${HOME}", homeDir).replace("~", homeDir)
     }
 
-    return config
+    return config.toMutableMap().apply {
+        put("storage", expandedStorage)
+    }
 }
 
 // ---------- Non-sensitive stack configuration (easily changeable) ----------
 // These values are exported in plain text at the TOP of the generated .env file by the `export` command.
 // You can override them by setting the corresponding environment variables when running the script.
-// Load storage paths from config
-private val storageConfig = loadStorageConfig()
+// Load configuration from datamancy.config.yaml
+private val datamancyConfig = loadDatamancyConfig()
 private val homeDir = System.getProperty("user.home")
-// Default all volumes under ~/.datamancy/volumes for unified data dir (fallback)
+
+@Suppress("UNCHECKED_CAST")
+private val storage = datamancyConfig["storage"] as? Map<String, String> ?: emptyMap()
+@Suppress("UNCHECKED_CAST")
+private val runtime = datamancyConfig["runtime"] as? Map<String, String> ?: emptyMap()
+@Suppress("UNCHECKED_CAST")
+private val images = datamancyConfig["images"] as? Map<String, String> ?: emptyMap()
+@Suppress("UNCHECKED_CAST")
+private val resources = datamancyConfig["resources"] as? Map<String, Map<String, String>> ?: emptyMap()
+
+// Storage paths
 private val VOLUMES_ROOT: String = env["VOLUMES_ROOT"] ?: "$homeDir/.datamancy/volumes"
-private val NON_VECTOR_DBS_PATH: String = env["NON_VECTOR_DBS_PATH"] ?: storageConfig["NON_VECTOR_DBS_PATH"] ?: "$homeDir/.datamancy/volumes/databases"
-private val VECTOR_DBS_PATH: String = env["VECTOR_DBS_PATH"] ?: storageConfig["VECTOR_DBS_PATH"] ?: "$homeDir/.datamancy/volumes/vector-dbs"
-private val APPLICATION_DATA_PATH: String = env["APPLICATION_DATA_PATH"] ?: storageConfig["APPLICATION_DATA_PATH"] ?: "$homeDir/.datamancy/volumes/applications"
-private val DOMAIN: String = env["DOMAIN"] ?: "project-saturn.com"
-private val STACK_ADMIN_EMAIL_CFG: String = env["STACK_ADMIN_EMAIL"] ?: "admin@project-saturn.com"
+private val NON_VECTOR_DBS_PATH: String = env["NON_VECTOR_DBS_PATH"] ?: storage["non_vector_dbs"] ?: "$homeDir/.datamancy/volumes/databases"
+private val VECTOR_DBS_PATH: String = env["VECTOR_DBS_PATH"] ?: storage["vector_dbs"] ?: "$homeDir/.datamancy/volumes/vector-dbs"
+private val APPLICATION_DATA_PATH: String = env["APPLICATION_DATA_PATH"] ?: storage["application_data"] ?: "$homeDir/.datamancy/volumes/applications"
+
+// Runtime config
+private val DOMAIN: String = env["DOMAIN"] ?: runtime["domain"] ?: "localhost"
+private val STACK_ADMIN_EMAIL_CFG: String = env["STACK_ADMIN_EMAIL"] ?: runtime["admin_email"] ?: "admin@localhost"
+private val STACK_ADMIN_USER_CFG: String = env["STACK_ADMIN_USER"] ?: runtime["admin_user"] ?: "sysadmin"
 private val MAIL_DOMAIN: String = env["MAIL_DOMAIN"] ?: DOMAIN
-private val VECTOR_EMBED_SIZE: String = env["VECTOR_EMBED_SIZE"] ?: "384"
-private val QDRANT_URL: String = env["QDRANT_URL"] ?: "http://qdrant:6333"
-private val EMBED_MODEL: String = env["EMBED_MODEL"] ?: "embed-small"
-// OpenAI-compatible gateway (LiteLLM) base URL used by internal services (e.g., Benthos)
-private val LITELLM_URL: String = env["LITELLM_URL"] ?: "http://litellm:4000/v1"
 
 private fun buildConfigHeader(): String = buildString {
     appendLine("###############################################")
     appendLine("# Datamancy Stack - Environment Configuration")
     appendLine("#")
+    appendLine("# Generated from datamancy.config.yaml")
     appendLine("# SECURITY: This file should only contain non-sensitive configuration.")
     appendLine("# All secrets are auto-generated by the secrets-manager service.")
     appendLine("###############################################")
     appendLine()
-    appendLine("# Storage locations (configured in storage.config.yaml)")
-    appendLine("# Non-vector databases (PostgreSQL, MariaDB, CouchDB, ClickHouse, Redis)")
+    appendLine("# Storage locations (configured in datamancy.config.yaml)")
+    appendLine("# Non-vector databases (PostgreSQL, MariaDB, ClickHouse, Redis)")
     appendLine("NON_VECTOR_DBS_PATH=$NON_VECTOR_DBS_PATH")
     appendLine("# Vector databases (Qdrant)")
     appendLine("VECTOR_DBS_PATH=$VECTOR_DBS_PATH")
     appendLine("# Application data (all other services)")
     appendLine("APPLICATION_DATA_PATH=$APPLICATION_DATA_PATH")
     appendLine()
-    appendLine("# Host volumes root (legacy fallback - new services should use specific paths above)")
-    appendLine("# All docker volumes will be mounted under this host directory.")
-    appendLine("# Change to an absolute path if desired (e.g. /data/datamancy)")
+    appendLine("# Host volumes root (legacy fallback)")
     appendLine("VOLUMES_ROOT=$VOLUMES_ROOT")
     appendLine()
     appendLine("# Domain configuration")
@@ -121,17 +130,35 @@ private fun buildConfigHeader(): String = buildString {
     appendLine("# Mail domain configuration")
     appendLine("MAIL_DOMAIN=$MAIL_DOMAIN")
     appendLine()
-    appendLine("# External API tokens (provide these via environment variables at runtime if needed)")
-    appendLine("# HUGGINGFACEHUB_API_TOKEN=<set-via-environment>")
+    appendLine("# HOME directory (for compose templates)")
+    appendLine("HOME=$homeDir")
     appendLine()
-    appendLine("# Vector database configuration")
-    appendLine("VECTOR_EMBED_SIZE=$VECTOR_EMBED_SIZE")
-    appendLine("QDRANT_URL=$QDRANT_URL")
+    appendLine("# Docker socket path")
+    appendLine("DOCKER_SOCKET=/var/run/docker.sock")
     appendLine()
-    appendLine("# LLM configuration")
-    appendLine("EMBED_MODEL=$EMBED_MODEL")
-    appendLine("# OpenAI-compatible gateway (LiteLLM) base URL used by internal services (e.g., Benthos)")
-    appendLine("LITELLM_URL=$LITELLM_URL")
+    appendLine("# Mailserver SSL paths (with defaults)")
+    appendLine("MAILSERVER_SSL_CERT_PATH=/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.$DOMAIN/mail.$DOMAIN.crt")
+    appendLine("MAILSERVER_SSL_KEY_PATH=/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.$DOMAIN/mail.$DOMAIN.key")
+    appendLine()
+    appendLine("# API allowlists")
+    appendLine("API_LITELLM_ALLOWLIST=10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 ::1 fc00::/7 fe80::/10")
+    appendLine()
+
+    // Flatten container image versions from datamancy.config.yaml
+    appendLine("# Container Image Versions (from datamancy.config.yaml)")
+    images.forEach { (service, version) ->
+        val varName = "IMAGE_" + service.uppercase().replace("-", "_")
+        appendLine("$varName=$version")
+    }
+    appendLine()
+
+    // Flatten resource limits from datamancy.config.yaml
+    appendLine("# Resource Limits (from datamancy.config.yaml)")
+    resources.forEach { (service, limits) ->
+        val prefix = "RESOURCE_" + service.uppercase().replace("-", "_")
+        limits["memory"]?.let { appendLine("${prefix}_MEMORY=$it") }
+        limits["cpus"]?.let { appendLine("${prefix}_CPUS=$it") }
+    }
     appendLine()
 }
 
@@ -267,7 +294,7 @@ private fun cmdInit() {
         appendLine()
 
         // Stack admin credentials
-        appendLine("STACK_ADMIN_USER=sysadmin")
+        appendLine("STACK_ADMIN_USER=$STACK_ADMIN_USER_CFG")
         appendLine("STACK_ADMIN_PASSWORD=${generatePassword(32)}")
         appendLine()
 

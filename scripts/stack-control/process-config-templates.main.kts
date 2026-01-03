@@ -412,18 +412,21 @@ fun main(argv: Array<String>) {
     val args = parseArgs(argv)
 
     log("=".repeat(60), BLUE)
-    log("Configuration Template Processor", BLUE)
+    log("Template Processor (Configs + Compose)", BLUE)
     log("=".repeat(60), BLUE)
     println()
 
     // Paths
     val projectRoot = File(".").canonicalFile
-    val templatesDir = File(projectRoot, "configs.templates")
+    val configTemplatesDir = File(projectRoot, "configs.templates")
+    val composeTemplatesDir = File(projectRoot, "compose.templates")
+
     val configsDir = if (args.outputDir != null) {
         File(args.outputDir)
     } else {
         File(System.getProperty("user.home") + "/.datamancy/configs")
     }
+    val composeDir = File(System.getProperty("user.home") + "/.datamancy/compose")
 
     // Determine env file location
     val envFile = when {
@@ -433,16 +436,12 @@ fun main(argv: Array<String>) {
     }
 
     // Validate
-    if (!templatesDir.exists()) {
-        error("Templates directory not found: ${templatesDir.absolutePath}")
-        error("Expected: configs.templates/")
-        error("Action: Move configs/ to configs.templates/ and add {{PLACEHOLDERS}}")
+    if (!configTemplatesDir.exists()) {
+        error("Config templates directory not found: ${configTemplatesDir.absolutePath}")
         exitProcess(1)
     }
-
-    if (configsDir.exists() && !args.force && !args.dryRun) {
-        warn("Target directory already exists: ${configsDir.absolutePath}")
-        warn("Use --force to overwrite or --dry-run to preview")
+    if (!composeTemplatesDir.exists()) {
+        error("Compose templates directory not found: ${composeTemplatesDir.absolutePath}")
         exitProcess(1)
     }
 
@@ -452,26 +451,41 @@ fun main(argv: Array<String>) {
     info("Loaded ${env.size} environment variables")
     println()
 
-    // Process templates
     if (args.dryRun) {
         info("DRY RUN MODE - No files will be written")
-    } else {
-        info("Processing templates: ${templatesDir.name} → ${configsDir.name}")
     }
-    println()
 
-    val (processedCount, copiedCount, allMissingVars) = copyFileStructure(
-        templatesDir,
+    // Process config templates
+    info("Processing config templates: ${configTemplatesDir.name} → ${configsDir.name}")
+    val (configProcessed, configCopied, configMissing) = copyFileStructure(
+        configTemplatesDir,
         configsDir,
         env,
         args
     )
+    info("✓ Configs: $configProcessed processed, $configCopied copied")
+    println()
+
+    // Process compose templates
+    info("Processing compose templates: ${composeTemplatesDir.name} → ${composeDir.name}")
+    val (composeProcessed, composeCopied, composeMissing) = copyFileStructure(
+        composeTemplatesDir,
+        composeDir,
+        env,
+        args
+    )
+    info("✓ Compose: $composeProcessed processed, $composeCopied copied")
+    println()
+
+    val allMissingVars = (configMissing.keys + composeMissing.keys).associateWith {
+        (configMissing[it] ?: emptyList()) + (composeMissing[it] ?: emptyList())
+    }
 
     println()
     log("=".repeat(60), BLUE)
     info("✓ Template processing complete")
-    info("  Processed: $processedCount files")
-    info("  Copied: $copiedCount files")
+    info("  Config files: $configProcessed processed, $configCopied copied")
+    info("  Compose files: $composeProcessed processed, $composeCopied copied")
 
     // Report non-critical missing variables as warnings
     val nonCriticalMissing = allMissingVars.filterValues { vars ->
