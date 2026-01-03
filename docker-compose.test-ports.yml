@@ -24,10 +24,6 @@ services:
     ports:
       - "16333:6333"  # HTTP API
 
-  couchdb:
-    ports:
-      - "15984:5984"
-
   # Datamancy Application Services
   control-panel:
     ports:

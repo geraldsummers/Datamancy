@@ -42,7 +42,6 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
             "valkey" to "tcp://valkey:6379",
             "agent-tool-server" to "http://agent-tool-server:8081/healthz",
             "mariadb" to "tcp://mariadb:3306",
-            "couchdb" to "http://couchdb:5984",
             "litellm" to "http://litellm:4000/health",
             "docker-proxy" to "tcp://docker-proxy:2375"
         )
@@ -63,7 +62,6 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
             "valkey" to "tcp://localhost:16379",
             "agent-tool-server" to "http://localhost:18091/healthz",
             "mariadb" to "tcp://localhost:13306",
-            "couchdb" to "http://localhost:15984",
             "litellm" to "http://localhost:14001/health",
             "docker-proxy" to "tcp://localhost:12375"
         )
@@ -94,7 +92,6 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
             "valkey" to listOf(),
             "caddy" to listOf(),
             "mariadb" to listOf(),
-            "couchdb" to listOf(),
             "docker-proxy" to listOf()
         )
 

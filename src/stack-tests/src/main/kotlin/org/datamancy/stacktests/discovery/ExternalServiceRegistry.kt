@@ -16,7 +16,6 @@ object ExternalServiceRegistry {
     fun getExternalServices(): List<ServiceSpec> {
         return listOf(
             // Databases
-            service("couchdb", "http://localhost:15984", "/_up"),
             service("clickhouse", "http://localhost:18123", "/ping"),
 
             // Authentication & Security

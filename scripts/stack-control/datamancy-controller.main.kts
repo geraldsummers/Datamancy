@@ -7,16 +7,25 @@
  * This script operates entirely from ~/.datamancy/ and has no git dependencies.
  *
  * Essential commands:
- *   up         - Start stack (auto-generates configs if needed)
- *   obliterate - Complete cleanup (preserves installation)
- *   down       - Stop services
- *   status     - Show service status
- *   config     - Configuration operations
- *   help       - Show usage
+ *   up [profile]  - Start stack with optional profile (all, core, databases, apps, ai, minimal)
+ *   obliterate    - Complete cleanup (preserves installation)
+ *   down          - Stop services
+ *   status        - Show service status
+ *   config        - Configuration operations
+ *   codegen       - Regenerate compose files from services.registry.yaml
+ *   help          - Show usage
  */
 
 @file:Suppress("SameParameterValue", "unused")
+@file:DependsOn("org.yaml:snakeyaml:2.0")
+@file:DependsOn("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+@file:DependsOn("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.2")
+@file:DependsOn("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
@@ -151,7 +160,6 @@ private fun validateEnvFile(envFile: Path) {
         // Database passwords
         "POSTGRES_ROOT_PASSWORD",
         "MARIADB_ROOT_PASSWORD",
-        "COUCHDB_ADMIN_PASSWORD",
         "CLICKHOUSE_ADMIN_PASSWORD",
         // Application secrets
         "LITELLM_MASTER_KEY",
@@ -247,6 +255,496 @@ private fun validateSystemPortability() {
             println("  $key: $value ✓")
         }
     }
+}
+
+// ============================================================================
+// Profile & Compose File Management
+// ============================================================================
+
+data class ComposeProfile(
+    val name: String,
+    val description: String,
+    val files: List<String>
+)
+
+enum class HealthCheckType {
+    HTTP,           // HTTP GET request
+    TCP,            // TCP connection
+    DOCKER_HEALTH,  // Docker healthcheck status
+    EXEC            // Execute command in container
+}
+
+data class ServiceHealthCheck(
+    val serviceName: String,
+    val checkType: HealthCheckType,
+    val endpoint: String = "",     // For HTTP: URL path, for TCP: port, for EXEC: command
+    val timeoutSeconds: Int = 30
+)
+
+data class ComposePhase(
+    val name: String,
+    val description: String,
+    val composeFiles: List<String>,
+    val healthChecks: List<ServiceHealthCheck>,
+    val timeoutSeconds: Int = 120
+)
+
+// Registry data models
+data class RegistryServiceHealthCheck(
+    val type: String,
+    val interval: String? = null,
+    val timeout: String? = null,
+    val retries: Int? = null,
+    val start_period: String? = null
+)
+
+data class RegistryServiceDefinition(
+    val image: String,
+    val version: String,
+    val container_name: String,
+    val subdomain: String?,
+    val additional_aliases: List<String>? = null,
+    val networks: List<String>,
+    val depends_on: List<String>? = null,
+    val health_check: RegistryServiceHealthCheck? = null,
+    val phase: String,
+    val phase_order: Int
+)
+
+data class RegistryPhaseMetadata(
+    val order: Int,
+    val description: String,
+    val timeout_seconds: Int
+)
+
+data class ServiceRegistry(
+    val core: Map<String, RegistryServiceDefinition>? = null,
+    val databases: Map<String, RegistryServiceDefinition>? = null,
+    val applications: Map<String, RegistryServiceDefinition>? = null,
+    val ai: Map<String, RegistryServiceDefinition>? = null,
+    val datamancy: Map<String, RegistryServiceDefinition>? = null,
+    val phases: Map<String, RegistryPhaseMetadata>? = null
+)
+
+// Load service registry and generate profiles dynamically
+private fun loadServiceRegistry(root: File): ServiceRegistry? {
+    val registryFile = root.resolve("services.registry.yaml")
+    if (!registryFile.exists()) {
+        warn("services.registry.yaml not found - using fallback profiles")
+        return null
+    }
+
+    return try {
+        val mapper = ObjectMapper(YAMLFactory()).registerModule(KotlinModule.Builder().build())
+        mapper.readValue<ServiceRegistry>(registryFile)
+    } catch (e: Exception) {
+        warn("Failed to load services.registry.yaml: ${e.message}")
+        null
+    }
+}
+
+private fun getProfiles(): Map<String, ComposeProfile> {
+    return mapOf(
+        "all" to ComposeProfile(
+            name = "all",
+            description = "Full stack (default)",
+            files = listOf("docker-compose.modular.yml")
+        ),
+        "core" to ComposeProfile(
+            name = "core",
+            description = "Core infrastructure only (networks, volumes, caddy, ldap, auth, mail)",
+            files = listOf(
+                "compose/core/networks.yml",
+                "compose/core/volumes.yml",
+                "compose/core/infrastructure.yml"
+            )
+        ),
+        "databases" to ComposeProfile(
+            name = "databases",
+            description = "Core + all databases (postgres, mariadb, clickhouse, qdrant)",
+            files = listOf(
+                "compose/core/networks.yml",
+                "compose/core/volumes.yml",
+                "compose/core/infrastructure.yml",
+                "compose/databases/relational.yml",
+                "compose/databases/vector.yml",
+                "compose/databases/analytics.yml"
+            )
+        ),
+        "minimal" to ComposeProfile(
+            name = "minimal",
+            description = "Core + databases (same as databases profile)",
+            files = listOf(
+                "compose/core/networks.yml",
+                "compose/core/volumes.yml",
+                "compose/core/infrastructure.yml",
+                "compose/databases/relational.yml",
+                "compose/databases/vector.yml",
+                "compose/databases/analytics.yml"
+            )
+        ),
+        "apps" to ComposeProfile(
+            name = "apps",
+            description = "Core + databases + web applications",
+            files = listOf(
+                "compose/core/networks.yml",
+                "compose/core/volumes.yml",
+                "compose/core/infrastructure.yml",
+                "compose/databases/relational.yml",
+                "compose/databases/vector.yml",
+                "compose/databases/analytics.yml",
+                "compose/applications/web.yml",
+                "compose/applications/communication.yml",
+                "compose/applications/files.yml"
+            )
+        ),
+        "ai" to ComposeProfile(
+            name = "ai",
+            description = "Core + databases + AI/ML services",
+            files = listOf(
+                "compose/core/networks.yml",
+                "compose/core/volumes.yml",
+                "compose/core/infrastructure.yml",
+                "compose/databases/relational.yml",
+                "compose/databases/vector.yml",
+                "compose/databases/analytics.yml",
+                "compose/datamancy/ai.yml"
+            )
+        ),
+        "datamancy" to ComposeProfile(
+            name = "datamancy",
+            description = "Core + databases + datamancy services + AI",
+            files = listOf(
+                "compose/core/networks.yml",
+                "compose/core/volumes.yml",
+                "compose/core/infrastructure.yml",
+                "compose/databases/relational.yml",
+                "compose/databases/vector.yml",
+                "compose/databases/analytics.yml",
+                "compose/applications/web.yml",
+                "compose/datamancy/services.yml",
+                "compose/datamancy/ai.yml"
+            )
+        )
+    )
+}
+
+private fun buildComposeCommand(profile: String?, envFile: Path, extraArgs: List<String> = emptyList()): List<String> {
+    val profiles = getProfiles()
+    val selectedProfile = profiles[profile ?: "all"] ?: profiles["all"]!!
+
+    val cmd = mutableListOf("docker", "compose")
+
+    // Add all compose files for the profile
+    selectedProfile.files.forEach { file ->
+        cmd.add("-f")
+        cmd.add(file)
+    }
+
+    // Add env file
+    cmd.add("--env-file")
+    cmd.add(envFile.toString())
+
+    // Add extra args
+    cmd.addAll(extraArgs)
+
+    return cmd
+}
+
+private fun buildComposeCommandForFiles(files: List<String>, envFile: Path, extraArgs: List<String> = emptyList()): List<String> {
+    val cmd = mutableListOf("docker", "compose")
+
+    // Add all compose files
+    files.forEach { file ->
+        cmd.add("-f")
+        cmd.add(file)
+    }
+
+    // Add env file
+    cmd.add("--env-file")
+    cmd.add(envFile.toString())
+
+    // Add extra args
+    cmd.addAll(extraArgs)
+
+    return cmd
+}
+
+// Regenerate compose files from services.registry.yaml
+private fun regenerateComposeFiles(root: File) {
+    info("Regenerating compose files from services.registry.yaml...")
+
+    val codegenScript = root.resolve("scripts/codegen/generate-compose.main.kts")
+    if (!codegenScript.exists()) {
+        warn("Codegen script not found at ${codegenScript.absolutePath}")
+        return
+    }
+
+    try {
+        val result = ProcessBuilder("kotlin", codegenScript.absolutePath)
+            .directory(root)
+            .redirectErrorStream(true)
+            .start()
+
+        val output = result.inputStream.bufferedReader().readText()
+        val exitCode = result.waitFor()
+
+        if (exitCode == 0) {
+            success("Compose files regenerated successfully")
+            if (output.isNotBlank()) {
+                println(output)
+            }
+        } else {
+            warn("Codegen script exited with code $exitCode")
+            if (output.isNotBlank()) {
+                println(output)
+            }
+        }
+    } catch (e: Exception) {
+        warn("Failed to run codegen script: ${e.message}")
+    }
+}
+
+// Generate phases dynamically from registry
+private fun getPhasesFromRegistry(registry: ServiceRegistry, targetProfile: String): List<ComposePhase> {
+    val phases = mutableListOf<ComposePhase>()
+
+    // Collect all services
+    val allServices = mutableMapOf<String, RegistryServiceDefinition>()
+    registry.core?.let { allServices.putAll(it) }
+    registry.databases?.let { allServices.putAll(it) }
+    registry.applications?.let { allServices.putAll(it) }
+    registry.ai?.let { allServices.putAll(it) }
+    registry.datamancy?.let { allServices.putAll(it) }
+
+    // Group services by phase
+    val servicesByPhase = allServices.entries.groupBy { it.value.phase }
+
+    // Sort by phase_order
+    val sortedPhases = servicesByPhase.entries.sortedBy { (phaseName, _) ->
+        registry.phases?.get(phaseName)?.order ?: 999
+    }
+
+    sortedPhases.forEach { (phaseName, services) ->
+        val phaseMetadata = registry.phases?.get(phaseName)
+        val composeFiles = when (phaseName) {
+            "core" -> listOf("compose/core/networks.yml", "compose/core/volumes.yml", "compose/core/infrastructure.yml")
+            "databases" -> listOf("compose/databases/relational.yml", "compose/databases/vector.yml", "compose/databases/analytics.yml")
+            "auth" -> emptyList() // Already in core
+            "applications" -> listOf("compose/applications/web.yml", "compose/applications/communication.yml", "compose/applications/files.yml")
+            "ai" -> listOf("compose/datamancy/ai.yml")
+            "datamancy" -> listOf("compose/datamancy/services.yml")
+            else -> emptyList()
+        }
+
+        // Generate health checks from service definitions
+        val healthChecks = services.map { (_, svc) ->
+            val checkType = when (svc.health_check?.type?.lowercase()) {
+                "http" -> HealthCheckType.HTTP
+                "tcp" -> HealthCheckType.TCP
+                "exec" -> HealthCheckType.EXEC
+                else -> HealthCheckType.DOCKER_HEALTH
+            }
+            ServiceHealthCheck(svc.container_name, checkType)
+        }
+
+        phases.add(ComposePhase(
+            name = phaseName,
+            description = phaseMetadata?.description ?: phaseName,
+            composeFiles = composeFiles,
+            healthChecks = healthChecks,
+            timeoutSeconds = phaseMetadata?.timeout_seconds ?: 120
+        ))
+    }
+
+    return phases
+}
+
+private fun getPhases(targetProfile: String = "all", root: File): List<ComposePhase> {
+    // Try to load from registry first
+    val registry = loadServiceRegistry(root)
+    if (registry != null) {
+        return getPhasesFromRegistry(registry, targetProfile)
+    }
+
+    // Fallback to hardcoded phases
+    val phases = mutableListOf<ComposePhase>()
+
+    // Phase 1: Core Infrastructure (always needed)
+    phases.add(ComposePhase(
+        name = "core",
+        description = "Core infrastructure (networks, volumes, caddy, ldap, valkey)",
+        composeFiles = listOf(
+            "compose/core/networks.yml",
+            "compose/core/volumes.yml",
+            "compose/core/infrastructure.yml"
+        ),
+        healthChecks = listOf(
+            ServiceHealthCheck("caddy", HealthCheckType.DOCKER_HEALTH),
+            ServiceHealthCheck("ldap", HealthCheckType.DOCKER_HEALTH),
+            ServiceHealthCheck("valkey", HealthCheckType.DOCKER_HEALTH)
+        ),
+        timeoutSeconds = 90
+    ))
+
+    // Phase 2: Databases (if needed by profile)
+    if (targetProfile in listOf("all", "databases", "minimal", "apps", "ai", "datamancy")) {
+        phases.add(ComposePhase(
+            name = "databases",
+            description = "Database services (postgres, mariadb, clickhouse, qdrant)",
+            composeFiles = listOf(
+                "compose/databases/relational.yml",
+                "compose/databases/vector.yml",
+                "compose/databases/analytics.yml"
+            ),
+            healthChecks = listOf(
+                ServiceHealthCheck("postgres", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("mariadb", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("clickhouse", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("qdrant", HealthCheckType.DOCKER_HEALTH)
+            ),
+            timeoutSeconds = 120
+        ))
+    }
+
+    // Phase 3: Authentication (if authelia is in core infrastructure)
+    if (targetProfile != "core") {
+        phases.add(ComposePhase(
+            name = "auth",
+            description = "Authentication services (authelia, mailserver)",
+            composeFiles = emptyList(), // Already started in core, just health check
+            healthChecks = listOf(
+                ServiceHealthCheck("authelia", HealthCheckType.DOCKER_HEALTH, timeoutSeconds = 60),
+                ServiceHealthCheck("mailserver", HealthCheckType.DOCKER_HEALTH, timeoutSeconds = 90)
+            ),
+            timeoutSeconds = 120
+        ))
+    }
+
+    // Phase 4: Applications
+    if (targetProfile in listOf("all", "apps", "datamancy")) {
+        phases.add(ComposePhase(
+            name = "applications",
+            description = "Web applications (bookstack, grafana, etc.)",
+            composeFiles = listOf(
+                "compose/applications/web.yml",
+                "compose/applications/communication.yml",
+                "compose/applications/files.yml"
+            ),
+            healthChecks = listOf(
+                ServiceHealthCheck("grafana", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("bookstack", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("open-webui", HealthCheckType.DOCKER_HEALTH)
+            ),
+            timeoutSeconds = 180
+        ))
+    }
+
+    // Phase 5: AI/ML Services
+    if (targetProfile in listOf("all", "ai", "datamancy")) {
+        phases.add(ComposePhase(
+            name = "ai",
+            description = "AI/ML services (vllm, litellm, embedding)",
+            composeFiles = listOf(
+                "compose/datamancy/ai.yml"
+            ),
+            healthChecks = listOf(
+                ServiceHealthCheck("embedding-service", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("litellm", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("vllm", HealthCheckType.DOCKER_HEALTH, timeoutSeconds = 180)
+            ),
+            timeoutSeconds = 300  // AI models take longer to load
+        ))
+    }
+
+    // Phase 6: Datamancy Services
+    if (targetProfile in listOf("all", "datamancy")) {
+        phases.add(ComposePhase(
+            name = "datamancy",
+            description = "Datamancy services (control-panel, search, indexer)",
+            composeFiles = listOf(
+                "compose/datamancy/services.yml"
+            ),
+            healthChecks = listOf(
+                ServiceHealthCheck("control-panel", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("data-fetcher", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("unified-indexer", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("search-service", HealthCheckType.DOCKER_HEALTH),
+                ServiceHealthCheck("agent-tool-server", HealthCheckType.DOCKER_HEALTH)
+            ),
+            timeoutSeconds = 120
+        ))
+    }
+
+    return phases
+}
+
+// ============================================================================
+// Health Check Utilities
+// ============================================================================
+
+private fun checkServiceHealth(serviceName: String, checkType: HealthCheckType, endpoint: String = ""): Boolean {
+    return try {
+        when (checkType) {
+            HealthCheckType.DOCKER_HEALTH -> {
+                val status = run("docker", "inspect", "--format={{.State.Health.Status}}", serviceName,
+                    allowFail = true, showOutput = false).trim()
+                status == "healthy" || status == "starting"
+            }
+            HealthCheckType.TCP -> {
+                val exitCode = run("docker", "exec", serviceName, "timeout", "1", "nc", "-z", "localhost", endpoint,
+                    allowFail = true, showOutput = false)
+                true
+            }
+            HealthCheckType.HTTP -> {
+                val exitCode = run("docker", "exec", serviceName, "wget", "-q", "-O", "/dev/null",
+                    "http://localhost:$endpoint",
+                    allowFail = true, showOutput = false)
+                true
+            }
+            HealthCheckType.EXEC -> {
+                run("docker", "exec", serviceName, "sh", "-c", endpoint,
+                    allowFail = true, showOutput = false)
+                true
+            }
+        }
+    } catch (e: Exception) {
+        false
+    }
+}
+
+private fun waitForServicesHealthy(checks: List<ServiceHealthCheck>, phaseTimeoutSeconds: Int): Boolean {
+    val startTime = System.currentTimeMillis()
+    val remaining = checks.toMutableList()
+
+    info("Waiting for ${checks.size} service(s) to become healthy...")
+
+    while (remaining.isNotEmpty()) {
+        val elapsed = (System.currentTimeMillis() - startTime) / 1000
+        if (elapsed > phaseTimeoutSeconds) {
+            warn("Phase timeout reached (${phaseTimeoutSeconds}s)")
+            remaining.forEach { check ->
+                println("  ${ANSI_RED}✗${ANSI_RESET} ${check.serviceName} (timeout)")
+            }
+            return false
+        }
+
+        val iterator = remaining.iterator()
+        while (iterator.hasNext()) {
+            val check = iterator.next()
+            if (checkServiceHealth(check.serviceName, check.checkType, check.endpoint)) {
+                val serviceElapsed = (System.currentTimeMillis() - startTime) / 1000
+                println("  ${ANSI_GREEN}✓${ANSI_RESET} ${check.serviceName} (${serviceElapsed}s)")
+                iterator.remove()
+            }
+        }
+
+        if (remaining.isNotEmpty()) {
+            Thread.sleep(2000)  // Check every 2 seconds
+        }
+    }
+
+    return true
 }
 
 // ============================================================================
@@ -392,13 +890,188 @@ private fun createVolumeDirectories() {
     success("Volume directories created")
 }
 
-private fun bringUpStack() {
+private fun bringUpPhased(profile: String?) {
     val root = installRoot()
     val envFile = root.resolve(".env")
     val ldapBootstrap = root.resolve("bootstrap_ldap.ldif")
     val configsDir = root.resolve("configs")
 
-    info("Starting Datamancy stack")
+    val profileName = profile ?: "all"
+
+    // Regenerate compose files from registry
+    regenerateComposeFiles(root)
+
+    val phases = getPhases(profileName, root)
+
+    info("Starting Datamancy stack (phased startup)")
+    info("Profile: $profileName (${phases.size} phases)")
+    info("Installation directory: $root")
+    println()
+
+    // Step 1: Generate environment configuration if needed
+    if (!Files.exists(envFile)) {
+        info("Preparation 1/5: Generating environment configuration")
+        generateEnvironmentConfig()
+    } else {
+        info("Preparation 1/5: Environment config exists, validating")
+        validateEnvFile(envFile)
+    }
+
+    // Validate DOMAIN
+    val envContent = Files.readString(envFile)
+    val domainMatch = "DOMAIN=(.+)".toRegex().find(envContent)
+    if (domainMatch != null) {
+        val domain = domainMatch.groupValues[1].trim().removeSurrounding("\"", "'")
+        validateDomain(domain)
+    }
+
+    // Step 2: Process configuration templates
+    if (!Files.exists(configsDir) || Files.list(configsDir).count() == 0L || !Files.exists(ldapBootstrap)) {
+        info("Preparation 2/5: Processing configuration templates (includes LDAP bootstrap)")
+        processConfigTemplates()
+    } else {
+        info("Preparation 2/5: Configuration files and LDAP bootstrap exist")
+    }
+
+    // Step 3: Create volume directories
+    info("Preparation 3/5: Creating volume directories")
+    createVolumeDirectories()
+
+    // Step 4: Build Gradle JARs
+    info("Preparation 4/5: Building Gradle JARs")
+    run("./gradlew", ":search-service:shadowJar", ":unified-indexer:shadowJar", cwd = root)
+    success("Gradle JARs built")
+
+    info("Preparation 5/5: Complete")
+    println()
+    println("${ANSI_CYAN}═══════════════════════════════════════════════════${ANSI_RESET}")
+    println("${ANSI_CYAN}Starting Phased Deployment${ANSI_RESET}")
+    println("${ANSI_CYAN}═══════════════════════════════════════════════════${ANSI_RESET}")
+    println()
+
+    // Track all started compose files for cumulative deployment
+    val allStartedFiles = mutableListOf<String>()
+    allStartedFiles.addAll(listOf(
+        "compose/core/networks.yml",
+        "compose/core/volumes.yml"
+    ))
+
+    // Execute phases
+    for ((index, phase) in phases.withIndex()) {
+        val phaseNum = index + 1
+        println("${ANSI_CYAN}Phase $phaseNum/${phases.size}: ${phase.name}${ANSI_RESET}")
+        println("${phase.description}")
+        println()
+
+        // Add new compose files for this phase
+        allStartedFiles.addAll(phase.composeFiles)
+
+        // Start services for this phase (if there are new files)
+        if (phase.composeFiles.isNotEmpty()) {
+            val phaseStartTime = System.currentTimeMillis()
+            info("Starting services...")
+
+            val composeCmd = buildComposeCommandForFiles(allStartedFiles, envFile, listOf("up", "-d", "--build"))
+            run(*composeCmd.toTypedArray(), cwd = root)
+
+            val startupTime = (System.currentTimeMillis() - phaseStartTime) / 1000
+            success("Services started (${startupTime}s)")
+        } else {
+            info("No new services (waiting for existing services to be healthy)")
+        }
+
+        // Wait for health checks
+        if (phase.healthChecks.isNotEmpty()) {
+            val healthStartTime = System.currentTimeMillis()
+            val healthy = waitForServicesHealthy(phase.healthChecks, phase.timeoutSeconds)
+
+            if (!healthy) {
+                println()
+                err("${ANSI_RED}Phase ${phaseNum} failed health checks${ANSI_RESET}\n" +
+                    "Check service logs with: docker compose logs <service-name>\n" +
+                    "Current phase: ${phase.name}")
+            }
+
+            val healthTime = (System.currentTimeMillis() - healthStartTime) / 1000
+            success("Phase ${phaseNum} complete (health checks: ${healthTime}s)")
+        } else {
+            success("Phase ${phaseNum} complete (no health checks)")
+        }
+
+        println()
+    }
+
+    // Post-startup: Generate OIDC hashes if needed
+    val envContentFresh = Files.readString(envFile)
+    val hasPendingHashes = envContentFresh.contains("_HASH=PENDING") ||
+                          envContentFresh.contains("_HASH=\"PENDING\"")
+
+    if (hasPendingHashes) {
+        info("Post-deployment: Generating OIDC hashes...")
+
+        var attempts = 0
+        var autheliHealthy = false
+        while (attempts < 30 && !autheliHealthy) {
+            try {
+                val healthCheck = run("docker", "inspect", "--format={{.State.Health.Status}}", "authelia",
+                    allowFail = true, showOutput = false)
+                if (healthCheck.trim() == "healthy") {
+                    autheliHealthy = true
+                } else {
+                    Thread.sleep(2000)
+                    attempts++
+                }
+            } catch (_: Exception) {
+                Thread.sleep(2000)
+                attempts++
+            }
+        }
+
+        if (autheliHealthy) {
+            val hashScript = root.resolve("scripts/stack-control/generate-oidc-hashes.main.kts")
+            if (Files.exists(hashScript)) {
+                try {
+                    run("kotlin", hashScript.toString(), cwd = root, allowFail = true)
+                    info("Re-processing configuration templates with OIDC hashes...")
+                    processConfigTemplates()
+                    info("Restarting Authelia to apply new configuration...")
+                    run("docker", "restart", "authelia", showOutput = false)
+                    success("OIDC hashes generated and applied successfully")
+                } catch (e: Exception) {
+                    warn("OIDC hash generation failed (non-fatal): ${e.message}")
+                }
+            }
+        } else {
+            warn("Authelia did not become healthy in time for OIDC hash generation")
+        }
+    }
+
+    println()
+    println("${ANSI_GREEN}═══════════════════════════════════════════════════${ANSI_RESET}")
+    println("${ANSI_GREEN}✓ All Phases Complete! Stack is Ready${ANSI_RESET}")
+    println("${ANSI_GREEN}═══════════════════════════════════════════════════${ANSI_RESET}")
+    println()
+
+    // Show service URLs
+    val domain = domainMatch?.groupValues?.get(1)?.trim()?.removeSurrounding("\"", "'") ?: "yourdomain.com"
+    println("${ANSI_CYAN}Service URLs:${ANSI_RESET}")
+    println("  ${ANSI_GREEN}Auth/SSO:${ANSI_RESET}         https://auth.$domain")
+    println("  ${ANSI_GREEN}BookStack:${ANSI_RESET}        https://bookstack.$domain")
+    println("  ${ANSI_GREEN}Planka:${ANSI_RESET}           https://planka.$domain")
+    println("  ${ANSI_GREEN}Grafana:${ANSI_RESET}          https://grafana.$domain")
+    println("  ${ANSI_GREEN}Open WebUI:${ANSI_RESET}       https://open-webui.$domain")
+    println()
+    info("Check status: datamancy-controller status")
+}
+
+private fun bringUpStack(profile: String?) {
+    val root = installRoot()
+    val envFile = root.resolve(".env")
+    val ldapBootstrap = root.resolve("bootstrap_ldap.ldif")
+    val configsDir = root.resolve("configs")
+
+    val profileDesc = getProfiles()[profile ?: "all"]?.description ?: "full stack"
+    info("Starting Datamancy stack ($profileDesc)")
     info("Installation directory: $root")
     println()
 
@@ -438,7 +1111,8 @@ private fun bringUpStack() {
 
     // Step 5: Start services
     info("Step 5/5: Starting Docker Compose services")
-    run("docker", "compose", "--env-file", envFile.toString(), "up", "-d", "--build", cwd = root)
+    val composeCmd = buildComposeCommand(profile, envFile, listOf("up", "-d", "--build"))
+    run(*composeCmd.toTypedArray(), cwd = root)
 
     success("Stack started successfully")
     println()
@@ -504,8 +1178,6 @@ private fun bringUpStack() {
     println("  ${ANSI_GREEN}Seafile:${ANSI_RESET}          https://seafile.$domain")
     println("  ${ANSI_GREEN}JupyterHub:${ANSI_RESET}       https://jupyterhub.$domain")
     println("  ${ANSI_GREEN}Element:${ANSI_RESET}          https://element.$domain")
-    println("  ${ANSI_GREEN}Mastodon:${ANSI_RESET}         https://mastodon.$domain")
-    println("  ${ANSI_GREEN}SOGo:${ANSI_RESET}             https://sogo.$domain")
     println("  ${ANSI_GREEN}Vaultwarden:${ANSI_RESET}      https://vaultwarden.$domain")
     println("  ${ANSI_GREEN}Forgejo:${ANSI_RESET}          https://forgejo.$domain")
     println("  ${ANSI_GREEN}Open WebUI:${ANSI_RESET}       https://open-webui.$domain")
@@ -516,14 +1188,15 @@ private fun bringUpStack() {
     println("  ${ANSI_GREEN}Kopia:${ANSI_RESET}            https://kopia.$domain")
 }
 
-private fun bringUpStackWithTestPorts() {
+private fun bringUpStackWithTestPorts(profile: String?) {
     val root = installRoot()
     val envFile = root.resolve(".env")
     val ldapBootstrap = root.resolve("bootstrap_ldap.ldif")
     val configsDir = root.resolve("configs")
     val testPortsOverlay = root.resolve("docker-compose.test-ports.yml")
 
-    info("Starting Datamancy stack with test ports")
+    val profileDesc = getProfiles()[profile ?: "all"]?.description ?: "full stack"
+    info("Starting Datamancy stack with test ports ($profileDesc)")
     info("Installation directory: $root")
 
     if (!Files.exists(testPortsOverlay)) {
@@ -562,40 +1235,35 @@ private fun bringUpStackWithTestPorts() {
 
     // Step 5: Bring up stack with both base and test-ports overlay
     info("Step 5/5: Starting services with test ports exposed")
-    run("docker", "compose",
-        "-f", "docker-compose.yml",
-        "-f", "docker-compose.test-ports.yml",
-        "--env-file", envFile.toString(),
-        "up", "-d", "--force-recreate",
-        cwd = root)
+    val composeCmd = buildComposeCommand(profile, envFile, emptyList())
+    val fullCmd = composeCmd.toMutableList()
+    fullCmd.add("-f")
+    fullCmd.add("docker-compose.test-ports.yml")
+    fullCmd.addAll(listOf("up", "-d", "--force-recreate"))
+
+    run(*fullCmd.toTypedArray(), cwd = root)
 
     success("Stack is up with test ports exposed!")
     info("Test ports accessible on localhost (see docker-compose.test-ports.yml for mappings)")
 }
 
-private fun stopStack() {
+private fun stopStack(profile: String?) {
     val root = installRoot()
     val envFile = root.resolve(".env")
 
     info("Stopping stack")
-    if (Files.exists(envFile)) {
-        run("docker", "compose", "--env-file", envFile.toString(), "down", cwd = root)
-    } else {
-        run("docker", "compose", "down", cwd = root)
-    }
+    val composeCmd = buildComposeCommand(profile, envFile, listOf("down"))
+    run(*composeCmd.toTypedArray(), cwd = root)
     success("Stack stopped")
 }
 
-private fun showStackStatus() {
+private fun showStackStatus(profile: String?) {
     val root = installRoot()
     val envFile = root.resolve(".env")
 
     info("Stack status:")
-    if (Files.exists(envFile)) {
-        println(run("docker", "compose", "--env-file", envFile.toString(), "ps", cwd = root))
-    } else {
-        println(run("docker", "compose", "ps", cwd = root))
-    }
+    val composeCmd = buildComposeCommand(profile, envFile, listOf("ps"))
+    println(run(*composeCmd.toTypedArray(), cwd = root))
 }
 
 private fun cmdObliterate(force: Boolean = false) {
@@ -616,7 +1284,7 @@ private fun cmdObliterate(force: Boolean = false) {
         |  • All data (postgres, mariadb, ldap, etc.)
         |
         |${ANSI_GREEN}Preserved:${ANSI_RESET}
-        |  • Installation files (docker-compose.yml, scripts, templates)
+        |  • Installation files (compose files, scripts, templates)
         |  • Version marker
         |  • Caddy certificates
         |
@@ -641,11 +1309,8 @@ private fun cmdObliterate(force: Boolean = false) {
     info("Step 1/5: Stopping all containers and removing built images")
     try {
         val envFile = root.resolve(".env")
-        if (Files.exists(envFile)) {
-            run("docker", "compose", "--env-file", envFile.toString(), "down", "-v", "--rmi", "local", cwd = root, allowFail = true)
-        } else {
-            run("docker", "compose", "down", "-v", "--rmi", "local", cwd = root, allowFail = true)
-        }
+        val composeCmd = buildComposeCommand("all", envFile, listOf("down", "-v", "--rmi", "local"))
+        run(*composeCmd.toTypedArray(), cwd = root, allowFail = true)
         success("Containers stopped and built images removed")
     } catch (e: Exception) {
         warn("Failed to stop containers gracefully: ${e.message}")
@@ -777,6 +1442,8 @@ private fun showHelp() {
         "unknown"
     }
 
+    val profiles = getProfiles()
+
     println("""
         |Datamancy Stack Controller
         |Version: $version
@@ -785,40 +1452,61 @@ private fun showHelp() {
         |Usage: datamancy-controller <command> [options]
         |
         |Essential Commands:
-        |  up              Start stack with full automated setup
-        |                  - Generates env config if missing
-        |                  - Generates LDAP bootstrap if missing
-        |                  - Processes config templates
-        |                  - Creates volume directories
-        |                  - Starts all services
-        |                  - Generates OIDC hashes automatically
+        |  up [profile] [--no-phased]
+        |                  Start stack with optional profile (PHASED startup by default)
+        |                  - Brings up services in phases with health checks
+        |                  - Phase 1: Core infrastructure (caddy, ldap, valkey)
+        |                  - Phase 2: Databases (postgres, mariadb, clickhouse, qdrant)
+        |                  - Phase 3: Authentication (authelia, mailserver)
+        |                  - Phase 4+: Applications, AI, Datamancy services (based on profile)
+        |                  - Each phase waits for health checks before proceeding
+        |                  - Use --no-phased for old behavior (start everything at once)
         |
-        |  test-up         Start stack with test ports exposed (for integration tests)
-        |                  - Same as 'up' but applies docker-compose.test-ports.yml overlay
-        |                  - Exposes services on localhost for host-based testing
+        |  test-up [profile]  Start stack with test ports exposed (for integration tests)
+        |                     - Same as 'up' but applies docker-compose.test-ports.yml overlay
+        |                     - Exposes services on localhost for host-based testing
         |
         |  obliterate      COMPLETE CLEANUP - removes all runtime data
         |    [--force]     Skip confirmation prompt
         |                  Preserves installation files (can start fresh with 'up')
         |                  Requires typing 'OBLITERATE' to confirm (unless --force)
         |
-        |  down            Stop all services
+        |  down [profile]  Stop services
         |
-        |  status          Show stack status (docker compose ps)
+        |  status [profile] Show stack status (docker compose ps)
         |
         |  config          Configuration operations
         |    generate      Generate .env with defaults
         |    process       Process templates to configs/
         |
+        |  codegen         Regenerate compose files from services.registry.yaml
+        |                  - Automatically run on 'up' command
+        |                  - Run manually after editing services.registry.yaml
+        |                  - Generates all compose/*.yml files from single source of truth
+        |
         |  help            Show this help message
         |
-        |Quick Start:
-        |  datamancy-controller up       # Complete automated setup
-        |  datamancy-controller status   # Check services
-        |  datamancy-controller down     # Stop services
+        |Available Profiles:
+${profiles.entries.joinToString("\n") { (name, profile) -> "  $name${" ".repeat(15 - name.length)}${profile.description}" }}
+        |
+        |Examples:
+        |  datamancy-controller up                    # Start full stack (phased)
+        |  datamancy-controller up core               # Start only core infrastructure (phased)
+        |  datamancy-controller up databases          # Start core + databases (phased)
+        |  datamancy-controller up ai                 # Start core + databases + AI (phased)
+        |  datamancy-controller up --no-phased        # Start full stack (all at once, old behavior)
+        |  datamancy-controller up databases --no-phased  # Non-phased with profile
+        |  datamancy-controller status                # Check all services
+        |  datamancy-controller down                  # Stop all services
+        |
+        |Phased Startup Benefits:
+        |  - Faster debugging: Know exactly which phase failed
+        |  - Better reliability: Don't start apps before databases are ready
+        |  - Clearer progress: See what's happening in real-time
+        |  - Production-ready: Controlled, staged deployments
         |
         |Nuclear Option:
-        |  datamancy-controller obliterate  # Complete cleanup, start fresh
+        |  datamancy-controller obliterate            # Complete cleanup, start fresh
         |
         |Update Installation:
         |  1. cd <git-repo> && git pull
@@ -838,22 +1526,48 @@ if (args.isEmpty()) {
 when (args[0]) {
     "up" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        bringUpStack()
+
+        // Check for --no-phased flag
+        val usePhased = !args.contains("--no-phased")
+
+        // Get profile (skip flags)
+        val profile = args.drop(1).firstOrNull { !it.startsWith("--") }
+        if (profile != null && !getProfiles().containsKey(profile)) {
+            err("Unknown profile: $profile\nAvailable profiles: ${getProfiles().keys.joinToString(", ")}")
+        }
+
+        if (usePhased) {
+            bringUpPhased(profile)
+        } else {
+            bringUpStack(profile)
+        }
     }
 
     "test-up" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        bringUpStackWithTestPorts()
+        val profile = args.getOrNull(1)
+        if (profile != null && !getProfiles().containsKey(profile)) {
+            err("Unknown profile: $profile\nAvailable profiles: ${getProfiles().keys.joinToString(", ")}")
+        }
+        bringUpStackWithTestPorts(profile)
     }
 
     "down" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        stopStack()
+        val profile = args.getOrNull(1)
+        if (profile != null && !getProfiles().containsKey(profile)) {
+            err("Unknown profile: $profile\nAvailable profiles: ${getProfiles().keys.joinToString(", ")}")
+        }
+        stopStack(profile)
     }
 
     "status" -> {
         if (isRoot()) err("Stack operations must not be run as root. Run without sudo.")
-        showStackStatus()
+        val profile = args.getOrNull(1)
+        if (profile != null && !getProfiles().containsKey(profile)) {
+            err("Unknown profile: $profile\nAvailable profiles: ${getProfiles().keys.joinToString(", ")}")
+        }
+        showStackStatus(profile)
     }
 
     "obliterate" -> {
@@ -873,6 +1587,12 @@ when (args[0]) {
                 exitProcess(1)
             }
         }
+    }
+
+    "codegen" -> {
+        if (isRoot()) err("Codegen operations must not be run as root. Run without sudo.")
+        val root = installRoot()
+        regenerateComposeFiles(root)
     }
 
     "help", "--help", "-h" -> showHelp()

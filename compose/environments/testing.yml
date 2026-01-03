@@ -1,0 +1,60 @@
+# Testing environment
+# Integration test runner and stack test runner
+
+services:
+  integration-test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: integration-test-runner
+    profiles:
+      - testing
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - clickhouse
+      - control-panel
+      - data-fetcher
+      - unified-indexer
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=datamancy
+      - POSTGRES_USER=datamancer
+      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
+      - CONTROL_PANEL_URL=http://control-panel:8097
+      - DATA_FETCHER_URL=http://data-fetcher:8095
+      - UNIFIED_INDEXER_URL=http://unified-indexer:8096
+      - SEARCH_SERVICE_URL=http://search-service:8098
+
+  stack-test-runner:
+    image: eclipse-temurin:21-jdk
+    container_name: stack-test-runner
+    profiles:
+      - testing
+    networks:
+      - backend
+      - database
+    working_dir: /workspace
+    user: "${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000}"
+    environment:
+      - GRADLE_USER_HOME=/tmp/gradle-home
+    volumes:
+      - .:/workspace:rw
+    command:
+      - ./gradlew
+      - :stack-tests:test
+      - --no-daemon
+      - --console=plain
+      - --project-cache-dir=/tmp/gradle-project-cache
+    depends_on:
+      - control-panel
+      - data-fetcher
+      - unified-indexer
+      - search-service

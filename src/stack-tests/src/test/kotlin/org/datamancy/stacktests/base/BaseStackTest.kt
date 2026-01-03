@@ -71,7 +71,6 @@ abstract class BaseStackTest {
         val postgres: Int = 15432,
         val mariadb: Int = 13306,
         val clickhouse: Int = 18123,
-        val couchdb: Int = 15984,
         val qdrant: Int = 16333,
 
         // Mail
@@ -117,7 +116,6 @@ abstract class BaseStackTest {
         fun postgresUrl() = "jdbc:postgresql://localhost:$postgres"
         fun mariadbUrl() = "jdbc:mysql://localhost:$mariadb"
         fun clickhouseUrl() = "http://localhost:$clickhouse"
-        fun couchdbUrl() = "http://localhost:$couchdb"
         fun qdrantUrl() = "http://localhost:$qdrant"
         fun valkeyUrl() = "redis://localhost:$valkey"
 

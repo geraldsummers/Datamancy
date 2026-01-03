@@ -19,14 +19,15 @@ GRANT ALL PRIVILEGES ON ccnet_db.* TO 'seafile'@'%';
 GRANT ALL PRIVILEGES ON seafile_db.* TO 'seafile'@'%';
 GRANT ALL PRIVILEGES ON seahub_db.* TO 'seafile'@'%';
 
--- Create agent-tool-server observer account
--- SECURITY: No direct table access - must use views created manually later
-CREATE USER IF NOT EXISTS 'agent_observer'@'%' IDENTIFIED BY '{{AGENT_MARIADB_OBSERVER_PASSWORD}}';
-
--- Note: Views for public data should be created manually after application initialization
--- Example views to create:
---   bookstack.agent_observer_pages (title, slug, created_at, book_id)
---   bookstack.agent_observer_books (name, slug, created_at)
--- Do NOT grant SELECT on full tables - they contain HTML content, user data, etc.
+-- Shadow agent accounts are created per-user via scripts/security/create-shadow-agent-account.main.kts
+-- No global agent_observer account (security: per-user shadow accounts for traceability)
+-- Each user gets: {username}-agent user with read-only SELECT access to bookstack database
+-- Provisioned via: scripts/security/provision-shadow-database-access.sh
+--
+-- SECURITY: Per-user shadow accounts enable:
+--   - Full audit traceability (every query attributed to specific user)
+--   - Limited blast radius (compromised shadow account = only one user affected)
+--   - Granular ACLs (can restrict per-user access to specific databases)
+--   - Per-user rate limiting (prevent single user abuse)
 
 FLUSH PRIVILEGES;

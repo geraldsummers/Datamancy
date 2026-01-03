@@ -1,0 +1,252 @@
+# Datamancy core services
+# Control panel, data fetcher, unified indexer, search service, agent tool server, benthos
+
+services:
+  control-panel:
+    build:
+      dockerfile: ./src/control-panel/Dockerfile
+      context: .
+    container_name: control-panel
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - data-fetcher
+      - unified-indexer
+    environment:
+      - PANEL_PORT=8097
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=datamancy
+      - POSTGRES_USER=datamancer
+      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - DATA_FETCHER_URL=http://data-fetcher:8095
+      - UNIFIED_INDEXER_URL=http://unified-indexer:8096
+      - SEARCH_SERVICE_URL=http://search-service:8098
+    ports:
+      - "8097:8097"
+    labels:
+      - "caddy=control.${DOMAIN}"
+      - "caddy.reverse_proxy={{upstreams 8097}}"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8097/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  data-fetcher:
+    build:
+      dockerfile: ./src/data-fetcher/Dockerfile
+      context: .
+    container_name: data-fetcher
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - clickhouse
+      - bookstack
+    environment:
+      - DATAFETCHER_PORT=8095
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=datamancy
+      - POSTGRES_USER=datamancer
+      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY:-}
+      - COINGECKO_API_KEY=${COINGECKO_API_KEY:-}
+      - SERP_API_KEY=${SERP_API_KEY:-}
+      - FRED_API_KEY=${FRED_API_KEY:-}
+      - BOOKSTACK_URL=${BOOKSTACK_URL:-http://bookstack:80}
+      - BOOKSTACK_API_TOKEN_ID=${BOOKSTACK_API_TOKEN_ID:-}
+      - BOOKSTACK_API_TOKEN_SECRET=${BOOKSTACK_API_TOKEN_SECRET:-}
+      - FETCH_SCHEDULES_PATH=/app/config/schedules.yaml
+      - FETCH_SOURCES_PATH=/app/config/sources.yaml
+      - DATAFETCHER_DATA_PATH=/app/data
+    volumes:
+      - ${HOME}/.datamancy/configs/applications/data-fetcher/schedules.yaml:/app/config/schedules.yaml:ro
+      - ${HOME}/.datamancy/configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
+      - ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/data_fetcher:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8095/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  unified-indexer:
+    build:
+      dockerfile: ./src/unified-indexer/Dockerfile
+      context: .
+    container_name: unified-indexer
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - bookstack
+      - qdrant
+      - clickhouse
+      - embedding-service
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=datamancy
+      - POSTGRES_USER=datamancer
+      - POSTGRES_PASSWORD=${STACK_ADMIN_PASSWORD}
+      - BOOKSTACK_URL=${BOOKSTACK_URL:-http://bookstack:80}
+      - BOOKSTACK_API_TOKEN_ID=${BOOKSTACK_API_TOKEN_ID:-}
+      - BOOKSTACK_API_TOKEN_SECRET=${BOOKSTACK_API_TOKEN_SECRET:-}
+      - QDRANT_URL=http://qdrant:6334
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - CLICKHOUSE_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
+      - EMBEDDING_SERVICE_URL=http://embedding-service:8080
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  search-service:
+    build:
+      dockerfile: ./src/search-service/Dockerfile
+      context: .
+    container_name: search-service
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    depends_on:
+      - qdrant
+      - clickhouse
+      - embedding-service
+    environment:
+      - GATEWAY_PORT=8098
+      - QDRANT_URL=http://qdrant:6333
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - CLICKHOUSE_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_ADMIN_PASSWORD}
+      - EMBEDDING_SERVICE_URL=http://embedding-service:8080
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8098/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  agent-tool-server:
+    build:
+      dockerfile: ./src/agent-tool-server/Dockerfile
+      context: .
+    container_name: agent-tool-server
+    restart: unless-stopped
+    networks:
+      - backend
+      - frontend
+      - database
+    depends_on:
+      - litellm
+      - postgres
+      - mariadb
+      - clickhouse
+      - qdrant
+      - ldap
+    user: "${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000}"
+    group_add:
+      - "${DOCKER_SOCKET_GID:-999}"
+    environment:
+      - TOOLSERVER_PORT=8081
+      - TOOLSERVER_PLUGINS_DIR=/app/plugins
+      - TOOLSERVER_ALLOW_CAPS=host.shell.read,host.docker.write,host.docker.inspect,host.network.http,host.network.ssh
+      - TOOLSERVER_SSH_HOST=${TOOLSERVER_SSH_HOST:-host.docker.internal}
+      - TOOLSERVER_SSH_USER=${TOOLSERVER_SSH_USER:-stackops}
+      - TOOLSERVER_SSH_KEY_PATH=/app/keys/stackops_ed25519
+      - TOOLSERVER_SSH_KNOWN_HOSTS=/app/known_hosts
+      - TOOLSERVER_SSH_TIMEOUT_MS=20000
+      - TOOLSERVER_BROWSER_HTTP_TIMEOUT_MS=90000
+      - TOOLSERVER_BROWSER_URL=http://playwright:3000
+      - TOOLSERVER_SCREENSHOTS_DIR=/app/proofs/screenshots
+      - TOOLSERVER_DEBUG=true
+      - LITELLM_BASE_URL=http://litellm:4000
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - POSTGRES_OBSERVER_USER=agent_observer
+      - POSTGRES_OBSERVER_PASSWORD=${AGENT_POSTGRES_OBSERVER_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - MARIADB_OBSERVER_USER=agent_observer
+      - MARIADB_OBSERVER_PASSWORD=${AGENT_MARIADB_OBSERVER_PASSWORD}
+      - MARIADB_HOST=mariadb
+      - MARIADB_PORT=3306
+      - CLICKHOUSE_OBSERVER_USER=${STACK_ADMIN_USER}
+      - CLICKHOUSE_OBSERVER_PASSWORD=${AGENT_CLICKHOUSE_OBSERVER_PASSWORD}
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - QDRANT_OBSERVER_API_KEY=${AGENT_QDRANT_API_KEY}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - LDAP_OBSERVER_DN=cn=agent_observer,dc=stack,dc=local
+      - LDAP_OBSERVER_PASSWORD=${AGENT_LDAP_OBSERVER_PASSWORD}
+      - LDAP_HOST=ldap
+      - LDAP_PORT=389
+      - LDAP_BASE_DN=dc=stack,dc=local
+      - SEARCH_SERVICE_URL=http://search-service:8098
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
+      - ${VOLUMES_ROOT}/agent_tool_server/known_hosts:/app/known_hosts:ro
+      - ${HOME}/.datamancy/configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
+      - proofs:/app/proofs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8081/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  benthos:
+    image: jeffail/benthos:4.27.0
+    container_name: benthos
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    depends_on:
+      - qdrant
+      - clickhouse
+      - litellm
+    volumes:
+      - ${HOME}/.datamancy/configs/infrastructure/benthos/benthos.yaml:/benthos.yaml:ro
+      - benthos_data:/data
+    command: -c /benthos.yaml
+    environment:
+      - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - LITELLM_URL=${LITELLM_URL:-http://litellm:4000/v1}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - CLICKHOUSE_DSN=${CLICKHOUSE_DSN:-clickhouse://${STACK_ADMIN_USER}:${CLICKHOUSE_ADMIN_PASSWORD}@clickhouse:9000/default?dial_timeout=5s&read_timeout=10s&compress=true}
+      - EMBED_MODEL=${EMBED_MODEL:-embed-small}
+      - UNIFIED_INDEXER_URL=${UNIFIED_INDEXER_URL:-http://unified-indexer:8096}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4195/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -168,12 +168,6 @@ volumes:
       type: none
       o: bind
       device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/postgres_data
-  couchdb_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/couchdb_data
   clickhouse_data:
     driver: local
     driver_opts:
@@ -513,26 +507,6 @@ services:
     command: postgres -c 'max_connections=300' -c 'shared_buffers=1GB'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${STACK_ADMIN_USER} -d postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-  couchdb:
-    image: couchdb:3.5.1
-    container_name: couchdb
-    restart: unless-stopped
-    networks:
-      - database
-    environment:
-      - COUCHDB_USER=${STACK_ADMIN_USER}
-      - COUCHDB_PASSWORD=${COUCHDB_ADMIN_PASSWORD}
-    volumes:
-      - couchdb_data:/opt/couchdb/data
-      - ${HOME}/.datamancy/configs/databases/couchdb/init-wrapper.sh:/usr/local/bin/init-wrapper.sh:ro
-    entrypoint: ["/bin/bash", "/usr/local/bin/init-wrapper.sh"]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:5984/_up | grep -q '\"status\":\"ok\"' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1421,7 +1395,6 @@ services:
       - postgres
       - mariadb
       - clickhouse
-      - couchdb
       - qdrant
       - ldap
     user: "${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000}"
@@ -1454,10 +1427,6 @@ services:
       - CLICKHOUSE_OBSERVER_PASSWORD=${AGENT_CLICKHOUSE_OBSERVER_PASSWORD}
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_PORT=8123
-      - COUCHDB_OBSERVER_USER=agent_observer
-      - COUCHDB_OBSERVER_PASSWORD=${AGENT_COUCHDB_OBSERVER_PASSWORD}
-      - COUCHDB_HOST=couchdb
-      - COUCHDB_PORT=5984
       - QDRANT_OBSERVER_API_KEY=${AGENT_QDRANT_API_KEY}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333

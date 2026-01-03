@@ -82,8 +82,12 @@ private class ToolExecutionHandler(private val tools: ToolRegistry) : HttpHandle
                 Json.mapper.readTree(body)
             }
 
+            // Extract user context from X-User-Context header (for per-user shadow accounts)
+            val userContext = exchange.requestHeaders.getFirst("X-User-Context")
+                ?.takeIf { it.isNotBlank() }
+
             val start = System.nanoTime()
-            val result = invokeWithTimeout({ tools.invoke(toolName, args) }, callTimeoutMs)
+            val result = invokeWithTimeout({ tools.invoke(toolName, args, userContext) }, callTimeoutMs)
             val elapsedMs = (System.nanoTime() - start) / 1_000_000
             respond(exchange, 200, mapOf("result" to result, "elapsedMs" to elapsedMs))
         } catch (to: java.util.concurrent.TimeoutException) {

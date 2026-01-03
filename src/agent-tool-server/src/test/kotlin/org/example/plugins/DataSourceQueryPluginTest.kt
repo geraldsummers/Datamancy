@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 /**
  * Tests for DataSourceQueryPlugin - validates database observation capabilities.
  */
-@IntegrationTest(requiredServices = ["agent-tool-server", "postgres", "mariadb", "clickhouse", "couchdb", "qdrant", "ldap"])
+@IntegrationTest(requiredServices = ["agent-tool-server", "postgres", "mariadb", "clickhouse", "qdrant", "ldap"])
 class DataSourceQueryPluginTest {
 
     private lateinit var client: HttpClient

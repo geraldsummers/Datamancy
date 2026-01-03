@@ -26,7 +26,6 @@ class NetworkAndHealthTests : BaseStackTest() {
         val databases = mapOf(
             "PostgreSQL" to localhostPorts.httpUrl(localhostPorts.postgres),
             "ClickHouse" to "${localhostPorts.clickhouseUrl()}/ping",
-            "CouchDB" to localhostPorts.couchdbUrl(),
             "Qdrant" to localhostPorts.qdrantUrl()
         )
 

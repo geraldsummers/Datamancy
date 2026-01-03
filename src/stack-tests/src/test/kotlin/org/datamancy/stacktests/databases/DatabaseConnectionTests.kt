@@ -202,26 +202,6 @@ class DatabaseConnectionTests : BaseStackTest() {
         println("✓ ClickHouse is accessible: $version")
     }
 
-    @Test
-    @Order(6)
-    fun `CouchDB is accessible via REST API`() = runBlocking {
-        val couchdbUser = getConfig("STACK_ADMIN_USER", "stackadmin")
-        val couchdbPassword = getConfig("COUCHDB_ADMIN_PASSWORD", "admin")
-
-        val response = client.get(localhostPorts.couchdbUrl()) {
-            basicAuth(couchdbUser, couchdbPassword)
-        }
-
-        assertEquals(HttpStatusCode.OK, response.status,
-            "CouchDB should return 200 OK")
-
-        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-        assertTrue(json.containsKey("couchdb"), "Response should contain 'couchdb' field")
-        assertTrue(json.containsKey("version"), "Response should contain version")
-
-        val version = json["version"]?.jsonPrimitive?.content
-        println("✓ CouchDB is accessible: $version")
-    }
 
     @Test
     @Order(7)

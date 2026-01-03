@@ -1,0 +1,243 @@
+# Volume definitions for the Datamancy stack
+# All volumes use bind mounts to specific host directories
+
+volumes:
+  # Infrastructure volumes
+  caddy_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/caddy_data
+  caddy_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/caddy_config
+
+  # Database volumes
+  mariadb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/mariadb_data
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/postgres_data
+  clickhouse_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/clickhouse_data
+  qdrant_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/vector-dbs}/qdrant_data
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NON_VECTOR_DBS_PATH:-${VOLUMES_ROOT:-./volumes}/databases}/redis_data
+
+  # Application volumes
+  grafana_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/grafana_data
+  open_webui_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/open_webui_data
+  vaultwarden_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/vaultwarden_data
+  planka_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/planka_data
+  bookstack_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/bookstack_data
+  seafile_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/seafile_data
+  onlyoffice_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/onlyoffice_data
+  synapse_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/synapse_data
+  element_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/element_data
+  mastodon_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mastodon_data
+  jupyterhub_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/jupyterhub_data
+  homeassistant_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/homeassistant_config
+  litellm_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/litellm_config
+  ldap_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/ldap_data
+  ldap_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/ldap_config
+  lam_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/lam_config
+  benthos_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/benthos_data
+  kopia_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/kopia_data
+  kopia_cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/kopia_cache
+  kopia_repository:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/kopia_repository
+  mailserver_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_data
+  mailserver_state:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_state
+  mailserver_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_logs
+  mailserver_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/mailserver_config
+  roundcube_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/roundcube_data
+  radicale_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/radicale_data
+  forgejo_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/forgejo_data
+  qbittorrent_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/qbittorrent_config
+  qbittorrent_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/qbittorrent_data
+  proofs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/proofs
+  data_fetcher:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/data_fetcher
+
+  # Build cache volumes
+  gradle-test-cache:
+    driver: local
+  kotlin-cache:
+    driver: local

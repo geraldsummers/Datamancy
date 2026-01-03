@@ -175,7 +175,6 @@ port_map = {
     'postgres': (15432, 5432),
     'clickhouse': (18123, 8123),
     'qdrant': (16333, 6333),
-    'couchdb': (15984, 5984),
     'control-panel': (18097, 8097),
     'data-fetcher': (18095, 8095),
     'unified-indexer': (18096, 8096),

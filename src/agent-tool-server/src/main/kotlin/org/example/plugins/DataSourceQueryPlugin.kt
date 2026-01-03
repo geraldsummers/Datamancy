@@ -47,13 +47,6 @@ class DataSourceQueryPlugin : Plugin {
         val password: String
     )
 
-    internal data class CouchDBConfig(
-        val host: String,
-        val port: Int,
-        val user: String,
-        val password: String
-    )
-
     internal data class QdrantConfig(
         val host: String,
         val port: Int,
@@ -75,7 +68,6 @@ class DataSourceQueryPlugin : Plugin {
     private var postgresConfig: PostgresConfig? = null
     private var mariadbConfig: MariaDBConfig? = null
     private var clickhouseConfig: ClickHouseConfig? = null
-    private var couchdbConfig: CouchDBConfig? = null
     private var qdrantConfig: QdrantConfig? = null
     private var ldapConfig: LdapConfig? = null
     private var searchServiceConfig: SearchServiceConfig? = null
@@ -120,15 +112,6 @@ class DataSourceQueryPlugin : Plugin {
             )
         }
 
-        couchdbConfig = env["COUCHDB_HOST"]?.let {
-            CouchDBConfig(
-                host = it,
-                port = env["COUCHDB_PORT"]?.toIntOrNull() ?: 5984,
-                user = env["COUCHDB_OBSERVER_USER"] ?: "agent_observer",
-                password = env["COUCHDB_OBSERVER_PASSWORD"] ?: ""
-            )
-        }
-
         qdrantConfig = env["QDRANT_HOST"]?.let {
             QdrantConfig(
                 host = it,
@@ -155,7 +138,6 @@ class DataSourceQueryPlugin : Plugin {
             postgresConfig?.let { "postgres" },
             mariadbConfig?.let { "mariadb" },
             clickhouseConfig?.let { "clickhouse" },
-            couchdbConfig?.let { "couchdb" },
             qdrantConfig?.let { "qdrant" },
             ldapConfig?.let { "ldap" },
             searchServiceConfig?.let { "search-service" }
@@ -166,7 +148,6 @@ class DataSourceQueryPlugin : Plugin {
         postgresConfig,
         mariadbConfig,
         clickhouseConfig,
-        couchdbConfig,
         qdrantConfig,
         ldapConfig,
         searchServiceConfig
@@ -178,7 +159,6 @@ class DataSourceQueryPlugin : Plugin {
             postgresConfig,
             mariadbConfig,
             clickhouseConfig,
-            couchdbConfig,
             qdrantConfig,
             ldapConfig,
             searchServiceConfig
@@ -190,7 +170,7 @@ class DataSourceQueryPlugin : Plugin {
                     name = "query_postgres",
                     description = "Execute read-only SQL query on PostgreSQL",
                     shortDescription = "Query PostgreSQL database",
-                    longDescription = "Execute a SELECT query on PostgreSQL. Returns results as JSON array of row objects. Max 100 rows.",
+                    longDescription = "Execute a SELECT query on PostgreSQL using per-user shadow account. Returns results as JSON array of row objects. Max 100 rows. Requires X-User-Context header.",
                     parameters = listOf(
                         ToolParam("database", "string", true, "Database name (e.g., planka, grafana, openwebui)"),
                         ToolParam("query", "string", true, "SQL SELECT query to execute")
@@ -198,10 +178,10 @@ class DataSourceQueryPlugin : Plugin {
                     paramsSpec = """{"type":"object","required":["database","query"],"properties":{"database":{"type":"string"},"query":{"type":"string"}}}""",
                     pluginId = pluginId
                 ),
-                ToolHandler { args ->
+                ToolHandler { args, userContext ->
                     val database = args.get("database")?.asText() ?: throw IllegalArgumentException("database required")
                     val query = args.get("query")?.asText() ?: throw IllegalArgumentException("query required")
-                    tools.query_postgres(database, query)
+                    tools.query_postgres(database, query, userContext)
                 }
             )
         }
@@ -212,7 +192,7 @@ class DataSourceQueryPlugin : Plugin {
                     name = "query_mariadb",
                     description = "Execute read-only SQL query on MariaDB",
                     shortDescription = "Query MariaDB database",
-                    longDescription = "Execute a SELECT query on MariaDB. Returns results as JSON array of row objects. Max 100 rows.",
+                    longDescription = "Execute a SELECT query on MariaDB using per-user shadow account. Returns results as JSON array of row objects. Max 100 rows. Requires X-User-Context header.",
                     parameters = listOf(
                         ToolParam("database", "string", true, "Database name (e.g., bookstack, seafile_db)"),
                         ToolParam("query", "string", true, "SQL SELECT query to execute")
@@ -220,10 +200,10 @@ class DataSourceQueryPlugin : Plugin {
                     paramsSpec = """{"type":"object","required":["database","query"],"properties":{"database":{"type":"string"},"query":{"type":"string"}}}""",
                     pluginId = pluginId
                 ),
-                ToolHandler { args ->
+                ToolHandler { args, userContext ->
                     val database = args.get("database")?.asText() ?: throw IllegalArgumentException("database required")
                     val query = args.get("query")?.asText() ?: throw IllegalArgumentException("query required")
-                    tools.query_mariadb(database, query)
+                    tools.query_mariadb(database, query, userContext)
                 }
             )
         }
@@ -241,31 +221,9 @@ class DataSourceQueryPlugin : Plugin {
                     paramsSpec = """{"type":"object","required":["query"],"properties":{"query":{"type":"string"}}}""",
                     pluginId = pluginId
                 ),
-                ToolHandler { args ->
+                ToolHandler { args, _ ->
                     val query = args.get("query")?.asText() ?: throw IllegalArgumentException("query required")
                     tools.query_clickhouse(query)
-                }
-            )
-        }
-
-        if (couchdbConfig != null) {
-            registry.register(
-                ToolDefinition(
-                    name = "query_couchdb",
-                    description = "Query CouchDB document database",
-                    shortDescription = "Query CouchDB",
-                    longDescription = "Query CouchDB using Mango query syntax. Returns matching documents.",
-                    parameters = listOf(
-                        ToolParam("database", "string", true, "Database name"),
-                        ToolParam("selector", "object", true, "Mango query selector")
-                    ),
-                    paramsSpec = """{"type":"object","required":["database","selector"],"properties":{"database":{"type":"string"},"selector":{"type":"object"}}}""",
-                    pluginId = pluginId
-                ),
-                ToolHandler { args ->
-                    val database = args.get("database")?.asText() ?: throw IllegalArgumentException("database required")
-                    val selector = args.get("selector") as? ObjectNode ?: throw IllegalArgumentException("selector required")
-                    tools.query_couchdb(database, selector)
                 }
             )
         }
@@ -285,7 +243,7 @@ class DataSourceQueryPlugin : Plugin {
                     paramsSpec = """{"type":"object","required":["collection","vector"],"properties":{"collection":{"type":"string"},"vector":{"type":"array","items":{"type":"number"}},"limit":{"type":"integer","default":10}}}""",
                     pluginId = pluginId
                 ),
-                ToolHandler { args ->
+                ToolHandler { args, _ ->
                     val collection = args.get("collection")?.asText() ?: throw IllegalArgumentException("collection required")
                     val vectorNode = args.get("vector") ?: throw IllegalArgumentException("vector required")
                     val vector = vectorNode.map { it.asDouble().toFloat() }
@@ -311,7 +269,7 @@ class DataSourceQueryPlugin : Plugin {
                     paramsSpec = """{"type":"object","required":["filter"],"properties":{"filter":{"type":"string"},"base_dn":{"type":"string"},"attributes":{"type":"array","items":{"type":"string"}},"limit":{"type":"integer","default":100}}}""",
                     pluginId = pluginId
                 ),
-                ToolHandler { args ->
+                ToolHandler { args, _ ->
                     val filter = args.get("filter")?.asText() ?: throw IllegalArgumentException("filter required")
                     val baseDn = args.get("base_dn")?.asText()
                     val attributesNode = args.get("attributes")
@@ -343,7 +301,7 @@ class DataSourceQueryPlugin : Plugin {
                     paramsSpec = """{"type":"object","required":["query"],"properties":{"query":{"type":"string"},"collections":{"type":"array","items":{"type":"string"},"default":["*"]},"mode":{"type":"string","enum":["hybrid","vector","bm25"],"default":"hybrid"},"limit":{"type":"integer","default":20}}}""",
                     pluginId = pluginId
                 ),
-                ToolHandler { args ->
+                ToolHandler { args, _ ->
                     val query = args.get("query")?.asText() ?: throw IllegalArgumentException("query required")
                     val collectionsNode = args.get("collections")
                     val collections = if (collectionsNode != null && collectionsNode.isArray) {
@@ -367,18 +325,34 @@ class DataSourceQueryPlugin : Plugin {
         private val postgresConfig: PostgresConfig?,
         private val mariadbConfig: MariaDBConfig?,
         private val clickhouseConfig: ClickHouseConfig?,
-        private val couchdbConfig: CouchDBConfig?,
         private val qdrantConfig: QdrantConfig?,
         private val ldapConfig: LdapConfig?,
         private val searchServiceConfig: SearchServiceConfig?
     ) {
+        private val secretsDir = System.getenv("SHADOW_ACCOUNTS_SECRETS_DIR") ?: "/run/secrets/datamancy"
+
+        /**
+         * Load shadow account credentials for a user.
+         * Returns Pair(shadowUsername, password) or null if not found.
+         */
+        private fun loadShadowCredentials(username: String): Pair<String, String>? {
+            val shadowUsername = "$username-agent"
+            val passwordFile = java.io.File("$secretsDir/shadow-agent-$username.pwd")
+
+            return if (passwordFile.exists()) {
+                val password = passwordFile.readText().trim()
+                Pair(shadowUsername, password)
+            } else {
+                null
+            }
+        }
 
         @LlmTool(
             shortDescription = "Query PostgreSQL database",
             longDescription = "Execute a read-only SELECT query on PostgreSQL agent_observer schema. Only public/safe views accessible. Max 100 rows. Available databases: grafana, planka, mastodon, forgejo.",
             paramsSpec = """{"type":"object","required":["database","query"],"properties":{"database":{"type":"string","enum":["grafana","planka","mastodon","forgejo"]},"query":{"type":"string"}}}"""
         )
-        fun query_postgres(database: String, query: String): String {
+        fun query_postgres(database: String, query: String, userContext: String? = null): String {
             val config = postgresConfig ?: return "ERROR: PostgreSQL not configured"
 
             // Whitelist safe databases only
@@ -404,20 +378,39 @@ class DataSourceQueryPlugin : Plugin {
                 return "ERROR: Query contains forbidden patterns"
             }
 
+            // Determine credentials (shadow account if userContext provided, otherwise fallback to config)
+            val (dbUser, dbPassword) = if (userContext != null) {
+                val shadowCreds = loadShadowCredentials(userContext)
+                if (shadowCreds == null) {
+                    return "ERROR: Shadow account not provisioned for user: $userContext. Contact admin to run: scripts/security/create-shadow-agent-account.main.kts $userContext"
+                }
+                println("[AUDIT] user=$userContext shadow=${shadowCreds.first} tool=query_postgres database=$database")
+                shadowCreds
+            } else {
+                // Fallback to global config (deprecated, will be removed)
+                println("[WARN] No user context provided, using global account (deprecated)")
+                Pair(config.user, config.password)
+            }
+
             val url = "jdbc:postgresql://${config.host}:${config.port}/$database"
 
             return try {
-                DriverManager.getConnection(url, config.user, config.password).use { conn ->
+                DriverManager.getConnection(url, dbUser, dbPassword).use { conn ->
                     // Set search path to agent_observer schema only for extra safety
                     conn.createStatement().execute("SET search_path TO agent_observer")
+                    val startTime = System.currentTimeMillis()
                     conn.createStatement().use { stmt ->
                         stmt.maxRows = 100
                         stmt.executeQuery(query).use { rs ->
-                            resultSetToJson(rs)
+                            val result = resultSetToJson(rs)
+                            val elapsedMs = System.currentTimeMillis() - startTime
+                            println("[AUDIT] user=${userContext ?: "anonymous"} shadow=$dbUser database=$database query=\"${query.take(100)}\" rows=${result.lines().size - 2} elapsed_ms=$elapsedMs success=true")
+                            result
                         }
                     }
                 }
             } catch (e: Exception) {
+                println("[AUDIT] user=${userContext ?: "anonymous"} shadow=$dbUser database=$database query=\"${query.take(100)}\" success=false error=\"${e.message}\"")
                 "ERROR: ${e.message}"
             }
         }
@@ -427,7 +420,7 @@ class DataSourceQueryPlugin : Plugin {
             longDescription = "MariaDB querying is currently disabled. Safe views must be created first to expose only public data.",
             paramsSpec = """{"type":"object","required":["database","query"],"properties":{"database":{"type":"string"},"query":{"type":"string"}}}"""
         )
-        fun query_mariadb(database: String, query: String): String {
+        fun query_mariadb(database: String, query: String, userContext: String? = null): String {
             return "ERROR: MariaDB querying is disabled until safe public views are created. BookStack and Seafile contain user content that must not be exposed directly."
         }
 
@@ -438,15 +431,6 @@ class DataSourceQueryPlugin : Plugin {
         )
         fun query_clickhouse(query: String): String {
             return "ERROR: ClickHouse querying is disabled until safe aggregated views are created. Analytics data may contain sensitive metrics."
-        }
-
-        @LlmTool(
-            shortDescription = "Query CouchDB (DISABLED)",
-            longDescription = "CouchDB querying is currently disabled. Safe views must be created first to expose only public documents.",
-            paramsSpec = """{"type":"object","required":["database","selector"],"properties":{"database":{"type":"string"},"selector":{"type":"object"}}}"""
-        )
-        fun query_couchdb(database: String, selector: ObjectNode): String {
-            return "ERROR: CouchDB querying is disabled until safe views are created. Document databases may contain private user data."
         }
 
         @LlmTool(

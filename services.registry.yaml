@@ -1,0 +1,948 @@
+# Datamancy Service Registry
+# Single source of truth for all services in the stack
+#
+# This registry defines:
+# - Container images and versions
+# - Service metadata (phase, health checks, dependencies)
+# - Network configuration (subdomains, aliases)
+# - Resource requirements
+#
+# Generate compose files from this registry using:
+#   scripts/codegen/generate-compose-from-registry.main.kts
+#
+# Network Topology:
+# - frontend:  Public-facing (via Caddy reverse proxy)
+# - backend:   Internal application services
+# - database:  Database tier (postgres, mariadb, clickhouse, qdrant)
+# - ai:        ISOLATED - AI/LLM services only, no direct backend/db access
+# - ai-gateway: Bridge network for controlled AI->backend communication
+
+# Network Definitions
+networks:
+  frontend:
+    subnet: 172.20.0.0/24
+    description: Public-facing network (Caddy reverse proxy)
+  backend:
+    subnet: 172.21.0.0/24
+    description: Internal application services
+  database:
+    subnet: 172.22.0.0/24
+    description: Database tier
+  ai:
+    subnet: 172.23.0.0/24
+    description: ISOLATED AI/LLM services (external actor zone)
+  ai-gateway:
+    subnet: 172.24.0.0/24
+    description: Controlled gateway between AI and backend
+
+# Core Infrastructure Services
+core:
+  caddy:
+    image: caddy
+    version: 2.8.4
+    container_name: caddy
+    subdomain: www  # Primary subdomain (www.${DOMAIN})
+    additional_aliases:  # Other domains this service handles
+      - grafana
+      - open-webui
+      - vaultwarden
+      - app.vaultwarden
+      - planka
+      - bookstack
+      - jupyterhub
+      - homepage
+      - seafile
+      - api.seafile
+      - onlyoffice
+      - matrix
+      - api.matrix
+      - element
+      - homeassistant
+      - api.homeassistant
+      - litellm
+      - api.litellm
+      - auth
+      - kopia
+      - mail
+      - agent-tool-server
+      - lam
+      - forgejo
+      - qbittorrent
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    networks:
+      - frontend
+      - backend
+    health_check:
+      type: docker
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    phase: core
+    phase_order: 1
+
+  ldap:
+    image: osixia/openldap
+    version: 1.5.0
+    container_name: ldap
+    subdomain: null  # No direct subdomain exposure
+    networks:
+      - backend
+    health_check:
+      type: docker
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    phase: core
+    phase_order: 1
+
+  valkey:
+    image: valkey/valkey
+    version: 8.0.1
+    container_name: valkey
+    subdomain: null
+    network_aliases:
+      - redis
+      - redis-synapse
+    networks:
+      - backend
+    health_check:
+      type: docker
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    phase: core
+    phase_order: 1
+
+  authelia:
+    image: authelia/authelia
+    version: 4.39.13
+    container_name: authelia
+    subdomain: auth
+    networks:
+      - backend
+      - frontend
+      - database
+    depends_on:
+      - ldap
+      - postgres
+      - valkey
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: auth
+    phase_order: 3
+
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver
+    version: 14.0.0
+    container_name: mailserver
+    subdomain: mail
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "143:143"
+      - "993:993"
+    networks:
+      - backend
+    depends_on:
+      - ldap
+      - caddy
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    phase: auth
+    phase_order: 3
+
+  ldap-account-manager:
+    image: ghcr.io/ldapaccountmanager/lam
+    version: "9.3"
+    container_name: ldap-account-manager
+    subdomain: lam
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      - ldap
+    health_check:
+      type: docker
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    phase: core
+    phase_order: 1
+
+  memcached:
+    image: memcached
+    version: 1.6.39
+    container_name: seafile-memcached
+    subdomain: null
+    networks:
+      - backend
+    health_check:
+      type: docker
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    phase: core
+    phase_order: 1
+
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy
+    version: v0.4.1
+    container_name: docker-proxy
+    subdomain: null
+    networks:
+      - backend
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: core
+    phase_order: 1
+
+  kopia:
+    image: kopia/kopia
+    version: 0.18.2
+    container_name: kopia
+    subdomain: kopia
+    networks:
+      - backend
+      - frontend
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: core
+    phase_order: 1
+
+# Database Services
+databases:
+  postgres:
+    image: postgres
+    version: "16.11"
+    container_name: postgres
+    subdomain: null
+    network_aliases:
+      - db
+    networks:
+      - database
+      - backend
+    health_check:
+      type: docker
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    phase: databases
+    phase_order: 2
+    resources:
+      memory: 4G
+      cpus: "2.0"
+
+  mariadb:
+    image: mariadb
+    version: 11.6.2
+    container_name: mariadb
+    subdomain: null
+    network_aliases:
+      - mysql
+    networks:
+      - database
+      - backend
+    health_check:
+      type: docker
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    phase: databases
+    phase_order: 2
+
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    version: "24.8"
+    container_name: clickhouse
+    subdomain: null
+    networks:
+      - database
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: databases
+    phase_order: 2
+    resources:
+      memory: 4G
+      cpus: "2.0"
+
+  qdrant:
+    image: qdrant/qdrant
+    version: v1.12.5
+    container_name: qdrant
+    subdomain: null
+    networks:
+      - database
+      - backend
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: databases
+    phase_order: 2
+    resources:
+      memory: 2G
+      cpus: "2.0"
+
+  vector-bootstrap:
+    image: zenika/kotlin
+    version: latest
+    container_name: vector-bootstrap
+    subdomain: null
+    networks:
+      - database
+    depends_on:
+      - qdrant
+    phase: databases
+    phase_order: 2
+
+# Application Services
+applications:
+  grafana:
+    image: grafana/grafana
+    version: 11.6.7
+    container_name: grafana
+    subdomain: grafana
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - authelia
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui
+    version: 0.3.32
+    container_name: open-webui
+    subdomain: open-webui
+    networks:
+      - backend
+      - frontend
+      - database
+    depends_on:
+      - postgres
+      - litellm
+      - authelia
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  vaultwarden:
+    image: vaultwarden/server
+    version: testing
+    container_name: vaultwarden
+    subdomain: vaultwarden
+    additional_aliases:
+      - app.vaultwarden
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - mailserver
+      - authelia
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  bookstack:
+    image: lscr.io/linuxserver/bookstack
+    version: 24.12.1
+    container_name: bookstack
+    subdomain: bookstack
+    networks:
+      - backend
+    depends_on:
+      - mariadb
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    phase: applications
+    phase_order: 4
+
+  planka:
+    image: ghcr.io/plankanban/planka
+    version: 1.26.3
+    container_name: planka
+    subdomain: planka
+    networks:
+      - backend
+    depends_on:
+      - postgres
+      - authelia
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  forgejo:
+    image: codeberg.org/forgejo/forgejo
+    version: "9"
+    container_name: forgejo
+    subdomain: forgejo
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    phase: applications
+    phase_order: 4
+
+  homepage:
+    image: ghcr.io/gethomepage/homepage
+    version: v1.7.0
+    container_name: homepage
+    subdomain: homepage
+    networks:
+      - backend
+    depends_on:
+      - docker-proxy
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: applications
+    phase_order: 4
+
+  jupyterhub:
+    image: datamancy-jupyter-notebook
+    version: latest
+    container_name: jupyterhub
+    subdomain: jupyterhub
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant
+    version: stable
+    container_name: homeassistant
+    subdomain: homeassistant
+    additional_aliases:
+      - api.homeassistant
+    networks:
+      - backend
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    phase: applications
+    phase_order: 4
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    version: latest
+    container_name: qbittorrent
+    subdomain: qbittorrent
+    networks:
+      - backend
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  synapse:
+    image: matrixdotorg/synapse
+    version: latest
+    container_name: synapse
+    subdomain: matrix
+    additional_aliases:
+      - api.matrix
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - valkey
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  element:
+    image: vectorim/element-web
+    version: v1.11.88
+    container_name: element
+    subdomain: element
+    networks:
+      - backend
+    depends_on:
+      - synapse
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: applications
+    phase_order: 4
+
+  mastodon-web:
+    image: ghcr.io/mastodon/mastodon
+    version: v4.3.3
+    container_name: mastodon-web
+    subdomain: null
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - valkey
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  mastodon-streaming:
+    image: ghcr.io/mastodon/mastodon-streaming
+    version: v4.3.3
+    container_name: mastodon-streaming
+    subdomain: null
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - valkey
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  mastodon-sidekiq:
+    image: ghcr.io/mastodon/mastodon
+    version: v4.3.3
+    container_name: mastodon-sidekiq
+    subdomain: null
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - valkey
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  roundcube:
+    image: roundcube/roundcubemail
+    version: latest
+    container_name: roundcube
+    subdomain: null
+    networks:
+      - backend
+    depends_on:
+      - mailserver
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+
+  radicale:
+    image: tomsquest/docker-radicale
+    version: latest
+    container_name: radicale
+    subdomain: null
+    networks:
+      - backend
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: applications
+    phase_order: 4
+
+  seafile:
+    image: seafileltd/seafile-mc
+    version: 13.0.12
+    container_name: seafile
+    subdomain: seafile
+    additional_aliases:
+      - api.seafile
+    networks:
+      - backend
+      - database
+    depends_on:
+      - mariadb
+      - memcached
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    phase: applications
+    phase_order: 4
+
+  onlyoffice:
+    image: onlyoffice/documentserver
+    version: 8.2.2
+    container_name: onlyoffice
+    subdomain: onlyoffice
+    networks:
+      - backend
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    phase: applications
+    phase_order: 4
+
+# AI/ML Services
+ai:
+  vllm:
+    image: vllm/vllm-openai
+    version: latest
+    container_name: vllm
+    subdomain: null
+    networks:
+      - ai  # ISOLATED - AI network only, no backend access
+    health_check:
+      type: docker
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 2m
+    phase: ai
+    phase_order: 5
+    resources:
+      memory: 16G
+      cpus: "12.0"
+    gpu: true
+
+  embedding-service:
+    image: ghcr.io/huggingface/text-embeddings-inference
+    version: cpu-1.2
+    container_name: embedding-service
+    subdomain: null
+    networks:
+      - ai  # ISOLATED - AI network only
+      - ai-gateway  # Controlled access for unified-indexer
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    phase: ai
+    phase_order: 5
+
+  litellm:
+    image: ghcr.io/berriai/litellm
+    version: v1.74.9-stable.patch.1
+    container_name: litellm
+    subdomain: litellm
+    additional_aliases:
+      - api.litellm
+    networks:
+      - ai  # ISOLATED - AI network only
+      - frontend  # Only for Caddy access (external API)
+    depends_on:
+      - vllm
+    health_check:
+      type: docker
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    phase: ai
+    phase_order: 5
+
+# Datamancy Custom Services
+datamancy:
+  control-panel:
+    image: datamancy/control-panel
+    version: local-build
+    container_name: control-panel
+    subdomain: control
+    networks:
+      - frontend
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - data-fetcher
+      - unified-indexer
+    ports:
+      - "8097:8097"
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: datamancy
+    phase_order: 6
+
+  data-fetcher:
+    image: datamancy/data-fetcher
+    version: local-build
+    container_name: data-fetcher
+    subdomain: null
+    networks:
+      - backend
+      - database
+    depends_on:
+      - postgres
+      - clickhouse
+      - bookstack
+    health_check:
+      type: docker
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: datamancy
+    phase_order: 6
+
+  unified-indexer:
+    image: datamancy/unified-indexer
+    version: local-build
+    container_name: unified-indexer
+    subdomain: null
+    networks:
+      - backend
+      - database
+      - ai-gateway  # Access to embedding-service via gateway
+    depends_on:
+      - postgres
+      - bookstack
+      - qdrant
+      - clickhouse
+      - embedding-service
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: datamancy
+    phase_order: 6
+
+  search-service:
+    image: datamancy/search-service
+    version: local-build
+    container_name: search-service
+    subdomain: null
+    networks:
+      - backend
+      - database
+      - ai-gateway  # Access to embedding-service via gateway
+    depends_on:
+      - qdrant
+      - clickhouse
+      - embedding-service
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: datamancy
+    phase_order: 6
+
+  datamancy-api-gateway:
+    image: datamancy/api-gateway
+    version: local-build
+    container_name: datamancy-api-gateway
+    subdomain: null
+    networks:
+      - ai-gateway  # Bridge between AI and backend
+      - backend  # Access to internal services
+      - database  # Access to databases
+    depends_on:
+      - postgres
+      - mariadb
+      - clickhouse
+      - qdrant
+      - ldap
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: datamancy
+    phase_order: 6
+    security_note: "API GATEWAY - Controlled bridge between AI zone and backend. Implements rate limiting, auth, audit logging."
+
+  agent-tool-server:
+    image: datamancy/agent-tool-server
+    version: local-build
+    container_name: agent-tool-server
+    subdomain: agent-tool-server
+    networks:
+      - ai  # ISOLATED - Lives in AI zone (untrusted external actors)
+      - ai-gateway  # Controlled access to internal API gateway only
+      - frontend  # Only for Caddy access (MCP protocol)
+    depends_on:
+      - litellm
+      - datamancy-api-gateway  # Must go through gateway, no direct DB access
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: datamancy
+    phase_order: 6
+    security_note: "EXTERNAL ACTOR ZONE - This service proxies LLM requests. Network isolated from backend/database."
+
+  benthos:
+    image: jeffail/benthos
+    version: 4.27.0
+    container_name: benthos
+    subdomain: null
+    networks:
+      - backend
+      - database
+    depends_on:
+      - qdrant
+      - clickhouse
+      - litellm
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: datamancy
+    phase_order: 6
+
+# Metadata about phases (for controller)
+phases:
+  core:
+    order: 1
+    description: Core infrastructure (networks, volumes, caddy, ldap, valkey)
+    timeout_seconds: 90
+
+  databases:
+    order: 2
+    description: Database services (postgres, mariadb, clickhouse, qdrant)
+    timeout_seconds: 120
+
+  auth:
+    order: 3
+    description: Authentication services (authelia, mailserver)
+    timeout_seconds: 120
+
+  applications:
+    order: 4
+    description: Web applications (bookstack, grafana, etc.)
+    timeout_seconds: 180
+
+  ai:
+    order: 5
+    description: AI/ML services (vllm, litellm, embedding)
+    timeout_seconds: 300
+
+  datamancy:
+    order: 6
+    description: Datamancy services (control-panel, search, indexer)
+    timeout_seconds: 120

@@ -53,15 +53,16 @@ homeDirectory: /home/user
 loginShell: /bin/bash
 userPassword: {{USER_SSHA_PASSWORD}}
 
-# Agent Tool Server Observer Account (read-only access for LM queries)
-# Username: agent_observer
-# Password: From AGENT_LDAP_OBSERVER_PASSWORD environment variable
-dn: cn=agent_observer,dc=stack,dc=local
-objectClass: simpleSecurityObject
-objectClass: organizationalRole
-cn: agent_observer
-userPassword: {{AGENT_OBSERVER_SSHA_PASSWORD}}
-description: Read-only account for agent-tool-server to query LDAP
+# Shadow Agent Accounts (per-user, created dynamically)
+# Format: uid={username}-agent,ou=agents,dc=stack,dc=local
+# These accounts are created on-demand by scripts/security/create-shadow-agent-account.main.kts
+# Each user gets a shadow account with read-only access to databases/services
+# Admin accounts (cn=admins group members) are explicitly excluded from agent provisioning
+
+dn: ou=agents,dc=stack,dc=local
+objectClass: organizationalUnit
+ou: agents
+description: Shadow accounts for per-user agent access (read-only)
 
 # Admins Group
 dn: cn=admins,ou=groups,dc=stack,dc=local

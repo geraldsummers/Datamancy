@@ -23,16 +23,22 @@ subprojects {
     }
 }
 
-// Root-level test task runs tests from all subprojects
+// Root-level test task runs unit tests only (no Docker required)
 tasks.named("test") {
     dependsOn(
         ":agent-tool-server:test",
         ":data-fetcher:test",
         ":control-panel:test",
         ":search-service:test",
-        ":unified-indexer:test",
-        ":stack-tests:test"
+        ":unified-indexer:test"
     )
-
     // Note: test-commons has no tests (it's a library module)
+    // Note: stack-tests excluded - run separately with 'integrationTest' task
+}
+
+// Separate integration test task for Docker-dependent tests
+tasks.register("integrationTest") {
+    group = "verification"
+    description = "Run integration tests that require Docker stack"
+    dependsOn(":stack-tests:test")
 }

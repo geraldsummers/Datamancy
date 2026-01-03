@@ -23,10 +23,10 @@ data class ToolDefinition(
 )
 
 /**
- * Non-reflective tool handler: given JSON args, produce a result.
+ * Non-reflective tool handler: given JSON args and optional user context, produce a result.
  */
 fun interface ToolHandler {
-    fun call(args: JsonNode): Any?
+    fun call(args: JsonNode, userContext: String? = null): Any?
 }
 
 class ToolRegistry {
@@ -45,8 +45,8 @@ class ToolRegistry {
 
     fun listTools(): List<ToolDefinition> = defs.toList()
 
-    fun invoke(name: String, args: JsonNode): Any? {
-        val handler = tools[name] ?: throw NoSuchElementException("Tool not found: ${'$'}name")
-        return handler.call(args)
+    fun invoke(name: String, args: JsonNode, userContext: String? = null): Any? {
+        val handler = tools[name] ?: throw NoSuchElementException("Tool not found: $name")
+        return handler.call(args, userContext)
     }
 }

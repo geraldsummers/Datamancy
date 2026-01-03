@@ -7,8 +7,9 @@
  * Run this from the git repository to install or update.
  *
  * Usage:
- *   ./install-datamancy.main.kts           # Install/update
- *   ./install-datamancy.main.kts --force   # Force reinstall
+ *   ./install-datamancy.main.kts [install-path]           # Install/update
+ *   ./install-datamancy.main.kts [install-path] --force   # Force reinstall
+ *   (defaults to ~/.datamancy if install-path not provided)
  */
 
 @file:Suppress("SameParameterValue")
@@ -55,9 +56,13 @@ private fun projectRoot(): Path {
     }
 }
 
-private fun installDir(): Path {
-    val userHome = Paths.get(System.getProperty("user.home"))
-    return userHome.resolve(".datamancy")
+private fun installDir(customPath: String?): Path {
+    return if (customPath != null) {
+        Paths.get(customPath).toAbsolutePath().normalize()
+    } else {
+        val userHome = Paths.get(System.getProperty("user.home"))
+        userHome.resolve(".datamancy")
+    }
 }
 
 private fun ensurePerm(path: Path, executable: Boolean = false) {
@@ -101,7 +106,33 @@ private fun getVersion(): String {
     }
 }
 
-private fun copyRecursive(source: Path, dest: Path, filter: (Path) -> Boolean = { true }) {
+private fun shouldExclude(path: Path): Boolean {
+    val name = path.fileName.toString()
+
+    // Exclude patterns
+    val excludePatterns = listOf(
+        ".git",
+        ".gradle",
+        ".idea",
+        "build",
+        "node_modules",
+        ".DS_Store",
+        "*.iml",
+        ".env",
+        "volumes",
+        "configs"  // Don't copy generated configs
+    )
+
+    return excludePatterns.any { pattern ->
+        if (pattern.startsWith("*.")) {
+            name.endsWith(pattern.substring(1))
+        } else {
+            name == pattern
+        }
+    }
+}
+
+private fun copyRecursive(source: Path, dest: Path) {
     if (!Files.exists(source)) {
         warn("Source does not exist: $source")
         return
@@ -111,8 +142,8 @@ private fun copyRecursive(source: Path, dest: Path, filter: (Path) -> Boolean = 
         Files.createDirectories(dest)
         Files.list(source).use { stream ->
             stream.forEach { child ->
-                if (filter(child)) {
-                    copyRecursive(child, dest.resolve(child.fileName), filter)
+                if (!shouldExclude(child)) {
+                    copyRecursive(child, dest.resolve(child.fileName))
                 }
             }
         }
@@ -138,13 +169,13 @@ private fun checkExistingInstallation(installDir: Path): String? {
     }
 }
 
-private fun install(force: Boolean) {
+private fun install(force: Boolean, customInstallPath: String?) {
     if (isRoot()) {
         err("Installation must not be run as root. Run without sudo.")
     }
 
     val root = projectRoot()
-    val installDir = installDir()
+    val installDir = installDir(customInstallPath)
     val version = getVersion()
 
     println("""
@@ -176,105 +207,25 @@ private fun install(force: Boolean) {
     }
 
     // Create base directory structure
-    info("Step 1/7: Creating directory structure")
+    info("Step 1/3: Creating directory structure")
     Files.createDirectories(installDir)
     Files.createDirectories(installDir.resolve("configs"))
     Files.createDirectories(installDir.resolve("volumes"))
-    Files.createDirectories(installDir.resolve("scripts"))
     success("Directory structure created")
 
-    // Copy docker-compose files
-    info("Step 2/7: Installing Docker Compose files")
-    val composeFiles = listOf(
-        "docker-compose.yml",
-        "docker-compose.test-ports.yml"
-    )
-    composeFiles.forEach { file ->
-        val source = root.resolve(file)
-        if (Files.exists(source)) {
-            Files.copy(source, installDir.resolve(file), StandardCopyOption.REPLACE_EXISTING)
-        } else {
-            warn("$file not found in source")
-        }
-    }
-    success("Docker Compose files installed")
+    // Copy entire project with exclusions
+    info("Step 2/3: Copying project files (excluding build artifacts)")
+    copyRecursive(root, installDir)
+    success("Project files copied")
 
-    // Copy config templates
-    info("Step 3/7: Installing configuration templates")
-    val templatesSource = root.resolve("configs.templates")
-    val templatesDest = installDir.resolve("configs.templates")
-    if (Files.exists(templatesSource)) {
-        copyRecursive(templatesSource, templatesDest)
-        success("Configuration templates installed")
-    } else {
-        warn("configs.templates not found in source")
-    }
-
-    // Copy scripts
-    info("Step 4/7: Installing scripts")
-    val scriptsSource = root.resolve("scripts")
-    val scriptsDest = installDir.resolve("scripts")
-    if (Files.exists(scriptsSource)) {
-        copyRecursive(scriptsSource, scriptsDest) { path ->
-            // Skip non-.kts files in subdirectories, but copy everything else
-            val name = path.fileName.toString()
-            Files.isDirectory(path) || name.endsWith(".kts") || name.endsWith(".sh")
-        }
-        success("Scripts installed")
-    } else {
-        warn("scripts directory not found in source")
-    }
-
-    // Copy controller script (keep .kts extension for kotlin interpreter)
-    info("Step 5/7: Installing controller script")
-    val controllerSource = root.resolve("scripts/stack-control/datamancy-controller.main.kts")
+    // Ensure controller script is executable
     val controllerDest = installDir.resolve("datamancy-controller.main.kts")
-    if (Files.exists(controllerSource)) {
-        Files.copy(controllerSource, controllerDest, StandardCopyOption.REPLACE_EXISTING)
+    if (Files.exists(controllerDest)) {
         ensurePerm(controllerDest, executable = true)
-        success("Controller script installed")
-    } else {
-        err("scripts/stack-control/datamancy-controller.main.kts not found in source - cannot continue")
-    }
-
-    // Copy Dockerfiles and build context (needed for builds)
-    info("Step 6/7: Installing Dockerfiles and build context")
-    val srcDir = root.resolve("src")
-    val srcDest = installDir.resolve("src")
-    if (Files.exists(srcDir)) {
-        // Copy entire src directory (needed for build context)
-        copyRecursive(srcDir, srcDest) { path ->
-            val name = path.fileName.toString()
-            // Skip build outputs and test results
-            !name.startsWith(".") && name != "build" && name != "node_modules"
-        }
-        success("Build context installed")
-    } else {
-        warn("src directory not found - Docker builds may not work")
-    }
-
-    // Copy build files
-    val buildFiles = listOf("build.gradle.kts", "settings.gradle.kts", "gradle.properties")
-    buildFiles.forEach { file ->
-        val source = root.resolve(file)
-        if (Files.exists(source)) {
-            Files.copy(source, installDir.resolve(file), StandardCopyOption.REPLACE_EXISTING)
-        }
-    }
-
-    // Copy gradle wrapper if it exists
-    val gradleDir = root.resolve("gradle")
-    if (Files.exists(gradleDir)) {
-        copyRecursive(gradleDir, installDir.resolve("gradle"))
-    }
-    val gradlewFile = root.resolve("gradlew")
-    if (Files.exists(gradlewFile)) {
-        Files.copy(gradlewFile, installDir.resolve("gradlew"), StandardCopyOption.REPLACE_EXISTING)
-        ensurePerm(installDir.resolve("gradlew"), executable = true)
     }
 
     // Write version marker
-    info("Step 7/7: Writing version marker")
+    info("Step 3/3: Writing version marker")
     Files.writeString(installDir.resolve(".version"), version)
     success("Version marker written")
 
@@ -293,10 +244,10 @@ private fun install(force: Boolean) {
         |     source ~/.bashrc
         |
         |  2. Start the stack:
-        |     ${ANSI_CYAN}~/.datamancy/datamancy-controller.main.kts up${ANSI_RESET}
+        |     ${ANSI_CYAN}cd ~/.datamancy && ./datamancy-controller.main.kts up${ANSI_RESET}
         |
         |  3. Check status:
-        |     ${ANSI_CYAN}~/.datamancy/datamancy-controller.main.kts status${ANSI_RESET}
+        |     ${ANSI_CYAN}cd ~/.datamancy && ./datamancy-controller.main.kts status${ANSI_RESET}
         |
         |${ANSI_YELLOW}Note:${ANSI_RESET} All stack data lives in ~/.datamancy/
         |      You can safely update the git repository and re-run this installer.
@@ -309,22 +260,31 @@ private fun install(force: Boolean) {
 // ============================================================================
 
 val force = args.contains("--force")
+val installPath = args.firstOrNull { !it.startsWith("--") }
 
 if (args.contains("--help") || args.contains("-h")) {
     println("""
         |Datamancy Installer
         |
-        |Usage: ./install-datamancy.main.kts [--force]
+        |Usage: ./install-datamancy.main.kts [install-path] [--force]
+        |
+        |Arguments:
+        |  install-path  Custom installation directory (default: ~/.datamancy)
         |
         |Options:
-        |  --force    Force reinstallation even if version matches
-        |  --help     Show this help message
+        |  --force       Force reinstallation even if version matches
+        |  --help        Show this help message
         |
-        |This installer copies the complete Datamancy stack to ~/.datamancy/
+        |This installer copies the complete Datamancy stack to the specified directory.
         |Safe to re-run for updates after 'git pull'.
+        |
+        |Examples:
+        |  ./install-datamancy.main.kts
+        |  ./install-datamancy.main.kts /opt/datamancy
+        |  ./install-datamancy.main.kts ~/my-custom-location --force
         |
     """.trimMargin())
     exitProcess(0)
 }
 
-install(force)
+install(force, installPath)

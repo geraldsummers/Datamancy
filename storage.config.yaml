@@ -10,8 +10,8 @@ vector_dbs:
 
 # Non-vector databases (ClickHouse, PostgreSQL, MariaDB, etc.) - stored on RAID
 non_vector_dbs:
-  path: "/mnt/btrfs_raid_1_01/docker/volumes/databases"
+  path: "/mnt/btrfs_raid_1_01_docker/volumes/databases"
 
 # Application data (caddy, grafana, bookstack, etc.) - stored on RAID
 application_data:
-  path: "/mnt/btrfs_raid_1_01/docker/volumes/applications"
+  path: "/mnt/btrfs_raid_1_01_docker/volumes/applications"

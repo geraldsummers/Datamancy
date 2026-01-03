@@ -42,17 +42,6 @@ auth.{{DOMAIN}} {
     reverse_proxy authelia:9091
 }
 
-# CouchDB
-couchdb.{{DOMAIN}} {
-    route {
-        forward_auth authelia:9091 {
-            uri /api/authz/forward-auth
-            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        }
-        reverse_proxy couchdb:5984
-    }
-}
-
 # Roundcube Webmail - Proxy auth with Dovecot master user
 # Also generates certificate for docker-mailserver SMTP/IMAP
 mail.{{DOMAIN}} {

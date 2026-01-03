@@ -84,12 +84,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             ALTER USER roundcube WITH PASSWORD \$pwd\$$STACK_ADMIN_PASSWORD\$pwd\$;
         END IF;
 
-        -- Create agent-tool-server observer account (read-only access to all databases)
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'agent_observer') THEN
-            CREATE USER agent_observer WITH PASSWORD \$pwd\$$AGENT_POSTGRES_OBSERVER_PASSWORD\$pwd\$;
-        ELSE
-            ALTER USER agent_observer WITH PASSWORD \$pwd\$$AGENT_POSTGRES_OBSERVER_PASSWORD\$pwd\$;
-        END IF;
+        -- Shadow agent accounts are created per-user via scripts/security/create-shadow-agent-account.main.kts
+        -- No global agent_observer account (security: per-user shadow accounts for traceability)
+        -- Each user gets: {username}-agent role with read-only access to agent_observer schema
 
         -- Create datamancy service user (for integration tests and data-fetcher services)
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'datamancer') THEN
@@ -159,12 +156,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE datamancy TO datamancer;
     GRANT ALL PRIVILEGES ON DATABASE homeassistant TO $POSTGRES_USER;
 
-    -- Grant CONNECT to agent_observer on safe databases only
-    -- SECURITY: Only databases with safe public data
-    GRANT CONNECT ON DATABASE grafana TO agent_observer;
-    GRANT CONNECT ON DATABASE planka TO agent_observer;
-    GRANT CONNECT ON DATABASE mastodon TO agent_observer;
-    GRANT CONNECT ON DATABASE forgejo TO agent_observer;
+    -- Shadow agent accounts are granted CONNECT via scripts/security/provision-shadow-database-access.sh
+    -- Each {username}-agent gets CONNECT on safe databases only (grafana, planka, mastodon, forgejo)
+    -- SECURITY: Per-user shadow accounts enable audit traceability and limited blast radius
 
     -- Explicitly DENY access to sensitive databases
     -- (revoke is redundant but explicit for documentation)
