@@ -6,6 +6,7 @@
 @file:DependsOn("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -34,12 +35,17 @@ data class ServiceDefinition(
     val subdomain: String?,
     val additional_aliases: List<String>? = null,
     val networks: List<String>,
+    val network_aliases: List<String>? = null,
     val depends_on: List<String>? = null,
     val health_check: ServiceHealthCheck? = null,
     val phase: String,
     val phase_order: Int,
     val resources: ServiceResources? = null,
-    val environment: Map<String, String>? = null
+    val environment: Map<String, String>? = null,
+    val ports: List<String>? = null,
+    val volumes: List<String>? = null,
+    val command: String? = null,
+    val entrypoint: String? = null
 )
 
 data class PhaseMetadata(
@@ -66,7 +72,9 @@ fun main(args: Array<String>) {
     }
 
     println("📖 Reading services registry...")
-    val mapper = ObjectMapper(YAMLFactory()).registerModule(KotlinModule.Builder().build())
+    val mapper = ObjectMapper(YAMLFactory())
+        .registerModule(KotlinModule.Builder().build())
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     val registry = mapper.readValue<ServiceRegistry>(registryFile)
 
     // Collect all services

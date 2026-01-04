@@ -758,10 +758,10 @@ private fun generateEnvironmentConfig() {
     info("Generating .env from defaults")
     info("Output: $envFile")
 
-    val script = root.resolve("scripts/stack-control/configure-environment.kts")
+    val script = root.resolve("scripts/stack-control/configure-environment.main.kts")
 
     if (!Files.exists(script)) {
-        err("configure-environment.kts not found at: $script\n" +
+        err("configure-environment.main.kts not found at: $script\n" +
             "Your installation may be corrupted. Try reinstalling.")
     }
 
@@ -899,9 +899,9 @@ private fun bringUpPhased(profile: String?) {
     val profileName = profile ?: "all"
 
     // Regenerate compose files from registry
-    regenerateComposeFiles(root)
+    regenerateComposeFiles(root.toFile())
 
-    val phases = getPhases(profileName, root)
+    val phases = getPhases(profileName, root.toFile())
 
     info("Starting Datamancy stack (phased startup)")
     info("Profile: $profileName (${phases.size} phases)")
@@ -1592,7 +1592,7 @@ when (args[0]) {
     "codegen" -> {
         if (isRoot()) err("Codegen operations must not be run as root. Run without sudo.")
         val root = installRoot()
-        regenerateComposeFiles(root)
+        regenerateComposeFiles(root.toFile())
     }
 
     "help", "--help", "-h" -> showHelp()

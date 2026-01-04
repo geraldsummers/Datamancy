@@ -1,1 +1,0 @@
-/home/gerald/.datamancy/datamancy-controller.main.kts
