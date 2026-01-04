@@ -1,32 +1,5 @@
-# Datamancy Stack - Modular Docker Compose Configuration
-#
-# This is the main orchestrator file that includes all modular compose files.
-# Each category of services is organized into separate files for easier management.
-#
-# Installation & Management:
-#   install-datamancy.main.kts                          - Install from git repo to ~/.datamancy/
-#   ~/.datamancy/datamancy-controller.main.kts          - Control script (ONLY use from installed dir)
-#
-# Quick Start:
-#   1. From git repo, run installer:     ./install-datamancy.main.kts
-#   2. Start stack from installed dir:   cd ~/.datamancy && ./datamancy-controller.main.kts up
-#   3. Check status:                     cd ~/.datamancy && ./datamancy-controller.main.kts status
-#
-# Modular Structure:
-#   compose/core/              - Networks, volumes, infrastructure services
-#   compose/databases/         - PostgreSQL, MariaDB, ClickHouse, Qdrant
-#   compose/applications/      - Web apps, communication tools, file services
-#   compose/datamancy/         - Custom Datamancy services and AI/ML stack
-#   compose/environments/      - Environment-specific overrides (testing, production)
-#
-# Usage:
-#   Full stack:     docker compose -f docker-compose.modular.yml up
-#   With test ports: docker compose -f docker-compose.modular.yml -f docker-compose.test-ports.yml up
-#   Databases only: docker compose -f compose/core/networks.yml -f compose/core/volumes.yml -f compose/databases/relational.yml up
-#   Testing profile: docker compose -f docker-compose.modular.yml --profile testing up
-#
-# IMPORTANT: Always run the controller from ~/.datamancy/ (it operates on local files)
-# For detailed usage: cd ~/.datamancy && ./datamancy-controller.main.kts help
+# Auto-generated from services.registry.yaml
+# DO NOT EDIT MANUALLY - run scripts/codegen/generate-compose.main.kts
 
 include:
   # Core infrastructure
@@ -44,9 +17,9 @@ include:
   - path: compose/applications/communication.yml
   - path: compose/applications/files.yml
 
-  # Datamancy custom services
+  # Datamancy Services
   - path: compose/datamancy/services.yml
   - path: compose/datamancy/ai.yml
 
-  # Testing (only loaded with --profile testing)
+  # Testing
   - path: compose/environments/testing.yml

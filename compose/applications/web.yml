@@ -1,0 +1,187 @@
+# Auto-generated from services.registry.yaml
+# DO NOT EDIT MANUALLY - run scripts/codegen/generate-compose.main.kts
+
+services:
+  grafana:
+    image: grafana/grafana:11.6.7
+    container_name: grafana
+    networks:
+      backend:
+        aliases:
+          - grafana.${DOMAIN}
+      database:
+        aliases:
+          - grafana.${DOMAIN}
+    depends_on:
+      - postgres
+      - authelia
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:0.3.32
+    container_name: open-webui
+    networks:
+      backend:
+        aliases:
+          - open-webui.${DOMAIN}
+      frontend:
+        aliases:
+          - open-webui.${DOMAIN}
+      database:
+        aliases:
+          - open-webui.${DOMAIN}
+    depends_on:
+      - postgres
+      - litellm
+      - authelia
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  vaultwarden:
+    image: vaultwarden/server:testing
+    container_name: vaultwarden
+    networks:
+      backend:
+        aliases:
+          - vaultwarden.${DOMAIN}
+          - app.vaultwarden.${DOMAIN}
+      database:
+        aliases:
+          - vaultwarden.${DOMAIN}
+          - app.vaultwarden.${DOMAIN}
+    depends_on:
+      - postgres
+      - mailserver
+      - authelia
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  bookstack:
+    image: lscr.io/linuxserver/bookstack:24.12.1
+    container_name: bookstack
+    networks:
+      backend:
+        aliases:
+          - bookstack.${DOMAIN}
+    depends_on:
+      - mariadb
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  planka:
+    image: ghcr.io/plankanban/planka:1.26.3
+    container_name: planka
+    networks:
+      backend:
+        aliases:
+          - planka.${DOMAIN}
+    depends_on:
+      - postgres
+      - authelia
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:9
+    container_name: forgejo
+    networks:
+      backend:
+        aliases:
+          - forgejo.${DOMAIN}
+      database:
+        aliases:
+          - forgejo.${DOMAIN}
+    depends_on:
+      - postgres
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v1.7.0
+    container_name: homepage
+    networks:
+      backend:
+        aliases:
+          - homepage.${DOMAIN}
+    depends_on:
+      - docker-proxy
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  jupyterhub:
+    image: datamancy-jupyter-notebook:latest
+    container_name: jupyterhub
+    networks:
+      backend:
+        aliases:
+          - jupyterhub.${DOMAIN}
+      database:
+        aliases:
+          - jupyterhub.${DOMAIN}
+    depends_on:
+      - postgres
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    networks:
+      backend:
+        aliases:
+          - homeassistant.${DOMAIN}
+          - api.homeassistant.${DOMAIN}
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    networks:
+      backend:
+        aliases:
+          - qbittorrent.${DOMAIN}
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+

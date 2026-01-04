@@ -278,6 +278,16 @@ fun generateComposeFile(
 
             appendLine("    container_name: ${svc.container_name}")
 
+            // Ports
+            svc.ports?.let { ports ->
+                if (ports.isNotEmpty()) {
+                    appendLine("    ports:")
+                    ports.forEach { port ->
+                        appendLine("      - \"$port\"")
+                    }
+                }
+            }
+
             // Networks
             if (svc.networks.isNotEmpty()) {
                 appendLine("    networks:")
@@ -313,15 +323,35 @@ fun generateComposeFile(
                 }
             }
 
-            // Environment (placeholder - would need full env var handling)
-            if (isDatamancy || svc.container_name in listOf("postgres", "mariadb", "clickhouse")) {
-                appendLine("    environment:")
-                appendLine("      # TODO: Add environment variables from existing compose files")
+            // Environment
+            svc.environment?.let { env ->
+                if (env.isNotEmpty()) {
+                    appendLine("    environment:")
+                    env.forEach { (key, value) ->
+                        appendLine("      $key: $value")
+                    }
+                }
             }
 
-            // Volumes (placeholder)
-            appendLine("    volumes:")
-            appendLine("      # Managed by compose/core/volumes.yml")
+            // Volumes
+            svc.volumes?.let { volumes ->
+                if (volumes.isNotEmpty()) {
+                    appendLine("    volumes:")
+                    volumes.forEach { volume ->
+                        appendLine("      - $volume")
+                    }
+                }
+            }
+
+            // Command
+            svc.command?.let { cmd ->
+                appendLine("    command: $cmd")
+            }
+
+            // Entrypoint
+            svc.entrypoint?.let { ep ->
+                appendLine("    entrypoint: $ep")
+            }
 
             // Health check
             svc.health_check?.let { hc ->

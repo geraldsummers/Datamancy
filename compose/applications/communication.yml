@@ -1,0 +1,116 @@
+# Auto-generated from services.registry.yaml
+# DO NOT EDIT MANUALLY - run scripts/codegen/generate-compose.main.kts
+
+services:
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: synapse
+    networks:
+      backend:
+        aliases:
+          - matrix.${DOMAIN}
+          - api.matrix.${DOMAIN}
+      database:
+        aliases:
+          - matrix.${DOMAIN}
+          - api.matrix.${DOMAIN}
+    depends_on:
+      - postgres
+      - valkey
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  element:
+    image: vectorim/element-web:v1.11.88
+    container_name: element
+    networks:
+      backend:
+        aliases:
+          - element.${DOMAIN}
+    depends_on:
+      - synapse
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mastodon-web:
+    image: ghcr.io/mastodon/mastodon:v4.3.3
+    container_name: mastodon-web
+    networks:
+      backend: {}
+      database: {}
+    depends_on:
+      - postgres
+      - valkey
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  mastodon-streaming:
+    image: ghcr.io/mastodon/mastodon-streaming:v4.3.3
+    container_name: mastodon-streaming
+    networks:
+      backend: {}
+      database: {}
+    depends_on:
+      - postgres
+      - valkey
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  mastodon-sidekiq:
+    image: ghcr.io/mastodon/mastodon:v4.3.3
+    container_name: mastodon-sidekiq
+    networks:
+      backend: {}
+      database: {}
+    depends_on:
+      - postgres
+      - valkey
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  roundcube:
+    image: roundcube/roundcubemail:latest
+    container_name: roundcube
+    networks:
+      backend: {}
+    depends_on:
+      - mailserver
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  radicale:
+    image: tomsquest/docker-radicale:latest
+    container_name: radicale
+    networks:
+      backend: {}
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+

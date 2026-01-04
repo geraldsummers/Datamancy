@@ -1,0 +1,45 @@
+# Auto-generated from services.registry.yaml
+# DO NOT EDIT MANUALLY - run scripts/codegen/generate-compose.main.kts
+#
+# Network Security Architecture:
+# - frontend:    Public-facing (Caddy reverse proxy only)
+# - backend:     Internal application services
+# - database:    Database tier (postgres, mariadb, clickhouse, qdrant, ldap)
+# - ai:          ISOLATED - AI/LLM services, no direct backend/database access
+# - ai-gateway:  Controlled bridge between AI zone and backend (API gateway)
+
+networks:
+  frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+  backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+  database:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
+
+  ai:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/24
+    # ISOLATED NETWORK - For AI/LLM services that handle external actor requests
+    # No direct access to backend or database networks
+    # All backend communication must go through ai-gateway
+
+  ai-gateway:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.24.0.0/24
+    # BRIDGE NETWORK - Controlled communication between AI and backend
+    # Only datamancy-api-gateway and select services have access

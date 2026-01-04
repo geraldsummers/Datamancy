@@ -1,0 +1,30 @@
+# Auto-generated from services.registry.yaml
+# DO NOT EDIT MANUALLY - run scripts/codegen/generate-compose.main.kts
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: qdrant
+    networks:
+      database: {}
+      backend: {}
+    healthcheck:
+      # Using Docker HEALTHCHECK from image
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+
+  vector-bootstrap:
+    image: zenika/kotlin:latest
+    container_name: vector-bootstrap
+    networks:
+      database: {}
+    depends_on:
+      - qdrant
+
