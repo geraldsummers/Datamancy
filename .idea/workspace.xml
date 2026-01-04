@@ -4,18 +4,37 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="deploying">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="fixed?">
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/install-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/install-datamancy.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/codegen/generate-compose.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/stack-control/process-config-templates.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/host/ToolRegistry.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/host/ToolRegistry.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/src/main/kotlin/org/example/plugins/BrowserToolsPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/control-panel/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/src/main/kotlin/org/datamancy/controlpanel/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/api/TriggerEndpoint.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/api/TriggerEndpoint.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build-datamancy.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/reports/problems/problems-report.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/reports/problems/problems-report.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/applications/20-web.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/applications/21-communication.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/applications/22-files.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/core/01-networks.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/core/02-volumes.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/core/03-infrastructure.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/databases/10-relational.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/databases/11-vector.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/databases/12-analytics.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/datamancy/30-services.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/datamancy/31-ai.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/environments/testing.yml.template" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/applications/communication.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/applications/files.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/applications/web.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/core/infrastructure.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/core/networks.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/databases/analytics.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/databases/relational.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/databases/vector.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/datamancy/ai.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose/datamancy/services.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.modular.yml" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -406,7 +425,15 @@
       <option name="project" value="LOCAL" />
       <updated>1767513550185</updated>
     </task>
-    <option name="localTasksCounter" value="27" />
+    <task id="LOCAL-00027" summary="fixed?">
+      <option name="closed" value="true" />
+      <created>1767564667686</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1767564667686</updated>
+    </task>
+    <option name="localTasksCounter" value="28" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -425,7 +452,8 @@
     <MESSAGE value="ingestion" />
     <MESSAGE value="test writing" />
     <MESSAGE value="deploying" />
-    <option name="LAST_COMMIT_MESSAGE" value="deploying" />
+    <MESSAGE value="fixed?" />
+    <option name="LAST_COMMIT_MESSAGE" value="fixed?" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/Datamancy$Datamancy__build_.ic" NAME="Datamancy [build] Coverage Results" MODIFIED="1766219509283" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="idea" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="true" />
