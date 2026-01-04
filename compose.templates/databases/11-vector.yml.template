@@ -3,7 +3,7 @@
 
 services:
   qdrant:
-    image: qdrant/qdrant:{{IMAGE_QDRANT}}}}
+    image: qdrant/qdrant:{{IMAGE_QDRANT}}
     container_name: qdrant
     restart: unless-stopped
     networks:

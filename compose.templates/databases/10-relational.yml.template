@@ -2,12 +2,12 @@
 # PostgreSQL and MariaDB
 
 services:
-  mariadb:{{IMAGE_MARIADB}}}}
-    image: mariadb:{{IMAGE_MARIADB}}}}
+  mariadb:{{IMAGE_MARIADB}}
+    image: mariadb:{{IMAGE_MARIADB}}
     container_name: mariadb
     restart: unless-stopped
     networks:
-      database: {}}
+      database: {}
       backend:
         aliases:
           - mysql
@@ -27,15 +27,15 @@ services:
       retries: 5
       start_period: 30s
 
-  postgres:{{IMAGE_POSTGRES}}}}
-    image: postgres:{{IMAGE_POSTGRES}}}}
+  postgres:{{IMAGE_POSTGRES}}
+    image: postgres:{{IMAGE_POSTGRES}}
     container_name: postgres
     restart: unless-stopped
     networks:
       database:
         aliases:
           - db
-      backend: {}}
+      backend: {}
     environment:
       - POSTGRES_PASSWORD={{POSTGRES_ROOT_PASSWORD}}
       - POSTGRES_USER={{STACK_ADMIN_USER}}

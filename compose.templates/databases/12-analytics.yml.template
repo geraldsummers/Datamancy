@@ -3,7 +3,7 @@
 
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:{{IMAGE_CLICKHOUSE}}}}
+    image: clickhouse/clickhouse-server:{{IMAGE_CLICKHOUSE}}
     container_name: clickhouse
     restart: unless-stopped
     networks:
