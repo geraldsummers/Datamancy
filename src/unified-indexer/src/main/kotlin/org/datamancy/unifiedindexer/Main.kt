@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.html.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import org.datamancy.config.ServicePorts
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -67,7 +68,7 @@ fun main() {
         embeddingServiceUrl = embeddingUrl
     )
 
-    val port = System.getenv("INDEXER_PORT")?.toIntOrNull() ?: 8096
+    val port = System.getenv("INDEXER_PORT")?.toIntOrNull() ?: ServicePorts.UnifiedIndexer.INTERNAL
     val server = embeddedServer(Netty, port = port) {
         configureServer(database, indexer, bookstackIndexer)
     }

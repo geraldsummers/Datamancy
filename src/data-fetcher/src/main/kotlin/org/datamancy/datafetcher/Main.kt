@@ -22,6 +22,7 @@ import org.datamancy.datafetcher.storage.CheckpointStore
 import org.datamancy.datafetcher.storage.ClickHouseStore
 import org.datamancy.datafetcher.storage.DedupeStore
 import org.datamancy.datafetcher.storage.PostgresStore
+import org.datamancy.config.ServicePorts
 import java.io.File
 
 private val logger = KotlinLogging.logger {}
@@ -56,7 +57,7 @@ fun main() {
     val scheduler = FetchScheduler(config)
 
     // Start Ktor server
-    val port = System.getenv("DATAFETCHER_PORT")?.toIntOrNull() ?: 8095
+    val port = System.getenv("DATAFETCHER_PORT")?.toIntOrNull() ?: ServicePorts.DataFetcher.INTERNAL
     val server = embeddedServer(Netty, port = port) {
         configureServer(scheduler, config)
     }

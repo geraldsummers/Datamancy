@@ -23,12 +23,13 @@ import org.datamancy.controlpanel.api.configureStorageApi
 import org.datamancy.controlpanel.api.configureSystemApi
 import org.datamancy.controlpanel.services.ProxyService
 import org.datamancy.controlpanel.services.DatabaseService
+import org.datamancy.config.ServicePorts
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
 fun main() {
-    val port = (System.getenv("PANEL_PORT") ?: "8097").toInt()
+    val port = System.getenv("PANEL_PORT")?.toIntOrNull() ?: ServicePorts.ControlPanel.INTERNAL
 
     // Database configuration
     val pgHost = System.getenv("POSTGRES_HOST") ?: "postgres"
@@ -52,9 +53,9 @@ fun main() {
     }
 
     val proxyService = ProxyService(
-        dataFetcherUrl = System.getenv("DATA_FETCHER_URL") ?: "http://data-fetcher:8095",
-        indexerUrl = System.getenv("UNIFIED_INDEXER_URL") ?: "http://unified-indexer:8096",
-        searchUrl = System.getenv("SEARCH_SERVICE_URL") ?: "http://search-service:8000"
+        dataFetcherUrl = System.getenv("DATA_FETCHER_URL") ?: "http://data-fetcher:${ServicePorts.DataFetcher.INTERNAL}",
+        indexerUrl = System.getenv("UNIFIED_INDEXER_URL") ?: "http://unified-indexer:${ServicePorts.UnifiedIndexer.INTERNAL}",
+        searchUrl = System.getenv("SEARCH_SERVICE_URL") ?: "http://search-service:${ServicePorts.SearchService.INTERNAL}"
     )
 
     embeddedServer(Netty, port = port) {

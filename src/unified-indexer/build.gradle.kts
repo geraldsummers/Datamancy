@@ -1,83 +1,57 @@
 plugins {
-    kotlin("jvm") version "2.0.21"
-    kotlin("plugin.serialization") version "2.0.21"
+    kotlin("jvm")
+    kotlin("plugin.serialization")
     application
-    id("com.github.johnrengelman.shadow") version "8.1.1"
-}
-
-group = "org.datamancy"
-version = "1.0.0"
-
-repositories {
-    mavenCentral()
+    id("com.github.johnrengelman.shadow")
 }
 
 dependencies {
-    // Kotlin coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+    // Kotlinx
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
 
     // HTTP client
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation(libs.okhttp)
 
     // JSON
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation(libs.gson)
 
-    // Qdrant client - latest version with updated gRPC
-    implementation("io.qdrant:client:1.16.2")
+    // Qdrant client
+    implementation(libs.qdrant.client)
 
     // ClickHouse JDBC with LZ4 compression support
-    implementation("com.clickhouse:clickhouse-jdbc:0.6.5")
-    implementation("com.clickhouse:clickhouse-http-client:0.6.5")
-    implementation("org.apache.httpcomponents.client5:httpclient5:5.4.1")
-    implementation("org.lz4:lz4-java:1.8.0")
+    implementation(libs.bundles.clickhouse)
 
     // PostgreSQL JDBC for job state persistence
-    implementation("org.postgresql:postgresql:42.7.1")
+    implementation(libs.postgres.jdbc)
 
     // HikariCP for connection pooling
-    implementation("com.zaxxer:HikariCP:5.1.0")
+    implementation(libs.hikaricp)
 
     // Logging
-    implementation("ch.qos.logback:logback-classic:1.5.15")
-    implementation("io.github.oshai:kotlin-logging-jvm:7.0.3")
+    implementation(libs.bundles.logging)
 
-    // Ktor server for API and SSE
-    implementation("io.ktor:ktor-server-core:3.0.0")
-    implementation("io.ktor:ktor-server-netty:3.0.0")
-    implementation("io.ktor:ktor-server-content-negotiation:3.0.0")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.0")
-    implementation("io.ktor:ktor-server-html-builder:3.0.0")
-    implementation("io.ktor:ktor-server-sse:3.0.0")
+    // Ktor server for API and SSE (using standardized 2.3.12)
+    implementation(libs.bundles.ktor.server)
+    implementation(libs.ktor.server.html.builder)
+    implementation(libs.ktor.server.sse)
 
     // Tests
-    testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
-    testImplementation("io.mockk:mockk:1.13.13")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
-    testImplementation("org.testcontainers:testcontainers:1.19.3")
-    testImplementation("org.testcontainers:postgresql:1.19.3")
-    testImplementation("org.testcontainers:junit-jupiter:1.19.3")
+    testImplementation(libs.bundles.testing)
+    testImplementation(libs.bundles.testcontainers)
 }
 
 application {
     mainClass.set("org.datamancy.unifiedindexer.MainKt")
 }
 
-tasks {
-    shadowJar {
-        archiveBaseName.set("unified-indexer")
-        archiveClassifier.set("")
-        archiveVersion.set("")
-        mergeServiceFiles()
-    }
+tasks.shadowJar {
+    archiveBaseName.set("unified-indexer")
 }
 
 tasks.test {
-    useJUnitPlatform()
+    // useJUnitPlatform() configured in root build.gradle.kts
 }
 
-kotlin {
-    jvmToolchain(21)
-}
+// JVM toolchain configured in root build.gradle.kts

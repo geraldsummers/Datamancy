@@ -1,76 +1,58 @@
 import java.io.ByteArrayOutputStream
 
 plugins {
-    kotlin("jvm") version "2.0.21"
-    kotlin("plugin.serialization") version "2.0.21"
+    kotlin("jvm")
+    kotlin("plugin.serialization")
     application
-    id("com.github.johnrengelman.shadow") version "8.1.1"
-}
-
-group = "org.datamancy"
-version = "1.0.0"
-
-repositories {
-    mavenCentral()
+    id("com.github.johnrengelman.shadow")
 }
 
 dependencies {
     // Ktor server
-    implementation("io.ktor:ktor-server-core:2.3.12")
-    implementation("io.ktor:ktor-server-netty:2.3.12")
-    implementation("io.ktor:ktor-server-content-negotiation:2.3.12")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
-    implementation("io.ktor:ktor-server-call-logging:2.3.12")
-    implementation("io.ktor:ktor-server-html-builder:2.3.12")
+    implementation(libs.bundles.ktor.server)
+    implementation(libs.ktor.server.call.logging)
+    implementation(libs.ktor.server.html.builder)
 
     // Ktor client for proxying
-    implementation("io.ktor:ktor-client-core:2.3.12")
-    implementation("io.ktor:ktor-client-cio:2.3.12")
-    implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
+    implementation(libs.bundles.ktor.client)
 
     // Logging
-    implementation("ch.qos.logback:logback-classic:1.5.15")
-    implementation("io.github.oshai:kotlin-logging-jvm:7.0.3")
+    implementation(libs.bundles.logging)
 
     // Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+    implementation(libs.kotlinx.serialization.json)
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation(libs.kotlinx.coroutines.core)
 
     // Database
-    implementation("org.postgresql:postgresql:42.7.4")
+    implementation(libs.postgres.jdbc)
 
     // Tests
-    testImplementation(kotlin("test"))
+    testImplementation(libs.kotlin.test)
     testImplementation(project(":test-commons"))
-    testImplementation("io.ktor:ktor-server-test-host:2.3.12")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
+    testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.junit.jupiter)
 }
 
 application {
     mainClass.set("org.datamancy.controlpanel.MainKt")
 }
 
-tasks {
-    shadowJar {
-        archiveBaseName.set("control-panel")
-        archiveClassifier.set("")
-        archiveVersion.set("")
-        mergeServiceFiles()
-    }
+tasks.shadowJar {
+    archiveBaseName.set("control-panel")
 }
 
 tasks.test {
-    useJUnitPlatform()
+    // useJUnitPlatform() configured in root build.gradle.kts
 
     // Use localhost URLs since services are exposed via docker-compose overlay
-    systemProperty("control.panel.url", System.getenv("CONTROL_PANEL_URL") ?: "http://localhost:18097")
-    systemProperty("data.fetcher.url", System.getenv("DATA_FETCHER_URL") ?: "http://localhost:18095")
-    systemProperty("postgres.url", System.getenv("POSTGRES_URL") ?: "jdbc:postgresql://localhost:15432/datamancy")
+    systemProperty("control.panel.url", System.getenv("CONTROL_PANEL_URL") ?: "http://localhost:${project.property("port.controlPanel.test")}")
+    systemProperty("data.fetcher.url", System.getenv("DATA_FETCHER_URL") ?: "http://localhost:${project.property("port.dataFetcher.test")}")
+    systemProperty("postgres.url", System.getenv("POSTGRES_URL") ?: "jdbc:postgresql://localhost:${project.property("port.postgres.test")}/datamancy")
     systemProperty("postgres.user", System.getenv("POSTGRES_USER") ?: "datamancer")
     systemProperty("postgres.password", System.getenv("STACK_ADMIN_PASSWORD") ?: "")
-    systemProperty("clickhouse.url", System.getenv("CLICKHOUSE_URL") ?: "http://localhost:18123")
+    systemProperty("clickhouse.url", System.getenv("CLICKHOUSE_URL") ?: "http://localhost:${project.property("port.clickhouse.test")}")
 
     // Bring up the whole stack before running tests
     doFirst {
@@ -153,6 +135,4 @@ tasks.test {
     }))
 }
 
-kotlin {
-    jvmToolchain(21)
-}
+// JVM toolchain configured in root build.gradle.kts

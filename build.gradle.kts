@@ -1,7 +1,7 @@
 plugins {
-    kotlin("jvm") version "2.0.21"
-    kotlin("plugin.serialization") version "2.0.21"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.shadow) apply false
 }
 
 allprojects {
@@ -21,10 +21,27 @@ subprojects {
     dependencies {
         // Common dependencies for all subprojects can go here
     }
+
+    // Configure JVM toolchain for all subprojects
+    extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
+        jvmToolchain(21)
+    }
+
+    // Configure test tasks for all subprojects
+    tasks.withType<Test> {
+        useJUnitPlatform()
+    }
+
+    // Configure shadow JAR for application modules
+    tasks.withType<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar> {
+        archiveClassifier.set("")
+        archiveVersion.set("")
+        mergeServiceFiles()
+    }
 }
 
 // Root-level test task runs unit tests only (no Docker required)
-tasks.named("test") {
+tasks.register("test") {
     dependsOn(
         ":agent-tool-server:test",
         ":data-fetcher:test",
