@@ -8,14 +8,21 @@ volumes/secrets/
 *.key
 stackops_ed25519
 
+# Build output (deployment-ready distribution)
+dist/
+
 # Generated configuration files (from templates)
-# Now generated in ~/.config/datamancy for security
-# (No longer needed in project - all configs in runtime dir)
+# Now generated during build process in dist/
+# (No longer needed in project - all configs in build output)
 
 # Legacy gitignore (kept for backwards compatibility):
 configs/
 configs.backup/
 bootstrap_ldap.ldif
+
+# Old generated compose files (now in dist/)
+compose/
+!compose.templates/
 
 # Runtime data
 volumes/

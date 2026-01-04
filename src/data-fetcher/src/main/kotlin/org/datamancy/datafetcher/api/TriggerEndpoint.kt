@@ -4,6 +4,8 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.datamancy.datafetcher.scheduler.FetchScheduler
@@ -43,7 +45,7 @@ fun Route.configureTriggerEndpoints(scheduler: FetchScheduler) {
         }
 
         // Trigger fetch asynchronously
-        launch {
+        CoroutineScope(Dispatchers.IO).launch {
             scheduler.executeFetch(jobName)
         }
 
@@ -62,7 +64,7 @@ fun Route.configureTriggerEndpoints(scheduler: FetchScheduler) {
 
         status.forEach { (jobName, jobStatus) ->
             if (jobStatus.enabled && !jobStatus.isRunning) {
-                launch {
+                CoroutineScope(Dispatchers.IO).launch {
                     scheduler.executeFetch(jobName)
                 }
                 triggered.add(jobName)

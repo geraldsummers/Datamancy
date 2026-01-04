@@ -26,7 +26,7 @@ data class ToolDefinition(
  * Non-reflective tool handler: given JSON args and optional user context, produce a result.
  */
 fun interface ToolHandler {
-    fun call(args: JsonNode, userContext: String? = null): Any?
+    fun call(args: JsonNode, userContext: String?): Any?
 }
 
 class ToolRegistry {

@@ -57,7 +57,7 @@ class HostToolsPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"properties\":{\"cmd\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"cwd\":{\"type\":\"string\"}},\"required\":[\"cmd\"]}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val cmdNode = args.get("cmd") ?: throw IllegalArgumentException("cmd required")
                 val cmd = mutableListOf<String>()
                 cmdNode.forEach { cmd.add(it.asText()) }
@@ -80,7 +80,7 @@ class HostToolsPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"},\"tail\":{\"type\":\"integer\"}},\"required\":[\"container\"]}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val container = args.get("container")?.asText() ?: throw IllegalArgumentException("container required")
                 val tail = args.get("tail")?.asInt(200) ?: 200
                 tools.docker_logs(container, tail)
@@ -100,7 +100,7 @@ class HostToolsPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"}},\"required\":[\"container\"]}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val container = args.get("container")?.asText() ?: throw IllegalArgumentException("container required")
                 tools.docker_restart(container)
             }

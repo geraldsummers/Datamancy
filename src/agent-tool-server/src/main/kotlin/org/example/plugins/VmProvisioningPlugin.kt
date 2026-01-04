@@ -55,7 +55,7 @@ class VmProvisioningPlugin : Plugin {
                 paramsSpec = """{"type":"object","properties":{},"additionalProperties":false}""",
                 pluginId = pluginId
             ),
-            ToolHandler { _ -> tools.vm_list() }
+            ToolHandler { _, _ -> tools.vm_list() }
         )
 
         registry.register(
@@ -91,7 +91,7 @@ class VmProvisioningPlugin : Plugin {
                 """.trimIndent(),
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val name = args.get("name")?.asText() ?: throw IllegalArgumentException("name required")
                 val memory = args.get("memory")?.asLong() ?: 2048
                 val vcpus = args.get("vcpus")?.asInt() ?: 2
@@ -115,7 +115,7 @@ class VmProvisioningPlugin : Plugin {
                 paramsSpec = """{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}""",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val name = args.get("name")?.asText() ?: throw IllegalArgumentException("name required")
                 tools.vm_start(name)
             }
@@ -133,7 +133,7 @@ class VmProvisioningPlugin : Plugin {
                 paramsSpec = """{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}""",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val name = args.get("name")?.asText() ?: throw IllegalArgumentException("name required")
                 tools.vm_stop(name)
             }
@@ -151,7 +151,7 @@ class VmProvisioningPlugin : Plugin {
                 paramsSpec = """{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}""",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val name = args.get("name")?.asText() ?: throw IllegalArgumentException("name required")
                 tools.vm_delete(name)
             }
@@ -182,7 +182,7 @@ class VmProvisioningPlugin : Plugin {
                 """.trimIndent(),
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val name = args.get("name")?.asText() ?: throw IllegalArgumentException("name required")
                 val comment = args.get("comment")?.asText()
                 tools.ssh_key_generate(name, comment)
@@ -199,7 +199,7 @@ class VmProvisioningPlugin : Plugin {
                 paramsSpec = """{"type":"object","properties":{},"additionalProperties":false}""",
                 pluginId = pluginId
             ),
-            ToolHandler { _ -> tools.ssh_key_list() }
+            ToolHandler { _, _ -> tools.ssh_key_list() }
         )
 
         registry.register(
@@ -227,7 +227,7 @@ class VmProvisioningPlugin : Plugin {
                 """.trimIndent(),
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val vmName = args.get("vmName")?.asText() ?: throw IllegalArgumentException("vmName required")
                 val keyName = args.get("keyName")?.asText() ?: throw IllegalArgumentException("keyName required")
                 tools.vm_inject_ssh_key(vmName, keyName)

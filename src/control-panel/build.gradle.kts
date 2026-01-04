@@ -28,9 +28,11 @@ dependencies {
     // Database
     implementation(libs.postgres.jdbc)
 
+    // Shared config (ServicePorts)
+    implementation(project(":test-commons"))
+
     // Tests
     testImplementation(libs.kotlin.test)
-    testImplementation(project(":test-commons"))
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.junit.jupiter)
 }

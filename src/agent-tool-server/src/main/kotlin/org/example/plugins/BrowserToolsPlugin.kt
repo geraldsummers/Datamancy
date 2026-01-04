@@ -76,7 +76,7 @@ class BrowserToolsPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"},\"serviceName\":{\"type\":\"string\"},\"savePath\":{\"type\":\"string\"}},\"required\":[\"url\"]}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val url = args.get("url")?.asText() ?: throw IllegalArgumentException("url required")
                 val serviceName = args.get("serviceName")?.asText()
                 val savePath = args.get("savePath")?.asText()
@@ -97,7 +97,7 @@ class BrowserToolsPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"}},\"required\":[\"url\"]}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val url = args.get("url")?.asText() ?: throw IllegalArgumentException("url required")
                 tools.browser_dom(url)
             }
@@ -119,7 +119,7 @@ class BrowserToolsPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\"},\"username\":{\"type\":\"string\"},\"password\":{\"type\":\"string\"},\"serviceName\":{\"type\":\"string\"}},\"required\":[\"url\",\"username\",\"password\"]}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val url = args.get("url")?.asText() ?: throw IllegalArgumentException("url required")
                 val username = args.get("username")?.asText() ?: throw IllegalArgumentException("username required")
                 val password = args.get("password")?.asText() ?: throw IllegalArgumentException("password required")

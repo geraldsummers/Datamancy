@@ -57,7 +57,7 @@ class CoreToolsPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"required\":[\"text\"],\"properties\":{\"text\":{\"type\":\"string\"}}}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val text = args.get("text")?.asText() ?: throw IllegalArgumentException("text required")
                 tools.normalize_whitespace(text)
             }
@@ -73,7 +73,7 @@ class CoreToolsPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"properties\":{}}",
                 pluginId = pluginId
             ),
-            ToolHandler { _ -> tools.uuid_generate() }
+            ToolHandler { _, _ -> tools.uuid_generate() }
         )
     }
 

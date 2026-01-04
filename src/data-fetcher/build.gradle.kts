@@ -45,9 +45,11 @@ dependencies {
     // HTML to Markdown conversion
     implementation(libs.flexmark.all)
 
+    // Shared config (ServicePorts)
+    implementation(project(":test-commons"))
+
     // Test
     testImplementation(libs.bundles.testing)
-    testImplementation(project(":test-commons"))
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.bundles.testcontainers)

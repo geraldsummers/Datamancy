@@ -3,10 +3,12 @@
 /**
  * Datamancy Installer
  *
- * Installs the complete Datamancy stack to ~/.datamancy/
- * Run this from the git repository to install or update.
+ * Installs the BUILT Datamancy distribution from dist/ to target location
+ *
+ * IMPORTANT: Run ./build-datamancy.main.kts FIRST to generate dist/
  *
  * Usage:
+ *   ./build-datamancy.main.kts                            # Build first!
  *   ./install-datamancy.main.kts [install-path]           # Install/update
  *   ./install-datamancy.main.kts [install-path] --force   # Force reinstall
  *   (defaults to ~/.datamancy if install-path not provided)
@@ -175,15 +177,38 @@ private fun install(force: Boolean, customInstallPath: String?) {
     }
 
     val root = projectRoot()
+    val distDir = root.resolve("dist")
+
+    // Check if dist/ exists
+    if (!Files.exists(distDir)) {
+        err("dist/ directory not found!\n\n" +
+            "You must run the build script first:\n" +
+            "  ./build-datamancy.main.kts\n\n" +
+            "This will generate the deployment-ready distribution in dist/")
+    }
+
+    // Check for build info
+    val buildInfoFile = distDir.resolve(".build-info")
+    val version = if (Files.exists(buildInfoFile)) {
+        Files.readString(buildInfoFile)
+            .lines()
+            .find { it.startsWith("version:") }
+            ?.substringAfter("version:")
+            ?.trim()
+            ?: "unknown"
+    } else {
+        warn("No .build-info found in dist/")
+        "unknown"
+    }
+
     val installDir = installDir(customInstallPath)
-    val version = getVersion()
 
     println("""
         |${ANSI_CYAN}╔═══════════════════════════════════════════════════╗
         |║         Datamancy Stack Installer                ║
         |╚═══════════════════════════════════════════════════╝${ANSI_RESET}
         |
-        |${ANSI_GREEN}Source:${ANSI_RESET}      $root
+        |${ANSI_GREEN}Source:${ANSI_RESET}      $distDir
         |${ANSI_GREEN}Install to:${ANSI_RESET}  $installDir
         |${ANSI_GREEN}Version:${ANSI_RESET}     $version
         |
@@ -207,27 +232,25 @@ private fun install(force: Boolean, customInstallPath: String?) {
     }
 
     // Create base directory structure
-    info("Step 1/3: Creating directory structure")
+    info("Step 1/2: Creating directory structure")
     Files.createDirectories(installDir)
-    Files.createDirectories(installDir.resolve("configs"))
     Files.createDirectories(installDir.resolve("volumes"))
     success("Directory structure created")
 
-    // Copy entire project with exclusions
-    info("Step 2/3: Copying project files (excluding build artifacts)")
-    copyRecursive(root, installDir)
-    success("Project files copied")
+    // Copy dist/ contents to install location
+    info("Step 2/2: Copying distribution files from dist/")
+    copyRecursive(distDir, installDir)
+    success("Distribution files copied")
 
-    // Ensure controller script is executable
-    val controllerDest = installDir.resolve("datamancy-controller.main.kts")
-    if (Files.exists(controllerDest)) {
-        ensurePerm(controllerDest, executable = true)
+    // Ensure scripts are executable
+    val scriptsDir = installDir.resolve("scripts")
+    if (Files.exists(scriptsDir)) {
+        Files.walk(scriptsDir).forEach { script ->
+            if (Files.isRegularFile(script) && (script.fileName.toString().endsWith(".kts") || script.fileName.toString().endsWith(".sh"))) {
+                ensurePerm(script, executable = true)
+            }
+        }
     }
-
-    // Write version marker
-    info("Step 3/3: Writing version marker")
-    Files.writeString(installDir.resolve(".version"), version)
-    success("Version marker written")
 
     println("""
         |
@@ -239,18 +262,29 @@ private fun install(force: Boolean, customInstallPath: String?) {
         |${ANSI_CYAN}Version:${ANSI_RESET}      $version
         |
         |${ANSI_GREEN}Next steps:${ANSI_RESET}
-        |  1. Add controller to your PATH (optional):
-        |     echo 'export PATH="${"$"}HOME/.datamancy:${"$"}PATH"' >> ~/.bashrc
-        |     source ~/.bashrc
         |
-        |  2. Start the stack:
-        |     ${ANSI_CYAN}cd ~/.datamancy && ./datamancy-controller.main.kts up${ANSI_RESET}
+        |  1. Configure environment:
+        |     ${ANSI_CYAN}cd $installDir${ANSI_RESET}
+        |     ${ANSI_CYAN}cp .env.example .env${ANSI_RESET}
+        |     ${ANSI_CYAN}vim .env${ANSI_RESET}  ${ANSI_YELLOW}# Fill in secrets and domain${ANSI_RESET}
         |
-        |  3. Check status:
-        |     ${ANSI_CYAN}cd ~/.datamancy && ./datamancy-controller.main.kts status${ANSI_RESET}
+        |  2. Create volume directories:
+        |     ${ANSI_CYAN}./scripts/create-volume-dirs.main.kts${ANSI_RESET}
         |
-        |${ANSI_YELLOW}Note:${ANSI_RESET} All stack data lives in ~/.datamancy/
-        |      You can safely update the git repository and re-run this installer.
+        |  3. Start the stack:
+        |     ${ANSI_CYAN}docker compose up -d${ANSI_RESET}
+        |
+        |  4. Check status:
+        |     ${ANSI_CYAN}docker compose ps${ANSI_RESET}
+        |
+        |${ANSI_YELLOW}Important:${ANSI_RESET}
+        |  • All image versions are HARDCODED at build time
+        |  • Only secrets and paths use runtime variables from .env
+        |  • Generate secrets with: ${ANSI_CYAN}openssl rand -hex 32${ANSI_RESET}
+        |
+        |${ANSI_YELLOW}To update:${ANSI_RESET}
+        |  1. Pull latest code, rebuild: ${ANSI_CYAN}./build-datamancy.main.kts${ANSI_RESET}
+        |  2. Re-run installer: ${ANSI_CYAN}./install-datamancy.main.kts${ANSI_RESET}
         |
     """.trimMargin())
 }

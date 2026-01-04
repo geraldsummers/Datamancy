@@ -54,7 +54,7 @@ class LlmCompletionPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"required\":[\"messages\"],\"properties\":{\"model\":{\"type\":\"string\"},\"messages\":{\"type\":\"array\"},\"temperature\":{\"type\":\"number\"},\"max_tokens\":{\"type\":\"integer\"}}}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val model = args.get("model")?.asText() ?: "hermes-2-pro-mistral-7b"
                 val temperature = args.get("temperature")?.asDouble() ?: 0.7
                 val maxTokens = args.get("max_tokens")?.asInt() ?: 2048
@@ -83,7 +83,7 @@ class LlmCompletionPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"required\":[\"text\"],\"properties\":{\"text\":{\"type\":\"string\"},\"model\":{\"type\":\"string\"}}}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val text = args.get("text")?.asText() ?: throw IllegalArgumentException("text required")
                 val model = args.get("model")?.asText() ?: "embed-small"
                 tools.llm_embed_text(text, model)

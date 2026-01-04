@@ -48,7 +48,7 @@ class OpsSshPlugin : Plugin {
                 paramsSpec = "{\"type\":\"object\",\"properties\":{\"cmd\":{\"type\":\"string\"}},\"required\":[\"cmd\"]}",
                 pluginId = pluginId
             ),
-            ToolHandler { args ->
+            ToolHandler { args, _ ->
                 val cmd = args.get("cmd")?.asText() ?: throw IllegalArgumentException("cmd required")
                 tools.ssh_exec_whitelisted(cmd)
             }

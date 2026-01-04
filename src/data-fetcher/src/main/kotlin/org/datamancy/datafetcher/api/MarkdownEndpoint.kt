@@ -4,6 +4,8 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.datamancy.datafetcher.config.FetchConfig
@@ -28,7 +30,7 @@ fun Route.configureMarkdownEndpoints(config: FetchConfig) {
         val fetcher = LegalDocsFetcher(config.sources.legal)
 
         // Trigger fetch asynchronously
-        launch {
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 val result = fetcher.fetchWithMarkdown(limitPerJurisdiction = limit)
                 application.log.info("Markdown fetch completed: $result")

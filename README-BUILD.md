@@ -1,0 +1,367 @@
+# Datamancy Build System
+
+This document explains the new unified build system for Datamancy.
+
+## Overview
+
+The build system creates a **deployment-ready distribution** with no templates or code generation required at deployment time. Everything is pre-built except runtime secrets and deployment-specific paths.
+
+## Architecture
+
+```
+SOURCE (Git Repo)                    BUILD OUTPUT (dist/)                DEPLOYMENT (Server)
+─────────────────                    ────────────────────                ───────────────────
+services.registry.yaml  ───┐
+configs.templates/      ───┤         docker-compose.yml                 /opt/datamancy/
+src/                    ───┤  ────>  compose/*.yml          ────────>   docker-compose.yml
+scripts/                ───┤         configs/                           .env (secrets)
+                           │         services/*.jar                      compose/
+build-datamancy.main.kts ──┘         .env.example                       configs/
+                                     .build-info                         volumes/
+```
+
+### Key Principles
+
+1. **Build Time** - Hardcode everything that doesn't vary per deployment:
+   - Image versions (e.g., `postgres:16.11`)
+   - Container names
+   - Network topology
+   - Health checks
+   - Resource limits
+
+2. **Runtime** - Use `${VAR}` only for:
+   - Secrets (passwords, API keys)
+   - Domain names
+   - Deployment paths (`${VOLUMES_ROOT}`)
+
+3. **Security** - Never hardcode secrets:
+   - Templates convert `{{SECRET}}` → `${SECRET}`
+   - Actual values provided via `.env` at runtime
+
+## Quick Start
+
+### Developer Workflow
+
+```bash
+# 1. Make changes to services or configs
+vim services.registry.yaml
+vim configs.templates/infrastructure/caddy/Caddyfile
+
+# 2. Build distribution
+./build-datamancy.main.kts
+
+# 3. Test locally
+cd dist/
+cp .env.example .env
+vim .env  # Add test secrets
+docker compose up
+
+# 4. Package for deployment
+tar -czf datamancy-$(git describe --tags).tar.gz -C dist .
+```
+
+### Deployment Workflow
+
+```bash
+# On server
+scp datamancy-v1.0.0.tar.gz server:/opt/datamancy/
+ssh server
+
+# Extract and configure
+cd /opt/datamancy
+tar -xzf datamancy-v1.0.0.tar.gz
+cp .env.example .env
+vim .env  # Add production secrets
+
+# Deploy
+docker compose up -d
+docker compose ps
+```
+
+## Build Script Options
+
+```bash
+./build-datamancy.main.kts              # Normal build
+./build-datamancy.main.kts --clean      # Clean dist/ first
+./build-datamancy.main.kts --skip-gradle # Skip Gradle build (faster iteration)
+```
+
+## What Gets Generated
+
+### dist/ Structure
+
+```
+dist/
+├── docker-compose.yml           # Master compose file
+├── .env.example                 # Template for runtime config
+├── .build-info                  # Build metadata
+│
+├── compose/                     # Final compose files
+│   ├── core/
+│   │   ├── networks.yml         # Network definitions
+│   │   ├── volumes.yml          # Volume definitions (uses ${VOLUMES_ROOT})
+│   │   └── infrastructure.yml   # Core services (Caddy, LDAP, etc.)
+│   ├── databases/
+│   │   ├── relational.yml       # PostgreSQL, MariaDB
+│   │   ├── vector.yml           # Qdrant
+│   │   └── analytics.yml        # ClickHouse
+│   ├── applications/
+│   │   ├── web.yml              # Web apps (Grafana, BookStack, etc.)
+│   │   ├── communication.yml    # Chat, email (Synapse, Roundcube)
+│   │   └── files.yml            # File storage (Seafile, OnlyOffice)
+│   └── datamancy/
+│       ├── services.yml         # Custom Datamancy services
+│       └── ai.yml               # AI/LLM services
+│
+├── configs/                     # Application configs
+│   ├── infrastructure/
+│   │   ├── caddy/
+│   │   │   └── Caddyfile        # Reverse proxy config
+│   │   └── ldap/
+│   │       └── bootstrap.ldif   # LDAP schema
+│   └── applications/
+│       └── ...
+│
+├── services/                    # Built JARs
+│   ├── control-panel.jar
+│   ├── data-fetcher.jar
+│   └── ...
+│
+└── scripts/                     # Runtime scripts
+    ├── stack-controller.main.kts
+    └── create-volume-dirs.main.kts
+```
+
+## Environment Variables
+
+### Required Runtime Variables (in .env)
+
+**Domain & Email:**
+```bash
+DOMAIN=example.com
+MAIL_DOMAIN=example.com
+STACK_ADMIN_EMAIL=admin@example.com
+STACK_ADMIN_USER=admin
+```
+
+**Paths:**
+```bash
+VOLUMES_ROOT=/opt/datamancy/volumes
+HOME=/opt/datamancy
+```
+
+**Secrets** (generate with `openssl rand -hex 32`):
+```bash
+LDAP_ADMIN_PASSWORD=
+STACK_ADMIN_PASSWORD=
+AUTHELIA_JWT_SECRET=
+AUTHELIA_SESSION_SECRET=
+AUTHELIA_STORAGE_ENCRYPTION_KEY=
+POSTGRES_PASSWORD=
+MARIADB_ROOT_PASSWORD=
+LITELLM_MASTER_KEY=
+QDRANT_API_KEY=
+```
+
+### What's NOT in .env
+
+These are **hardcoded at build time**:
+- Image versions (`postgres:16.11`)
+- Container names
+- Network subnets
+- Health check intervals
+- Resource limits
+
+## Examples
+
+### Example: Generated compose/databases/relational.yml
+
+```yaml
+# Auto-generated by build-datamancy.main.kts
+services:
+  postgres:
+    image: postgres:16.11                    # ← HARDCODED at build
+    container_name: postgres
+    restart: unless-stopped
+    networks:
+      - database
+      - backend
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} # ← Runtime secret
+    volumes:
+      - ${VOLUMES_ROOT}/postgres/data:/var/lib/postgresql/data  # ← Runtime path
+    healthcheck:
+      interval: 10s                           # ← HARDCODED at build
+      timeout: 5s
+      retries: 5
+```
+
+### Example: Generated configs/infrastructure/caddy/Caddyfile
+
+```
+{
+    email ${ADMIN_EMAIL}                     # ← Runtime variable
+}
+
+grafana.${DOMAIN} {                          # ← Runtime variable
+    reverse_proxy grafana:3000
+}
+
+open-webui.${DOMAIN} {
+    reverse_proxy open-webui:8080
+}
+```
+
+## Updating the Stack
+
+### Adding a New Service
+
+1. Edit `services.registry.yaml`:
+```yaml
+databases:
+  redis:
+    image: redis
+    version: "7.2"
+    container_name: redis
+    networks: [database, backend]
+    phase: databases
+    phase_order: 2
+```
+
+2. Rebuild:
+```bash
+./build-datamancy.main.kts
+```
+
+Service is automatically added to appropriate compose file.
+
+### Changing an Image Version
+
+1. Edit `services.registry.yaml`:
+```yaml
+postgres:
+  version: "16.12"  # Changed from 16.11
+```
+
+2. Rebuild and redeploy:
+```bash
+./build-datamancy.main.kts
+./install-datamancy.main.kts
+# Or package and ship to server
+```
+
+### Adding a Config File
+
+1. Add template to `configs.templates/`:
+```bash
+configs.templates/
+  └── myapp/
+      └── config.yml
+```
+
+2. Use `${VAR}` for secrets, hardcode everything else:
+```yaml
+database_url: postgresql://postgres:${POSTGRES_PASSWORD}@postgres/mydb
+api_key: ${MYAPP_API_KEY}
+max_connections: 100        # Hardcoded
+```
+
+3. Rebuild - file automatically copied to `dist/configs/myapp/config.yml`
+
+## Migration from Old System
+
+### What Changed
+
+**Old system (DEPRECATED):**
+- `compose.templates/*.template` with `{{VARS}}`
+- `process-config-templates.main.kts` resolving templates
+- `generate-compose.main.kts` generating to repo
+- Confusion about output locations
+- Secrets hardcoded in generated files ⚠️
+
+**New system:**
+- Single `build-datamancy.main.kts`
+- Clear `dist/` output
+- Versions hardcoded, secrets as `${VARS}`
+- Security: no secrets in files
+
+### Deprecated Files
+
+Moved to `.deprecated/`:
+- `process-config-templates.main.kts`
+- `generate-compose.main.kts`
+- `compose.templates/` (if it exists)
+
+## Troubleshooting
+
+### "dist/ directory not found"
+
+Run build first:
+```bash
+./build-datamancy.main.kts
+```
+
+### "services.registry.yaml not found"
+
+You're not in the project root. `cd` to the repository root.
+
+### Build fails on Gradle step
+
+Skip Gradle temporarily:
+```bash
+./build-datamancy.main.kts --skip-gradle
+```
+
+### Secrets showing up in files
+
+Check that variable is in `RUNTIME_VARS` set in `build-datamancy.main.kts`:
+```kotlin
+val RUNTIME_VARS = setOf(
+    "LDAP_ADMIN_PASSWORD",
+    "YOUR_NEW_SECRET_HERE",  // Add here
+    // ...
+)
+```
+
+## Best Practices
+
+1. **Never commit .env** - Secrets should only exist at deployment time
+2. **Version control dist/.gitignore** - Keep dist/ out of git
+3. **Tag releases** - Use git tags for version tracking
+4. **Test locally first** - Always test in dist/ before packaging
+5. **Document secrets** - Keep .env.example updated with all required vars
+
+## CI/CD Integration
+
+### GitHub Actions Example
+
+```yaml
+name: Build Datamancy
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build distribution
+        run: ./build-datamancy.main.kts --skip-gradle
+      - name: Package
+        run: tar -czf datamancy-${{ github.sha }}.tar.gz -C dist .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: datamancy-dist
+          path: datamancy-*.tar.gz
+```
+
+## Questions?
+
+- See `build-datamancy.main.kts` source for implementation details
+- Check `.deprecated/README.md` for migration notes
+- File issues at: (your issue tracker)
+
+---
+
+**Built with ❤️ for deployment simplicity**
