@@ -8,23 +8,31 @@
 /**
  * Datamancy Build System
  *
- * Generates deployment-ready distribution in dist/
- * NO templates in output - only final compose files with runtime ${VARS} for secrets
+ * Builds Docker images and generates deployment-ready compose files
+ * NO templates, NO build directives - only runtime ${VAR} substitution for secrets
+ *
+ * What it does:
+ *   1. Builds JARs with Gradle
+ *   2. Builds Docker images (datamancy/*)
+ *   3. Generates compose files with HARDCODED image versions
+ *   4. Processes config templates (converts {{VAR}} to ${VAR})
  *
  * Usage:
  *   ./build-datamancy.main.kts [--clean] [--skip-gradle]
  *
  * Output:
  *   dist/
- *     ├── docker-compose.yml
- *     ├── compose/
- *     ├── configs/
- *     ├── services/
+ *     ├── docker-compose.yml          (master compose with includes)
+ *     ├── docker-compose.test-ports.yml
+ *     ├── compose/                    (modular compose files)
+ *     ├── configs/                    (final configs with ${VARS})
  *     ├── .env.example
  *     └── .build-info
  *
  * Deploy:
- *   tar -czf datamancy-VERSION.tar.gz -C dist .
+ *   1. cd dist
+ *   2. cp .env.example .env && edit .env
+ *   3. docker compose up -d
  */
 
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -348,15 +356,8 @@ fun generateServicesYaml(
         services.forEach { (name, svc) ->
             appendLine("  ${svc.container_name}:")
 
-            // For datamancy services, use build instead of image
-            if (isDatamancy) {
-                appendLine("    build:")
-                appendLine("      dockerfile: ./src/${name}/Dockerfile")
-                appendLine("      context: .")
-            } else {
-                // HARDCODE image version at build time
-                appendLine("    image: ${svc.image}:${svc.version}")
-            }
+            // HARDCODE image version at build time (no build directives)
+            appendLine("    image: ${svc.image}:${svc.version}")
 
             appendLine("    container_name: ${svc.container_name}")
 
@@ -697,6 +698,7 @@ fun buildGradleServices(skipGradle: Boolean) {
         return
     }
 
+    step("Building JARs with Gradle")
     val exitCode = exec("./gradlew build -x test", ignoreError = true)
     if (exitCode != 0) {
         warn("Gradle build failed (exit code: $exitCode)")
@@ -705,44 +707,46 @@ fun buildGradleServices(skipGradle: Boolean) {
     }
 }
 
-fun copyBuiltArtifacts(outputDir: File) {
-    outputDir.mkdirs()
+fun buildDockerImages(registry: ServiceRegistry) {
+    step("Building Docker images for Datamancy services")
 
-    // Find all built JARs
-    val buildDirs = listOf(
-        "src/control-panel/build/libs",
-        "src/data-fetcher/build/libs",
-        "src/unified-indexer/build/libs",
-        "src/search-service/build/libs"
-    )
+    val servicesToBuild = mutableListOf<Pair<String, ServiceDefinition>>()
 
-    buildDirs.forEach { buildDir ->
-        val dir = File(buildDir)
-        if (dir.exists()) {
-            dir.listFiles()?.filter { it.extension == "jar" && !it.name.contains("plain") }?.forEach { jar ->
-                val dest = outputDir.resolve(jar.name)
-                Files.copy(jar.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                success("Copied ${jar.name}")
-            }
+    // Collect all datamancy services
+    registry.datamancy?.forEach { (name, svc) ->
+        servicesToBuild.add(name to svc)
+    }
+
+    // Also collect AI services that need building
+    registry.ai?.forEach { (name, svc) ->
+        if (svc.image.startsWith("datamancy/")) {
+            servicesToBuild.add(name to svc)
         }
     }
-}
 
-fun copyRuntimeScripts(outputDir: File) {
-    outputDir.mkdirs()
+    if (servicesToBuild.isEmpty()) {
+        info("No Datamancy services to build")
+        return
+    }
 
-    val scripts = listOf(
-        "scripts/stack-control/stack-controller.main.kts",
-        "scripts/stack-control/create-volume-dirs.main.kts"
-    )
+    servicesToBuild.forEach { (name, svc) ->
+        val dockerfile = File("src/$name/Dockerfile")
+        if (!dockerfile.exists()) {
+            warn("Dockerfile not found for $name at ${dockerfile.path}, skipping")
+            return@forEach
+        }
 
-    scripts.forEach { scriptPath ->
-        val script = File(scriptPath)
-        if (script.exists()) {
-            val dest = outputDir.resolve(script.name)
-            Files.copy(script.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            dest.setExecutable(true)
-            success("Copied ${script.name}")
+        info("Building ${svc.image}:${svc.version} from src/$name/")
+        val exitCode = exec(
+            "docker build -t ${svc.image}:${svc.version} -f src/$name/Dockerfile .",
+            ignoreError = true
+        )
+
+        if (exitCode == 0) {
+            success("Built ${svc.image}:${svc.version}")
+        } else {
+            error("Failed to build ${svc.image}:${svc.version}")
+            exitProcess(exitCode)
         }
     }
 }
@@ -807,13 +811,10 @@ Building deployment-ready distribution...
     // Step 5: Build Gradle services
     step("Building Kotlin services")
     buildGradleServices(skipGradle)
-    copyBuiltArtifacts(distDir.resolve("services"))
-    success("Built and copied service JARs")
 
-    // Step 6: Copy runtime scripts
-    step("Copying runtime scripts")
-    copyRuntimeScripts(distDir.resolve("scripts"))
-    success("Copied runtime scripts")
+    // Step 6: Build Docker images
+    buildDockerImages(registry)
+    success("Built all Docker images")
 
     // Step 7: Generate .env.example
     step("Generating .env.example")
@@ -846,24 +847,38 @@ ${CYAN}Output directory:${RESET} ${distDir.absolutePath}
 ${CYAN}Version:${RESET}          $version
 ${CYAN}Commit:${RESET}           $commit
 
-${GREEN}Next steps:${RESET}
+${GREEN}What was built:${RESET}
+  ✓ All Docker images (datamancy/*)
+  ✓ Compose files with HARDCODED versions
+  ✓ Final configs (no templates, only runtime \${VARS})
+  ✓ Test ports overlay
 
-  1. Test locally:
-     ${CYAN}cd dist && cp .env.example .env && vim .env${RESET}
-     ${CYAN}docker compose up${RESET}
+${GREEN}Deploy - It's just docker compose up:${RESET}
 
-  2. Package for deployment:
+  1. ${CYAN}cd dist${RESET}
+  2. ${CYAN}cp .env.example .env && vim .env${RESET}
+  3. ${CYAN}docker compose up -d${RESET}
+
+  ${YELLOW}Optional - expose ports for testing:${RESET}
+     ${CYAN}docker compose -f docker-compose.yml -f docker-compose.test-ports.yml up -d${RESET}
+
+${GREEN}Package for server deployment:${RESET}
+
+  1. Export images:
+     ${CYAN}docker save \$(docker images 'datamancy/*:*' -q) -o datamancy-images-$version.tar${RESET}
+
+  2. Create tarball:
      ${CYAN}tar -czf datamancy-$version.tar.gz -C dist .${RESET}
 
-  3. Deploy to server:
-     ${CYAN}scp datamancy-$version.tar.gz server:/opt/${RESET}
-     ${CYAN}ssh server${RESET}
-     ${CYAN}cd /opt && tar -xzf datamancy-$version.tar.gz${RESET}
+  3. On server:
+     ${CYAN}docker load -i datamancy-images-$version.tar${RESET}
+     ${CYAN}tar -xzf datamancy-$version.tar.gz -C /opt/datamancy${RESET}
+     ${CYAN}cd /opt/datamancy${RESET}
      ${CYAN}cp .env.example .env && vim .env${RESET}
      ${CYAN}docker compose up -d${RESET}
 
-${YELLOW}Note:${RESET} No templates in dist/ - all image versions are HARDCODED.
-      Only secrets and deployment paths use runtime ${'$'}{VARS}.
+${YELLOW}Note:${RESET} NO build directives, NO templates in dist/
+      Everything is pre-built and ready for docker compose up
 
     """.trimIndent())
 }
