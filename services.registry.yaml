@@ -11,29 +11,88 @@
 #   scripts/codegen/generate-compose-from-registry.main.kts
 #
 # Network Topology:
-# - frontend:  Public-facing (via Caddy reverse proxy)
-# - backend:   Internal application services
-# - database:  Database tier (postgres, mariadb, clickhouse, qdrant)
-# - ai:        ISOLATED - AI/LLM services only, no direct backend/db access
-# - ai-gateway: Bridge network for controlled AI->backend communication
+# Zero-trust infrastructure-specific networks. Services only join networks for
+# infrastructure they directly need. No shared "backend" network - prevents lateral movement.
+#
+# Infrastructure networks (named after the service):
+# - postgres, mariadb, clickhouse, qdrant: Database access
+# - valkey, ldap, authelia, mailserver: Core infrastructure
+# - litellm: AI gateway access
+# - caddy: Reverse proxy access (for web-exposed services)
+# - docker-proxy: Docker socket access (homepage, jupyterhub)
+#
+# Special networks:
+# - ai: ISOLATED AI/LLM services (untrusted external actor zone)
+# - ai-gateway: Controlled bridge between AI and backend services
+# - jupyterhub-notebooks: JupyterHub spawned notebook containers
+# - mastodon-internal: Mastodon multi-container communication
+# - matrix-internal: Matrix/Element communication
 
 # Network Definitions
 networks:
-  frontend:
+  # Database networks
+  postgres:
     subnet: 172.20.0.0/24
-    description: Public-facing network (Caddy reverse proxy)
-  backend:
+    description: PostgreSQL database access
+  mariadb:
     subnet: 172.21.0.0/24
-    description: Internal application services
-  database:
+    description: MariaDB database access
+  clickhouse:
     subnet: 172.22.0.0/24
-    description: Database tier
-  ai:
+    description: ClickHouse database access
+  qdrant:
     subnet: 172.23.0.0/24
+    description: Qdrant vector database access
+
+  # Core infrastructure networks
+  valkey:
+    subnet: 172.24.0.0/24
+    description: Valkey (Redis) access
+  ldap:
+    subnet: 172.25.0.0/24
+    description: LDAP directory access
+  authelia:
+    subnet: 172.26.0.0/24
+    description: Authelia SSO access
+  mailserver:
+    subnet: 172.27.0.0/24
+    description: Mail server access
+  memcached:
+    subnet: 172.28.0.0/24
+    description: Memcached access (Seafile)
+  docker-proxy:
+    subnet: 172.29.0.0/24
+    description: Docker socket proxy access
+
+  # Reverse proxy
+  caddy:
+    subnet: 172.30.0.0/24
+    description: Caddy reverse proxy (web-exposed services)
+
+  # AI networks (isolated)
+  ai:
+    subnet: 172.40.0.0/24
     description: ISOLATED AI/LLM services (external actor zone)
   ai-gateway:
-    subnet: 172.24.0.0/24
+    subnet: 172.41.0.0/24
     description: Controlled gateway between AI and backend
+  litellm:
+    subnet: 172.42.0.0/24
+    description: LiteLLM AI gateway access
+
+  # Application-specific networks
+  jupyterhub-dind:
+    subnet: 172.50.0.0/24
+    description: JupyterHub Docker-in-Docker isolated daemon
+  jupyterhub-notebooks:
+    subnet: 172.51.0.0/24
+    description: JupyterHub spawned notebook containers
+  mastodon-internal:
+    subnet: 172.52.0.0/24
+    description: Mastodon multi-container internal communication
+  matrix-internal:
+    subnet: 172.53.0.0/24
+    description: Matrix Synapse and Element communication
 
 # Core Infrastructure Services
 core:
@@ -73,8 +132,8 @@ core:
       - "443:443"
       - "443:443/udp"
     networks:
-      - frontend
-      - backend
+      - caddy
+      - authelia  # Needs to talk to authelia for forward auth
     health_check:
       type: docker
       interval: 10s
@@ -90,7 +149,7 @@ core:
     container_name: ldap
     subdomain: null  # No direct subdomain exposure
     networks:
-      - backend
+      - ldap
     health_check:
       type: docker
       interval: 10s
@@ -109,7 +168,7 @@ core:
       - redis
       - redis-synapse
     networks:
-      - backend
+      - valkey
     health_check:
       type: docker
       interval: 10s
@@ -125,9 +184,11 @@ core:
     container_name: authelia
     subdomain: auth
     networks:
-      - backend
-      - frontend
-      - database
+      - authelia
+      - caddy
+      - ldap
+      - postgres
+      - valkey
     depends_on:
       - ldap
       - postgres
@@ -153,7 +214,9 @@ core:
       - "143:143"
       - "993:993"
     networks:
-      - backend
+      - mailserver
+      - caddy
+      - ldap
     depends_on:
       - ldap
       - caddy
@@ -172,8 +235,8 @@ core:
     container_name: ldap-account-manager
     subdomain: lam
     networks:
-      - backend
-      - frontend
+      - caddy
+      - ldap
     depends_on:
       - ldap
     health_check:
@@ -191,7 +254,7 @@ core:
     container_name: seafile-memcached
     subdomain: null
     networks:
-      - backend
+      - memcached
     health_check:
       type: docker
       interval: 10s
@@ -207,7 +270,7 @@ core:
     container_name: docker-proxy
     subdomain: null
     networks:
-      - backend
+      - docker-proxy
     health_check:
       type: docker
       interval: 30s
@@ -223,8 +286,7 @@ core:
     container_name: kopia
     subdomain: kopia
     networks:
-      - backend
-      - frontend
+      - caddy
     health_check:
       type: docker
       interval: 30s
@@ -244,8 +306,7 @@ databases:
     network_aliases:
       - db
     networks:
-      - database
-      - backend
+      - postgres
     health_check:
       type: docker
       interval: 10s
@@ -266,8 +327,7 @@ databases:
     network_aliases:
       - mysql
     networks:
-      - database
-      - backend
+      - mariadb
     health_check:
       type: docker
       interval: 10s
@@ -283,7 +343,7 @@ databases:
     container_name: clickhouse
     subdomain: null
     networks:
-      - database
+      - clickhouse
     health_check:
       type: docker
       interval: 30s
@@ -302,8 +362,7 @@ databases:
     container_name: qdrant
     subdomain: null
     networks:
-      - database
-      - backend
+      - qdrant
     health_check:
       type: docker
       interval: 30s
@@ -322,7 +381,7 @@ databases:
     container_name: vector-bootstrap
     subdomain: null
     networks:
-      - database
+      - qdrant
     depends_on:
       - qdrant
     phase: databases
@@ -336,8 +395,9 @@ applications:
     container_name: grafana
     subdomain: grafana
     networks:
-      - backend
-      - database
+      - caddy
+      - postgres
+      - authelia
     depends_on:
       - postgres
       - authelia
@@ -356,9 +416,10 @@ applications:
     container_name: open-webui
     subdomain: open-webui
     networks:
-      - backend
-      - frontend
-      - database
+      - caddy
+      - postgres
+      - litellm
+      - authelia
     depends_on:
       - postgres
       - litellm
@@ -380,8 +441,10 @@ applications:
     additional_aliases:
       - app.vaultwarden
     networks:
-      - backend
-      - database
+      - caddy
+      - postgres
+      - mailserver
+      - authelia
     depends_on:
       - postgres
       - mailserver
@@ -401,7 +464,8 @@ applications:
     container_name: bookstack
     subdomain: bookstack
     networks:
-      - backend
+      - caddy
+      - mariadb
     depends_on:
       - mariadb
     health_check:
@@ -419,7 +483,9 @@ applications:
     container_name: planka
     subdomain: planka
     networks:
-      - backend
+      - caddy
+      - postgres
+      - authelia
     depends_on:
       - postgres
       - authelia
@@ -438,8 +504,8 @@ applications:
     container_name: forgejo
     subdomain: forgejo
     networks:
-      - backend
-      - database
+      - caddy
+      - postgres
     depends_on:
       - postgres
     health_check:
@@ -457,7 +523,8 @@ applications:
     container_name: homepage
     subdomain: homepage
     networks:
-      - backend
+      - caddy
+      - docker-proxy
     depends_on:
       - docker-proxy
     health_check:
@@ -469,16 +536,13 @@ applications:
     phase: applications
     phase_order: 4
 
-  jupyterhub:
-    image: datamancy-jupyter-notebook
-    version: latest
-    container_name: jupyterhub
-    subdomain: jupyterhub
+  jupyterhub-dind:
+    image: docker
+    version: dind
+    container_name: jupyterhub-dind
+    subdomain: null
     networks:
-      - backend
-      - database
-    depends_on:
-      - postgres
+      - jupyterhub-dind
     health_check:
       type: docker
       interval: 30s
@@ -487,6 +551,29 @@ applications:
       start_period: 30s
     phase: applications
     phase_order: 4
+    security_note: "Isolated Docker daemon for JupyterHub - prevents access to host containers"
+
+  jupyterhub:
+    image: datamancy-jupyter-notebook
+    version: latest
+    container_name: jupyterhub
+    subdomain: jupyterhub
+    networks:
+      - caddy
+      - jupyterhub-dind
+      - litellm
+      - jupyterhub-notebooks
+    depends_on:
+      - jupyterhub-dind
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: applications
+    phase_order: 4
+    security_note: "Uses isolated DinD daemon - cannot control host containers"
 
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant
@@ -496,7 +583,9 @@ applications:
     additional_aliases:
       - api.homeassistant
     networks:
-      - backend
+      - caddy
+      - postgres
+      - ldap
     health_check:
       type: docker
       interval: 30s
@@ -505,6 +594,7 @@ applications:
       start_period: 60s
     phase: applications
     phase_order: 4
+    security_note: "ISOLATED - Only has access to caddy, postgres, and ldap. Cannot communicate with other apps."
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent
@@ -512,7 +602,7 @@ applications:
     container_name: qbittorrent
     subdomain: qbittorrent
     networks:
-      - backend
+      - caddy
     health_check:
       type: docker
       interval: 30s
@@ -521,6 +611,7 @@ applications:
       start_period: 30s
     phase: applications
     phase_order: 4
+    security_note: "ISOLATED - Torrent client with minimal network access"
 
   synapse:
     image: matrixdotorg/synapse
@@ -530,8 +621,10 @@ applications:
     additional_aliases:
       - api.matrix
     networks:
-      - backend
-      - database
+      - caddy
+      - postgres
+      - valkey
+      - matrix-internal
     depends_on:
       - postgres
       - valkey
@@ -550,7 +643,8 @@ applications:
     container_name: element
     subdomain: element
     networks:
-      - backend
+      - caddy
+      - matrix-internal
     depends_on:
       - synapse
     health_check:
@@ -568,8 +662,10 @@ applications:
     container_name: mastodon-web
     subdomain: null
     networks:
-      - backend
-      - database
+      - caddy
+      - postgres
+      - valkey
+      - mastodon-internal
     depends_on:
       - postgres
       - valkey
@@ -588,8 +684,9 @@ applications:
     container_name: mastodon-streaming
     subdomain: null
     networks:
-      - backend
-      - database
+      - postgres
+      - valkey
+      - mastodon-internal
     depends_on:
       - postgres
       - valkey
@@ -608,8 +705,9 @@ applications:
     container_name: mastodon-sidekiq
     subdomain: null
     networks:
-      - backend
-      - database
+      - postgres
+      - valkey
+      - mastodon-internal
     depends_on:
       - postgres
       - valkey
@@ -628,7 +726,8 @@ applications:
     container_name: roundcube
     subdomain: null
     networks:
-      - backend
+      - caddy
+      - mailserver
     depends_on:
       - mailserver
     health_check:
@@ -646,7 +745,7 @@ applications:
     container_name: radicale
     subdomain: null
     networks:
-      - backend
+      - caddy
     health_check:
       type: docker
       interval: 30s
@@ -664,8 +763,9 @@ applications:
     additional_aliases:
       - api.seafile
     networks:
-      - backend
-      - database
+      - caddy
+      - mariadb
+      - memcached
     depends_on:
       - mariadb
       - memcached
@@ -684,7 +784,7 @@ applications:
     container_name: onlyoffice
     subdomain: onlyoffice
     networks:
-      - backend
+      - caddy
     health_check:
       type: docker
       interval: 30s
@@ -742,7 +842,8 @@ ai:
       - api.litellm
     networks:
       - ai  # ISOLATED - AI network only
-      - frontend  # Only for Caddy access (external API)
+      - litellm  # Gateway for apps needing AI access
+      - caddy  # Only for Caddy access (external API)
     depends_on:
       - vllm
     health_check:
@@ -762,9 +863,8 @@ datamancy:
     container_name: control-panel
     subdomain: control
     networks:
-      - frontend
-      - backend
-      - database
+      - caddy
+      - postgres
     depends_on:
       - postgres
       - data-fetcher
@@ -786,8 +886,9 @@ datamancy:
     container_name: data-fetcher
     subdomain: null
     networks:
-      - backend
-      - database
+      - postgres
+      - clickhouse
+      - mariadb  # Needs bookstack's DB
     depends_on:
       - postgres
       - clickhouse
@@ -807,8 +908,10 @@ datamancy:
     container_name: unified-indexer
     subdomain: null
     networks:
-      - backend
-      - database
+      - postgres
+      - mariadb  # Needs bookstack's DB
+      - qdrant
+      - clickhouse
       - ai-gateway  # Access to embedding-service via gateway
     depends_on:
       - postgres
@@ -831,8 +934,8 @@ datamancy:
     container_name: search-service
     subdomain: null
     networks:
-      - backend
-      - database
+      - qdrant
+      - clickhouse
       - ai-gateway  # Access to embedding-service via gateway
     depends_on:
       - qdrant
@@ -847,31 +950,6 @@ datamancy:
     phase: datamancy
     phase_order: 6
 
-  datamancy-api-gateway:
-    image: datamancy/api-gateway
-    version: local-build
-    container_name: datamancy-api-gateway
-    subdomain: null
-    networks:
-      - ai-gateway  # Bridge between AI and backend
-      - backend  # Access to internal services
-      - database  # Access to databases
-    depends_on:
-      - postgres
-      - mariadb
-      - clickhouse
-      - qdrant
-      - ldap
-    health_check:
-      type: docker
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    phase: datamancy
-    phase_order: 6
-    security_note: "API GATEWAY - Controlled bridge between AI zone and backend. Implements rate limiting, auth, audit logging."
-
   agent-tool-server:
     image: datamancy/agent-tool-server
     version: local-build
@@ -880,7 +958,7 @@ datamancy:
     networks:
       - ai  # ISOLATED - Lives in AI zone (untrusted external actors)
       - ai-gateway  # Controlled access to internal API gateway only
-      - frontend  # Only for Caddy access (MCP protocol)
+      - caddy  # Only for Caddy access (MCP protocol)
     depends_on:
       - litellm
       - datamancy-api-gateway  # Must go through gateway, no direct DB access
@@ -893,27 +971,6 @@ datamancy:
     phase: datamancy
     phase_order: 6
     security_note: "EXTERNAL ACTOR ZONE - This service proxies LLM requests. Network isolated from backend/database."
-
-  benthos:
-    image: jeffail/benthos
-    version: 4.27.0
-    container_name: benthos
-    subdomain: null
-    networks:
-      - backend
-      - database
-    depends_on:
-      - qdrant
-      - clickhouse
-      - litellm
-    health_check:
-      type: docker
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    phase: datamancy
-    phase_order: 6
 
 # Metadata about phases (for controller)
 phases:
