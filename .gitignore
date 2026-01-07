@@ -48,7 +48,7 @@ logs/
 
 # Temporary files
 *.tmp
-*.bak
+*.bak1
 *.backup
 
 #SATURN stuff
@@ -71,3 +71,5 @@ venv/
 htmlReport/.gradle-container/
 
 .kotlin/
+
+*.tar.gz

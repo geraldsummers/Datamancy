@@ -90,7 +90,7 @@ session:
   # If stolen, "remember me" cookie is only valid for 1 week
   remember_me: 7d
   redis:
-    host: redis
+    host: valkey
     port: 6379
     database_index: 0
 

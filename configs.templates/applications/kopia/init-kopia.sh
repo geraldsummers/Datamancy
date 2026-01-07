@@ -11,15 +11,18 @@ echo "[kopia-init] Using repo path: ${KOPIA_REPO_PATH}"
 echo "[kopia-init] Volumes root: ${VOLUMES_ROOT}"
 
 # Ensure repository exists and is connected
-if ! kopia repository status >/dev/null 2>&1; then
-  if [ -d "$KOPIA_REPO_PATH" ] && [ "$(ls -A "$KOPIA_REPO_PATH" 2>/dev/null | wc -l || true)" -gt 0 ]; then
-    echo "[kopia-init] Connecting to existing repository..."
-    kopia repository connect filesystem --path="$KOPIA_REPO_PATH" --password "$KOPIA_PASSWORD"
-  else
-    echo "[kopia-init] Creating new repository..."
+# Check if repository exists by looking for kopia.repository file
+if [ -f "$KOPIA_REPO_PATH/kopia.repository" ]; then
+  echo "[kopia-init] Connecting to existing repository..."
+  kopia repository connect filesystem --path="$KOPIA_REPO_PATH" --password "$KOPIA_PASSWORD" || {
+    echo "[kopia-init] Failed to connect, trying to recreate..."
     mkdir -p "$KOPIA_REPO_PATH"
     kopia repository create filesystem --path="$KOPIA_REPO_PATH" --password "$KOPIA_PASSWORD"
-  fi
+  }
+else
+  echo "[kopia-init] Creating new repository..."
+  mkdir -p "$KOPIA_REPO_PATH"
+  kopia repository create filesystem --path="$KOPIA_REPO_PATH" --password "$KOPIA_PASSWORD"
 fi
 
 # Configure global snapshot policies

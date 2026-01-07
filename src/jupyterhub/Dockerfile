@@ -1,7 +1,12 @@
 FROM jupyterhub/jupyterhub:latest
 
-# Install dockerspawner, jupyterlab, and remote user authenticator
-RUN pip install --no-cache-dir dockerspawner jupyterlab certifi jupyterhub-remote-user-authenticator
+# Install jupyterlab, remote user authenticator, and notebook kernels
+RUN pip install --no-cache-dir \
+    jupyterlab \
+    certifi \
+    jupyterhub-remote-user-authenticator \
+    notebook \
+    ipykernel
 
 # Install ca-certificates for custom CA support
 USER root
@@ -16,5 +21,7 @@ RUN cat /tmp/caddy-ca.crt >> /srv/venv/lib/python3.12/site-packages/certifi/cace
     cat /tmp/caddy-ca.crt >> /etc/ssl/certs/ca-certificates.crt && \
     update-ca-certificates
 
-# Create docker group for socket access and add root user to it
-RUN groupadd -g 984 docker || true && usermod -aG docker root
+# Create directory for user notebooks
+RUN mkdir -p /home/jovyan/notebooks && \
+    chmod 755 /home/jovyan && \
+    chmod 777 /home/jovyan/notebooks

@@ -19,7 +19,7 @@
 
     # PRODUCTION: Uncomment the line below and comment out local_certs above
     # Replace with your actual admin email for Let's Encrypt notifications
-    email {{STACK_ADMIN_EMAIL}}
+    email {$STACK_ADMIN_EMAIL}
 
     # Optional: Customize ACME CA (default is Let's Encrypt production)
     # For testing Let's Encrypt without rate limits, use staging:
@@ -27,7 +27,7 @@
 }
 
 # ldap-account-manager
-lam.{{DOMAIN}} {
+lam.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -38,13 +38,13 @@ lam.{{DOMAIN}} {
 }
 
 # Authelia portal
-auth.{{DOMAIN}} {
+auth.{$DOMAIN} {
     reverse_proxy authelia:9091
 }
 
 # Roundcube Webmail - Proxy auth with Dovecot master user
 # Also generates certificate for docker-mailserver SMTP/IMAP
-mail.{{DOMAIN}} {
+mail.{$DOMAIN} {
     forward_auth authelia:9091 {
         uri /api/authz/forward-auth
         copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -59,7 +59,7 @@ mail.{{DOMAIN}} {
 }
 
 # Radicale CalDAV/CardDAV Server
-calendar.{{DOMAIN}} {
+calendar.{$DOMAIN} {
     forward_auth authelia:9091 {
         uri /api/authz/forward-auth
         copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
@@ -73,7 +73,7 @@ calendar.{{DOMAIN}} {
 }
 
 # SOGo (groupware UI) - Alternative calendar/contacts interface
-sogo.{{DOMAIN}} {
+sogo.{$DOMAIN} {
     # SOGo serves at /SOGo path, redirect root to it
     @root path /
     redir @root /SOGo
@@ -93,7 +93,7 @@ sogo.{{DOMAIN}} {
 
 
 # Kopia UI (protected with forward_auth)
-kopia.{{DOMAIN}} {
+kopia.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -104,7 +104,7 @@ kopia.{{DOMAIN}} {
 }
 
 # Grafana (protected with forward_auth)
-grafana.{{DOMAIN}} {
+grafana.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -115,7 +115,7 @@ grafana.{{DOMAIN}} {
 }
 
 # Open WebUI
-open-webui.{{DOMAIN}} {
+open-webui.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -126,33 +126,33 @@ open-webui.{{DOMAIN}} {
 }
 
 # Vaultwarden - Protocol-based routing
-vaultwarden.{{DOMAIN}} {
+vaultwarden.{$DOMAIN} {
     # API requests (JSON Accept header) -> app subdomain
     @api header Accept *application/json*
     reverse_proxy @api vaultwarden:80
 
     # Browser requests -> redirect to app with SSO params
-    redir https://app.vaultwarden.{{DOMAIN}}/#/sso?identifier={{MAIL_DOMAIN}} temporary
+    redir https://app.vaultwarden.{$DOMAIN}/#/sso?identifier={$MAIL_DOMAIN} temporary
 }
 
 # Vaultwarden app (OIDC SSO endpoint)
-app.vaultwarden.{{DOMAIN}} {
+app.vaultwarden.{$DOMAIN} {
     reverse_proxy vaultwarden:80
 }
 
 # Planka (uses OIDC)
-planka.{{DOMAIN}} {
+planka.{$DOMAIN} {
     reverse_proxy planka:1337
 }
 
 # BookStack (uses OIDC)
-bookstack.{{DOMAIN}} {
+bookstack.{$DOMAIN} {
     reverse_proxy bookstack:80
 }
 
 # BookStack API (internal network only - for data-fetcher and search services)
 # Bypasses auth for API token authentication
-api.bookstack.{{DOMAIN}} {
+api.bookstack.{$DOMAIN} {
     # Only allow from internal Docker networks
     @notinternal not remote_ip 172.20.0.0/24 172.21.0.0/24 172.22.0.0/24
     respond @notinternal "Access denied: Internal API only" 403
@@ -161,7 +161,7 @@ api.bookstack.{{DOMAIN}} {
 }
 
 # Seafile - Uses remote user authentication with forward_auth
-seafile.{{DOMAIN}} {
+seafile.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -173,7 +173,7 @@ seafile.{{DOMAIN}} {
 
 # Seafile API (for API token authentication - bypasses forward_auth)
 # API clients authenticate using Seafile API tokens in Authorization header
-api.seafile.{{DOMAIN}} {
+api.seafile.{$DOMAIN} {
     # Seafile API endpoints
     @api path /api/* /api2/* /seafdav*
     handle @api {
@@ -186,7 +186,7 @@ api.seafile.{{DOMAIN}} {
 
 # OnlyOffice Document Server (internal API only - accessed via Seafile/Nextcloud)
 # Not exposed publicly - only accessible on backend network
-# onlyoffice.{{DOMAIN}} {
+# onlyoffice.{$DOMAIN} {
 #     route {
 #         forward_auth authelia:9091 {
 #             uri /api/authz/forward-auth
@@ -198,13 +198,13 @@ api.seafile.{{DOMAIN}} {
 
 # Matrix (Synapse) - Client-Server API with access token authentication
 # Matrix clients authenticate using access tokens, so no forward_auth needed
-matrix.{{DOMAIN}} {
+matrix.{$DOMAIN} {
     reverse_proxy synapse:8008
 }
 
 # Matrix API (Server-Server Federation)
 # Federation uses Matrix's built-in signature-based authentication
-api.matrix.{{DOMAIN}} {
+api.matrix.{$DOMAIN} {
     # Federation API endpoint
     @federation path /_matrix/federation/*
     handle @federation {
@@ -234,18 +234,18 @@ api.matrix.{{DOMAIN}} {
 }
 
 # Element (Matrix Web Client)
-element.{{DOMAIN}} {
+element.{$DOMAIN} {
     reverse_proxy element:80
 }
 
 # Mastodon (web)
 # With OMNIAUTH_ONLY=true, Mastodon auto-redirects unauthenticated users to OIDC
-mastodon.{{DOMAIN}} {
+mastodon.{$DOMAIN} {
     reverse_proxy mastodon-web:3000
 }
 
 # Homepage
-homepage.{{DOMAIN}} {
+homepage.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -255,7 +255,7 @@ homepage.{{DOMAIN}} {
     }
 }
 # Homepage
-www.{{DOMAIN}} {
+www.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -265,7 +265,7 @@ www.{{DOMAIN}} {
     }
 }
 # Homepage
-{{DOMAIN}} {
+{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -275,7 +275,7 @@ www.{{DOMAIN}} {
     }
 }
 # JupyterHub - Uses RemoteUserAuthenticator with forward_auth
-jupyterhub.{{DOMAIN}} {
+jupyterhub.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -287,7 +287,7 @@ jupyterhub.{{DOMAIN}} {
 
 # Home Assistant - Uses trusted_networks + LDAP auth
 # Webhooks must bypass auth
-homeassistant.{{DOMAIN}} {
+homeassistant.{$DOMAIN} {
     # Webhook paths bypass forward_auth
     @webhooks path /api/webhook/*
     handle @webhooks {
@@ -309,7 +309,7 @@ homeassistant.{{DOMAIN}} {
 
 # Home Assistant API (for programmatic access with long-lived access tokens)
 # API clients authenticate using HA long-lived access tokens in Authorization header
-api.homeassistant.{{DOMAIN}} {
+api.homeassistant.{$DOMAIN} {
     # API endpoints (bypass forward_auth, rely on HA's token auth)
     @api path /api/*
     handle @api {
@@ -339,7 +339,7 @@ api.homeassistant.{{DOMAIN}} {
 }
 
 # LiteLLM (protected)
-litellm.{{DOMAIN}} {
+litellm.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -350,14 +350,14 @@ litellm.{{DOMAIN}} {
 }
 
 # LiteLLM (public API) — allowlist by IP, no forward_auth
-api.litellm.{{DOMAIN}} {
+api.litellm.{$DOMAIN} {
     @notallowed not remote_ip {$API_LITELLM_ALLOWLIST}
     respond @notallowed 403
     reverse_proxy litellm:4000
 }
 
 # agent-tool-server (protected)
-agent-tool-server.{{DOMAIN}} {
+agent-tool-server.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -368,7 +368,7 @@ agent-tool-server.{{DOMAIN}} {
 }
 
 # ClickHouse HTTP
-clickhouse.{{DOMAIN}} {
+clickhouse.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -379,7 +379,7 @@ clickhouse.{{DOMAIN}} {
 }
 
 # vLLM Router (protected)
-vllm-router.{{DOMAIN}} {
+vllm-router.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -390,12 +390,12 @@ vllm-router.{{DOMAIN}} {
 }
 
 # Forgejo (Git Forge) - with OIDC authentication via Authelia
-forgejo.{{DOMAIN}} {
+forgejo.{$DOMAIN} {
     reverse_proxy forgejo:3000
 }
 
 # qBittorrent (protected)
-qbittorrent.{{DOMAIN}} {
+qbittorrent.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -409,7 +409,7 @@ qbittorrent.{{DOMAIN}} {
 }
 
 # Data Fetcher (protected - admin only)
-data-fetcher.{{DOMAIN}} {
+data-fetcher.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -420,7 +420,7 @@ data-fetcher.{{DOMAIN}} {
 }
 
 # Search Indexer (protected - admin only)
-search-indexer.{{DOMAIN}} {
+search-indexer.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth
@@ -431,7 +431,7 @@ search-indexer.{{DOMAIN}} {
 }
 
 # Search Gateway (protected - all authenticated users)
-search.{{DOMAIN}} {
+search.{$DOMAIN} {
     route {
         forward_auth authelia:9091 {
             uri /api/authz/forward-auth

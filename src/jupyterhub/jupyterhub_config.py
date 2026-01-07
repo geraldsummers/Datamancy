@@ -14,44 +14,21 @@ c.JupyterHub.bind_url = 'http://0.0.0.0:8000'
 c.JupyterHub.hub_bind_url = 'http://0.0.0.0:8081'
 c.JupyterHub.hub_connect_url = 'http://jupyterhub:8081'
 
-# Use DockerSpawner to spawn notebook servers in containers
-c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
+# Use LocalProcessSpawner - notebooks run as processes inside the JupyterHub container
+c.JupyterHub.spawner_class = 'jupyterhub.spawner.LocalProcessSpawner'
 
-# Docker image for single-user notebook servers (custom image with JS and Kotlin kernels)
-c.DockerSpawner.image = 'datamancy-jupyter-notebook:latest'
-
-# Connect containers to the same network as JupyterHub
-c.DockerSpawner.network_name = 'datamancy_backend'
-
-# Remove containers when they stop
-c.DockerSpawner.remove = True
-
-# Notebook directory inside the container
-c.DockerSpawner.notebook_dir = '/home/jovyan/work'
+# Notebook directory for users
+c.Spawner.notebook_dir = '~/notebooks'
 
 # Default URL to JupyterLab
-c.DockerSpawner.default_url = '/lab'
+c.Spawner.default_url = '/lab'
 
-# Hub connection config for containers
-c.DockerSpawner.hub_connect_url = 'http://jupyterhub:8081'
-
-# Reasonable timeouts for container startup
-c.DockerSpawner.http_timeout = 60
-c.DockerSpawner.start_timeout = 120
-
-# Format container names
-c.DockerSpawner.name_template = 'jupyter-{username}-{servername}'
-
-# Pass environment variables to spawned containers
-c.DockerSpawner.environment = {
+# Environment variables for spawned notebooks
+c.Spawner.environment = {
     'LITELLM_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
     'OPENAI_API_BASE': 'http://litellm:4000/v1',
     'OPENAI_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
 }
-
-# Ensure compatible jupyterhub version in spawned containers
-# Install the correct jupyterhub version to match the hub
-c.DockerSpawner.cmd = ['sh', '-c', 'pip install --upgrade jupyterhub==5.4.2 && jupyterhub-singleuser']
 
 # Authentication: RemoteUserAuthenticator for Authelia forward_auth
 # This allows seamless single-layer SSO - user authenticates once with Authelia,

@@ -21,7 +21,7 @@ database:
   allow_unsafe_locale: true
   args:
     user: synapse
-    password: {{SYNAPSE_DB_PASSWORD}}
+    password: "{{SYNAPSE_DB_PASSWORD}}"
     database: synapse
     host: postgres
     port: 5432
@@ -98,9 +98,9 @@ oidc_providers:
         # Map OIDC claims to Matrix user attributes
         # Use preferred_username (LDAP uid) for Matrix ID, name (displayName) for display
         # Matrix localpart must be lowercase alphanumeric with hyphens/underscores
-        localpart_template: "{{ user.preferred_username|lower }}"
-        display_name_template: "{{ user.name }}"
-        email_template: "{{ user.email }}"
+        localpart_template: '{{ user.preferred_username|lower }}'
+        display_name_template: '{{ user.name }}'
+        email_template: '{{ user.email }}'
     # Allow SSO for existing LDAP users
     allow_existing_users: true
     # Enable SSO login button in Element
