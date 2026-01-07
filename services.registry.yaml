@@ -1220,22 +1220,24 @@ ai:
       NVIDIA_VISIBLE_DEVICES: "all"
       NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
     command:
-      - "Qwen/Qwen2.5-0.5B-Instruct"
+      - "Qwen/Qwen2.5-7B-Instruct"
       - "--served-model-name"
-      - "qwen2.5-0.5b"
+      - "qwen2.5-7b"
       - "--max-model-len"
-      - "2048"
+      - "4096"
       - "--max-num-seqs"
-      - "64"
+      - "32"
       - "--dtype"
       - "auto"
       - "--enable-auto-tool-choice"
       - "--tool-call-parser"
       - "hermes"
       - "--gpu-memory-utilization"
-      - "0.7"
+      - "0.8"
       - "--tensor-parallel-size"
       - "1"
+      - "--enforce-eager"
+      - "--trust-remote-code"
     volumes:
       - ${VOLUMES_ROOT}/vllm/models:/root/.cache/huggingface
     deploy:
@@ -1260,15 +1262,25 @@ ai:
 
   embedding-service:
     image: ghcr.io/huggingface/text-embeddings-inference
-    version: cpu-1.2
+    version: 1.2-cuda
     container_name: embedding-service
     subdomain: null
     networks:
       - ai  # ISOLATED - AI network only
       - ai-gateway  # Controlled access for unified-indexer
-    command: --model-id sentence-transformers/all-MiniLM-L6-v2 --port 8080
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+    command: --model-id BAAI/bge-large-en-v1.5 --port 8080
     volumes:
       - ${VOLUMES_ROOT}/embeddings/models:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     health_check:
       type: docker
       interval: 30s
@@ -1277,6 +1289,7 @@ ai:
       start_period: 60s
     phase: ai
     phase_order: 5
+    gpu: true
 
   litellm:
     image: ghcr.io/berriai/litellm
