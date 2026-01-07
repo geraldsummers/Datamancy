@@ -19,12 +19,11 @@
 # - valkey, ldap, authelia, mailserver: Core infrastructure
 # - litellm: AI gateway access
 # - caddy: Reverse proxy access (for web-exposed services)
-# - docker-proxy: Docker socket access (homepage, jupyterhub)
+# - docker-proxy: Docker socket access (homepage)
 #
 # Special networks:
 # - ai: ISOLATED AI/LLM services (untrusted external actor zone)
 # - ai-gateway: Controlled bridge between AI and backend services
-# - jupyterhub-notebooks: JupyterHub spawned notebook containers
 # - mastodon-internal: Mastodon multi-container communication
 # - matrix-internal: Matrix/Element communication
 
@@ -81,12 +80,6 @@ networks:
     description: LiteLLM AI gateway access
 
   # Application-specific networks
-  jupyterhub-dind:
-    subnet: 172.50.0.0/24
-    description: JupyterHub Docker-in-Docker isolated daemon
-  jupyterhub-notebooks:
-    subnet: 172.51.0.0/24
-    description: JupyterHub spawned notebook containers
   mastodon-internal:
     subnet: 172.52.0.0/24
     description: Mastodon multi-container internal communication
@@ -134,6 +127,16 @@ core:
     networks:
       - caddy
       - authelia  # Needs to talk to authelia for forward auth
+    environment:
+      DOMAIN: "${DOMAIN}"
+      STACK_ADMIN_EMAIL: "${STACK_ADMIN_EMAIL}"
+      API_LITELLM_ALLOWLIST: "${API_LITELLM_ALLOWLIST}"
+      MAIL_DOMAIN: "${MAIL_DOMAIN}"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - ${DEPLOYMENT_ROOT}/configs/infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
     health_check:
       type: docker
       interval: 10s
@@ -150,6 +153,21 @@ core:
     subdomain: null  # No direct subdomain exposure
     networks:
       - ldap
+    environment:
+      LDAP_ORGANISATION: "Datamancy"
+      LDAP_DOMAIN: "stack.local"
+      LDAP_BASE_DN: "dc=stack,dc=local"
+      LDAP_ADMIN_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
+      LDAP_CONFIG_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
+      LDAP_TLS: "false"
+      LDAP_MEMBEROF_OVERLAY: "true"
+      LDAP_MEMBEROF_GROUP_OC: "groupOfNames"
+      LDAP_MEMBEROF_MEMBER_AD: "member"
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+      - ${DEPLOYMENT_ROOT}/configs/infrastructure/ldap/bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
+    command: --copy-service --loglevel info
     health_check:
       type: docker
       interval: 10s
@@ -169,6 +187,9 @@ core:
       - redis-synapse
     networks:
       - valkey
+    volumes:
+      - redis_data:/data
+    command: valkey-server --appendonly yes --dir /data --databases 16
     health_check:
       type: docker
       interval: 10s
@@ -193,6 +214,36 @@ core:
       - ldap
       - postgres
       - valkey
+    environment:
+      TZ: "UTC"
+      DOMAIN: "${DOMAIN}"
+      AUTHELIA_JWT_SECRET: "${AUTHELIA_JWT_SECRET}"
+      AUTHELIA_SESSION_SECRET: "${AUTHELIA_SESSION_SECRET}"
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: "${AUTHELIA_STORAGE_ENCRYPTION_KEY}"
+      AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
+      AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET: "${AUTHELIA_OIDC_HMAC_SECRET}"
+      AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY: "${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY}"
+      AUTHELIA_STORAGE_POSTGRES_PASSWORD: "${AUTHELIA_DB_PASSWORD}"
+      GRAFANA_OAUTH_SECRET: "${GRAFANA_OAUTH_SECRET}"
+      PGADMIN_OAUTH_SECRET: "${PGADMIN_OAUTH_SECRET}"
+      OPENWEBUI_OAUTH_SECRET: "${OPENWEBUI_OAUTH_SECRET}"
+      NEXTCLOUD_OAUTH_SECRET: "${NEXTCLOUD_OAUTH_SECRET}"
+      DIM_OAUTH_SECRET: "${DIM_OAUTH_SECRET}"
+      PLANKA_OAUTH_SECRET: "${PLANKA_OAUTH_SECRET}"
+      HOMEASSISTANT_OAUTH_SECRET: "${HOMEASSISTANT_OAUTH_SECRET}"
+      JUPYTERHUB_OAUTH_SECRET: "${JUPYTERHUB_OAUTH_SECRET}"
+      VAULTWARDEN_OAUTH_SECRET: "${VAULTWARDEN_OAUTH_SECRET}"
+      MASTODON_OIDC_SECRET: "${MASTODON_OIDC_SECRET}"
+      BOOKSTACK_OAUTH_SECRET: "${BOOKSTACK_OAUTH_SECRET}"
+      FORGEJO_OAUTH_SECRET: "${FORGEJO_OAUTH_SECRET}"
+      MATRIX_OAUTH_SECRET: "${MATRIX_OAUTH_SECRET}"
+      SOGO_OAUTH_SECRET: "${SOGO_OAUTH_SECRET}"
+    volumes:
+      - ${VOLUMES_ROOT}/authelia:/config
+      - ${DEPLOYMENT_ROOT}/configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/authelia/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/entrypoint.sh"]
+    command: ["--config", "/config/configuration.yml"]
     health_check:
       type: docker
       interval: 30s
@@ -220,6 +271,44 @@ core:
     depends_on:
       - ldap
       - caddy
+    environment:
+      ENABLE_RSPAMD: "1"
+      ENABLE_CLAMAV: "1"
+      ENABLE_FAIL2BAN: "1"
+      ENABLE_POSTGREY: "0"
+      ENABLE_SPAMASSASSIN: "0"
+      SPOOF_PROTECTION: "0"
+      ENABLE_SRS: "0"
+      PERMIT_DOCKER: "network"
+      SSL_TYPE: "manual"
+      SSL_CERT_PATH: "${MAILSERVER_SSL_CERT_PATH:-/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.crt}"
+      SSL_KEY_PATH: "${MAILSERVER_SSL_KEY_PATH:-/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.key}"
+      OVERRIDE_HOSTNAME: "mail.${DOMAIN}"
+      POSTMASTER_ADDRESS: "postmaster@${MAIL_DOMAIN}"
+      ACCOUNT_PROVISIONER: "LDAP"
+      LDAP_SERVER_HOST: "ldap://ldap:389"
+      LDAP_BIND_DN: "cn=admin,dc=stack,dc=local"
+      LDAP_BIND_PW: "${LDAP_ADMIN_PASSWORD}"
+      LDAP_SEARCH_BASE: "ou=users,dc=stack,dc=local"
+      LDAP_QUERY_FILTER_USER: "(&(objectClass=inetOrgPerson)(mail=%s))"
+      LDAP_QUERY_FILTER_GROUP: "(&(objectClass=groupOfNames)(member=%s))"
+      LDAP_QUERY_FILTER_ALIAS: "(&(objectClass=inetOrgPerson)(mail=%s))"
+      DOVECOT_MAILBOX_FORMAT: "maildir"
+      DOVECOT_USER_FILTER: "(&(objectClass=inetOrgPerson)(mail=%u))"
+      DOVECOT_PASS_FILTER: "(&(objectClass=inetOrgPerson)(mail=%u))"
+      DOVECOT_PASS_ATTRS: "mail=user,userPassword=password"
+      DOVECOT_USER_ATTRS: "=home=/var/mail/%Ln,=mail=maildir:~/Maildir"
+      ENABLE_QUOTAS: "1"
+      POSTFIX_MESSAGE_SIZE_LIMIT: "50000000"
+    volumes:
+      - mailserver_data:/var/mail/
+      - mailserver_state:/var/mail-state/
+      - mailserver_logs:/var/log/mail/
+      - mailserver_config:/tmp/docker-mailserver/
+      - /etc/localtime:/etc/localtime:ro
+      - caddy_data:/caddy-certs:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
     health_check:
       type: docker
       interval: 30s
@@ -239,6 +328,13 @@ core:
       - ldap
     depends_on:
       - ldap
+    environment:
+      LDAP_DOMAIN: "stack.local"
+      LDAP_BASE_DN: "dc=stack,dc=local"
+      LDAP_USER: "cn=admin,dc=stack,dc=local"
+      LDAP_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
+      LAM_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
+      LAM_LANG: "en_US"
     health_check:
       type: docker
       interval: 10s
@@ -271,6 +367,20 @@ core:
     subdomain: null
     networks:
       - docker-proxy
+    environment:
+      CONTAINERS: "1"
+      IMAGES: "1"
+      NETWORKS: "1"
+      VOLUMES: "1"
+      POST: "1"
+      DELETE: "1"
+      INFO: "1"
+      VERSION: "1"
+      BUILD: "0"
+      COMMIT: "0"
+      EXEC: "0"
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
     health_check:
       type: docker
       interval: 30s
@@ -287,6 +397,20 @@ core:
     subdomain: kopia
     networks:
       - caddy
+    environment:
+      KOPIA_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+      KOPIA_REPO_PATH: "/repository"
+      USER: "kopia"
+    volumes:
+      - kopia_data:/app/config
+      - kopia_cache:/app/cache
+      - postgres_data:/backup/postgres:ro
+      - mariadb_data:/backup/mariadb:ro
+      - kopia_repository:/repository
+      - ${DEPLOYMENT_ROOT}/configs/applications/kopia/init-kopia.sh:/init-kopia.sh:ro
+    entrypoint:
+      - sh
+      - /init-kopia.sh
     health_check:
       type: docker
       interval: 30s
@@ -307,6 +431,26 @@ databases:
       - db
     networks:
       - postgres
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_ROOT_PASSWORD}"
+      POSTGRES_USER: "${STACK_ADMIN_USER}"
+      POSTGRES_DB: "postgres"
+      POSTGRES_ROOT_PASSWORD: "${POSTGRES_ROOT_PASSWORD}"
+      PLANKA_DB_PASSWORD: "${PLANKA_DB_PASSWORD}"
+      SYNAPSE_DB_PASSWORD: "${SYNAPSE_DB_PASSWORD}"
+      AUTHELIA_DB_PASSWORD: "${AUTHELIA_DB_PASSWORD}"
+      GRAFANA_DB_PASSWORD: "${GRAFANA_DB_PASSWORD}"
+      VAULTWARDEN_DB_PASSWORD: "${VAULTWARDEN_DB_PASSWORD}"
+      OPENWEBUI_DB_PASSWORD: "${OPENWEBUI_DB_PASSWORD}"
+      MASTODON_DB_PASSWORD: "${MASTODON_DB_PASSWORD}"
+      FORGEJO_DB_PASSWORD: "${FORGEJO_DB_PASSWORD}"
+      HOMEASSISTANT_DB_PASSWORD: "${HOMEASSISTANT_DB_PASSWORD}"
+      STACK_ADMIN_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+      AGENT_POSTGRES_OBSERVER_PASSWORD: "${AGENT_POSTGRES_OBSERVER_PASSWORD}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ${DEPLOYMENT_ROOT}/configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    command: postgres -c 'max_connections=300' -c 'shared_buffers=1GB'
     health_check:
       type: docker
       interval: 10s
@@ -328,6 +472,15 @@ databases:
       - mysql
     networks:
       - mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      MYSQL_DATABASE: "datamancy"
+      MYSQL_USER: "${STACK_ADMIN_USER}"
+      MYSQL_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ${DEPLOYMENT_ROOT}/configs/databases/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     health_check:
       type: docker
       interval: 10s
@@ -344,6 +497,14 @@ databases:
     subdomain: null
     networks:
       - clickhouse
+    environment:
+      CLICKHOUSE_DB: "default"
+      CLICKHOUSE_USER: "${STACK_ADMIN_USER}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_ADMIN_PASSWORD}"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ${DEPLOYMENT_ROOT}/configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
+      - ${DEPLOYMENT_ROOT}/configs/databases/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     health_check:
       type: docker
       interval: 30s
@@ -363,6 +524,10 @@ databases:
     subdomain: null
     networks:
       - qdrant
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
     health_check:
       type: docker
       interval: 30s
@@ -384,6 +549,17 @@ databases:
       - qdrant
     depends_on:
       - qdrant
+    environment:
+      QDRANT_URL: "http://qdrant:6333"
+      VECTOR_SIZE: "${VECTOR_EMBED_SIZE:-384}"
+      QDRANT_API_KEY: "${QDRANT_API_KEY:-}"
+    volumes:
+      - ${DEPLOYMENT_ROOT}/configs/databases/vectors/collections.yaml:/configs/collections.yaml:ro
+      - ${DEPLOYMENT_ROOT}/configs/databases/vectors/bootstrap_vectors.main.kts:/scripts/bootstrap_vectors.main.kts:ro
+    command:
+      - kotlin
+      - /scripts/bootstrap_vectors.main.kts
+      - /configs/collections.yaml
     phase: databases
     phase_order: 2
 
@@ -401,6 +577,30 @@ applications:
     depends_on:
       - postgres
       - authelia
+    environment:
+      GF_DEFAULT_LOCALE: "en_US"
+      GF_SERVER_ROOT_URL: "https://grafana.${DOMAIN}"
+      GF_SERVER_DOMAIN: "grafana.${DOMAIN}"
+      GF_DATABASE_TYPE: "postgres"
+      GF_DATABASE_HOST: "postgres:5432"
+      GF_DATABASE_NAME: "grafana"
+      GF_DATABASE_USER: "grafana"
+      GF_DATABASE_PASSWORD: "${GRAFANA_DB_PASSWORD}"
+      GF_DATABASE_SSL_MODE: "disable"
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      GF_AUTH_GENERIC_OAUTH_NAME: "Authelia"
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: "grafana"
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: "${GRAFANA_OAUTH_SECRET}"
+      GF_AUTH_GENERIC_OAUTH_SCOPES: "openid profile email groups"
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: "https://auth.${DOMAIN}/api/oidc/authorization"
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: "http://authelia:9091/api/oidc/token"
+      GF_AUTH_GENERIC_OAUTH_API_URL: "http://authelia:9091/api/oidc/userinfo"
+      GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH: "email"
+      GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH: "email"
+      GF_AUTH_GENERIC_OAUTH_GROUPS_ATTRIBUTE_PATH: "groups"
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(groups, 'admins') && 'Admin' || 'Viewer'"
+    volumes:
+      - grafana_data:/var/lib/grafana
     health_check:
       type: docker
       interval: 30s
@@ -424,6 +624,23 @@ applications:
       - postgres
       - litellm
       - authelia
+    environment:
+      WEBUI_URL: "${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}"
+      DATABASE_URL: "postgresql://openwebui:${OPENWEBUI_DB_PASSWORD_ENCODED}@postgres:5432/openwebui"
+      ENABLE_OAUTH_SIGNUP: "${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-true}"
+      DEFAULT_USER_ROLE: "${OPENWEBUI_DEFAULT_USER_ROLE:-admin}"
+      ENABLE_OPENAI_API: "true"
+      OPENAI_API_BASE_URL: "${OPENWEBUI_OPENAI_API_BASE_URL:-http://litellm:4000/v1}"
+      OPENAI_API_KEY: "${LITELLM_MASTER_KEY}"
+      OPENID_PROVIDER_URL: "https://auth.${DOMAIN}"
+      OAUTH_CLIENT_ID: "open-webui"
+      OAUTH_CLIENT_SECRET: "${OPENWEBUI_OAUTH_SECRET}"
+      OAUTH_PROVIDER_NAME: "Authelia"
+      OAUTH_SCOPES: "openid profile email groups"
+      ENABLE_LOGIN_FORM: "false"
+      WEBUI_AUTH: "false"
+    volumes:
+      - open_webui_data:/app/backend/data
     health_check:
       type: docker
       interval: 30s
@@ -449,6 +666,31 @@ applications:
       - postgres
       - mailserver
       - authelia
+    environment:
+      DOMAIN: "https://app.vaultwarden.${DOMAIN}"
+      DATABASE_URL: "postgresql://vaultwarden:${VAULTWARDEN_DB_PASSWORD}@postgres:5432/vaultwarden"
+      SIGNUPS_ALLOWED: "false"
+      SIGNUPS_VERIFY: "true"
+      SIGNUPS_DOMAINS_WHITELIST: "${MAIL_DOMAIN}"
+      INVITATIONS_ALLOWED: "false"
+      SHOW_PASSWORD_HINT: "false"
+      SSO_ENABLED: "true"
+      SSO_ONLY: "true"
+      SSO_AUTHORITY: "https://auth.${DOMAIN}"
+      SSO_CLIENT_ID: "vaultwarden"
+      SSO_CLIENT_SECRET: "${VAULTWARDEN_OAUTH_SECRET}"
+      SSO_SCOPES: "openid email profile"
+      SSO_CALLBACK_PATH: "/identity/connect/oidc-signin"
+      SSO_SIGNUPS_MATCH_EMAIL: "true"
+      ADMIN_TOKEN: "${VAULTWARDEN_ADMIN_TOKEN}"
+      SMTP_HOST: "mailserver"
+      SMTP_FROM: "vaultwarden@${MAIL_DOMAIN}"
+      SMTP_PORT: "587"
+      SMTP_SECURITY: "starttls"
+      SMTP_USERNAME: "vaultwarden@${MAIL_DOMAIN}"
+      SMTP_PASSWORD: "${VAULTWARDEN_SMTP_PASSWORD}"
+    volumes:
+      - vaultwarden_data:/data
     health_check:
       type: docker
       interval: 30s
@@ -468,6 +710,22 @@ applications:
       - mariadb
     depends_on:
       - mariadb
+    environment:
+      PUID: "${DOCKER_USER_ID:-1000}"
+      PGID: "${DOCKER_GROUP_ID:-1000}"
+      TZ: "UTC"
+      APP_URL: "https://bookstack.${DOMAIN}"
+      APP_KEY: "${BOOKSTACK_APP_KEY}"
+      DB_HOST: "mariadb"
+      DB_PORT: "3306"
+      DB_USER: "bookstack"
+      DB_PASS: "${BOOKSTACK_DB_PASSWORD}"
+      DB_DATABASE: "bookstack"
+      LDAP_ADMIN_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
+      BOOKSTACK_OAUTH_SECRET: "${BOOKSTACK_OAUTH_SECRET}"
+    volumes:
+      - bookstack_data:/config
+      - ${VOLUMES_ROOT}/bookstack_init:/custom-cont-init.d:ro
     health_check:
       type: docker
       interval: 30s
@@ -489,6 +747,28 @@ applications:
     depends_on:
       - postgres
       - authelia
+    environment:
+      BASE_URL: "https://planka.${DOMAIN}"
+      DATABASE_URL: "postgresql://planka:${PLANKA_DB_PASSWORD_ENCODED:-${PLANKA_DB_PASSWORD}}@postgres:5432/planka"
+      SECRET_KEY: "${PLANKA_SECRET_KEY}"
+      OIDC_ISSUER: "https://auth.${DOMAIN}"
+      OIDC_CLIENT_ID: "planka"
+      OIDC_CLIENT_SECRET: "${PLANKA_OAUTH_SECRET}"
+      OIDC_SCOPES: "openid profile email groups"
+      OIDC_ADMIN_ROLES: "admins"
+      OIDC_EMAIL_ATTRIBUTE: "email"
+      OIDC_NAME_ATTRIBUTE: "name"
+      OIDC_USERNAME_ATTRIBUTE: "preferred_username"
+      OIDC_REDIRECT_URI: "https://planka.${DOMAIN}/oidc-callback"
+      OIDC_AUTHORIZATION_ENDPOINT: "https://auth.${DOMAIN}/api/oidc/authorization"
+      OIDC_TOKEN_ENDPOINT: "http://authelia:9091/api/oidc/token"
+      OIDC_USERINFO_ENDPOINT: "http://authelia:9091/api/oidc/userinfo"
+      OIDC_TOKEN_ENDPOINT_AUTH_METHOD: "client_secret_post"
+      OIDC_ENFORCED: "false"
+      NODE_EXTRA_CA_CERTS: "/usr/local/share/ca-certificates/caddy-ca.crt"
+    volumes:
+      - planka_data:/app/public/user-avatars
+      - ${DEPLOYMENT_ROOT}/configs/applications/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
     health_check:
       type: docker
       interval: 30s
@@ -508,6 +788,30 @@ applications:
       - postgres
     depends_on:
       - postgres
+    environment:
+      USER_UID: "${DOCKER_USER_ID:-1000}"
+      USER_GID: "${DOCKER_GROUP_ID:-1000}"
+      FORGEJO__database__DB_TYPE: "postgres"
+      FORGEJO__database__HOST: "postgres:5432"
+      FORGEJO__database__NAME: "forgejo"
+      FORGEJO__database__USER: "forgejo"
+      FORGEJO__database__PASSWD: "${FORGEJO_DB_PASSWORD}"
+      FORGEJO__server__DOMAIN: "forgejo.${DOMAIN}"
+      FORGEJO__server__SSH_DOMAIN: "forgejo.${DOMAIN}"
+      FORGEJO__server__ROOT_URL: "https://forgejo.${DOMAIN}/"
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO__service__DISABLE_REGISTRATION: "true"
+      FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION: "true"
+      FORGEJO__service__REQUIRE_SIGNIN_VIEW: "true"
+      FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: "true"
+      FORGEJO__openid__ENABLE_OPENID_SIGNIN: "true"
+      FORGEJO__openid__ENABLE_OPENID_SIGNUP: "true"
+      FORGEJO_OAUTH_SECRET: "${FORGEJO_OAUTH_SECRET}"
+      DOMAIN: "${DOMAIN}"
+    volumes:
+      - forgejo_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     health_check:
       type: docker
       interval: 30s
@@ -527,6 +831,17 @@ applications:
       - docker-proxy
     depends_on:
       - docker-proxy
+    environment:
+      PUID: "${DOCKER_USER_ID:-1000}"
+      PGID: "${DOCKER_GROUP_ID:-1000}"
+      HOMEPAGE_ALLOWED_HOSTS: "homepage.${DOMAIN}"
+      DOCKER_HOST: "tcp://docker-proxy:2375"
+    volumes:
+      - ${DEPLOYMENT_ROOT}/configs/applications/homepage/services.yaml:/app/config/services.yaml:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homepage/settings.yaml:/app/config/settings.yaml:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homepage/widgets.yaml:/app/config/widgets.yaml:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homepage/docker.yaml:/app/config/docker.yaml:ro
     health_check:
       type: docker
       interval: 30s
@@ -536,23 +851,6 @@ applications:
     phase: applications
     phase_order: 4
 
-  jupyterhub-dind:
-    image: docker
-    version: dind
-    container_name: jupyterhub-dind
-    subdomain: null
-    networks:
-      - jupyterhub-dind
-    health_check:
-      type: docker
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    phase: applications
-    phase_order: 4
-    security_note: "Isolated Docker daemon for JupyterHub - prevents access to host containers"
-
   jupyterhub:
     image: datamancy-jupyter-notebook
     version: latest
@@ -560,11 +858,14 @@ applications:
     subdomain: jupyterhub
     networks:
       - caddy
-      - jupyterhub-dind
       - litellm
-      - jupyterhub-notebooks
-    depends_on:
-      - jupyterhub-dind
+    environment:
+      NB_USER: "jovyan"
+      NB_UID: "1000"
+      NB_GID: "1000"
+      CHOWN_HOME: "yes"
+    volumes:
+      - jupyterhub_data:/home/jovyan
     health_check:
       type: docker
       interval: 30s
@@ -573,7 +874,7 @@ applications:
       start_period: 30s
     phase: applications
     phase_order: 4
-    security_note: "Uses isolated DinD daemon - cannot control host containers"
+    security_note: "Uses LocalProcessSpawner - notebooks run as processes inside container"
 
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant
@@ -586,6 +887,33 @@ applications:
       - caddy
       - postgres
       - ldap
+    environment:
+      TZ: "UTC"
+      PUID: "${DOCKER_USER_ID:-1000}"
+      PGID: "${DOCKER_GROUP_ID:-1000}"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "homeassistant"
+      POSTGRES_USER: "homeassistant"
+      POSTGRES_PASSWORD: "${HOMEASSISTANT_DB_PASSWORD}"
+      LDAP_URL: "ldap://ldap:389"
+      LDAP_BASE_DN: "dc=stack,dc=local"
+      LDAP_USER_DN: "ou=users,dc=stack,dc=local"
+      LDAP_BIND_DN: "cn=admin,dc=stack,dc=local"
+      LDAP_BIND_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
+      LDAP_USER_FILTER: "(uid={username})"
+    volumes:
+      - homeassistant_config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/configuration.yaml:/config/configuration.yaml:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/automations.yaml:/config/automations.yaml:rw
+      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/scripts.yaml:/config/scripts.yaml:rw
+      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/scenes.yaml:/config/scenes.yaml:rw
+      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/init-homeassistant.sh:/init-homeassistant.sh:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/entrypoint.sh:/entrypoint-wrapper.sh:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/auth_ldap.py:/usr/src/homeassistant/homeassistant/auth/providers/auth_ldap.py:ro
+    entrypoint:
+      - /entrypoint-wrapper.sh
     health_check:
       type: docker
       interval: 30s
@@ -603,6 +931,15 @@ applications:
     subdomain: qbittorrent
     networks:
       - caddy
+    environment:
+      PUID: "${DOCKER_USER_ID:-1000}"
+      PGID: "${DOCKER_GROUP_ID:-1000}"
+      TZ: "UTC"
+      WEBUI_PORT: "8080"
+    volumes:
+      - qbittorrent_config:/config
+      - qbittorrent_data:/downloads
+      - ${VOLUMES_ROOT}/qbittorrent_init:/custom-cont-init.d:ro
     health_check:
       type: docker
       interval: 30s
@@ -614,7 +951,7 @@ applications:
     security_note: "ISOLATED - Torrent client with minimal network access"
 
   synapse:
-    image: matrixdotorg/synapse
+    image: datamancy-synapse
     version: latest
     container_name: synapse
     subdomain: matrix
@@ -624,10 +961,28 @@ applications:
       - caddy
       - postgres
       - valkey
+      - ldap
       - matrix-internal
     depends_on:
       - postgres
       - valkey
+      - ldap
+    environment:
+      SYNAPSE_SERVER_NAME: "matrix.${DOMAIN}"
+      SYNAPSE_REPORT_STATS: "yes"
+      SYNAPSE_ENABLE_REGISTRATION: "${MATRIX_ENABLE_REGISTRATION:-false}"
+      SYNAPSE_TRUSTED_PROXIES: "172.18.0.0/16,172.21.0.0/24"
+      SYNAPSE_LOG_LEVEL: "WARNING"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "synapse"
+      POSTGRES_USER: "synapse"
+      POSTGRES_PASSWORD: "${SYNAPSE_DB_PASSWORD}"
+      REDIS_HOST: "redis-synapse"
+      LDAP_ADMIN_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
+    volumes:
+      - synapse_data:/data
+      - ${DEPLOYMENT_ROOT}/configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
     health_check:
       type: docker
       interval: 30s
@@ -647,6 +1002,9 @@ applications:
       - matrix-internal
     depends_on:
       - synapse
+    volumes:
+      - element_data:/app/config
+      - ${DEPLOYMENT_ROOT}/configs/applications/element/config.json:/app/config.json:ro
     health_check:
       type: docker
       interval: 30s
@@ -661,6 +1019,7 @@ applications:
     version: v4.3.3
     container_name: mastodon-web
     subdomain: null
+    command: bash -c "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0"
     networks:
       - caddy
       - postgres
@@ -704,6 +1063,7 @@ applications:
     version: v4.3.3
     container_name: mastodon-sidekiq
     subdomain: null
+    command: bundle exec sidekiq
     networks:
       - postgres
       - valkey
@@ -728,8 +1088,25 @@ applications:
     networks:
       - caddy
       - mailserver
+      - postgres
     depends_on:
       - mailserver
+      - postgres
+    environment:
+      ROUNDCUBEMAIL_DB_TYPE: "pgsql"
+      ROUNDCUBEMAIL_DB_HOST: "postgres"
+      ROUNDCUBEMAIL_DB_PORT: "5432"
+      ROUNDCUBEMAIL_DB_USER: "roundcube"
+      ROUNDCUBEMAIL_DB_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+      ROUNDCUBEMAIL_DB_NAME: "roundcube"
+      ROUNDCUBEMAIL_DEFAULT_HOST: "mailserver"
+      ROUNDCUBEMAIL_DEFAULT_PORT: "143"
+      ROUNDCUBEMAIL_SMTP_SERVER: "mailserver"
+      ROUNDCUBEMAIL_SMTP_PORT: "587"
+      ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: "50M"
+    volumes:
+      - roundcube_data:/var/www/html
+      - ${DEPLOYMENT_ROOT}/configs/applications/roundcube/config.inc.php:/var/www/html/config/config.inc.php:ro
     health_check:
       type: docker
       interval: 30s
@@ -746,6 +1123,12 @@ applications:
     subdomain: null
     networks:
       - caddy
+    environment:
+      TZ: "UTC"
+    volumes:
+      - radicale_data:/data
+      - ${DEPLOYMENT_ROOT}/configs/applications/radicale/config:/config/config:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/radicale/users:/data/users
     health_check:
       type: docker
       interval: 30s
@@ -769,6 +1152,22 @@ applications:
     depends_on:
       - mariadb
       - memcached
+    environment:
+      TZ: "UTC"
+      DB_HOST: "mysql"
+      DB_ROOT_PASSWD: "${MARIADB_ROOT_PASSWORD}"
+      SEAFILE_MYSQL_DB_HOST: "mysql"
+      SEAFILE_MYSQL_DB_PORT: "3306"
+      SEAFILE_MYSQL_DB_USER: "seafile"
+      SEAFILE_MYSQL_DB_PASSWORD: "${MARIADB_SEAFILE_PASSWORD}"
+      INIT_SEAFILE_MYSQL_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      SEAFILE_SERVER_HOSTNAME: "seafile.${DOMAIN}"
+      SEAFILE_ADMIN_EMAIL: "${STACK_ADMIN_EMAIL}"
+      SEAFILE_ADMIN_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+      JWT_PRIVATE_KEY: "${SEAFILE_JWT_KEY}"
+      TIME_ZONE: "UTC"
+    volumes:
+      - seafile_data:/shared
     health_check:
       type: docker
       interval: 30s
@@ -785,6 +1184,12 @@ applications:
     subdomain: onlyoffice
     networks:
       - caddy
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: "${ONLYOFFICE_JWT_SECRET}"
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_log:/var/log/onlyoffice
     health_check:
       type: docker
       interval: 30s
@@ -796,25 +1201,48 @@ applications:
 
 # AI/ML Services
 ai:
-  vllm:
-    image: vllm/vllm-openai
-    version: latest
-    container_name: vllm
-    subdomain: null
-    networks:
-      - ai  # ISOLATED - AI network only, no backend access
-    health_check:
-      type: docker
-      interval: 60s
-      timeout: 10s
-      retries: 5
-      start_period: 2m
-    phase: ai
-    phase_order: 5
-    resources:
-      memory: 16G
-      cpus: "12.0"
-    gpu: true
+  # vllm: DISABLED - Requires GPU/CUDA, not available on this server
+  # Uncomment and configure if you have GPU access
+  # vllm:
+  #   image: vllm/vllm-openai
+  #   version: latest
+  #   container_name: vllm
+  #   subdomain: null
+  #   networks:
+  #     - ai  # ISOLATED - AI network only, no backend access
+  #   environment:
+  #     HUGGINGFACEHUB_API_TOKEN: "${HUGGINGFACEHUB_API_TOKEN}"
+  #     HF_HUB_ENABLE_HF_TRANSFER: "0"
+  #     VLLM_TARGET_DEVICE: "cpu"
+  #   command:
+  #     - "Qwen/Qwen2.5-0.5B-Instruct"
+  #     - "--served-model-name"
+  #     - "qwen2.5-0.5b"
+  #     - "--max-model-len"
+  #     - "2048"
+  #     - "--max-num-seqs"
+  #     - "64"
+  #     - "--dtype"
+  #     - "auto"
+  #     - "--enable-auto-tool-choice"
+  #     - "--tool-call-parser"
+  #     - "hermes"
+  #     - "--gpu-memory-utilization"
+  #     - "0.3"
+  #   volumes:
+  #     - ${VOLUMES_ROOT}/vllm/models:/root/.cache/huggingface
+  #   health_check:
+  #     type: docker
+  #     interval: 60s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 2m
+  #   phase: ai
+  #   phase_order: 5
+  #   resources:
+  #     memory: 16G
+  #     cpus: "12.0"
+  #   gpu: true
 
   embedding-service:
     image: ghcr.io/huggingface/text-embeddings-inference
@@ -824,6 +1252,9 @@ ai:
     networks:
       - ai  # ISOLATED - AI network only
       - ai-gateway  # Controlled access for unified-indexer
+    command: --model-id sentence-transformers/all-MiniLM-L6-v2 --port 8080
+    volumes:
+      - ${VOLUMES_ROOT}/embeddings/models:/data
     health_check:
       type: docker
       interval: 30s
@@ -846,6 +1277,14 @@ ai:
       - caddy  # Only for Caddy access (external API)
     depends_on:
       - vllm
+    environment:
+      LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY}"
+      UI_USERNAME: "${STACK_ADMIN_USER}"
+      UI_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+    volumes:
+      - litellm_config:/app/config
+      - ${DEPLOYMENT_ROOT}/configs/infrastructure/litellm/config.yaml:/app/config.yaml:ro
+    command: --config /app/config.yaml --port 4000 --num_workers 4
     health_check:
       type: docker
       interval: 10s
@@ -889,10 +1328,38 @@ datamancy:
       - postgres
       - clickhouse
       - mariadb  # Needs bookstack's DB
+      - qdrant
     depends_on:
       - postgres
       - clickhouse
       - bookstack
+    environment:
+      DATAFETCHER_PORT: "8095"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "datamancy"
+      POSTGRES_USER: "datamancer"
+      POSTGRES_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+      CLICKHOUSE_HOST: "clickhouse"
+      CLICKHOUSE_PORT: "8123"
+      CLICKHOUSE_USER: "${STACK_ADMIN_USER}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_ADMIN_PASSWORD}"
+      QDRANT_HOST: "qdrant"
+      QDRANT_PORT: "6333"
+      OPENWEATHER_API_KEY: "${OPENWEATHER_API_KEY:-}"
+      COINGECKO_API_KEY: "${COINGECKO_API_KEY:-}"
+      SERP_API_KEY: "${SERP_API_KEY:-}"
+      FRED_API_KEY: "${FRED_API_KEY:-}"
+      BOOKSTACK_URL: "${BOOKSTACK_URL:-http://bookstack:80}"
+      BOOKSTACK_API_TOKEN_ID: "${BOOKSTACK_API_TOKEN_ID:-}"
+      BOOKSTACK_API_TOKEN_SECRET: "${BOOKSTACK_API_TOKEN_SECRET:-}"
+      FETCH_SCHEDULES_PATH: "/app/config/schedules.yaml"
+      FETCH_SOURCES_PATH: "/app/config/sources.yaml"
+      DATAFETCHER_DATA_PATH: "/app/data"
+    volumes:
+      - ${DEPLOYMENT_ROOT}/configs/applications/data-fetcher/schedules.yaml:/app/config/schedules.yaml:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
+      - ${APPLICATION_DATA_PATH:-${VOLUMES_ROOT:-./volumes}/applications}/data_fetcher:/app/data
     health_check:
       type: docker
       interval: 60s
@@ -919,6 +1386,20 @@ datamancy:
       - qdrant
       - clickhouse
       - embedding-service
+    environment:
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "datamancy"
+      POSTGRES_USER: "datamancer"
+      POSTGRES_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+      BOOKSTACK_URL: "${BOOKSTACK_URL:-http://bookstack:80}"
+      BOOKSTACK_API_TOKEN_ID: "${BOOKSTACK_API_TOKEN_ID:-}"
+      BOOKSTACK_API_TOKEN_SECRET: "${BOOKSTACK_API_TOKEN_SECRET:-}"
+      QDRANT_URL: "http://qdrant:6334"
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_USER: "${STACK_ADMIN_USER}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_ADMIN_PASSWORD}"
+      EMBEDDING_SERVICE_URL: "http://embedding-service:8080"
     health_check:
       type: docker
       interval: 30s
@@ -959,9 +1440,42 @@ datamancy:
       - ai  # ISOLATED - Lives in AI zone (untrusted external actors)
       - ai-gateway  # Controlled access to internal API gateway only
       - caddy  # Only for Caddy access (MCP protocol)
+      - postgres
+      - mariadb
+      - clickhouse
+      - qdrant
+      - ldap
     depends_on:
       - litellm
-      - datamancy-api-gateway  # Must go through gateway, no direct DB access
+    environment:
+      LITELLM_API_KEY: "${LITELLM_MASTER_KEY}"
+      LITELLM_BASE_URL: "http://litellm:4000/v1"
+      POSTGRES_OBSERVER_USER: "agent_observer"
+      POSTGRES_OBSERVER_PASSWORD: "${AGENT_POSTGRES_OBSERVER_PASSWORD}"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      MARIADB_OBSERVER_USER: "agent_observer"
+      MARIADB_OBSERVER_PASSWORD: "${AGENT_MARIADB_OBSERVER_PASSWORD}"
+      MARIADB_HOST: "mariadb"
+      MARIADB_PORT: "3306"
+      CLICKHOUSE_OBSERVER_USER: "${STACK_ADMIN_USER}"
+      CLICKHOUSE_OBSERVER_PASSWORD: "${AGENT_CLICKHOUSE_OBSERVER_PASSWORD}"
+      CLICKHOUSE_HOST: "clickhouse"
+      CLICKHOUSE_PORT: "8123"
+      QDRANT_OBSERVER_API_KEY: "${AGENT_QDRANT_API_KEY}"
+      QDRANT_HOST: "qdrant"
+      QDRANT_PORT: "6333"
+      LDAP_OBSERVER_DN: "cn=agent_observer,dc=stack,dc=local"
+      LDAP_OBSERVER_PASSWORD: "${AGENT_LDAP_OBSERVER_PASSWORD}"
+      LDAP_HOST: "ldap"
+      LDAP_PORT: "389"
+      LDAP_BASE_DN: "dc=stack,dc=local"
+      SEARCH_SERVICE_URL: "http://search-service:8098"
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
+      - ${VOLUMES_ROOT}/agent_tool_server/known_hosts:/app/known_hosts:ro
+      - ${DEPLOYMENT_ROOT}/configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
     health_check:
       type: docker
       interval: 30s
