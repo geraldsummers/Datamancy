@@ -79,6 +79,11 @@ networks:
     subnet: 172.42.0.0/24
     description: LiteLLM AI gateway access
 
+  # Monitoring network
+  monitoring:
+    subnet: 172.50.0.0/24
+    description: Prometheus, Node Exporter, cAdvisor metrics collection
+
   # Application-specific networks
   mastodon-internal:
     subnet: 172.52.0.0/24
@@ -577,6 +582,7 @@ applications:
       - caddy
       - postgres
       - authelia
+      - monitoring  # Access to Prometheus metrics
     depends_on:
       - postgres
       - authelia
@@ -604,6 +610,8 @@ applications:
       GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(groups, 'admins') && 'Admin' || 'Viewer'"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ${DEPLOYMENT_ROOT}/configs/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ${DEPLOYMENT_ROOT}/configs/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
     health_check:
       type: docker
       interval: 30s
@@ -867,8 +875,11 @@ applications:
       NB_UID: "1000"
       NB_GID: "1000"
       CHOWN_HOME: "yes"
+      CHOWN_HOME_OPTS: "-R"
+      GRANT_SUDO: "yes"
     volumes:
       - jupyterhub_data:/home/jovyan
+    user: root
     health_check:
       type: docker
       interval: 30s
@@ -1207,10 +1218,10 @@ applications:
 
 # AI/ML Services
 ai:
-  vllm:
+  vllm-7b:
     image: vllm/vllm-openai
     version: latest
-    container_name: vllm
+    container_name: vllm-7b
     subdomain: null
     networks:
       - ai  # ISOLATED - AI network only, no backend access
@@ -1220,9 +1231,11 @@ ai:
       NVIDIA_VISIBLE_DEVICES: "all"
       NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
     command:
-      - "Qwen/Qwen2.5-7B-Instruct"
+      - "Qwen/Qwen2.5-7B-Instruct-AWQ"
+      - "--quantization"
+      - "awq"
       - "--served-model-name"
-      - "qwen2.5-7b"
+      - "qwen2.5-7b-instruct"
       - "--max-model-len"
       - "4096"
       - "--max-num-seqs"
@@ -1233,10 +1246,9 @@ ai:
       - "--tool-call-parser"
       - "hermes"
       - "--gpu-memory-utilization"
-      - "0.8"
+      - "0.9"
       - "--tensor-parallel-size"
       - "1"
-      - "--enforce-eager"
       - "--trust-remote-code"
     volumes:
       - ${VOLUMES_ROOT}/vllm/models:/root/.cache/huggingface
@@ -1252,26 +1264,26 @@ ai:
       interval: 60s
       timeout: 10s
       retries: 5
-      start_period: 2m
+      start_period: 3m
     phase: ai
     phase_order: 5
     resources:
-      memory: 16G
-      cpus: "12.0"
+      memory: 12G
+      cpus: "8.0"
     gpu: true
 
   embedding-service:
     image: ghcr.io/huggingface/text-embeddings-inference
-    version: 1.2-cuda
+    version: cpu-latest
     container_name: embedding-service
     subdomain: null
     networks:
       - ai  # ISOLATED - AI network only
       - ai-gateway  # Controlled access for unified-indexer
     environment:
-      NVIDIA_VISIBLE_DEVICES: "all"
-      NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
-    command: --model-id BAAI/bge-large-en-v1.5 --port 8080
+      HF_HUB_ENABLE_HF_TRANSFER: "0"
+      MODEL_ID: "BAAI/bge-base-en-v1.5"  # Must use env var to avoid log redaction bug
+    command: --port 8080
     volumes:
       - ${VOLUMES_ROOT}/embeddings/models:/data
     deploy:
@@ -1303,7 +1315,8 @@ ai:
       - litellm  # Gateway for apps needing AI access
       - caddy  # Only for Caddy access (external API)
     depends_on:
-      - vllm
+      - vllm-7b
+      - embedding-service
     environment:
       LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY}"
       UI_USERNAME: "${STACK_ADMIN_USER}"
@@ -1513,6 +1526,92 @@ datamancy:
     phase_order: 6
     security_note: "EXTERNAL ACTOR ZONE - This service proxies LLM requests. Network isolated from backend/database."
 
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus
+    version: v3.1.0
+    container_name: prometheus
+    subdomain: null
+    networks:
+      - monitoring
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    volumes:
+      - prometheus_data:/prometheus
+      - ${DEPLOYMENT_ROOT}/configs/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: monitoring
+    phase_order: 2
+
+  node-exporter:
+    image: prom/node-exporter
+    version: v1.8.2
+    container_name: node-exporter
+    subdomain: null
+    networks:
+      - monitoring
+    command:
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - /:/host:ro,rslave
+      - /sys:/host/sys:ro
+      - /proc:/host/proc:ro
+    pid: host
+    restart: unless-stopped
+    phase: monitoring
+    phase_order: 2
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor
+    version: v0.51.0
+    container_name: cadvisor
+    subdomain: null
+    networks:
+      - monitoring
+      - docker-proxy
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    privileged: true
+    restart: unless-stopped
+    phase: monitoring
+    phase_order: 2
+
+  watchtower:
+    image: containrrr/watchtower
+    version: latest
+    container_name: watchtower
+    subdomain: null
+    networks:
+      - docker-proxy
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
+      WATCHTOWER_SCHEDULE: "0 0 4 * * *"
+      WATCHTOWER_NOTIFICATIONS: "shoutrrr"
+      WATCHTOWER_NOTIFICATION_URL: ""
+      TZ: "Australia/Sydney"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    phase: monitoring
+    phase_order: 2
+
 # Metadata about phases (for controller)
 phases:
   core:
@@ -1539,6 +1638,11 @@ phases:
     order: 5
     description: AI/ML services (vllm, litellm, embedding)
     timeout_seconds: 300
+
+  monitoring:
+    order: 2
+    description: Monitoring services (prometheus, node-exporter, cadvisor, watchtower)
+    timeout_seconds: 60
 
   datamancy:
     order: 6
