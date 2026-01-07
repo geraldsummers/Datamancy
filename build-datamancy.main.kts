@@ -80,6 +80,24 @@ data class ServiceResources(
     val cpus: String? = null
 )
 
+data class DeviceReservation(
+    val driver: String,
+    val count: Int? = null,
+    val capabilities: List<String>? = null
+)
+
+data class ResourceReservations(
+    val devices: List<DeviceReservation>? = null
+)
+
+data class DeployResources(
+    val reservations: ResourceReservations? = null
+)
+
+data class DeployConfig(
+    val resources: DeployResources? = null
+)
+
 data class ServiceDefinition(
     val image: String,
     val version: String,
@@ -93,11 +111,13 @@ data class ServiceDefinition(
     val phase: String,
     val phase_order: Int,
     val resources: ServiceResources? = null,
+    val deploy: DeployConfig? = null,
     val environment: Map<String, String>? = null,
     val ports: List<String>? = null,
     val volumes: List<String>? = null,
     val command: Any? = null,  // Can be String or List<String>
-    val entrypoint: Any? = null  // Can be String or List<String>
+    val entrypoint: Any? = null,  // Can be String or List<String>
+    val gpu: Boolean? = null
 )
 
 data class NetworkDefinition(
@@ -464,13 +484,35 @@ fun generateServicesYaml(
                 hc.start_period?.let { appendLine("      start_period: $it") }
             }
 
-            // Resources
-            svc.resources?.let { res ->
+            // Deploy section (resources and GPU)
+            val hasResources = svc.resources != null
+            val hasGpuReservation = svc.deploy?.resources?.reservations?.devices != null
+
+            if (hasResources || hasGpuReservation) {
                 appendLine("    deploy:")
                 appendLine("      resources:")
-                appendLine("        limits:")
-                res.memory?.let { appendLine("          memory: $it") }
-                res.cpus?.let { appendLine("          cpus: '$it'") }
+
+                // Limits
+                svc.resources?.let { res ->
+                    if (res.memory != null || res.cpus != null) {
+                        appendLine("        limits:")
+                        res.memory?.let { appendLine("          memory: $it") }
+                        res.cpus?.let { appendLine("          cpus: '$it'") }
+                    }
+                }
+
+                // Reservations (GPU)
+                svc.deploy?.resources?.reservations?.let { reservations ->
+                    appendLine("        reservations:")
+                    reservations.devices?.forEach { device ->
+                        appendLine("          devices:")
+                        appendLine("            - driver: ${device.driver}")
+                        device.count?.let { appendLine("              count: $it") }
+                        device.capabilities?.let { caps ->
+                            appendLine("              capabilities: [${caps.joinToString(", ")}]")
+                        }
+                    }
+                }
             }
 
             appendLine()
@@ -528,6 +570,18 @@ volumes:
       device: /mnt/sdc1_ctbx500_0385/datamancy/vector-dbs/qdrant/data
 """.trimIndent())
     success("Generated docker-compose.override.yml for qdrant SSD path")
+}
+
+fun copyGpuOverride(outputDir: File) {
+    val sourceFile = File("docker-compose.gpu.yml")
+    if (sourceFile.exists()) {
+        info("Copying docker-compose.gpu.yml for NVIDIA GPU support")
+        val targetFile = outputDir.resolve("docker-compose.gpu.yml")
+        sourceFile.copyTo(targetFile, overwrite = true)
+        success("Copied docker-compose.gpu.yml")
+    } else {
+        warn("docker-compose.gpu.yml not found in repo root, skipping")
+    }
 }
 
 fun generateTestPortsOverlay(outputDir: File, allServices: Map<String, ServiceDefinition>) {
@@ -899,8 +953,9 @@ Building deployment-ready distribution...
     generateComposeFiles(registry, distDir.resolve("compose"), allServices)
     generateMasterCompose(distDir)
     generateQdrantOverride(distDir)
+    copyGpuOverride(distDir)
     generateTestPortsOverlay(distDir, allServices)
-    success("Generated compose files + test overlay + qdrant override")
+    success("Generated compose files + test overlay + qdrant override + GPU override")
 
     // Step 4: Process config templates
     step("Processing config templates")
