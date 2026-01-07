@@ -1207,48 +1207,56 @@ applications:
 
 # AI/ML Services
 ai:
-  # vllm: DISABLED - Requires GPU/CUDA, not available on this server
-  # Uncomment and configure if you have GPU access
-  # vllm:
-  #   image: vllm/vllm-openai
-  #   version: latest
-  #   container_name: vllm
-  #   subdomain: null
-  #   networks:
-  #     - ai  # ISOLATED - AI network only, no backend access
-  #   environment:
-  #     HUGGINGFACEHUB_API_TOKEN: "${HUGGINGFACEHUB_API_TOKEN}"
-  #     HF_HUB_ENABLE_HF_TRANSFER: "0"
-  #     VLLM_TARGET_DEVICE: "cpu"
-  #   command:
-  #     - "Qwen/Qwen2.5-0.5B-Instruct"
-  #     - "--served-model-name"
-  #     - "qwen2.5-0.5b"
-  #     - "--max-model-len"
-  #     - "2048"
-  #     - "--max-num-seqs"
-  #     - "64"
-  #     - "--dtype"
-  #     - "auto"
-  #     - "--enable-auto-tool-choice"
-  #     - "--tool-call-parser"
-  #     - "hermes"
-  #     - "--gpu-memory-utilization"
-  #     - "0.3"
-  #   volumes:
-  #     - ${VOLUMES_ROOT}/vllm/models:/root/.cache/huggingface
-  #   health_check:
-  #     type: docker
-  #     interval: 60s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 2m
-  #   phase: ai
-  #   phase_order: 5
-  #   resources:
-  #     memory: 16G
-  #     cpus: "12.0"
-  #   gpu: true
+  vllm:
+    image: vllm/vllm-openai
+    version: latest
+    container_name: vllm
+    subdomain: null
+    networks:
+      - ai  # ISOLATED - AI network only, no backend access
+    environment:
+      HUGGINGFACEHUB_API_TOKEN: "${HUGGINGFACEHUB_API_TOKEN}"
+      HF_HUB_ENABLE_HF_TRANSFER: "0"
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+    command:
+      - "Qwen/Qwen2.5-0.5B-Instruct"
+      - "--served-model-name"
+      - "qwen2.5-0.5b"
+      - "--max-model-len"
+      - "2048"
+      - "--max-num-seqs"
+      - "64"
+      - "--dtype"
+      - "auto"
+      - "--enable-auto-tool-choice"
+      - "--tool-call-parser"
+      - "hermes"
+      - "--gpu-memory-utilization"
+      - "0.7"
+      - "--tensor-parallel-size"
+      - "1"
+    volumes:
+      - ${VOLUMES_ROOT}/vllm/models:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    health_check:
+      type: docker
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 2m
+    phase: ai
+    phase_order: 5
+    resources:
+      memory: 16G
+      cpus: "12.0"
+    gpu: true
 
   embedding-service:
     image: ghcr.io/huggingface/text-embeddings-inference
