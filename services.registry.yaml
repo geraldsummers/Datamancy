@@ -1048,6 +1048,28 @@ applications:
     depends_on:
       - postgres
       - valkey
+    environment:
+      LOCAL_DOMAIN: "${DOMAIN}"
+      RAILS_ENV: "production"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_NAME: "mastodon"
+      DB_USER: "mastodon"
+      DB_PASS: "${MASTODON_DB_PASSWORD}"
+      REDIS_HOST: "valkey"
+      REDIS_PORT: "6379"
+      SECRET_KEY_BASE: "${MASTODON_SECRET_KEY_BASE}"
+      OTP_SECRET: "${MASTODON_OTP_SECRET}"
+      VAPID_PRIVATE_KEY: "${MASTODON_VAPID_PRIVATE_KEY}"
+      VAPID_PUBLIC_KEY: "${MASTODON_VAPID_PUBLIC_KEY}"
+      SMTP_SERVER: "mailserver"
+      SMTP_PORT: "587"
+      SMTP_FROM_ADDRESS: "mastodon@${DOMAIN}"
+      SMTP_AUTH_METHOD: "plain"
+      SMTP_OPENSSL_VERIFY_MODE: "none"
+      STREAMING_API_BASE_URL: "wss://mastodon.${DOMAIN}"
+      WEB_CONCURRENCY: "2"
+      MAX_THREADS: "5"
     health_check:
       type: docker
       interval: 30s
@@ -1069,6 +1091,14 @@ applications:
     depends_on:
       - postgres
       - valkey
+    environment:
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_NAME: "mastodon"
+      DB_USER: "mastodon"
+      DB_PASS: "${MASTODON_DB_PASSWORD}"
+      REDIS_HOST: "valkey"
+      REDIS_PORT: "6379"
     health_check:
       type: docker
       interval: 30s
@@ -1091,6 +1121,25 @@ applications:
     depends_on:
       - postgres
       - valkey
+    environment:
+      LOCAL_DOMAIN: "${DOMAIN}"
+      RAILS_ENV: "production"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_NAME: "mastodon"
+      DB_USER: "mastodon"
+      DB_PASS: "${MASTODON_DB_PASSWORD}"
+      REDIS_HOST: "valkey"
+      REDIS_PORT: "6379"
+      SECRET_KEY_BASE: "${MASTODON_SECRET_KEY_BASE}"
+      OTP_SECRET: "${MASTODON_OTP_SECRET}"
+      VAPID_PRIVATE_KEY: "${MASTODON_VAPID_PRIVATE_KEY}"
+      VAPID_PUBLIC_KEY: "${MASTODON_VAPID_PUBLIC_KEY}"
+      SMTP_SERVER: "mailserver"
+      SMTP_PORT: "587"
+      SMTP_FROM_ADDRESS: "mastodon@${DOMAIN}"
+      SMTP_AUTH_METHOD: "plain"
+      SMTP_OPENSSL_VERIFY_MODE: "none"
     health_check:
       type: docker
       interval: 30s
