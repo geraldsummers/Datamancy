@@ -107,6 +107,7 @@ data class ServiceDefinition(
     val networks: List<String>,
     val network_aliases: List<String>? = null,
     val depends_on: List<String>? = null,
+    val restart: String? = null,
     val health_check: ServiceHealthCheck? = null,
     val phase: String,
     val phase_order: Int,
@@ -358,12 +359,9 @@ fun generateServicesYaml(
 
             appendLine("    container_name: ${svc.container_name}")
 
-            // Restart policy
-            if (!isDatamancy || name != "vector-bootstrap") {
-                appendLine("    restart: unless-stopped")
-            } else {
-                appendLine("    restart: on-failure")
-            }
+            // Restart policy - use explicit value if set, otherwise default to unless-stopped
+            val restartPolicy = svc.restart ?: "unless-stopped"
+            appendLine("    restart: $restartPolicy")
 
             // Ports
             svc.ports?.let { ports ->
