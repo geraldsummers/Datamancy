@@ -1594,7 +1594,7 @@ datamancy:
 
   watchtower:
     image: containrrr/watchtower
-    version: latest
+    version: 1.7.1
     container_name: watchtower
     subdomain: null
     networks:
@@ -1603,6 +1603,7 @@ datamancy:
       WATCHTOWER_CLEANUP: "true"
       WATCHTOWER_INCLUDE_RESTARTING: "true"
       WATCHTOWER_SCHEDULE: "0 0 4 * * *"
+      DOCKER_API_VERSION: "1.44"
       WATCHTOWER_NOTIFICATIONS: "shoutrrr"
       WATCHTOWER_NOTIFICATION_URL: ""
       TZ: "Australia/Sydney"
