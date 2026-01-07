@@ -187,6 +187,42 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" -c "GRANT AL
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "roundcube" -c "GRANT ALL ON SCHEMA public TO roundcube;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT ALL ON SCHEMA public TO datamancer;"
 
+# Initialize datamancy database tables for data-fetcher and services
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQL
+    -- Data-fetcher tables for deduplication and fetch tracking
+    CREATE TABLE IF NOT EXISTS dedupe_records (
+        id SERIAL PRIMARY KEY,
+        content_hash VARCHAR(64) UNIQUE NOT NULL,
+        first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        source VARCHAR(255),
+        fetch_type VARCHAR(100)
+    );
+
+    CREATE TABLE IF NOT EXISTS fetch_history (
+        id SERIAL PRIMARY KEY,
+        source VARCHAR(255) NOT NULL,
+        fetch_type VARCHAR(100),
+        status VARCHAR(50),
+        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        record_count INTEGER,
+        error_message TEXT,
+        execution_time_ms INTEGER
+    );
+
+    -- Create indexes for performance
+    CREATE INDEX IF NOT EXISTS dedupe_records_hash_idx ON dedupe_records(content_hash);
+    CREATE INDEX IF NOT EXISTS dedupe_records_first_seen_idx ON dedupe_records(first_seen);
+    CREATE INDEX IF NOT EXISTS fetch_history_source_idx ON fetch_history(source);
+    CREATE INDEX IF NOT EXISTS fetch_history_fetched_at_idx ON fetch_history(fetched_at);
+    CREATE INDEX IF NOT EXISTS fetch_history_status_idx ON fetch_history(status);
+
+    -- Grant ownership to datamancer user
+    ALTER TABLE dedupe_records OWNER TO datamancer;
+    ALTER TABLE fetch_history OWNER TO datamancer;
+EOSQL
+
+echo "Datamancy database tables initialized successfully"
+
 # Initialize SOGo database tables (required for user preferences and settings)
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" <<-EOSQL
     -- Create main user preferences table
