@@ -557,6 +557,7 @@ databases:
       - qdrant
     depends_on:
       - qdrant
+    restart: "no"  # One-shot init job - should not restart
     environment:
       QDRANT_URL: "http://qdrant:6333"
       VECTOR_SIZE: "${VECTOR_EMBED_SIZE:-384}"

@@ -6,15 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="fixed?">
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homeassistant/configuration.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homeassistant/configuration.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/litellm/config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/litellm/config.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/services.registry.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/services.registry.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/synapse/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/synapse/Dockerfile" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
