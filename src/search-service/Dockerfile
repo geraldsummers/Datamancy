@@ -18,8 +18,8 @@ USER datamancer
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --no-verbose --tries=1 -O /dev/null http://localhost:8097/health || exit 1
+    CMD wget --no-verbose --tries=1 -O /dev/null http://localhost:8098/health || exit 1
 
 # Run
-EXPOSE 8097
+EXPOSE 8098
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
