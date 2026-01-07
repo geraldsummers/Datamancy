@@ -983,6 +983,7 @@ applications:
       - ldap
     user: "991:991"
     environment:
+      DOMAIN: "${DOMAIN}"
       SYNAPSE_SERVER_NAME: "matrix.${DOMAIN}"
       SYNAPSE_REPORT_STATS: "yes"
       SYNAPSE_ENABLE_REGISTRATION: "${MATRIX_ENABLE_REGISTRATION:-false}"
@@ -1000,6 +1001,7 @@ applications:
     volumes:
       - synapse_data:/data
       - ${DEPLOYMENT_ROOT}/configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/synapse/entrypoint.sh:/entrypoint.sh:ro
     health_check:
       type: docker
       interval: 30s

@@ -1,17 +1,27 @@
 model_list:
-  # Qwen 0.5B model served by vLLM
-  - model_name: qwen2.5-0.5b
+  # Qwen 2.5 7B Instruct (AWQ quantized) - main reasoning model
+  - model_name: qwen2.5-7b-instruct
     litellm_params:
-      model: openai/qwen2.5-0.5b
-      api_base: http://vllm:8000/v1
+      model: openai/qwen2.5-7b-instruct
+      api_base: http://vllm-7b:8000/v1
       api_key: unused
-      max_tokens: 1024
+      max_tokens: 4096
     supports_function_calling: true
 
-  # Embedding model via Hugging Face TEI
-  - model_name: embed-small
+  # Qwen 2.5 0.5B Instruct - fast model for simple operations
+  # DISABLED: RTX 3060 12GB doesn't have enough VRAM for concurrent models
+  #- model_name: qwen2.5-0.5b-instruct
+  #  litellm_params:
+  #    model: openai/qwen2.5-0.5b-instruct
+  #    api_base: http://vllm-0.5b:8000/v1
+  #    api_key: unused
+  #    max_tokens: 8192
+  #  supports_function_calling: true
+
+  # BGE Base embeddings for RAG
+  - model_name: bge-base-en-v1.5
     litellm_params:
-      model: huggingface/sentence-transformers/all-MiniLM-L6-v2
+      model: huggingface/BAAI/bge-base-en-v1.5
       api_base: http://embedding-service:8080
       api_key: unused
 

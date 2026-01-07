@@ -1,6 +1,18 @@
 #!/bin/bash
 set -e
 
+# Process homeserver.yaml template with environment variables
+HOMESERVER_TEMPLATE="/data/homeserver.yaml"
+HOMESERVER_CONFIG="/tmp/homeserver.yaml"
+
+if [ -f "$HOMESERVER_TEMPLATE" ]; then
+    echo "Processing homeserver.yaml template with environment variables"
+    envsubst < "$HOMESERVER_TEMPLATE" > "$HOMESERVER_CONFIG"
+else
+    echo "ERROR: homeserver.yaml not found at $HOMESERVER_TEMPLATE"
+    exit 1
+fi
+
 # Generate log config in /tmp since /data might not be writable
 LOG_CONFIG="/tmp/${SYNAPSE_SERVER_NAME}.log.config"
 LOG_LEVEL="${SYNAPSE_LOG_LEVEL:-WARNING}"
@@ -37,5 +49,5 @@ root:
 disable_existing_loggers: false
 EOF
 
-# Start Synapse
-exec python -m synapse.app.homeserver --config-path=/data/homeserver.yaml
+# Start Synapse with processed config
+exec python -m synapse.app.homeserver --config-path="$HOMESERVER_CONFIG"

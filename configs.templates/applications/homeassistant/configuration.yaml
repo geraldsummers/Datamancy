@@ -5,8 +5,9 @@ default_config:
 http:
   use_x_forwarded_for: true
   trusted_proxies:
-    - 172.20.0.0/24  # frontend network (Caddy)
-    - 172.21.0.0/24  # backend network
+    - 172.30.0.0/24  # caddy network
+    - 172.25.0.0/24  # ldap network
+    - 172.20.0.0/24  # postgres network
     - 127.0.0.1
     - ::1
 
