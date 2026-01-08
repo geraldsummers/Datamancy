@@ -744,21 +744,18 @@ fun generateSecret(): String {
 }
 
 fun generatePasswordHash(password: String): String {
-    // Generate SHA-512-crypt hash compatible with LDAP {CRYPT} scheme
-    val hash = ProcessBuilder("openssl", "passwd", "-6", "-stdin")
+    // Generate SSHA hash using slappasswd via Docker (LDAP standard)
+    // Uses osixia/openldap image to avoid requiring slappasswd on host
+    val hash = ProcessBuilder("docker", "run", "--rm", "osixia/openldap:1.5.0", "slappasswd", "-s", password)
         .redirectOutput(ProcessBuilder.Redirect.PIPE)
         .redirectError(ProcessBuilder.Redirect.PIPE)
         .start()
-        .also { process ->
-            process.outputStream.write(password.toByteArray())
-            process.outputStream.close()
-        }
         .inputStream
         .bufferedReader()
         .readText()
         .trim()
 
-    return "{CRYPT}$hash"
+    return hash  // Already includes {SSHA} prefix
 }
 
 fun generateRSAPrivateKey(): String {
