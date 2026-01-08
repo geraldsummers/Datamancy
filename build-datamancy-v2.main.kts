@@ -4,21 +4,27 @@
 @file:DependsOn("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 @file:DependsOn("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.2")
 @file:DependsOn("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
+@file:Import("buildSrc/src/main/kotlin/org/datamancy/build/ConfigSchema.kt")
+@file:Import("buildSrc/src/main/kotlin/org/datamancy/build/ConfigProcessor.kt")
+@file:Import("buildSrc/src/main/kotlin/org/datamancy/build/SecretGenerators.kt")
 
 
-//Datamancy Build System
+//Datamancy Build System v2
 //
 //Builds Docker images and generates deployment-ready compose files
 //NO templates, NO build directives - only runtime ${VAR} substitution for secrets
 //
 //What it does:
-//  1. Builds JARs with Gradle
-//  2. Builds Docker images (datamancy/*)
-//  3. Generates compose files with HARDCODED image versions
-//  4. Processes config templates (converts {{VAR}} to ${VAR})
+//  1. Pre-flight checks (Docker, openssl)
+//  2. Validates configuration schema
+//  3. Generates missing secrets
+//  4. Builds JARs with Gradle
+//  5. Builds Docker images (datamancy/*)
+//  6. Generates compose files with HARDCODED image versions
+//  7. Processes config templates with validation
 //
 //Usage:
-//  ./build-datamancy.main.kts [--clean] [--skip-gradle]
+//  ./build-datamancy-v2.main.kts [--clean] [--skip-gradle] [--dry-run] [--domain example.com]
 //
 //Output:
 //  dist/
@@ -26,12 +32,12 @@
 //    ├── docker-compose.test-ports.yml
 //    ├── compose/                    (modular compose files)
 //    ├── configs/                    (final configs with ${VARS})
-//    ├── .env.example
+//    ├── .env
 //    └── .build-info
-
+//
 //Deploy:
 //  1. cd dist
-//  2. cp .env.example .env && edit .env
+//  2. vim .env  # Review and edit if needed
 //  3. docker compose up -d
 
 
@@ -40,6 +46,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
+import org.datamancy.build.*
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -116,8 +123,8 @@ data class ServiceDefinition(
     val environment: Map<String, String>? = null,
     val ports: List<String>? = null,
     val volumes: List<String>? = null,
-    val command: Any? = null,  // Can be String or List<String>
-    val entrypoint: Any? = null,  // Can be String or List<String>
+    val command: Any? = null,
+    val entrypoint: Any? = null,
     val gpu: Boolean? = null
 )
 
@@ -136,36 +143,182 @@ data class ServiceRegistry(
 )
 
 // ============================================================================
-// Configuration
+// Pre-flight Checks
 // ============================================================================
 
-// Variables that MUST remain as ${VAR} for runtime substitution (secrets, deployment-specific)
-val RUNTIME_VARS = setOf(
-    // Secrets
-    "LDAP_ADMIN_PASSWORD",
-    "STACK_ADMIN_PASSWORD",
-    "STACK_USER_PASSWORD",
-    "LITELLM_MASTER_KEY",
-    "AUTHELIA_JWT_SECRET",
-    "AUTHELIA_SESSION_SECRET",
-    "AUTHELIA_STORAGE_ENCRYPTION_KEY",
-    "POSTGRES_PASSWORD",
-    "MARIADB_ROOT_PASSWORD",
-    "MARIADB_PASSWORD",
-    "QDRANT_API_KEY",
-    "AGENT_LDAP_OBSERVER_PASSWORD",
+fun checkPrerequisites() {
+    step("Running pre-flight checks")
 
-    // Deployment-specific
-    "DOMAIN",
-    "MAIL_DOMAIN",
-    "STACK_ADMIN_EMAIL",
-    "STACK_ADMIN_USER",
-    "VOLUMES_ROOT",
-    "DEPLOYMENT_ROOT",
+    val checks = listOf(
+        "docker" to "Docker is required for building images and generating secrets",
+        "openssl" to "OpenSSL is required for generating secrets"
+    )
 
-    // API configuration
-    "API_LITELLM_ALLOWLIST"
-)
+    val missing = mutableListOf<Pair<String, String>>()
+
+    checks.forEach { (command, reason) ->
+        val process = ProcessBuilder("which", command)
+            .redirectOutput(ProcessBuilder.Redirect.PIPE)
+            .redirectError(ProcessBuilder.Redirect.PIPE)
+            .start()
+
+        if (process.waitFor() != 0) {
+            missing.add(command to reason)
+        } else {
+            success("Found $command")
+        }
+    }
+
+    if (missing.isNotEmpty()) {
+        error("Missing required dependencies:")
+        missing.forEach { (cmd, reason) ->
+            error("  - $cmd: $reason")
+        }
+        exitProcess(1)
+    }
+
+    // Check Docker is running
+    val dockerCheck = ProcessBuilder("docker", "info")
+        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectError(ProcessBuilder.Redirect.PIPE)
+        .start()
+
+    if (dockerCheck.waitFor() != 0) {
+        error("Docker daemon is not running. Please start Docker and try again.")
+        exitProcess(1)
+    }
+
+    success("Docker daemon is running")
+    success("All prerequisites met")
+}
+
+// ============================================================================
+// Environment Management
+// ============================================================================
+
+fun loadEnvFile(file: File): Map<String, String> {
+    if (!file.exists()) {
+        return emptyMap()
+    }
+
+    return file.readLines()
+        .filter { it.isNotBlank() && !it.trim().startsWith("#") }
+        .mapNotNull { line ->
+            val parts = line.split("=", limit = 2)
+            if (parts.size == 2) {
+                parts[0].trim() to parts[1].trim()
+            } else null
+        }
+        .toMap()
+}
+
+fun writeEnvFile(file: File, env: Map<String, String>, domain: String = "example.com") {
+    file.writeText("""
+# Datamancy Configuration
+# Generated by build-datamancy-v2.main.kts
+# All secrets have been pre-generated using SecretManager
+
+# ============================================================================
+# Domain & Email
+# ============================================================================
+DOMAIN=${env["DOMAIN"] ?: domain}
+MAIL_DOMAIN=${env["MAIL_DOMAIN"] ?: domain}
+STACK_ADMIN_EMAIL=${env["STACK_ADMIN_EMAIL"] ?: "admin@$domain"}
+STACK_ADMIN_USER=${env["STACK_ADMIN_USER"] ?: "admin"}
+
+# ============================================================================
+# Paths
+# ============================================================================
+VOLUMES_ROOT=${env["VOLUMES_ROOT"] ?: "/mnt/btrfs_raid_1_01_docker/volumes"}
+DEPLOYMENT_ROOT=${env["DEPLOYMENT_ROOT"] ?: "/mnt/btrfs_raid_1_01_docker/datamancy"}
+
+# ============================================================================
+# Secrets (Auto-generated if missing)
+# ============================================================================
+
+""".trimIndent())
+
+    // Write secrets in organized groups
+    val secretGroups = mapOf(
+        "LDAP & Authentication" to listOf(
+            "LDAP_ADMIN_PASSWORD",
+            "STACK_ADMIN_PASSWORD",
+            "STACK_USER_PASSWORD",
+            "AGENT_LDAP_OBSERVER_PASSWORD"
+        ),
+        "Authelia (SSO)" to listOf(
+            "AUTHELIA_JWT_SECRET",
+            "AUTHELIA_SESSION_SECRET",
+            "AUTHELIA_STORAGE_ENCRYPTION_KEY",
+            "AUTHELIA_OIDC_HMAC_SECRET",
+            "AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY"
+        ),
+        "Databases" to listOf(
+            "POSTGRES_PASSWORD",
+            "POSTGRES_ROOT_PASSWORD",
+            "MARIADB_ROOT_PASSWORD",
+            "MARIADB_PASSWORD",
+            "CLICKHOUSE_ADMIN_PASSWORD"
+        ),
+        "Application Database Passwords" to ConfigSchema.SECRET_VARS.filter {
+            it.endsWith("_DB_PASSWORD") && !it.startsWith("POSTGRES") && !it.startsWith("MARIADB")
+        }.toList(),
+        "AI Services" to listOf(
+            "LITELLM_MASTER_KEY",
+            "QDRANT_API_KEY"
+        ),
+        "Application OAuth Secrets" to ConfigSchema.SECRET_VARS.filter {
+            it.contains("_OAUTH_SECRET") || it.contains("_OIDC_SECRET")
+        }.toList(),
+        "Mastodon Secrets" to ConfigSchema.SECRET_VARS.filter {
+            it.startsWith("MASTODON_")
+        }.toList(),
+        "Agent Observer Accounts" to ConfigSchema.SECRET_VARS.filter {
+            it.startsWith("AGENT_") && it != "AGENT_LDAP_OBSERVER_PASSWORD"
+        }.toList(),
+        "Application-specific Secrets" to ConfigSchema.SECRET_VARS.filter {
+            val alreadyListed = setOf(
+                "LDAP_ADMIN_PASSWORD", "STACK_ADMIN_PASSWORD", "STACK_USER_PASSWORD",
+                "AUTHELIA_JWT_SECRET", "AUTHELIA_SESSION_SECRET", "AUTHELIA_STORAGE_ENCRYPTION_KEY",
+                "POSTGRES_PASSWORD", "MARIADB_ROOT_PASSWORD", "MARIADB_PASSWORD",
+                "LITELLM_MASTER_KEY", "QDRANT_API_KEY"
+            )
+            !alreadyListed.contains(it) &&
+            !it.endsWith("_DB_PASSWORD") &&
+            !it.contains("_OAUTH_SECRET") &&
+            !it.contains("_OIDC_SECRET") &&
+            !it.startsWith("MASTODON_") &&
+            !it.startsWith("AGENT_") &&
+            !it.startsWith("AUTHELIA_OIDC")
+        }.toList()
+    )
+
+    file.appendText("\n")
+    secretGroups.forEach { (groupName, secrets) ->
+        if (secrets.isNotEmpty()) {
+            file.appendText("# $groupName\n")
+            secrets.forEach { key ->
+                val value = env[key] ?: ""
+                file.appendText("$key=$value\n")
+            }
+            file.appendText("\n")
+        }
+    }
+
+    // API Configuration
+    file.appendText("""
+# ============================================================================
+# API Configuration
+# ============================================================================
+API_LITELLM_ALLOWLIST=${env["API_LITELLM_ALLOWLIST"] ?: "127.0.0.1 172.16.0.0/12 192.168.0.0/16"}
+
+# ============================================================================
+# External API Keys (Optional)
+# ============================================================================
+HUGGINGFACEHUB_API_TOKEN=${env["HUGGINGFACEHUB_API_TOKEN"] ?: ""}
+
+""".trimIndent())
+}
 
 // ============================================================================
 // Utilities
@@ -229,7 +382,7 @@ fun generateComposeFiles(registry: ServiceRegistry, outputDir: File, allServices
     info("Generating networks.yml with ${registry.networks?.size ?: 0} networks")
     // Networks - generate from registry
     val networksYaml = buildString {
-        appendLine("# Auto-generated by build-datamancy.main.kts")
+        appendLine("# Auto-generated by build-datamancy-v2.main.kts")
         appendLine("# Zero-trust network architecture - services only join networks they need")
         appendLine()
         appendLine("networks:")
@@ -262,7 +415,7 @@ fun generateComposeFiles(registry: ServiceRegistry, outputDir: File, allServices
     }
 
     val volumesYaml = buildString {
-        appendLine("# Auto-generated by build-datamancy.main.kts")
+        appendLine("# Auto-generated by build-datamancy-v2.main.kts")
         appendLine("# Volume definitions with runtime path substitution")
         appendLine()
         appendLine("volumes:")
@@ -345,7 +498,7 @@ fun generateServicesYaml(
     isDatamancy: Boolean = false
 ) {
     val yaml = buildString {
-        appendLine("# Auto-generated by build-datamancy.main.kts")
+        appendLine("# Auto-generated by build-datamancy-v2.main.kts")
         appendLine("# Image versions are HARDCODED at build time")
         appendLine("# Only secrets and deployment paths use runtime \${VARS}")
         appendLine()
@@ -423,13 +576,7 @@ fun generateServicesYaml(
                 if (env.isNotEmpty()) {
                     appendLine("    environment:")
                     env.forEach { (key, value) ->
-                        // Check if value references a runtime var
-                        val finalValue = if (value.startsWith("\${") || value.contains("\${")) {
-                            value // Keep as-is
-                        } else {
-                            value
-                        }
-                        appendLine("      $key: $finalValue")
+                        appendLine("      $key: $value")
                     }
                 }
             }
@@ -451,7 +598,6 @@ fun generateServicesYaml(
                     is List<*> -> {
                         appendLine("    command:")
                         cmd.forEach { arg ->
-                            // Quote all args to ensure they're strings in YAML
                             val quoted = if (arg.toString().contains(" ") || arg.toString().matches(Regex("^[0-9.]+$"))) {
                                 "\"$arg\""
                             } else {
@@ -470,7 +616,6 @@ fun generateServicesYaml(
                     is List<*> -> {
                         appendLine("    entrypoint:")
                         ep.forEach { arg ->
-                            // Quote all args to ensure they're strings in YAML
                             val quoted = if (arg.toString().contains(" ") || arg.toString().matches(Regex("^[0-9.]+$"))) {
                                 "\"$arg\""
                             } else {
@@ -543,7 +688,7 @@ fun generateServicesYaml(
 
 fun generateMasterCompose(outputDir: File) {
     outputDir.resolve("docker-compose.yml").writeText("""
-# Auto-generated by build-datamancy.main.kts
+# Auto-generated by build-datamancy-v2.main.kts
 # Master compose file with modular includes
 
 include:
@@ -571,7 +716,7 @@ include:
 fun generateQdrantOverride(outputDir: File) {
     info("Generating docker-compose.override.yml for qdrant SSD volume")
     outputDir.resolve("docker-compose.override.yml").writeText("""
-# Auto-generated by build-datamancy.main.kts
+# Auto-generated by build-datamancy-v2.main.kts
 # Override for qdrant volume to use SSD instead of RAID
 #
 # This file is automatically loaded by docker compose when present
@@ -658,7 +803,7 @@ fun generateTestPortsOverlay(outputDir: File, allServices: Map<String, ServiceDe
     )
 
     val yaml = buildString {
-        appendLine("# Auto-generated by build-datamancy.main.kts")
+        appendLine("# Auto-generated by build-datamancy-v2.main.kts")
         appendLine("# Docker Compose overlay for exposing service ports during testing")
         appendLine("#")
         appendLine("# Usage: docker compose -f docker-compose.yml -f docker-compose.test-ports.yml up")
@@ -681,68 +826,6 @@ fun generateTestPortsOverlay(outputDir: File, allServices: Map<String, ServiceDe
     }
 
     outputDir.resolve("docker-compose.test-ports.yml").writeText(yaml)
-}
-
-fun processConfigTemplates(outputDir: File) {
-    val templatesDir = File("configs.templates")
-    if (!templatesDir.exists()) {
-        warn("configs.templates/ not found, skipping config generation")
-        return
-    }
-
-    var processedCount = 0
-    templatesDir.walkTopDown().forEach { sourceFile ->
-        if (!sourceFile.isFile) return@forEach
-
-        val relativePath = sourceFile.relativeTo(templatesDir).path
-        processedCount++
-        if (processedCount % 10 == 0) {
-            info("  Processed $processedCount config files...")
-        }
-        val outputPath = if (relativePath.endsWith(".template")) {
-            relativePath.removeSuffix(".template")
-        } else {
-            relativePath
-        }
-
-        val targetFile = outputDir.resolve(outputPath)
-        targetFile.parentFile.mkdirs()
-
-        // Read and process template
-        val content = sourceFile.readText()
-
-        // Special handling for LDAP bootstrap - generate password hashes
-        val processed = if (relativePath.contains("ldap/bootstrap_ldap.ldif")) {
-            val adminPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: "changeme"
-            val userPassword = System.getenv("STACK_USER_PASSWORD") ?: adminPassword
-
-            content
-                .replace("{{GENERATION_TIMESTAMP}}", java.time.Instant.now().toString())
-                .replace("{{STACK_ADMIN_EMAIL}}", System.getenv("STACK_ADMIN_EMAIL") ?: "admin@example.com")
-                .replace("{{STACK_ADMIN_USER}}", System.getenv("STACK_ADMIN_USER") ?: "admin")
-                .replace("{{DOMAIN}}", "example.com")
-                .replace("{{ADMIN_SSHA_PASSWORD}}", generatePasswordHash(adminPassword))
-                .replace("{{USER_SSHA_PASSWORD}}", generatePasswordHash(userPassword))
-        } else {
-            // Replace {{VAR}} with ${VAR} if it's a runtime var, otherwise leave as-is
-            content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
-                val varName = match.groupValues[1]
-                if (varName in RUNTIME_VARS) {
-                    "\${$varName}"  // Convert to Docker Compose runtime var
-                } else {
-                    match.value  // Leave as {{VAR}} for now (should be resolved in future)
-                }
-            }
-        }
-
-        targetFile.writeText(processed)
-
-        // Preserve executable bit
-        if (sourceFile.canExecute()) {
-            targetFile.setExecutable(true)
-        }
-    }
-    info("Processed $processedCount config template files")
 }
 
 fun generateToolSchemas(promptsDir: File) {
@@ -797,163 +880,6 @@ fun generateToolSchemas(promptsDir: File) {
 
     promptsDir.resolve("tools.json").writeText(toolsJson)
     info("Generated tools.json with ${3} tool definitions")
-}
-
-fun generateSecret(): String {
-    return ProcessBuilder("openssl", "rand", "-hex", "32")
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
-        .start()
-        .inputStream
-        .bufferedReader()
-        .readText()
-        .trim()
-}
-
-fun generatePasswordHash(password: String): String {
-    // Generate SSHA hash using slappasswd via Docker (LDAP standard)
-    // Uses osixia/openldap image to avoid requiring slappasswd on host
-    val hash = ProcessBuilder("docker", "run", "--rm", "osixia/openldap:1.5.0", "slappasswd", "-s", password)
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
-        .redirectError(ProcessBuilder.Redirect.PIPE)
-        .start()
-        .inputStream
-        .bufferedReader()
-        .readText()
-        .trim()
-
-    return hash  // Already includes {SSHA} prefix
-}
-
-fun generateRSAPrivateKey(): String {
-    // Generate RSA 4096-bit private key in PEM format
-    // Returns the key as a single-line base64 string (without newlines)
-    val pemKey = ProcessBuilder("openssl", "genrsa", "4096")
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
-        .redirectError(ProcessBuilder.Redirect.PIPE)
-        .start()
-        .inputStream
-        .bufferedReader()
-        .readText()
-        .trim()
-
-    // Convert to base64 single line for environment variable storage
-    // Remove header/footer and newlines, then base64 encode the whole thing
-    return java.util.Base64.getEncoder().encodeToString(pemKey.toByteArray())
-}
-
-fun generateEnvFile(file: File, domain: String = "example.com") {
-    info("Generating .env with pre-generated secrets")
-
-    file.writeText("""
-# Datamancy Configuration
-# Generated by build-datamancy.main.kts
-# All secrets have been pre-generated with openssl rand -hex 32
-
-# ============================================================================
-# Domain & Email
-# ============================================================================
-DOMAIN=${domain}
-MAIL_DOMAIN=${domain}
-STACK_ADMIN_EMAIL=admin@${domain}
-STACK_ADMIN_USER=admin
-
-# ============================================================================
-# Paths
-# ============================================================================
-VOLUMES_ROOT=/mnt/btrfs_raid_1_01_docker/volumes
-DEPLOYMENT_ROOT=/mnt/btrfs_raid_1_01_docker/datamancy
-
-# ============================================================================
-# Secrets (Pre-generated)
-# ============================================================================
-
-# LDAP
-LDAP_ADMIN_PASSWORD=${generateSecret()}
-STACK_ADMIN_PASSWORD=${generateSecret()}
-STACK_USER_PASSWORD=${generateSecret()}
-AGENT_LDAP_OBSERVER_PASSWORD=${generateSecret()}
-
-# Authentication
-AUTHELIA_JWT_SECRET=${generateSecret()}
-AUTHELIA_SESSION_SECRET=${generateSecret()}
-AUTHELIA_STORAGE_ENCRYPTION_KEY=${generateSecret()}
-
-# Databases
-POSTGRES_PASSWORD=${generateSecret()}
-POSTGRES_ROOT_PASSWORD=${generateSecret()}
-MARIADB_ROOT_PASSWORD=${generateSecret()}
-MARIADB_PASSWORD=${generateSecret()}
-CLICKHOUSE_ADMIN_PASSWORD=${generateSecret()}
-
-# Database passwords for applications
-AUTHELIA_DB_PASSWORD=${generateSecret()}
-SYNAPSE_DB_PASSWORD=${generateSecret()}
-MASTODON_DB_PASSWORD=${generateSecret()}
-PLANKA_DB_PASSWORD=${generateSecret()}
-OPENWEBUI_DB_PASSWORD=${generateSecret()}
-VAULTWARDEN_DB_PASSWORD=${generateSecret()}
-FORGEJO_DB_PASSWORD=${generateSecret()}
-GRAFANA_DB_PASSWORD=${generateSecret()}
-HOMEASSISTANT_DB_PASSWORD=${generateSecret()}
-
-# AI Services
-LITELLM_MASTER_KEY=${generateSecret()}
-QDRANT_API_KEY=${generateSecret()}
-
-# Authelia (SSO)
-AUTHELIA_OIDC_HMAC_SECRET=${generateSecret()}
-AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${generateRSAPrivateKey()}
-
-# Application OAuth Secrets
-GRAFANA_OAUTH_SECRET=${generateSecret()}
-OPENWEBUI_OAUTH_SECRET=${generateSecret()}
-OPENWEBUI_DB_PASSWORD_ENCODED=${generateSecret()}
-VAULTWARDEN_ADMIN_TOKEN=${generateSecret()}
-VAULTWARDEN_OAUTH_SECRET=${generateSecret()}
-VAULTWARDEN_SMTP_PASSWORD=${generateSecret()}
-BOOKSTACK_DB_PASSWORD=${generateSecret()}
-BOOKSTACK_APP_KEY=${generateSecret()}
-BOOKSTACK_OAUTH_SECRET=${generateSecret()}
-PLANKA_SECRET_KEY=${generateSecret()}
-PLANKA_OAUTH_SECRET=${generateSecret()}
-FORGEJO_OAUTH_SECRET=${generateSecret()}
-JUPYTERHUB_OAUTH_SECRET=${generateSecret()}
-JUPYTERHUB_CRYPT_KEY=${generateSecret()}
-HOMEASSISTANT_OAUTH_SECRET=${generateSecret()}
-MASTODON_OIDC_SECRET=${generateSecret()}
-MATRIX_OAUTH_SECRET=${generateSecret()}
-SOGO_OAUTH_SECRET=${generateSecret()}
-MARIADB_SEAFILE_PASSWORD=${generateSecret()}
-SEAFILE_JWT_KEY=${generateSecret()}
-ONLYOFFICE_JWT_SECRET=${generateSecret()}
-
-# Mastodon Secrets
-MASTODON_OTP_SECRET=${generateSecret()}
-MASTODON_SECRET_KEY_BASE=${generateSecret()}
-MASTODON_VAPID_PRIVATE_KEY=${generateSecret()}
-MASTODON_VAPID_PUBLIC_KEY=${generateSecret()}
-# Mastodon v4.5+ REQUIRED encryption keys (ActiveRecord encryption)
-MASTODON_ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${generateSecret()}
-MASTODON_ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=${generateSecret()}
-MASTODON_ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${generateSecret()}
-
-# Agent Observer Accounts
-AGENT_POSTGRES_OBSERVER_PASSWORD=${generateSecret()}
-AGENT_CLICKHOUSE_OBSERVER_PASSWORD=${generateSecret()}
-AGENT_MARIADB_OBSERVER_PASSWORD=${generateSecret()}
-AGENT_QDRANT_API_KEY=${generateSecret()}
-
-# External API Keys (set these manually if needed)
-HUGGINGFACEHUB_API_TOKEN=
-
-# ============================================================================
-# API Configuration
-# ============================================================================
-API_LITELLM_ALLOWLIST=127.0.0.1 172.16.0.0/12 192.168.0.0/16
-
-""".trimIndent())
-
-    success("Generated .env with ${file.readLines().count { it.contains("=") && !it.startsWith("#") }} variables")
 }
 
 fun buildGradleServices(skipGradle: Boolean) {
@@ -1027,25 +953,37 @@ fun buildDockerImages(registry: ServiceRegistry) {
 fun main(args: Array<String>) {
     val cleanBuild = args.contains("--clean")
     val skipGradle = args.contains("--skip-gradle")
+    val dryRun = args.contains("--dry-run")
+    val domainArg = args.indexOf("--domain").let {
+        if (it >= 0 && it + 1 < args.size) args[it + 1] else "example.com"
+    }
 
     println("""
 ${CYAN}╔═══════════════════════════════════════════════════════════╗
-║         Datamancy Build System                           ║
+║         Datamancy Build System v2                        ║
+║         Robust templating with validation                ║
 ╚═══════════════════════════════════════════════════════════╝${RESET}
 
 Building deployment-ready distribution...
     """.trimIndent())
+
+    // Step 0: Pre-flight checks
+    checkPrerequisites()
 
     val distDir = File("dist")
 
     // Step 1: Clean
     if (cleanBuild || distDir.exists()) {
         step("Cleaning dist/ directory")
-        distDir.deleteRecursively()
+        if (!dryRun) {
+            distDir.deleteRecursively()
+        }
         success("Cleaned dist/")
     }
 
-    distDir.mkdirs()
+    if (!dryRun) {
+        distDir.mkdirs()
+    }
 
     // Step 2: Load registry
     step("Loading services.registry.yaml")
@@ -1065,7 +1003,64 @@ Building deployment-ready distribution...
 
     success("Loaded ${allServices.size} service definitions")
 
-    // Step 3: Generate compose files
+    // Step 3: Generate/validate environment
+    step("Managing secrets and environment")
+    val envFile = distDir.resolve(".env")
+    val existingEnv = loadEnvFile(envFile)
+
+    // Add build-time variables
+    val buildEnv = existingEnv.toMutableMap().apply {
+        putIfAbsent("DOMAIN", domainArg)
+        putIfAbsent("MAIL_DOMAIN", domainArg)
+        putIfAbsent("STACK_ADMIN_EMAIL", "admin@$domainArg")
+        putIfAbsent("STACK_ADMIN_USER", "admin")
+        put("BUILD_TIMESTAMP", Instant.now().toString())
+        put("GIT_COMMIT", getGitCommit())
+        put("GIT_VERSION", getGitVersion())
+    }
+
+    // Generate missing secrets
+    val envWithSecrets = SecretManager.generateMissingSecrets(buildEnv)
+
+    // Validate configuration
+    val validationErrors = ConfigSchema.validate(envWithSecrets)
+    if (validationErrors.isNotEmpty()) {
+        error("Configuration validation failed:")
+        validationErrors.forEach { error("  - $it") }
+        exitProcess(1)
+    }
+
+    // Validate secret formats
+    val secretErrors = SecretManager.validateSecrets(envWithSecrets)
+    if (secretErrors.isNotEmpty()) {
+        error("Secret validation failed:")
+        secretErrors.forEach { error("  - $it") }
+        exitProcess(1)
+    }
+
+    success("Configuration validated successfully")
+
+    // Write .env file
+    if (!dryRun) {
+        writeEnvFile(envFile, envWithSecrets, domainArg)
+        success("Generated .env with ${envWithSecrets.size} variables")
+    }
+
+    if (dryRun) {
+        success("Dry-run validation complete - stopping before file generation")
+        println("""
+${GREEN}✓ All validation checks passed!${RESET}
+  - Prerequisites available
+  - Service registry valid
+  - Configuration complete
+  - Secrets validated
+
+Run without --dry-run to build.
+        """.trimIndent())
+        exitProcess(0)
+    }
+
+    // Step 4: Generate compose files
     step("Generating compose files (versions HARDCODED, secrets as \${VARS})")
     generateComposeFiles(registry, distDir.resolve("compose"), allServices)
     generateMasterCompose(distDir)
@@ -1074,32 +1069,29 @@ Building deployment-ready distribution...
     generateTestPortsOverlay(distDir, allServices)
     success("Generated compose files + test overlay + qdrant override + GPU override")
 
-    // Step 4: Process config templates
-    step("Processing config templates")
-    processConfigTemplates(distDir.resolve("configs"))
+    // Step 5: Process config templates
+    step("Processing config templates with validation")
+    val result = ConfigProcessor.processConfigTemplates(
+        templatesDir = File("configs.templates"),
+        outputDir = distDir.resolve("configs"),
+        env = envWithSecrets
+    )
     success("Processed config templates")
 
-    // Step 4.5: Generate tool schemas for prompt repository
+    // Step 6: Generate tool schemas for prompt repository
     step("Generating tool schemas")
     generateToolSchemas(distDir.resolve("configs/prompts"))
     success("Generated tool schemas")
 
-    // Step 5: Build Gradle services
+    // Step 7: Build Gradle services
     step("Building Kotlin services")
     buildGradleServices(skipGradle)
 
-    // Step 6: Build Docker images
+    // Step 8: Build Docker images
     buildDockerImages(registry)
     success("Built all Docker images")
 
-    // Step 7: Generate .env.example
-    step("Generating .env.example")
-    // Generate .env with all secrets pre-generated
-    step("Generating .env with pre-generated secrets")
-    generateEnvFile(distDir.resolve(".env"), domain = "example.com")
-    success("Generated .env.example")
-
-    // Step 8: Write build metadata
+    // Step 9: Write build metadata
     step("Writing build metadata")
     val version = getGitVersion()
     val commit = getGitCommit()
@@ -1126,6 +1118,9 @@ ${CYAN}Version:${RESET}          $version
 ${CYAN}Commit:${RESET}           $commit
 
 ${GREEN}What was built:${RESET}
+  ✓ Pre-flight checks passed
+  ✓ Configuration validated
+  ✓ Secrets generated and validated
   ✓ All Docker images (datamancy/*)
   ✓ Compose files with HARDCODED versions
   ✓ Final configs (no templates, only runtime ${'$'}{VARS})
@@ -1134,7 +1129,7 @@ ${GREEN}What was built:${RESET}
 ${GREEN}Deploy - It's just docker compose up:${RESET}
 
   1. ${CYAN}cd dist${RESET}
-  2. ${CYAN}vim .env${RESET}  ${YELLOW}# Edit domain/paths if needed - secrets already generated!${RESET}
+  2. ${CYAN}vim .env${RESET}  ${YELLOW}# Review domain/paths - secrets already generated!${RESET}
   3. ${CYAN}docker compose up -d${RESET}
 
   ${YELLOW}Optional - expose ports for testing:${RESET}
@@ -1155,7 +1150,8 @@ ${GREEN}Package for server deployment:${RESET}
      ${CYAN}vim .env${RESET}  ${YELLOW}# Update DOMAIN and paths${RESET}
      ${CYAN}docker compose up -d${RESET}
 
-${YELLOW}Note:${RESET} NO build directives, NO templates in dist/
+${YELLOW}Note:${RESET} All configuration validated before generation!
+      NO build directives, NO templates in dist/
       Everything is pre-built with secrets generated
       Just edit domain/paths in .env and docker compose up!
 

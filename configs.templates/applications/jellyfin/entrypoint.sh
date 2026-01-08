@@ -1,4 +1,5 @@
 #!/bin/bash
+# Jellyfin entrypoint - IDEMPOTENT (runs setup on every container start)
 set -e
 
 # Wait for config directory to be available
@@ -7,11 +8,11 @@ while [ ! -d /config ]; do
     sleep 1
 done
 
-# Create necessary directories
+# Create necessary directories (idempotent - mkdir -p is safe)
 mkdir -p /config/plugins/configurations
 mkdir -p /config/data
 
-# Copy SSO configuration if provided
+# Copy SSO configuration if provided (idempotent - cp -f overwrites)
 if [ -f /config-templates/SSO-Auth.xml ]; then
     echo "Copying SSO-Auth configuration..."
     cp -f /config-templates/SSO-Auth.xml /config/plugins/configurations/SSO-Auth.xml

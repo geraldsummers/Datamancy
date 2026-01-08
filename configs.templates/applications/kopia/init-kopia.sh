@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Kopia repository initialization and server start script
+# Kopia repository initialization and server start script - IDEMPOTENT (safe to run on every start)
 # Configures snapshot policies and retention rules for Datamancy backup strategy
 set -eu
 

@@ -15,11 +15,11 @@
 ###############################################
 {
     # DEVELOPMENT/TESTING: Self-signed certificates (no external ACME)
-    # local_certs
+    local_certs
 
     # PRODUCTION: Uncomment the line below and comment out local_certs above
     # Replace with your actual admin email for Let's Encrypt notifications
-    email {$STACK_ADMIN_EMAIL}
+    # email {$STACK_ADMIN_EMAIL}
 
     # Optional: Customize ACME CA (default is Let's Encrypt production)
     # For testing Let's Encrypt without rate limits, use staging:

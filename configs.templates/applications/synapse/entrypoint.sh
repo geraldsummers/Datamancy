@@ -1,7 +1,8 @@
 #!/bin/bash
+# Synapse entrypoint - IDEMPOTENT (processes config on every container start)
 set -e
 
-# Process homeserver.yaml template with environment variables
+# Process homeserver.yaml template with environment variables (idempotent - writes to /tmp)
 HOMESERVER_TEMPLATE="/data/homeserver.yaml"
 HOMESERVER_CONFIG="/tmp/homeserver.yaml"
 

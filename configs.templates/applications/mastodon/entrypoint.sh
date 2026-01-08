@@ -1,14 +1,15 @@
 #!/bin/bash
-# Mastodon entrypoint - runs migrations before starting the server
+# Mastodon entrypoint - IDEMPOTENT (runs migrations on every container start)
+# Rails migrations are naturally idempotent and safe to run multiple times
 set -e
 
 echo "[mastodon] Starting Mastodon..."
 
-# Remove PID file if it exists
+# Remove PID file if it exists (idempotent)
 rm -f /mastodon/tmp/pids/server.pid
 
-# Run database migrations (idempotent - safe to run multiple times)
-echo "[mastodon] Running database migrations..."
+# Run database migrations (IDEMPOTENT - Rails tracks which migrations have run)
+echo "[mastodon] Running database migrations (idempotent)..."
 bundle exec rails db:migrate
 
 # Start the Rails server

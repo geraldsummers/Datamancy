@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Home Assistant initialization script
+# Home Assistant initialization script - IDEMPOTENT (safe to run on every container start)
 # Preseeds admin account, creates empty home, and sets up LDAP command-line sync
 
 set -euo pipefail

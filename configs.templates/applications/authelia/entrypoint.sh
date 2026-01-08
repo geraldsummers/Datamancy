@@ -1,7 +1,8 @@
 #!/bin/sh
+# Authelia entrypoint - IDEMPOTENT (processes config on every container start)
 set -e
 
-# Process configuration file template
+# Process configuration file template (idempotent - writes to /tmp)
 if [ -f /config/configuration.yml ]; then
     echo "Processing configuration template..."
     # Create a temporary processed config

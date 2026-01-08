@@ -96,7 +96,7 @@ networks:
 core:
   caddy:
     image: caddy
-    version: 2.8.4
+    version: 2.10.2
     container_name: caddy
     subdomain: www  # Primary subdomain (www.${DOMAIN})
     additional_aliases:  # Other domains this service handles
@@ -184,7 +184,7 @@ core:
 
   valkey:
     image: valkey/valkey
-    version: 8.0.1
+    version: 8.1.5
     container_name: valkey
     subdomain: null
     network_aliases:
@@ -206,7 +206,7 @@ core:
 
   authelia:
     image: authelia/authelia
-    version: 4.39.13
+    version: 4.39.15
     container_name: authelia
     subdomain: auth
     networks:
@@ -325,7 +325,7 @@ core:
 
   ldap-account-manager:
     image: ghcr.io/ldapaccountmanager/lam
-    version: "9.3"
+    version: "9.4"
     container_name: ldap-account-manager
     subdomain: lam
     networks:
@@ -351,7 +351,7 @@ core:
 
   memcached:
     image: memcached
-    version: 1.6.39
+    version: 1.6.40
     container_name: seafile-memcached
     subdomain: null
     networks:
@@ -367,7 +367,7 @@ core:
 
   docker-proxy:
     image: tecnativa/docker-socket-proxy
-    version: v0.4.1
+    version: v0.4.2
     container_name: docker-proxy
     subdomain: null
     networks:
@@ -397,7 +397,7 @@ core:
 
   kopia:
     image: kopia/kopia
-    version: 0.18.2
+    version: 0.22.3
     container_name: kopia
     subdomain: kopia
     networks:
@@ -468,9 +468,53 @@ databases:
       memory: 4G
       cpus: "2.0"
 
+  postgres-init:
+    image: postgres
+    version: "16.11"
+    container_name: postgres-init
+    subdomain: null
+    networks:
+      - postgres
+    depends_on:
+      - postgres
+    restart: no
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_ROOT_PASSWORD}"
+      POSTGRES_USER: "${STACK_ADMIN_USER}"
+      POSTGRES_DB: "postgres"
+      POSTGRES_ROOT_PASSWORD: "${POSTGRES_ROOT_PASSWORD}"
+      PLANKA_DB_PASSWORD: "${PLANKA_DB_PASSWORD}"
+      SYNAPSE_DB_PASSWORD: "${SYNAPSE_DB_PASSWORD}"
+      AUTHELIA_DB_PASSWORD: "${AUTHELIA_DB_PASSWORD}"
+      GRAFANA_DB_PASSWORD: "${GRAFANA_DB_PASSWORD}"
+      VAULTWARDEN_DB_PASSWORD: "${VAULTWARDEN_DB_PASSWORD}"
+      OPENWEBUI_DB_PASSWORD: "${OPENWEBUI_DB_PASSWORD}"
+      MASTODON_DB_PASSWORD: "${MASTODON_DB_PASSWORD}"
+      FORGEJO_DB_PASSWORD: "${FORGEJO_DB_PASSWORD}"
+      HOMEASSISTANT_DB_PASSWORD: "${HOMEASSISTANT_DB_PASSWORD}"
+      STACK_ADMIN_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+      AGENT_POSTGRES_OBSERVER_PASSWORD: "${AGENT_POSTGRES_OBSERVER_PASSWORD}"
+      DATAMANCY_SERVICE_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+    volumes:
+      - ${DEPLOYMENT_ROOT}/configs/databases/postgres/init-db.sh:/init-db.sh:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        echo "Waiting for Postgres to be ready..."
+        until pg_isready -h postgres -U ${STACK_ADMIN_USER}; do
+          sleep 2
+        done
+        echo "Running idempotent database initialization..."
+        export POSTGRES_USER=${STACK_ADMIN_USER}
+        /init-db.sh
+        echo "Database initialization complete"
+    phase: databases
+    phase_order: 3
+
   mariadb:
     image: mariadb
-    version: 11.6.2
+    version: 11.8.5
     container_name: mariadb
     subdomain: null
     network_aliases:
@@ -500,7 +544,7 @@ databases:
 
   clickhouse:
     image: clickhouse/clickhouse-server
-    version: "24.8"
+    version: "24.12"
     container_name: clickhouse
     subdomain: null
     networks:
@@ -527,7 +571,7 @@ databases:
 
   qdrant:
     image: qdrant/qdrant
-    version: v1.12.5
+    version: v1.16.3
     container_name: qdrant
     subdomain: null
     networks:
@@ -550,7 +594,7 @@ databases:
 
   vector-bootstrap:
     image: zenika/kotlin
-    version: latest
+    version: "latest"
     container_name: vector-bootstrap
     subdomain: null
     networks:
@@ -576,7 +620,7 @@ databases:
 applications:
   grafana:
     image: grafana/grafana
-    version: 11.6.7
+    version: 11.6.9
     container_name: grafana
     subdomain: grafana
     networks:
@@ -638,7 +682,7 @@ applications:
 
   open-webui:
     image: ghcr.io/open-webui/open-webui
-    version: 0.3.32
+    version: 0.4.6
     container_name: open-webui
     subdomain: open-webui
     networks:
@@ -658,6 +702,7 @@ applications:
       ENABLE_OPENAI_API: "true"
       OPENAI_API_BASE_URL: "${OPENWEBUI_OPENAI_API_BASE_URL:-http://litellm:4000/v1}"
       OPENAI_API_KEY: "${LITELLM_MASTER_KEY}"
+      DEFAULT_MODELS: "qwen2.5-7b-instruct"
       OPENID_PROVIDER_URL: "https://auth.${DOMAIN}"
       OAUTH_CLIENT_ID: "open-webui"
       OAUTH_CLIENT_SECRET: "${OPENWEBUI_OAUTH_SECRET}"
@@ -728,7 +773,7 @@ applications:
 
   bookstack:
     image: lscr.io/linuxserver/bookstack
-    version: 24.12.1
+    version: version-v24.12.1
     container_name: bookstack
     subdomain: bookstack
     networks:
@@ -806,7 +851,7 @@ applications:
 
   forgejo:
     image: codeberg.org/forgejo/forgejo
-    version: "9"
+    version: "9.0"
     container_name: forgejo
     subdomain: forgejo
     networks:
@@ -849,7 +894,7 @@ applications:
 
   homepage:
     image: ghcr.io/gethomepage/homepage
-    version: v1.7.0
+    version: v1.8.0
     container_name: homepage
     subdomain: homepage
     networks:
@@ -878,22 +923,24 @@ applications:
     phase_order: 4
 
   jupyterhub:
-    image: datamancy-jupyter-notebook
-    version: latest
+    image: datamancy-jupyterhub
+    version: "5.4.3"
     container_name: jupyterhub
     subdomain: jupyterhub
     networks:
       - caddy
       - litellm
+      - docker-proxy
+    depends_on:
+      - docker-proxy
     environment:
-      NB_USER: "jovyan"
-      NB_UID: "1000"
-      NB_GID: "1000"
-      CHOWN_HOME: "yes"
-      CHOWN_HOME_OPTS: "-R"
-      GRANT_SUDO: "yes"
+      DOCKER_HOST: "tcp://docker-proxy:2375"
+      DOCKER_NETWORK_NAME: "datamancy-stack_litellm"
+      LITELLM_API_KEY: "${LITELLM_MASTER_KEY}"
+      JUPYTERHUB_CRYPT_KEY: "${JUPYTERHUB_CRYPT_KEY}"
     volumes:
-      - jupyterhub_data:/home/jovyan
+      - jupyterhub_data:/srv/jupyterhub
+      - ${DEPLOYMENT_ROOT}/configs/applications/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
     user: root
     health_check:
       type: docker
@@ -903,11 +950,11 @@ applications:
       start_period: 30s
     phase: applications
     phase_order: 4
-    security_note: "Uses LocalProcessSpawner - notebooks run as processes inside container"
+    security_note: "Uses DockerSpawner - spawns isolated notebook containers per user"
 
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant
-    version: stable
+    version: "2026.1.0"
     container_name: homeassistant
     subdomain: homeassistant
     additional_aliases:
@@ -955,7 +1002,7 @@ applications:
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent
-    version: latest
+    version: "latest"
     container_name: qbittorrent
     subdomain: qbittorrent
     networks:
@@ -980,8 +1027,8 @@ applications:
     security_note: "ISOLATED - Torrent client with minimal network access"
 
   synapse:
-    image: datamancy-synapse
-    version: latest
+    image: matrixdotorg/synapse
+    version: v1.144.0
     container_name: synapse
     subdomain: matrix
     additional_aliases:
@@ -1028,7 +1075,7 @@ applications:
 
   element:
     image: vectorim/element-web
-    version: v1.11.88
+    version: v1.12.7
     container_name: element
     subdomain: element
     networks:
@@ -1050,7 +1097,7 @@ applications:
 
   mastodon-web:
     image: ghcr.io/mastodon/mastodon
-    version: v4.3.3
+    version: v4.5.4
     container_name: mastodon-web
     subdomain: null
     command: bash -c "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0"
@@ -1098,7 +1145,7 @@ applications:
 
   mastodon-streaming:
     image: ghcr.io/mastodon/mastodon-streaming
-    version: v4.3.3
+    version: v4.5.4
     container_name: mastodon-streaming
     subdomain: null
     networks:
@@ -1127,7 +1174,7 @@ applications:
 
   mastodon-sidekiq:
     image: ghcr.io/mastodon/mastodon
-    version: v4.3.3
+    version: v4.5.4
     container_name: mastodon-sidekiq
     subdomain: null
     command: bundle exec sidekiq
@@ -1171,7 +1218,7 @@ applications:
 
   roundcube:
     image: roundcube/roundcubemail
-    version: latest
+    version: "latest"
     container_name: roundcube
     subdomain: null
     networks:
@@ -1207,7 +1254,7 @@ applications:
 
   radicale:
     image: tomsquest/docker-radicale
-    version: latest
+    version: "latest"
     container_name: radicale
     subdomain: null
     networks:
@@ -1229,7 +1276,7 @@ applications:
 
   seafile:
     image: seafileltd/seafile-mc
-    version: 13.0.12
+    version: 13.0.15
     container_name: seafile
     subdomain: seafile
     additional_aliases:
@@ -1268,7 +1315,7 @@ applications:
 
   onlyoffice:
     image: onlyoffice/documentserver
-    version: 8.2.2
+    version: 8.3.3
     container_name: onlyoffice
     subdomain: onlyoffice
     networks:
@@ -1292,7 +1339,7 @@ applications:
 ai:
   vllm-7b:
     image: vllm/vllm-openai
-    version: latest
+    version: v0.13.0
     container_name: vllm-7b
     subdomain: null
     networks:
@@ -1346,7 +1393,7 @@ ai:
 
   embedding-service:
     image: ghcr.io/huggingface/text-embeddings-inference
-    version: cpu-latest
+    version: "1.8.3"
     container_name: embedding-service
     subdomain: null
     networks:
@@ -1377,7 +1424,7 @@ ai:
 
   litellm:
     image: ghcr.io/berriai/litellm
-    version: v1.74.9-stable.patch.1
+    version: v1.80.8-stable.1
     container_name: litellm
     subdomain: litellm
     additional_aliases:
@@ -1601,7 +1648,7 @@ datamancy:
   # Monitoring Stack
   prometheus:
     image: prom/prometheus
-    version: v3.1.0
+    version: v3.9.1
     container_name: prometheus
     subdomain: null
     networks:
@@ -1626,7 +1673,7 @@ datamancy:
 
   node-exporter:
     image: prom/node-exporter
-    version: v1.8.2
+    version: v1.10.2
     container_name: node-exporter
     subdomain: null
     networks:
@@ -1645,7 +1692,7 @@ datamancy:
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor
-    version: v0.51.0
+    version: v0.55.1
     container_name: cadvisor
     subdomain: null
     networks:
