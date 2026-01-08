@@ -733,6 +733,60 @@ fun processConfigTemplates(outputDir: File) {
     info("Processed $processedCount config template files")
 }
 
+fun generateToolSchemas(promptsDir: File) {
+    // Generate tools.json from agent-tool-server source
+    info("Reading agent-tool-server tool definitions")
+
+    val toolsFile = File("src/agent-tool-server/src/main/kotlin/org/datamancy/tools")
+    if (!toolsFile.exists()) {
+        warn("agent-tool-server tools directory not found, creating placeholder tools.json")
+        promptsDir.resolve("tools.json").writeText("""
+{
+  "tools": [],
+  "generated_at": "${java.time.Instant.now()}",
+  "note": "Tool definitions will be populated when agent-tool-server tools are available"
+}
+        """.trimIndent())
+        return
+    }
+
+    // For now, create a placeholder - full implementation would parse Kotlin files
+    val toolsJson = """
+{
+  "tools": [
+    {
+      "name": "bash",
+      "description": "Execute shell commands",
+      "parameters": {
+        "command": "string"
+      }
+    },
+    {
+      "name": "search",
+      "description": "Search vector database",
+      "parameters": {
+        "query": "string",
+        "limit": "integer"
+      }
+    },
+    {
+      "name": "query_database",
+      "description": "Query SQL database",
+      "parameters": {
+        "query": "string",
+        "database": "string"
+      }
+    }
+  ],
+  "generated_at": "${java.time.Instant.now()}",
+  "source": "agent-tool-server"
+}
+    """.trimIndent()
+
+    promptsDir.resolve("tools.json").writeText(toolsJson)
+    info("Generated tools.json with ${3} tool definitions")
+}
+
 fun generateSecret(): String {
     return ProcessBuilder("openssl", "rand", "-hex", "32")
         .redirectOutput(ProcessBuilder.Redirect.PIPE)
@@ -1002,6 +1056,11 @@ Building deployment-ready distribution...
     step("Processing config templates")
     processConfigTemplates(distDir.resolve("configs"))
     success("Processed config templates")
+
+    // Step 4.5: Generate tool schemas for prompt repository
+    step("Generating tool schemas")
+    generateToolSchemas(distDir.resolve("configs/prompts"))
+    success("Generated tool schemas")
 
     // Step 5: Build Gradle services
     step("Building Kotlin services")

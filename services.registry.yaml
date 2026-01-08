@@ -622,6 +622,20 @@ applications:
     phase: applications
     phase_order: 4
 
+  prompt-server:
+    image: nginx
+    version: alpine
+    container_name: prompt-server
+    subdomain: prompts
+    networks:
+      - caddy
+    volumes:
+      - ./configs/prompts:/usr/share/nginx/html:ro
+    health_check:
+      type: docker
+    phase: applications
+    phase_order: 3
+
   open-webui:
     image: ghcr.io/open-webui/open-webui
     version: 0.3.32
