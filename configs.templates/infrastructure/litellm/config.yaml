@@ -5,7 +5,8 @@ model_list:
       model: openai/qwen2.5-7b-instruct
       api_base: http://vllm-7b:8000/v1
       api_key: unused
-      max_tokens: 32768
+      # max_tokens removed - let client specify, default to reasonable value
+      # Model supports 32K context total (prompt + completion)
     supports_function_calling: true
 
   # Qwen 2.5 0.5B Instruct - fast model for simple operations
