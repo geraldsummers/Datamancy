@@ -5,29 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="fixed?">
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/executionHistory/executionHistory.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build-datamancy.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/filebrowser/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/filebrowser/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/forgejo/init-forgejo.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/forgejo/init-forgejo.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homeassistant/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homeassistant/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homeassistant/init-homeassistant.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homeassistant/init-homeassistant.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/jellyfin/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/jellyfin/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/kopia/init-kopia.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/kopia/init-kopia.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mastodon/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mastodon/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/seafile/init/entrypoint-wrapper.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/seafile/init/entrypoint-wrapper.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/sogo/init-apache.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/sogo/init-apache.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/synapse/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/datamancy-images.tar" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/services.registry.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/services.registry.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/jupyterhub/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/jupyterhub/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/jupyterhub/jupyterhub_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/jupyterhub/jupyterhub_config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build-datamancy.main.kts" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -450,7 +429,15 @@
       <option name="project" value="LOCAL" />
       <updated>1767645556475</updated>
     </task>
-    <option name="localTasksCounter" value="31" />
+    <task id="LOCAL-00031" summary="fixed?">
+      <option name="closed" value="true" />
+      <created>1767910481392</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1767910481392</updated>
+    </task>
+    <option name="localTasksCounter" value="32" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

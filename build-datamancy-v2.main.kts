@@ -1017,6 +1017,13 @@ Building deployment-ready distribution...
         put("BUILD_TIMESTAMP", Instant.now().toString())
         put("GIT_COMMIT", getGitCommit())
         put("GIT_VERSION", getGitVersion())
+
+        // Apply defaults from schema for any missing required vars
+        ConfigSchema.ALL_VARS.forEach { (varName, varDef) ->
+            if (varDef.required && !containsKey(varName) && varDef.defaultValue != null) {
+                put(varName, varDef.defaultValue)
+            }
+        }
     }
 
     // Generate missing secrets
