@@ -699,13 +699,27 @@ fun processConfigTemplates(outputDir: File) {
         // Read and process template
         val content = sourceFile.readText()
 
-        // Replace {{VAR}} with ${VAR} if it's a runtime var, otherwise leave as-is
-        val processed = content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
-            val varName = match.groupValues[1]
-            if (varName in RUNTIME_VARS) {
-                "\${$varName}"  // Convert to Docker Compose runtime var
-            } else {
-                match.value  // Leave as {{VAR}} for now (should be resolved in future)
+        // Special handling for LDAP bootstrap - generate password hashes
+        val processed = if (relativePath.contains("ldap/bootstrap_ldap.ldif")) {
+            val adminPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: "changeme"
+            val userPassword = System.getenv("STACK_USER_PASSWORD") ?: adminPassword
+
+            content
+                .replace("{{GENERATION_TIMESTAMP}}", java.time.Instant.now().toString())
+                .replace("{{STACK_ADMIN_EMAIL}}", System.getenv("STACK_ADMIN_EMAIL") ?: "admin@example.com")
+                .replace("{{STACK_ADMIN_USER}}", System.getenv("STACK_ADMIN_USER") ?: "admin")
+                .replace("{{DOMAIN}}", "example.com")
+                .replace("{{ADMIN_SSHA_PASSWORD}}", generatePasswordHash(adminPassword))
+                .replace("{{USER_SSHA_PASSWORD}}", generatePasswordHash(userPassword))
+        } else {
+            // Replace {{VAR}} with ${VAR} if it's a runtime var, otherwise leave as-is
+            content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
+                val varName = match.groupValues[1]
+                if (varName in RUNTIME_VARS) {
+                    "\${$varName}"  // Convert to Docker Compose runtime var
+                } else {
+                    match.value  // Leave as {{VAR}} for now (should be resolved in future)
+                }
             }
         }
 
@@ -727,6 +741,24 @@ fun generateSecret(): String {
         .bufferedReader()
         .readText()
         .trim()
+}
+
+fun generatePasswordHash(password: String): String {
+    // Generate SHA-512-crypt hash compatible with LDAP {CRYPT} scheme
+    val hash = ProcessBuilder("openssl", "passwd", "-6", "-stdin")
+        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectError(ProcessBuilder.Redirect.PIPE)
+        .start()
+        .also { process ->
+            process.outputStream.write(password.toByteArray())
+            process.outputStream.close()
+        }
+        .inputStream
+        .bufferedReader()
+        .readText()
+        .trim()
+
+    return "{CRYPT}$hash"
 }
 
 fun generateRSAPrivateKey(): String {
