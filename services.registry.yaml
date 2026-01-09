@@ -286,9 +286,9 @@ core:
       ENABLE_SRS: "0"
       PERMIT_DOCKER: "network"
       SSL_TYPE: "manual"
-      SSL_CERT_PATH: "${MAILSERVER_SSL_CERT_PATH:-/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.crt}"
-      SSL_KEY_PATH: "${MAILSERVER_SSL_KEY_PATH:-/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/mail.${DOMAIN}/mail.${DOMAIN}.key}"
+      # SSL_CERT_PATH and SSL_KEY_PATH are set by find-certs.sh wrapper
       OVERRIDE_HOSTNAME: "mail.${DOMAIN}"
+      DOMAIN: "${DOMAIN}"
       POSTMASTER_ADDRESS: "postmaster@${MAIL_DOMAIN}"
       ACCOUNT_PROVISIONER: "LDAP"
       LDAP_SERVER_HOST: "ldap://ldap:389"
@@ -314,6 +314,8 @@ core:
       - caddy_data:/caddy-certs:ro
       - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
       - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/find-certs.sh:/usr/local/bin/find-certs.sh:ro
+    entrypoint: ["/bin/bash", "/usr/local/bin/find-certs.sh"]
     health_check:
       type: docker
       interval: 30s
@@ -816,7 +818,7 @@ applications:
       - postgres
       - authelia
     depends_on:
-      - postgres
+      - postgres-init
       - authelia
     environment:
       BASE_URL: "https://planka.${DOMAIN}"
@@ -1043,7 +1045,6 @@ applications:
       - postgres
       - valkey
       - ldap
-    user: "991:991"
     environment:
       DOMAIN: "${DOMAIN}"
       SYNAPSE_SERVER_NAME: "matrix.${DOMAIN}"
@@ -1183,7 +1184,7 @@ applications:
       - valkey
       - mastodon-internal
     depends_on:
-      - postgres
+      - postgres-init
       - valkey
     environment:
       LOCAL_DOMAIN: "${DOMAIN}"

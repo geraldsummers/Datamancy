@@ -11,14 +11,12 @@ echo "[kopia-init] Using repo path: ${KOPIA_REPO_PATH}"
 echo "[kopia-init] Volumes root: ${VOLUMES_ROOT}"
 
 # Ensure repository exists and is connected
-# Check if repository exists by looking for kopia.repository file
-if [ -f "$KOPIA_REPO_PATH/kopia.repository" ]; then
+# Check if already connected (kopia.repository config file in user's home)
+if kopia repository status >/dev/null 2>&1; then
+  echo "[kopia-init] Already connected to repository"
+elif [ -f "$KOPIA_REPO_PATH/kopia.repository" ]; then
   echo "[kopia-init] Connecting to existing repository..."
-  kopia repository connect filesystem --path="$KOPIA_REPO_PATH" --password "$KOPIA_PASSWORD" || {
-    echo "[kopia-init] Failed to connect, trying to recreate..."
-    mkdir -p "$KOPIA_REPO_PATH"
-    kopia repository create filesystem --path="$KOPIA_REPO_PATH" --password "$KOPIA_PASSWORD"
-  }
+  kopia repository connect filesystem --path="$KOPIA_REPO_PATH" --password "$KOPIA_PASSWORD"
 else
   echo "[kopia-init] Creating new repository..."
   mkdir -p "$KOPIA_REPO_PATH"
