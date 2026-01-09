@@ -796,7 +796,7 @@ applications:
       BOOKSTACK_OAUTH_SECRET: "${BOOKSTACK_OAUTH_SECRET}"
     volumes:
       - bookstack_data:/config
-      - ${VOLUMES_ROOT}/bookstack_init:/custom-cont-init.d:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/bookstack/init:/custom-cont-init.d:ro
     health_check:
       type: docker
       interval: 30s

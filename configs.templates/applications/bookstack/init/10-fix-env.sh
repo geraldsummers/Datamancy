@@ -3,13 +3,25 @@
 # Note: LinuxServer BookStack uses /config/www/.env as the persistent config
 # This runs as part of the container's init system and waits for the .env to be created
 
-ENV_FILE="/config/www/.env"
+# LinuxServer.io BookStack uses /config/www/ for persistent config
+# But the application itself is at /app/www/
+# The .env at /app/www/.env is the one that matters initially
+# After first boot, /config/www/.env becomes the persistent one
+
+ENV_FILE_APP="/app/www/.env"
+ENV_FILE_CONFIG="/config/www/.env"
 
 # Wait up to 30 seconds for the .env file to be created by the container
 echo "Waiting for BookStack .env file to be created..."
 for i in {1..30}; do
-    if [ -f "$ENV_FILE" ]; then
+    if [ -f "$ENV_FILE_APP" ] || [ -f "$ENV_FILE_CONFIG" ]; then
         echo "Found .env file, proceeding with updates..."
+        # Use whichever exists (app takes priority as it's created first)
+        if [ -f "$ENV_FILE_APP" ]; then
+            ENV_FILE="$ENV_FILE_APP"
+        else
+            ENV_FILE="$ENV_FILE_CONFIG"
+        fi
         break
     fi
     sleep 1
