@@ -131,7 +131,20 @@ core:
       - "443:443/udp"
     networks:
       - caddy
-      - authelia  # Needs to talk to authelia for forward auth
+      - authelia          # Forward auth
+      - postgres          # grafana, open-webui, planka, vaultwarden, forgejo, jupyterhub, homeassistant, synapse
+      - mariadb           # bookstack, seafile
+      - clickhouse        # clickhouse API
+      - qdrant            # search gateway
+      - ldap              # ldap-account-manager
+      - litellm           # litellm
+      - ai                # vllm-router
+      - ai-gateway        # agent-tool-server, datamancy services
+      - mailserver        # roundcube, sogo
+      - memcached         # seafile
+      - matrix-internal   # synapse, element
+      - mastodon-internal # mastodon-web
+      - monitoring        # kopia
     environment:
       DOMAIN: "${DOMAIN}"
       STACK_ADMIN_EMAIL: "${STACK_ADMIN_EMAIL}"
@@ -315,6 +328,9 @@ core:
       - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
       - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
       - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/find-certs.sh:/usr/local/bin/find-certs.sh:ro
+    tmpfs:
+      - /tmp
+      - /dev/shm:rw,nosuid,nodev,size=512m
     entrypoint: ["/bin/bash", "/usr/local/bin/find-certs.sh"]
     health_check:
       type: docker
@@ -484,6 +500,8 @@ databases:
       POSTGRES_PASSWORD: "${POSTGRES_ROOT_PASSWORD}"
       POSTGRES_USER: "${STACK_ADMIN_USER}"
       POSTGRES_DB: "postgres"
+      PGHOST: "postgres"
+      PGPORT: "5432"
       POSTGRES_ROOT_PASSWORD: "${POSTGRES_ROOT_PASSWORD}"
       PLANKA_DB_PASSWORD: "${PLANKA_DB_PASSWORD}"
       SYNAPSE_DB_PASSWORD: "${SYNAPSE_DB_PASSWORD}"
@@ -543,6 +561,37 @@ databases:
       start_period: 30s
     phase: databases
     phase_order: 2
+
+  mariadb-init:
+    image: mariadb
+    version: 11.8.5
+    container_name: mariadb-init
+    subdomain: null
+    networks:
+      - mariadb
+    depends_on:
+      - mariadb
+    restart: "no"
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      BOOKSTACK_DB_PASSWORD: "${BOOKSTACK_DB_PASSWORD}"
+      MARIADB_SEAFILE_PASSWORD: "${MARIADB_SEAFILE_PASSWORD}"
+      STACK_ADMIN_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+    volumes:
+      - ${DEPLOYMENT_ROOT}/configs/databases/mariadb/init-db.sh:/init-db.sh:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        echo "Waiting for MariaDB to be ready..."
+        until mariadb -h mariadb -u root -p$$MYSQL_ROOT_PASSWORD --ssl=0 -e "SELECT 1" >/dev/null 2>&1; do
+          sleep 2
+        done
+        echo "Running idempotent database initialization..."
+        /init-db.sh
+        echo "Database initialization complete"
+    phase: databases
+    phase_order: 3
 
   clickhouse:
     image: clickhouse/clickhouse-server
@@ -783,6 +832,7 @@ applications:
       - mariadb
     depends_on:
       - mariadb
+      - mariadb-init
     environment:
       PUID: "${DOCKER_USER_ID:-1000}"
       PGID: "${DOCKER_GROUP_ID:-1000}"
@@ -1028,6 +1078,25 @@ applications:
     phase_order: 4
     security_note: "ISOLATED - Torrent client with minimal network access"
 
+  synapse-init:
+    image: alpine
+    version: latest
+    container_name: synapse-init
+    subdomain: null
+    networks:
+      - postgres
+    restart: "no"
+    volumes:
+      - synapse_data:/data
+    command: >
+      sh -c '
+      echo "Fixing Synapse volume ownership...";
+      chown -R 991:991 /data;
+      echo "Synapse volume permissions fixed (UID:GID = 991:991)"
+      '
+    phase: applications
+    phase_order: 3
+
   synapse:
     image: matrixdotorg/synapse
     version: v1.144.0
@@ -1043,6 +1112,7 @@ applications:
       - matrix-internal
     depends_on:
       - postgres
+      - synapse-init
       - valkey
       - ldap
     environment:
@@ -1096,22 +1166,63 @@ applications:
     phase: applications
     phase_order: 4
 
+  mastodon-init:
+    image: ghcr.io/mastodon/mastodon
+    version: v4.5.4
+    container_name: mastodon-init
+    subdomain: null
+    networks:
+      - postgres
+      - valkey
+    depends_on:
+      - postgres-init
+      - valkey
+    restart: "no"
+    environment:
+      LOCAL_DOMAIN: "${DOMAIN}"
+      RAILS_ENV: "production"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_NAME: "mastodon"
+      DB_USER: "mastodon"
+      DB_PASS: "${MASTODON_DB_PASSWORD}"
+      REDIS_HOST: "valkey"
+      REDIS_PORT: "6379"
+      SECRET_KEY_BASE: "${MASTODON_SECRET_KEY_BASE}"
+      OTP_SECRET: "${MASTODON_OTP_SECRET}"
+      VAPID_PRIVATE_KEY: "${MASTODON_VAPID_PRIVATE_KEY}"
+      VAPID_PUBLIC_KEY: "${MASTODON_VAPID_PUBLIC_KEY}"
+      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: "${MASTODON_ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY}"
+      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: "${MASTODON_ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT}"
+      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: "${MASTODON_ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY}"
+    command:
+      - bash
+      - -c
+      - |
+        echo "Running Mastodon database migrations..."
+        bundle exec rails db:migrate
+        echo "Mastodon database migrations complete"
+    phase: applications
+    phase_order: 3
+
   mastodon-web:
     image: ghcr.io/mastodon/mastodon
     version: v4.5.4
     container_name: mastodon-web
     subdomain: null
-    command: bash -c "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0"
+    command: bash -c "bundle exec rails server -b 0.0.0.0"
     networks:
       - caddy
       - postgres
       - valkey
       - mastodon-internal
     depends_on:
+      - mastodon-init
       - postgres
       - valkey
     environment:
       LOCAL_DOMAIN: "${DOMAIN}"
+      WEB_DOMAIN: "mastodon.${DOMAIN}"
       RAILS_ENV: "production"
       DB_HOST: "postgres"
       DB_PORT: "5432"
@@ -1184,10 +1295,12 @@ applications:
       - valkey
       - mastodon-internal
     depends_on:
-      - postgres-init
+      - mastodon-init
+      - postgres
       - valkey
     environment:
       LOCAL_DOMAIN: "${DOMAIN}"
+      WEB_DOMAIN: "mastodon.${DOMAIN}"
       RAILS_ENV: "production"
       DB_HOST: "postgres"
       DB_PORT: "5432"
@@ -1288,6 +1401,7 @@ applications:
       - memcached
     depends_on:
       - mariadb
+      - mariadb-init
       - memcached
     environment:
       TZ: "UTC"
@@ -1470,6 +1584,16 @@ datamancy:
       - unified-indexer
     ports:
       - "8097:8097"
+    environment:
+      CONTROL_PANEL_PORT: "8097"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "datamancy"
+      POSTGRES_USER: "datamancer"
+      POSTGRES_PASSWORD: "${STACK_ADMIN_PASSWORD}"
+      DATA_FETCHER_URL: "http://data-fetcher:8095"
+      UNIFIED_INDEXER_URL: "http://unified-indexer:8096"
+      SEARCH_SERVICE_URL: "http://search-service:8098"
     health_check:
       type: docker
       interval: 30s
@@ -1582,6 +1706,16 @@ datamancy:
       - qdrant
       - clickhouse
       - embedding-service
+    environment:
+      SEARCH_SERVICE_PORT: "8098"
+      QDRANT_HOST: "qdrant"
+      QDRANT_PORT: "6333"
+      QDRANT_API_KEY: "${QDRANT_API_KEY}"
+      CLICKHOUSE_HOST: "clickhouse"
+      CLICKHOUSE_PORT: "8123"
+      CLICKHOUSE_USER: "${STACK_ADMIN_USER}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_ADMIN_PASSWORD}"
+      EMBEDDING_SERVICE_URL: "http://embedding-service:8080"
     health_check:
       type: docker
       interval: 30s

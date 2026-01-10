@@ -35,7 +35,7 @@ fi
 # Wait for database to be ready
 echo "Waiting for database connection..."
 for i in {1..30}; do
-    if mysql -h"$DB_HOST" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" -e "SELECT 1" >/dev/null 2>&1; then
+    if mariadb -h "$DB_HOST" -u "$DB_USERNAME" -p"$DB_PASSWORD" --protocol=TCP "$DB_DATABASE" -e "SELECT 1" >/dev/null 2>&1; then
         echo "Database connection established"
         break
     fi
@@ -43,7 +43,7 @@ for i in {1..30}; do
 done
 
 # Check if permissions have already been configured
-CONFIGURED=$(mysql -h"$DB_HOST" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" -sN -e "SELECT COUNT(*) FROM settings WHERE setting_key='permissions_configured'" 2>/dev/null || echo "0")
+CONFIGURED=$(mariadb -h "$DB_HOST" -u "$DB_USERNAME" -p"$DB_PASSWORD" --protocol=TCP "$DB_DATABASE" -sN -e "SELECT COUNT(*) FROM settings WHERE setting_key='permissions_configured'" 2>/dev/null || echo "0")
 
 if [ "$CONFIGURED" != "0" ]; then
     echo "Permissions already configured, skipping..."
@@ -53,7 +53,7 @@ fi
 echo "Configuring BookStack role permissions..."
 
 # SQL to configure permissions
-mysql -h"$DB_HOST" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" <<'EOF'
+mariadb -h "$DB_HOST" -u "$DB_USERNAME" -p"$DB_PASSWORD" --protocol=TCP "$DB_DATABASE" <<'EOF'
 -- Ensure Admin role exists and has full permissions
 UPDATE roles
 SET

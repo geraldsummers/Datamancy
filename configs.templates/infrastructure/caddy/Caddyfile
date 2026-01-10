@@ -419,6 +419,17 @@ data-fetcher.{$DOMAIN} {
     }
 }
 
+# Control Panel (protected - admin only)
+control.{$DOMAIN} {
+    route {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+            copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy control-panel:8097
+    }
+}
+
 # Search Indexer (protected - admin only)
 search-indexer.{$DOMAIN} {
     route {

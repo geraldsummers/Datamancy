@@ -19,6 +19,9 @@ STACK_ADMIN_PASSWORD="${STACK_ADMIN_PASSWORD:?ERROR: STACK_ADMIN_PASSWORD not se
 AGENT_POSTGRES_OBSERVER_PASSWORD="${AGENT_POSTGRES_OBSERVER_PASSWORD:?ERROR: AGENT_POSTGRES_OBSERVER_PASSWORD not set}"
 DATAMANCY_SERVICE_PASSWORD="${STACK_ADMIN_PASSWORD:?ERROR: STACK_ADMIN_PASSWORD not set}"  # For datamancy services
 
+# Set PGPASSWORD for psql authentication when running from external container
+export PGPASSWORD="${STACK_ADMIN_PASSWORD}"
+
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create users with passwords from environment (must be created before databases for ownership)
     -- Use DO block to check if user exists before creating
@@ -171,10 +174,12 @@ EOSQL
 
 # Grant Home Assistant privileges if database was created
 if [ -n "$HOMEASSISTANT_DB_PASSWORD" ]; then
-    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO $POSTGRES_USER;"
+    PGPASSWORD="$STACK_ADMIN_PASSWORD" psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO $POSTGRES_USER;"
 fi
 
 # Grant schema privileges (PostgreSQL 15+)
+# PGPASSWORD already set above to STACK_ADMIN_PASSWORD
+
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "planka" -c "GRANT ALL ON SCHEMA public TO planka;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "synapse" -c "GRANT ALL ON SCHEMA public TO synapse;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "authelia" -c "GRANT ALL ON SCHEMA public TO authelia;"
