@@ -328,10 +328,14 @@ core:
       - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
       - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
       - ${DEPLOYMENT_ROOT}/configs/applications/mailserver/find-certs.sh:/usr/local/bin/find-certs.sh:ro
-    tmpfs:
-      - /tmp
-      - /dev/shm:rw,nosuid,nodev,size=512m
     entrypoint: ["/bin/bash", "/usr/local/bin/find-certs.sh"]
+    # Use shm_size instead of explicit tmpfs mounts to avoid permission issues
+    # Docker will create /dev/shm with correct permissions
+    deploy:
+      resources:
+        reservations:
+          memory: 512M
+    shm_size: 512m
     health_check:
       type: docker
       interval: 30s
