@@ -1,0 +1,75 @@
+---
+- AI & Development:
+    - Open WebUI:
+        href: https://open-webui.project-saturn.com
+        description: AI Chat Interface
+        icon: openwebui.png
+
+    - JupyterHub:
+        href: https://jupyterhub.project-saturn.com
+        description: Data Science Notebooks
+        icon: jupyter.png
+
+    - Forgejo:
+        href: https://forgejo.project-saturn.com
+        description: Git Repository
+        icon: forgejo.png
+
+- Collaboration:
+    - BookStack:
+        href: https://bookstack.project-saturn.com
+        description: Documentation Wiki
+        icon: bookstack.png
+
+    - Planka:
+        href: https://planka.project-saturn.com
+        description: Project Management
+        icon: planka.png
+
+    - Element:
+        href: https://element.project-saturn.com
+        description: Secure Messaging
+        icon: element.png
+
+- Productivity:
+    - Seafile:
+        href: https://seafile.project-saturn.com
+        description: File Sync & Share
+        icon: seafile.png
+
+    - SOGo:
+        href: https://sogo.project-saturn.com
+        description: Email & Calendar
+        icon: sogo.png
+
+    - Vaultwarden:
+        href: https://vaultwarden.project-saturn.com
+        description: Password Manager
+        icon: bitwarden.png
+
+- Social & Media:
+    - Mastodon:
+        href: https://mastodon.project-saturn.com
+        description: Social Network
+        icon: mastodon.png
+
+    - qBittorrent:
+        href: https://qbittorrent.project-saturn.com
+        description: Torrent Client
+        icon: qbittorrent.png
+
+- System:
+    - Grafana:
+        href: https://grafana.project-saturn.com
+        description: Monitoring Dashboard
+        icon: grafana.png
+
+    - Kopia:
+        href: https://kopia.project-saturn.com
+        description: Backup System
+        icon: kopia.png
+
+    - Home Assistant:
+        href: https://homeassistant.project-saturn.com
+        description: Home Automation
+        icon: home-assistant.png

@@ -1,0 +1,76 @@
+http:
+  address: 0.0.0.0:4201
+  enabled: true
+
+resources:
+  caches:
+    dedupe_mem:
+      memory: {}
+  rate_limits:
+    api_rl:
+      local:
+        count: 2
+        interval: 1s
+
+input:
+  http_client:
+    url: ${TORRENTS_CSV_SNAPSHOT_URL:https://example.com/torrents.csv}
+    verb: GET
+    rate_limit: api_rl
+
+pipeline:
+  processors:
+    # Naive CSV split. For robust parsing, switch to a proper CSV decoder in Benthos when available.
+    - split:
+        size: 1
+    - mapping: |
+        let line = content().string()
+        # Skip headers by detecting typical field name in first line
+        root = if line.lowercase().contains("infohash") { deleted() } else { this }
+    - bloblang: |
+        let cols = content().string().split(",")
+        let id_ix = env("INFOHASH_IDX", "0").number()
+        let name_ix = env("NAME_IDX", "1").number()
+        let desc_ix = env("DESC_IDX", "2").number()
+        let cat_ix = env("CAT_IDX", "3").number()
+        let size_ix = env("SIZE_IDX", "4").number()
+        root.collection = env("TARGET_COLLECTION", "torrents_csv")
+        root.id = if $id_ix >= 0 && $id_ix < $cols.length() { $cols.index($id_ix) } else { uuid_v4() }
+        let name = if $name_ix >= 0 && $name_ix < $cols.length() { $cols.index($name_ix) } else { "" }
+        let descr = if $desc_ix >= 0 && $desc_ix < $cols.length() { $cols.index($desc_ix) } else { "" }
+        root.text = (name + "\n\n" + descr).trim()
+        root.payload = {
+          name: $name,
+          description: $descr,
+          category: if $cat_ix >= 0 && $cat_ix < $cols.length() { $cols.index($cat_ix) } else { "" },
+          size: if $size_ix >= 0 && $size_ix < $cols.length() { $cols.index($size_ix) } else { "" }
+        }
+        root.payload.text = root.text
+        root.payload.content = root.text
+    - bloblang: 'root = if this.text == "" { deleted() } else { this }'
+    - dedupe:
+        cache: dedupe_mem
+        hash: "${! this.id }"
+    - branch:
+        processors:
+          - http:
+              url: ${LITELLM_URL:http://litellm:4000/v1}/embeddings
+              verb: POST
+              headers:
+                Content-Type: application/json
+              body: 'root = {"input":[ this.text ],"model": env("EMBED_MODEL","embed-small") }'
+          - mapping: 'root = {"vector": this.data.0.embedding }'
+        result_map: 'root.vector = this.vector'
+
+output:
+  http_client:
+    url: ${QDRANT_URL:http://qdrant:6333}/collections/${TARGET_COLLECTION:torrents_csv}/points?wait=true
+    verb: PUT
+    headers:
+      Content-Type: application/json
+      api-key: ${QDRANT_API_KEY:}
+    body: 'root = {"points":[{"id": this.id, "vector": this.vector, "payload": this.payload}]}'
+
+logger:
+  level: INFO
+  format: json

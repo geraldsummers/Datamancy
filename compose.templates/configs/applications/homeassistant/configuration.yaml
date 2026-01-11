@@ -1,0 +1,40 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# HTTP configuration for reverse proxy (Caddy with Authelia forward_auth)
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.16.0.0/12  # Docker bridge networks (covers all 172.16-31.x.x)
+    - 127.0.0.1
+    - ::1
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+# PostgreSQL recorder for long-term statistics
+recorder:
+  db_url: !env_var HOMEASSISTANT_DB_URL
+  auto_purge: true
+  purge_keep_days: 30
+
+# Onboarding - disable to allow manual user creation
+onboarding:
+
+# Auth provider - use local, LDAP, and trusted networks for hybrid auth
+# This allows:
+# - Web login via OIDC (Authelia forward auth from Caddy)
+# - App/CLI login via local accounts (preseeded admin)
+# - App/CLI login via LDAP (for LDAP-synced users)
+auth_providers:
+  - type: homeassistant
+  - type: ldap
+  - type: trusted_networks
+    trusted_networks:
+      - 172.16.0.0/12  # Docker bridge networks
+    allow_bypass_login: true
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml

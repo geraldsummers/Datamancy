@@ -5,8 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="fixed?">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build-datamancy.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/roundcube/config.inc.php" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/roundcube/config.inc.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/sogo/sogo.conf" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/sogo/sogo.conf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/datamancy.config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/datamancy.config.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/services.registry.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/services.registry.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/embedding-service/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/embedding-service/Dockerfile" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -92,6 +99,8 @@
 }</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/compose" />
+      <recent name="$PROJECT_DIR$" />
       <recent name="$PROJECT_DIR$/scripts" />
       <recent name="$PROJECT_DIR$/src" />
     </key>

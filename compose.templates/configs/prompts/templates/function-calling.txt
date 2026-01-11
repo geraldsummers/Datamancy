@@ -1,0 +1,15 @@
+Available tools are defined in /tools.json
+
+When using tools:
+1. Read the tool schema to understand parameters
+2. Validate inputs before calling
+3. Handle errors and retry if appropriate
+4. Chain multiple tools to accomplish complex tasks
+
+Tool call format:
+{
+  "name": "tool_name",
+  "parameters": {
+    "param1": "value1"
+  }
+}

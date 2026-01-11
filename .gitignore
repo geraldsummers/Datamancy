@@ -16,13 +16,7 @@ dist/
 # (No longer needed in project - all configs in build output)
 
 # Legacy gitignore (kept for backwards compatibility):
-configs/
-configs.backup/
 bootstrap_ldap.ldif
-
-# Old generated compose files (now in dist/)
-compose/
-!compose.templates/
 
 # Runtime data
 volumes/

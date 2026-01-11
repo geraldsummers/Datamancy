@@ -1,0 +1,6 @@
+target_collection: linux_docs
+required_env:
+  - LINUX_DEBIAN_SOURCES
+notes:
+  - Fetch Debian Handbook/Wiki/manpages or kernel docs
+  - Convert to text, chunk, embed (via LiteLLM), upsert to Qdrant

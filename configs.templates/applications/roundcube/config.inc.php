@@ -7,7 +7,7 @@
 $config = [];
 
 // Database connection
-$config['db_dsnw'] = 'pgsql://roundcube:{{STACK_ADMIN_PASSWORD}}@postgres/roundcube';
+$config['db_dsnw'] = 'pgsql://roundcube:{{ROUNDCUBE_DB_PASSWORD}}@postgres/roundcube';
 
 // IMAP Configuration with master user authentication
 // Roundcube will connect as: user@domain*sogo-master with master password

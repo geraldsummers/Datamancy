@@ -8,14 +8,14 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements and install
-COPY requirements.txt .
+COPY src/embedding-service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download the model during build to avoid runtime download
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
 # Copy application
-COPY app.py .
+COPY src/embedding-service/app.py .
 
 # Create non-root user
 RUN useradd -m -u 1000 datamancer && chown -R datamancer:datamancer /app
