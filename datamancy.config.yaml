@@ -94,7 +94,6 @@ images:
   litellm: "v1.74.9-stable.patch.1"
 
   # Datamancy Services
-  benthos: "4.27.0"
   kotlin_runtime: "latest"
   temurin_jdk: "21-jdk"
 

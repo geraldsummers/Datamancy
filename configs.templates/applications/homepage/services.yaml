@@ -37,10 +37,6 @@
         description: File Sync & Share
         icon: seafile.png
 
-    - SOGo:
-        href: https://sogo.{{DOMAIN}}
-        description: Email & Calendar
-        icon: sogo.png
 
     - Vaultwarden:
         href: https://vaultwarden.{{DOMAIN}}

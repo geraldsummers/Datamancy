@@ -7,53 +7,51 @@ set -e
 
 echo "Creating volume directories with storage tiers..."
 
-# /mnt/btrfs_raid_1_01_docker/volumes/applications
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/bookstack_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/caddy_config
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/caddy_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/element_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/forgejo_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/grafana_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/homeassistant_config
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/jupyterhub_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/kopia_cache
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/kopia_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/kopia_repository
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/ldap_config
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/ldap_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/litellm_config
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/mailserver_config
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/mailserver_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/mailserver_logs
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/mailserver_state
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/onlyoffice_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/onlyoffice_log
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/open_webui_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/planka_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/prometheus_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/qbittorrent_config
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/qbittorrent_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/radicale_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/roundcube_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/seafile_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/synapse_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/applications/vaultwarden_data
+# ./volumes/applications
+mkdir -p ./volumes/applications/bookstack_data
+mkdir -p ./volumes/applications/caddy_config
+mkdir -p ./volumes/applications/caddy_data
+mkdir -p ./volumes/applications/element_data
+mkdir -p ./volumes/applications/forgejo_data
+mkdir -p ./volumes/applications/grafana_data
+mkdir -p ./volumes/applications/homeassistant_config
+mkdir -p ./volumes/applications/jupyterhub_data
+mkdir -p ./volumes/applications/kopia_cache
+mkdir -p ./volumes/applications/kopia_data
+mkdir -p ./volumes/applications/kopia_repository
+mkdir -p ./volumes/applications/ldap_config
+mkdir -p ./volumes/applications/ldap_data
+mkdir -p ./volumes/applications/litellm_config
+mkdir -p ./volumes/applications/mailserver_config
+mkdir -p ./volumes/applications/mailserver_data
+mkdir -p ./volumes/applications/mailserver_logs
+mkdir -p ./volumes/applications/mailserver_state
+mkdir -p ./volumes/applications/onlyoffice_data
+mkdir -p ./volumes/applications/onlyoffice_log
+mkdir -p ./volumes/applications/open_webui_data
+mkdir -p ./volumes/applications/planka_data
+mkdir -p ./volumes/applications/prometheus_data
+mkdir -p ./volumes/applications/qbittorrent_config
+mkdir -p ./volumes/applications/qbittorrent_data
+mkdir -p ./volumes/applications/radicale_data
+mkdir -p ./volumes/applications/roundcube_data
+mkdir -p ./volumes/applications/seafile_data
+mkdir -p ./volumes/applications/synapse_data
+mkdir -p ./volumes/applications/vaultwarden_data
 
-# /mnt/btrfs_raid_1_01_docker/volumes/databases
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/databases/clickhouse_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/databases/mariadb_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/databases/postgres_data
-mkdir -p /mnt/btrfs_raid_1_01_docker/volumes/databases/redis_data
+# ./volumes/databases
+mkdir -p ./volumes/databases/clickhouse_data
+mkdir -p ./volumes/databases/mariadb_data
+mkdir -p ./volumes/databases/postgres_data
+mkdir -p ./volumes/databases/redis_data
 
 # /mnt/sdc1_ctbx500_0385/datamancy/vector-dbs
 mkdir -p /mnt/sdc1_ctbx500_0385/datamancy/vector-dbs/qdrant_data
 
-# Set ownership to DOCKER_USER_ID:DOCKER_GROUP_ID
-chown -R ${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000} /mnt/sdc1_ctbx500_0385/datamancy/vector-dbs
-chown -R ${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000} /mnt/btrfs_raid_1_01_docker/volumes/databases
-chown -R ${DOCKER_USER_ID:-1000}:${DOCKER_GROUP_ID:-1000} /mnt/btrfs_raid_1_01_docker/volumes/applications
+# Directories created with current user ownership
+# Docker containers will handle permissions via user: "${DOCKER_USER_ID}:${DOCKER_GROUP_ID}" in compose
 
 echo "✓ Created 35 volume directories"
 echo "  Vector DBs: /mnt/sdc1_ctbx500_0385/datamancy/vector-dbs"
-echo "  Databases: /mnt/btrfs_raid_1_01_docker/volumes/databases"
-echo "  Applications: /mnt/btrfs_raid_1_01_docker/volumes/applications"
+echo "  Databases: $(pwd)/volumes/databases"
+echo "  Applications: $(pwd)/volumes/applications"

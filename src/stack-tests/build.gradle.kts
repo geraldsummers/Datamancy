@@ -25,6 +25,9 @@ dependencies {
     // Ktor client for HTTP tests
     testImplementation(libs.bundles.ktor.client)
 
+    // Kotlin test
+    testImplementation(libs.kotlin.test)
+
     // JUnit 5
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)

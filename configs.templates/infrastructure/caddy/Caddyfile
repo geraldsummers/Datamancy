@@ -72,24 +72,6 @@ calendar.{$DOMAIN} {
     }
 }
 
-# SOGo (groupware UI) - Alternative calendar/contacts interface
-sogo.{$DOMAIN} {
-    # SOGo serves at /SOGo path, redirect root to it
-    @root path /
-    redir @root /SOGo
-
-    forward_auth authelia:9091 {
-        uri /api/authz/forward-auth
-        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-    }
-
-    reverse_proxy sogo:80 {
-        # Pass authentication headers to SOGo
-        header_up Remote-User {header.Remote-User}
-        header_up Remote-Email {header.Remote-Email}
-        header_up Remote-Name {header.Remote-Name}
-    }
-}
 
 
 # Kopia UI (protected with forward_auth)

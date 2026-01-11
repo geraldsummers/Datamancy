@@ -3,16 +3,16 @@
 
 include:
   # Core infrastructure
-  - path: core/networks.yml
-  - path: core/volumes.yml
-  - path: core/infrastructure.yml
+  - path: networks.yml
+  - path: volumes.yml
+  - path: infrastructure.yml
 
   # Databases
-  - path: databases/databases.yml
+  - path: databases.yml
 
   # Applications
-  - path: applications/applications.yml
+  - path: applications.yml
 
   # Datamancy Services
-  - path: datamancy/datamancy.yml
-  - path: datamancy/ai.yml
+  - path: datamancy-services.yml
+  - path: ai-services.yml

@@ -29,7 +29,6 @@ if [ -f /config/configuration.yml ]; then
     sed -i "s|\${BOOKSTACK_OAUTH_SECRET}|$BOOKSTACK_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${FORGEJO_OAUTH_SECRET}|$FORGEJO_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${MATRIX_OAUTH_SECRET}|$MATRIX_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
-    sed -i "s|\${SOGO_OAUTH_SECRET}|$SOGO_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
 
     # Use the processed config
     export AUTHELIA_CONFIG_FILE="$TEMP_CONFIG"

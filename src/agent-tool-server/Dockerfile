@@ -13,7 +13,7 @@ RUN apt-get update \
     && usermod -aG docker appuser
 
 # App jar
-COPY src/agent-tool-server/build/libs/*-all.jar /app/app.jar
+COPY src/agent-tool-server/build/libs/agent-tool-server.jar /app/app.jar
 
 EXPOSE 8081
 USER appuser

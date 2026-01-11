@@ -5,7 +5,8 @@ set -e
 # Fix volume permissions if running as root (first-time setup)
 if [ "$(id -u)" = "0" ]; then
     echo "Running as root, fixing /data permissions for UID=${UID:-991}"
-    chown -R ${UID:-991}:${GID:-991} /data
+    # Exclude homeserver.yaml which is mounted read-only
+    find /data -mindepth 1 ! -name 'homeserver.yaml' -exec chown ${UID:-991}:${GID:-991} {} +
     echo "Re-executing as UID=${UID:-991}"
     # Use gosu if available, otherwise su-exec, otherwise regular su
     if command -v gosu >/dev/null 2>&1; then
@@ -17,17 +18,30 @@ if [ "$(id -u)" = "0" ]; then
     fi
 fi
 
-# Process homeserver.yaml template with environment variables (idempotent - writes to /tmp)
+# Process homeserver.yaml with environment variable substitution
 HOMESERVER_TEMPLATE="/data/homeserver.yaml"
 HOMESERVER_CONFIG="/tmp/homeserver.yaml"
 
-if [ -f "$HOMESERVER_TEMPLATE" ]; then
-    echo "Processing homeserver.yaml template with environment variables"
-    envsubst < "$HOMESERVER_TEMPLATE" > "$HOMESERVER_CONFIG"
-else
-    echo "ERROR: homeserver.yaml not found at $HOMESERVER_TEMPLATE"
+if [ ! -f "$HOMESERVER_TEMPLATE" ]; then
+    echo "ERROR: homeserver.yaml template not found at $HOMESERVER_TEMPLATE"
     exit 1
 fi
+
+echo "Processing homeserver configuration with environment variables"
+# Use Python for environment variable substitution (more portable than envsubst)
+python3 -c "
+import os
+import re
+with open('$HOMESERVER_TEMPLATE', 'r') as f:
+    content = f.read()
+# Replace \${VAR} with environment variable value
+content = re.sub(r'\\\$\{([^}]+)\}', lambda m: os.environ.get(m.group(1), m.group(0)), content)
+with open('$HOMESERVER_CONFIG', 'w') as f:
+    f.write(content)
+print('Environment variables substituted')
+"
+
+echo "Using homeserver configuration at $HOMESERVER_CONFIG"
 
 # Generate log config in /tmp since /data might not be writable
 LOG_CONFIG="/tmp/${SYNAPSE_SERVER_NAME}.log.config"

@@ -149,7 +149,6 @@ GRANT SELECT ON ALL TABLES IN SCHEMA agent_observer TO agent_observer;
 -- AUTHELIA: Contains sessions/auth tokens - NO ACCESS
 -- SYNAPSE: Contains private messages - NO ACCESS
 -- OPENWEBUI: May contain conversation history - NO ACCESS
--- SOGO: Contains emails - NO ACCESS
 
 -- Revoke all access to sensitive databases
 \c vaultwarden
@@ -164,5 +163,3 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM agent_observer;
 \c openwebui
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM agent_observer;
 
-\c sogo
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM agent_observer;

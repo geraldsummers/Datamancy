@@ -15,7 +15,6 @@ OPENWEBUI_DB_PASSWORD="${OPENWEBUI_DB_PASSWORD:?ERROR: OPENWEBUI_DB_PASSWORD not
 MASTODON_DB_PASSWORD="${MASTODON_DB_PASSWORD:?ERROR: MASTODON_DB_PASSWORD not set}"
 FORGEJO_DB_PASSWORD="${FORGEJO_DB_PASSWORD:?ERROR: FORGEJO_DB_PASSWORD not set}"
 HOMEASSISTANT_DB_PASSWORD="${HOMEASSISTANT_DB_PASSWORD:-}"  # Optional - HA may use SQLite
-SOGO_DB_PASSWORD="${SOGO_DB_PASSWORD:?ERROR: SOGO_DB_PASSWORD not set}"
 ROUNDCUBE_DB_PASSWORD="${ROUNDCUBE_DB_PASSWORD:?ERROR: ROUNDCUBE_DB_PASSWORD not set}"
 AGENT_POSTGRES_OBSERVER_PASSWORD="${AGENT_POSTGRES_OBSERVER_PASSWORD:?ERROR: AGENT_POSTGRES_OBSERVER_PASSWORD not set}"
 DATAMANCY_SERVICE_PASSWORD="${DATAMANCY_SERVICE_PASSWORD:?ERROR: DATAMANCY_SERVICE_PASSWORD not set}"
@@ -76,12 +75,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             ALTER USER forgejo WITH PASSWORD \$pwd\$$FORGEJO_DB_PASSWORD\$pwd\$;
         END IF;
 
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'sogo') THEN
-            CREATE USER sogo WITH PASSWORD \$pwd\$$SOGO_DB_PASSWORD\$pwd\$;
-        ELSE
-            ALTER USER sogo WITH PASSWORD \$pwd\$$SOGO_DB_PASSWORD\$pwd\$;
-        END IF;
-
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'roundcube') THEN
             CREATE USER roundcube WITH PASSWORD \$pwd\$$ROUNDCUBE_DB_PASSWORD\$pwd\$;
         ELSE
@@ -132,9 +125,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE forgejo OWNER forgejo'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'forgejo')\gexec
 
-    SELECT 'CREATE DATABASE sogo OWNER sogo'
-    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sogo')\gexec
-
     SELECT 'CREATE DATABASE roundcube OWNER roundcube'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'roundcube')\gexec
 
@@ -155,7 +145,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE openwebui TO openwebui;
     GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
     GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
-    GRANT ALL PRIVILEGES ON DATABASE sogo TO sogo;
     GRANT ALL PRIVILEGES ON DATABASE roundcube TO roundcube;
     GRANT ALL PRIVILEGES ON DATABASE datamancy TO datamancer;
     GRANT ALL PRIVILEGES ON DATABASE homeassistant TO $POSTGRES_USER;
@@ -170,7 +159,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     -- authelia: auth sessions/tokens
     -- synapse: private messages
     -- openwebui: conversation history
-    -- sogo: emails
 EOSQL
 
 # Grant Home Assistant privileges if database was created
@@ -189,7 +177,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "vaultwarden" -c "G
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRANT ALL ON SCHEMA public TO openwebui;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT ALL ON SCHEMA public TO forgejo;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" -c "GRANT ALL ON SCHEMA public TO sogo;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "roundcube" -c "GRANT ALL ON SCHEMA public TO roundcube;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT ALL ON SCHEMA public TO datamancer;"
 
@@ -228,122 +215,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQ
 EOSQL
 
 echo "Datamancy database tables initialized successfully"
-
-# Initialize SOGo database tables (required for user preferences and settings)
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" <<-EOSQL
-    -- Create main user preferences table
-    CREATE TABLE IF NOT EXISTS sogo (
-        c_uid VARCHAR(256) PRIMARY KEY,
-        c_defaults TEXT,
-        c_settings TEXT
-    );
-
-    -- Grant ownership to sogo user
-    ALTER TABLE sogo OWNER TO sogo;
-
-    -- Create additional SOGo tables for calendar/contacts
-    CREATE TABLE IF NOT EXISTS sogo_folder_info (
-        c_folder_id SERIAL PRIMARY KEY,
-        c_path VARCHAR(255) NOT NULL,
-        c_path1 VARCHAR(255) NOT NULL,
-        c_path2 VARCHAR(255),
-        c_path3 VARCHAR(255),
-        c_path4 VARCHAR(255),
-        c_foldername VARCHAR(255) NOT NULL,
-        c_location VARCHAR(2048) NOT NULL,
-        c_quick_location VARCHAR(2048),
-        c_acl_location VARCHAR(2048),
-        c_folder_type VARCHAR(255) NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS sogo_sessions_folder (
-        c_id VARCHAR(255) PRIMARY KEY,
-        c_value VARCHAR(255) NOT NULL,
-        c_creationdate INT NOT NULL,
-        c_lastseen INT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS sogo_alarms_folder (
-        c_path VARCHAR(255) NOT NULL,
-        c_name VARCHAR(255) NOT NULL,
-        c_uid VARCHAR(255) NOT NULL,
-        c_recurrence_id INT,
-        c_alarm_number INT NOT NULL,
-        c_alarm_date INT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS sogo_store (
-        c_folder_id INT NOT NULL,
-        c_name VARCHAR(255) NOT NULL,
-        c_content TEXT NOT NULL,
-        c_creationdate INT NOT NULL,
-        c_lastmodified INT NOT NULL,
-        c_version INT NOT NULL DEFAULT 0,
-        c_deleted INT,
-        PRIMARY KEY (c_folder_id, c_name)
-    );
-
-    CREATE TABLE IF NOT EXISTS sogo_quick_contact (
-        c_folder_id INT NOT NULL,
-        c_name VARCHAR(255) NOT NULL,
-        c_givenname VARCHAR(255),
-        c_cn VARCHAR(255),
-        c_sn VARCHAR(255),
-        c_screenname VARCHAR(255),
-        c_l VARCHAR(255),
-        c_mail VARCHAR(255),
-        c_o VARCHAR(255),
-        c_ou VARCHAR(255),
-        c_telephonenumber VARCHAR(255),
-        PRIMARY KEY (c_folder_id, c_name)
-    );
-
-    CREATE TABLE IF NOT EXISTS sogo_quick_appointment (
-        c_folder_id INT NOT NULL,
-        c_name VARCHAR(255) NOT NULL,
-        c_uid VARCHAR(255) NOT NULL,
-        c_startdate INT,
-        c_enddate INT,
-        c_cycleenddate INT,
-        c_title VARCHAR(1000),
-        c_participants TEXT,
-        c_isallday INT,
-        c_iscycle INT,
-        c_cycleinfo TEXT,
-        c_classification INT,
-        c_isopaque INT,
-        c_status INT,
-        c_priority INT,
-        c_location VARCHAR(255),
-        c_orgmail VARCHAR(255),
-        c_partmails TEXT,
-        c_partstates TEXT,
-        c_category VARCHAR(255),
-        c_sequence INT,
-        c_component VARCHAR(10),
-        c_nextalarm INT,
-        c_description TEXT,
-        PRIMARY KEY (c_folder_id, c_name)
-    );
-
-    -- Grant ownership of all tables to sogo user
-    ALTER TABLE sogo_folder_info OWNER TO sogo;
-    ALTER TABLE sogo_sessions_folder OWNER TO sogo;
-    ALTER TABLE sogo_alarms_folder OWNER TO sogo;
-    ALTER TABLE sogo_store OWNER TO sogo;
-    ALTER TABLE sogo_quick_contact OWNER TO sogo;
-    ALTER TABLE sogo_quick_appointment OWNER TO sogo;
-
-    -- Create indexes for performance
-    CREATE INDEX IF NOT EXISTS sogo_folder_info_path_idx ON sogo_folder_info(c_path);
-    CREATE INDEX IF NOT EXISTS sogo_sessions_folder_lastseen_idx ON sogo_sessions_folder(c_lastseen);
-    CREATE INDEX IF NOT EXISTS sogo_alarms_folder_alarm_date_idx ON sogo_alarms_folder(c_alarm_date);
-    CREATE INDEX IF NOT EXISTS sogo_store_folder_id_idx ON sogo_store(c_folder_id);
-    CREATE INDEX IF NOT EXISTS sogo_quick_appointment_startdate_idx ON sogo_quick_appointment(c_startdate);
-    CREATE INDEX IF NOT EXISTS sogo_quick_appointment_enddate_idx ON sogo_quick_appointment(c_enddate);
-EOSQL
-
-echo "SOGo database tables initialized successfully"
 
 # Create agent_observer schema in safe databases for public views
 # These schemas will hold views that expose only public/non-sensitive data

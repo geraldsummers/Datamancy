@@ -1,6 +1,0 @@
-target_collection: yahoo_finance
-required_env:
-  - YAHOO_FINANCE_ALLOWED
-notes:
-  - Use official news RSS and company profile endpoints only (respect ToS)
-  - Build summaries, embed (via LiteLLM), upsert to Qdrant with ticker metadata

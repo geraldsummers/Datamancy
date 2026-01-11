@@ -140,14 +140,14 @@ core:
       - litellm           # litellm
       - ai                # vllm-router
       - ai-gateway        # agent-tool-server, datamancy services
-      - mailserver        # roundcube, sogo
+      - mailserver        # roundcube
       - memcached         # seafile
       - matrix-internal   # synapse, element
       - mastodon-internal # mastodon-web
       - monitoring        # kopia
     environment:
       DOMAIN: "${DOMAIN}"
-      STACK_ADMIN_EMAIL: "${STACK_ADMIN_EMAIL}"
+      STACK_ADMIN_EMAIL: "${STACK_ADMIN_EMAIL}"q
       API_LITELLM_ALLOWLIST: "${API_LITELLM_ALLOWLIST}"
       MAIL_DOMAIN: "${MAIL_DOMAIN}"
     volumes:
@@ -255,7 +255,6 @@ core:
       BOOKSTACK_OAUTH_SECRET: "${BOOKSTACK_OAUTH_SECRET}"
       FORGEJO_OAUTH_SECRET: "${FORGEJO_OAUTH_SECRET}"
       MATRIX_OAUTH_SECRET: "${MATRIX_OAUTH_SECRET}"
-      SOGO_OAUTH_SECRET: "${SOGO_OAUTH_SECRET}"
     volumes:
       - ${VOLUMES_ROOT}/authelia:/config
       - ${DEPLOYMENT_ROOT}/configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
@@ -472,7 +471,6 @@ databases:
       MASTODON_DB_PASSWORD: "${MASTODON_DB_PASSWORD}"
       FORGEJO_DB_PASSWORD: "${FORGEJO_DB_PASSWORD}"
       HOMEASSISTANT_DB_PASSWORD: "${HOMEASSISTANT_DB_PASSWORD}"
-      SOGO_DB_PASSWORD: "${SOGO_DB_PASSWORD}"
       ROUNDCUBE_DB_PASSWORD: "${ROUNDCUBE_DB_PASSWORD}"
       AGENT_POSTGRES_OBSERVER_PASSWORD: "${AGENT_POSTGRES_OBSERVER_PASSWORD}"
       DATAMANCY_SERVICE_PASSWORD: "${DATAMANCY_SERVICE_PASSWORD}"
@@ -518,7 +516,6 @@ databases:
       MASTODON_DB_PASSWORD: "${MASTODON_DB_PASSWORD}"
       FORGEJO_DB_PASSWORD: "${FORGEJO_DB_PASSWORD}"
       HOMEASSISTANT_DB_PASSWORD: "${HOMEASSISTANT_DB_PASSWORD}"
-      SOGO_DB_PASSWORD: "${SOGO_DB_PASSWORD}"
       ROUNDCUBE_DB_PASSWORD: "${ROUNDCUBE_DB_PASSWORD}"
       AGENT_POSTGRES_OBSERVER_PASSWORD: "${AGENT_POSTGRES_OBSERVER_PASSWORD}"
       DATAMANCY_SERVICE_PASSWORD: "${DATAMANCY_SERVICE_PASSWORD}"
