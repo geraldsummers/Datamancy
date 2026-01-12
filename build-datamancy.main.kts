@@ -115,17 +115,17 @@ val RUNTIME_VARS = setOf(
     "GRAFANA_OAUTH_SECRET", "OPENWEBUI_OAUTH_SECRET", "VAULTWARDEN_ADMIN_TOKEN",
     "VAULTWARDEN_OAUTH_SECRET", "HOMEASSISTANT_OAUTH_SECRET",
     "JUPYTERHUB_OAUTH_SECRET", "JUPYTERHUB_CRYPT_KEY",
-    "MARIADB_SEAFILE_PASSWORD", "SEAFILE_JWT_KEY", "ONLYOFFICE_JWT_SECRET",
+    "MARIADB_SEAFILE_PASSWORD", "SEAFILE_JWT_KEY", "SEAFILE_SECRET_KEY", "SEAFILE_EMAIL_PASSWORD",
+    "ONLYOFFICE_JWT_SECRET", "JELLYFIN_OIDC_SECRET",
     "VOLUMES_ROOT", "DEPLOYMENT_ROOT", "VECTOR_DB_ROOT", "API_LITELLM_ALLOWLIST",
     "DOMAIN", "MAIL_DOMAIN", "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER",
     "AUTHELIA_OIDC_HMAC_SECRET", "AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY",
     "GRAFANA_DB_PASSWORD", "OPENWEBUI_DB_PASSWORD", "OPENWEBUI_DB_PASSWORD_ENCODED",
-    "VAULTWARDEN_SMTP_PASSWORD", "PLANKA_OAUTH_SECRET", "AGENT_POSTGRES_OBSERVER_PASSWORD",
+    "VAULTWARDEN_SMTP_PASSWORD", "AGENT_POSTGRES_OBSERVER_PASSWORD",
     "AGENT_CLICKHOUSE_OBSERVER_PASSWORD", "AGENT_MARIADB_OBSERVER_PASSWORD",
     "AGENT_QDRANT_API_KEY", "DATAMANCY_SERVICE_PASSWORD", "HUGGINGFACEHUB_API_TOKEN",
     "AUTHELIA_DB_PASSWORD", "HOMEASSISTANT_DB_PASSWORD", "CLICKHOUSE_ADMIN_PASSWORD",
-    "NEXTCLOUD_OAUTH_SECRET", "PGADMIN_OAUTH_SECRET",
-    "DIM_OAUTH_SECRET", "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET"
+    "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET"
 )
 
 // ============================================================================
@@ -278,7 +278,7 @@ fun copyComposeFiles(outputDir: File) {
     info("Created merged docker-compose.yml")
 }
 
-fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String) {
+fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, oauthHashes: Map<String, String>) {
     step("Processing config templates")
     val templatesDir = File("configs.templates")
     if (!templatesDir.exists()) {
@@ -312,6 +312,11 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
                 .replace("{{ADMIN_SSHA_PASSWORD}}", generatePasswordHash(adminPassword))
                 .replace("{{USER_SSHA_PASSWORD}}", generatePasswordHash(userPassword))
         } else {
+            // Replace OAuth secret hashes first (before general substitution)
+            oauthHashes.forEach { (varName, hashValue) ->
+                content = content.replace("{{$varName}}", hashValue)
+            }
+
             // Convert {{VAR}} to ${VAR} for runtime vars
             content = content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
                 val varName = match.groupValues[1]
@@ -339,6 +344,20 @@ fun generatePasswordHash(password: String): String {
         .redirectOutput(ProcessBuilder.Redirect.PIPE)
         .start()
     return process.inputStream.bufferedReader().readText().trim()
+}
+
+fun generateAutheliaHash(password: String): String {
+    val process = ProcessBuilder(
+        "docker", "run", "--rm", "authelia/authelia:latest",
+        "authelia", "crypto", "hash", "generate", "argon2", "--password", password
+    )
+        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText()
+    // Extract hash from output like "Digest: $argon2id$..."
+    return output.lines().find { it.startsWith("Digest: ") }?.substringAfter("Digest: ")?.trim()
+        ?: throw RuntimeException("Failed to generate Authelia hash: $output")
 }
 
 fun generateSecret(): String {
@@ -445,7 +464,6 @@ MASTODON_ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${generateSecret()}
 BOOKSTACK_APP_KEY=${generateBookStackAppKey()}
 BOOKSTACK_OAUTH_SECRET=${generateSecret()}
 PLANKA_SECRET_KEY=${generateSecret()}
-PLANKA_OAUTH_SECRET=${generateSecret()}
 FORGEJO_OAUTH_SECRET=${generateSecret()}
 GRAFANA_OAUTH_SECRET=${generateSecret()}
 OPENWEBUI_OAUTH_SECRET=${generateSecret()}
@@ -456,8 +474,13 @@ VAULTWARDEN_SMTP_PASSWORD=${generateSecret()}
 HOMEASSISTANT_OAUTH_SECRET=${generateSecret()}
 JUPYTERHUB_OAUTH_SECRET=${generateSecret()}
 JUPYTERHUB_CRYPT_KEY=${generateSecret()}
+MATRIX_OAUTH_SECRET=${generateSecret()}
+PLANKA_OAUTH_SECRET=${generateSecret()}
 SEAFILE_JWT_KEY=${generateSecret()}
+SEAFILE_SECRET_KEY=${generateSecret()}
+SEAFILE_EMAIL_PASSWORD=${generateSecret()}
 ONLYOFFICE_JWT_SECRET=${generateSecret()}
+JELLYFIN_OIDC_SECRET=${generateSecret()}
 NEXTCLOUD_OAUTH_SECRET=${generateSecret()}
 PGADMIN_OAUTH_SECRET=${generateSecret()}
 DIM_OAUTH_SECRET=${generateSecret()}
@@ -522,11 +545,26 @@ ${CYAN}╔═══════════════════════�
     val adminPassword = generateSecret()
     val userPassword = generateSecret()
 
+    // Generate OAuth secrets and their hashes
+    step("Generating OAuth secret hashes (this may take a minute...)")
+    val oauthSecretNames = listOf(
+        "GRAFANA", "PGADMIN", "OPENWEBUI", "NEXTCLOUD", "DIM",
+        "PLANKA", "HOMEASSISTANT", "JUPYTERHUB", "VAULTWARDEN",
+        "BOOKSTACK", "FORGEJO", "MATRIX"
+    )
+    val oauthHashes = mutableMapOf<String, String>()
+    oauthSecretNames.forEach { name ->
+        val secret = generateSecret()
+        val hash = generateAutheliaHash(secret)
+        oauthHashes["${name}_OAUTH_SECRET_HASH"] = hash
+        info("Generated hash for $name")
+    }
+
     // Build steps
     buildGradleServices(skipGradle)
     buildDockerImages()
     copyComposeFiles(distDir)
-    processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword)
+    processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, oauthHashes)
     generateEnvFile(distDir.resolve(".env"), config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword)
 
     // Copy bootstrap script

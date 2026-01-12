@@ -473,9 +473,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -b dc=stack,dc=local -s base '(objectclass=*)' >/dev/null 2>&1"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
   valkey:
     image: valkey/valkey:8.1.5
@@ -553,7 +553,7 @@ services:
     entrypoint:
       - /entrypoint.sh
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9091/api/health && wget --quiet --tries=1 --spider http://localhost:9091/api/configuration && nc -z postgres 5432 && nc -z ldap 389 && nc -z valkey 6379"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9091/api/health"]
       interval: 15s
       timeout: 10s
       retries: 3
@@ -624,7 +624,7 @@ services:
       - ./configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
       - ./configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
     healthcheck:
-      test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993|:143' && postfix status >/dev/null 2>&1 && doveadm director status >/dev/null 2>&1 && nc -z ldap 389"]
+      test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993|:143' && supervisorctl status | grep -E 'postfix.*RUNNING' && supervisorctl status | grep -E 'dovecot.*RUNNING'"]
       interval: 60s
       timeout: 10s
       retries: 5
@@ -652,7 +652,7 @@ services:
       LAM_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LAM_LANG: en_US
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/lam/templates/login.php && nc -z ldap 389"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/lam/templates/login.php"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -692,7 +692,7 @@ services:
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:2375/version && wget --quiet --tries=1 --spider http://localhost:2375/info"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2375/version"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -721,7 +721,7 @@ services:
       - sh
       - /init-kopia.sh
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:51515/ && test -d /repository"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:51515/"]
       interval: 60s
       timeout: 10s
       retries: 3

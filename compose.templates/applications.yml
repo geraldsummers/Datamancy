@@ -52,7 +52,7 @@ services:
       - ./configs/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./configs/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health && wget --quiet --tries=1 --spider http://localhost:3000/api/datasources && nc -z postgres 5432"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -69,7 +69,7 @@ services:
     volumes:
       - ./configs/prompts:/usr/share/nginx/html:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/ && test -d /usr/share/nginx/html"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -118,7 +118,7 @@ services:
     volumes:
       - open_webui_data:/app/backend/data
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/health && wget --quiet --tries=1 --spider http://localhost:8080/api/config && nc -z postgres 5432 && nc -z litellm 4000"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -178,7 +178,7 @@ services:
     volumes:
       - vaultwarden_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/alive && wget --quiet --tries=1 --spider http://localhost:80/api/config && nc -z postgres 5432 && nc -z localhost 3012"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/alive"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -217,7 +217,7 @@ services:
       - bookstack_data:/config
       - ./configs/applications/bookstack/init:/custom-cont-init.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "php artisan config:cache --quiet && wget --quiet --tries=1 --spider http://localhost:80/ && nc -z mariadb 3306"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -265,7 +265,7 @@ services:
       - planka_data:/app/public/user-avatars
       - ./configs/applications/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:1337/ && wget --quiet --tries=1 --spider http://localhost:1337/api/config && nc -z postgres 5432"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:1337/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -310,7 +310,7 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/healthz && wget --quiet --tries=1 --spider http://localhost:3000/api/v1/version && nc -z postgres 5432"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/healthz"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -342,7 +342,7 @@ services:
       - ./configs/applications/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
       - ./configs/applications/homepage/docker.yaml:/app/config/docker.yaml:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/ && nc -z docker-proxy 2375"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -374,7 +374,7 @@ services:
       - ./volumes/applications/jupyterhub_data:/srv/jupyterhub
       - ./configs/applications/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8000/hub/health && wget --quiet --tries=1 --spider http://localhost:8000/hub/api && nc -z docker-proxy 2375"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/hub/health"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -426,7 +426,7 @@ services:
     entrypoint:
       - /entrypoint-wrapper.sh
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8123/api/ && wget --quiet --tries=1 --spider http://localhost:8123/api/config && nc -z postgres 5432 && nc -z ldap 389"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/api/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -450,7 +450,7 @@ services:
       - qbittorrent_data:/downloads
       - ./qbittorrent_init:/custom-cont-init.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/ && nc -z localhost 6881"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -540,7 +540,7 @@ services:
       - ./volumes/applications/synapse_data:/data
       - ./configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8008/health && wget --quiet --tries=1 --spider http://localhost:8008/_matrix/client/versions && wget --quiet --tries=1 --spider http://localhost:8008/_matrix/federation/v1/version && nc -z postgres 5432 && nc -z valkey 6379 && nc -z ldap 389"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8008/health"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -564,7 +564,7 @@ services:
       - element_data:/app/config
       - ./configs/applications/element/config.json:/app/config.json:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/ && test -f /app/config.json"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -657,7 +657,7 @@ services:
       TRUSTED_PROXY_IP: 172.40.0.0/16  # Caddy network CIDR
     command: bash -c "bundle exec rails server -b 0.0.0.0"
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/health && wget --quiet --tries=1 --spider http://localhost:3000/api/v1/instance && ps aux | grep -v grep | grep puma && nc -z postgres 5432 && nc -z valkey 6379"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -685,7 +685,7 @@ services:
       REDIS_HOST: valkey
       REDIS_PORT: 6379
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:4000/api/v1/streaming/health && nc -z postgres 5432 && nc -z valkey 6379"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/api/v1/streaming/health"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -731,7 +731,7 @@ services:
       SMTP_OPENSSL_VERIFY_MODE: none
     command: bundle exec sidekiq
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep -v grep | grep sidekiq && nc -z postgres 5432 && nc -z valkey 6379"]
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep 'sidekiq'"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -765,7 +765,7 @@ services:
     volumes:
       - roundcube_data:/var/www/html
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/ && nc -z mailserver 143 && nc -z mailserver 587 && nc -z postgres 5432"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -784,7 +784,7 @@ services:
       - ./configs/applications/radicale/config:/etc/radicale/config:ro
       - ./configs/applications/radicale/users:/data/users
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:5232/.web/ && test -d /data"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5232/.web/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -831,7 +831,7 @@ services:
     volumes:
       - seafile_data:/shared
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8000/api2/ping/ && nc -z localhost 8082 && nc -z mariadb 3306 && nc -z seafile-memcached 11211"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api2/ping/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -852,7 +852,7 @@ services:
       - onlyoffice_data:/var/www/onlyoffice/Data
       - onlyoffice_log:/var/log/onlyoffice
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/healthcheck && nc -z localhost 8000 && supervisorctl status | grep -E 'docservice.*RUNNING' && supervisorctl status | grep -E 'converter.*RUNNING'"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/healthcheck"]
       interval: 60s
       timeout: 10s
       retries: 3

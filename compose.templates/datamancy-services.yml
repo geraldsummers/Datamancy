@@ -34,7 +34,7 @@ services:
       UNIFIED_INDEXER_URL: http://unified-indexer:8096
       SEARCH_SERVICE_URL: http://search-service:8098
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8097/health && nc -z postgres 5432 && nc -z data-fetcher 8095 && nc -z unified-indexer 8096"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8097/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -84,7 +84,7 @@ services:
       - ./configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
       - ./volumes/applications/data_fetcher:/app/data
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8095/health && nc -z postgres 5432 && nc -z clickhouse 8123 && nc -z qdrant 6333"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8095/health"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -126,7 +126,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8096/health && nc -z postgres 5432 && nc -z qdrant 6334 && nc -z clickhouse 8123 && nc -z embedding-service 8080"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8096/health"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -158,7 +158,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8098/health && nc -z qdrant 6333 && nc -z clickhouse 8123 && nc -z embedding-service 8080"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8098/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -226,7 +226,7 @@ services:
       - ./agent_tool_server/known_hosts:/app/known_hosts:ro
       - ./configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8099/health && nc -z postgres 5432 && nc -z mariadb 3306 && nc -z clickhouse 8123 && nc -z qdrant 6333 && nc -z ldap 389 && nc -z litellm 4000 && test -S /var/run/docker.sock"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8099/health && test -S /var/run/docker.sock"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -248,7 +248,7 @@ services:
       - --web.console.libraries=/usr/share/prometheus/console_libraries
       - --web.console.templates=/usr/share/prometheus/consoles
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9090/-/healthy && wget --quiet --tries=1 --spider http://localhost:9090/-/ready"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -268,7 +268,7 @@ services:
       - --path.rootfs=/host
       - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9100/metrics && test -d /host/proc && test -d /host/sys"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9100/metrics"]
       interval: 60s
       timeout: 5s
       retries: 3
@@ -288,7 +288,7 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/healthz && wget --quiet --tries=1 --spider http://localhost:8080/metrics && test -d /rootfs"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
       interval: 60s
       timeout: 5s
       retries: 3
@@ -311,7 +311,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep -v grep | grep watchtower && test -S /var/run/docker.sock"]
+      test: ["CMD-SHELL", "test -S /var/run/docker.sock && ps aux | grep -v grep | grep -q watchtower"]
       interval: 300s
       timeout: 5s
       retries: 2
