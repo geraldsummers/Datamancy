@@ -81,6 +81,15 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             ALTER USER roundcube WITH PASSWORD \$pwd\$$ROUNDCUBE_DB_PASSWORD\$pwd\$;
         END IF;
 
+        -- Create homeassistant user if password is set (HA may use SQLite instead)
+        IF LENGTH('$HOMEASSISTANT_DB_PASSWORD') > 0 THEN
+            IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'homeassistant') THEN
+                CREATE USER homeassistant WITH PASSWORD \$pwd\$$HOMEASSISTANT_DB_PASSWORD\$pwd\$;
+            ELSE
+                ALTER USER homeassistant WITH PASSWORD \$pwd\$$HOMEASSISTANT_DB_PASSWORD\$pwd\$;
+            END IF;
+        END IF;
+
         -- Shadow agent accounts are created per-user via scripts/security/create-shadow-agent-account.main.kts
         -- No global agent_observer account (security: per-user shadow accounts for traceability)
         -- Each user gets: {username}-agent role with read-only access to agent_observer schema
@@ -131,7 +140,17 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE datamancy OWNER datamancer'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'datamancy')\gexec
 
-    SELECT 'CREATE DATABASE homeassistant OWNER $POSTGRES_USER'
+    -- Create sysadmin database for monitoring/admin tools
+    SELECT 'CREATE DATABASE sysadmin OWNER $POSTGRES_USER'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sysadmin')\gexec
+
+    -- Create homeassistant database with correct owner
+    SELECT CASE
+        WHEN LENGTH('$HOMEASSISTANT_DB_PASSWORD') > 0 THEN
+            'CREATE DATABASE homeassistant OWNER homeassistant'
+        ELSE
+            'CREATE DATABASE homeassistant OWNER $POSTGRES_USER'
+        END
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'homeassistant')\gexec
 
     -- Grant privileges (these are idempotent)
@@ -147,7 +166,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
     GRANT ALL PRIVILEGES ON DATABASE roundcube TO roundcube;
     GRANT ALL PRIVILEGES ON DATABASE datamancy TO datamancer;
-    GRANT ALL PRIVILEGES ON DATABASE homeassistant TO $POSTGRES_USER;
 
     -- Shadow agent accounts are granted CONNECT via scripts/security/provision-shadow-database-access.sh
     -- Each {username}-agent gets CONNECT on safe databases only (grafana, planka, mastodon, forgejo)
@@ -161,9 +179,11 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     -- openwebui: conversation history
 EOSQL
 
-# Grant Home Assistant privileges if database was created
+# Grant Home Assistant schema privileges
 if [ -n "$HOMEASSISTANT_DB_PASSWORD" ]; then
-    PGPASSWORD="$POSTGRES_ROOT_PASSWORD" psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO $POSTGRES_USER;"
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO homeassistant;"
+else
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO $POSTGRES_USER;"
 fi
 
 # Grant schema privileges (PostgreSQL 15+)
@@ -185,19 +205,25 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQ
     -- Data-fetcher tables for deduplication and fetch tracking
     CREATE TABLE IF NOT EXISTS dedupe_records (
         id SERIAL PRIMARY KEY,
-        content_hash VARCHAR(64) UNIQUE NOT NULL,
+        source VARCHAR(255) NOT NULL,
+        item_id VARCHAR(500) NOT NULL,
+        content_hash VARCHAR(64) NOT NULL,
         first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        source VARCHAR(255),
-        fetch_type VARCHAR(100)
+        last_seen_run_id VARCHAR(100),
+        fetch_type VARCHAR(100),
+        UNIQUE(source, item_id)
     );
 
     CREATE TABLE IF NOT EXISTS fetch_history (
         id SERIAL PRIMARY KEY,
         source VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        item_count INTEGER,
+        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        metadata TEXT,
         fetch_type VARCHAR(100),
         status VARCHAR(50),
-        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         record_count INTEGER,
         error_message TEXT,
         execution_time_ms INTEGER

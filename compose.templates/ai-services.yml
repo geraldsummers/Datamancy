@@ -46,6 +46,12 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
 
   embedding-service:
     image: ghcr.io/huggingface/text-embeddings-inference:1.8.3
@@ -67,6 +73,12 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
   litellm:
     image: ghcr.io/berriai/litellm:v1.80.8-stable.1
@@ -98,4 +110,10 @@ services:
       - litellm_config:/app/config
       - ./configs/infrastructure/litellm/config.yaml:/app/config.yaml:ro
     command: --config /app/config.yaml --port 4000 --num_workers 4
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 

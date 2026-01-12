@@ -16,25 +16,25 @@ schedules:
     cron: "*/15 * * * *"
     enabled: true
 
-  # Weather data - fetch every hour
+  # Weather data - fetch every hour (requires OPENWEATHER_API_KEY)
   weather:
     cron: "0 * * * *"
-    enabled: true
+    enabled: false
 
-  # Economic indicators - fetch weekly on Monday at 9am
+  # Economic indicators - fetch weekly on Monday at 9am (requires FRED_API_KEY)
   economic_data:
     cron: "0 9 * * 1"
-    enabled: true
+    enabled: false
 
   # Wikipedia dumps - fetch weekly on Sunday at 2am
   wiki_dumps:
     cron: "0 2 * * 0"
     enabled: true
 
-  # Search queries - disabled by default
+  # Search queries (requires SERP_API_KEY)
   search:
     cron: "0 */6 * * *"  # Every 6 hours
-    enabled: true
+    enabled: false
 
   # Legal documents - daily at 3am
   legal_docs:

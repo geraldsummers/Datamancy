@@ -51,6 +51,12 @@ services:
       - grafana_data:/var/lib/grafana
       - ./configs/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./configs/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   prompt-server:
     image: nginx:alpine
@@ -62,6 +68,12 @@ services:
           - prompts.${DOMAIN}
     volumes:
       - ./configs/prompts:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:0.4.6
@@ -105,6 +117,12 @@ services:
       WEBUI_AUTH: false
     volumes:
       - open_webui_data:/app/backend/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   vaultwarden:
     image: vaultwarden/server:testing
@@ -159,6 +177,12 @@ services:
       SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD}
     volumes:
       - vaultwarden_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/alive"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   bookstack:
     image: lscr.io/linuxserver/bookstack:version-v24.12.1
@@ -192,6 +216,12 @@ services:
     volumes:
       - bookstack_data:/config
       - ./configs/applications/bookstack/init:/custom-cont-init.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "php artisan config:cache --quiet && exit 0 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
   planka:
     image: ghcr.io/plankanban/planka:1.26.3
@@ -234,6 +264,12 @@ services:
     volumes:
       - planka_data:/app/public/user-avatars
       - ./configs/applications/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:1337/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   forgejo:
     image: codeberg.org/forgejo/forgejo:9.0
@@ -347,6 +383,7 @@ services:
       TZ: UTC
       PUID: ${DOCKER_USER_ID:-1000}
       PGID: ${DOCKER_GROUP_ID:-1000}
+      HOMEASSISTANT_DB_URL: postgresql://homeassistant:${HOMEASSISTANT_DB_PASSWORD}@postgres:5432/homeassistant
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: homeassistant
@@ -667,7 +704,6 @@ services:
       ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 50M
     volumes:
       - roundcube_data:/var/www/html
-      - ./configs/applications/roundcube/config.inc.php:/var/www/html/config/config.inc.php:ro
 
   radicale:
     image: tomsquest/docker-radicale:latest

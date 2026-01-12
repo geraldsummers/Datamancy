@@ -31,7 +31,7 @@ database:
 # Redis for worker coordination
 redis:
   enabled: true
-  host: redis-synapse
+  host: valkey
   port: 6379
 
 # Logging - use console output (Docker logs)

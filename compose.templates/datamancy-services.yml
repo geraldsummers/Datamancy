@@ -33,6 +33,12 @@ services:
       DATA_FETCHER_URL: http://data-fetcher:8095
       UNIFIED_INDEXER_URL: http://unified-indexer:8096
       SEARCH_SERVICE_URL: http://search-service:8098
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8097/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   data-fetcher:
     image: datamancy/data-fetcher:local-build
@@ -77,6 +83,12 @@ services:
       - ./configs/applications/data-fetcher/schedules.yaml:/app/config/schedules.yaml:ro
       - ./configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
       - ./volumes/applications/data_fetcher:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8095/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   unified-indexer:
     image: datamancy/unified-indexer:local-build
@@ -113,6 +125,12 @@ services:
       CLICKHOUSE_USER: ${STACK_ADMIN_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8096/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   search-service:
     image: datamancy/search-service:local-build
@@ -139,6 +157,12 @@ services:
       CLICKHOUSE_USER: ${STACK_ADMIN_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8098/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   agent-tool-server:
     image: datamancy/agent-tool-server:local-build
@@ -201,6 +225,12 @@ services:
       - ./secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
       - ./agent_tool_server/known_hosts:/app/known_hosts:ro
       - ./configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8099/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   prometheus:
     image: prom/prometheus:v3.9.1
@@ -217,6 +247,12 @@ services:
       - --storage.tsdb.retention.time=30d
       - --web.console.libraries=/usr/share/prometheus/console_libraries
       - --web.console.templates=/usr/share/prometheus/consoles
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   node-exporter:
     image: prom/node-exporter:v1.10.2
@@ -231,6 +267,12 @@ services:
     command:
       - --path.rootfs=/host
       - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9100/metrics"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.55.1
@@ -245,6 +287,12 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   watchtower:
     image: containrrr/watchtower:1.7.1
@@ -262,4 +310,10 @@ services:
       TZ: Australia/Sydney
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep watchtower || exit 1"]
+      interval: 300s
+      timeout: 5s
+      retries: 2
+      start_period: 30s
 

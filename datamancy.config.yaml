@@ -34,7 +34,7 @@ storage:
 # ============================================================================
 runtime:
   # Primary domain for the stack (all services will be subdomains of this)
-  domain: "latium.local"
+  domain: "project-saturn.com"
 
   # Admin email for notifications and account creation
   admin_email: "admin@latium.local"

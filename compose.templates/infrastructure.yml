@@ -442,6 +442,12 @@ services:
       - caddy_config:/config
       - ./configs/infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./configs/applications/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2019/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
   ldap:
     image: osixia/openldap:1.5.0
@@ -464,6 +470,12 @@ services:
       - ldap_config:/etc/ldap/slapd.d
       - ./configs/infrastructure/ldap/bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
     command: --copy-service --loglevel info
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -b dc=stack,dc=local -s base '(objectclass=*)' >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   valkey:
     image: valkey/valkey:8.1.5
@@ -540,6 +552,12 @@ services:
       - /config/configuration.yml
     entrypoint:
       - /entrypoint.sh
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9091/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   mailserver:
     image: ghcr.io/docker-mailserver/docker-mailserver:14.0.0
@@ -605,6 +623,12 @@ services:
       - caddy_data:/caddy-certs:ro
       - ./configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
       - ./configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993' || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
 
   ldap-account-manager:
     image: ghcr.io/ldapaccountmanager/lam:9.4
@@ -627,6 +651,12 @@ services:
       LDAP_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LAM_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LAM_LANG: en_US
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/lam/templates/login.php"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   seafile-memcached:
     image: memcached:1.6.40
@@ -634,6 +664,12 @@ services:
     restart: unless-stopped
     networks:
       - memcached
+    healthcheck:
+      test: ["CMD-SHELL", "echo stats | nc localhost 11211 | grep -q uptime"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
   docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.4.2
@@ -655,6 +691,12 @@ services:
       EXEC: 0
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   kopia:
     image: kopia/kopia:0.22.3
@@ -678,4 +720,10 @@ services:
     entrypoint:
       - sh
       - /init-kopia.sh
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:51515/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
