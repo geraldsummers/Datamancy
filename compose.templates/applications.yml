@@ -52,11 +52,11 @@ services:
       - ./configs/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./configs/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health && wget --quiet --tries=1 --spider http://localhost:3000/api/datasources && nc -z postgres 5432"]
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
   prompt-server:
     image: nginx:alpine
@@ -69,7 +69,7 @@ services:
     volumes:
       - ./configs/prompts:/usr/share/nginx/html:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/ && test -d /usr/share/nginx/html"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -118,11 +118,11 @@ services:
     volumes:
       - open_webui_data:/app/backend/data
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/health && wget --quiet --tries=1 --spider http://localhost:8080/api/config && nc -z postgres 5432 && nc -z litellm 4000"]
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 90s
 
   vaultwarden:
     image: vaultwarden/server:testing
@@ -178,11 +178,11 @@ services:
     volumes:
       - vaultwarden_data:/data
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/alive"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/alive && wget --quiet --tries=1 --spider http://localhost:80/api/config && nc -z postgres 5432 && nc -z localhost 3012"]
       interval: 60s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 60s
 
   bookstack:
     image: lscr.io/linuxserver/bookstack:version-v24.12.1
@@ -217,7 +217,7 @@ services:
       - bookstack_data:/config
       - ./configs/applications/bookstack/init:/custom-cont-init.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "php artisan config:cache --quiet && exit 0 || exit 1"]
+      test: ["CMD-SHELL", "php artisan config:cache --quiet && wget --quiet --tries=1 --spider http://localhost:80/ && nc -z mariadb 3306"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -265,11 +265,11 @@ services:
       - planka_data:/app/public/user-avatars
       - ./configs/applications/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:1337/"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:1337/ && wget --quiet --tries=1 --spider http://localhost:1337/api/config && nc -z postgres 5432"]
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
   forgejo:
     image: codeberg.org/forgejo/forgejo:9.0
@@ -309,6 +309,12 @@ services:
       - forgejo_data:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/healthz && wget --quiet --tries=1 --spider http://localhost:3000/api/v1/version && nc -z postgres 5432"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
   homepage:
     image: ghcr.io/gethomepage/homepage:v1.8.0
@@ -335,6 +341,12 @@ services:
       - ./configs/applications/homepage/widgets.yaml:/app/config/widgets.yaml:ro
       - ./configs/applications/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
       - ./configs/applications/homepage/docker.yaml:/app/config/docker.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/ && nc -z docker-proxy 2375"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   jupyterhub:
     image: datamancy-jupyterhub:5.4.3
@@ -361,6 +373,12 @@ services:
     volumes:
       - ./volumes/applications/jupyterhub_data:/srv/jupyterhub
       - ./configs/applications/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8000/hub/health && wget --quiet --tries=1 --spider http://localhost:8000/hub/api && nc -z docker-proxy 2375"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:2026.1.0
@@ -407,6 +425,12 @@ services:
       - ./configs/applications/homeassistant/auth_ldap.py:/usr/src/homeassistant/homeassistant/auth/providers/auth_ldap.py:ro
     entrypoint:
       - /entrypoint-wrapper.sh
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8123/api/ && wget --quiet --tries=1 --spider http://localhost:8123/api/config && nc -z postgres 5432 && nc -z ldap 389"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -425,6 +449,12 @@ services:
       - qbittorrent_config:/config
       - qbittorrent_data:/downloads
       - ./qbittorrent_init:/custom-cont-init.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/ && nc -z localhost 6881"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   synapse-init:
     image: alpine:latest
@@ -509,6 +539,12 @@ services:
     volumes:
       - ./volumes/applications/synapse_data:/data
       - ./configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8008/health && wget --quiet --tries=1 --spider http://localhost:8008/_matrix/client/versions && wget --quiet --tries=1 --spider http://localhost:8008/_matrix/federation/v1/version && nc -z postgres 5432 && nc -z valkey 6379 && nc -z ldap 389"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
   element:
     image: vectorim/element-web:v1.12.7
@@ -527,6 +563,12 @@ services:
     volumes:
       - element_data:/app/config
       - ./configs/applications/element/config.json:/app/config.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/ && test -f /app/config.json"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   mastodon-init:
     image: ghcr.io/mastodon/mastodon:v4.5.4
@@ -614,6 +656,12 @@ services:
       # Trust Caddy proxy for X-Forwarded-* headers
       TRUSTED_PROXY_IP: 172.40.0.0/16  # Caddy network CIDR
     command: bash -c "bundle exec rails server -b 0.0.0.0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/health && wget --quiet --tries=1 --spider http://localhost:3000/api/v1/instance && ps aux | grep -v grep | grep puma && nc -z postgres 5432 && nc -z valkey 6379"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
   mastodon-streaming:
     image: ghcr.io/mastodon/mastodon-streaming:v4.5.4
@@ -636,6 +684,12 @@ services:
       DB_PASS: ${MASTODON_DB_PASSWORD}
       REDIS_HOST: valkey
       REDIS_PORT: 6379
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:4000/api/v1/streaming/health && nc -z postgres 5432 && nc -z valkey 6379"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   mastodon-sidekiq:
     image: ghcr.io/mastodon/mastodon:v4.5.4
@@ -676,6 +730,12 @@ services:
       SMTP_AUTH_METHOD: plain
       SMTP_OPENSSL_VERIFY_MODE: none
     command: bundle exec sidekiq
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep sidekiq && nc -z postgres 5432 && nc -z valkey 6379"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   roundcube:
     image: roundcube/roundcubemail:latest
@@ -704,6 +764,12 @@ services:
       ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 50M
     volumes:
       - roundcube_data:/var/www/html
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/ && nc -z mailserver 143 && nc -z mailserver 587 && nc -z postgres 5432"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   radicale:
     image: tomsquest/docker-radicale:latest
@@ -717,6 +783,12 @@ services:
       - radicale_data:/data
       - ./configs/applications/radicale/config:/etc/radicale/config:ro
       - ./configs/applications/radicale/users:/data/users
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:5232/.web/ && test -d /data"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   seafile:
     image: seafileltd/seafile-mc:13.0.15
@@ -758,6 +830,12 @@ services:
       TIME_ZONE: UTC
     volumes:
       - seafile_data:/shared
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8000/api2/ping/ && nc -z localhost 8082 && nc -z mariadb 3306 && nc -z seafile-memcached 11211"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
 
   onlyoffice:
     image: onlyoffice/documentserver:8.3.3
@@ -773,4 +851,10 @@ services:
     volumes:
       - onlyoffice_data:/var/www/onlyoffice/Data
       - onlyoffice_log:/var/log/onlyoffice
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/healthcheck && nc -z localhost 8000 && supervisorctl status | grep -E 'docservice.*RUNNING' && supervisorctl status | grep -E 'converter.*RUNNING'"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 

@@ -553,11 +553,11 @@ services:
     entrypoint:
       - /entrypoint.sh
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9091/api/health"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9091/api/health && wget --quiet --tries=1 --spider http://localhost:9091/api/configuration && nc -z postgres 5432 && nc -z ldap 389 && nc -z valkey 6379"]
       interval: 15s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 30s
 
   mailserver:
     image: ghcr.io/docker-mailserver/docker-mailserver:14.0.0
@@ -624,11 +624,11 @@ services:
       - ./configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
       - ./configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
     healthcheck:
-      test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993' || exit 1"]
+      test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993|:143' && postfix status >/dev/null 2>&1 && doveadm director status >/dev/null 2>&1 && nc -z ldap 389"]
       interval: 60s
-      timeout: 5s
+      timeout: 10s
       retries: 5
-      start_period: 120s
+      start_period: 180s
 
   ldap-account-manager:
     image: ghcr.io/ldapaccountmanager/lam:9.4
@@ -652,7 +652,7 @@ services:
       LAM_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LAM_LANG: en_US
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/lam/templates/login.php"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:80/lam/templates/login.php && nc -z ldap 389"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -692,7 +692,7 @@ services:
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2375/version"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:2375/version && wget --quiet --tries=1 --spider http://localhost:2375/info"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -721,7 +721,7 @@ services:
       - sh
       - /init-kopia.sh
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:51515/"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:51515/ && test -d /repository"]
       interval: 60s
       timeout: 10s
       retries: 3

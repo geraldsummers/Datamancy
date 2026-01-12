@@ -31,11 +31,11 @@ services:
       - ./configs/databases/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     command: postgres -c 'max_connections=300' -c 'shared_buffers=1GB'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${STACK_ADMIN_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${STACK_ADMIN_USER} && psql -U ${STACK_ADMIN_USER} -d postgres -c 'SELECT 1' >/dev/null 2>&1 && test $(psql -U ${STACK_ADMIN_USER} -d postgres -tAc 'SELECT count(*) FROM pg_stat_activity') -lt 290"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -83,7 +83,14 @@ services:
         echo "Running idempotent database initialization..."
         export POSTGRES_USER=${STACK_ADMIN_USER}
         /init-db.sh
+        touch /tmp/init_complete
         echo "Database initialization complete"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/init_complete"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
         
 
   mariadb:
@@ -105,7 +112,7 @@ services:
       - ./configs/databases/mariadb/init-wrapper.sh:/docker-entrypoint-initdb.d/01-init-wrapper.sh:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized && mariadb -u root -p${MYSQL_ROOT_PASSWORD} --ssl=0 -e 'SELECT 1' >/dev/null 2>&1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -137,7 +144,14 @@ services:
         done
         echo "Running idempotent database initialization..."
         /init-db.sh
+        touch /tmp/init_complete
         echo "Database initialization complete"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/init_complete"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
         
 
   clickhouse:
@@ -154,7 +168,7 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - ./configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8123/ping && wget --quiet --tries=1 --spider 'http://localhost:8123/?query=SELECT%201'"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -176,7 +190,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:6333/health || exit 1"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:6333/health && wget --quiet --tries=1 --spider http://localhost:6333/readyz && nc -z localhost 6334"]
       interval: 30s
       timeout: 5s
       retries: 3

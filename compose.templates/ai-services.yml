@@ -47,11 +47,11 @@ services:
               count: 1
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8000/health && wget --quiet --tries=1 --spider http://localhost:8000/v1/models"]
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 180s
+      start_period: 300s
 
   embedding-service:
     image: ghcr.io/huggingface/text-embeddings-inference:1.8.3
@@ -74,7 +74,7 @@ services:
               count: 1
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/health && wget --quiet --tries=1 --spider http://localhost:8080/info"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -111,9 +111,9 @@ services:
       - ./configs/infrastructure/litellm/config.yaml:/app/config.yaml:ro
     command: --config /app/config.yaml --port 4000 --num_workers 4
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/health"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:4000/health && wget --quiet --tries=1 --spider http://localhost:4000/models && nc -z vllm-7b 8000 && nc -z embedding-service 8080"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
