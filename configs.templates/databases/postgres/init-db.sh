@@ -187,6 +187,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQ
         id SERIAL PRIMARY KEY,
         content_hash VARCHAR(64) UNIQUE NOT NULL,
         first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         source VARCHAR(255),
         fetch_type VARCHAR(100)
     );
@@ -218,11 +219,15 @@ echo "Datamancy database tables initialized successfully"
 
 # Create agent_observer schema in safe databases for public views
 # These schemas will hold views that expose only public/non-sensitive data
+# Note: No global agent_observer role - per-user shadow accounts are created on-demand
 for db in grafana planka mastodon forgejo; do
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" <<-EOSQL
         -- Create dedicated schema for observer views
         CREATE SCHEMA IF NOT EXISTS agent_observer;
-        GRANT USAGE ON SCHEMA agent_observer TO agent_observer;
+
+        -- GRANT removed: No global agent_observer role (intentional design)
+        -- Per-user shadow accounts (e.g., {username}-agent) will be granted access
+        -- when created by the agent provisioning system
 
         -- NOTE: Individual views must be created by running create-observer-views.sql
         -- after applications have initialized their schemas

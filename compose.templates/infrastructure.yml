@@ -474,6 +474,12 @@ services:
     volumes:
       - redis_data:/data
     command: valkey-server --appendonly yes --dir /data --databases 16
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   authelia:
     image: authelia/authelia:4.39.15

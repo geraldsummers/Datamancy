@@ -21,16 +21,35 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 0
 fi
 
-# Source database credentials from .env
-DB_HOST=$(grep "^DB_HOST=" "$ENV_FILE" | cut -d'=' -f2)
-DB_DATABASE=$(grep "^DB_DATABASE=" "$ENV_FILE" | cut -d'=' -f2)
-DB_USERNAME=$(grep "^DB_USERNAME=" "$ENV_FILE" | cut -d'=' -f2)
-DB_PASSWORD=$(grep "^DB_PASSWORD=" "$ENV_FILE" | cut -d'=' -f2)
+# Get database credentials from environment variables (passed by docker-compose)
+# These are already set by the container and are more reliable than parsing .env files
+# which may not be synced yet during init
+if [ -z "$DB_HOST" ]; then
+    DB_HOST=$(grep "^DB_HOST=" "$ENV_FILE" | cut -d'=' -f2)
+fi
+if [ -z "$DB_DATABASE" ]; then
+    DB_DATABASE=$(grep "^DB_DATABASE=" "$ENV_FILE" | cut -d'=' -f2)
+fi
+if [ -z "$DB_USER" ]; then
+    DB_USERNAME=$(grep "^DB_USERNAME=" "$ENV_FILE" | cut -d'=' -f2)
+else
+    DB_USERNAME="$DB_USER"
+fi
+if [ -z "$DB_PASS" ]; then
+    DB_PASSWORD=$(grep "^DB_PASSWORD=" "$ENV_FILE" | cut -d'=' -f2)
+else
+    DB_PASSWORD="$DB_PASS"
+fi
 
 if [ -z "$DB_HOST" ] || [ -z "$DB_DATABASE" ] || [ -z "$DB_USERNAME" ] || [ -z "$DB_PASSWORD" ]; then
-    echo "ERROR: Could not extract database credentials from .env"
+    echo "ERROR: Could not extract database credentials from environment or .env"
     exit 0
 fi
+
+echo "Database configuration:"
+echo "  Host: $DB_HOST"
+echo "  Database: $DB_DATABASE"
+echo "  User: $DB_USERNAME"
 
 # Wait for database to be ready
 echo "Waiting for database connection..."

@@ -81,7 +81,8 @@ oidc_providers:
     idp_name: "Authelia SSO"
     idp_brand: "authelia"
     discover: true
-    issuer: "https://auth.{{DOMAIN}}"
+    skip_verification: true  # Required for HTTP issuer in internal Docker networking
+    issuer: "http://authelia:9091"
     client_id: "matrix"
     client_secret: "{{MATRIX_OAUTH_SECRET}}"
     client_auth_method: "client_secret_post"

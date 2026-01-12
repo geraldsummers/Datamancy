@@ -434,6 +434,10 @@ services:
         aliases:
           - matrix.${DOMAIN}
           - api.matrix.${DOMAIN}
+      authelia:
+        aliases:
+          - matrix.${DOMAIN}
+          - api.matrix.${DOMAIN}
     depends_on:
       postgres:
         condition: service_started
@@ -538,9 +542,9 @@ services:
       mastodon-init:
         condition: service_completed_successfully
       postgres:
-        condition: service_started
+        condition: service_healthy
       valkey:
-        condition: service_started
+        condition: service_healthy
     environment:
       LOCAL_DOMAIN: ${DOMAIN}
       WEB_DOMAIN: mastodon.${DOMAIN}
@@ -567,6 +571,11 @@ services:
       STREAMING_API_BASE_URL: wss://mastodon.${DOMAIN}
       WEB_CONCURRENCY: 2
       MAX_THREADS: 5
+      # Rails configuration
+      RAILS_MAX_THREADS: 5
+      DB_POOL: 10  # Should be >= MAX_THREADS for connection pooling
+      # Trust Caddy proxy for X-Forwarded-* headers
+      TRUSTED_PROXY_IP: 172.40.0.0/16  # Caddy network CIDR
     command: bash -c "bundle exec rails server -b 0.0.0.0"
 
   mastodon-streaming:
@@ -603,9 +612,9 @@ services:
       mastodon-init:
         condition: service_completed_successfully
       postgres:
-        condition: service_started
+        condition: service_healthy
       valkey:
-        condition: service_started
+        condition: service_healthy
     environment:
       LOCAL_DOMAIN: ${DOMAIN}
       WEB_DOMAIN: mastodon.${DOMAIN}

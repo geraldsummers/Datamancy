@@ -33,7 +33,13 @@ lam.{$DOMAIN} {
             uri /api/authz/forward-auth
             copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
         }
-        reverse_proxy ldap-account-manager:80
+        reverse_proxy ldap-account-manager:80 {
+            # Prevent timeout on slow responses
+            transport http {
+                dial_timeout 5s
+                response_header_timeout 30s
+            }
+        }
     }
 }
 
@@ -223,7 +229,18 @@ element.{$DOMAIN} {
 # Mastodon (web)
 # With OMNIAUTH_ONLY=true, Mastodon auto-redirects unauthenticated users to OIDC
 mastodon.{$DOMAIN} {
-    reverse_proxy mastodon-web:3000
+    reverse_proxy mastodon-web:3000 {
+        # Prevent timeout on slow initial requests
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 30s
+        }
+
+        # Ensure proper headers for Rails HostAuthorization
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        header_up X-Real-IP {remote_host}
+    }
 }
 
 # Homepage

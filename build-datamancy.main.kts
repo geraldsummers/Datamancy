@@ -278,7 +278,7 @@ fun copyComposeFiles(outputDir: File) {
     info("Created merged docker-compose.yml")
 }
 
-fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUser: String) {
+fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String) {
     step("Processing config templates")
     val templatesDir = File("configs.templates")
     if (!templatesDir.exists()) {
@@ -308,11 +308,9 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
 
         // Special handling for LDAP bootstrap
         if (relativePath.contains("ldap/bootstrap_ldap.ldif")) {
-            val adminPwd = System.getenv("STACK_ADMIN_PASSWORD") ?: "changeme"
-            val userPwd = System.getenv("STACK_USER_PASSWORD") ?: adminPwd
             content = content
-                .replace("{{ADMIN_SSHA_PASSWORD}}", generatePasswordHash(adminPwd))
-                .replace("{{USER_SSHA_PASSWORD}}", generatePasswordHash(userPwd))
+                .replace("{{ADMIN_SSHA_PASSWORD}}", generatePasswordHash(adminPassword))
+                .replace("{{USER_SSHA_PASSWORD}}", generatePasswordHash(userPassword))
         } else {
             // Convert {{VAR}} to ${VAR} for runtime vars
             content = content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
@@ -335,8 +333,8 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
 
 fun generatePasswordHash(password: String): String {
     val process = ProcessBuilder(
-        "docker", "run", "--rm", "osixia/openldap:1.5.0",
-        "slappasswd", "-s", password
+        "docker", "run", "--rm", "--entrypoint", "/usr/sbin/slappasswd",
+        "osixia/openldap:1.5.0", "-s", password
     )
         .redirectOutput(ProcessBuilder.Redirect.PIPE)
         .start()
@@ -350,6 +348,16 @@ fun generateSecret(): String {
     return process.inputStream.bufferedReader().readText().trim()
 }
 
+fun generateBookStackAppKey(): String {
+    // BookStack (Laravel) requires base64-encoded 32-byte key
+    // Generate 32 random bytes, encode as base64, and prefix with "base64:"
+    val process = ProcessBuilder("openssl", "rand", "-base64", "32")
+        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .start()
+    val base64Key = process.inputStream.bufferedReader().readText().trim()
+    return "base64:$base64Key"
+}
+
 fun generateRSAKey(): String {
     val pem = ProcessBuilder("openssl", "genrsa", "4096")
         .redirectOutput(ProcessBuilder.Redirect.PIPE)
@@ -358,7 +366,7 @@ fun generateRSAKey(): String {
     return java.util.Base64.getEncoder().encodeToString(pem.toByteArray())
 }
 
-fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: String) {
+fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String) {
     step("Generating .env with secrets")
 
     file.writeText("""
@@ -389,8 +397,8 @@ DOCKER_SOCKET=/var/run/docker.sock
 
 # LDAP
 LDAP_ADMIN_PASSWORD=${generateSecret()}
-STACK_ADMIN_PASSWORD=${generateSecret()}
-STACK_USER_PASSWORD=${generateSecret()}
+STACK_ADMIN_PASSWORD=$adminPassword
+STACK_USER_PASSWORD=$userPassword
 AGENT_LDAP_OBSERVER_PASSWORD=${generateSecret()}
 
 # Authentication
@@ -434,7 +442,7 @@ MASTODON_OIDC_SECRET=${generateSecret()}
 MASTODON_ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${generateSecret()}
 MASTODON_ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=${generateSecret()}
 MASTODON_ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${generateSecret()}
-BOOKSTACK_APP_KEY=${generateSecret()}
+BOOKSTACK_APP_KEY=${generateBookStackAppKey()}
 BOOKSTACK_OAUTH_SECRET=${generateSecret()}
 PLANKA_SECRET_KEY=${generateSecret()}
 PLANKA_OAUTH_SECRET=${generateSecret()}
@@ -510,12 +518,27 @@ ${CYAN}╔═══════════════════════�
     }
     distDir.mkdirs()
 
+    // Generate secrets upfront (needed for both LDAP bootstrap and .env)
+    val adminPassword = generateSecret()
+    val userPassword = generateSecret()
+
     // Build steps
     buildGradleServices(skipGradle)
     buildDockerImages()
     copyComposeFiles(distDir)
-    processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user)
-    generateEnvFile(distDir.resolve(".env"), config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user)
+    processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword)
+    generateEnvFile(distDir.resolve(".env"), config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword)
+
+    // Copy bootstrap script
+    val bootstrapScript = File("compose.templates/bootstrap-volumes.sh")
+    if (bootstrapScript.exists()) {
+        step("Copying bootstrap-volumes.sh to dist")
+        bootstrapScript.copyTo(distDir.resolve("bootstrap-volumes.sh"), overwrite = true)
+        distDir.resolve("bootstrap-volumes.sh").setExecutable(true)
+        info("Copied bootstrap-volumes.sh")
+    } else {
+        warn("bootstrap-volumes.sh not found in compose.templates/")
+    }
 
     // Build info
     val version = getGitVersion()
