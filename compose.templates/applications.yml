@@ -35,18 +35,12 @@ services:
       GF_DATABASE_USER: grafana
       GF_DATABASE_PASSWORD: ${GRAFANA_DB_PASSWORD}
       GF_DATABASE_SSL_MODE: disable
-      GF_AUTH_GENERIC_OAUTH_ENABLED: true
-      GF_AUTH_GENERIC_OAUTH_NAME: Authelia
-      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: grafana
-      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: ${GRAFANA_OAUTH_SECRET}
-      GF_AUTH_GENERIC_OAUTH_SCOPES: openid profile email groups
-      GF_AUTH_GENERIC_OAUTH_AUTH_URL: https://auth.${DOMAIN}/api/oidc/authorization
-      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: http://authelia:9091/api/oidc/token
-      GF_AUTH_GENERIC_OAUTH_API_URL: http://authelia:9091/api/oidc/userinfo
-      GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH: email
-      GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH: email
-      GF_AUTH_GENERIC_OAUTH_GROUPS_ATTRIBUTE_PATH: groups
-      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: contains(groups, 'admins') && 'Admin' || 'Viewer'
+      # Using Caddy forward_auth with Authelia (not OIDC)
+      GF_AUTH_PROXY_ENABLED: true
+      GF_AUTH_PROXY_HEADER_NAME: Remote-User
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_AUTO_SIGN_UP: true
+      GF_AUTH_PROXY_HEADERS: "Email:Remote-Email Name:Remote-Name"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./configs/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
@@ -69,7 +63,7 @@ services:
     volumes:
       - ./configs/prompts:/usr/share/nginx/html:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD-SHELL", "wget --spider http://localhost:80/ 2>&1 | grep -qE '(200|403)' || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -108,6 +102,10 @@ services:
       OPENAI_API_BASE_URL: ${OPENWEBUI_OPENAI_API_BASE_URL:-http://litellm:4000/v1}
       OPENAI_API_KEY: ${LITELLM_MASTER_KEY}
       DEFAULT_MODELS: qwen2.5-7b-instruct
+      # Disable auto-downloading models from HuggingFace
+      ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION: false
+      RAG_EMBEDDING_ENGINE: ollama
+      RAG_RERANKING_MODEL: ""
       OPENID_PROVIDER_URL: https://auth.${DOMAIN}
       OAUTH_CLIENT_ID: open-webui
       OAUTH_CLIENT_SECRET: ${OPENWEBUI_OAUTH_SECRET}
@@ -118,7 +116,7 @@ services:
     volumes:
       - open_webui_data:/app/backend/data
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -178,7 +176,7 @@ services:
     volumes:
       - vaultwarden_data:/data
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/alive"]
+      test: ["CMD-SHELL", "curl -f http://localhost:80/alive || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -197,7 +195,7 @@ services:
           - bookstack.${DOMAIN}
     depends_on:
       mariadb:
-        condition: service_started
+        condition: service_healthy
       mariadb-init:
         condition: service_completed_successfully
     environment:
@@ -211,13 +209,12 @@ services:
       DB_USER: bookstack
       DB_PASS: ${BOOKSTACK_DB_PASSWORD}
       DB_DATABASE: bookstack
-      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
-      BOOKSTACK_OAUTH_SECRET: ${BOOKSTACK_OAUTH_SECRET}
+      # Using Caddy forward_auth with Authelia (not OIDC)
     volumes:
       - bookstack_data:/config
       - ./configs/applications/bookstack/init:/custom-cont-init.d:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD", "wget", "--no-check-certificate", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -374,7 +371,7 @@ services:
       - ./volumes/applications/jupyterhub_data:/srv/jupyterhub
       - ./configs/applications/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/hub/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/hub/health || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -384,6 +381,13 @@ services:
     image: ghcr.io/home-assistant/home-assistant:2026.1.0
     container_name: homeassistant
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
+      ldap:
+        condition: service_healthy
     networks:
       caddy:
         aliases:
@@ -408,6 +412,9 @@ services:
       POSTGRES_USER: homeassistant
       POSTGRES_PASSWORD: ${HOMEASSISTANT_DB_PASSWORD}
       LDAP_URL: ldap://ldap:389
+      STACK_ADMIN_USER: ${STACK_ADMIN_USER}
+      STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
+      STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
       LDAP_BASE_DN: dc=stack,dc=local
       LDAP_USER_DN: ou=users,dc=stack,dc=local
       LDAP_BIND_DN: cn=admin,dc=stack,dc=local
@@ -426,7 +433,7 @@ services:
     entrypoint:
       - /entrypoint-wrapper.sh
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/api/"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8123/api/ 2>&1 | grep -qE '(200|401)' || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -540,7 +547,7 @@ services:
       - ./volumes/applications/synapse_data:/data
       - ./configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8008/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8008/health || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -653,8 +660,8 @@ services:
       # Rails configuration
       RAILS_MAX_THREADS: 5
       DB_POOL: 10  # Should be >= MAX_THREADS for connection pooling
-      # Trust Caddy proxy for X-Forwarded-* headers
-      TRUSTED_PROXY_IP: 172.40.0.0/16  # Caddy network CIDR
+      # Trust all Docker bridge networks for X-Forwarded-* headers
+      TRUSTED_PROXY_IP: 172.16.0.0/12  # Docker default bridge range (172.16-31.x.x)
     command: bash -c "bundle exec rails server -b 0.0.0.0"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
@@ -765,7 +772,7 @@ services:
     volumes:
       - roundcube_data:/var/www/html
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -807,18 +814,23 @@ services:
         aliases:
           - seafile.${DOMAIN}
           - api.seafile.${DOMAIN}
+      valkey:
+        aliases:
+          - seafile.${DOMAIN}
     depends_on:
       mariadb:
-        condition: service_started
+        condition: service_healthy
       mariadb-init:
         condition: service_completed_successfully
       seafile-memcached:
         condition: service_started
+      valkey:
+        condition: service_healthy
     environment:
       TZ: UTC
-      DB_HOST: mysql
+      DB_HOST: mariadb
       DB_ROOT_PASSWD: ${MARIADB_ROOT_PASSWORD}
-      SEAFILE_MYSQL_DB_HOST: mysql
+      SEAFILE_MYSQL_DB_HOST: mariadb
       SEAFILE_MYSQL_DB_PORT: 3306
       SEAFILE_MYSQL_DB_USER: seafile
       SEAFILE_MYSQL_DB_PASSWORD: ${MARIADB_SEAFILE_PASSWORD}
@@ -828,12 +840,15 @@ services:
       SEAFILE_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
       JWT_PRIVATE_KEY: ${SEAFILE_JWT_KEY}
       TIME_ZONE: UTC
+      CACHE_PROVIDER: redis
+      REDIS_HOST: valkey
+      REDIS_PORT: 6379
     volumes:
       - seafile_data:/shared
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api2/ping/"]
+      test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:80/"]
       interval: 60s
-      timeout: 10s
+      timeout: 20s
       retries: 3
       start_period: 180s
 

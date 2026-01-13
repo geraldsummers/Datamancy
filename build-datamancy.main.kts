@@ -14,6 +14,7 @@ import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.File
 import java.time.Instant
+import java.util.Base64
 import kotlin.system.exitProcess
 
 // ============================================================================
@@ -111,10 +112,9 @@ val RUNTIME_VARS = setOf(
     "MASTODON_ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY",
     "MASTODON_ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT",
     "PLANKA_DB_PASSWORD", "PLANKA_SECRET_KEY", "BOOKSTACK_DB_PASSWORD",
-    "BOOKSTACK_APP_KEY", "BOOKSTACK_OAUTH_SECRET", "FORGEJO_OAUTH_SECRET",
-    "GRAFANA_OAUTH_SECRET", "OPENWEBUI_OAUTH_SECRET", "VAULTWARDEN_ADMIN_TOKEN",
-    "VAULTWARDEN_OAUTH_SECRET", "HOMEASSISTANT_OAUTH_SECRET",
-    "JUPYTERHUB_OAUTH_SECRET", "JUPYTERHUB_CRYPT_KEY",
+    "BOOKSTACK_APP_KEY", "FORGEJO_OAUTH_SECRET",
+    "OPENWEBUI_OAUTH_SECRET", "VAULTWARDEN_ADMIN_TOKEN",
+    "VAULTWARDEN_OAUTH_SECRET", "JUPYTERHUB_CRYPT_KEY",
     "MARIADB_SEAFILE_PASSWORD", "SEAFILE_JWT_KEY", "SEAFILE_SECRET_KEY", "SEAFILE_EMAIL_PASSWORD",
     "ONLYOFFICE_JWT_SECRET", "JELLYFIN_OIDC_SECRET",
     "VOLUMES_ROOT", "DEPLOYMENT_ROOT", "VECTOR_DB_ROOT", "API_LITELLM_ALLOWLIST",
@@ -382,7 +382,7 @@ fun generateRSAKey(): String {
         .redirectOutput(ProcessBuilder.Redirect.PIPE)
         .start()
         .inputStream.bufferedReader().readText().trim()
-    return java.util.Base64.getEncoder().encodeToString(pem.toByteArray())
+    return Base64.getEncoder().encodeToString(pem.toByteArray())
 }
 
 fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String) {
@@ -462,17 +462,13 @@ MASTODON_ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${generateSecret()}
 MASTODON_ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=${generateSecret()}
 MASTODON_ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${generateSecret()}
 BOOKSTACK_APP_KEY=${generateBookStackAppKey()}
-BOOKSTACK_OAUTH_SECRET=${generateSecret()}
 PLANKA_SECRET_KEY=${generateSecret()}
 FORGEJO_OAUTH_SECRET=${generateSecret()}
-GRAFANA_OAUTH_SECRET=${generateSecret()}
 OPENWEBUI_OAUTH_SECRET=${generateSecret()}
 OPENWEBUI_DB_PASSWORD_ENCODED=${generateSecret()}
 VAULTWARDEN_ADMIN_TOKEN=${generateSecret()}
 VAULTWARDEN_OAUTH_SECRET=${generateSecret()}
 VAULTWARDEN_SMTP_PASSWORD=${generateSecret()}
-HOMEASSISTANT_OAUTH_SECRET=${generateSecret()}
-JUPYTERHUB_OAUTH_SECRET=${generateSecret()}
 JUPYTERHUB_CRYPT_KEY=${generateSecret()}
 MATRIX_OAUTH_SECRET=${generateSecret()}
 PLANKA_OAUTH_SECRET=${generateSecret()}
@@ -546,11 +542,11 @@ ${CYAN}╔═══════════════════════�
     val userPassword = generateSecret()
 
     // Generate OAuth secrets and their hashes
+    // Only for services that actually use OIDC (not forward_auth only)
     step("Generating OAuth secret hashes (this may take a minute...)")
     val oauthSecretNames = listOf(
-        "GRAFANA", "PGADMIN", "OPENWEBUI", "NEXTCLOUD", "DIM",
-        "PLANKA", "HOMEASSISTANT", "JUPYTERHUB", "VAULTWARDEN",
-        "BOOKSTACK", "FORGEJO", "MATRIX"
+        "PGADMIN", "OPENWEBUI", "NEXTCLOUD", "DIM",
+        "PLANKA", "VAULTWARDEN", "FORGEJO", "MATRIX"
     )
     val oauthHashes = mutableMapOf<String, String>()
     oauthSecretNames.forEach { name ->
