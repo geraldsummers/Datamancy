@@ -139,25 +139,6 @@ identity_providers:
     jwks: []
 
     clients:
-      # Grafana
-      - client_id: grafana
-        client_name: Grafana
-        client_secret: '{{GRAFANA_OAUTH_SECRET_HASH}}'
-        public: false
-        authorization_policy: one_factor
-        redirect_uris:
-          - https://grafana.{{DOMAIN}}/login/generic_oauth
-        scopes:
-          - openid
-          - profile
-          - email
-          - groups
-        grant_types:
-          - authorization_code
-        response_types:
-          - code
-        token_endpoint_auth_method: client_secret_post
-
       # pgAdmin
       - client_id: pgadmin
         client_name: pgAdmin
@@ -254,44 +235,6 @@ identity_providers:
           - query
           - fragment
           - form_post
-
-      # Home Assistant
-      - client_id: home-assistant
-        client_name: Home Assistant
-        client_secret: '{{HOMEASSISTANT_OAUTH_SECRET_HASH}}'
-        public: false
-        authorization_policy: one_factor
-        redirect_uris:
-          - https://homeassistant.{{DOMAIN}}/auth/external/callback
-        scopes:
-          - openid
-          - profile
-          - email
-          - groups
-        grant_types:
-          - authorization_code
-        response_types:
-          - code
-
-      # JupyterHub
-      - client_id: jupyterhub
-        client_name: JupyterHub
-        client_secret: '{{JUPYTERHUB_OAUTH_SECRET_HASH}}'
-        public: false
-        authorization_policy: one_factor
-        consent_mode: implicit
-        redirect_uris:
-          - https://jupyterhub.{{DOMAIN}}/hub/oauth_callback
-        scopes:
-          - openid
-          - profile
-          - email
-          - groups
-        grant_types:
-          - authorization_code
-        response_types:
-          - code
-        token_endpoint_auth_method: client_secret_post
 
       # Vaultwarden (Bitwarden-compatible)
       # NOTE: Set VAULTWARDEN_OAUTH_SECRET in your .env to a strong value and

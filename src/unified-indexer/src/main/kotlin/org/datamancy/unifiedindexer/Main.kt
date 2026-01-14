@@ -68,7 +68,7 @@ fun main() {
         embeddingServiceUrl = embeddingUrl
     )
 
-    val port = System.getenv("INDEXER_PORT")?.toIntOrNull() ?: ServicePorts.UnifiedIndexer.INTERNAL
+    val port = System.getenv("UNIFIED_INDEXER_PORT")?.toIntOrNull() ?: ServicePorts.UnifiedIndexer.INTERNAL
     val server = embeddedServer(Netty, port = port) {
         configureServer(database, indexer, bookstackIndexer)
     }

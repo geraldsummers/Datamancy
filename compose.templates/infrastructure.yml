@@ -443,9 +443,9 @@ services:
       - ./configs/infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./configs/applications/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2019/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:2019/config/"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 3
       start_period: 10s
 
@@ -471,11 +471,11 @@ services:
       - ./configs/infrastructure/ldap/bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
     command: --copy-service --loglevel info
     healthcheck:
-      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -b dc=stack,dc=local -s base '(objectclass=*)' >/dev/null 2>&1"]
-      interval: 30s
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -b '' -s base '(objectclass=*)' namingContexts >/dev/null 2>&1"]
+      interval: 15s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 8
+      start_period: 180s
 
   valkey:
     image: valkey/valkey:8.1.5
@@ -530,14 +530,12 @@ services:
       AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET: ${AUTHELIA_OIDC_HMAC_SECRET}
       AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY: ${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY}
       AUTHELIA_STORAGE_POSTGRES_PASSWORD: ${AUTHELIA_DB_PASSWORD}
-      GRAFANA_OAUTH_SECRET: ${GRAFANA_OAUTH_SECRET}
+      # OIDC client secrets (Grafana, HomeAssistant, JupyterHub use forward_auth - no OIDC)
       PGADMIN_OAUTH_SECRET: ${PGADMIN_OAUTH_SECRET}
       OPENWEBUI_OAUTH_SECRET: ${OPENWEBUI_OAUTH_SECRET}
       NEXTCLOUD_OAUTH_SECRET: ${NEXTCLOUD_OAUTH_SECRET}
       DIM_OAUTH_SECRET: ${DIM_OAUTH_SECRET}
       PLANKA_OAUTH_SECRET: ${PLANKA_OAUTH_SECRET}
-      HOMEASSISTANT_OAUTH_SECRET: ${HOMEASSISTANT_OAUTH_SECRET}
-      JUPYTERHUB_OAUTH_SECRET: ${JUPYTERHUB_OAUTH_SECRET}
       VAULTWARDEN_OAUTH_SECRET: ${VAULTWARDEN_OAUTH_SECRET}
       MASTODON_OIDC_SECRET: ${MASTODON_OIDC_SECRET}
       BOOKSTACK_OAUTH_SECRET: ${BOOKSTACK_OAUTH_SECRET}
@@ -581,7 +579,7 @@ services:
           - mail.${DOMAIN}
     depends_on:
       ldap:
-        condition: service_started
+        condition: service_healthy
       caddy:
         condition: service_started
     environment:
@@ -602,9 +600,9 @@ services:
       LDAP_BIND_DN: cn=admin,dc=stack,dc=local
       LDAP_BIND_PW: ${LDAP_ADMIN_PASSWORD}
       LDAP_SEARCH_BASE: ou=users,dc=stack,dc=local
-      LDAP_QUERY_FILTER_USER: (&(objectClass=inetOrgPerson)(mail=%s))
+      LDAP_QUERY_FILTER_USER: (&(objectClass=inetOrgPerson)(|(mail=%s)(uid=%s)))
       LDAP_QUERY_FILTER_GROUP: (&(objectClass=groupOfNames)(member=%s))
-      LDAP_QUERY_FILTER_ALIAS: (&(objectClass=inetOrgPerson)(mail=%s))
+      LDAP_QUERY_FILTER_ALIAS: (&(objectClass=inetOrgPerson)(|(mail=%s)(uid=%s)))
       DOVECOT_MAILBOX_FORMAT: maildir
       DOVECOT_USER_FILTER: (&(objectClass=inetOrgPerson)(mail=%u))
       DOVECOT_PASS_FILTER: (&(objectClass=inetOrgPerson)(mail=%u))
@@ -612,8 +610,8 @@ services:
       DOVECOT_USER_ATTRS: =home=/var/mail/%Ln,=mail=maildir:~/Maildir
       ENABLE_QUOTAS: 1
       POSTFIX_MESSAGE_SIZE_LIMIT: 50000000
-      SSL_CERT_PATH: /caddy-certs/caddy/certificates/local/mail.${DOMAIN}/mail.${DOMAIN}.crt
-      SSL_KEY_PATH: /caddy-certs/caddy/certificates/local/mail.${DOMAIN}/mail.${DOMAIN}.key
+      SSL_CERT_PATH: /caddy-certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/mail.${DOMAIN}/mail.${DOMAIN}.crt
+      SSL_KEY_PATH: /caddy-certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/mail.${DOMAIN}/mail.${DOMAIN}.key
     volumes:
       - mailserver_data:/var/mail/
       - mailserver_state:/var/mail-state/
@@ -665,9 +663,9 @@ services:
     networks:
       - memcached
     healthcheck:
-      test: ["CMD-SHELL", "echo stats | nc localhost 11211 | grep -q uptime"]
+      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/127.0.0.1/11211' || exit 1"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       retries: 3
       start_period: 10s
 
@@ -721,7 +719,7 @@ services:
       - sh
       - /init-kopia.sh
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:51515/"]
+      test: ["CMD-SHELL", "curl -f http://localhost:51515/ || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3

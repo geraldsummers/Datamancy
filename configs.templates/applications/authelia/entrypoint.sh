@@ -16,14 +16,12 @@ if [ -f /config/configuration.yml ]; then
     sed -i "s|\${DOMAIN}|$DOMAIN|g" "$TEMP_CONFIG" || true
 
     # Replace OAuth secret references (use plain secrets, not hashes for now)
-    sed -i "s|\${GRAFANA_OAUTH_SECRET}|$GRAFANA_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
+    # Note: Grafana, Home Assistant, JupyterHub use forward_auth - no OIDC secrets needed
     sed -i "s|\${PGADMIN_OAUTH_SECRET}|$PGADMIN_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${OPENWEBUI_OAUTH_SECRET}|$OPENWEBUI_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${NEXTCLOUD_OAUTH_SECRET}|$NEXTCLOUD_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${DIM_OAUTH_SECRET}|$DIM_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${PLANKA_OAUTH_SECRET}|$PLANKA_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
-    sed -i "s|\${HOMEASSISTANT_OAUTH_SECRET}|$HOMEASSISTANT_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
-    sed -i "s|\${JUPYTERHUB_OAUTH_SECRET}|$JUPYTERHUB_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${VAULTWARDEN_OAUTH_SECRET}|$VAULTWARDEN_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${MASTODON_OIDC_SECRET}|$MASTODON_OIDC_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${BOOKSTACK_OAUTH_SECRET}|$BOOKSTACK_OAUTH_SECRET|g" "$TEMP_CONFIG" || true

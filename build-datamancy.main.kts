@@ -213,6 +213,44 @@ fun buildDockerImages() {
     }
 }
 
+fun copyBuildArtifacts(distDir: File) {
+    step("Copying build artifacts to dist")
+    val srcDir = distDir.resolve("src")
+
+    val datamancyServices = listOf(
+        "control-panel", "data-fetcher", "unified-indexer",
+        "search-service", "agent-tool-server"
+    )
+
+    datamancyServices.forEach { service ->
+        val serviceDir = File("src/$service")
+        val dockerfile = serviceDir.resolve("Dockerfile")
+        val jarDir = serviceDir.resolve("build/libs")
+
+        if (dockerfile.exists() && jarDir.exists()) {
+            val destServiceDir = srcDir.resolve(service)
+            destServiceDir.mkdirs()
+
+            // Copy Dockerfile
+            dockerfile.copyTo(destServiceDir.resolve("Dockerfile"), overwrite = true)
+
+            // Copy build/libs directory
+            val destLibsDir = destServiceDir.resolve("build/libs")
+            destLibsDir.mkdirs()
+            jarDir.walkTopDown().forEach { file ->
+                if (file.isFile) {
+                    val relativePath = file.relativeTo(jarDir)
+                    val dest = destLibsDir.resolve(relativePath)
+                    dest.parentFile.mkdirs()
+                    file.copyTo(dest, overwrite = true)
+                }
+            }
+
+            info("Copied $service artifacts")
+        }
+    }
+}
+
 fun copyComposeFiles(outputDir: File) {
     step("Merging compose files into single docker-compose.yml")
     val templatesDir = File("compose.templates")
@@ -462,6 +500,7 @@ MASTODON_ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${generateSecret()}
 MASTODON_ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=${generateSecret()}
 MASTODON_ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${generateSecret()}
 BOOKSTACK_APP_KEY=${generateBookStackAppKey()}
+BOOKSTACK_OAUTH_SECRET=${generateSecret()}
 PLANKA_SECRET_KEY=${generateSecret()}
 FORGEJO_OAUTH_SECRET=${generateSecret()}
 OPENWEBUI_OAUTH_SECRET=${generateSecret()}
@@ -494,7 +533,7 @@ DATAMANCY_SERVICE_PASSWORD=${generateSecret()}
 HUGGINGFACEHUB_API_TOKEN=
 
 # API Configuration
-API_LITELLM_ALLOWLIST=127.0.0.1 172.16.0.0/12 192.168.0.0/16
+API_LITELLM_ALLOWLIST="127.0.0.1 172.16.0.0/12 192.168.0.0/16"
 
 """.trimIndent())
 
@@ -543,9 +582,10 @@ ${CYAN}╔═══════════════════════�
 
     // Generate OAuth secrets and their hashes
     // Only for services that actually use OIDC (not forward_auth only)
+    // Note: Grafana, Home Assistant, JupyterHub use forward_auth (Remote-User header) - no OIDC needed
     step("Generating OAuth secret hashes (this may take a minute...)")
     val oauthSecretNames = listOf(
-        "PGADMIN", "OPENWEBUI", "NEXTCLOUD", "DIM",
+        "BOOKSTACK", "PGADMIN", "OPENWEBUI", "NEXTCLOUD", "DIM",
         "PLANKA", "VAULTWARDEN", "FORGEJO", "MATRIX"
     )
     val oauthHashes = mutableMapOf<String, String>()
@@ -559,6 +599,7 @@ ${CYAN}╔═══════════════════════�
     // Build steps
     buildGradleServices(skipGradle)
     buildDockerImages()
+    copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
     processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, oauthHashes)
     generateEnvFile(distDir.resolve(".env"), config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword)
@@ -573,6 +614,29 @@ ${CYAN}╔═══════════════════════�
     } else {
         warn("bootstrap-volumes.sh not found in compose.templates/")
     }
+
+    // Create deployment script
+    step("Creating deploy.sh script")
+    val deployScript = distDir.resolve("deploy.sh")
+    deployScript.writeText("""
+#!/bin/bash
+set -e
+
+echo "Building Datamancy service images..."
+for service in control-panel data-fetcher unified-indexer search-service agent-tool-server; do
+    if [ -f "src/${'$'}service/Dockerfile" ]; then
+        echo "Building datamancy/${'$'}service"
+        docker build -t datamancy/${'$'}service:latest -f src/${'$'}service/Dockerfile .
+    fi
+done
+
+echo "Starting stack..."
+docker compose up -d
+
+echo "Deployment complete!"
+""".trimIndent())
+    deployScript.setExecutable(true)
+    info("Created deploy.sh")
 
     // Build info
     val version = getGitVersion()

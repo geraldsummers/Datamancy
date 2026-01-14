@@ -1,6 +1,8 @@
 package org.datamancy.datafetcher.storage
 
 import com.google.gson.Gson
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -8,14 +10,14 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.sql.Connection
-import java.sql.DriverManager
 import java.util.concurrent.TimeUnit
+import javax.sql.DataSource
 
 private val logger = KotlinLogging.logger {}
 private val gson = Gson()
 
 /**
- * PostgreSQL storage for structured metadata
+ * PostgreSQL storage for structured metadata with connection pooling
  */
 class PostgresStore(
     private val host: String = System.getenv("POSTGRES_HOST") ?: "postgres",
@@ -23,11 +25,30 @@ class PostgresStore(
     private val database: String = System.getenv("POSTGRES_DB") ?: "datamancy",
     private val user: String = System.getenv("POSTGRES_USER") ?: "datamancer",
     private val password: String = System.getenv("POSTGRES_PASSWORD") ?: ""
-) {
+) : AutoCloseable {
 
-    private fun getConnection(): Connection {
-        val url = "jdbc:postgresql://$host:$port/$database"
-        return DriverManager.getConnection(url, user, password)
+    private val dataSource: DataSource by lazy {
+        val config = HikariConfig().apply {
+            jdbcUrl = "jdbc:postgresql://$host:$port/$database"
+            username = user
+            this.password = this@PostgresStore.password
+            maximumPoolSize = 10
+            minimumIdle = 2
+            idleTimeout = 300000 // 5 minutes
+            connectionTimeout = 10000 // 10 seconds
+            maxLifetime = 1800000 // 30 minutes
+            poolName = "DataFetcherPool"
+        }
+        HikariDataSource(config)
+    }
+
+    private fun getConnection(): Connection = dataSource.connection
+
+    override fun close() {
+        val ds = dataSource
+        if (ds is HikariDataSource) {
+            ds.close()
+        }
     }
 
     fun storeFetchMetadata(
@@ -237,6 +258,33 @@ class ClickHouseStore(
     }
 
     /**
+     * Properly escape strings for ClickHouse SQL.
+     * Escapes: backslash, single quote, newline, carriage return, tab
+     */
+    private fun escapeString(value: String): String {
+        return value
+            .replace("\\", "\\\\")  // Backslash must be first
+            .replace("'", "\\'")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+    }
+
+    /**
+     * Format a value for SQL insertion with proper type handling
+     */
+    private fun formatSqlValue(value: Any?): String {
+        return when (value) {
+            null -> "NULL"
+            is String -> "'${escapeString(value)}'"
+            is Number -> value.toString()
+            is Boolean -> if (value) "1" else "0"
+            is Instant -> "'$value'"
+            else -> "'${escapeString(value.toString())}'"
+        }
+    }
+
+    /**
      * Execute a SELECT query and return results as list of lines.
      */
     private fun executeSelectQuery(query: String): List<String> {
@@ -264,10 +312,17 @@ class ClickHouseStore(
         metadata: Map<String, Any> = emptyMap()
     ) {
         try {
-            val metadataJson = gson.toJson(metadata).replace("'", "\\'")
+            val metadataJson = escapeString(gson.toJson(metadata))
             val sql = """
                 INSERT INTO market_data (timestamp, symbol, price, volume, source, metadata)
-                VALUES ('${timestamp}', '$symbol', $price, ${volume ?: 0.0}, '$source', '$metadataJson')
+                VALUES (
+                    ${formatSqlValue(timestamp)},
+                    ${formatSqlValue(symbol)},
+                    ${formatSqlValue(price)},
+                    ${formatSqlValue(volume ?: 0.0)},
+                    ${formatSqlValue(source)},
+                    '${metadataJson}'
+                )
             """
             executeQuery(sql)
         } catch (e: Exception) {
@@ -296,26 +351,32 @@ class ClickHouseStore(
         validTo: Instant? = null
     ) {
         try {
-            val metadataJson = gson.toJson(metadata).replace("'", "\\'")
-            val escapedTitle = title.replace("'", "\\'")
-            val escapedSectionTitle = sectionTitle.replace("'", "\\'")
-            val escapedContent = content.replace("'", "\\'")
-            val escapedMarkdown = contentMarkdown.replace("'", "\\'")
-            val escapedUrl = url.replace("'", "\\'")
-            val escapedSupersededBy = supersededBy.replace("'", "\\'")
-            val validToStr = validTo?.let { "'$it'" } ?: "NULL"
-
+            val metadataJson = escapeString(gson.toJson(metadata))
             val sql = """
                 INSERT INTO legal_documents (
                     doc_id, jurisdiction, doc_type, title, year, identifier, url, status,
                     section_number, section_title, content, content_markdown,
                     fetched_at, content_hash, metadata, superseded_by, valid_from, valid_to, last_checked
                 ) VALUES (
-                    '$docId', '$jurisdiction', '$docType', '$escapedTitle',
-                    '${year ?: ""}', '${identifier ?: ""}', '$escapedUrl', '${status ?: ""}',
-                    '$sectionNumber', '$escapedSectionTitle', '$escapedContent', '$escapedMarkdown',
-                    '${fetchedAt}', '$contentHash', '$metadataJson', '$escapedSupersededBy',
-                    '${validFrom}', $validToStr, now64(3)
+                    ${formatSqlValue(docId)},
+                    ${formatSqlValue(jurisdiction)},
+                    ${formatSqlValue(docType)},
+                    ${formatSqlValue(title)},
+                    ${formatSqlValue(year ?: "")},
+                    ${formatSqlValue(identifier ?: "")},
+                    ${formatSqlValue(url)},
+                    ${formatSqlValue(status ?: "")},
+                    ${formatSqlValue(sectionNumber)},
+                    ${formatSqlValue(sectionTitle)},
+                    ${formatSqlValue(content)},
+                    ${formatSqlValue(contentMarkdown)},
+                    ${formatSqlValue(fetchedAt)},
+                    ${formatSqlValue(contentHash)},
+                    '${metadataJson}',
+                    ${formatSqlValue(supersededBy)},
+                    ${formatSqlValue(validFrom)},
+                    ${formatSqlValue(validTo)},
+                    now64(3)
                 )
             """
             executeQuery(sql)
@@ -330,11 +391,10 @@ class ClickHouseStore(
      */
     fun getLegalDocumentHash(url: String, sectionNumber: String): String? {
         return try {
-            val escapedUrl = url.replace("'", "\\'")
             val sql = """
                 SELECT content_hash
                 FROM legal_documents
-                WHERE url = '$escapedUrl' AND section_number = '$sectionNumber'
+                WHERE url = ${formatSqlValue(url)} AND section_number = ${formatSqlValue(sectionNumber)}
                 ORDER BY fetched_at DESC
                 LIMIT 1
             """
@@ -352,7 +412,7 @@ class ClickHouseStore(
     fun getAllActiveLegalDocumentUrls(jurisdiction: String? = null): Set<String> {
         return try {
             val whereClause = if (jurisdiction != null) {
-                "WHERE jurisdiction = '${jurisdiction.replace("'", "\\'")}' AND (status = 'In force' OR status = '')"
+                "WHERE jurisdiction = ${formatSqlValue(jurisdiction)} AND (status = 'In force' OR status = '')"
             } else {
                 "WHERE status = 'In force' OR status = ''"
             }
@@ -374,8 +434,6 @@ class ClickHouseStore(
      */
     fun markLegalDocumentRepealed(url: String, repealedAt: Instant = Clock.System.now()) {
         try {
-            val escapedUrl = url.replace("'", "\\'")
-
             // Insert new version with Repealed status and valid_to set
             val sql = """
                 INSERT INTO legal_documents
@@ -383,9 +441,9 @@ class ClickHouseStore(
                     doc_id, jurisdiction, doc_type, title, year, identifier, url, 'Repealed' AS status,
                     section_number, section_title, content, content_markdown,
                     now64(3) AS fetched_at, content_hash, metadata, superseded_by, valid_from,
-                    '$repealedAt' AS valid_to, now64(3) AS last_checked
+                    ${formatSqlValue(repealedAt)} AS valid_to, now64(3) AS last_checked
                 FROM legal_documents
-                WHERE url = '$escapedUrl'
+                WHERE url = ${formatSqlValue(url)}
                 ORDER BY fetched_at DESC
                 LIMIT 1 BY url, section_number
             """
@@ -401,11 +459,10 @@ class ClickHouseStore(
      */
     fun getLastCheckedTime(url: String): Instant? {
         return try {
-            val escapedUrl = url.replace("'", "\\'")
             val sql = """
                 SELECT last_checked
                 FROM legal_documents
-                WHERE url = '$escapedUrl'
+                WHERE url = ${formatSqlValue(url)}
                 ORDER BY fetched_at DESC
                 LIMIT 1
             """

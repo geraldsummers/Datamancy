@@ -29,7 +29,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 fun main() {
-    val port = System.getenv("PANEL_PORT")?.toIntOrNull() ?: ServicePorts.ControlPanel.INTERNAL
+    val port = System.getenv("CONTROL_PANEL_PORT")?.toIntOrNull() ?: ServicePorts.ControlPanel.INTERNAL
 
     // Database configuration
     val pgHost = System.getenv("POSTGRES_HOST") ?: "postgres"

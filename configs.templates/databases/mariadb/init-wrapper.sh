@@ -50,9 +50,9 @@ echo "Generated SQL (first 10 lines, passwords hidden):"
 echo "$SUBSTITUTED_SQL" | head -10 | sed 's/IDENTIFIED BY.*$/IDENTIFIED BY [HIDDEN]/'
 echo ""
 
-# Execute the SQL
+# Execute the SQL (use mariadb command during init, mysql may not be available)
 echo "Executing SQL initialization..."
-echo "$SUBSTITUTED_SQL" | mysql -u root -p"${MYSQL_ROOT_PASSWORD}"
+echo "$SUBSTITUTED_SQL" | mariadb -u root -p"${MYSQL_ROOT_PASSWORD}"
 
 echo ""
 echo "========================================="
@@ -60,8 +60,14 @@ echo "MariaDB Initialization Complete!"
 echo "========================================="
 echo ""
 echo "Created databases:"
-mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SHOW DATABASES;" | grep -E "bookstack|ccnet_db|seafile_db|seahub_db" || echo "  (checking...)"
+mariadb -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SHOW DATABASES;" | grep -E "bookstack|ccnet_db|seafile_db|seahub_db" || echo "  (checking...)"
 echo ""
 echo "Created users:"
-mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT User, Host FROM mysql.user WHERE User IN ('bookstack', 'seafile');"
+mariadb -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT User, Host FROM mysql.user WHERE User IN ('bookstack', 'seafile');"
+echo ""
+
+# Write init completion marker for healthcheck
+echo "Writing init completion marker..."
+touch /var/lib/mysql/.init_complete
+echo "✓ Init marker written to /var/lib/mysql/.init_complete"
 echo ""

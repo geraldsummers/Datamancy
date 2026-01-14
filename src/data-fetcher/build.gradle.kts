@@ -29,6 +29,7 @@ dependencies {
     // Database drivers
     implementation(libs.postgres.jdbc)
     implementation(libs.bundles.clickhouse)
+    implementation(libs.hikaricp)
 
     // HTTP client
     implementation(libs.okhttp)
@@ -73,46 +74,6 @@ tasks.test {
     systemProperty("clickhouse.url", System.getenv("CLICKHOUSE_URL") ?: "http://localhost:${project.property("port.clickhouse.test")}")
     systemProperty("clickhouse.user", System.getenv("CLICKHOUSE_USER") ?: "default")
     systemProperty("clickhouse.password", System.getenv("STACK_ADMIN_PASSWORD") ?: "")
-
-    // Bring up the whole stack before running tests
-    doFirst {
-        // Check if stack is already running
-        val checkResult = ByteArrayOutputStream()
-        exec {
-            workingDir = rootProject.projectDir
-            commandLine("docker", "compose", "ps", "-q")
-            standardOutput = checkResult
-        }
-
-        val isStackRunning = checkResult.toString().trim().isNotEmpty()
-
-        if (isStackRunning) {
-            println("\n✅ Stack is already running - skipping startup\n")
-        } else {
-            println("\n╔════════════════════════════════════════════════════════════════╗")
-            println("║              Bringing up stack for tests                      ║")
-            println("╚════════════════════════════════════════════════════════════════╝\n")
-
-            val envFile = File(System.getProperty("user.home"), ".datamancy/.env")
-            val testOverlay = rootProject.file("docker-compose.test-ports.yml")
-
-            // Bring up the full stack with test overlay to expose ports
-            // Ignore exit code - some services may fail but core services will be up
-            exec {
-                workingDir = rootProject.projectDir
-                commandLine(
-                    "docker", "compose",
-                    "-f", "docker-compose.yml",
-                    "-f", testOverlay.absolutePath,
-                    "--env-file", envFile.absolutePath,
-                    "up", "-d"
-                )
-                isIgnoreExitValue = true
-            }
-
-            println("✅ Stack is up\n")
-        }
-    }
 
     // Show test execution details
     testLogging {

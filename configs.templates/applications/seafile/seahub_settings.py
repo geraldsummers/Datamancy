@@ -1,25 +1,11 @@
 # -*- coding: utf-8 -*-
-# Seafile Seahub Settings
-# This file is mounted into the container to provide database configuration
+# Seafile Seahub Additional Settings
+# This file is appended to seahub_settings.py to provide additional configuration
+# Note: Database configuration is handled by Seafile's built-in SEAFILE_MYSQL_DB_* env vars
 
 SECRET_KEY = "{{SEAFILE_SECRET_KEY}}"
 
 TIME_ZONE = 'UTC'
-
-# Database Configuration
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": "seahub_db",
-        "USER": "seafile",
-        "PASSWORD": "{{MARIADB_SEAFILE_PASSWORD}}",
-        "HOST": "mysql",
-        "PORT": "3306",
-        "OPTIONS": {
-            "charset": "utf8mb4",
-        }
-    }
-}
 
 # File server configuration
 FILE_SERVER_ROOT = "https://seafile.{{DOMAIN}}/seafhttp"

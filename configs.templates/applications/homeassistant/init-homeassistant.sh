@@ -59,8 +59,8 @@ user_id = secrets.token_hex(16)
 person_id = secrets.token_hex(16)
 
 # Create bcrypt hash of password
-import crypt
-password_hash = crypt.crypt(admin_password, crypt.mksalt(crypt.METHOD_SHA512))
+import bcrypt
+password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 # Create auth structure
 auth_data = {
@@ -180,6 +180,8 @@ create_admin_user
 mark_onboarding_user_complete
 
 echo "Home Assistant initialization complete."
-echo "Admin user: ${STACK_ADMIN_USER}"
+if [ -n "${STACK_ADMIN_USER:-}" ]; then
+    echo "Admin user: ${STACK_ADMIN_USER}"
+fi
 echo "User will be prompted to create or restore home on first login."
 echo "LDAP users can login via the mobile app or API using their LDAP credentials."

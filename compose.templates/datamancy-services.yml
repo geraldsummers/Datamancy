@@ -34,11 +34,11 @@ services:
       UNIFIED_INDEXER_URL: http://unified-indexer:8096
       SEARCH_SERVICE_URL: http://search-service:8098
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8097/health"]
-      interval: 30s
-      timeout: 5s
+      test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:8097/"]
+      interval: 60s
+      timeout: 20s
       retries: 3
-      start_period: 60s
+      start_period: 180s
 
   data-fetcher:
     image: datamancy/data-fetcher:local-build
@@ -84,11 +84,11 @@ services:
       - ./configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
       - ./volumes/applications/data_fetcher:/app/data
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8095/health"]
+      test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:8095/"]
       interval: 60s
-      timeout: 10s
+      timeout: 20s
       retries: 3
-      start_period: 60s
+      start_period: 180s
 
   unified-indexer:
     image: datamancy/unified-indexer:local-build
@@ -112,6 +112,7 @@ services:
       embedding-service:
         condition: service_started
     environment:
+      UNIFIED_INDEXER_PORT: 8096
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: datamancy
@@ -126,11 +127,11 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8096/health"]
+      test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:8096/"]
       interval: 60s
-      timeout: 10s
+      timeout: 20s
       retries: 3
-      start_period: 60s
+      start_period: 180s
 
   search-service:
     image: datamancy/search-service:local-build
@@ -158,11 +159,11 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8098/health"]
-      interval: 30s
-      timeout: 5s
+      test: ["CMD-SHELL", "timeout 5 wget --quiet --tries=1 -O /dev/null http://127.0.0.1:8098/ || exit 1"]
+      interval: 60s
+      timeout: 20s
       retries: 3
-      start_period: 60s
+      start_period: 180s
 
   agent-tool-server:
     image: datamancy/agent-tool-server:local-build
@@ -220,17 +221,19 @@ services:
       LDAP_PORT: 389
       LDAP_BASE_DN: dc=stack,dc=local
       SEARCH_SERVICE_URL: http://search-service:8098
+      MCP_GRANT_HOST_NETWORK_HTTP: "true"
+      MCP_GRANT_HOST_NETWORK_SSH: "true"
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ./secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
       - ./agent_tool_server/known_hosts:/app/known_hosts:ro
       - ./configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8099/health && test -S /var/run/docker.sock"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --timeout=15 --spider http://localhost:8081/tools && test -S /var/run/docker.sock"]
+      interval: 60s
+      timeout: 20s
       retries: 3
-      start_period: 60s
+      start_period: 180s
 
   prometheus:
     image: prom/prometheus:v3.9.1
@@ -310,10 +313,6 @@ services:
       TZ: Australia/Sydney
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    healthcheck:
-      test: ["CMD-SHELL", "test -S /var/run/docker.sock && ps aux | grep -v grep | grep -q watchtower"]
-      interval: 300s
-      timeout: 5s
-      retries: 2
-      start_period: 30s
+    # Healthcheck disabled - distroless image without /bin/sh
+    # Service runs as scheduled cron, doesn't need healthcheck
 

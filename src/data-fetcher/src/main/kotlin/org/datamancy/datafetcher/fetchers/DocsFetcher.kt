@@ -16,9 +16,6 @@ private val gson = Gson()
 
 class DocsFetcher(private val config: DocsConfig) : Fetcher {
     private val pgStore = PostgresStore()
-
-    // Frontier queue for polite crawling
-    private val visitedUrls = mutableSetOf<String>()
     private val crawlDepth = 2  // Limit depth to avoid over-fetching
 
     override suspend fun fetch(): FetchResult {
@@ -30,7 +27,8 @@ class DocsFetcher(private val config: DocsConfig) : Fetcher {
                 return@execute "No sources configured"
             }
 
-            // Load visited URLs from checkpoint to resume crawling
+            // Load visited URLs from checkpoint to resume crawling (per-run state)
+            val visitedUrls = mutableSetOf<String>()
             val checkpointData = ctx.checkpoint.get("visited_urls")
             if (checkpointData != null) {
                 visitedUrls.addAll(checkpointData.split(",").filter { it.isNotBlank() })
@@ -40,7 +38,7 @@ class DocsFetcher(private val config: DocsConfig) : Fetcher {
             config.sources.forEach { source ->
                 ctx.markAttempted()
                 try {
-                    crawlDocsSite(ctx, source)
+                    crawlDocsSite(ctx, source, visitedUrls)
                 } catch (e: Exception) {
                     logger.error(e) { "Failed to fetch docs from: ${source.url}" }
                     ctx.markFailed()
@@ -66,7 +64,7 @@ class DocsFetcher(private val config: DocsConfig) : Fetcher {
         }
     }
 
-    private suspend fun crawlDocsSite(ctx: FetchExecutionContext, source: DocsSource, depth: Int = 0) {
+    private suspend fun crawlDocsSite(ctx: FetchExecutionContext, source: DocsSource, visitedUrls: MutableSet<String>, depth: Int = 0) {
         if (depth > crawlDepth) {
             return
         }
@@ -156,7 +154,7 @@ class DocsFetcher(private val config: DocsConfig) : Fetcher {
 
             links.forEach { link ->
                 try {
-                    crawlDocsSite(ctx, source.copy(url = link), depth + 1)
+                    crawlDocsSite(ctx, source.copy(url = link), visitedUrls, depth + 1)
                 } catch (e: Exception) {
                     logger.warn(e) { "Failed to crawl link: $link" }
                 }

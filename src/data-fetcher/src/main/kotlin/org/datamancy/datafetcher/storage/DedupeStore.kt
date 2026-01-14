@@ -1,11 +1,13 @@
 package org.datamancy.datafetcher.storage
 
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import java.security.MessageDigest
 import java.sql.Connection
-import java.sql.DriverManager
+import javax.sql.DataSource
 
 private val logger = KotlinLogging.logger {}
 
@@ -43,20 +45,27 @@ class DedupeStore(
     private val user: String = System.getenv("POSTGRES_USER") ?: "datamancer",
     private val password: String = System.getenv("POSTGRES_PASSWORD") ?: ""
 ) : AutoCloseable {
-    private val connection: Connection by lazy {
-        val url = "jdbc:postgresql://$host:$port/$database"
-        DriverManager.getConnection(url, user, password).apply {
-            autoCommit = true
+    private val dataSource: DataSource by lazy {
+        val config = HikariConfig().apply {
+            jdbcUrl = "jdbc:postgresql://$host:$port/$database"
+            username = user
+            this.password = this@DedupeStore.password
+            maximumPoolSize = 5
+            minimumIdle = 1
+            idleTimeout = 300000
+            connectionTimeout = 10000
+            maxLifetime = 1800000
+            poolName = "DedupePool"
         }
+        HikariDataSource(config)
     }
 
+    private fun getConnection(): Connection = dataSource.connection
+
     override fun close() {
-        try {
-            if (!connection.isClosed) {
-                connection.close()
-            }
-        } catch (e: Exception) {
-            // Connection not initialized or already closed
+        val ds = dataSource
+        if (ds is HikariDataSource) {
+            ds.close()
         }
     }
 
@@ -69,26 +78,30 @@ class DedupeStore(
      * @param contentHash Hash of the item's content
      * @param runId ID of the current fetch run
      * @return DedupeResult indicating whether item is NEW, UPDATED, or UNCHANGED
+     * @throws IllegalStateException if dedupe check fails critically
      */
     fun shouldUpsert(source: String, itemId: String, contentHash: String, runId: String): DedupeResult {
         return try {
-            // Check if item exists
-            val existingHash = getExistingHash(connection, source, itemId)
+            getConnection().use { conn ->
+                // Check if item exists
+                val existingHash = getExistingHash(conn, source, itemId)
 
-            val result = when {
-                existingHash == null -> DedupeResult.NEW
-                existingHash != contentHash -> DedupeResult.UPDATED
-                else -> DedupeResult.UNCHANGED
+                val result = when {
+                    existingHash == null -> DedupeResult.NEW
+                    existingHash != contentHash -> DedupeResult.UPDATED
+                    else -> DedupeResult.UNCHANGED
+                }
+
+                // Update dedupe record
+                upsertDedupeRecord(conn, source, itemId, contentHash, runId)
+
+                logger.debug { "Dedupe check: $source/$itemId = $result" }
+                result
             }
-
-            // Update dedupe record
-            upsertDedupeRecord(connection, source, itemId, contentHash, runId)
-
-            logger.debug { "Dedupe check: $source/$itemId = $result" }
-            result
         } catch (e: Exception) {
-            logger.error(e) { "Failed dedupe check for $source/$itemId, defaulting to NEW" }
-            DedupeResult.NEW // Fail open - allow upsert on error
+            logger.error(e) { "Failed dedupe check for $source/$itemId" }
+            // Re-throw instead of silently failing open - caller should decide policy
+            throw IllegalStateException("Dedupe check failed for $source/$itemId", e)
         }
     }
 
@@ -136,28 +149,30 @@ class DedupeStore(
      */
     fun getStats(source: String): DedupeStats {
         return try {
-            val sql = """
-                SELECT
-                    COUNT(*) as total_items,
-                    COUNT(DISTINCT last_seen_run_id) as total_runs,
-                    MAX(last_seen_at) as last_activity
-                FROM dedupe_records
-                WHERE source = ?
-            """
-            connection.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, source)
-                val rs = stmt.executeQuery()
-                if (rs.next()) {
-                    DedupeStats(
-                        source = source,
-                        totalItems = rs.getLong("total_items"),
-                        totalRuns = rs.getLong("total_runs"),
-                        lastActivity = rs.getTimestamp("last_activity")?.toInstant()?.let {
-                            Instant.fromEpochMilliseconds(it.toEpochMilli())
-                        }
-                    )
-                } else {
-                    DedupeStats(source, 0, 0, null)
+            getConnection().use { conn ->
+                val sql = """
+                    SELECT
+                        COUNT(*) as total_items,
+                        COUNT(DISTINCT last_seen_run_id) as total_runs,
+                        MAX(last_seen_at) as last_activity
+                    FROM dedupe_records
+                    WHERE source = ?
+                """
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, source)
+                    val rs = stmt.executeQuery()
+                    if (rs.next()) {
+                        DedupeStats(
+                            source = source,
+                            totalItems = rs.getLong("total_items"),
+                            totalRuns = rs.getLong("total_runs"),
+                            lastActivity = rs.getTimestamp("last_activity")?.toInstant()?.let {
+                                Instant.fromEpochMilliseconds(it.toEpochMilli())
+                            }
+                        )
+                    } else {
+                        DedupeStats(source, 0, 0, null)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -171,24 +186,26 @@ class DedupeStore(
      */
     fun ensureSchema() {
         try {
-            val sql = """
-                CREATE TABLE IF NOT EXISTS dedupe_records (
-                    id SERIAL PRIMARY KEY,
-                    source VARCHAR(100) NOT NULL,
-                    item_id VARCHAR(500) NOT NULL,
-                    content_hash VARCHAR(64) NOT NULL,
-                    last_seen_run_id VARCHAR(100) NOT NULL,
-                    last_seen_at TIMESTAMP NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(source, item_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_dedupe_source ON dedupe_records(source);
-                CREATE INDEX IF NOT EXISTS idx_dedupe_last_seen ON dedupe_records(last_seen_at);
-            """
-            connection.createStatement().use { stmt ->
-                stmt.execute(sql)
+            getConnection().use { conn ->
+                val sql = """
+                    CREATE TABLE IF NOT EXISTS dedupe_records (
+                        id SERIAL PRIMARY KEY,
+                        source VARCHAR(100) NOT NULL,
+                        item_id VARCHAR(500) NOT NULL,
+                        content_hash VARCHAR(64) NOT NULL,
+                        last_seen_run_id VARCHAR(100) NOT NULL,
+                        last_seen_at TIMESTAMP NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(source, item_id)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_dedupe_source ON dedupe_records(source);
+                    CREATE INDEX IF NOT EXISTS idx_dedupe_last_seen ON dedupe_records(last_seen_at);
+                """
+                conn.createStatement().use { stmt ->
+                    stmt.execute(sql)
+                }
+                logger.info { "Dedupe schema ensured" }
             }
-            logger.info { "Dedupe schema ensured" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to ensure dedupe schema" }
         }

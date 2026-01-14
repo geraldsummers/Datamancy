@@ -11,26 +11,35 @@
 ENV_FILE_APP="/app/www/.env"
 ENV_FILE_CONFIG="/config/www/.env"
 
-# Wait up to 30 seconds for the .env file to be created by the container
-echo "Waiting for BookStack .env file to be created..."
-for i in {1..30}; do
-    if [ -f "$ENV_FILE_APP" ] || [ -f "$ENV_FILE_CONFIG" ]; then
-        echo "Found .env file, proceeding with updates..."
-        # Use whichever exists (app takes priority as it's created first)
-        if [ -f "$ENV_FILE_APP" ]; then
-            ENV_FILE="$ENV_FILE_APP"
-        else
-            ENV_FILE="$ENV_FILE_CONFIG"
-        fi
+# Wait up to 60 seconds for the persistent config file to be created
+# LinuxServer.io containers copy from /app to /config on first boot
+echo "Waiting for BookStack persistent .env file to be created..."
+for i in {1..60}; do
+    if [ -f "$ENV_FILE_CONFIG" ]; then
+        echo "Found persistent .env file at $ENV_FILE_CONFIG"
+        ENV_FILE="$ENV_FILE_CONFIG"
         break
     fi
     sleep 1
 done
 
+# Fallback to app .env if config doesn't exist yet
 if [ ! -f "$ENV_FILE" ]; then
-    echo "ERROR: BookStack .env file not found at $ENV_FILE after 30 seconds"
-    echo "Container may need manual initialization"
-    exit 0  # Don't fail the container startup
+    if [ -f "$ENV_FILE_APP" ]; then
+        echo "Using app .env file at $ENV_FILE_APP (will be copied to config)"
+        ENV_FILE="$ENV_FILE_APP"
+    else
+        echo "ERROR: No BookStack .env file found after 60 seconds"
+        echo "Container may need manual initialization"
+        exit 0  # Don't fail the container startup
+    fi
+fi
+
+# Check if we've already updated this file (idempotency)
+if grep -q "^DB_HOST=mariadb$" "$ENV_FILE" 2>/dev/null && \
+   grep -q "^DB_USERNAME=$DB_USER$" "$ENV_FILE" 2>/dev/null; then
+    echo "BookStack .env already configured correctly, skipping update"
+    exit 0
 fi
 
 echo "Updating BookStack .env file at $ENV_FILE..."
