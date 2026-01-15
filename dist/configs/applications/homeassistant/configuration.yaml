@@ -1,0 +1,53 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# HTTP configuration for reverse proxy (Caddy with Authelia forward_auth)
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.16.0.0/12  # Docker bridge networks (covers all 172.16-31.x.x)
+    - 127.0.0.1
+    - ::1
+  # Trust Authelia headers for SSO
+  ip_ban_enabled: false
+  login_attempts_threshold: 5
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+# PostgreSQL recorder for long-term statistics
+recorder:
+  db_url: !env_var HOMEASSISTANT_DB_URL
+  auto_purge: true
+  purge_keep_days: 30
+
+# Auth providers - SSO via Authelia + fallback to local/LDAP
+# Authentication flow:
+# 1. Web access: Authelia SSO (LDAP-backed) via Caddy forward_auth
+# 2. Mobile app/API: Local accounts or LDAP direct
+# 3. Trusted networks: Auto-login for internal services
+homeassistant:
+  auth_providers:
+    # Trusted networks provider - allows Authelia header passthrough
+    - type: trusted_networks
+      trusted_networks:
+        - 172.26.0.0/24  # authelia network
+        - 172.16.0.0/12  # all docker networks
+      allow_bypass_login: true
+      trusted_users:
+        172.26.0.0/24:
+          - !env_var STACK_ADMIN_USER  # Stack admin auto-admin
+
+    # Local accounts (fallback for mobile apps)
+    - type: homeassistant
+
+    # LDAP direct (for API/CLI access)
+    - type: command_line
+      command: /config/auth_ldap.py
+      args: ["--username", "{{ username }}", "--password", "{{ password }}"]
+      meta: true
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml

@@ -248,3 +248,13 @@ volumes:
       type: none
       o: bind
       device: ./volumes/data/vaultwarden
+
+  # Docker-in-Docker
+  dind-storage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./volumes/data/dind
+  dind-certs:
+    driver: local
