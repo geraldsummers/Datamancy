@@ -628,6 +628,7 @@ services:
       - ./configs/applications/mailserver/find-certs.sh:/tmp/docker-mailserver/find-certs.sh:ro
       - ./configs/infrastructure/mailserver/setup-dkim.sh:/tmp/docker-mailserver/setup-dkim.sh:ro
       - ./configs/infrastructure/mailserver/dovecot-ldap.conf.ext:/etc/dovecot/dovecot-ldap.conf.ext:ro
+      - ./configs/infrastructure/mailserver/ldap-domains.cf:/etc/postfix/ldap-domains.cf:ro
     healthcheck:
       test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993|:143' && supervisorctl status | grep -E 'postfix.*RUNNING' && supervisorctl status | grep -E 'dovecot.*RUNNING'"]
       interval: 60s
