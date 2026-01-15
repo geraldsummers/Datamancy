@@ -82,7 +82,7 @@ services:
     volumes:
       - ./configs/applications/data-fetcher/schedules.yaml:/app/config/schedules.yaml:ro
       - ./configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
-      - ./volumes/applications/data_fetcher:/app/data
+      - ./volumes/data/data-fetcher:/app/data
     healthcheck:
       test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:8095/"]
       interval: 60s

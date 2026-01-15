@@ -304,6 +304,19 @@ agent-tool-server.{$DOMAIN} {
 	}
 }
 
+# prompts server (public - serves tool schemas and system prompts)
+prompts.{$DOMAIN} {
+	# Serve tools.json directly from agent-tool-server
+	route /tools.json {
+		reverse_proxy agent-tool-server:8081
+	}
+
+	# Serve static prompt files from prompt-server
+	route {
+		reverse_proxy prompt-server:80
+	}
+}
+
 # ClickHouse HTTP
 clickhouse.{$DOMAIN} {
 	route {
@@ -364,5 +377,13 @@ search.{$DOMAIN} {
 	route {
 		import authelia_auth
 		reverse_proxy search-gateway:8097
+	}
+}
+
+# ntfy - Notification service (protected)
+ntfy.{$DOMAIN} {
+	route {
+		import authelia_auth
+		reverse_proxy ntfy:80
 	}
 }

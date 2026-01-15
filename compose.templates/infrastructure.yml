@@ -581,7 +581,7 @@ services:
       ldap:
         condition: service_healthy
       caddy:
-        condition: service_started
+        condition: service_healthy
     environment:
       ENABLE_RSPAMD: 1
       ENABLE_CLAMAV: 1
@@ -610,8 +610,12 @@ services:
       DOVECOT_USER_ATTRS: =home=/var/mail/%Ln,=mail=maildir:~/Maildir
       ENABLE_QUOTAS: 1
       POSTFIX_MESSAGE_SIZE_LIMIT: 50000000
-      SSL_CERT_PATH: /caddy-certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/mail.${DOMAIN}/mail.${DOMAIN}.crt
-      SSL_KEY_PATH: /caddy-certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/mail.${DOMAIN}/mail.${DOMAIN}.key
+      # SSL paths will be auto-detected by find-certs.sh entrypoint
+      # Supports both local_certs (dev) and Let's Encrypt (prod)
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    entrypoint: ["/bin/bash", "/tmp/docker-mailserver/find-certs.sh"]
     volumes:
       - mailserver_data:/var/mail/
       - mailserver_state:/var/mail-state/
@@ -619,6 +623,7 @@ services:
       - mailserver_config:/tmp/docker-mailserver/
       - /etc/localtime:/etc/localtime:ro
       - caddy_data:/caddy-certs:ro
+      - ./configs/applications/mailserver/find-certs.sh:/tmp/docker-mailserver/find-certs.sh:ro
       - ./configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
       - ./configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
     healthcheck:

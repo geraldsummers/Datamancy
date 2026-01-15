@@ -56,5 +56,13 @@ fi
 
 echo "[mailserver] SSL configured: $SSL_CERT_PATH"
 
-# Start the actual mailserver with found cert paths
-exec /usr/bin/dumb-init /usr/local/bin/start-mailserver.sh
+# Write cert paths to env file that mailserver will read
+echo "SSL_CERT_PATH=$SSL_CERT_PATH" > /tmp/docker-mailserver/.ssl-env
+echo "SSL_KEY_PATH=$SSL_KEY_PATH" >> /tmp/docker-mailserver/.ssl-env
+
+# Export for this process
+export SSL_CERT_PATH
+export SSL_KEY_PATH
+
+# Start supervisord with SSL env vars (the default CMD for docker-mailserver)
+exec env SSL_CERT_PATH="$SSL_CERT_PATH" SSL_KEY_PATH="$SSL_KEY_PATH" supervisord -c /etc/supervisor/supervisord.conf

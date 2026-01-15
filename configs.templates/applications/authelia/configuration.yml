@@ -69,6 +69,13 @@ access_control:
     # qBittorrent - one_factor for all authenticated users (admins, operators, users)
     - domain: qbittorrent.{{DOMAIN}}
       policy: one_factor
+    # Apex domain - homepage
+    - domain: {{DOMAIN}}
+      policy: one_factor
+      subject:
+        - "group:admins"
+        - "group:operators"
+        - "group:users"
     # All other services accessible to admins, operators, and users
     - domain: "*.{{DOMAIN}}"
       policy: one_factor

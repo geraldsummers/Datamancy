@@ -39,7 +39,7 @@ The agent-tool-server provides the following tools:
 - **docker_logs**: Fetch container logs
 - **docker_restart**: Restart Docker containers
 
-For the complete, up-to-date tool schema, fetch: https://prompts.project-saturn.com/tools.json
+For the complete, up-to-date tool schema, fetch: https://prompts.${DOMAIN}/tools.json
 
 ## Communication Guidelines
 
@@ -63,7 +63,7 @@ In any chat:
 1. Click the model dropdown
 2. Select `qwen2.5-7b-instruct`
 3. Click the settings icon
-4. Set **System Prompt** to reference https://prompts.project-saturn.com/system/qwen-with-tools.txt
+4. Set **System Prompt** to reference https://prompts.${DOMAIN}/system/qwen-with-tools.txt
 
 ## Tools JSON Endpoint
 

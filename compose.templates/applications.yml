@@ -63,7 +63,7 @@ services:
     volumes:
       - ./configs/prompts:/usr/share/nginx/html:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider http://localhost:80/README.md 2>&1 | grep -q '200' || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/README.md || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -370,7 +370,7 @@ services:
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY}
     volumes:
-      - ./volumes/applications/jupyterhub_data:/srv/jupyterhub
+      - ./volumes/data/jupyterhub:/srv/jupyterhub
       - ./configs/applications/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/hub/health || exit 1"]
@@ -423,7 +423,7 @@ services:
       LDAP_BIND_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LDAP_USER_FILTER: (uid={username})
     volumes:
-      - ./volumes/applications/homeassistant_config:/config
+      - ./volumes/data/homeassistant:/config
       - /etc/localtime:/etc/localtime:ro
       - ./configs/applications/homeassistant/configuration.yaml:/config/configuration.yaml:ro
       - ./configs/applications/homeassistant/automations.yaml:/config/automations.yaml:rw
@@ -435,7 +435,7 @@ services:
     entrypoint:
       - /entrypoint-wrapper.sh
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8123/api/config || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8123/manifest.json || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -472,7 +472,7 @@ services:
     networks:
       - postgres
     volumes:
-      - ./volumes/applications/synapse_data:/data
+      - ./volumes/data/synapse:/data
       - ./configs/applications/synapse/entrypoint.sh:/tmp/entrypoint.sh:ro
     command:
       - sh
@@ -546,7 +546,7 @@ services:
       GID: 991
     entrypoint: ["/data/entrypoint.sh"]
     volumes:
-      - ./volumes/applications/synapse_data:/data
+      - ./volumes/data/synapse:/data
       - ./configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8008/health || exit 1"]
@@ -896,7 +896,8 @@ services:
       REDIS_HOST: valkey
       REDIS_PORT: 6379
     volumes:
-      - seafile_data:/shared
+      - seafile_files:/shared
+      - seafile_media:/shared/seafile/library-template
     healthcheck:
       test: ["CMD", "curl", "-f", "-s", "http://localhost:80/api2/ping/"]
       interval: 60s

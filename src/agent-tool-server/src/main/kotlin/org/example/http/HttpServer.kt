@@ -17,6 +17,7 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
         val srv = HttpServer.create(InetSocketAddress(port), 0)
         srv.createContext("/tools/", ToolExecutionHandler(tools)) // Must come before /tools
         srv.createContext("/tools", ToolsHandler(tools))
+        srv.createContext("/tools.json", ToolsSchemaHandler(tools))
         srv.createContext("/call-tool", CallToolHandler(tools))
         val healthHandler = HealthHandler()
         srv.createContext("/health", healthHandler)
@@ -44,6 +45,23 @@ private class ToolsHandler(private val tools: ToolRegistry) : HttpHandler {
         try {
             when (exchange.requestMethod) {
                 "GET" -> respond(exchange, 200, mapOf("tools" to tools.listTools()))
+                "HEAD" -> respondHead(exchange, 200)
+                else -> respond(exchange, 405, mapOf("error" to "Method not allowed"))
+            }
+        } catch (e: Exception) {
+            respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
+        }
+    }
+}
+
+private class ToolsSchemaHandler(private val tools: ToolRegistry) : HttpHandler {
+    override fun handle(exchange: HttpExchange) {
+        try {
+            when (exchange.requestMethod) {
+                "GET" -> {
+                    val schema = OpenWebUISchemaGenerator.generateFullSchema(tools)
+                    respond(exchange, 200, schema)
+                }
                 "HEAD" -> respondHead(exchange, 200)
                 else -> respond(exchange, 405, mapOf("error" to "Method not allowed"))
             }

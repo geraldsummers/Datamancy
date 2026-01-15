@@ -23,21 +23,24 @@ storage:
   # Vector databases (Qdrant) - fast SSD recommended for embedding search
   vector_dbs: "/mnt/sdc1_ctbx500_0385/datamancy/vector-dbs"
 
-  # Relational/analytics databases (PostgreSQL, MariaDB, ClickHouse) - RAID for reliability
-  non_vector_dbs: "/mnt/btrfs_raid_1_01_docker/volumes/databases"
+  # Custom storage paths for specific services
+  custom:
+    # qBittorrent - large media storage (not backed up)
+    qbittorrent_data: "/mnt/media/qbittorrent"
 
-  # Application data (Caddy, Grafana, BookStack, etc.) - RAID for reliability
-  application_data: "/mnt/btrfs_raid_1_01_docker/volumes/applications"
+    # Seafile - separate media and files storage
+    seafile_media: "/mnt/media/seafile-media"    # Large media files (not backed up, no RAID)
+    seafile_files: "./volumes/data/seafile"          # Important files (RAID + backed up)
 
 # ============================================================================
 # Runtime Configuration (Non-Sensitive)
 # ============================================================================
 runtime:
   # Primary domain for the stack (all services will be subdomains of this)
-  domain: "project-saturn.com"
+  domain: "datamancy.net"
 
   # Admin email for notifications and account creation
-  admin_email: "admin@latium.local"
+  admin_email: "admin@datamancy.net"
 
   # Admin username (non-sensitive, password is auto-generated)
   admin_user: "sysadmin"
@@ -127,36 +130,3 @@ resources:
     memory: "2G"
     cpus: "2.0"
 
-# ============================================================================
-# Startup Phases
-# Services are started in phases with health checks between each phase
-# Directory order determines startup sequence within each phase
-# ============================================================================
-phases:
-  core:
-    order: 1
-    description: "Core infrastructure (caddy, ldap, valkey, authelia, mail)"
-    timeout_seconds: 90
-    compose_dirs:
-      - "core"
-
-  databases:
-    order: 2
-    description: "Database services (postgres, mariadb, clickhouse, qdrant)"
-    timeout_seconds: 120
-    compose_dirs:
-      - "databases"
-
-  applications:
-    order: 3
-    description: "Web applications (bookstack, grafana, open-webui, etc.)"
-    timeout_seconds: 180
-    compose_dirs:
-      - "applications"
-
-  datamancy:
-    order: 4
-    description: "Datamancy services (control-panel, search, indexer, ai)"
-    timeout_seconds: 120
-    compose_dirs:
-      - "datamancy"

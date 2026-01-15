@@ -42,6 +42,9 @@ networks:
   qdrant:
     subnet: 172.23.0.0/24
     description: Qdrant vector database access
+  couchdb:
+    subnet: 172.31.0.0/24
+    description: CouchDB document database access
 
   # Core infrastructure networks
   valkey:
@@ -122,9 +125,11 @@ core:
       - kopia
       - mail
       - agent-tool-server
+      - prompts
       - lam
       - forgejo
       - qbittorrent
+      - ntfy
     ports:
       - "80:80"
       - "443:443"
@@ -446,6 +451,29 @@ core:
     phase: core
     phase_order: 1
 
+  ntfy:
+    image: binwiederhier/ntfy
+    version: v2.12.0
+    container_name: ntfy
+    subdomain: ntfy
+    networks:
+      - caddy
+    command:
+      - serve
+    environment:
+      TZ: "UTC"
+    volumes:
+      - ntfy_cache:/var/cache/ntfy
+      - ntfy_data:/var/lib/ntfy
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    phase: core
+    phase_order: 1
+
 # Database Services
 databases:
   postgres:
@@ -646,6 +674,30 @@ databases:
     resources:
       memory: 2G
       cpus: "2.0"
+
+  couchdb:
+    image: couchdb
+    version: "3.4"
+    container_name: couchdb
+    subdomain: null
+    networks:
+      - couchdb
+    environment:
+      COUCHDB_USER: "${STACK_ADMIN_USER}"
+      COUCHDB_PASSWORD: "${COUCHDB_ADMIN_PASSWORD}"
+    volumes:
+      - couchdb_data:/opt/couchdb/data
+    health_check:
+      type: docker
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    phase: databases
+    phase_order: 2
+    resources:
+      memory: 1G
+      cpus: "1.0"
 
   vector-bootstrap:
     image: zenika/kotlin
@@ -1028,12 +1080,15 @@ applications:
       POSTGRES_DB: "homeassistant"
       POSTGRES_USER: "homeassistant"
       POSTGRES_PASSWORD: "${HOMEASSISTANT_DB_PASSWORD}"
-      LDAP_URL: "ldap://ldap:389"
+      HOMEASSISTANT_DB_URL: "postgresql://homeassistant:${HOMEASSISTANT_DB_PASSWORD}@postgres:5432/homeassistant"
+      LDAP_HOST: "ldap"
+      LDAP_PORT: "389"
       LDAP_BASE_DN: "dc=stack,dc=local"
-      LDAP_USER_DN: "ou=users,dc=stack,dc=local"
       LDAP_BIND_DN: "cn=admin,dc=stack,dc=local"
       LDAP_BIND_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
       LDAP_USER_FILTER: "(uid={username})"
+      STACK_ADMIN_USER: "${STACK_ADMIN_USER}"
+      STACK_ADMIN_PASSWORD: "${STACK_ADMIN_PASSWORD}"
     volumes:
       - homeassistant_config:/config
       - /etc/localtime:/etc/localtime:ro
@@ -1043,7 +1098,8 @@ applications:
       - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/scenes.yaml:/config/scenes.yaml:rw
       - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/init-homeassistant.sh:/init-homeassistant.sh:ro
       - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/entrypoint.sh:/entrypoint-wrapper.sh:ro
-      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/auth_ldap.py:/usr/src/homeassistant/homeassistant/auth/providers/auth_ldap.py:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/auto-create-admin.sh:/config/auto-create-admin.sh:ro
+      - ${DEPLOYMENT_ROOT}/configs/applications/homeassistant/auth_ldap.py:/config/custom_components/ldap_auth/auth_ldap.py:ro
     entrypoint:
       - /entrypoint-wrapper.sh
     health_check:
@@ -1616,6 +1672,7 @@ datamancy:
       - clickhouse
       - mariadb  # Needs bookstack's DB
       - qdrant
+      - couchdb  # Document storage
     depends_on:
       - postgres
       - clickhouse
@@ -1666,6 +1723,7 @@ datamancy:
       - mariadb  # Needs bookstack's DB
       - qdrant
       - clickhouse
+      - couchdb  # Document storage
       - ai-gateway  # Access to embedding-service via gateway
     depends_on:
       - postgres
@@ -1704,6 +1762,7 @@ datamancy:
     networks:
       - qdrant
       - clickhouse
+      - couchdb  # Document retrieval
       - ai-gateway  # Access to embedding-service via gateway
     depends_on:
       - qdrant
@@ -1735,41 +1794,15 @@ datamancy:
     subdomain: agent-tool-server
     networks:
       - ai  # ISOLATED - Lives in AI zone (untrusted external actors)
-      - ai-gateway  # Controlled access to internal API gateway only
+      - ai-gateway  # Controlled access to search-service only
       - caddy  # Only for Caddy access (MCP protocol)
-      - postgres
-      - mariadb
-      - clickhouse
-      - qdrant
-      - ldap
     depends_on:
       - litellm
     environment:
       LITELLM_API_KEY: "${LITELLM_MASTER_KEY}"
       LITELLM_BASE_URL: "http://litellm:4000/v1"
-      POSTGRES_OBSERVER_USER: "agent_observer"
-      POSTGRES_OBSERVER_PASSWORD: "${AGENT_POSTGRES_OBSERVER_PASSWORD}"
-      POSTGRES_HOST: "postgres"
-      POSTGRES_PORT: "5432"
-      MARIADB_OBSERVER_USER: "agent_observer"
-      MARIADB_OBSERVER_PASSWORD: "${AGENT_MARIADB_OBSERVER_PASSWORD}"
-      MARIADB_HOST: "mariadb"
-      MARIADB_PORT: "3306"
-      CLICKHOUSE_OBSERVER_USER: "${STACK_ADMIN_USER}"
-      CLICKHOUSE_OBSERVER_PASSWORD: "${AGENT_CLICKHOUSE_OBSERVER_PASSWORD}"
-      CLICKHOUSE_HOST: "clickhouse"
-      CLICKHOUSE_PORT: "8123"
-      QDRANT_OBSERVER_API_KEY: "${AGENT_QDRANT_API_KEY}"
-      QDRANT_HOST: "qdrant"
-      QDRANT_PORT: "6333"
-      LDAP_OBSERVER_DN: "cn=agent_observer,dc=stack,dc=local"
-      LDAP_OBSERVER_PASSWORD: "${AGENT_LDAP_OBSERVER_PASSWORD}"
-      LDAP_HOST: "ldap"
-      LDAP_PORT: "389"
-      LDAP_BASE_DN: "dc=stack,dc=local"
       SEARCH_SERVICE_URL: "http://search-service:8098"
     volumes:
-      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ${VOLUMES_ROOT}/secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
       - ${VOLUMES_ROOT}/agent_tool_server/known_hosts:/app/known_hosts:ro
       - ${DEPLOYMENT_ROOT}/configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
@@ -1870,39 +1903,3 @@ datamancy:
     phase: monitoring
     phase_order: 2
 
-# Metadata about phases (for controller)
-phases:
-  core:
-    order: 1
-    description: Core infrastructure (networks, volumes, caddy, ldap, valkey)
-    timeout_seconds: 90
-
-  databases:
-    order: 2
-    description: Database services (postgres, mariadb, clickhouse, qdrant)
-    timeout_seconds: 120
-
-  auth:
-    order: 3
-    description: Authentication services (authelia, mailserver)
-    timeout_seconds: 120
-
-  applications:
-    order: 4
-    description: Web applications (bookstack, grafana, etc.)
-    timeout_seconds: 180
-
-  ai:
-    order: 5
-    description: AI/ML services (vllm, litellm, embedding)
-    timeout_seconds: 300
-
-  monitoring:
-    order: 2
-    description: Monitoring services (prometheus, node-exporter, cadvisor, watchtower)
-    timeout_seconds: 60
-
-  datamancy:
-    order: 6
-    description: Datamancy services (control-panel, search, indexer)
-    timeout_seconds: 120

@@ -21,10 +21,15 @@ import kotlin.system.exitProcess
 // Configuration
 // ============================================================================
 
+data class CustomStorageConfig(
+    val qbittorrent_data: String? = null,
+    val seafile_media: String? = null,
+    val seafile_files: String? = null
+)
+
 data class StorageConfig(
     val vector_dbs: String,
-    val non_vector_dbs: String,
-    val application_data: String
+    val custom: CustomStorageConfig? = null
 )
 
 data class RuntimeConfig(
@@ -81,20 +86,12 @@ data class ResourceLimit(
     val cpus: String? = null
 )
 
-data class PhaseConfig(
-    val order: Int,
-    val description: String,
-    val timeout_seconds: Int,
-    val compose_dirs: List<String>
-)
-
 data class DatamancyConfig(
     val installation: InstallationConfig,
     val storage: StorageConfig,
     val runtime: RuntimeConfig,
     val images: ImagesConfig? = null,
-    val resources: Map<String, ResourceLimit>? = null,
-    val phases: Map<String, PhaseConfig>? = null
+    val resources: Map<String, ResourceLimit>? = null
 )
 
 // Variables that stay as ${VAR} for docker compose runtime substitution
@@ -118,6 +115,7 @@ val RUNTIME_VARS = setOf(
     "MARIADB_SEAFILE_PASSWORD", "SEAFILE_JWT_KEY", "SEAFILE_SECRET_KEY", "SEAFILE_EMAIL_PASSWORD",
     "ONLYOFFICE_JWT_SECRET", "JELLYFIN_OIDC_SECRET",
     "VOLUMES_ROOT", "DEPLOYMENT_ROOT", "VECTOR_DB_ROOT", "API_LITELLM_ALLOWLIST",
+    "QBITTORRENT_DATA_ROOT", "SEAFILE_MEDIA_ROOT", "SEAFILE_FILES_ROOT",
     "DOMAIN", "MAIL_DOMAIN", "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER",
     "AUTHELIA_OIDC_HMAC_SECRET", "AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY",
     "GRAFANA_DB_PASSWORD", "OPENWEBUI_DB_PASSWORD", "OPENWEBUI_DB_PASSWORD_ENCODED",
@@ -423,7 +421,7 @@ fun generateRSAKey(): String {
     return Base64.getEncoder().encodeToString(pem.toByteArray())
 }
 
-fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String) {
+fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, config: DatamancyConfig) {
     step("Generating .env with secrets")
 
     file.writeText("""
@@ -435,7 +433,12 @@ fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: S
 # ============================================================================
 VOLUMES_ROOT=.
 DEPLOYMENT_ROOT=.
-VECTOR_DB_ROOT=/mnt/sdc1_ctbx500_0385/datamancy/vector-dbs
+VECTOR_DB_ROOT=${config.storage.vector_dbs}
+
+# Custom storage paths for specific services
+QBITTORRENT_DATA_ROOT=${config.storage.custom?.qbittorrent_data ?: "./volumes/data/qbittorrent"}
+SEAFILE_MEDIA_ROOT=${config.storage.custom?.seafile_media ?: "./volumes/data/seafile-media"}
+SEAFILE_FILES_ROOT=${config.storage.custom?.seafile_files ?: "./volumes/data/seafile"}
 
 # ============================================================================
 # Domain and Admin
@@ -602,7 +605,7 @@ ${CYAN}╔═══════════════════════�
     copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
     processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, oauthHashes)
-    generateEnvFile(distDir.resolve(".env"), config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword)
+    generateEnvFile(distDir.resolve(".env"), config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, config)
 
     // Copy bootstrap script
     val bootstrapScript = File("compose.templates/bootstrap-volumes.sh")
