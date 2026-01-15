@@ -607,8 +607,10 @@ services:
       DOVECOT_USER_FILTER: (&(objectClass=inetOrgPerson)(mail=%u))
       DOVECOT_PASS_FILTER: (&(objectClass=inetOrgPerson)(mail=%u))
       DOVECOT_PASS_ATTRS: mail=user,userPassword=password
-      DOVECOT_USER_ATTRS: =home=/var/mail/%Ln,=mail=maildir:~/Maildir
+      DOVECOT_USER_ATTRS: =home=/var/mail/%Ln,=mail=maildir:~/Maildir,=uid=5000,=gid=5000
       ENABLE_QUOTAS: 1
+      # Disable Amavis by default (unstable) - can be enabled if needed
+      ENABLE_AMAVIS: 0
       POSTFIX_MESSAGE_SIZE_LIMIT: 50000000
       # SSL paths will be auto-detected by find-certs.sh entrypoint
       # Supports both local_certs (dev) and Let's Encrypt (prod)
@@ -624,8 +626,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - caddy_data:/caddy-certs:ro
       - ./configs/applications/mailserver/find-certs.sh:/tmp/docker-mailserver/find-certs.sh:ro
-      - ./configs/applications/mailserver/dovecot-master-users.conf:/tmp/docker-mailserver/dovecot-master-users.conf:ro
-      - ./configs/applications/mailserver/local.conf:/etc/dovecot/local.conf:ro
+      - ./configs/infrastructure/mailserver/setup-dkim.sh:/tmp/docker-mailserver/setup-dkim.sh:ro
+      - ./configs/infrastructure/mailserver/dovecot-ldap.conf.ext:/etc/dovecot/dovecot-ldap.conf.ext:ro
     healthcheck:
       test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993|:143' && supervisorctl status | grep -E 'postfix.*RUNNING' && supervisorctl status | grep -E 'dovecot.*RUNNING'"]
       interval: 60s

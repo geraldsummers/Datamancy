@@ -1,0 +1,25 @@
+# Dovecot LDAP Configuration for Datamancy Stack
+# This file configures LDAP authentication for mailserver
+#
+# Key fix: user_attrs must specify static UID/GID since docker-mailserver
+# uses a single mail user (UID/GID 5000) for all virtual mailboxes
+
+base = ou=users,dc=stack,dc=local
+default_pass_scheme = SSHA
+dn = cn=admin,dc=stack,dc=local
+dnpass = {{LDAP_ADMIN_PASSWORD}}
+uris = ldap://ldap:389
+tls = no
+ldap_version = 3
+
+# Password database - authenticate users
+pass_attrs = mail=user,userPassword=password
+pass_filter = (&(objectClass=inetOrgPerson)(mail=%u))
+
+# User database - map LDAP users to mailbox locations
+# CRITICAL: Use static UID/GID (5000) for docker-mailserver virtual mail user
+# home and mail paths are based on the local part of email address (%Ln)
+user_attrs = =home=/var/mail/%Ln,=mail=maildir:~/Maildir,=uid=5000,=gid=5000
+user_filter = (&(objectClass=inetOrgPerson)(mail=%u))
+
+auth_bind = no
