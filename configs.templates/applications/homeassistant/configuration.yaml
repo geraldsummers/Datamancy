@@ -35,9 +35,6 @@ homeassistant:
         - 172.26.0.0/24  # authelia network
         - 172.16.0.0/12  # all docker networks
       allow_bypass_login: true
-      trusted_users:
-        172.26.0.0/24:
-          - !env_var STACK_ADMIN_USER  # Stack admin auto-admin
 
     # Local accounts (fallback for mobile apps)
     - type: homeassistant

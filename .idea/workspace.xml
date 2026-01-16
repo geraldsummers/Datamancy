@@ -5,28 +5,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="fixed?">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MAILSERVER_DEPLOYMENT_NOTES.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/build-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build-datamancy.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/ai-services.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/ai-services.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compose.templates/applications.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/applications.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/bootstrap-volumes.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/datamancy-services.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/datamancy-services.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/infrastructure.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/infrastructure.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/volumes.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/volumes.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/caddy/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/mailserver/dovecot-ldap.conf.ext" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/mailserver/dovecot-ldap.conf.ext" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/datamancy.config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/datamancy.config.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homeassistant/configuration.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homeassistant/configuration.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/.build-info" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/bootstrap-volumes.sh" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/applications/authelia/configuration.yml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/applications/authelia/entrypoint.sh" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/applications/bookstack/generate-api-token.main.kts" beforeDir="false" />
@@ -90,6 +79,11 @@
       <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/caddy/Caddyfile" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/ldap/configure-memberof.sh" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/litellm/config.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/dovecot-ldap.conf.ext" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/entrypoint-wrapper.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/ldap-domains.cf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/setup-dkim.sh" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/ssh/bootstrap_known_hosts.sh" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/monitoring/grafana/provisioning/dashboards/dashboards.yml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/monitoring/grafana/provisioning/datasources/prometheus.yml" beforeDir="false" />
@@ -99,19 +93,30 @@
       <change beforePath="$PROJECT_DIR$/dist/configs/prompts/system/data-analyst.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/prompts/system/qwen-with-tools.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/configs/prompts/templates/function-calling.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/deploy.sh" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/docker-compose.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/docker/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/docker/embedding-bge/.dockerignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/docker/embedding-bge/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/docker/forgejo/.dockerignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/docker/forgejo/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/docker/forgejo/entrypoint-wrapper.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/docker/forgejo/init-datamancy-repo.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/docker/vllm-qwen-7b/.dockerignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/docker/vllm-qwen-7b/Dockerfile" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/src/agent-tool-server/Dockerfile" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/src/control-panel/Dockerfile" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/src/data-fetcher/Dockerfile" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/src/search-service/Dockerfile" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/src/unified-indexer/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/services.registry.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/services.registry.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/control-panel/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/control-panel/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-fetcher/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/search-service/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/unified-indexer/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/unified-indexer/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/embedding-bge/.dockerignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/embedding-bge/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/forgejo/.dockerignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/forgejo/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/forgejo/entrypoint-wrapper.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/forgejo/init-datamancy-repo.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/vllm-qwen-7b/.dockerignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/vllm-qwen-7b/Dockerfile" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -686,7 +691,15 @@
       <option name="project" value="LOCAL" />
       <updated>1768507829596</updated>
     </task>
-    <option name="localTasksCounter" value="46" />
+    <task id="LOCAL-00046" summary="fixed?">
+      <option name="closed" value="true" />
+      <created>1768559639746</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1768559639746</updated>
+    </task>
+    <option name="localTasksCounter" value="47" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

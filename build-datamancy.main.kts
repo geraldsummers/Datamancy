@@ -170,61 +170,29 @@ fun buildGradleServices(skipGradle: Boolean) {
     }
 }
 
-fun copyDockerBuildContexts(distDir: File) {
-    step("Copying Docker build contexts to dist")
-    val dockerDir = File("docker")
-    if (!dockerDir.exists()) {
-        warn("docker/ directory not found, skipping")
+
+fun copyBuildArtifacts(distDir: File) {
+    step("Copying build artifacts to dist")
+    val srcDir = File("src")
+    if (!srcDir.exists()) {
+        warn("src/ directory not found, skipping")
         return
     }
 
-    val destDockerDir = distDir.resolve("docker")
-    destDockerDir.mkdirs()
+    val destSrcDir = distDir.resolve("src")
+    destSrcDir.mkdirs()
 
-    // Copy all docker build contexts (for AI models, Forgejo, etc.)
-    dockerDir.walkTopDown().forEach { source ->
+    // Copy entire src/ directory
+    srcDir.walkTopDown().forEach { source ->
         if (source.isFile) {
-            val relativePath = source.relativeTo(dockerDir)
-            val dest = destDockerDir.resolve(relativePath)
+            val relativePath = source.relativeTo(srcDir)
+            val dest = destSrcDir.resolve(relativePath)
             dest.parentFile.mkdirs()
             source.copyTo(dest, overwrite = true)
         }
     }
 
-    info("Copied Docker build contexts to dist/docker/")
-}
-
-fun copyBuildArtifacts(distDir: File) {
-    step("Copying build artifacts to dist")
-    val srcDir = distDir.resolve("src")
-
-    DATAMANCY_SERVICES.forEach { service ->
-        val serviceDir = File("src/$service")
-        val dockerfile = serviceDir.resolve("Dockerfile")
-        val jarDir = serviceDir.resolve("build/libs")
-
-        if (dockerfile.exists() && jarDir.exists()) {
-            val destServiceDir = srcDir.resolve(service)
-            destServiceDir.mkdirs()
-
-            // Copy Dockerfile
-            dockerfile.copyTo(destServiceDir.resolve("Dockerfile"), overwrite = true)
-
-            // Copy build/libs directory
-            val destLibsDir = destServiceDir.resolve("build/libs")
-            destLibsDir.mkdirs()
-            jarDir.walkTopDown().forEach { file ->
-                if (file.isFile) {
-                    val relativePath = file.relativeTo(jarDir)
-                    val dest = destLibsDir.resolve(relativePath)
-                    dest.parentFile.mkdirs()
-                    file.copyTo(dest, overwrite = true)
-                }
-            }
-
-            info("Copied $service artifacts")
-        }
-    }
+    info("Copied src/ directory to dist/")
 }
 
 fun copyComposeFiles(outputDir: File) {
@@ -292,7 +260,7 @@ fun copyComposeFiles(outputDir: File) {
     info("Created merged docker-compose.yml")
 }
 
-fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, oauthHashes: Map<String, String>) {
+fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, ldapAdminPassword: String, oauthHashes: Map<String, String>) {
     step("Processing config templates")
     val templatesDir = File("configs.templates")
     if (!templatesDir.exists()) {
@@ -325,6 +293,19 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
             content = content
                 .replace("{{ADMIN_SSHA_PASSWORD}}", generatePasswordHash(adminPassword))
                 .replace("{{USER_SSHA_PASSWORD}}", generatePasswordHash(userPassword))
+        } else if (relativePath.contains("mailserver/ldap-domains.cf") || relativePath.contains("mailserver/dovecot-ldap.conf.ext")) {
+            // Mailserver LDAP configs need password baked in (Postfix/Dovecot don't support env var substitution)
+            content = content.replace("{{LDAP_ADMIN_PASSWORD}}", ldapAdminPassword)
+
+            // Convert other {{VAR}} to ${VAR} for runtime vars
+            content = content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
+                val varName = match.groupValues[1]
+                if (varName in RUNTIME_VARS) "\${$varName}"
+                else {
+                    warn("Unknown var: {{$varName}} in $relativePath")
+                    match.value
+                }
+            }
         } else {
             // Replace OAuth secret hashes first (before general substitution)
             oauthHashes.forEach { (varName, hashValue) ->
@@ -433,7 +414,7 @@ fun generateSecretForVar(varName: String): String {
     }
 }
 
-fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, config: DatamancyConfig) {
+fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, ldapAdminPassword: String, config: DatamancyConfig) {
     step("Generating .env with secrets")
 
     val env = mutableMapOf<String, String>()
@@ -457,6 +438,7 @@ fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: S
     // Secrets - provided
     env["STACK_ADMIN_PASSWORD"] = adminPassword
     env["STACK_USER_PASSWORD"] = userPassword
+    env["LDAP_ADMIN_PASSWORD"] = ldapAdminPassword
 
     // Generate secrets for all discovered runtime vars that aren't already set
     val alreadySet = env.keys
@@ -552,6 +534,7 @@ ${CYAN}╔═══════════════════════�
     // Generate secrets upfront (needed for both LDAP bootstrap and .env)
     val adminPassword = generateSecret()
     val userPassword = generateSecret()
+    val ldapAdminPassword = generateSecret()
 
     // Generate OAuth secrets and their hashes
     // Auto-discover services that need OAuth hashes by finding *_OAUTH_SECRET_HASH in templates
@@ -569,15 +552,14 @@ ${CYAN}╔═══════════════════════�
 
     // Build steps
     buildGradleServices(skipGradle)
-    copyDockerBuildContexts(distDir)
     copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
-    processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, oauthHashes)
+    processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, ldapAdminPassword, oauthHashes)
 
     // Only generate .env if it doesn't exist (preserves existing secrets)
     val envFile = distDir.resolve(".env")
     if (!envFile.exists()) {
-        generateEnvFile(envFile, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, config)
+        generateEnvFile(envFile, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, ldapAdminPassword, config)
     } else {
         info("Preserving existing .env file")
     }
@@ -596,20 +578,6 @@ ${GREEN}✓ Build complete!${RESET}
 ${CYAN}Output:${RESET} ${distDir.absolutePath}
 ${CYAN}Version:${RESET} $version
 
-${GREEN}Deploy:${RESET}
-  1. Package and transfer:
-     ${CYAN}tar czf datamancy-deployment.tar.gz -C dist .${RESET}
-     ${CYAN}rsync datamancy-deployment.tar.gz user@server:/path/to/deployment/${RESET}
-
-  2. On server, extract and build images:
-     ${CYAN}tar xzf datamancy-deployment.tar.gz${RESET}
-     ${CYAN}docker build -t datamancy/forgejo:latest -f docker/forgejo/Dockerfile .${RESET}
-     ${CYAN}docker build -t datamancy/vllm-qwen-7b:latest -f docker/vllm-qwen-7b/Dockerfile docker/vllm-qwen-7b${RESET}
-     ${CYAN}docker build -t datamancy/embedding-bge:latest -f docker/embedding-bge/Dockerfile docker/embedding-bge${RESET}
-     ${CYAN}# Build datamancy services...${RESET}
-
-  3. Start the stack:
-     ${CYAN}docker compose up -d${RESET}
 
 """)
 }

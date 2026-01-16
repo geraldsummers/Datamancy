@@ -271,10 +271,7 @@ services:
       start_period: 60s
 
   forgejo:
-    image: datamancy/forgejo:latest
-    build:
-      context: .
-      dockerfile: docker/forgejo/Dockerfile
+    image: codeberg.org/forgejo/forgejo:9.0
     container_name: forgejo
     restart: unless-stopped
     networks:
@@ -808,7 +805,7 @@ services:
         done
 
         # Check if session table already exists
-        TABLE_EXISTS=$$(psql -h postgres -U $${STACK_ADMIN_USER} -d roundcube -tAc "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'session');")
+        TABLE_EXISTS=$$(PGPASSWORD="$$PGPASSWORD" psql -h postgres -U "$$POSTGRES_USER" -d roundcube -tAc "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'session');")
 
         if [ "$$TABLE_EXISTS" = "t" ]; then
           echo "Roundcube schema already initialized, skipping..."
@@ -816,10 +813,10 @@ services:
         fi
 
         echo "Applying Roundcube schema from bundled file..."
-        psql -h postgres -U ${STACK_ADMIN_USER} -d roundcube -f /tmp/roundcube-schema.sql
+        PGPASSWORD="$$PGPASSWORD" psql -h postgres -U "$$POSTGRES_USER" -d roundcube -f /tmp/roundcube-schema.sql
 
         echo "Granting permissions to roundcube user..."
-        psql -h postgres -U ${STACK_ADMIN_USER} -d roundcube <<-EOSQL
+        PGPASSWORD="$$PGPASSWORD" psql -h postgres -U "$$POSTGRES_USER" -d roundcube <<-EOSQL
           GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO roundcube;
           GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO roundcube;
         EOSQL

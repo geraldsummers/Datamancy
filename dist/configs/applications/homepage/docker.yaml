@@ -1,6 +1,0 @@
----
-# Docker integration disabled for client-facing homepage
-# Uncomment below to enable container status monitoring
-# my-docker:
-#   host: tcp://docker-proxy:2375
-#   show: running
