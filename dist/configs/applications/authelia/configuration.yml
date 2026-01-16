@@ -149,7 +149,7 @@ identity_providers:
       # pgAdmin
       - client_id: pgadmin
         client_name: pgAdmin
-        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$Vlv1TDXwIf+qyY1F85aBww$e8LyHNpeE5kHT1BQr0qpGSQVe2gsCHWlL2FdnnXt7SU'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$6cN7D0+yWAN45+I3vqO0kg$XCsO8Az2a3AImApahlYNGURyYcPKhsgZLVuxpBXf0o0'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -167,7 +167,7 @@ identity_providers:
       # Open WebUI
       - client_id: open-webui
         client_name: Open WebUI
-        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$EMssza7j+XdZpOlZnGpIoA$fMQgPky2sG74dJh1yXhHTH+4hxx1l5HOS0/Xo/AtHmk'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$FA+s/I2scPOyDTLPaUdjjQ$/pCIzN3UID8WlaPOBOrwOHBGBXSFQf9aY8mtvwFeYoY'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -185,7 +185,7 @@ identity_providers:
       # Nextcloud
       - client_id: nextcloud
         client_name: Nextcloud
-        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$VIGyMm1Djv8pyiP1Eg0n9A$FB34BLDuHycnBpWOAKq/zqn0psvOu+KlR4D0Bpow4Qk'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$w9d1IYriVRGKU/bhd6GEIQ$spmallic2G3Z7Y6c5uWvVtUAfqmaAJTdCjH69r8y8w4'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -205,7 +205,7 @@ identity_providers:
       # Dim Media Server
       - client_id: dim
         client_name: Dim
-        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$P1NqMxWTunu4IJSOAXfUww$jCynH5Ga8WsssY/qPfZoQ4i3K0z1u0s6jEQR2TUwh+g'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$jsPEQRCU0aQA3i+iB//YfA$uGDkxs6YXvcPQ44jhuFC7nQIPwTLz4Zd3+/HjwbZu7Y'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -223,7 +223,7 @@ identity_providers:
       # Planka
       - client_id: planka
         client_name: Planka
-        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$p9mgv4oTD9EqvjMt0fmEmQ$AMaIMgoWTIrkbymj8HMox+XYCGhWMbO+T9Ahb+AkLHQ'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$Hwt24mNbQXDeHa2Iw+Fz6A$NkOY/yoCSUoXSee78qpQ2UH3TYIUrUemaRLbkCpkSWQ'
         public: false
         authorization_policy: one_factor
         token_endpoint_auth_method: client_secret_basic
@@ -248,7 +248,7 @@ identity_providers:
       # update this hash to match (pbkdf2-sha512). Use Authelia's crypto tool to generate.
       - client_id: vaultwarden
         client_name: Vaultwarden
-        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$f3s93bnLyj2Aa25yEq/NZA$h0KsY0VXn9j7UU7nMhoaZopMXnGpt1IPwXTTLK9ov0s'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$ar+C0OanTR+gfjwyg6f9dw$nDj278TRmJ/2C4UgRZ6m2wJxv0HAMuCpoD9fhfJoIUw'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -283,7 +283,7 @@ identity_providers:
       # Bookstack (Wiki/Documentation) - Seamless OIDC SSO
       - client_id: bookstack
         client_name: Bookstack
-        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$RzYWStvNruYzQZIbOrpHig$CT/4W0pb8EbfHyp9nwVF3KjnSRZkUbSC+pPm4dfMm5E'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$fXZY8z5zpqBlJRbhg1lQTA$DrXLTZ2xMEi3c4N4aN16WZ58vPLr3Om4f3oPbcAOJe8'
         public: false
         authorization_policy: one_factor
         consent_mode: implicit
@@ -303,7 +303,7 @@ identity_providers:
       # Forgejo (Git Forge)
       - client_id: forgejo
         client_name: Forgejo
-        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$2/He25o34Li9Kb1s76ogag$7bUiWROOCHZhgVIhi9XRrRYrRaeiKVWCY2KeC6JkXmI'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$/yNXalMZq56tcuhcXoc21Q$BlRsdu+FMvp9JzEDQXDVkMjZtKhTFFrZ+wrAYyd7Svg'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -322,7 +322,7 @@ identity_providers:
       # Matrix Synapse (Element SSO)
       - client_id: matrix
         client_name: Matrix Synapse
-        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$u5gtiYxSQvVx+TERUamkMA$uR+VqhbcImEXCHO+wGAmM1+4HrvaqKsMUfW8fbtOOLw'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$wc7HHv9p2r7u9qUZ3fGJnA$kidQlqePil3p5WNrb9EoE2FK1bM/+ifUZVYGBz9BOEo'
         public: false
         authorization_policy: one_factor
         consent_mode: implicit

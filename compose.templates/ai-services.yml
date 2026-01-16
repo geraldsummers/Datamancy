@@ -4,7 +4,10 @@
 
 services:
   vllm-7b:
-    image: vllm/vllm-openai:v0.13.0
+    image: datamancy/vllm-qwen-7b:latest
+    build:
+      context: ./docker/vllm-qwen-7b
+      dockerfile: Dockerfile
     container_name: vllm-7b
     restart: unless-stopped
     networks:
@@ -12,10 +15,12 @@ services:
     environment:
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
       HF_HUB_ENABLE_HF_TRANSFER: 0
+      HF_HUB_OFFLINE: 1
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
-    volumes:
-      - ./vllm/models:/root/.cache/huggingface
+      HF_HOME: /models
+      TRANSFORMERS_CACHE: /models
+      HF_HUB_CACHE: /models
     command:
       - Qwen/Qwen2.5-7B-Instruct-AWQ
       - --quantization
@@ -54,7 +59,10 @@ services:
       start_period: 300s
 
   embedding-service:
-    image: ghcr.io/huggingface/text-embeddings-inference:1.8.3
+    image: datamancy/embedding-bge:latest
+    build:
+      context: ./docker/embedding-bge
+      dockerfile: Dockerfile
     container_name: embedding-service
     restart: unless-stopped
     networks:
@@ -63,8 +71,6 @@ services:
     environment:
       HF_HUB_ENABLE_HF_TRANSFER: 0
       MODEL_ID: BAAI/bge-base-en-v1.5
-    volumes:
-      - ./embeddings/models:/data
     command: --port 8080
     deploy:
       resources:

@@ -6,7 +6,7 @@ ENV PANEL_PORT=8097
 RUN apk add --no-cache wget
 
 WORKDIR /app
-COPY src/control-panel/build/libs/control-panel.jar /app/control-panel.jar
+COPY build/libs/control-panel.jar /app/control-panel.jar
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

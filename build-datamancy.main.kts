@@ -23,8 +23,7 @@ import kotlin.system.exitProcess
 
 data class CustomStorageConfig(
     val qbittorrent_data: String? = null,
-    val seafile_media: String? = null,
-    val seafile_files: String? = null
+    val seafile_media: String? = null
 )
 
 data class StorageConfig(
@@ -42,89 +41,76 @@ data class InstallationConfig(
     val default_path: String
 )
 
-data class ImagesConfig(
-    val caddy: String? = null,
-    val ldap: String? = null,
-    val valkey: String? = null,
-    val authelia: String? = null,
-    val mailserver: String? = null,
-    val ldap_account_manager: String? = null,
-    val memcached: String? = null,
-    val docker_proxy: String? = null,
-    val kopia: String? = null,
-    val postgres: String? = null,
-    val mariadb: String? = null,
-    val clickhouse: String? = null,
-    val qdrant: String? = null,
-    val grafana: String? = null,
-    val open_webui: String? = null,
-    val vaultwarden: String? = null,
-    val bookstack: String? = null,
-    val planka: String? = null,
-    val forgejo: String? = null,
-    val homepage: String? = null,
-    val jupyterhub: String? = null,
-    val homeassistant: String? = null,
-    val qbittorrent: String? = null,
-    val synapse: String? = null,
-    val element: String? = null,
-    val mastodon: String? = null,
-    val mastodon_streaming: String? = null,
-    val roundcube: String? = null,
-    val radicale: String? = null,
-    val seafile: String? = null,
-    val onlyoffice: String? = null,
-    val vllm: String? = null,
-    val embedding_service: String? = null,
-    val litellm: String? = null,
-    val kotlin_runtime: String? = null,
-    val temurin_jdk: String? = null
-)
-
-data class ResourceLimit(
-    val memory: String? = null,
-    val cpus: String? = null
-)
-
 data class DatamancyConfig(
     val installation: InstallationConfig,
     val storage: StorageConfig,
-    val runtime: RuntimeConfig,
-    val images: ImagesConfig? = null,
-    val resources: Map<String, ResourceLimit>? = null
+    val runtime: RuntimeConfig
 )
 
-// Variables that stay as ${VAR} for docker compose runtime substitution
-val RUNTIME_VARS = setOf(
-    "LDAP_ADMIN_PASSWORD", "STACK_ADMIN_PASSWORD", "STACK_USER_PASSWORD",
-    "LITELLM_MASTER_KEY", "AUTHELIA_JWT_SECRET", "AUTHELIA_SESSION_SECRET",
-    "AUTHELIA_STORAGE_ENCRYPTION_KEY", "POSTGRES_ROOT_PASSWORD",
-    "MARIADB_ROOT_PASSWORD", "QDRANT_API_KEY", "AGENT_LDAP_OBSERVER_PASSWORD",
-    "SYNAPSE_DB_PASSWORD", "SYNAPSE_REGISTRATION_SECRET", "SYNAPSE_MACAROON_SECRET",
-    "SYNAPSE_FORM_SECRET", "ROUNDCUBE_DB_PASSWORD",
-    "MATRIX_OAUTH_SECRET", "MASTODON_DB_PASSWORD", "MASTODON_OTP_SECRET",
-    "MASTODON_SECRET_KEY_BASE", "MASTODON_VAPID_PRIVATE_KEY",
-    "MASTODON_VAPID_PUBLIC_KEY", "MASTODON_OIDC_SECRET",
-    "MASTODON_ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY",
-    "MASTODON_ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY",
-    "MASTODON_ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT",
-    "PLANKA_DB_PASSWORD", "PLANKA_SECRET_KEY", "BOOKSTACK_DB_PASSWORD",
-    "BOOKSTACK_APP_KEY", "FORGEJO_OAUTH_SECRET",
-    "OPENWEBUI_OAUTH_SECRET", "VAULTWARDEN_ADMIN_TOKEN",
-    "VAULTWARDEN_OAUTH_SECRET", "JUPYTERHUB_CRYPT_KEY",
-    "MARIADB_SEAFILE_PASSWORD", "SEAFILE_JWT_KEY", "SEAFILE_SECRET_KEY", "SEAFILE_EMAIL_PASSWORD",
-    "ONLYOFFICE_JWT_SECRET", "JELLYFIN_OIDC_SECRET",
-    "VOLUMES_ROOT", "DEPLOYMENT_ROOT", "VECTOR_DB_ROOT", "API_LITELLM_ALLOWLIST",
-    "QBITTORRENT_DATA_ROOT", "SEAFILE_MEDIA_ROOT", "SEAFILE_FILES_ROOT",
-    "DOMAIN", "MAIL_DOMAIN", "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER",
-    "AUTHELIA_OIDC_HMAC_SECRET", "AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY",
-    "GRAFANA_DB_PASSWORD", "OPENWEBUI_DB_PASSWORD", "OPENWEBUI_DB_PASSWORD_ENCODED",
-    "VAULTWARDEN_SMTP_PASSWORD", "AGENT_POSTGRES_OBSERVER_PASSWORD",
-    "AGENT_CLICKHOUSE_OBSERVER_PASSWORD", "AGENT_MARIADB_OBSERVER_PASSWORD",
-    "AGENT_QDRANT_API_KEY", "DATAMANCY_SERVICE_PASSWORD", "HUGGINGFACEHUB_API_TOKEN",
-    "AUTHELIA_DB_PASSWORD", "HOMEASSISTANT_DB_PASSWORD", "CLICKHOUSE_ADMIN_PASSWORD",
-    "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET"
+// Service list used across multiple build steps
+val DATAMANCY_SERVICES = listOf(
+    "control-panel", "data-fetcher", "unified-indexer",
+    "search-service", "agent-tool-server"
 )
+
+// ============================================================================
+// Variable Discovery & Naming Conventions
+// ============================================================================
+// Template variables use naming suffixes to indicate secret type:
+//
+//   *_APP_KEY              → Laravel base64-encoded key (e.g., BOOKSTACK_APP_KEY)
+//   *_ISSUER_PRIVATE_KEY   → RSA 4096-bit key, base64-encoded PEM
+//   *_OAUTH_SECRET_HASH    → Authelia argon2id hash (config files only, not .env)
+//   *_SSHA_PASSWORD        → LDAP SSHA hash (LDAP bootstrap only, not .env)
+//   HUGGINGFACEHUB_API_TOKEN → User must provide (empty in .env)
+//   API_LITELLM_ALLOWLIST  → Configuration value (not a secret)
+//   Everything else        → Standard 64-char hex secret (openssl rand -hex 32)
+//
+// All {{VAR}} patterns in configs.templates/ are auto-discovered and processed.
+// ============================================================================
+
+// Discover all variables used in template files by scanning for {{VAR}} patterns
+fun discoverRuntimeVars(): Set<String> {
+    val discoveredVars = mutableSetOf<String>()
+
+    // Scan configs.templates for {{VAR}} patterns
+    val configTemplatesDir = File("configs.templates")
+    if (configTemplatesDir.exists()) {
+        val configVarPattern = Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")
+        configTemplatesDir.walkTopDown().forEach { file ->
+            if (file.isFile) {
+                val content = file.readText()
+                configVarPattern.findAll(content).forEach { match ->
+                    discoveredVars.add(match.groupValues[1])
+                }
+            }
+        }
+    } else {
+        warn("configs.templates/ not found")
+    }
+
+    // Scan compose.templates for ${VAR} patterns
+    val composeTemplatesDir = File("compose.templates")
+    if (composeTemplatesDir.exists()) {
+        val composeVarPattern = Regex("""\$\{([A-Z_][A-Z0-9_]*)\}""")
+        composeTemplatesDir.walkTopDown().forEach { file ->
+            if (file.isFile && file.extension == "yml") {
+                val content = file.readText()
+                composeVarPattern.findAll(content).forEach { match ->
+                    discoveredVars.add(match.groupValues[1])
+                }
+            }
+        }
+    } else {
+        warn("compose.templates/ not found")
+    }
+
+    info("Discovered ${discoveredVars.size} runtime variables from templates")
+    return discoveredVars
+}
+
+// Variables that stay as ${VAR} for docker compose runtime substitution
+val RUNTIME_VARS by lazy { discoverRuntimeVars() }
 
 // ============================================================================
 // Utilities
@@ -184,43 +170,35 @@ fun buildGradleServices(skipGradle: Boolean) {
     }
 }
 
-fun buildDockerImages() {
-    step("Building Docker images")
-    val datamancyServices = listOf(
-        "control-panel", "data-fetcher", "unified-indexer",
-        "search-service", "agent-tool-server"
-        // "embedding-service" - skipped (large Python/PyTorch deps take 5+ min to download)
-    )
+fun copyDockerBuildContexts(distDir: File) {
+    step("Copying Docker build contexts to dist")
+    val dockerDir = File("docker")
+    if (!dockerDir.exists()) {
+        warn("docker/ directory not found, skipping")
+        return
+    }
 
-    datamancyServices.forEach { service ->
-        val dockerfile = File("src/$service/Dockerfile")
-        if (!dockerfile.exists()) {
-            warn("Skipping $service - no Dockerfile")
-            return@forEach
-        }
+    val destDockerDir = distDir.resolve("docker")
+    destDockerDir.mkdirs()
 
-        info("Building datamancy/$service")
-        val exitCode = exec(
-            "docker build -t datamancy/$service:latest -f src/$service/Dockerfile .",
-            ignoreError = true
-        )
-        if (exitCode != 0) {
-            error("Failed to build datamancy/$service")
-            exitProcess(exitCode)
+    // Copy all docker build contexts (for AI models, Forgejo, etc.)
+    dockerDir.walkTopDown().forEach { source ->
+        if (source.isFile) {
+            val relativePath = source.relativeTo(dockerDir)
+            val dest = destDockerDir.resolve(relativePath)
+            dest.parentFile.mkdirs()
+            source.copyTo(dest, overwrite = true)
         }
     }
+
+    info("Copied Docker build contexts to dist/docker/")
 }
 
 fun copyBuildArtifacts(distDir: File) {
     step("Copying build artifacts to dist")
     val srcDir = distDir.resolve("src")
 
-    val datamancyServices = listOf(
-        "control-panel", "data-fetcher", "unified-indexer",
-        "search-service", "agent-tool-server"
-    )
-
-    datamancyServices.forEach { service ->
+    DATAMANCY_SERVICES.forEach { service ->
         val serviceDir = File("src/$service")
         val dockerfile = serviceDir.resolve("Dockerfile")
         val jarDir = serviceDir.resolve("build/libs")
@@ -421,126 +399,118 @@ fun generateRSAKey(): String {
     return Base64.getEncoder().encodeToString(pem.toByteArray())
 }
 
+// Generate appropriate secret based on variable name pattern
+fun generateSecretForVar(varName: String): String {
+    return when {
+        // Authelia OAuth hashes (for config files, not .env)
+        varName.endsWith("_OAUTH_SECRET_HASH") -> throw IllegalStateException("OAuth hashes should not be in .env")
+
+        // LDAP SSHA hashes (for LDAP bootstrap, not .env)
+        varName.endsWith("_SSHA_PASSWORD") -> throw IllegalStateException("SSHA hashes should not be in .env")
+
+        // Variables handled elsewhere - skip
+        varName in setOf("DOMAIN", "MAIL_DOMAIN", "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER",
+                        "STACK_ADMIN_PASSWORD", "VECTOR_DB_ROOT", "QBITTORRENT_DATA_ROOT",
+                        "SEAFILE_MEDIA_ROOT", "VOLUMES_ROOT", "DEPLOYMENT_ROOT",
+                        "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET")
+            -> throw IllegalStateException("$varName is handled separately")
+
+        // Special secret formats
+        varName.endsWith("_APP_KEY") -> generateBookStackAppKey()
+        varName.endsWith("_ISSUER_PRIVATE_KEY") -> generateRSAKey()
+
+        // User-provided values
+        varName == "HUGGINGFACEHUB_API_TOKEN" -> "" // User must fill
+
+        // Configuration values (not secrets)
+        varName == "API_LITELLM_ALLOWLIST" -> "127.0.0.1 172.16.0.0/12 192.168.0.0/16"
+
+        // Skip unknown/invalid variables
+        varName == "VARS" -> throw IllegalStateException("VARS is invalid")
+
+        // Standard hex secrets (default)
+        else -> generateSecret()
+    }
+}
+
 fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, config: DatamancyConfig) {
     step("Generating .env with secrets")
 
-    file.writeText("""
-# Datamancy Configuration
-# Generated by build-datamancy.main.kts at ${Instant.now()}
+    val env = mutableMapOf<String, String>()
 
-# ============================================================================
-# Paths
-# ============================================================================
-VOLUMES_ROOT=.
-DEPLOYMENT_ROOT=.
-VECTOR_DB_ROOT=${config.storage.vector_dbs}
+    // Paths
+    env["VOLUMES_ROOT"] = "."
+    env["DEPLOYMENT_ROOT"] = "."
+    env["VECTOR_DB_ROOT"] = config.storage.vector_dbs
+    env["QBITTORRENT_DATA_ROOT"] = config.storage.custom?.qbittorrent_data ?: "/mnt/media/qbittorrent"
+    env["SEAFILE_MEDIA_ROOT"] = config.storage.custom?.seafile_media ?: "/mnt/media/seafile-media"
 
-# Custom storage paths for specific services
-QBITTORRENT_DATA_ROOT=${config.storage.custom?.qbittorrent_data ?: "./volumes/data/qbittorrent"}
-SEAFILE_MEDIA_ROOT=${config.storage.custom?.seafile_media ?: "./volumes/data/seafile-media"}
-SEAFILE_FILES_ROOT=${config.storage.custom?.seafile_files ?: "./volumes/data/seafile"}
+    // Domain and Admin
+    env["DOMAIN"] = domain
+    env["MAIL_DOMAIN"] = domain
+    env["STACK_ADMIN_EMAIL"] = adminEmail
+    env["STACK_ADMIN_USER"] = adminUser
+    env["DOCKER_USER_ID"] = "1000"
+    env["DOCKER_GROUP_ID"] = "1000"
+    env["DOCKER_SOCKET"] = "/var/run/docker.sock"
 
-# ============================================================================
-# Domain and Admin
-# ============================================================================
-DOMAIN=$domain
-MAIL_DOMAIN=$domain
-STACK_ADMIN_EMAIL=$adminEmail
-STACK_ADMIN_USER=$adminUser
-DOCKER_USER_ID=1000
-DOCKER_GROUP_ID=1000
-DOCKER_SOCKET=/var/run/docker.sock
+    // Secrets - provided
+    env["STACK_ADMIN_PASSWORD"] = adminPassword
+    env["STACK_USER_PASSWORD"] = userPassword
 
-# ============================================================================
-# Secrets (Auto-generated)
-# ============================================================================
+    // Generate secrets for all discovered runtime vars that aren't already set
+    val alreadySet = env.keys
+    val varsNeedingSecrets = RUNTIME_VARS - alreadySet
 
-# LDAP
-LDAP_ADMIN_PASSWORD=${generateSecret()}
-STACK_ADMIN_PASSWORD=$adminPassword
-STACK_USER_PASSWORD=$userPassword
-AGENT_LDAP_OBSERVER_PASSWORD=${generateSecret()}
+    // Generate appropriate secret for each variable based on naming convention
+    varsNeedingSecrets.forEach { varName ->
+        try {
+            env[varName] = generateSecretForVar(varName)
+        } catch (e: IllegalStateException) {
+            // Skip variables that should not be in .env (like *_HASH suffixes)
+            // These are handled separately in processConfigs()
+        }
+    }
 
-# Authentication
-AUTHELIA_JWT_SECRET=${generateSecret()}
-AUTHELIA_SESSION_SECRET=${generateSecret()}
-AUTHELIA_STORAGE_ENCRYPTION_KEY=${generateSecret()}
-AUTHELIA_OIDC_HMAC_SECRET=${generateSecret()}
-AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=${generateRSAKey()}
+    // Write formatted .env
+    val content = buildString {
+        appendLine("# Datamancy Configuration")
+        appendLine("# Generated by build-datamancy.main.kts at ${Instant.now()}")
+        appendLine()
 
-# Databases
-POSTGRES_ROOT_PASSWORD=${generateSecret()}
-MARIADB_ROOT_PASSWORD=${generateSecret()}
-CLICKHOUSE_ADMIN_PASSWORD=${generateSecret()}
-AUTHELIA_DB_PASSWORD=${generateSecret()}
-SYNAPSE_DB_PASSWORD=${generateSecret()}
-MASTODON_DB_PASSWORD=${generateSecret()}
-PLANKA_DB_PASSWORD=${generateSecret()}
-OPENWEBUI_DB_PASSWORD=${generateSecret()}
-VAULTWARDEN_DB_PASSWORD=${generateSecret()}
-FORGEJO_DB_PASSWORD=${generateSecret()}
-GRAFANA_DB_PASSWORD=${generateSecret()}
-HOMEASSISTANT_DB_PASSWORD=${generateSecret()}
-ROUNDCUBE_DB_PASSWORD=${generateSecret()}
-BOOKSTACK_DB_PASSWORD=${generateSecret()}
-MARIADB_SEAFILE_PASSWORD=${generateSecret()}
+        val pathKeys = listOf("VOLUMES_ROOT", "DEPLOYMENT_ROOT", "VECTOR_DB_ROOT", "QBITTORRENT_DATA_ROOT", "SEAFILE_MEDIA_ROOT")
+        val adminKeys = listOf("DOMAIN", "MAIL_DOMAIN", "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER", "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET")
+        val configKeys = listOf("API_LITELLM_ALLOWLIST")
+        val nonSecretKeys = pathKeys + adminKeys + configKeys
 
-# AI Services
-LITELLM_MASTER_KEY=${generateSecret()}
-QDRANT_API_KEY=${generateSecret()}
+        val sections = listOf(
+            "Paths" to pathKeys,
+            "Domain and Admin" to adminKeys,
+            "Secrets" to env.keys.filter { it !in nonSecretKeys }.sorted(),
+            "Configuration" to configKeys
+        )
 
-# Application Secrets
-SYNAPSE_REGISTRATION_SECRET=${generateSecret()}
-SYNAPSE_MACAROON_SECRET=${generateSecret()}
-SYNAPSE_FORM_SECRET=${generateSecret()}
-MATRIX_OAUTH_SECRET=${generateSecret()}
-MASTODON_OTP_SECRET=${generateSecret()}
-MASTODON_SECRET_KEY_BASE=${generateSecret()}
-MASTODON_VAPID_PRIVATE_KEY=${generateSecret()}
-MASTODON_VAPID_PUBLIC_KEY=${generateSecret()}
-MASTODON_OIDC_SECRET=${generateSecret()}
-MASTODON_ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${generateSecret()}
-MASTODON_ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=${generateSecret()}
-MASTODON_ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${generateSecret()}
-BOOKSTACK_APP_KEY=${generateBookStackAppKey()}
-BOOKSTACK_OAUTH_SECRET=${generateSecret()}
-PLANKA_SECRET_KEY=${generateSecret()}
-FORGEJO_OAUTH_SECRET=${generateSecret()}
-OPENWEBUI_OAUTH_SECRET=${generateSecret()}
-OPENWEBUI_DB_PASSWORD_ENCODED=${generateSecret()}
-VAULTWARDEN_ADMIN_TOKEN=${generateSecret()}
-VAULTWARDEN_OAUTH_SECRET=${generateSecret()}
-VAULTWARDEN_SMTP_PASSWORD=${generateSecret()}
-JUPYTERHUB_CRYPT_KEY=${generateSecret()}
-MATRIX_OAUTH_SECRET=${generateSecret()}
-PLANKA_OAUTH_SECRET=${generateSecret()}
-SEAFILE_JWT_KEY=${generateSecret()}
-SEAFILE_SECRET_KEY=${generateSecret()}
-SEAFILE_EMAIL_PASSWORD=${generateSecret()}
-ONLYOFFICE_JWT_SECRET=${generateSecret()}
-JELLYFIN_OIDC_SECRET=${generateSecret()}
-NEXTCLOUD_OAUTH_SECRET=${generateSecret()}
-PGADMIN_OAUTH_SECRET=${generateSecret()}
-DIM_OAUTH_SECRET=${generateSecret()}
+        sections.forEach { (title, keys) ->
+            if (keys.isNotEmpty()) {
+                appendLine("# ${"=".repeat(76)}")
+                appendLine("# $title")
+                appendLine("# ${"=".repeat(76)}")
+                keys.forEach { key ->
+                    env[key]?.let { value ->
+                        if (value.isEmpty()) {
+                            appendLine("$key=")
+                        } else {
+                            appendLine("$key=$value")
+                        }
+                    }
+                }
+                appendLine()
+            }
+        }
+    }
 
-# Agent Observer Accounts
-AGENT_POSTGRES_OBSERVER_PASSWORD=${generateSecret()}
-AGENT_CLICKHOUSE_OBSERVER_PASSWORD=${generateSecret()}
-AGENT_MARIADB_OBSERVER_PASSWORD=${generateSecret()}
-AGENT_QDRANT_API_KEY=${generateSecret()}
-
-# Datamancy Services
-DATAMANCY_SERVICE_PASSWORD=${generateSecret()}
-
-# External APIs (set manually)
-HUGGINGFACEHUB_API_TOKEN=
-
-# API Configuration
-API_LITELLM_ALLOWLIST="127.0.0.1 172.16.0.0/12 192.168.0.0/16"
-
-""".trimIndent())
-
-    info("Generated .env")
+    file.writeText(content)
+    info("Generated .env with ${env.size} variables")
 }
 
 // ============================================================================
@@ -584,62 +554,33 @@ ${CYAN}╔═══════════════════════�
     val userPassword = generateSecret()
 
     // Generate OAuth secrets and their hashes
-    // Only for services that actually use OIDC (not forward_auth only)
-    // Note: Grafana, Home Assistant, JupyterHub use forward_auth (Remote-User header) - no OIDC needed
+    // Auto-discover services that need OAuth hashes by finding *_OAUTH_SECRET_HASH in templates
     step("Generating OAuth secret hashes (this may take a minute...)")
-    val oauthSecretNames = listOf(
-        "BOOKSTACK", "PGADMIN", "OPENWEBUI", "NEXTCLOUD", "DIM",
-        "PLANKA", "VAULTWARDEN", "FORGEJO", "MATRIX"
-    )
+    val oauthHashVars = RUNTIME_VARS.filter { it.endsWith("_OAUTH_SECRET_HASH") }
     val oauthHashes = mutableMapOf<String, String>()
-    oauthSecretNames.forEach { name ->
+
+    oauthHashVars.forEach { hashVarName ->
         val secret = generateSecret()
         val hash = generateAutheliaHash(secret)
-        oauthHashes["${name}_OAUTH_SECRET_HASH"] = hash
-        info("Generated hash for $name")
+        oauthHashes[hashVarName] = hash
+        val serviceName = hashVarName.removeSuffix("_OAUTH_SECRET_HASH")
+        info("Generated hash for $serviceName")
     }
 
     // Build steps
     buildGradleServices(skipGradle)
-    buildDockerImages()
+    copyDockerBuildContexts(distDir)
     copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
     processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, oauthHashes)
-    generateEnvFile(distDir.resolve(".env"), config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, config)
 
-    // Copy bootstrap script
-    val bootstrapScript = File("compose.templates/bootstrap-volumes.sh")
-    if (bootstrapScript.exists()) {
-        step("Copying bootstrap-volumes.sh to dist")
-        bootstrapScript.copyTo(distDir.resolve("bootstrap-volumes.sh"), overwrite = true)
-        distDir.resolve("bootstrap-volumes.sh").setExecutable(true)
-        info("Copied bootstrap-volumes.sh")
+    // Only generate .env if it doesn't exist (preserves existing secrets)
+    val envFile = distDir.resolve(".env")
+    if (!envFile.exists()) {
+        generateEnvFile(envFile, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, config)
     } else {
-        warn("bootstrap-volumes.sh not found in compose.templates/")
+        info("Preserving existing .env file")
     }
-
-    // Create deployment script
-    step("Creating deploy.sh script")
-    val deployScript = distDir.resolve("deploy.sh")
-    deployScript.writeText("""
-#!/bin/bash
-set -e
-
-echo "Building Datamancy service images..."
-for service in control-panel data-fetcher unified-indexer search-service agent-tool-server; do
-    if [ -f "src/${'$'}service/Dockerfile" ]; then
-        echo "Building datamancy/${'$'}service"
-        docker build -t datamancy/${'$'}service:latest -f src/${'$'}service/Dockerfile .
-    fi
-done
-
-echo "Starting stack..."
-docker compose up -d
-
-echo "Deployment complete!"
-""".trimIndent())
-    deployScript.setExecutable(true)
-    info("Created deploy.sh")
 
     // Build info
     val version = getGitVersion()
@@ -656,9 +597,19 @@ ${CYAN}Output:${RESET} ${distDir.absolutePath}
 ${CYAN}Version:${RESET} $version
 
 ${GREEN}Deploy:${RESET}
-  cd dist
-  vim .env
-  docker compose up -d
+  1. Package and transfer:
+     ${CYAN}tar czf datamancy-deployment.tar.gz -C dist .${RESET}
+     ${CYAN}rsync datamancy-deployment.tar.gz user@server:/path/to/deployment/${RESET}
+
+  2. On server, extract and build images:
+     ${CYAN}tar xzf datamancy-deployment.tar.gz${RESET}
+     ${CYAN}docker build -t datamancy/forgejo:latest -f docker/forgejo/Dockerfile .${RESET}
+     ${CYAN}docker build -t datamancy/vllm-qwen-7b:latest -f docker/vllm-qwen-7b/Dockerfile docker/vllm-qwen-7b${RESET}
+     ${CYAN}docker build -t datamancy/embedding-bge:latest -f docker/embedding-bge/Dockerfile docker/embedding-bge${RESET}
+     ${CYAN}# Build datamancy services...${RESET}
+
+  3. Start the stack:
+     ${CYAN}docker compose up -d${RESET}
 
 """)
 }

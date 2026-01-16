@@ -23,14 +23,14 @@ storage:
   # Vector databases (Qdrant) - fast SSD recommended for embedding search
   vector_dbs: "/mnt/sdc1_ctbx500_0385/datamancy/vector-dbs"
 
-  # Custom storage paths for specific services
+  # Custom storage paths for specific services (SSD + Media Drive only)
+  # Note: seafile_files is a regular named volume (Docker-managed on BTRFS)
   custom:
     # qBittorrent - large media storage (not backed up)
     qbittorrent_data: "/mnt/media/qbittorrent"
 
-    # Seafile - separate media and files storage
-    seafile_media: "/mnt/media/seafile-media"    # Large media files (not backed up, no RAID)
-    seafile_files: "./volumes/data/seafile"          # Important files (RAID + backed up)
+    # Seafile media - large media files (not backed up, no RAID)
+    seafile_media: "/mnt/media/seafile-media"
 
 # ============================================================================
 # Runtime Configuration (Non-Sensitive)
@@ -44,89 +44,4 @@ runtime:
 
   # Admin username (non-sensitive, password is auto-generated)
   admin_user: "sysadmin"
-
-# ============================================================================
-# Container Image Versions
-# Update versions here, then regenerate compose files with: process-templates.kts
-# ============================================================================
-images:
-  # Core Infrastructure
-  caddy: "2.8.4"
-  ldap: "1.5.0"
-  valkey: "8.0.1"
-  authelia: "4.39.13"
-  mailserver: "14.0.0"
-  ldap_account_manager: "9.3"
-  memcached: "1.6.39"
-  docker_proxy: "v0.4.1"
-  kopia: "0.18.2"
-
-  # Databases
-  postgres: "16.11"
-  mariadb: "11.6.2"
-  clickhouse: "24.8"
-  qdrant: "v1.12.5"
-
-  # Applications - Web
-  grafana: "11.6.7"
-  open_webui: "0.3.32"
-  vaultwarden: "testing"
-  bookstack: "24.12.1"
-  planka: "1.26.3"
-  forgejo: "9"
-  homepage: "v1.7.0"
-  jupyterhub: "latest"
-  homeassistant: "stable"
-  qbittorrent: "latest"
-
-  # Applications - Communication
-  synapse: "latest"
-  element: "v1.11.88"
-  mastodon: "v4.3.3"
-  mastodon_streaming: "v4.3.3"
-  roundcube: "latest"
-  radicale: "latest"
-
-  # Applications - Files
-  seafile: "13.0.12"
-  onlyoffice: "8.2.2"
-
-  # AI/ML Services
-  vllm: "latest"
-  embedding_service: "cpu-1.2"
-  litellm: "v1.74.9-stable.patch.1"
-
-  # Datamancy Services
-  kotlin_runtime: "latest"
-  temurin_jdk: "21-jdk"
-
-# ============================================================================
-# Resource Limits
-# Tune these based on your hardware capabilities
-# Format: {memory: "XG", cpus: "Y.Z"}
-# ============================================================================
-resources:
-  postgres:
-    memory: "4G"
-    cpus: "2.0"
-
-  mariadb:
-    memory: "4G"
-    cpus: "2.0"
-
-  clickhouse:
-    memory: "4G"
-    cpus: "2.0"
-
-  qdrant:
-    memory: "2G"
-    cpus: "2.0"
-
-  vllm:
-    memory: "16G"
-    cpus: "12.0"
-
-  mastodon:
-    memory: "2G"
-    cpus: "2.0"
 

@@ -271,7 +271,10 @@ services:
       start_period: 60s
 
   forgejo:
-    image: codeberg.org/forgejo/forgejo:9.0
+    image: datamancy/forgejo:latest
+    build:
+      context: .
+      dockerfile: docker/forgejo/Dockerfile
     container_name: forgejo
     restart: unless-stopped
     networks:
@@ -304,6 +307,8 @@ services:
       FORGEJO__openid__ENABLE_OPENID_SIGNUP: true
       FORGEJO_OAUTH_SECRET: ${FORGEJO_OAUTH_SECRET}
       DOMAIN: ${DOMAIN}
+      STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
+      STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
     volumes:
       - forgejo_data:/data
       - /etc/timezone:/etc/timezone:ro
@@ -441,6 +446,33 @@ services:
       retries: 3
       start_period: 120s
 
+  ntfy:
+    image: binwiederhier/ntfy:v2.15.0
+    container_name: ntfy
+    restart: unless-stopped
+    networks:
+      caddy:
+        aliases:
+          - ntfy.${DOMAIN}
+    command:
+      - serve
+    environment:
+      TZ: America/New_York
+      NTFY_BASE_URL: https://ntfy.${DOMAIN}
+      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
+      NTFY_ENABLE_LOGIN: true
+    volumes:
+      - ntfy_data:/var/lib/ntfy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 --spider http://localhost:80/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbittorrent
@@ -457,7 +489,7 @@ services:
     volumes:
       - qbittorrent_config:/config
       - qbittorrent_data:/downloads
-      - ./qbittorrent_init:/custom-cont-init.d:ro
+      - ./configs/applications/qbittorrent/init:/custom-cont-init.d:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 60s
@@ -917,8 +949,7 @@ services:
       JWT_ENABLED: true
       JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
     volumes:
-      - onlyoffice_data:/var/www/onlyoffice/Data
-      - onlyoffice_log:/var/log/onlyoffice
+      - onlyoffice_data:/var/www/onlyoffice
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/healthcheck"]
       interval: 60s

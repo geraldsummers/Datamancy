@@ -7,7 +7,7 @@ WORKDIR /app
 RUN apk add --no-cache wget
 
 # Copy the built JAR
-COPY src/data-fetcher/build/libs/data-fetcher.jar /app/data-fetcher.jar
+COPY build/libs/data-fetcher.jar /app/data-fetcher.jar
 
 # Create directories
 RUN mkdir -p /app/config /app/data

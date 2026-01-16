@@ -11,15 +11,14 @@
 #
 # TLS Configuration:
 # - Development/Testing: Uses self-signed certs via Caddy's internal CA (local_certs)
-# - Production: Comment out local_certs below and uncomment the email line for Let's Encrypt
+# - Production: Comment out local_certs and uncomment the email line for Let's Encrypt
 ###############################################
 {
-	# PRODUCTION: Let's Encrypt certificates
-	email {$STACK_ADMIN_EMAIL}
+	# DEVELOPMENT: Self-signed certificates via Caddy's internal CA
+	local_certs
 
-	# Optional: Customize ACME CA (default is Let's Encrypt production)
-	# For testing Let's Encrypt without rate limits, use staging:
-	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+	# PRODUCTION: Let's Encrypt certificates (comment out local_certs above first)
+	# email {$STACK_ADMIN_EMAIL}
 }
 
 # Snippet for Authelia Forward Auth
@@ -289,6 +288,14 @@ litellm.{$DOMAIN} {
 	}
 }
 
+# Ntfy (protected)
+ntfy.{$DOMAIN} {
+	route {
+		import authelia_auth
+		reverse_proxy ntfy:80
+	}
+}
+
 # LiteLLM (public API) — allowlist by IP, no forward_auth
 api.litellm.{$DOMAIN} {
 	@notallowed not remote_ip {$API_LITELLM_ALLOWLIST}
@@ -377,13 +384,5 @@ search.{$DOMAIN} {
 	route {
 		import authelia_auth
 		reverse_proxy search-gateway:8097
-	}
-}
-
-# ntfy - Notification service (protected)
-ntfy.{$DOMAIN} {
-	route {
-		import authelia_auth
-		reverse_proxy ntfy:80
 	}
 }

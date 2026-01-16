@@ -5,6 +5,9 @@
 services:
   control-panel:
     image: datamancy/control-panel:local-build
+    build:
+      context: ./src/control-panel
+      dockerfile: Dockerfile
     container_name: control-panel
     restart: unless-stopped
     ports:
@@ -42,6 +45,9 @@ services:
 
   data-fetcher:
     image: datamancy/data-fetcher:local-build
+    build:
+      context: ./src/data-fetcher
+      dockerfile: Dockerfile
     container_name: data-fetcher
     restart: unless-stopped
     networks:
@@ -92,6 +98,9 @@ services:
 
   unified-indexer:
     image: datamancy/unified-indexer:local-build
+    build:
+      context: ./src/unified-indexer
+      dockerfile: Dockerfile
     container_name: unified-indexer
     restart: unless-stopped
     networks:
@@ -135,6 +144,9 @@ services:
 
   search-service:
     image: datamancy/search-service:local-build
+    build:
+      context: ./src/search-service
+      dockerfile: Dockerfile
     container_name: search-service
     restart: unless-stopped
     networks:
@@ -167,6 +179,9 @@ services:
 
   agent-tool-server:
     image: datamancy/agent-tool-server:local-build
+    build:
+      context: ./src/agent-tool-server
+      dockerfile: Dockerfile
     container_name: agent-tool-server
     restart: unless-stopped
     networks:
