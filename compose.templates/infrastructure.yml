@@ -517,18 +517,17 @@ services:
       ldap:
         condition: service_started
       postgres:
-        condition: service_started
+        condition: service_healthy
       valkey:
-        condition: service_started
+        condition: service_healthy
     environment:
       TZ: UTC
       DOMAIN: ${DOMAIN}
-      AUTHELIA_JWT_SECRET: ${AUTHELIA_JWT_SECRET}
+      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: ${AUTHELIA_JWT_SECRET}
       AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET}
       AUTHELIA_STORAGE_ENCRYPTION_KEY: ${AUTHELIA_STORAGE_ENCRYPTION_KEY}
       AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET: ${AUTHELIA_OIDC_HMAC_SECRET}
-      AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY: ${AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY}
       AUTHELIA_STORAGE_POSTGRES_PASSWORD: ${AUTHELIA_DB_PASSWORD}
       # OIDC client secrets (Grafana, HomeAssistant, JupyterHub use forward_auth - no OIDC)
       PGADMIN_OAUTH_SECRET: ${PGADMIN_OAUTH_SECRET}
@@ -544,6 +543,7 @@ services:
     volumes:
       - authelia_data:/config
       - ./configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
+      - ./configs/applications/authelia/oidc_rsa.pem:/config/oidc_rsa.pem:ro
       - ./configs/applications/authelia/entrypoint.sh:/entrypoint.sh:ro
     command:
       - --config
@@ -555,7 +555,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 90s
 
   mailserver:
     image: ghcr.io/docker-mailserver/docker-mailserver:14.0.0
@@ -590,6 +590,10 @@ services:
       ENABLE_SPAMASSASSIN: 0
       SPOOF_PROTECTION: 0
       ENABLE_SRS: 0
+      # Disable redundant services since Rspamd handles DKIM/DMARC/SPF
+      ENABLE_OPENDKIM: 0
+      ENABLE_OPENDMARC: 0
+      ENABLE_POLICYD_SPF: 0
       PERMIT_DOCKER: network
       SSL_TYPE: manual
       OVERRIDE_HOSTNAME: mail.${DOMAIN}

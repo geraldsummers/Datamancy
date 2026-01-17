@@ -28,23 +28,16 @@ if [ -f /config/configuration.yml ]; then
     sed -i "s|\${FORGEJO_OAUTH_SECRET}|$FORGEJO_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${MATRIX_OAUTH_SECRET}|$MATRIX_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
 
-    # Use the processed config
-    export AUTHELIA_CONFIG_FILE="$TEMP_CONFIG"
+    # Use the processed config (set variable for later use, don't export as env var)
+    AUTHELIA_CONFIG_FILE="$TEMP_CONFIG"
 fi
 
-# Decode the base64-encoded RSA private key if it's encoded
-if [ -n "$AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY" ]; then
-    # Check if it's base64 encoded (doesn't start with -----)
-    if ! echo "$AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY" | grep -q "^-----BEGIN"; then
-        # Decode base64
-        export AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY=$(echo "$AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY" | base64 -d)
-    fi
-fi
-
-# Ensure the database file exists with correct permissions (only if we can write)
-if [ ! -f /config/db.sqlite3 ] && [ -w /config ]; then
-    touch /config/db.sqlite3
-    chmod 600 /config/db.sqlite3
+# Generate OIDC RSA signing key if it doesn't exist
+if [ ! -f /config/oidc_rsa.pem ] && [ -w /config ]; then
+    echo "Generating OIDC RSA signing key..."
+    openssl genrsa -out /config/oidc_rsa.pem 4096
+    chmod 600 /config/oidc_rsa.pem
+    echo "OIDC RSA key generated"
 fi
 
 # Run authelia with the processed config

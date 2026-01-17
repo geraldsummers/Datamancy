@@ -72,6 +72,7 @@ services:
       DATAMANCY_SERVICE_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
     volumes:
       - ./configs/databases/postgres/init-db.sh:/init-db.sh:ro
+      - ./configs/databases/postgres/roundcube-schema.sql:/docker-entrypoint-initdb.d/roundcube-schema.sql:ro
     entrypoint:
       - /bin/bash
       - -c

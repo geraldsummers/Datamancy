@@ -37,7 +37,7 @@ tasks.test {
 }
 
 application {
-    mainClass.set("org.datamancy.agenttoolserver.MainKt")
+    mainClass.set("org.example.MainKt")
 }
 
 // JVM toolchain configured in root build.gradle.kts

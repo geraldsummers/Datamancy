@@ -79,9 +79,13 @@ fun discoverRuntimeVars(): Set<String> {
         val configVarPattern = Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")
         configTemplatesDir.walkTopDown().forEach { file ->
             if (file.isFile) {
-                val content = file.readText()
-                configVarPattern.findAll(content).forEach { match ->
-                    discoveredVars.add(match.groupValues[1])
+                file.readLines().forEach { line ->
+                    // Skip comment lines (YAML #, shell #, etc)
+                    if (!line.trimStart().startsWith("#")) {
+                        configVarPattern.findAll(line).forEach { match ->
+                            discoveredVars.add(match.groupValues[1])
+                        }
+                    }
                 }
             }
         }
@@ -95,9 +99,13 @@ fun discoverRuntimeVars(): Set<String> {
         val composeVarPattern = Regex("""\$\{([A-Z_][A-Z0-9_]*)\}""")
         composeTemplatesDir.walkTopDown().forEach { file ->
             if (file.isFile && file.extension == "yml") {
-                val content = file.readText()
-                composeVarPattern.findAll(content).forEach { match ->
-                    discoveredVars.add(match.groupValues[1])
+                file.readLines().forEach { line ->
+                    // Skip YAML comment lines
+                    if (!line.trimStart().startsWith("#")) {
+                        composeVarPattern.findAll(line).forEach { match ->
+                            discoveredVars.add(match.groupValues[1])
+                        }
+                    }
                 }
             }
         }
@@ -260,7 +268,34 @@ fun copyComposeFiles(outputDir: File) {
     info("Created merged docker-compose.yml")
 }
 
-fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, ldapAdminPassword: String, oauthHashes: Map<String, String>) {
+fun generateAutheliaJWKS(outputDir: File): String {
+    step("Generating Authelia OIDC RSA key")
+    val autheliaDir = outputDir.resolve("configs/applications/authelia")
+    autheliaDir.mkdirs()
+
+    val rsaKeyFile = autheliaDir.resolve("oidc_rsa.pem")
+
+    // Generate RSA 4096 private key
+    val process = ProcessBuilder("openssl", "genrsa", "4096")
+        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectErrorStream(true)
+        .start()
+
+    val pem = process.inputStream.bufferedReader().readText()
+    val exitCode = process.waitFor()
+
+    if (exitCode != 0) {
+        error("Failed to generate RSA key for Authelia JWKS")
+        exitProcess(exitCode)
+    }
+
+    rsaKeyFile.writeText(pem)
+    info("Generated Authelia OIDC RSA key at ${rsaKeyFile.relativeTo(outputDir)}")
+
+    return pem
+}
+
+fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, ldapAdminPassword: String, oauthHashes: Map<String, String>, autheliaOidcKey: String) {
     step("Processing config templates")
     val templatesDir = File("configs.templates")
     if (!templatesDir.exists()) {
@@ -310,6 +345,23 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
             // Replace OAuth secret hashes first (before general substitution)
             oauthHashes.forEach { (varName, hashValue) ->
                 content = content.replace("{{$varName}}", hashValue)
+            }
+
+            // Special handling for Authelia OIDC private key
+            // Need to match the indentation of the template variable for each line
+            if (relativePath.contains("authelia/configuration.yml")) {
+                // Find the line with the variable and extract its indentation
+                val lines = content.lines()
+                val varLineIndex = lines.indexOfFirst { it.contains("{{AUTHELIA_OIDC_PRIVATE_KEY}}") }
+                if (varLineIndex >= 0) {
+                    val varLine = lines[varLineIndex]
+                    val indent = varLine.substringBefore("{{AUTHELIA_OIDC_PRIVATE_KEY}}")
+                    // Apply same indentation to each line of the key
+                    val indentedKey = autheliaOidcKey.trim().lines().joinToString("\n") { line ->
+                        if (line.isNotBlank()) "$indent$line" else ""
+                    }
+                    content = content.replace("$indent{{AUTHELIA_OIDC_PRIVATE_KEY}}", indentedKey)
+                }
             }
 
             // Convert {{VAR}} to ${VAR} for runtime vars
@@ -554,7 +606,8 @@ ${CYAN}╔═══════════════════════�
     buildGradleServices(skipGradle)
     copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
-    processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, ldapAdminPassword, oauthHashes)
+    val autheliaOidcKey = generateAutheliaJWKS(distDir)
+    processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, ldapAdminPassword, oauthHashes, autheliaOidcKey)
 
     // Only generate .env if it doesn't exist (preserves existing secrets)
     val envFile = distDir.resolve(".env")

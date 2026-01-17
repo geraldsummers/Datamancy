@@ -108,7 +108,7 @@ regulation:
 
 identity_validation:
   reset_password:
-    jwt_secret: a_very_important_secret # Will be overridden by env var
+    # jwt_secret is provided via AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET env var
 
 storage:
   encryption_key: a_very_important_secret # Will be overridden by env var
@@ -142,8 +142,13 @@ identity_providers:
         - revocation
         - introspection
       allowed_origins_from_client_redirect_uris: true
-    # OIDC signing key loaded from environment variable AUTHELIA_IDENTITY_PROVIDERS_OIDC_JWKS (base64-encoded)
-    jwks: []
+    # OIDC signing keys - using file storage for key
+    jwks:
+      - key_id: main
+        algorithm: RS256
+        use: sig
+        key: |
+          {{AUTHELIA_OIDC_PRIVATE_KEY}}
 
     clients:
       # pgAdmin
@@ -266,7 +271,7 @@ identity_providers:
       # Mastodon
       - client_id: mastodon
         client_name: Mastodon
-        client_secret: '{{MASTODON_OIDC_SECRET}}'
+        client_secret: '{{MASTODON_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
         redirect_uris:

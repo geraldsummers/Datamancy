@@ -5,118 +5,24 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="fixed?">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build-datamancy.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/ai-services.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/ai-services.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compose.templates/applications.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/applications.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/homeassistant/configuration.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/homeassistant/configuration.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/.build-info" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/authelia/configuration.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/authelia/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/bookstack/generate-api-token.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/bookstack/init/10-fix-env.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/bookstack/init/50-configure-permissions.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/bookstack/init/99-fix-dns.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/bookstack/test-pipeline.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/data-fetcher/schedules.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/data-fetcher/sources.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/element/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/filebrowser/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/forgejo/init-forgejo.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/grafana/caddy-ca.crt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/grafana/grafana.ini" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homeassistant/auth_ldap.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homeassistant/auto-create-admin.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homeassistant/automations.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homeassistant/configuration.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homeassistant/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homeassistant/init-homeassistant.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homeassistant/scenes.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homeassistant/scripts.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homepage/bookmarks.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homepage/docker.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homepage/services.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homepage/settings.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/homepage/widgets.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/jellyfin/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/jellyfin/SSO-Auth.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/jellyfin/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/jupyterhub/jupyterhub_config.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/kopia/init-kopia.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/mailserver/find-certs.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/mastodon/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/mastodon/init-mastodon.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/mastodon/mastodon.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/open-webui/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/qbittorrent/init/10-configure-auth.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/qbittorrent/qBittorrent.conf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/radicale/config" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/radicale/users" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/seafile/init/99-apply-seahub-settings.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/seafile/init/apply-db-config.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/seafile/init/copy-seahub-settings.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/seafile/init/entrypoint-wrapper.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/seafile/seahub_settings.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/synapse/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/synapse/homeserver.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/applications/vaultwarden/index.html" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/clickhouse/config.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/clickhouse/init-schema.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/mariadb/init-db.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/mariadb/init-template.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/mariadb/init-wrapper.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/postgres/create-observer-views.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/postgres/ensure-users.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/postgres/init-db.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/postgres/roundcube-schema.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/vectors/bootstrap_vectors.main.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/databases/vectors/collections.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/caddy/Caddyfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/ldap/configure-memberof.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/litellm/config.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/dovecot-ldap.conf.ext" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/entrypoint-wrapper.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/ldap-domains.cf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/mailserver/setup-dkim.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/infrastructure/ssh/bootstrap_known_hosts.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/monitoring/grafana/provisioning/dashboards/dashboards.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/monitoring/grafana/provisioning/datasources/prometheus.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/monitoring/prometheus/prometheus.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/prompts/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/prompts/system/code-assistant.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/prompts/system/data-analyst.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/prompts/system/qwen-with-tools.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/configs/prompts/templates/function-calling.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker-compose.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker/embedding-bge/.dockerignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker/embedding-bge/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker/forgejo/.dockerignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker/forgejo/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker/forgejo/entrypoint-wrapper.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker/forgejo/init-datamancy-repo.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker/vllm-qwen-7b/.dockerignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/docker/vllm-qwen-7b/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/src/agent-tool-server/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/src/control-panel/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/src/data-fetcher/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/src/search-service/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/src/unified-indexer/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/embedding-bge/.dockerignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/embedding-bge/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/forgejo/.dockerignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/forgejo/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/forgejo/entrypoint-wrapper.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/forgejo/init-datamancy-repo.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/vllm-qwen-7b/.dockerignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker/vllm-qwen-7b/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/databases.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/databases.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/infrastructure.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/infrastructure.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/init-db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/postgres/roundcube-schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/postgres/roundcube-schema.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agent-tool-server/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent-tool-server/build.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -699,7 +605,15 @@
       <option name="project" value="LOCAL" />
       <updated>1768559639746</updated>
     </task>
-    <option name="localTasksCounter" value="47" />
+    <task id="LOCAL-00047" summary="fixed?">
+      <option name="closed" value="true" />
+      <created>1768600566433</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1768600566433</updated>
+    </task>
+    <option name="localTasksCounter" value="48" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

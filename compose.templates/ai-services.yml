@@ -6,7 +6,7 @@ services:
   vllm-7b:
     image: datamancy/vllm-qwen-7b:latest
     build:
-      context: ./docker/vllm-qwen-7b
+      context: ./src/vllm-qwen-7b
       dockerfile: Dockerfile
     container_name: vllm-7b
     restart: unless-stopped
@@ -61,7 +61,7 @@ services:
   embedding-service:
     image: datamancy/embedding-bge:latest
     build:
-      context: ./docker/embedding-bge
+      context: ./src/embedding-bge
       dockerfile: Dockerfile
     container_name: embedding-service
     restart: unless-stopped

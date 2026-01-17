@@ -200,6 +200,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "roundcube" -c "GRANT ALL ON SCHEMA public TO roundcube;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT ALL ON SCHEMA public TO datamancer;"
 
+# Note: Roundcube schema is initialized by the roundcube-init container
+# This ensures proper dependency ordering and allows for idempotent re-initialization
+
 # Initialize datamancy database tables for data-fetcher and services
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQL
     -- Data-fetcher tables for deduplication and fetch tracking
