@@ -7,18 +7,18 @@
 # Admin email: {{STACK_ADMIN_EMAIL}}
 
 # Organizational Units
-dn: ou=users,dc=stack,dc=local
+dn: ou=users,{{LDAP_BASE_DN}}
 objectClass: organizationalUnit
 ou: users
 
-dn: ou=groups,dc=stack,dc=local
+dn: ou=groups,{{LDAP_BASE_DN}}
 objectClass: organizationalUnit
 ou: groups
 
 # System Administrator
 # Username: {{STACK_ADMIN_USER}}
 # Password: From STACK_ADMIN_PASSWORD environment variable
-dn: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local
+dn: uid={{STACK_ADMIN_USER}},ou=users,{{LDAP_BASE_DN}}
 objectClass: inetOrgPerson
 objectClass: posixAccount
 objectClass: shadowAccount
@@ -37,7 +37,7 @@ userPassword: {{ADMIN_SSHA_PASSWORD}}
 # Default Regular User (optional - for testing)
 # Username: user
 # Password: From STACK_USER_PASSWORD environment variable (or same as admin if not set)
-dn: uid=user,ou=users,dc=stack,dc=local
+dn: uid=user,ou=users,{{LDAP_BASE_DN}}
 objectClass: inetOrgPerson
 objectClass: posixAccount
 objectClass: shadowAccount
@@ -54,36 +54,36 @@ loginShell: /bin/bash
 userPassword: {{USER_SSHA_PASSWORD}}
 
 # Shadow Agent Accounts (per-user, created dynamically)
-# Format: uid={username}-agent,ou=agents,dc=stack,dc=local
+# Format: uid={username}-agent,ou=agents,{{LDAP_BASE_DN}}
 # These accounts are created on-demand by scripts/security/create-shadow-agent-account.main.kts
 # Each user gets a shadow account with read-only access to databases/services
 # Admin accounts (cn=admins group members) are explicitly excluded from agent provisioning
 
-dn: ou=agents,dc=stack,dc=local
+dn: ou=agents,{{LDAP_BASE_DN}}
 objectClass: organizationalUnit
 ou: agents
 description: Shadow accounts for per-user agent access (read-only)
 
 # Admins Group
-dn: cn=admins,ou=groups,dc=stack,dc=local
+dn: cn=admins,ou=groups,{{LDAP_BASE_DN}}
 objectClass: groupOfNames
 cn: admins
-member: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local
+member: uid={{STACK_ADMIN_USER}},ou=users,{{LDAP_BASE_DN}}
 
 # Users Group
-dn: cn=users,ou=groups,dc=stack,dc=local
+dn: cn=users,ou=groups,{{LDAP_BASE_DN}}
 objectClass: groupOfNames
 cn: users
-member: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local
-member: uid=user,ou=users,dc=stack,dc=local
+member: uid={{STACK_ADMIN_USER}},ou=users,{{LDAP_BASE_DN}}
+member: uid=user,ou=users,{{LDAP_BASE_DN}}
 
 # Service-specific Groups
-dn: cn=openwebui-admin,ou=groups,dc=stack,dc=local
+dn: cn=openwebui-admin,ou=groups,{{LDAP_BASE_DN}}
 objectClass: groupOfNames
 cn: openwebui-admin
-member: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local
+member: uid={{STACK_ADMIN_USER}},ou=users,{{LDAP_BASE_DN}}
 
-dn: cn=planka-admin,ou=groups,dc=stack,dc=local
+dn: cn=planka-admin,ou=groups,{{LDAP_BASE_DN}}
 objectClass: groupOfNames
 cn: planka-admin
-member: uid={{STACK_ADMIN_USER}},ou=users,dc=stack,dc=local
+member: uid={{STACK_ADMIN_USER}},ou=users,{{LDAP_BASE_DN}}

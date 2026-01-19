@@ -21,6 +21,8 @@ scrape_configs:
 
   # Node Exporter - system metrics (CPU, memory, disk, thermals)
   - job_name: 'node-exporter'
+    scrape_interval: 15s
+    scrape_timeout: 12s  # Increased from default 10s to handle large metric payloads
     static_configs:
       - targets: ['node-exporter:9100']
         labels:

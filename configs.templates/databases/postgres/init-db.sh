@@ -91,8 +91,14 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         END IF;
 
         -- Shadow agent accounts are created per-user via scripts/security/create-shadow-agent-account.main.kts
-        -- No global agent_observer account (security: per-user shadow accounts for traceability)
         -- Each user gets: {username}-agent role with read-only access to agent_observer schema
+
+        -- Create global agent_observer account for tests and anonymous access (fallback only)
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'agent_observer') THEN
+            CREATE USER agent_observer WITH PASSWORD \$pwd\$$AGENT_POSTGRES_OBSERVER_PASSWORD\$pwd\$;
+        ELSE
+            ALTER USER agent_observer WITH PASSWORD \$pwd\$$AGENT_POSTGRES_OBSERVER_PASSWORD\$pwd\$;
+        END IF;
 
         -- Create datamancy service user (for integration tests and data-fetcher services)
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'datamancer') THEN
@@ -248,15 +254,22 @@ echo "Datamancy database tables initialized successfully"
 
 # Create agent_observer schema in safe databases for public views
 # These schemas will hold views that expose only public/non-sensitive data
-# Note: No global agent_observer role - per-user shadow accounts are created on-demand
-for db in grafana planka mastodon forgejo; do
+for db in grafana planka mastodon forgejo bookstack; do
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" <<-EOSQL
         -- Create dedicated schema for observer views
         CREATE SCHEMA IF NOT EXISTS agent_observer;
 
-        -- GRANT removed: No global agent_observer role (intentional design)
-        -- Per-user shadow accounts (e.g., {username}-agent) will be granted access
-        -- when created by the agent provisioning system
+        -- Grant CONNECT to agent_observer (global fallback account)
+        GRANT CONNECT ON DATABASE $db TO agent_observer;
+
+        -- Grant USAGE on agent_observer schema
+        GRANT USAGE ON SCHEMA agent_observer TO agent_observer;
+
+        -- Grant SELECT on all tables in agent_observer schema
+        GRANT SELECT ON ALL TABLES IN SCHEMA agent_observer TO agent_observer;
+
+        -- Grant SELECT on future tables (PostgreSQL 9.0+)
+        ALTER DEFAULT PRIVILEGES IN SCHEMA agent_observer GRANT SELECT ON TABLES TO agent_observer;
 
         -- NOTE: Individual views must be created by running create-observer-views.sql
         -- after applications have initialized their schemas

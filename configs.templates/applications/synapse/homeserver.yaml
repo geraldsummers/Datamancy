@@ -65,8 +65,8 @@ password_providers:
       enabled: true
       uri: "ldap://ldap:389"
       start_tls: false
-      base: "ou=users,dc=stack,dc=local"
-      bind_dn: "cn=admin,dc=stack,dc=local"
+      base: "ou=users,{{LDAP_BASE_DN}}"
+      bind_dn: "cn=admin,{{LDAP_BASE_DN}}"
       bind_password: "{{LDAP_ADMIN_PASSWORD}}"
       attributes:
         uid: "uid"

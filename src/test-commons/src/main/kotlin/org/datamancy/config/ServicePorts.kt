@@ -28,7 +28,7 @@ object ServicePorts {
     }
 
     /** Unified Indexer - Document indexing pipeline */
-    object UnifiedIndexer {
+    object DataTransformer {
         const val INTERNAL = 8096
         const val TEST_LOCALHOST = 18096
     }
@@ -47,8 +47,20 @@ object ServicePorts {
 
     /** Agent Tool Server - AI agent tooling interface */
     object AgentToolServer {
+        const val INTERNAL = 8081
+        const val TEST_LOCALHOST = 18081
+    }
+
+    /** BookStack Writer - BookStack content writer service */
+    object BookStackWriter {
         const val INTERNAL = 8099
         const val TEST_LOCALHOST = 18099
+    }
+
+    /** Vector Indexer - Vector embedding and Qdrant indexing service */
+    object VectorIndexer {
+        const val INTERNAL = 8100
+        const val TEST_LOCALHOST = 18100
     }
 
     /** Embedding Service - Vector embedding generation */
@@ -283,7 +295,7 @@ object ServicePorts {
         "qdrant" to (Qdrant.TEST_HTTP to Qdrant.HTTP),
         "control-panel" to (ControlPanel.TEST_LOCALHOST to ControlPanel.INTERNAL),
         "data-fetcher" to (DataFetcher.TEST_LOCALHOST to DataFetcher.INTERNAL),
-        "unified-indexer" to (UnifiedIndexer.TEST_LOCALHOST to UnifiedIndexer.INTERNAL),
+        "data-transformer" to (DataTransformer.TEST_LOCALHOST to DataTransformer.INTERNAL),
         "search-service" to (SearchService.TEST_LOCALHOST to SearchService.INTERNAL),
         "embedding-service" to (EmbeddingService.TEST_LOCALHOST to EmbeddingService.INTERNAL),
         "authelia" to (Authelia.TEST_LOCALHOST to Authelia.INTERNAL),

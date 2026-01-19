@@ -65,4 +65,28 @@ export SSL_CERT_PATH
 export SSL_KEY_PATH
 
 # Start supervisord with SSL env vars (the default CMD for docker-mailserver)
-exec env SSL_CERT_PATH="$SSL_CERT_PATH" SSL_KEY_PATH="$SSL_KEY_PATH" supervisord -c /etc/supervisor/supervisord.conf
+env SSL_CERT_PATH="$SSL_CERT_PATH" SSL_KEY_PATH="$SSL_KEY_PATH" supervisord -c /etc/supervisor/supervisord.conf &
+
+# Wait for mailserver to start (wait for postfix and dovecot)
+echo "[mailserver] Waiting for services to start..."
+for i in {1..60}; do
+    if supervisorctl status postfix | grep -q RUNNING && supervisorctl status dovecot | grep -q RUNNING; then
+        echo "[mailserver] Services are running, setting up DKIM..."
+        break
+    fi
+    if [ $i -eq 60 ]; then
+        echo "[mailserver] WARNING: Services didn't start in time, DKIM setup skipped"
+        wait
+        exit 0
+    fi
+    sleep 1
+done
+
+# Run DKIM setup in background so it doesn't block supervisord
+(
+    sleep 5  # Extra buffer to ensure everything is ready
+    /bin/bash /tmp/docker-mailserver/setup-dkim.sh 2>&1 | sed 's/^/[DKIM-setup] /'
+) &
+
+# Wait for supervisord (keeps container running)
+wait

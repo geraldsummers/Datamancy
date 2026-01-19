@@ -49,7 +49,7 @@ data class DatamancyConfig(
 
 // Service list used across multiple build steps
 val DATAMANCY_SERVICES = listOf(
-    "control-panel", "data-fetcher", "unified-indexer",
+    "control-panel", "data-fetcher", "data-transformer",
     "search-service", "agent-tool-server"
 )
 
@@ -203,6 +203,95 @@ fun copyBuildArtifacts(distDir: File) {
     info("Copied src/ directory to dist/")
 }
 
+fun copyTestScripts(distDir: File) {
+    step("Copying test runner files to dist")
+
+    // Always copy test runner overlay
+    val testRunnerOverlay = File("compose.templates/testing.yml")
+    if (testRunnerOverlay.exists()) {
+        testRunnerOverlay.copyTo(distDir.resolve("testing.yml"), overwrite = true)
+        info("Copied testing.yml overlay")
+    } else {
+        warn("compose.templates/testing.yml not found")
+    }
+
+    // Copy Dockerfile.test-runner
+    val dockerfileTestRunner = File("Dockerfile.test-runner")
+    if (dockerfileTestRunner.exists()) {
+        dockerfileTestRunner.copyTo(distDir.resolve("Dockerfile.test-runner"), overwrite = true)
+        info("Copied Dockerfile.test-runner")
+    } else {
+        warn("Dockerfile.test-runner not found")
+    }
+
+    // Copy gradle files needed for test-runner build
+    listOf("gradlew", "build.gradle.kts", "settings.gradle.kts", "gradle.properties").forEach { filename ->
+        val file = File(filename)
+        if (file.exists()) {
+            file.copyTo(distDir.resolve(filename), overwrite = true)
+            if (file.canExecute()) {
+                distDir.resolve(filename).setExecutable(true)
+            }
+        }
+    }
+
+    // Copy gradle directory
+    val gradleDir = File("gradle")
+    if (gradleDir.exists()) {
+        val destGradleDir = distDir.resolve("gradle")
+        destGradleDir.mkdirs()
+        gradleDir.walkTopDown().forEach { source ->
+            if (source.isFile) {
+                val relativePath = source.relativeTo(gradleDir)
+                val dest = destGradleDir.resolve(relativePath)
+                dest.parentFile.mkdirs()
+                source.copyTo(dest, overwrite = true)
+            }
+        }
+        info("Copied gradle directory")
+    }
+
+    // Copy test-runner entrypoint script
+    val testRunnerScriptsDir = File("scripts/test-runner")
+    if (testRunnerScriptsDir.exists()) {
+        val destScriptsDir = distDir.resolve("scripts/test-runner")
+        destScriptsDir.mkdirs()
+        testRunnerScriptsDir.walkTopDown().forEach { source ->
+            if (source.isFile) {
+                val dest = destScriptsDir.resolve(source.name)
+                source.copyTo(dest, overwrite = true)
+                if (source.canExecute()) {
+                    dest.setExecutable(true)
+                }
+            }
+        }
+        info("Copied test-runner scripts")
+    }
+
+    val scriptsDir = File("scripts/stack-health")
+    if (!scriptsDir.exists()) {
+        warn("scripts/stack-health/ not found, skipping test scripts")
+        return
+    }
+
+    val destScriptsDir = distDir.resolve("test-scripts")
+    destScriptsDir.mkdirs()
+
+    // Copy all test scripts
+    scriptsDir.walkTopDown().forEach { source ->
+        if (source.isFile && (source.extension == "kts" || source.extension == "sh" || source.extension == "md")) {
+            val dest = destScriptsDir.resolve(source.name)
+            source.copyTo(dest, overwrite = true)
+            // Make scripts executable
+            if (source.extension == "kts" || source.extension == "sh") {
+                dest.setExecutable(true)
+            }
+        }
+    }
+
+    info("Copied test scripts to dist/test-scripts/")
+}
+
 fun copyComposeFiles(outputDir: File) {
     step("Merging compose files into single docker-compose.yml")
     val templatesDir = File("compose.templates")
@@ -319,6 +408,8 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
         content = content
             .replace("{{DOMAIN}}", domain)
             .replace("{{MAIL_DOMAIN}}", domain)
+            .replace("{{LDAP_DOMAIN}}", domain)
+            .replace("{{LDAP_BASE_DN}}", "dc=" + domain.split(".").joinToString(",dc="))
             .replace("{{STACK_ADMIN_EMAIL}}", adminEmail)
             .replace("{{STACK_ADMIN_USER}}", adminUser)
             .replace("{{GENERATION_TIMESTAMP}}", Instant.now().toString())
@@ -442,7 +533,8 @@ fun generateSecretForVar(varName: String): String {
         varName.endsWith("_SSHA_PASSWORD") -> throw IllegalStateException("SSHA hashes should not be in .env")
 
         // Variables handled elsewhere - skip
-        varName in setOf("DOMAIN", "MAIL_DOMAIN", "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER",
+        varName in setOf("DOMAIN", "MAIL_DOMAIN", "LDAP_DOMAIN", "LDAP_BASE_DN",
+                        "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER",
                         "STACK_ADMIN_PASSWORD", "VECTOR_DB_ROOT", "QBITTORRENT_DATA_ROOT",
                         "SEAFILE_MEDIA_ROOT", "VOLUMES_ROOT", "DEPLOYMENT_ROOT",
                         "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET")
@@ -481,6 +573,8 @@ fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: S
     // Domain and Admin
     env["DOMAIN"] = domain
     env["MAIL_DOMAIN"] = domain
+    env["LDAP_DOMAIN"] = domain
+    env["LDAP_BASE_DN"] = "dc=" + domain.split(".").joinToString(",dc=")
     env["STACK_ADMIN_EMAIL"] = adminEmail
     env["STACK_ADMIN_USER"] = adminUser
     env["DOCKER_USER_ID"] = "1000"
@@ -513,7 +607,7 @@ fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: S
         appendLine()
 
         val pathKeys = listOf("VOLUMES_ROOT", "DEPLOYMENT_ROOT", "VECTOR_DB_ROOT", "QBITTORRENT_DATA_ROOT", "SEAFILE_MEDIA_ROOT")
-        val adminKeys = listOf("DOMAIN", "MAIL_DOMAIN", "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER", "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET")
+        val adminKeys = listOf("DOMAIN", "MAIL_DOMAIN", "LDAP_DOMAIN", "LDAP_BASE_DN", "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER", "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET")
         val configKeys = listOf("API_LITELLM_ALLOWLIST")
         val nonSecretKeys = pathKeys + adminKeys + configKeys
 
@@ -606,6 +700,7 @@ ${CYAN}╔═══════════════════════�
     buildGradleServices(skipGradle)
     copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
+    copyTestScripts(distDir)
     val autheliaOidcKey = generateAutheliaJWKS(distDir)
     processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, ldapAdminPassword, oauthHashes, autheliaOidcKey)
 

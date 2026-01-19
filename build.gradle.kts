@@ -47,15 +47,45 @@ tasks.register("test") {
         ":data-fetcher:test",
         ":control-panel:test",
         ":search-service:test",
-        ":unified-indexer:test"
+        ":data-transformer:test"
     )
-    // Note: test-commons has no tests (it's a library module)
-    // Note: stack-tests excluded - run separately with 'integrationTest' task
+    // Note: test-commons and test-runner have no unit tests (test-runner is for integration only)
 }
 
-// Separate integration test task for Docker-dependent tests
+// Build test-runner container for integration tests
+tasks.register("buildTestRunner") {
+    group = "verification"
+    description = "Build the integration test runner Docker image"
+    doLast {
+        exec {
+            commandLine("docker", "build", "-f", "Dockerfile.test-runner", "-t", "datamancy/test-runner:latest", ".")
+        }
+    }
+}
+
+// Run integration tests via Docker Compose
 tasks.register("integrationTest") {
     group = "verification"
-    description = "Run integration tests that require Docker stack"
-    dependsOn(":stack-tests:test")
+    description = "Run integration tests inside Docker stack (requires stack to be running)"
+    doLast {
+        println("""
+            ╔═══════════════════════════════════════════════════════════════════════════╗
+            ║  To run integration tests, use Docker Compose:                           ║
+            ╚═══════════════════════════════════════════════════════════════════════════╝
+
+            # Run all tests:
+            docker compose --profile testing run --rm integration-test-runner
+
+            # Run specific suite:
+            docker compose --profile testing run --rm integration-test-runner foundation
+            docker compose --profile testing run --rm integration-test-runner docker
+            docker compose --profile testing run --rm integration-test-runner llm
+            docker compose --profile testing run --rm integration-test-runner knowledge-base
+            docker compose --profile testing run --rm integration-test-runner data-pipeline
+            docker compose --profile testing run --rm integration-test-runner e2e
+
+            # Debug mode:
+            docker compose --profile testing run --rm integration-test-runner bash
+        """.trimIndent())
+    }
 }

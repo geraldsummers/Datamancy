@@ -74,7 +74,7 @@ private class ToolsSchemaHandler(private val tools: ToolRegistry) : HttpHandler 
 private class ToolExecutionHandler(private val tools: ToolRegistry) : HttpHandler {
     private val bodyMaxBytes: Long = 1_000_000L
     private val bodyReadTimeoutMs: Long = 5_000L
-    private val callTimeoutMs: Long = 30_000L
+    private val callTimeoutMs: Long = 300_000L  // 5 minutes for long-running operations like docker build
 
     override fun handle(exchange: HttpExchange) {
         try {

@@ -54,7 +54,7 @@ fun main() {
 
     val proxyService = ProxyService(
         dataFetcherUrl = System.getenv("DATA_FETCHER_URL") ?: "http://data-fetcher:${ServicePorts.DataFetcher.INTERNAL}",
-        indexerUrl = System.getenv("UNIFIED_INDEXER_URL") ?: "http://unified-indexer:${ServicePorts.UnifiedIndexer.INTERNAL}",
+        indexerUrl = System.getenv("DATA_TRANSFORMER_URL") ?: "http://data-transformer:${ServicePorts.DataTransformer.INTERNAL}",
         searchUrl = System.getenv("SEARCH_SERVICE_URL") ?: "http://search-service:${ServicePorts.SearchService.INTERNAL}"
     )
 

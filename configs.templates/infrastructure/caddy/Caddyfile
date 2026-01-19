@@ -17,7 +17,7 @@
 	# DEVELOPMENT: Self-signed certificates via Caddy's internal CA
 	local_certs
 
-	# PRODUCTION: Let's Encrypt certificates (comment out local_certs above first)
+	# PRODUCTION: Let's Encrypt certificates
 	# email {$STACK_ADMIN_EMAIL}
 }
 
@@ -303,13 +303,9 @@ api.litellm.{$DOMAIN} {
 	reverse_proxy litellm:4000
 }
 
-# agent-tool-server (protected)
-agent-tool-server.{$DOMAIN} {
-	route {
-		import authelia_auth
-		reverse_proxy agent-tool-server:8081
-	}
-}
+# agent-tool-server - INTERNAL ONLY (not exposed externally)
+# Access via: Open WebUI, JupyterHub, or SSH tunnel
+# For debugging: ssh -L 8081:agent-tool-server:8081 latium.local
 
 # prompts server (public - serves tool schemas and system prompts)
 prompts.{$DOMAIN} {

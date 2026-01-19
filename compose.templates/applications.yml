@@ -419,9 +419,9 @@ services:
       STACK_ADMIN_USER: ${STACK_ADMIN_USER}
       STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
       STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
-      LDAP_BASE_DN: dc=stack,dc=local
-      LDAP_USER_DN: ou=users,dc=stack,dc=local
-      LDAP_BIND_DN: cn=admin,dc=stack,dc=local
+      LDAP_BASE_DN: ${LDAP_BASE_DN}
+      LDAP_USER_DN: ou=users,${LDAP_BASE_DN}
+      LDAP_BIND_DN: cn=admin,${LDAP_BASE_DN}
       LDAP_BIND_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LDAP_USER_FILTER: (uid={username})
     volumes:

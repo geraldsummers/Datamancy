@@ -85,9 +85,9 @@ if ldapmodify -Q -Y EXTERNAL -H ldapi:/// -f /tmp/fix-memberof.ldif 2>&1; then
 
     # Get all groups
     GROUPS=$(ldapsearch -x -H ldap://localhost:389 \
-        -D "cn=admin,dc=stack,dc=local" \
+        -D "cn=admin,{{LDAP_BASE_DN}}" \
         -w "${LDAP_ADMIN_PASSWORD}" \
-        -b "ou=groups,dc=stack,dc=local" \
+        -b "ou=groups,{{LDAP_BASE_DN}}" \
         "(objectClass=groupOfNames)" dn 2>/dev/null | \
         grep "^dn:" | awk '{print $2}' || echo "")
 
@@ -96,7 +96,7 @@ if ldapmodify -Q -Y EXTERNAL -H ldapi:/// -f /tmp/fix-memberof.ldif 2>&1; then
             echo "[ldap-memberof] Touching group: $group_dn"
             # Add and remove a dummy description to trigger memberOf update
             ldapmodify -x -H ldap://localhost:389 \
-                -D "cn=admin,dc=stack,dc=local" \
+                -D "cn=admin,{{LDAP_BASE_DN}}" \
                 -w "${LDAP_ADMIN_PASSWORD}" 2>&1 >/dev/null << LDIF || true
 dn: $group_dn
 changetype: modify
@@ -105,7 +105,7 @@ description: trigger-memberof-update
 LDIF
 
             ldapmodify -x -H ldap://localhost:389 \
-                -D "cn=admin,dc=stack,dc=local" \
+                -D "cn=admin,{{LDAP_BASE_DN}}" \
                 -w "${LDAP_ADMIN_PASSWORD}" 2>&1 >/dev/null << LDIF || true
 dn: $group_dn
 changetype: modify

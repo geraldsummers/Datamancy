@@ -32,7 +32,7 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
             "clickhouse" to "http://clickhouse:8123/ping",
             "control-panel" to "http://control-panel:8097/health",
             "data-fetcher" to "http://data-fetcher:8095/health",
-            "unified-indexer" to "http://unified-indexer:8096/health",
+            "data-transformer" to "http://data-transformer:8096/health",
             "search-service" to "http://search-service:8098/health",
             "qdrant" to "http://qdrant:6333/readyz",
             "caddy" to "http://caddy:80/health",
@@ -52,7 +52,7 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
             "clickhouse" to "http://localhost:18123/ping",
             "control-panel" to "http://localhost:18097/health",
             "data-fetcher" to "http://localhost:18095/health",
-            "unified-indexer" to "http://localhost:18096/health",
+            "data-transformer" to "http://localhost:18096/health",
             "search-service" to "http://localhost:18098/health",
             "qdrant" to "http://localhost:16333/readyz",
             "caddy" to "http://localhost:10080/health",
@@ -78,9 +78,9 @@ class IntegrationTestExtension : BeforeAllCallback, BeforeEachCallback {
 
         // Define service dependencies (matches docker-compose depends_on)
         private val serviceDependencies = mapOf(
-            "control-panel" to listOf("postgres", "data-fetcher", "unified-indexer"),
+            "control-panel" to listOf("postgres", "data-fetcher", "data-transformer"),
             "data-fetcher" to listOf("postgres", "clickhouse"),
-            "unified-indexer" to listOf("postgres", "qdrant", "clickhouse", "embedding-service"),
+            "data-transformer" to listOf("postgres", "qdrant", "clickhouse", "embedding-service"),
             "search-service" to listOf("qdrant", "clickhouse"),
             "agent-tool-server" to listOf("postgres", "docker-proxy"),
             "bookstack" to listOf("postgres"),

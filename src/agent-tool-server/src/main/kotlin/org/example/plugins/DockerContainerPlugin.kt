@@ -373,9 +373,16 @@ class DockerContainerPlugin : Plugin {
             try {
                 File(buildDir, "Dockerfile").writeText(dockerfile)
 
-                val process = ProcessBuilder(
-                    "docker", "build", "-t", imageName, "."
-                ).directory(buildDir)
+                val command = mutableListOf("docker", "build", "-t", imageName, ".")
+
+                // Add DOCKER_HOST if using TCP (must apply to build as well)
+                if (dockerHost.startsWith("tcp://")) {
+                    command.add(1, "-H")
+                    command.add(2, dockerHost)
+                }
+
+                val process = ProcessBuilder(command)
+                    .directory(buildDir)
                     .redirectErrorStream(true)
                     .start()
 

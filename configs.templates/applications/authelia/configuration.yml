@@ -44,7 +44,7 @@ authentication_backend:
     address: ldap://ldap:389
     timeout: 5s
     start_tls: false
-    base_dn: dc=stack,dc=local
+    base_dn: {{LDAP_BASE_DN}}
     additional_users_dn: ou=users
     users_filter: (&({username_attribute}={input})(objectClass=inetOrgPerson))
     additional_groups_dn: ou=groups
@@ -54,7 +54,7 @@ authentication_backend:
       group_name: cn
       mail: mail
       display_name: displayName
-    user: cn=admin,dc=stack,dc=local
+    user: cn=admin,{{LDAP_BASE_DN}}
 
 access_control:
   default_policy: deny

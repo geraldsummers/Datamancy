@@ -52,7 +52,7 @@ PERSON_FILE = CONFIG_DIR / ".storage" / "person"
 # Admin credentials from environment
 admin_username = os.environ.get("STACK_ADMIN_USER", "admin")
 admin_password = os.environ.get("STACK_ADMIN_PASSWORD", "changeme")
-admin_email = os.environ.get("STACK_ADMIN_EMAIL", "admin@stack.local")
+admin_email = os.environ.get("STACK_ADMIN_EMAIL", "{{STACK_ADMIN_EMAIL}}")
 
 # Generate user ID
 user_id = secrets.token_hex(16)

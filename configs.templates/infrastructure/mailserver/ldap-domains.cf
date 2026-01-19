@@ -5,11 +5,11 @@
 # Without this filter, Postfix fails all domain lookups with "temporary lookup failure"
 
 bind = yes
-bind_dn = cn=admin,dc=stack,dc=local
+bind_dn = cn=admin,{{LDAP_BASE_DN}}
 bind_pw = {{LDAP_ADMIN_PASSWORD}}
 query_filter = (mail=*@%s)
 result_attribute = mail
-search_base = ou=users,dc=stack,dc=local
+search_base = ou=users,{{LDAP_BASE_DN}}
 server_host = ldap://ldap:389
 start_tls = no
 version = 3

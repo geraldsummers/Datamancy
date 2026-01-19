@@ -4,9 +4,9 @@
 # Key fix: user_attrs must specify static UID/GID since docker-mailserver
 # uses a single mail user (UID/GID 5000) for all virtual mailboxes
 
-base = ou=users,dc=stack,dc=local
+base = ou=users,{{LDAP_BASE_DN}}
 default_pass_scheme = SSHA
-dn = cn=admin,dc=stack,dc=local
+dn = cn=admin,{{LDAP_BASE_DN}}
 dnpass = ${LDAP_BIND_PW}
 uris = ldap://ldap:389
 tls = no

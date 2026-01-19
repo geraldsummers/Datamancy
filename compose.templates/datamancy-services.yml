@@ -24,7 +24,7 @@ services:
         condition: service_started
       data-fetcher:
         condition: service_started
-      unified-indexer:
+      data-transformer:
         condition: service_started
     environment:
       CONTROL_PANEL_PORT: 8097
@@ -34,7 +34,7 @@ services:
       POSTGRES_USER: datamancer
       POSTGRES_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
       DATA_FETCHER_URL: http://data-fetcher:8095
-      UNIFIED_INDEXER_URL: http://unified-indexer:8096
+      DATA_TRANSFORMER_URL: http://data-transformer:8096
       SEARCH_SERVICE_URL: http://search-service:8098
     healthcheck:
       test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:8097/"]
@@ -96,12 +96,12 @@ services:
       retries: 3
       start_period: 180s
 
-  unified-indexer:
-    image: datamancy/unified-indexer:local-build
+  data-transformer:
+    image: datamancy/data-transformer:local-build
     build:
-      context: ./src/unified-indexer
+      context: ./src/data-transformer
       dockerfile: Dockerfile
-    container_name: unified-indexer
+    container_name: data-transformer
     restart: unless-stopped
     networks:
       - postgres
@@ -121,7 +121,7 @@ services:
       embedding-service:
         condition: service_started
     environment:
-      UNIFIED_INDEXER_PORT: 8096
+      DATA_TRANSFORMER_PORT: 8096
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: datamancy
@@ -185,15 +185,14 @@ services:
     container_name: agent-tool-server
     restart: unless-stopped
     networks:
+      # INTERNAL ONLY - not exposed to external network (no caddy network)
       ai:
         aliases:
           - agent-tool-server.${DOMAIN}
       ai-gateway:
         aliases:
           - agent-tool-server.${DOMAIN}
-      caddy:
-        aliases:
-          - agent-tool-server.${DOMAIN}
+      # caddy: REMOVED - no external access
       postgres:
         aliases:
           - agent-tool-server.${DOMAIN}
@@ -218,8 +217,8 @@ services:
       dind:
         condition: service_healthy
     environment:
-      LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
-      LITELLM_BASE_URL: http://litellm:4000/v1
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_BASE_URL: http://litellm:4000
       POSTGRES_OBSERVER_USER: agent_observer
       POSTGRES_OBSERVER_PASSWORD: ${AGENT_POSTGRES_OBSERVER_PASSWORD}
       POSTGRES_HOST: postgres
@@ -235,20 +234,33 @@ services:
       QDRANT_OBSERVER_API_KEY: ${AGENT_QDRANT_API_KEY}
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
-      LDAP_OBSERVER_DN: cn=agent_observer,dc=stack,dc=local
+      LDAP_OBSERVER_DN: cn=agent_observer,${LDAP_BASE_DN}
       LDAP_OBSERVER_PASSWORD: ${AGENT_LDAP_OBSERVER_PASSWORD}
       LDAP_HOST: ldap
       LDAP_PORT: 389
-      LDAP_BASE_DN: dc=stack,dc=local
+      LDAP_BASE_DN: ${LDAP_BASE_DN}
       SEARCH_SERVICE_URL: http://search-service:8098
       MCP_GRANT_HOST_NETWORK_HTTP: "true"
       MCP_GRANT_HOST_NETWORK_SSH: "true"
       DOCKER_HOST: tcp://dind:2375
       DIND_NETWORK: datamancy-stack_docker-proxy
+      # SSH configuration for ops plugin
+      TOOLSERVER_SSH_HOST: ${STACK_SSH_HOST:-latium.local}
+      TOOLSERVER_SSH_USER: ${STACK_SSH_USER:-stackops}
+      TOOLSERVER_SSH_KEY_PATH: /app/keys/stackops_ed25519
+      TOOLSERVER_SSH_KNOWN_HOSTS: /app/known_hosts
+      # Timeout for tool execution (5 minutes for Docker operations)
+      TOOLSERVER_TOOL_EXEC_TIMEOUT_MS: 300000
+      # Grant capabilities for all plugins
+      TOOLSERVER_ALLOW_CAPS: "host.network.http,host.network.ssh,host.shell.read,host.docker.inspect,host.docker.write,docker.container.create,docker.container.manage,ssh.keymanagement"
     volumes:
       - ./secrets/stackops_ed25519:/app/keys/stackops_ed25519:ro
       - ./agent_tool_server/known_hosts:/app/known_hosts:ro
       - ./configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
+      # Mount host Docker socket for stack operations (rw for docker commands)
+      - /var/run/docker.sock:/var/run/docker.sock.host:rw
+    group_add:
+      - "988"  # docker group on host
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --timeout=15 --spider http://localhost:8081/tools"]
       interval: 60s
@@ -271,6 +283,8 @@ services:
       - --storage.tsdb.retention.time=30d
       - --web.console.libraries=/usr/share/prometheus/console_libraries
       - --web.console.templates=/usr/share/prometheus/consoles
+      - --web.read-timeout=30s
+      - --web.max-connections=512
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
       interval: 30s
@@ -292,9 +306,9 @@ services:
       - --path.rootfs=/host
       - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9100/metrics"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:9100/metrics"]
       interval: 60s
-      timeout: 5s
+      timeout: 10s
       retries: 3
       start_period: 10s
 

@@ -112,6 +112,17 @@ class HostToolsPlugin : Plugin {
             .connectTimeout(Duration.ofSeconds(5))
             .build()
 
+        // Helper to run docker commands against host socket
+        private fun runHostDockerCmd(args: List<String>): Pair<Int, String> {
+            val cmd = listOf("docker", "-H", "unix:///var/run/docker.sock.host") + args
+            val pb = ProcessBuilder(cmd)
+            pb.redirectErrorStream(true)
+            val p = pb.start()
+            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
+            val code = p.waitFor()
+            return code to out
+        }
+
         @LlmTool(
             name = "host_exec_readonly",
             shortDescription = "Run a safe, read-only host command and return stdout/stderr",
@@ -162,12 +173,8 @@ class HostToolsPlugin : Plugin {
         )
         fun docker_list_containers(): List<Map<String, String>> {
             val fmt = "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
-            val pb = ProcessBuilder(listOf("docker", "ps", "-a", "--format", fmt))
-            pb.redirectErrorStream(true)
-            val p = pb.start()
-            val lines = BufferedReader(InputStreamReader(p.inputStream)).readLines()
-            p.waitFor()
-            return lines.filter { it.isNotBlank() }.map { line ->
+            val (_, out) = runHostDockerCmd(listOf("ps", "-a", "--format", fmt))
+            return out.lines().filter { it.isNotBlank() }.map { line ->
                 val parts = line.split('\t')
                 mapOf(
                     "id" to parts.getOrNull(0).orEmpty(),
@@ -192,11 +199,7 @@ class HostToolsPlugin : Plugin {
         ): Map<String, Any?> {
             require(container.isNotBlank()) { "container is required" }
             val safeTail = tail.coerceIn(1, 5000)
-            val pb = ProcessBuilder(listOf("docker", "logs", "--tail", safeTail.toString(), container))
-            pb.redirectErrorStream(true)
-            val p = pb.start()
-            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
-            val code = p.waitFor()
+            val (code, out) = runHostDockerCmd(listOf("logs", "--tail", safeTail.toString(), container))
             return mapOf("exitCode" to code, "logs" to out.take(500_000))
         }
 
@@ -210,11 +213,7 @@ class HostToolsPlugin : Plugin {
         fun docker_stats(container: String): Map<String, Any?> {
             require(container.isNotBlank()) { "container is required" }
             val fmt = "{{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}"
-            val pb = ProcessBuilder(listOf("docker", "stats", "--no-stream", "--format", fmt, container))
-            pb.redirectErrorStream(true)
-            val p = pb.start()
-            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
-            val code = p.waitFor()
+            val (code, out) = runHostDockerCmd(listOf("stats", "--no-stream", "--format", fmt, container))
 
             if (code != 0 || out.isBlank()) {
                 return mapOf("exitCode" to code, "error" to "Failed to get stats", "raw" to out)
@@ -242,11 +241,7 @@ class HostToolsPlugin : Plugin {
         )
         fun docker_inspect(container: String): Map<String, Any?> {
             require(container.isNotBlank()) { "container is required" }
-            val pb = ProcessBuilder(listOf("docker", "inspect", container))
-            pb.redirectErrorStream(true)
-            val p = pb.start()
-            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
-            val code = p.waitFor()
+            val (code, out) = runHostDockerCmd(listOf("inspect", container))
             return mapOf(
                 "exitCode" to code,
                 "json" to out.take(500_000)
@@ -291,11 +286,7 @@ class HostToolsPlugin : Plugin {
             require(container.isNotBlank()) { "container is required" }
 
             val startTime = System.currentTimeMillis()
-            val pb = ProcessBuilder(listOf("docker", "restart", container))
-            pb.redirectErrorStream(true)
-            val p = pb.start()
-            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
-            val code = p.waitFor()
+            val (code, out) = runHostDockerCmd(listOf("restart", container))
             val elapsedMs = System.currentTimeMillis() - startTime
 
             return mapOf(
@@ -328,12 +319,7 @@ class HostToolsPlugin : Plugin {
                 "command '$exe' is not in whitelist"
             }
 
-            val fullCmd = listOf("docker", "exec", container) + cmd
-            val pb = ProcessBuilder(fullCmd)
-            pb.redirectErrorStream(true)
-            val p = pb.start()
-            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
-            val code = p.waitFor()
+            val (code, out) = runHostDockerCmd(listOf("exec", container) + cmd)
 
             return mapOf(
                 "exitCode" to code,
@@ -359,13 +345,8 @@ class HostToolsPlugin : Plugin {
 
             while (System.currentTimeMillis() < deadline) {
                 attempts++
-                val pb = ProcessBuilder(listOf("docker", "inspect", "--format", "{{.State.Health.Status}}", container))
-                pb.redirectErrorStream(true)
-                val p = pb.start()
-                val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText().trim() }
-                p.waitFor()
-
-                lastStatus = out
+                val (_, out) = runHostDockerCmd(listOf("inspect", "--format", "{{.State.Health.Status}}", container))
+                lastStatus = out.trim()
 
                 when (lastStatus) {
                     "healthy" -> {
@@ -417,6 +398,7 @@ class HostToolsPlugin : Plugin {
             cmd.addAll(listOf("restart", service))
 
             val startTime = System.currentTimeMillis()
+            // Note: docker compose commands need to run on host, not through the helper
             val pb = ProcessBuilder(cmd)
             pb.redirectErrorStream(true)
             val p = pb.start()

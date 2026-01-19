@@ -52,29 +52,14 @@ volumes:
   seafile_files:
 
   # ============================================================================
-  # Special Storage Locations (SSD + Media Drive)
+  # Previously Special Storage - Now Standard Named Volumes
   # ============================================================================
 
-  # Qdrant - SSD for vector database performance
+  # Qdrant - Vector database storage
   qdrant_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${VECTOR_DB_ROOT}/qdrant
 
-  # qBittorrent - Media drive for torrent downloads
+  # qBittorrent - Torrent downloads
   qbittorrent_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${QBITTORRENT_DATA_ROOT}
 
-  # Seafile media - Media drive for large file storage
+  # Seafile media - Large file storage
   seafile_media:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${SEAFILE_MEDIA_ROOT}

@@ -35,8 +35,8 @@ CONFIG_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_LDAP_HOST, default=os.getenv("LDAP_HOST", "ldap")): str,
         vol.Optional(CONF_LDAP_PORT, default=int(os.getenv("LDAP_PORT", "389"))): int,
-        vol.Optional(CONF_LDAP_BASE_DN, default=os.getenv("LDAP_BASE_DN", "dc=stack,dc=local")): str,
-        vol.Optional(CONF_LDAP_BIND_DN, default=os.getenv("LDAP_BIND_DN", "cn=admin,dc=stack,dc=local")): str,
+        vol.Optional(CONF_LDAP_BASE_DN, default=os.getenv("LDAP_BASE_DN", "{{LDAP_BASE_DN}}")): str,
+        vol.Optional(CONF_LDAP_BIND_DN, default=os.getenv("LDAP_BIND_DN", "cn=admin,{{LDAP_BASE_DN}}")): str,
         vol.Optional(CONF_LDAP_BIND_PASSWORD, default=os.getenv("LDAP_BIND_PASSWORD", "")): str,
         vol.Optional(CONF_LDAP_USER_FILTER, default=os.getenv("LDAP_USER_FILTER", "(uid={username})")): str,
     },

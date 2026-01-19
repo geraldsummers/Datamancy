@@ -1572,7 +1572,7 @@ ai:
     subdomain: null
     networks:
       - ai  # ISOLATED - AI network only
-      - ai-gateway  # Controlled access for unified-indexer
+      - ai-gateway  # Controlled access for data-transformer
     environment:
       HF_HUB_ENABLE_HF_TRANSFER: "0"
       MODEL_ID: "BAAI/bge-base-en-v1.5"  # Must use env var to avoid log redaction bug
@@ -1640,7 +1640,7 @@ datamancy:
     depends_on:
       - postgres
       - data-fetcher
-      - unified-indexer
+      - data-transformer
     ports:
       - "8097:8097"
     environment:
@@ -1651,7 +1651,7 @@ datamancy:
       POSTGRES_USER: "datamancer"
       POSTGRES_PASSWORD: "${DATAMANCY_SERVICE_PASSWORD}"
       DATA_FETCHER_URL: "http://data-fetcher:8095"
-      UNIFIED_INDEXER_URL: "http://unified-indexer:8096"
+      DATA_TRANSFORMER_URL: "http://data-transformer:8096"
       SEARCH_SERVICE_URL: "http://search-service:8098"
     health_check:
       type: docker
@@ -1669,8 +1669,8 @@ datamancy:
     subdomain: null
     networks:
       - postgres
-      - clickhouse
       - mariadb  # Needs bookstack's DB
+      - clickhouse
       - qdrant
       - couchdb  # Document storage
     depends_on:
@@ -1713,10 +1713,10 @@ datamancy:
     phase: datamancy
     phase_order: 6
 
-  unified-indexer:
-    image: datamancy/unified-indexer
+  data-transformer:
+    image: datamancy/data-transformer
     version: local-build
-    container_name: unified-indexer
+    container_name: data-transformer
     subdomain: null
     networks:
       - postgres

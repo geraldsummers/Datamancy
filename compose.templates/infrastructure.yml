@@ -457,8 +457,8 @@ services:
       - ldap
     environment:
       LDAP_ORGANISATION: Datamancy
-      LDAP_DOMAIN: stack.local
-      LDAP_BASE_DN: dc=stack,dc=local
+      LDAP_DOMAIN: ${LDAP_DOMAIN}
+      LDAP_BASE_DN: ${LDAP_BASE_DN}
       LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LDAP_CONFIG_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LDAP_TLS: false
@@ -601,9 +601,9 @@ services:
       POSTMASTER_ADDRESS: postmaster@${MAIL_DOMAIN}
       ACCOUNT_PROVISIONER: LDAP
       LDAP_SERVER_HOST: ldap://ldap:389
-      LDAP_BIND_DN: cn=admin,dc=stack,dc=local
+      LDAP_BIND_DN: cn=admin,${LDAP_BASE_DN}
       LDAP_BIND_PW: ${LDAP_ADMIN_PASSWORD}
-      LDAP_SEARCH_BASE: ou=users,dc=stack,dc=local
+      LDAP_SEARCH_BASE: ou=users,${LDAP_BASE_DN}
       LDAP_QUERY_FILTER_USER: (&(objectClass=inetOrgPerson)(|(mail=%s)(uid=%s)))
       LDAP_QUERY_FILTER_GROUP: (&(objectClass=groupOfNames)(member=%s))
       LDAP_QUERY_FILTER_ALIAS: (&(objectClass=inetOrgPerson)(|(mail=%s)(uid=%s)))
@@ -653,9 +653,9 @@ services:
       ldap:
         condition: service_started
     environment:
-      LDAP_DOMAIN: stack.local
-      LDAP_BASE_DN: dc=stack,dc=local
-      LDAP_USER: cn=admin,dc=stack,dc=local
+      LDAP_DOMAIN: ${LDAP_DOMAIN}
+      LDAP_BASE_DN: ${LDAP_BASE_DN}
+      LDAP_USER: cn=admin,${LDAP_BASE_DN}
       LDAP_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LAM_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LAM_LANG: en_US
@@ -707,7 +707,10 @@ services:
       start_period: 10s
 
   dind:
-    image: docker:27-dind
+    image: datamancy/dind-debian:local-build
+    build:
+      context: ./src/dind-debian
+      dockerfile: Dockerfile
     container_name: dind
     restart: unless-stopped
     privileged: true
@@ -718,11 +721,6 @@ services:
     volumes:
       - dind-storage:/var/lib/docker
       - dind-certs:/certs
-    command:
-      - --storage-driver=overlay2
-      - --host=tcp://0.0.0.0:2375
-      - --host=unix:///var/run/docker.sock
-      - --tls=false
     healthcheck:
       test: ["CMD", "docker", "info"]
       interval: 30s

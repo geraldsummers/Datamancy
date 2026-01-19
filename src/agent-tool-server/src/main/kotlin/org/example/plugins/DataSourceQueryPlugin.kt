@@ -416,12 +416,55 @@ class DataSourceQueryPlugin : Plugin {
         }
 
         @LlmTool(
-            shortDescription = "Query MariaDB database (DISABLED)",
-            longDescription = "MariaDB querying is currently disabled. Safe views must be created first to expose only public data.",
-            paramsSpec = """{"type":"object","required":["database","query"],"properties":{"database":{"type":"string"},"query":{"type":"string"}}}"""
+            shortDescription = "Query MariaDB database",
+            longDescription = "Execute a read-only SELECT query on MariaDB. Only specific databases accessible. Max 100 rows. Available databases: bookstack (wiki/documentation).",
+            paramsSpec = """{"type":"object","required":["database","query"],"properties":{"database":{"type":"string","enum":["bookstack"]},"query":{"type":"string"}}}"""
         )
         fun query_mariadb(database: String, query: String, userContext: String? = null): String {
-            return "ERROR: MariaDB querying is disabled until safe public views are created. BookStack and Seafile contain user content that must not be exposed directly."
+            val config = mariadbConfig ?: return "ERROR: MariaDB not configured"
+
+            // Whitelist safe databases only - BookStack is safe, Seafile is not
+            val allowedDbs = listOf("bookstack")
+            if (database !in allowedDbs) {
+                return "ERROR: Database '$database' not accessible. Allowed: ${allowedDbs.joinToString(", ")}"
+            }
+
+            // Safety checks
+            val queryUpper = query.trim().uppercase()
+            if (!queryUpper.startsWith("SELECT")) {
+                return "ERROR: Only SELECT queries are allowed"
+            }
+
+            // Prevent access to sensitive data
+            if (queryUpper.contains("PASSWORD") || queryUpper.contains("SECRET") || queryUpper.contains("TOKEN")) {
+                return "ERROR: Queries accessing password/secret/token fields are not allowed"
+            }
+
+            // Use shadow account if user context provided
+            val username = if (userContext != null) {
+                config.user.replace("agent_observer", "${userContext}-agent")
+            } else {
+                config.user
+            }
+
+            return try {
+                val url = "jdbc:mariadb://${config.host}:${config.port}/$database"
+                DriverManager.getConnection(url, username, config.password).use { conn ->
+                    val startTime = System.currentTimeMillis()
+                    conn.createStatement().use { stmt ->
+                        stmt.maxRows = 100
+                        stmt.executeQuery(query).use { rs ->
+                            val result = resultSetToJson(rs)
+                            val elapsedMs = System.currentTimeMillis() - startTime
+                            println("[AUDIT] user=${userContext ?: "anonymous"} shadow=$username database=$database query=\"${query.take(100)}\" rows=${result.lines().size - 2} elapsed_ms=$elapsedMs success=true")
+                            result
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                println("[AUDIT] user=${userContext ?: "anonymous"} shadow=$username database=$database query=\"${query.take(100)}\" success=false error=\"${e.message}\"")
+                "ERROR: ${e.message}"
+            }
         }
 
         @LlmTool(

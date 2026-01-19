@@ -10,7 +10,7 @@ fun Route.configureLogsApi(database: DatabaseService) {
     get("/services") {
         val services = listOf(
             org.datamancy.controlpanel.models.ServiceInfo("data-fetcher", true),
-            org.datamancy.controlpanel.models.ServiceInfo("unified-indexer", true),
+            org.datamancy.controlpanel.models.ServiceInfo("data-transformer", true),
             org.datamancy.controlpanel.models.ServiceInfo("control-panel", true)
         )
         call.respond(services)

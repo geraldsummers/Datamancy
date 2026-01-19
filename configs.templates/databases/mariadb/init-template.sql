@@ -24,7 +24,7 @@ GRANT ALL PRIVILEGES ON seahub_db.* TO 'seafile'@'%';
 
 -- Shadow agent accounts are created per-user via scripts/security/create-shadow-agent-account.main.kts
 -- No global agent_observer account (security: per-user shadow accounts for traceability)
--- Each user gets: {username}-agent user with read-only SELECT access to bookstack database
+-- Each user gets: {username}-agent user with read-only SELECT access to bookstack and seafile databases
 -- Provisioned via: scripts/security/provision-shadow-database-access.sh
 --
 -- SECURITY: Per-user shadow accounts enable:

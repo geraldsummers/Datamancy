@@ -3,7 +3,7 @@
   <SamlConfigs />
   <OidConfigs>
     <config>
-      <OidEndpoint>https://auth.stack.local</OidEndpoint>
+      <OidEndpoint>https://auth.{{DOMAIN}}</OidEndpoint>
       <OidClientId>jellyfin</OidClientId>
       <OidSecret>{{JELLYFIN_OIDC_SECRET}}</OidSecret>
       <Enabled>true</Enabled>
