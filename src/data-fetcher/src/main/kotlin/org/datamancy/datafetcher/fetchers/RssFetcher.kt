@@ -37,16 +37,20 @@ class RssFetcher(private val config: RssConfig) : Fetcher {
                         return@forEach
                     }
 
-                    val feedXml = response.body?.string()
-                    response.close()
-
-                    if (feedXml == null) {
+                    val responseBody = response.body
+                    if (responseBody == null) {
                         ctx.recordError("EMPTY_RESPONSE", "Empty response", feed.url)
+                        response.close()
                         return@forEach
                     }
 
-                    // Parse RSS feed
-                    val syndFeed = SyndFeedInput().build(feedXml.reader())
+                    // Parse RSS feed using XmlReader which handles encoding/BOM/gzip automatically
+                    val syndFeed = try {
+                        val xmlReader = XmlReader(responseBody.byteStream())
+                        SyndFeedInput().build(xmlReader)
+                    } finally {
+                        response.close()
+                    }
 
                     // Process each entry individually with dedupe
                     syndFeed.entries?.forEach { entry ->
