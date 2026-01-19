@@ -13,7 +13,9 @@ suspend fun TestRunner.dockerTests() = suite("Docker-in-Docker Tests") {
                 "image" to "ubuntu:22.04"
             ))
 
-            require(result is ToolResult.Success, "Container creation failed")
+            require(result is ToolResult.Success) {
+                "Container creation failed: ${(result as? ToolResult.Error)?.message}"
+            }
             val output = (result as ToolResult.Success).output
             output shouldContain "success"
             output shouldContain "ssh_host"
@@ -24,7 +26,9 @@ suspend fun TestRunner.dockerTests() = suite("Docker-in-Docker Tests") {
 
         test("List containers includes new container") {
             val result = client.callTool("docker_container_list", emptyMap())
-            require(result is ToolResult.Success, "Container list failed")
+            require(result is ToolResult.Success) {
+                "Container list failed: ${(result as? ToolResult.Error)?.message}"
+            }
             val output = (result as ToolResult.Success).output
             output shouldContain testContainerName
         }
@@ -35,7 +39,9 @@ suspend fun TestRunner.dockerTests() = suite("Docker-in-Docker Tests") {
                 "command" to "echo 'Hello from container' && uname -s"
             ))
 
-            require(result is ToolResult.Success, "Exec failed")
+            require(result is ToolResult.Success) {
+                "Exec failed: ${(result as? ToolResult.Error)?.message}"
+            }
             val output = (result as ToolResult.Success).output
             output shouldContain "success"
             output shouldContain "Hello from container"

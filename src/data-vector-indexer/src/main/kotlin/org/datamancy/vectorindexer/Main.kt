@@ -112,7 +112,7 @@ fun Application.configureServer(indexer: VectorIndexer) {
                 val name = call.parameters["name"] ?: throw IllegalArgumentException("Collection name required")
                 val vectorSize = call.request.queryParameters["vectorSize"]?.toIntOrNull() ?: 768
                 indexer.ensureCollection(name, vectorSize)
-                call.respond(HttpStatusCode.Created, mapOf("collection" to name, "created" to true))
+                call.respond(HttpStatusCode.Created, CollectionCreateResponse(collection = name, created = true))
             } catch (e: Exception) {
                 logger.error(e) { "Failed to create collection" }
                 call.respond(
@@ -177,4 +177,10 @@ data class IndexResult(
     val indexed: Int,
     val failed: Int,
     val errors: List<String> = emptyList()
+)
+
+@Serializable
+data class CollectionCreateResponse(
+    val collection: String,
+    val created: Boolean
 )

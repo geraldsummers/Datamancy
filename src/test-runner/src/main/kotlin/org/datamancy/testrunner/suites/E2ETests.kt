@@ -13,7 +13,9 @@ suspend fun TestRunner.e2eTests() = suite("End-to-End Workflow Tests") {
                 "name" to containerName,
                 "image" to "ubuntu:22.04"
             ))
-            require(createResult is ToolResult.Success, "Container creation failed")
+            require(createResult is ToolResult.Success) {
+                "Container creation failed: ${(createResult as? ToolResult.Error)?.message}"
+            }
             val createOutput = (createResult as ToolResult.Success).output
             createOutput shouldContain "success"
 
@@ -27,7 +29,9 @@ suspend fun TestRunner.e2eTests() = suite("End-to-End Workflow Tests") {
                 ),
                 "max_tokens" to 50
             ))
-            require(codeResult is ToolResult.Success, "LLM generation failed")
+            require(codeResult is ToolResult.Success) {
+                "LLM generation failed: ${(codeResult as? ToolResult.Error)?.message}"
+            }
 
             // 3. Execute generated code in container (using known good command)
             val execResult = client.callTool("docker_container_exec", mapOf(
@@ -35,7 +39,9 @@ suspend fun TestRunner.e2eTests() = suite("End-to-End Workflow Tests") {
                 "command" to "seq 1 5"  // Use reliable command instead of potentially malformed generated code
             ))
 
-            require(execResult is ToolResult.Success, "Exec failed")
+            require(execResult is ToolResult.Success) {
+                "Exec failed: ${(execResult as? ToolResult.Error)?.message}"
+            }
             val execOutput = (execResult as ToolResult.Success).output
             execOutput shouldContain "success"
 
