@@ -196,6 +196,30 @@ run_test \
 
 echo
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}Phase 5: Live Log Access Capabilities${NC}"
+echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
+echo
+
+run_test \
+    "Docker Logs Tool Knowledge" \
+    "$SYSTEM_PROMPT" \
+    "How can I read live logs from the search-service container?" \
+    "docker_logs"
+
+run_test \
+    "Tool Usage Example" \
+    "$SYSTEM_PROMPT" \
+    "Show me how to get the last 100 log lines from data-fetcher using agent-tool-server tools" \
+    "docker_logs"
+
+run_test \
+    "Multiple Service Monitoring" \
+    "$SYSTEM_PROMPT" \
+    "I want to check for errors across all Datamancy services. What tools should I use?" \
+    "docker_ps"
+
+echo
+echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}Test Results Summary${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo

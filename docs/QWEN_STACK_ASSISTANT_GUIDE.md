@@ -51,14 +51,26 @@ Datamancy is a comprehensive self-hosted infrastructure stack providing:
 - **Purpose:** MCP-compatible tool server for AI agents
 - **Access:** Internal only (no external exposure)
 - **Capabilities:**
-  - Database queries (PostgreSQL, MariaDB, ClickHouse via shadow accounts)
-  - Docker container management (via dind)
-  - SSH operations (via stackops user)
-  - Vector search (Qdrant)
-  - LDAP queries (read-only)
+  - **Docker Operations:**
+    - `docker_logs(container, tail)` - Read container logs (last N lines, max 5000)
+    - `docker_ps` - List running containers
+    - `docker_restart(container)` - Restart containers
+    - `docker_inspect(container)` - Get container details
+  - **Database Queries:**
+    - `query_postgres(database, query)` - PostgreSQL via shadow accounts
+    - `query_mariadb(database, query)` - MariaDB via shadow accounts
+    - `query_clickhouse(query)` - ClickHouse analytics
+  - **SSH Operations:**
+    - `ssh_exec_whitelisted(cmd)` - Run allowed commands (e.g., "docker logs vllm --tail 200")
+    - `ssh_read_file(path)` - Read files from host
+  - **Vector Search:**
+    - `search_qdrant` - Query vector database
+  - **LDAP Queries:**
+    - Read-only LDAP operations
 - **Networks:** ai, ai-gateway, postgres, mariadb, clickhouse, qdrant, ldap, docker-proxy
 - **Key Config:** `/home/gerald/datamancy/configs/applications/agent-tool-server/`
 - **Security:** Uses shadow accounts (agent_observer) with restricted permissions
+- **API Endpoint:** `http://agent-tool-server:8081` (POST /call-tool)
 
 #### 2. **control-panel** (Port: 8097)
 - **Purpose:** Web dashboard for stack management
@@ -624,13 +636,120 @@ docker logs <service_name> 2>&1 | grep -E "(ERROR|WARN|FAIL)"
    - Document new services as they're added
    - Track configuration changes
 
-### Tools Available to Qwen
-- `query_postgres` - Database queries
-- `query_mariadb` - Database queries
-- `query_clickhouse` - Analytics queries
-- `search_documents` - Vector search
-- `docker_container_*` - Container management
-- `ssh_*` - Remote command execution
+### Tools Available to Qwen (via agent-tool-server)
+
+#### Docker Operations (Read-Only Safe)
+- **`docker_logs(container, tail=200)`** - Read live container logs
+  - Example: `docker_logs("search-service", 100)` - Last 100 lines
+  - Max lines: 5000
+  - Returns: `{exitCode, logs}` structure
+- **`docker_ps()`** - List all running containers
+- **`docker_inspect(container)`** - Get container details
+
+#### Docker Operations (Requires Approval)
+- **`docker_restart(container)`** - Restart a container
+  - Use only when documented troubleshooting recommends it
+
+#### Database Queries (Shadow Account - Read-Only)
+- **`query_postgres(database, query)`** - PostgreSQL queries
+  - Available databases: datamancy, grafana
+  - Must use `agent_observer` schema prefix
+- **`query_mariadb(database, query)`** - MariaDB queries
+  - Available databases: bookstack, seafile_db, mastodon_production
+- **`query_clickhouse(query)`** - ClickHouse analytics
+
+#### SSH Operations (Whitelisted Commands)
+- **`ssh_exec_whitelisted(cmd)`** - Run allowed commands
+  - Example: `ssh_exec_whitelisted("docker logs vllm --tail 200")`
+  - Whitelist enforced server-side for security
+- **`ssh_read_file(path)`** - Read files from host
+  - Use to access this documentation: `ssh_read_file("~/QWEN_STACK_ASSISTANT_GUIDE.md")`
+
+#### Vector & Search
+- **`search_qdrant`** - Query vector database
+
+---
+
+## Practical Examples for Qwen
+
+### Example 1: Checking Service Logs for Errors
+
+**User Question:** "Is search-service having any errors?"
+
+**Qwen Should:**
+1. Call `docker_logs("search-service", 200)` to get last 200 lines
+2. Scan for ERROR, WARN, FAIL keywords
+3. Identify patterns (e.g., HTTP2 errors, connection failures)
+4. Reference troubleshooting guide for known issues
+5. Provide diagnosis and recommended action
+
+**Sample Response:**
+```
+Checking search-service logs...
+
+Found 15 ERROR entries in last 200 lines. Pattern identified:
+"INTERNAL: http2 exception" - Qdrant gRPC connection errors
+
+Diagnosis: This is a KNOWN ISSUE from 2026-01-19.
+Root Cause: Port mismatch - using HTTP port 6333 instead of gRPC port 6334
+
+Status: FIXED in commit a057c99
+Verification: docker logs qdrant --since 10m | grep ERROR | wc -l
+Expected: <5 errors (down from 50+ per 10min before fix)
+
+Action Required: None if services were restarted after 2026-01-19.
+If errors persist, run: docker restart search-service
+```
+
+### Example 2: Investigating Service Health
+
+**User Question:** "Why is data-fetcher failing?"
+
+**Qwen Should:**
+1. Call `docker_ps()` to check if container is running
+2. Call `docker_logs("data-fetcher", 300)` for recent logs
+3. Look for:
+   - Connection errors (database, network)
+   - File write errors
+   - RSS feed failures
+   - Schedule execution errors
+4. Cross-reference with known issues
+5. Suggest specific troubleshooting steps
+
+### Example 3: Monitoring Multiple Services
+
+**User Question:** "Show me errors from all Datamancy services in the last hour"
+
+**Qwen Should:**
+1. Call `docker_ps()` to list services
+2. For each Datamancy service (data-fetcher, search-service, etc.):
+   - Call `docker_logs(service, 500)`
+   - Filter for ERROR/WARN
+3. Aggregate and categorize errors
+4. Highlight critical vs informational
+5. Provide summary with action items
+
+### Example 4: Database Query for Monitoring
+
+**User Question:** "How many RSS feeds were fetched today?"
+
+**Qwen Should:**
+1. Call `query_postgres("datamancy", "SELECT COUNT(*) FROM fetch_history WHERE source='rss' AND fetched_at >= CURRENT_DATE")`
+2. Parse result
+3. Provide context from documentation (RSS feed system, data-fetcher service)
+
+### Example 5: Proactive Health Check
+
+**Qwen Task:** Periodic health monitoring
+
+**Actions:**
+1. Call `docker_ps()` - verify all services healthy
+2. For critical services (postgres, mariadb, qdrant, agent-tool-server):
+   - Call `docker_logs(service, 50)`
+   - Scan for ERROR keywords
+3. Call `query_postgres("datamancy", "SELECT COUNT(*) FROM fetch_history WHERE fetched_at > NOW() - INTERVAL '1 hour'")`
+   - Verify data pipeline is active
+4. Report: "All systems healthy" or escalate issues
 
 ---
 
