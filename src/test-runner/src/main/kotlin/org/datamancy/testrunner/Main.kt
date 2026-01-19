@@ -74,9 +74,9 @@ private fun createHttpClient(verbose: Boolean) = HttpClient(CIO) {
     }
 
     engine {
-        requestTimeout = 30_000
+        requestTimeout = 90_000  // Increased for slow Docker operations (image builds, SSH setup)
         endpoint {
-            connectTimeout = 10_000
+            connectTimeout = 15_000
             connectAttempts = 3
         }
     }
