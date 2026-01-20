@@ -26,12 +26,100 @@ object ChunkingStrategy {
      */
     fun chunkContent(sourceType: String, content: String, title: String): List<ContentChunk> {
         return when (sourceType.lowercase()) {
+            "cve" -> chunkCVE(content, maxSize = 3000)
             "legal", "legislation" -> chunkBySection(content, maxSize = 2000, overlap = 200)
             "rss", "news" -> chunkByParagraph(content, maxSize = 1500, overlap = 100)
             "wiki", "wikipedia" -> chunkByHeading(content, maxSize = 2500, overlap = 150)
             "docs", "documentation" -> chunkByCodeBlock(content, maxSize = 2000, overlap = 200)
             else -> chunkByCharacterLimit(content, maxSize = 1500, overlap = 100)
         }
+    }
+
+    /**
+     * Chunk CVE content - most CVEs are small enough for a single chunk
+     * Only split if affected products section is very large
+     */
+    fun chunkCVE(content: String, maxSize: Int = 3000): List<ContentChunk> {
+        // Most CVEs fit in one chunk
+        if (content.length <= maxSize) {
+            return listOf(ContentChunk(
+                chunkIndex = 0,
+                totalChunks = 1,
+                content = content,
+                contentSnippet = content.take(200)
+            ))
+        }
+
+        // If CVE is large, split by section headers
+        val sections = content.split(Regex("(?=^## )", RegexOption.MULTILINE))
+        val chunks = mutableListOf<ContentChunk>()
+        val mainSection = StringBuilder()
+
+        sections.forEachIndexed { idx, section ->
+            if (idx == 0 || !section.startsWith("## Affected Products")) {
+                // Keep description and metadata together
+                mainSection.append(section)
+            } else {
+                // This is affected products - save main chunk first
+                if (mainSection.isNotEmpty()) {
+                    chunks.add(ContentChunk(
+                        chunkIndex = chunks.size,
+                        totalChunks = 0,
+                        content = mainSection.toString().trim(),
+                        contentSnippet = mainSection.toString().take(200)
+                    ))
+                    mainSection.clear()
+                }
+
+                // Add affected products as separate chunk(s)
+                if (section.length <= maxSize) {
+                    chunks.add(ContentChunk(
+                        chunkIndex = chunks.size,
+                        totalChunks = 0,
+                        content = section.trim(),
+                        contentSnippet = section.take(200)
+                    ))
+                } else {
+                    // Split large affected products by lines
+                    val lines = section.lines()
+                    val currentChunk = StringBuilder()
+
+                    lines.forEach { line ->
+                        if (currentChunk.length + line.length > maxSize && currentChunk.isNotEmpty()) {
+                            chunks.add(ContentChunk(
+                                chunkIndex = chunks.size,
+                                totalChunks = 0,
+                                content = currentChunk.toString().trim(),
+                                contentSnippet = currentChunk.toString().take(200)
+                            ))
+                            currentChunk.clear()
+                        }
+                        currentChunk.appendLine(line)
+                    }
+
+                    if (currentChunk.isNotEmpty()) {
+                        chunks.add(ContentChunk(
+                            chunkIndex = chunks.size,
+                            totalChunks = 0,
+                            content = currentChunk.toString().trim(),
+                            contentSnippet = currentChunk.toString().take(200)
+                        ))
+                    }
+                }
+            }
+        }
+
+        // Add remaining main section if any
+        if (mainSection.isNotEmpty()) {
+            chunks.add(ContentChunk(
+                chunkIndex = chunks.size,
+                totalChunks = 0,
+                content = mainSection.toString().trim(),
+                contentSnippet = mainSection.toString().take(200)
+            ))
+        }
+
+        return finalizeChunks(chunks)
     }
 
     /**

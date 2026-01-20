@@ -269,6 +269,22 @@ class SearchGateway(
     }
 }
 
+enum class AudienceType {
+    HUMAN,      // Needs rich UI, modals, charts, interactive elements
+    AGENT,      // Needs structured data, APIs, raw content
+    BOTH        // Useful for both audiences
+}
+
+@Serializable
+data class ContentCapabilities(
+    val humanFriendly: Boolean,
+    val agentFriendly: Boolean,
+    val hasTimeSeries: Boolean = false,      // Can be graphed in Grafana
+    val hasRichContent: Boolean = false,     // Has full text/media
+    val isInteractive: Boolean = false,      // Supports chat/Q&A
+    val isStructured: Boolean = false        // Has structured data fields
+)
+
 @Serializable
 data class SearchResult(
     val url: String,
@@ -276,5 +292,92 @@ data class SearchResult(
     val snippet: String,
     val score: Double,
     val source: String,
-    val metadata: Map<String, String> = emptyMap()
-)
+    val metadata: Map<String, String> = emptyMap(),
+    val contentType: String = inferContentType(source, url, metadata),
+    val capabilities: ContentCapabilities = inferCapabilities(source, url, metadata)
+) {
+    companion object {
+        private fun inferContentType(source: String, url: String, metadata: Map<String, String>): String {
+            return when {
+                source.contains("bookstack") || url.contains("bookstack") -> "bookstack"
+                source.contains("rss") || source.contains("arxiv") || source.contains("news") -> "article"
+                source.contains("market") || source.contains("crypto") || source.contains("stock") -> "market"
+                source.contains("weather") -> "weather"
+                source.contains("cve") || source.contains("security") -> "cve"
+                source.contains("wiki") -> "wikipedia"
+                source.contains("docs") || source.contains("documentation") -> "documentation"
+                else -> "generic"
+            }
+        }
+
+        private fun inferCapabilities(source: String, url: String, metadata: Map<String, String>): ContentCapabilities {
+            val type = inferContentType(source, url, metadata)
+            return when (type) {
+                "bookstack" -> ContentCapabilities(
+                    humanFriendly = true,
+                    agentFriendly = true,
+                    hasTimeSeries = false,
+                    hasRichContent = true,
+                    isInteractive = true,      // Can chat with OpenWebUI
+                    isStructured = false
+                )
+                "article" -> ContentCapabilities(
+                    humanFriendly = true,
+                    agentFriendly = true,
+                    hasTimeSeries = false,
+                    hasRichContent = true,
+                    isInteractive = true,      // Can chat with OpenWebUI
+                    isStructured = false
+                )
+                "market" -> ContentCapabilities(
+                    humanFriendly = true,
+                    agentFriendly = true,
+                    hasTimeSeries = true,      // Can graph in Grafana
+                    hasRichContent = false,
+                    isInteractive = false,
+                    isStructured = true        // Has numeric fields
+                )
+                "weather" -> ContentCapabilities(
+                    humanFriendly = true,
+                    agentFriendly = true,
+                    hasTimeSeries = true,      // Can graph trends
+                    hasRichContent = false,
+                    isInteractive = false,
+                    isStructured = true        // Has temp/humidity/etc fields
+                )
+                "cve" -> ContentCapabilities(
+                    humanFriendly = true,
+                    agentFriendly = true,
+                    hasTimeSeries = false,
+                    hasRichContent = true,
+                    isInteractive = true,      // Can chat about CVE
+                    isStructured = true        // Has CVSS, affected systems
+                )
+                "wikipedia" -> ContentCapabilities(
+                    humanFriendly = true,
+                    agentFriendly = true,
+                    hasTimeSeries = false,
+                    hasRichContent = true,
+                    isInteractive = true,      // Can chat with OpenWebUI
+                    isStructured = false
+                )
+                "documentation" -> ContentCapabilities(
+                    humanFriendly = true,
+                    agentFriendly = true,
+                    hasTimeSeries = false,
+                    hasRichContent = true,
+                    isInteractive = true,      // Can chat about docs
+                    isStructured = false
+                )
+                else -> ContentCapabilities(
+                    humanFriendly = false,
+                    agentFriendly = true,
+                    hasTimeSeries = false,
+                    hasRichContent = false,
+                    isInteractive = false,
+                    isStructured = false
+                )
+            }
+        }
+    }
+}

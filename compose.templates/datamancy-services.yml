@@ -88,7 +88,7 @@ services:
     volumes:
       - ./configs/applications/data-fetcher/schedules.yaml:/app/config/schedules.yaml:ro
       - ./configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
-      - ./volumes/data/data-fetcher:/app/data
+      - datafetcher_data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:8095/"]
       interval: 60s
@@ -109,10 +109,9 @@ services:
       - qdrant
       - clickhouse
       - ai-gateway
+      - backend
     depends_on:
       postgres:
-        condition: service_started
-      bookstack:
         condition: service_started
       qdrant:
         condition: service_started
@@ -120,6 +119,8 @@ services:
         condition: service_started
       embedding-service:
         condition: service_started
+      # Microservices are optional runtime dependencies, not startup dependencies
+      # They will be available via network when needed
     environment:
       DATA_TRANSFORMER_PORT: 8096
       POSTGRES_HOST: postgres
@@ -127,6 +128,8 @@ services:
       POSTGRES_DB: datamancy
       POSTGRES_USER: datamancer
       POSTGRES_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
+      BOOKSTACK_WRITER_URL: http://data-bookstack-writer:8099
+      VECTOR_INDEXER_URL: http://data-vector-indexer:8100
       BOOKSTACK_URL: ${BOOKSTACK_URL:-http://bookstack:80}
       BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID:-}
       BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET:-}
@@ -176,6 +179,58 @@ services:
       timeout: 20s
       retries: 3
       start_period: 180s
+
+  data-bookstack-writer:
+    image: datamancy/data-bookstack-writer:local-build
+    build:
+      context: ./src/data-bookstack-writer
+      dockerfile: Dockerfile
+    container_name: data-bookstack-writer
+    restart: unless-stopped
+    networks:
+      - backend
+      - mariadb
+    depends_on:
+      bookstack:
+        condition: service_started
+    environment:
+      BOOKSTACK_WRITER_PORT: 8099
+      BOOKSTACK_URL: ${BOOKSTACK_URL:-http://bookstack:80}
+      BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID:-}
+      BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET:-}
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:8099/health"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 60s
+
+  data-vector-indexer:
+    image: datamancy/data-vector-indexer:local-build
+    build:
+      context: ./src/data-vector-indexer
+      dockerfile: Dockerfile
+    container_name: data-vector-indexer
+    restart: unless-stopped
+    networks:
+      - backend
+      - qdrant
+      - ai-gateway
+    depends_on:
+      qdrant:
+        condition: service_started
+      embedding-service:
+        condition: service_started
+    environment:
+      VECTOR_INDEXER_PORT: 8100
+      QDRANT_URL: http://qdrant:6334
+      EMBEDDING_SERVICE_URL: http://embedding-service:8080
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:8100/health"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 60s
 
   agent-tool-server:
     image: datamancy/agent-tool-server:local-build

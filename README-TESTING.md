@@ -115,17 +115,31 @@ TEST_ENV=localhost
 
 ### Optional: BookStack API Credentials
 
-For data pipeline tests:
+For data pipeline tests that write to BookStack, you must provide API credentials:
 
+**Generate API Token**:
+1. Log into BookStack at `https://bookstack.your-domain.com`
+2. Go to **Settings → API Tokens** (top-right user menu)
+3. Click **Create Token**
+4. Name: `test-runner` or `data-pipeline`
+5. Copy the **Token ID** and **Token Secret** (shown only once!)
+
+**Set Environment Variables**:
 ```bash
-export BOOKSTACK_API_TOKEN_ID="your-token-id"
-export BOOKSTACK_API_TOKEN_SECRET="your-token-secret"
+# Add to your shell profile or .env file
+export BOOKSTACK_API_TOKEN_ID="your-token-id-here"
+export BOOKSTACK_API_TOKEN_SECRET="your-token-secret-here"
 ```
 
-Generate credentials:
+**For Remote Testing** (via SSH):
 ```bash
-./configs.templates/applications/bookstack/generate-api-token.main.kts
+# On the remote host (latium.local)
+cd ~/datamancy
+echo 'BOOKSTACK_API_TOKEN_ID=your-token-id' >> .env
+echo 'BOOKSTACK_API_TOKEN_SECRET=your-secret' >> .env
 ```
+
+**Note**: Without these credentials, BookStack-related tests will fail with 401 Unauthorized errors.
 
 ## Network Access
 

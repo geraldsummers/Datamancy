@@ -7,10 +7,10 @@ suspend fun TestRunner.dockerTests() = suite("Docker-in-Docker Tests") {
     val testContainerName = "test-${System.currentTimeMillis()}"
 
     try {
-        test("Create Ubuntu container with SSH") {
+        test("Create Debian container with SSH") {
             val result = client.callTool("docker_container_create", mapOf(
                 "name" to testContainerName,
-                "image" to "ubuntu:22.04"
+                "image" to "debian:12-slim"
             ))
 
             require(result is ToolResult.Success) {

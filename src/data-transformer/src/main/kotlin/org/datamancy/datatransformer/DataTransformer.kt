@@ -221,6 +221,7 @@ class DataTransformer(
      */
     private fun determineSourceType(collectionName: String): String {
         return when {
+            collectionName == "cve" -> "cve"
             collectionName.startsWith("legal-") -> "legal"
             collectionName.startsWith("rss-") -> "rss"
             collectionName.startsWith("wiki-") -> "wiki"

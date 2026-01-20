@@ -19,7 +19,7 @@ private val logger = KotlinLogging.logger {}
 fun main() {
     logger.info { "Starting Search Gateway Service..." }
 
-    val qdrantUrl = System.getenv("QDRANT_URL") ?: "http://qdrant:6333"
+    val qdrantUrl = System.getenv("QDRANT_URL") ?: "http://qdrant:6334"
     val clickhouseUrl = System.getenv("CLICKHOUSE_URL") ?: "http://clickhouse:8123"
     val embeddingUrl = System.getenv("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000"
 
@@ -47,7 +47,8 @@ data class SearchRequest(
     val query: String,
     val collections: List<String> = listOf("*"),
     val mode: String = "hybrid", // "vector", "bm25", "hybrid"
-    val limit: Int = 20
+    val limit: Int = 20,
+    val audience: String = "both" // "human", "agent", "both"
 )
 
 @Serializable
@@ -68,7 +69,13 @@ fun Application.configureServer(gateway: SearchGateway) {
 
     routing {
         get("/") {
-            call.respondText("Search Gateway Service v1.0.0", ContentType.Text.Plain)
+            // Serve the search UI
+            val html = this::class.java.classLoader.getResource("static/index.html")?.readText()
+            if (html != null) {
+                call.respondText(html, ContentType.Text.Html)
+            } else {
+                call.respondText("Search Gateway Service v1.0.0", ContentType.Text.Plain)
+            }
         }
 
         get("/health") {
@@ -78,6 +85,15 @@ fun Application.configureServer(gateway: SearchGateway) {
         post("/search") {
             val request = call.receive<SearchRequest>()
 
+            // Validate query is not empty
+            if (request.query.isBlank()) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    mapOf("error" to "Query cannot be empty")
+                )
+                return@post
+            }
+
             try {
                 val results = gateway.search(
                     query = request.query,
@@ -86,9 +102,16 @@ fun Application.configureServer(gateway: SearchGateway) {
                     limit = request.limit
                 )
 
+                // Filter results based on audience
+                val filteredResults = when (request.audience) {
+                    "human" -> results.filter { it.capabilities.humanFriendly }
+                    "agent" -> results.filter { it.capabilities.agentFriendly }
+                    else -> results // "both" or unspecified returns all
+                }
+
                 call.respond(SearchResponse(
-                    results = results,
-                    total = results.size,
+                    results = filteredResults,
+                    total = filteredResults.size,
                     mode = request.mode
                 ))
             } catch (e: Exception) {

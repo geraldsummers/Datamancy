@@ -12,12 +12,34 @@
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/cache.properties" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/cache.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data-vector-indexer/src/main/kotlin/org/datamancy/vectorindexer/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-vector-indexer/src/main/kotlin/org/datamancy/vectorindexer/Main.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README-TESTING.md" beforeDir="false" afterPath="$PROJECT_DIR$/README-TESTING.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build-datamancy.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/datamancy-services.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/datamancy-services.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/networks.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/networks.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/volumes.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/volumes.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/applications/data-fetcher/schedules.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/data-fetcher/schedules.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/generate-bookstack-api-token.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/generate-bookstack-api-token.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-bookstack-writer/src/main/kotlin/org/datamancy/bookstackwriter/BookStackWriter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-bookstack-writer/src/main/kotlin/org/datamancy/bookstackwriter/BookStackWriter.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/clients/StandardHttpClient.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/clients/StandardHttpClient.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/config/FetchConfig.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/config/FetchConfig.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/fetchers/MarketDataFetcher.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/fetchers/MarketDataFetcher.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/fetchers/RssFetcher.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/fetchers/RssFetcher.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/scheduler/FetchScheduler.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/scheduler/FetchScheduler.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/storage/DataStore.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-fetcher/src/main/kotlin/org/datamancy/datafetcher/storage/DataStore.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-transformer/src/main/kotlin/org/datamancy/datatransformer/Chunking.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-transformer/src/main/kotlin/org/datamancy/datatransformer/Chunking.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-transformer/src/main/kotlin/org/datamancy/datatransformer/ClickHouseSourceAdapter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-transformer/src/main/kotlin/org/datamancy/datatransformer/ClickHouseSourceAdapter.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-transformer/src/main/kotlin/org/datamancy/datatransformer/DataTransformer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-transformer/src/main/kotlin/org/datamancy/datatransformer/DataTransformer.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data-transformer/src/test/kotlin/org/datamancy/datatransformer/DataTransformerTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/data-transformer/src/test/kotlin/org/datamancy/datatransformer/DataTransformerTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/Main.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/SearchGateway.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/SearchGateway.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-service/src/test/kotlin/org/datamancy/searchservice/SearchGatewayTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/src/test/kotlin/org/datamancy/searchservice/SearchGatewayTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/Main.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/DockerTests.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/DockerTests.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/E2ETests.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/E2ETests.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/KnowledgeBaseTests.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/KnowledgeBaseTests.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -122,11 +144,11 @@
       <command value="gradle clean" />
       <command value="gradle sync" />
       <command value="gradle build --continue" />
-      <command value="gradle test --continue" />
       <command value="gradle build" />
+      <command value="gradle test --continue" />
     </option>
   </component>
-  <component name="RunManager" selected="Gradle.Datamancy [build]">
+  <component name="RunManager" selected="Gradle.Datamancy [test]">
     <configuration name="Datamancy [build]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -231,14 +253,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1764971190772</updated>
-    </task>
-    <task id="LOCAL-00001" summary="fff">
-      <option name="closed" value="true" />
-      <created>1764971279297</created>
-      <option name="number" value="00001" />
-      <option name="presentableId" value="LOCAL-00001" />
-      <option name="project" value="LOCAL" />
-      <updated>1764971279297</updated>
     </task>
     <task id="LOCAL-00002" summary="fff">
       <option name="closed" value="true" />
@@ -624,7 +638,15 @@
       <option name="project" value="LOCAL" />
       <updated>1768790959394</updated>
     </task>
-    <option name="localTasksCounter" value="50" />
+    <task id="LOCAL-00050" summary="fixed?">
+      <option name="closed" value="true" />
+      <created>1768823620053</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1768823620053</updated>
+    </task>
+    <option name="localTasksCounter" value="51" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

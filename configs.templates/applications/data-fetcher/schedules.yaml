@@ -1,57 +1,63 @@
-# Data Fetcher Schedules Configuration
-# Cron format: minute hour day-of-month month day-of-week
-# Special formats:
-#   */N * * * *  = Every N minutes
-#   0 H * * *    = Every day at hour H
-#   0 H * * D    = Every week on day D at hour H
+# Data Fetcher Unified Sync Configuration
+# Single sync interval - all enabled fetchers run in each cycle
+#
+# How it works:
+# - The "sync" schedule controls the master sync interval (default: every 15 minutes)
+# - All enabled fetchers run sequentially during each sync cycle
+# - Each fetcher checks for changes since last sync (incremental updates)
+# - Manual triggers available via API endpoint: POST /trigger/{fetcher_name}
+#
+# Cron format: */N * * * * = Every N minutes
 
 schedules:
-  # RSS feeds - fetch every 30 minutes
+  # Master sync interval - controls how often to check all sources for updates
+  sync:
+    cron: "*/15 * * * *"  # Every 15 minutes
+    enabled: true
+
+  # Enable/disable individual fetchers
+  # All enabled fetchers run during each sync cycle
+
+  # RSS feeds - fetches from configured feed URLs
   rss_feeds:
-    cron: "*/30 * * * *"
     enabled: true
 
-  # Market data (crypto/stocks) - fetch every 15 minutes
+  # Market data - crypto/stocks from CoinGecko, Yahoo Finance
   market_data:
-    cron: "*/15 * * * *"
     enabled: true
 
-  # Weather data - fetch every hour (requires OPENWEATHER_API_KEY)
-  weather:
-    cron: "0 * * * *"
-    enabled: false
+  # CVE data - vulnerability data from NVD (requires NVD_API_KEY for higher rate limits)
+  cve_data:
+    enabled: true
 
-  # Economic indicators - fetch weekly on Monday at 9am (requires FRED_API_KEY)
-  economic_data:
-    cron: "0 9 * * 1"
-    enabled: false
-
-  # Wikipedia dumps - fetch weekly on Sunday at 2am
+  # Wikipedia dumps - large dataset, disabled by default
   wiki_dumps:
-    cron: "0 2 * * 0"
-    enabled: true
-
-  # Search queries (requires SERP_API_KEY)
-  search:
-    cron: "0 */6 * * *"  # Every 6 hours
     enabled: false
 
-  # Legal documents - daily at 3am
+  # Legal documents - Australian legislation (requires BookStack API token)
   legal_docs:
-    cron: "0 3 * * *"
-    enabled: true
+    enabled: false
 
-  # Torrents CSV - every 6 hours
+  # Torrents - search torrents-csv.com
   torrents:
-    cron: "0 */6 * * *"
-    enabled: true
+    enabled: false
 
-  # Documentation sources - daily at 4am
+  # Documentation sources - crawl Linux kernel docs, Debian docs, etc.
   docs:
-    cron: "0 4 * * *"
-    enabled: true
+    enabled: false
 
-  # Agent tool server functions - every hour
+  # Agent functions - fetch available agent tool server functions
   agent_functions:
-    cron: "0 * * * *"
-    enabled: true
+    enabled: false
+
+  # Economic data - IMF, World Bank, OECD, FRED (requires FRED_API_KEY)
+  economic_data:
+    enabled: false
+
+  # Search queries - web search via SERP API (requires SERP_API_KEY)
+  search:
+    enabled: false
+
+  # Weather data - OpenWeather API (requires OPENWEATHER_API_KEY)
+  weather:
+    enabled: false

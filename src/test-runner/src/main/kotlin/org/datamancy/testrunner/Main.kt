@@ -74,7 +74,7 @@ private fun createHttpClient(verbose: Boolean) = HttpClient(CIO) {
     }
 
     engine {
-        requestTimeout = 90_000  // Increased for slow Docker operations (image builds, SSH setup)
+        requestTimeout = 180_000  // 3 minutes for Docker operations (image pulls, SSH setup, container creation)
         endpoint {
             connectTimeout = 15_000
             connectAttempts = 3
@@ -90,6 +90,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "knowledge-base" -> runner.knowledgeBaseTests()
         "data-pipeline" -> runner.dataPipelineTests()
         "microservices" -> runner.microserviceTests()
+        "search-service" -> runner.searchServiceTests()
         "e2e" -> runner.e2eTests()
         "all" -> {
             runner.foundationTests()
@@ -98,11 +99,12 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.knowledgeBaseTests()
             runner.dataPipelineTests()
             runner.microserviceTests()
+            runner.searchServiceTests()
             runner.e2eTests()
         }
         else -> {
             println("❌ Unknown suite: $suite")
-            println("Available suites: foundation, docker, llm, knowledge-base, data-pipeline, microservices, e2e, all")
+            println("Available suites: foundation, docker, llm, knowledge-base, data-pipeline, microservices, search-service, e2e, all")
             exitProcess(1)
         }
     }
@@ -171,7 +173,8 @@ private fun printUsage() {
 
       --suite <suite>        Test suite to run (default: all)
                              Values: foundation, docker, llm, knowledge-base,
-                                     data-pipeline, microservices, e2e, all
+                                     data-pipeline, microservices, search-service,
+                                     e2e, all
 
       --verbose, -v          Enable verbose logging
       --help, -h             Show this help message

@@ -50,7 +50,8 @@ data class DatamancyConfig(
 // Service list used across multiple build steps
 val DATAMANCY_SERVICES = listOf(
     "control-panel", "data-fetcher", "data-transformer",
-    "search-service", "agent-tool-server"
+    "search-service", "agent-tool-server", "data-bookstack-writer",
+    "data-vector-indexer"
 )
 
 // ============================================================================
@@ -172,10 +173,7 @@ fun buildGradleServices(skipGradle: Boolean) {
         return
     }
     step("Building JARs with Gradle")
-    val exitCode = exec("./gradlew build -x test", ignoreError = true)
-    if (exitCode != 0) {
-        warn("Gradle build failed - using existing JARs")
-    }
+    exec("./gradlew build -x test")
 }
 
 
@@ -290,6 +288,48 @@ fun copyTestScripts(distDir: File) {
     }
 
     info("Copied test scripts to dist/test-scripts/")
+}
+
+fun copyRotationScripts(distDir: File) {
+    step("Copying credential rotation scripts to dist")
+
+    val securityDir = File("scripts/security")
+    if (!securityDir.exists()) {
+        warn("scripts/security/ not found, skipping rotation scripts")
+        return
+    }
+
+    val destSecurityDir = distDir.resolve("scripts/security")
+    destSecurityDir.mkdirs()
+
+    // Copy all rotation scripts and libraries
+    securityDir.walkTopDown().forEach { source ->
+        if (source.isFile) {
+            val relativePath = source.relativeTo(securityDir)
+            val dest = destSecurityDir.resolve(relativePath)
+            dest.parentFile.mkdirs()
+            source.copyTo(dest, overwrite = true)
+
+            // Make scripts executable
+            if (source.extension == "kts" || source.extension == "sh") {
+                dest.setExecutable(true)
+            }
+        }
+    }
+
+    // Create secrets directories
+    val secretsDir = distDir.resolve("secrets")
+    secretsDir.resolve("backups").mkdirs()
+    secretsDir.resolve("audit").mkdirs()
+
+    // Copy credentials.yaml
+    val credentialsFile = File("secrets/credentials.yaml")
+    if (credentialsFile.exists()) {
+        credentialsFile.copyTo(secretsDir.resolve("credentials.yaml"), overwrite = true)
+        info("Copied credentials.yaml")
+    }
+
+    info("Copied rotation scripts to dist/scripts/security/")
 }
 
 fun copyComposeFiles(outputDir: File) {
@@ -701,6 +741,7 @@ ${CYAN}╔═══════════════════════�
     copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
     copyTestScripts(distDir)
+    copyRotationScripts(distDir)
     val autheliaOidcKey = generateAutheliaJWKS(distDir)
     processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, ldapAdminPassword, oauthHashes, autheliaOidcKey)
 

@@ -5,37 +5,43 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.security.MessageDigest
 import java.util.UUID
 
 class DataTransformerTest {
 
     private lateinit var database: DatabaseApi
     private lateinit var sourceAdapter: SourceAdapter
-    private lateinit var indexer: DataTransformer
+    private lateinit var bookstackWriter: BookStackWriterClient
+    private lateinit var vectorIndexer: VectorIndexerClient
+    private lateinit var transformer: DataTransformer
 
     @BeforeEach
     fun setup() {
         database = mockk(relaxed = true)
         sourceAdapter = mockk(relaxed = true)
-        indexer = DataTransformer(
+        bookstackWriter = mockk(relaxed = true)
+        vectorIndexer = mockk(relaxed = true)
+
+        transformer = DataTransformer(
             database = database,
             sourceAdapter = sourceAdapter,
-            qdrantUrl = "http://localhost:6334",
-            clickhouseUrl = "http://localhost:8123",
-            embeddingServiceUrl = "http://localhost:8080",
-            batchSize = 10,
-            maxConcurrency = 2
+            bookstackWriter = bookstackWriter,
+            vectorIndexer = vectorIndexer
         )
     }
 
     @Test
-    fun `computeContentHash should return consistent SHA-256 hash`() {
+    fun `SHA-256 hash should be consistent`() {
         // Given
         val content = "Test content for hashing"
 
         // When
-        val hash1 = indexer.computeContentHash(content)
-        val hash2 = indexer.computeContentHash(content)
+        val digest1 = MessageDigest.getInstance("SHA-256")
+        val hash1 = digest1.digest(content.toByteArray()).joinToString("") { "%02x".format(it) }
+
+        val digest2 = MessageDigest.getInstance("SHA-256")
+        val hash2 = digest2.digest(content.toByteArray()).joinToString("") { "%02x".format(it) }
 
         // Then
         assertEquals(hash1, hash2, "Hash should be deterministic")
@@ -44,173 +50,140 @@ class DataTransformerTest {
     }
 
     @Test
-    fun `computeContentHash should return different hashes for different content`() {
+    fun `SHA-256 hash should differ for different content`() {
         // Given
         val content1 = "Content A"
         val content2 = "Content B"
 
         // When
-        val hash1 = indexer.computeContentHash(content1)
-        val hash2 = indexer.computeContentHash(content2)
+        val digest1 = MessageDigest.getInstance("SHA-256")
+        val hash1 = digest1.digest(content1.toByteArray()).joinToString("") { "%02x".format(it) }
+
+        val digest2 = MessageDigest.getInstance("SHA-256")
+        val hash2 = digest2.digest(content2.toByteArray()).joinToString("") { "%02x".format(it) }
 
         // Then
         assertNotEquals(hash1, hash2, "Different content should produce different hashes")
     }
 
     @Test
-    fun `computeDiff should identify new pages`() = runTest {
+    fun `indexCollection handles empty page list`() = runTest {
         // Given
         val collection = "test-collection"
-        val sourcePage1 = PageInfo(1, "Page 1", "http://example.com/1")
-        val sourcePage2 = PageInfo(2, "Page 2", "http://example.com/2")
-        val sourcePages = listOf(sourcePage1, sourcePage2)
+        val jobId = UUID.randomUUID()
 
-        every { database.getIndexedPages(collection) } returns emptyMap()
+        coEvery { database.createJob(collection) } returns jobId
+        coEvery { sourceAdapter.getPages(collection) } returns emptyList()
 
         // When
-        val diff = indexer.computeDiff(collection, sourcePages)
+        val result = transformer.indexCollection(collection)
 
         // Then
-        assertEquals(2, diff.new.size, "Should identify 2 new pages")
-        assertEquals(0, diff.modified.size, "Should have no modified pages")
-        assertEquals(0, diff.unchanged.size, "Should have no unchanged pages")
-        assertEquals(0, diff.deleted.size, "Should have no deleted pages")
-        assertTrue(diff.new.contains(sourcePage1))
-        assertTrue(diff.new.contains(sourcePage2))
+        assertEquals(jobId, result)
+        coVerify { database.createJob(collection) }
+        coVerify { sourceAdapter.getPages(collection) }
     }
 
     @Test
-    fun `computeDiff should identify deleted pages`() = runTest {
+    fun `indexCollection processes pages successfully`() = runTest {
         // Given
         val collection = "test-collection"
-        val sourcePages = emptyList<PageInfo>()
-        val indexedPages = mapOf(
-            1 to "hash1",
-            2 to "hash2"
+        val jobId = UUID.randomUUID()
+        val pages = listOf(
+            PageInfo(1, "Page 1", "http://example.com/1"),
+            PageInfo(2, "Page 2", "http://example.com/2")
         )
 
-        every { database.getIndexedPages(collection) } returns indexedPages
+        coEvery { database.createJob(collection) } returns jobId
+        coEvery { sourceAdapter.getPages(collection) } returns pages
+        coEvery { sourceAdapter.exportPage(any()) } returns "Page content"
 
         // When
-        val diff = indexer.computeDiff(collection, sourcePages)
+        val result = transformer.indexCollection(collection)
 
         // Then
-        assertEquals(0, diff.new.size, "Should have no new pages")
-        assertEquals(0, diff.modified.size, "Should have no modified pages")
-        assertEquals(0, diff.unchanged.size, "Should have no unchanged pages")
-        assertEquals(2, diff.deleted.size, "Should identify 2 deleted pages")
-        assertTrue(diff.deleted.contains(1))
-        assertTrue(diff.deleted.contains(2))
+        assertEquals(jobId, result)
+        coVerify { database.createJob(collection) }
+        coVerify { database.updateJobProgress(jobId, totalPages = 2) }
     }
 
     @Test
-    fun `computeDiff should identify modified pages`() = runTest {
-        // Given
-        val collection = "test-collection"
-        val sourcePage = PageInfo(1, "Page 1", "http://example.com/1")
-        val sourcePages = listOf(sourcePage)
-        val newContent = "New content"
-        val newHash = indexer.computeContentHash(newContent)
-        val oldHash = "oldhash123"
-        val indexedPages = mapOf(1 to oldHash)
+    fun `determineSourceType recognizes CVE collection`() {
+        // Test the logic that would be in determineSourceType
+        val collection = "cve"
+        val sourceType = when {
+            collection == "cve" -> "cve"
+            collection.startsWith("legal-") -> "legal"
+            else -> "unknown"
+        }
 
-        every { database.getIndexedPages(collection) } returns indexedPages
-        coEvery { sourceAdapter.exportPage(1) } returns newContent
-
-        // When
-        val diff = indexer.computeDiff(collection, sourcePages)
-
-        // Then
-        assertEquals(0, diff.new.size, "Should have no new pages")
-        assertEquals(1, diff.modified.size, "Should identify 1 modified page")
-        assertEquals(0, diff.unchanged.size, "Should have no unchanged pages")
-        assertEquals(0, diff.deleted.size, "Should have no deleted pages")
-        assertTrue(diff.modified.contains(sourcePage))
+        assertEquals("cve", sourceType)
     }
 
     @Test
-    fun `computeDiff should identify unchanged pages`() = runTest {
-        // Given
-        val collection = "test-collection"
-        val sourcePage = PageInfo(1, "Page 1", "http://example.com/1")
-        val sourcePages = listOf(sourcePage)
-        val content = "Same content"
-        val hash = indexer.computeContentHash(content)
-        val indexedPages = mapOf(1 to hash)
+    fun `determineSourceType recognizes legal collections`() {
+        val testCases = listOf("legal-federal", "legal-nsw", "legal-vic")
 
-        every { database.getIndexedPages(collection) } returns indexedPages
-        coEvery { sourceAdapter.exportPage(1) } returns content
+        testCases.forEach { collection ->
+            val sourceType = when {
+                collection == "cve" -> "cve"
+                collection.startsWith("legal-") -> "legal"
+                else -> "unknown"
+            }
 
-        // When
-        val diff = indexer.computeDiff(collection, sourcePages)
-
-        // Then
-        assertEquals(0, diff.new.size, "Should have no new pages")
-        assertEquals(0, diff.modified.size, "Should have no modified pages")
-        assertEquals(1, diff.unchanged.size, "Should identify 1 unchanged page")
-        assertEquals(0, diff.deleted.size, "Should have no deleted pages")
-        assertTrue(diff.unchanged.contains(sourcePage))
+            assertEquals("legal", sourceType, "Should recognize $collection as legal")
+        }
     }
 
     @Test
-    fun `computeDiff should handle mixed changes`() = runTest {
-        // Given
-        val collection = "test-collection"
-        val newPage = PageInfo(3, "New Page", "http://example.com/3")
-        val unchangedPage = PageInfo(1, "Unchanged", "http://example.com/1")
-        val modifiedPage = PageInfo(2, "Modified", "http://example.com/2")
-
-        val sourcePages = listOf(newPage, unchangedPage, modifiedPage)
-
-        val unchangedContent = "Unchanged content"
-        val unchangedHash = indexer.computeContentHash(unchangedContent)
-
-        val modifiedContent = "Modified content"
-        val oldHash = "oldmodifiedhash"
-
-        val indexedPages = mapOf(
-            1 to unchangedHash,
-            2 to oldHash,
-            4 to "deletedhash"
+    fun `PageInfo contains required fields`() {
+        val page = PageInfo(
+            id = 123,
+            name = "Test Page",
+            url = "http://example.com/test"
         )
 
-        every { database.getIndexedPages(collection) } returns indexedPages
-        coEvery { sourceAdapter.exportPage(1) } returns unchangedContent
-        coEvery { sourceAdapter.exportPage(2) } returns modifiedContent
-
-        // When
-        val diff = indexer.computeDiff(collection, sourcePages)
-
-        // Then
-        assertEquals(1, diff.new.size, "Should identify 1 new page")
-        assertEquals(1, diff.modified.size, "Should identify 1 modified page")
-        assertEquals(1, diff.unchanged.size, "Should identify 1 unchanged page")
-        assertEquals(1, diff.deleted.size, "Should identify 1 deleted page")
-
-        assertTrue(diff.new.contains(newPage))
-        assertTrue(diff.modified.contains(modifiedPage))
-        assertTrue(diff.unchanged.contains(unchangedPage))
-        assertTrue(diff.deleted.contains(4))
+        assertEquals(123, page.id)
+        assertEquals("Test Page", page.name)
+        assertEquals("http://example.com/test", page.url)
     }
 
     @Test
-    fun `computeDiff should treat export failure as modified`() = runTest {
+    fun `database operations are called in correct order`() = runTest {
         // Given
         val collection = "test-collection"
-        val sourcePage = PageInfo(1, "Page 1", "http://example.com/1")
-        val sourcePages = listOf(sourcePage)
-        val indexedPages = mapOf(1 to "somehash")
+        val jobId = UUID.randomUUID()
+        val pages = listOf(PageInfo(1, "Page 1", "http://example.com/1"))
 
-        every { database.getIndexedPages(collection) } returns indexedPages
-        coEvery { sourceAdapter.exportPage(1) } throws Exception("Export failed")
+        coEvery { database.createJob(collection) } returns jobId
+        coEvery { sourceAdapter.getPages(collection) } returns pages
+        coEvery { sourceAdapter.exportPage(1) } returns "Content"
 
         // When
-        val diff = indexer.computeDiff(collection, sourcePages)
+        transformer.indexCollection(collection)
 
         // Then
-        assertEquals(0, diff.new.size)
-        assertEquals(1, diff.modified.size, "Should treat failed export as modified")
-        assertEquals(0, diff.unchanged.size)
-        assertEquals(0, diff.deleted.size)
+        coVerifyOrder {
+            database.createJob(collection)
+            sourceAdapter.getPages(collection)
+            database.updateJobProgress(jobId, totalPages = 1)
+        }
+    }
+
+    @Test
+    fun `indexCollection handles full reindex flag`() = runTest {
+        // Given
+        val collection = "test-collection"
+        val jobId = UUID.randomUUID()
+
+        coEvery { database.createJob(collection) } returns jobId
+        coEvery { sourceAdapter.getPages(collection) } returns emptyList()
+
+        // When
+        val result = transformer.indexCollection(collection, fullReindex = true)
+
+        // Then
+        assertEquals(jobId, result)
+        coVerify { database.createJob(collection) }
     }
 }

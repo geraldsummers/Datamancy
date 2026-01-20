@@ -60,7 +60,8 @@ data class FetchConfig(
             "docs" to ScheduleConfig(cron = "0 3 * * 0", enabled = false),
             "torrents" to ScheduleConfig(cron = "0 */6 * * *", enabled = false),
             "agent_functions" to ScheduleConfig(cron = "0 0 * * *", enabled = false),
-            "legal_docs" to ScheduleConfig(cron = "0 4 * * 0", enabled = false)
+            "legal_docs" to ScheduleConfig(cron = "0 4 * * 0", enabled = false),
+            "cve_data" to ScheduleConfig(cron = "0 3 * * *", enabled = true)
         )
     }
 }
@@ -86,7 +87,8 @@ data class SourcesConfig(
     val search: SearchConfig = SearchConfig(),
     val legal: LegalConfig = LegalConfig(),
     val torrents: TorrentsConfig = TorrentsConfig(),
-    val docs: DocsConfigWrapper = DocsConfigWrapper()
+    val docs: DocsConfigWrapper = DocsConfigWrapper(),
+    val cve: CVEConfig = CVEConfig()
 )
 
 @Serializable
@@ -171,4 +173,12 @@ data class TorrentsConfig(
     val torrentsCsvUrl: String = "https://torrents-csv.com/service/search",
     val qbittorrentUrl: String = "http://qbittorrent:8080",
     val autoDownload: Boolean = false
+)
+
+@Serializable
+data class CVEConfig(
+    val apiKey: String = System.getenv("NVD_API_KEY") ?: "",
+    val syncDaysBack: Int = 7,
+    val fullBackfillEnabled: Boolean = false,
+    val batchSize: Int = 2000
 )

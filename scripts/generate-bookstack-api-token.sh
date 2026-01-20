@@ -7,7 +7,18 @@ set -e
 # Configuration
 TOKEN_NAME="${1:-datamancy-service}"
 USER_ID="${2:-1}"  # Default to admin user
-DB_PASSWORD="8d55027c87ea8270012cf0b996240c3ba769c33c020d87f36ca67b460d9737fd"
+
+# Get DB password from environment or .env file
+if [ -z "$BOOKSTACK_DB_PASSWORD" ]; then
+    if [ -f ".env" ]; then
+        DB_PASSWORD=$(grep "^BOOKSTACK_DB_PASSWORD=" .env | cut -d= -f2)
+    else
+        echo "❌ BOOKSTACK_DB_PASSWORD not set and .env file not found"
+        exit 1
+    fi
+else
+    DB_PASSWORD="$BOOKSTACK_DB_PASSWORD"
+fi
 
 echo "🔑 Generating BookStack API Token"
 echo "=================================="

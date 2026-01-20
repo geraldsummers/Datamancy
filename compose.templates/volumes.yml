@@ -63,3 +63,6 @@ volumes:
 
   # Seafile media - Large file storage
   seafile_media:
+
+  # Data Fetcher - Fetched data storage
+  datafetcher_data:

@@ -29,6 +29,7 @@ class FetchScheduler(private val config: FetchConfig) {
     private lateinit var torrentsFetcher: TorrentsFetcher
     private lateinit var legalDocsFetcher: LegalDocsFetcher
     private lateinit var agentFunctionsFetcher: AgentFunctionsFetcher
+    private lateinit var cveFetcher: CVEFetcher
 
     fun start() {
         logger.info { "Starting fetch scheduler..." }
@@ -47,25 +48,64 @@ class FetchScheduler(private val config: FetchConfig) {
         torrentsFetcher = TorrentsFetcher(config.sources.torrents)
         legalDocsFetcher = LegalDocsFetcher(config.sources.legal)
         agentFunctionsFetcher = AgentFunctionsFetcher()
+        cveFetcher = CVEFetcher(config.sources.cve)
 
-        // Schedule each enabled fetch job
-        config.schedules.forEach { (name, schedule) ->
-            if (schedule.enabled) {
-                runCount[name] = AtomicLong(0)
-                errorCount[name] = AtomicLong(0)
-                isRunning[name] = false
-
-                val job = scope.launch {
-                    scheduleFetchJob(name, schedule.cron)
-                }
-                jobs.add(job)
-                logger.info { "Scheduled fetch job: $name with cron: ${schedule.cron}" }
+        // Get sync interval from config (default 15 minutes)
+        val syncInterval = config.schedules["sync"]?.cron?.let { cron ->
+            // Parse "*/N * * * *" format
+            val parts = cron.split(" ")
+            if (parts.size >= 1 && parts[0].startsWith("*/")) {
+                parts[0].substring(2).toLongOrNull()?.times(60_000L) ?: 900_000L
             } else {
-                logger.info { "Fetch job disabled: $name" }
+                900_000L // 15 minutes default
             }
+        } ?: 900_000L
+
+        logger.info { "Using unified sync interval: ${syncInterval / 60_000} minutes" }
+
+        // Initialize all enabled fetchers
+        val enabledFetchers = config.schedules.filter { it.value.enabled }.keys
+        logger.info { "Enabled fetchers: ${enabledFetchers.joinToString(", ")}" }
+
+        enabledFetchers.forEach { name ->
+            runCount[name] = AtomicLong(0)
+            errorCount[name] = AtomicLong(0)
+            isRunning[name] = false
         }
 
-        logger.info { "Scheduler started with ${jobs.size} active jobs" }
+        // Single unified sync job that runs all enabled fetchers
+        val job = scope.launch {
+            logger.info { "Starting unified sync loop with interval ${syncInterval / 1000}s" }
+            while (true) {
+                try {
+                    logger.info { "=== Starting sync cycle ===" }
+                    val cycleStart = Clock.System.now()
+
+                    enabledFetchers.forEach { name ->
+                        if (isRunning[name] == true) {
+                            logger.warn { "Fetcher $name is still running, skipping" }
+                        } else {
+                            executeFetch(name)
+                        }
+                    }
+
+                    val cycleDuration = Clock.System.now() - cycleStart
+                    logger.info { "=== Sync cycle completed in ${cycleDuration.inWholeSeconds}s ===" }
+                    logger.info { "Next sync in ${syncInterval / 60_000} minutes" }
+
+                    delay(syncInterval)
+                } catch (e: CancellationException) {
+                    logger.info { "Sync loop cancelled" }
+                    break
+                } catch (e: Exception) {
+                    logger.error(e) { "Error in sync loop, will retry in 1 minute" }
+                    delay(60_000)
+                }
+            }
+        }
+        jobs.add(job)
+
+        logger.info { "Scheduler started with unified sync (${enabledFetchers.size} enabled fetchers)" }
     }
 
     fun stop() {
@@ -104,7 +144,7 @@ class FetchScheduler(private val config: FetchConfig) {
         isRunning[name] = true
         val startTime = Clock.System.now()
         val runId = generateRunId(name, startTime)
-        logger.info { "Executing fetch: $name (runId: $runId)" }
+        logger.info { ">>> Starting fetch: $name (runId: $runId)" }
 
         try {
             val result = when (name) {
@@ -117,6 +157,7 @@ class FetchScheduler(private val config: FetchConfig) {
                 "torrents" -> torrentsFetcher.fetch()
                 "legal_docs" -> legalDocsFetcher.fetchToBookStack(limitPerJurisdiction = 1)
                 "agent_functions" -> agentFunctionsFetcher.fetch()
+                "cve_data" -> cveFetcher.fetch()
                 else -> {
                     logger.warn { "Unknown fetch job: $name" }
                     val endTime = Clock.System.now()
@@ -130,15 +171,21 @@ class FetchScheduler(private val config: FetchConfig) {
                 }
             }
 
+            val duration = Clock.System.now() - startTime
             when (result) {
                 is FetchResult.Success -> {
-                    logger.info { "Fetch completed: $name - ${result.message} | ${result.metrics.summary()}" }
+                    logger.info { "✓ SUCCESS: $name (${duration.inWholeSeconds}s) - ${result.message}" }
+                    logger.info { "  Metrics: ${result.metrics.summary()}" }
                     runCount[name]?.incrementAndGet()
                 }
                 is FetchResult.Error -> {
-                    logger.error { "Fetch failed: $name - ${result.message} | ${result.metrics.summary()}" }
+                    logger.error { "✗ FAILED: $name (${duration.inWholeSeconds}s) - ${result.message}" }
+                    logger.error { "  Metrics: ${result.metrics.summary()}" }
                     if (result.errorSamples.isNotEmpty()) {
-                        logger.error { "Error samples (${result.errorSamples.size}): ${result.errorSamples.take(3)}" }
+                        logger.error { "  Error samples (showing ${result.errorSamples.size.coerceAtMost(3)} of ${result.errorSamples.size}):" }
+                        result.errorSamples.take(3).forEach { sample ->
+                            logger.error { "    - [${sample.errorType}] ${sample.message} ${sample.itemId?.let { "(item: $it)" } ?: ""}" }
+                        }
                     }
                     errorCount[name]?.incrementAndGet()
                 }
@@ -146,12 +193,11 @@ class FetchScheduler(private val config: FetchConfig) {
 
             lastRun[name] = startTime
         } catch (e: Exception) {
-            logger.error(e) { "Exception during fetch: $name" }
+            val duration = Clock.System.now() - startTime
+            logger.error(e) { "✗ EXCEPTION: $name (${duration.inWholeSeconds}s) - ${e.message}" }
             errorCount[name]?.incrementAndGet()
         } finally {
             isRunning[name] = false
-            val duration = Clock.System.now() - startTime
-            logger.info { "Fetch $name completed in ${duration.inWholeSeconds}s" }
         }
     }
 
@@ -174,6 +220,7 @@ class FetchScheduler(private val config: FetchConfig) {
                 "torrents" -> torrentsFetcher.dryRun()
                 "legal_docs" -> legalDocsFetcher.dryRun()
                 "agent_functions" -> agentFunctionsFetcher.dryRun()
+                "cve_data" -> cveFetcher.dryRun()
                 else -> {
                     logger.warn { "Unknown dry-run job: $name" }
                     null

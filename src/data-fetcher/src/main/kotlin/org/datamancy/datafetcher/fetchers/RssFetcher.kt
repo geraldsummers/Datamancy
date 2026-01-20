@@ -25,7 +25,7 @@ class RssFetcher(private val config: RssConfig) : Fetcher {
 
             config.feeds.forEach { feed ->
                 try {
-                    logger.debug { "Fetching RSS feed: ${feed.url}" }
+                    logger.info { "Fetching RSS feed: ${feed.category} (${feed.url})" }
 
                     // Use standardized HTTP client with retry/backoff
                     val response = ctx.http.get(feed.url)

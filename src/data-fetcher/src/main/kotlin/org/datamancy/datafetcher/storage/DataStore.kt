@@ -476,6 +476,101 @@ class ClickHouseStore(
         }
     }
 
+    /**
+     * Store CVE data in ClickHouse
+     */
+    fun storeCVEData(
+        cveId: String,
+        publishedDate: Instant,
+        lastModified: Instant,
+        cvssV3Score: Double?,
+        cvssV3Severity: String?,
+        cvssV2Score: Double?,
+        cvssV2Severity: String?,
+        description: String,
+        cweIds: List<String>,
+        cpeMatches: List<String>,
+        references: List<String>,
+        fetchedAt: Instant,
+        contentHash: String,
+        rawJson: String,
+        metadata: Map<String, Any> = emptyMap()
+    ) {
+        try {
+            val metadataJson = escapeString(gson.toJson(metadata))
+            val cweArray = cweIds.joinToString(",") { "'${escapeString(it)}'" }
+            val cpeArray = cpeMatches.joinToString(",") { "'${escapeString(it)}'" }
+            val refArray = references.joinToString(",") { "'${escapeString(it)}'" }
+
+            val sql = """
+                INSERT INTO cve_data (
+                    cve_id, published_date, last_modified,
+                    cvss_v3_score, cvss_v3_severity, cvss_v2_score, cvss_v2_severity,
+                    description, cwe_ids, cpe_matches, references,
+                    fetched_at, content_hash, raw_json, metadata
+                ) VALUES (
+                    ${formatSqlValue(cveId)},
+                    ${formatSqlValue(publishedDate)},
+                    ${formatSqlValue(lastModified)},
+                    ${formatSqlValue(cvssV3Score ?: 0.0)},
+                    ${formatSqlValue(cvssV3Severity ?: "")},
+                    ${formatSqlValue(cvssV2Score ?: 0.0)},
+                    ${formatSqlValue(cvssV2Severity ?: "")},
+                    ${formatSqlValue(description)},
+                    [$cweArray],
+                    [$cpeArray],
+                    [$refArray],
+                    ${formatSqlValue(fetchedAt)},
+                    ${formatSqlValue(contentHash)},
+                    ${formatSqlValue(rawJson)},
+                    '${metadataJson}'
+                )
+            """
+            executeQuery(sql)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to store CVE data for $cveId" }
+        }
+    }
+
+    /**
+     * Get content hash for a CVE to detect changes
+     */
+    fun getCVEContentHash(cveId: String): String? {
+        return try {
+            val sql = """
+                SELECT content_hash
+                FROM cve_data
+                WHERE cve_id = ${formatSqlValue(cveId)}
+                ORDER BY last_modified DESC
+                LIMIT 1
+            """
+            val result = executeSelectQuery(sql)
+            if (result.isNotEmpty()) result.first().split("\t").firstOrNull() else null
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get CVE hash for $cveId" }
+            null
+        }
+    }
+
+    /**
+     * Get last modified date for incremental CVE syncing
+     */
+    fun getLastCVEModifiedDate(): Instant? {
+        return try {
+            val sql = """
+                SELECT max(last_modified) as max_date
+                FROM cve_data
+            """
+            val result = executeSelectQuery(sql)
+            if (result.isNotEmpty() && result.first() != "\\N") {
+                Instant.parse(result.first().trim())
+            } else null
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get last CVE modified date" }
+            null
+        }
+    }
+
     fun ensureSchema() {
         try {
             // Market data table
@@ -518,6 +613,29 @@ class ClickHouseStore(
                 ORDER BY (url, section_number);
             """
             executeQuery(legalDocsSql)
+
+            // CVE data table
+            val cveDataSql = """
+                CREATE TABLE IF NOT EXISTS cve_data (
+                    cve_id String,
+                    published_date DateTime64(3),
+                    last_modified DateTime64(3),
+                    cvss_v3_score Float64,
+                    cvss_v3_severity String,
+                    cvss_v2_score Float64,
+                    cvss_v2_severity String,
+                    description String,
+                    cwe_ids Array(String),
+                    cpe_matches Array(String),
+                    references Array(String),
+                    fetched_at DateTime64(3),
+                    content_hash String,
+                    raw_json String,
+                    metadata String
+                ) ENGINE = ReplacingMergeTree(last_modified)
+                ORDER BY (cve_id);
+            """
+            executeQuery(cveDataSql)
 
             logger.info { "ClickHouse schema ensured" }
         } catch (e: Exception) {

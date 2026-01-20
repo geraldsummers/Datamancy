@@ -11,7 +11,7 @@ suspend fun TestRunner.e2eTests() = suite("End-to-End Workflow Tests") {
             // 1. Create container
             val createResult = client.callTool("docker_container_create", mapOf(
                 "name" to containerName,
-                "image" to "ubuntu:22.04"
+                "image" to "debian:12-slim"
             ))
             require(createResult is ToolResult.Success) {
                 "Container creation failed: ${(createResult as? ToolResult.Error)?.message}"

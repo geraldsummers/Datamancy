@@ -125,8 +125,8 @@ class StandardHttpClient private constructor(
             try {
                 val response = block()
 
-                // Retry on 429 (rate limit) or 5xx (server errors)
-                if (response.code in 500..599 || response.code == 429) {
+                // Retry on 5xx (server errors) but not 429
+                if (response.code in 500..599) {
                     if (attempt < maxRetries) {
                         val backoff = calculateBackoff(attempt)
                         logger.warn { "HTTP ${response.code} on attempt ${attempt + 1}, retrying in ${backoff}ms" }
@@ -134,6 +134,22 @@ class StandardHttpClient private constructor(
                         delay(backoff)
                         attempt++
                         continue
+                    }
+                }
+
+                // For 429 (rate limit), retry but return the response if retries exhausted
+                if (response.code == 429) {
+                    if (attempt < maxRetries) {
+                        val backoff = calculateBackoff(attempt)
+                        logger.warn { "HTTP 429 on attempt ${attempt + 1}, retrying in ${backoff}ms" }
+                        response.close()
+                        delay(backoff)
+                        attempt++
+                        continue
+                    } else {
+                        // Return 429 response instead of throwing
+                        logger.warn { "HTTP 429 exhausted retries, returning response" }
+                        return response
                     }
                 }
 
@@ -201,10 +217,10 @@ class StandardHttpClient private constructor(
                 .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
                 .writeTimeout(writeTimeoutSeconds, TimeUnit.SECONDS)
                 .followRedirects(followRedirects)
-                .addInterceptor { chain ->
+                // Use addNetworkInterceptor to preserve automatic gzip decompression
+                .addNetworkInterceptor { chain ->
                     val request = chain.request().newBuilder()
                         .header("User-Agent", userAgent)
-                        .header("Accept-Encoding", "gzip, deflate")
                         .build()
                     chain.proceed(request)
                 }

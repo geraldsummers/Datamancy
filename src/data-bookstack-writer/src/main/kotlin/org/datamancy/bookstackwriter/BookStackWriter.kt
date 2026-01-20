@@ -23,6 +23,8 @@ class BookStackWriter(
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(false)  // Don't follow HTTP→HTTPS redirects for internal network
+        .followSslRedirects(false)
         .build()
 
     private val gson = Gson()
