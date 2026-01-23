@@ -351,21 +351,7 @@ qbittorrent.{$DOMAIN} {
 	}
 }
 
-# Data Fetcher (protected - admin only)
-data-fetcher.{$DOMAIN} {
-	route {
-		import authelia_auth
-		reverse_proxy data-fetcher:8095
-	}
-}
 
-# Control Panel (protected - admin only)
-control.{$DOMAIN} {
-	route {
-		import authelia_auth
-		reverse_proxy control-panel:8097
-	}
-}
 
 # Search Indexer (protected - admin only)
 search-indexer.{$DOMAIN} {

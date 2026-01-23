@@ -18,10 +18,10 @@ class ServiceClient(
     suspend fun healthCheck(service: String): HealthStatus {
         val url = when (service) {
             "agent-tool-server" -> "${endpoints.agentToolServer}/healthz"
-            "data-fetcher" -> "${endpoints.dataFetcher}/health"
-            "data-transformer" -> "${endpoints.unifiedIndexer}/health"
+            "pipeline" -> "${endpoints.pipeline}/health"
             "search-service" -> "${endpoints.searchService}/health"
-            "control-panel" -> "${endpoints.controlPanel}/health"
+            // Legacy service names (deprecated - services merged into pipeline)
+            "data-fetcher" -> "${endpoints.dataFetcher}/health"
             else -> throw IllegalArgumentException("Unknown service: $service")
         }
 
@@ -73,14 +73,6 @@ class ServiceClient(
         }
     }
 
-    suspend fun triggerIndexing(collection: String = "all"): IndexResult {
-        return try {
-            val response = client.post("${endpoints.unifiedIndexer}/index/$collection")
-            IndexResult(response.status == HttpStatusCode.OK, response.bodyAsText())
-        } catch (e: Exception) {
-            IndexResult(false, e.message ?: "Unknown error")
-        }
-    }
 
     suspend fun search(query: String, collections: List<String> = listOf("*"), limit: Int = 5): SearchResult {
         return try {
@@ -113,6 +105,10 @@ class ServiceClient(
 
     suspend fun postRaw(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
         return client.post(url, block)
+    }
+
+    suspend fun putRaw(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
+        return client.put(url, block)
     }
 
     suspend fun queryMariaDB(query: String): MariaDbResult {
@@ -170,14 +166,20 @@ private fun Map<String, Any>.toJsonObject(): JsonObject {
             is Boolean -> JsonPrimitive(v)
             is List<*> -> JsonArray(v.map { item ->
                 when (item) {
-                    is Map<*, *> -> (item as Map<String, Any>).toJsonObject()
+                    is Map<*, *> -> {
+                        @Suppress("UNCHECKED_CAST")
+                        (item as Map<String, Any>).toJsonObject()
+                    }
                     is String -> JsonPrimitive(item)
                     is Number -> JsonPrimitive(item)
                     is Boolean -> JsonPrimitive(item)
                     else -> JsonPrimitive(item.toString())
                 }
             })
-            is Map<*, *> -> (v as Map<String, Any>).toJsonObject()
+            is Map<*, *> -> {
+                @Suppress("UNCHECKED_CAST")
+                (v as Map<String, Any>).toJsonObject()
+            }
             else -> JsonPrimitive(v.toString())
         }
     })

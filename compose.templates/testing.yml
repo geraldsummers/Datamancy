@@ -17,7 +17,7 @@ services:
   integration-test-runner:
     build:
       context: .
-      dockerfile: Dockerfile.test-runner
+      dockerfile: src/test-runner/Dockerfile
     image: datamancy/test-runner:latest
     container_name: integration-test-runner
 
@@ -38,10 +38,7 @@ services:
     environment:
       # Service endpoints (Docker network hostnames)
       AGENT_TOOL_SERVER_URL: "http://agent-tool-server:8081"
-      DATA_FETCHER_URL: "http://data-fetcher:8095"
-      DATA_TRANSFORMER_URL: "http://data-transformer:8096"
       SEARCH_SERVICE_URL: "http://search-service:8098"
-      CONTROL_PANEL_URL: "http://control-panel:8097"
 
       # Infrastructure services
       LITELLM_URL: "http://litellm:4000"

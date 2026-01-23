@@ -47,12 +47,6 @@ data class DatamancyConfig(
     val runtime: RuntimeConfig
 )
 
-// Service list used across multiple build steps
-val DATAMANCY_SERVICES = listOf(
-    "control-panel", "data-fetcher", "data-transformer",
-    "search-service", "agent-tool-server", "data-bookstack-writer",
-    "data-vector-indexer"
-)
 
 // ============================================================================
 // Variable Discovery & Naming Conventions
@@ -214,12 +208,12 @@ fun copyTestScripts(distDir: File) {
     }
 
     // Copy Dockerfile.test-runner
-    val dockerfileTestRunner = File("Dockerfile.test-runner")
+    val dockerfileTestRunner = File("src/test-runner/Dockerfile")
     if (dockerfileTestRunner.exists()) {
         dockerfileTestRunner.copyTo(distDir.resolve("Dockerfile.test-runner"), overwrite = true)
         info("Copied Dockerfile.test-runner")
     } else {
-        warn("Dockerfile.test-runner not found")
+        warn("src/test-runner/Dockerfile not found")
     }
 
     // Copy gradle files needed for test-runner build

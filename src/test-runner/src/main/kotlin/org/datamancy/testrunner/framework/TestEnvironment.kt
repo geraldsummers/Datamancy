@@ -5,13 +5,12 @@ import java.io.File
 data class ServiceEndpoints(
     val agentToolServer: String,
     val dataFetcher: String,
-    val unifiedIndexer: String,
     val searchService: String,
-    val controlPanel: String,
+    val pipeline: String,  // New pipeline service
     val liteLLM: String,
     val bookstack: String,
     val postgres: DatabaseConfig,
-    val clickhouse: DatabaseConfig,
+    val clickhouse: String,  // Changed to String for HTTP API
     val mariadb: DatabaseConfig? = null,
     val qdrant: String,
     val valkey: String? = null,
@@ -23,9 +22,8 @@ data class ServiceEndpoints(
         fun fromEnvironment(): ServiceEndpoints = ServiceEndpoints(
             agentToolServer = env("AGENT_TOOL_SERVER_URL") ?: "http://agent-tool-server:8081",
             dataFetcher = env("DATA_FETCHER_URL") ?: "http://data-fetcher:8095",
-            unifiedIndexer = env("DATA_TRANSFORMER_URL") ?: "http://data-transformer:8096",
             searchService = env("SEARCH_SERVICE_URL") ?: "http://search-service:8098",
-            controlPanel = env("CONTROL_PANEL_URL") ?: "http://control-panel:8097",
+            pipeline = env("PIPELINE_URL") ?: "http://pipeline:8090",
             liteLLM = env("LITELLM_URL") ?: "http://litellm:4000",
             bookstack = env("BOOKSTACK_URL") ?: "http://bookstack:80",
             postgres = DatabaseConfig(
@@ -35,13 +33,7 @@ data class ServiceEndpoints(
                 user = env("POSTGRES_USER") ?: "datamancer",
                 password = env("STACK_ADMIN_PASSWORD") ?: ""
             ),
-            clickhouse = DatabaseConfig(
-                host = env("CLICKHOUSE_HOST") ?: "clickhouse",
-                port = env("CLICKHOUSE_PORT")?.toInt() ?: 8123,
-                database = "default",
-                user = env("CLICKHOUSE_USER") ?: "default",
-                password = env("STACK_ADMIN_PASSWORD") ?: ""
-            ),
+            clickhouse = env("CLICKHOUSE_URL") ?: "http://clickhouse:8123",
             mariadb = DatabaseConfig(
                 host = env("MARIADB_HOST") ?: "mariadb",
                 port = env("MARIADB_PORT")?.toInt() ?: 3306,
@@ -58,13 +50,12 @@ data class ServiceEndpoints(
         fun forLocalhost(): ServiceEndpoints = ServiceEndpoints(
             agentToolServer = "http://localhost:18091",
             dataFetcher = "http://localhost:18095",
-            unifiedIndexer = "http://localhost:18096",
             searchService = "http://localhost:18098",
-            controlPanel = "http://localhost:18097",
+            pipeline = "http://localhost:18080",
             liteLLM = "http://localhost:14001",
             bookstack = "http://localhost:10080",
             postgres = DatabaseConfig("localhost", 15432, "datamancy", "datamancer", ""),
-            clickhouse = DatabaseConfig("localhost", 18123, "default", "default", ""),
+            clickhouse = "http://localhost:18123",
             mariadb = DatabaseConfig("localhost", 13306, "bookstack", "bookstack", ""),
             qdrant = "http://localhost:16333",
             valkey = "localhost:16379",

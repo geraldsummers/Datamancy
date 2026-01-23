@@ -3,147 +3,6 @@
 # Only secrets and deployment paths use runtime ${VARS}
 
 services:
-  control-panel:
-    image: datamancy/control-panel:local-build
-    build:
-      context: ./src/control-panel
-      dockerfile: Dockerfile
-    container_name: control-panel
-    restart: unless-stopped
-    ports:
-      - "8097:8097"
-    networks:
-      caddy:
-        aliases:
-          - control.${DOMAIN}
-      postgres:
-        aliases:
-          - control.${DOMAIN}
-    depends_on:
-      postgres:
-        condition: service_started
-      data-fetcher:
-        condition: service_started
-      data-transformer:
-        condition: service_started
-    environment:
-      CONTROL_PANEL_PORT: 8097
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: datamancy
-      POSTGRES_USER: datamancer
-      POSTGRES_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
-      DATA_FETCHER_URL: http://data-fetcher:8095
-      DATA_TRANSFORMER_URL: http://data-transformer:8096
-      SEARCH_SERVICE_URL: http://search-service:8098
-    healthcheck:
-      test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:8097/"]
-      interval: 60s
-      timeout: 20s
-      retries: 3
-      start_period: 180s
-
-  data-fetcher:
-    image: datamancy/data-fetcher:local-build
-    build:
-      context: ./src/data-fetcher
-      dockerfile: Dockerfile
-    container_name: data-fetcher
-    restart: unless-stopped
-    networks:
-      - postgres
-      - clickhouse
-      - mariadb
-      - qdrant
-    depends_on:
-      postgres:
-        condition: service_started
-      clickhouse:
-        condition: service_started
-      bookstack:
-        condition: service_started
-    environment:
-      DATAFETCHER_PORT: 8095
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: datamancy
-      POSTGRES_USER: datamancer
-      POSTGRES_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
-      CLICKHOUSE_HOST: clickhouse
-      CLICKHOUSE_PORT: 8123
-      CLICKHOUSE_USER: ${STACK_ADMIN_USER}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6334
-      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-}
-      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
-      SERP_API_KEY: ${SERP_API_KEY:-}
-      FRED_API_KEY: ${FRED_API_KEY:-}
-      BOOKSTACK_URL: ${BOOKSTACK_URL:-http://bookstack:80}
-      BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID:-}
-      BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET:-}
-      FETCH_SCHEDULES_PATH: /app/config/schedules.yaml
-      FETCH_SOURCES_PATH: /app/config/sources.yaml
-      DATAFETCHER_DATA_PATH: /app/data
-    volumes:
-      - ./configs/applications/data-fetcher/schedules.yaml:/app/config/schedules.yaml:ro
-      - ./configs/applications/data-fetcher/sources.yaml:/app/config/sources.yaml:ro
-      - datafetcher_data:/app/data
-    healthcheck:
-      test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:8095/"]
-      interval: 60s
-      timeout: 20s
-      retries: 3
-      start_period: 180s
-
-  data-transformer:
-    image: datamancy/data-transformer:local-build
-    build:
-      context: ./src/data-transformer
-      dockerfile: Dockerfile
-    container_name: data-transformer
-    restart: unless-stopped
-    networks:
-      - postgres
-      - mariadb
-      - qdrant
-      - clickhouse
-      - ai-gateway
-      - backend
-    depends_on:
-      postgres:
-        condition: service_started
-      qdrant:
-        condition: service_started
-      clickhouse:
-        condition: service_started
-      embedding-service:
-        condition: service_started
-      # Microservices are optional runtime dependencies, not startup dependencies
-      # They will be available via network when needed
-    environment:
-      DATA_TRANSFORMER_PORT: 8096
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: datamancy
-      POSTGRES_USER: datamancer
-      POSTGRES_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
-      BOOKSTACK_WRITER_URL: http://data-bookstack-writer:8099
-      VECTOR_INDEXER_URL: http://data-vector-indexer:8100
-      BOOKSTACK_URL: ${BOOKSTACK_URL:-http://bookstack:80}
-      BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID:-}
-      BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET:-}
-      QDRANT_URL: http://qdrant:6334
-      CLICKHOUSE_URL: http://clickhouse:8123
-      CLICKHOUSE_USER: ${STACK_ADMIN_USER}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
-      EMBEDDING_SERVICE_URL: http://embedding-service:8080
-    healthcheck:
-      test: ["CMD", "wget", "-O", "/dev/null", "--quiet", "--tries=1", "--timeout=15", "http://localhost:8096/"]
-      interval: 60s
-      timeout: 20s
-      retries: 3
-      start_period: 180s
 
   search-service:
     image: datamancy/search-service:local-build
@@ -180,53 +39,60 @@ services:
       retries: 3
       start_period: 180s
 
-  data-bookstack-writer:
-    image: datamancy/data-bookstack-writer:local-build
+  pipeline:
+    image: datamancy/pipeline:local-build
     build:
-      context: ./src/data-bookstack-writer
+      context: ./src/pipeline
       dockerfile: Dockerfile
-    container_name: data-bookstack-writer
+    container_name: pipeline
     restart: unless-stopped
     networks:
-      - backend
-      - mariadb
-    depends_on:
-      bookstack:
-        condition: service_started
-    environment:
-      BOOKSTACK_WRITER_PORT: 8099
-      BOOKSTACK_URL: ${BOOKSTACK_URL:-http://bookstack:80}
-      BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID:-}
-      BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET:-}
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:8099/health"]
-      interval: 60s
-      timeout: 20s
-      retries: 3
-      start_period: 60s
-
-  data-vector-indexer:
-    image: datamancy/data-vector-indexer:local-build
-    build:
-      context: ./src/data-vector-indexer
-      dockerfile: Dockerfile
-    container_name: data-vector-indexer
-    restart: unless-stopped
-    networks:
-      - backend
       - qdrant
+      - clickhouse
       - ai-gateway
     depends_on:
       qdrant:
         condition: service_started
+      clickhouse:
+        condition: service_started
       embedding-service:
         condition: service_started
     environment:
-      VECTOR_INDEXER_PORT: 8100
-      QDRANT_URL: http://qdrant:6334
+      # RSS Feed (enabled by default)
+      RSS_ENABLED: "true"
+      RSS_SCHEDULE_MINUTES: "60"  # Hourly
+
+      # CVE (disabled by default - needs API key)
+      CVE_ENABLED: "false"
+      CVE_API_KEY: "${CVE_API_KEY:-}"
+
+      # Torrents (disabled by default - needs data file)
+      TORRENTS_ENABLED: "false"
+
+      # Wikipedia (disabled by default - needs dump file)
+      WIKIPEDIA_ENABLED: "false"
+
+      # Australian Laws (disabled by default)
+      AUSTRALIAN_LAWS_ENABLED: "false"
+
+      # Linux Docs (disabled by default)
+      LINUX_DOCS_ENABLED: "false"
+
+      # Services
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
+      QDRANT_URL: http://qdrant:6334
+      CLICKHOUSE_URL: http://clickhouse:8123
+
+      # Collection names
+      QDRANT_RSS_COLLECTION: rss_feeds
+      QDRANT_CVE_COLLECTION: cve
+      QDRANT_TORRENTS_COLLECTION: torrents
+      QDRANT_MARKET_COLLECTION: market_data
+      QDRANT_WIKIPEDIA_COLLECTION: wikipedia
+      QDRANT_AUSTRALIAN_LAWS_COLLECTION: australian_laws
+      QDRANT_LINUX_DOCS_COLLECTION: linux_docs
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:8100/health"]
+      test: ["CMD-SHELL", "timeout 5 wget --quiet --tries=1 -O /dev/null http://127.0.0.1:8090/health || exit 1"]
       interval: 60s
       timeout: 20s
       retries: 3

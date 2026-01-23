@@ -20,7 +20,6 @@ dependencies {
     testImplementation(libs.kotlin.test)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.mockk)
-    testImplementation(project(":test-commons"))
 
     // Ktor client for HTTP integration tests
     testImplementation(libs.bundles.ktor.client)

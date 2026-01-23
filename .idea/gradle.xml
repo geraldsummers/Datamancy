@@ -10,13 +10,8 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/src/agent-tool-server" />
-            <option value="$PROJECT_DIR$/src/control-panel" />
-            <option value="$PROJECT_DIR$/src/data-bookstack-writer" />
-            <option value="$PROJECT_DIR$/src/data-fetcher" />
-            <option value="$PROJECT_DIR$/src/data-transformer" />
-            <option value="$PROJECT_DIR$/src/data-vector-indexer" />
+            <option value="$PROJECT_DIR$/src/pipeline" />
             <option value="$PROJECT_DIR$/src/search-service" />
-            <option value="$PROJECT_DIR$/src/test-commons" />
             <option value="$PROJECT_DIR$/src/test-runner" />
           </set>
         </option>

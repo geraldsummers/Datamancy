@@ -22,7 +22,10 @@ dependencies {
     implementation(libs.bundles.clickhouse)
 
     // Shared test commons (for @IntegrationTest if needed)
-    implementation(project(":test-commons"))
+
+    // Unit testing dependencies
+    testImplementation(libs.bundles.testing)
+    testImplementation("io.ktor:ktor-client-mock:3.0.2")
 }
 
 application {

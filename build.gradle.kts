@@ -27,6 +27,13 @@ subprojects {
         jvmToolchain(21)
     }
 
+    // Enforce warnings as errors for Kotlin compilation
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+        kotlinOptions {
+            allWarningsAsErrors = true
+        }
+    }
+
     // Configure test tasks for all subprojects
     tasks.withType<Test> {
         useJUnitPlatform()
@@ -44,10 +51,7 @@ subprojects {
 tasks.register("test") {
     dependsOn(
         ":agent-tool-server:test",
-        ":data-fetcher:test",
-        ":control-panel:test",
         ":search-service:test",
-        ":data-transformer:test"
     )
     // Note: test-commons and test-runner have no unit tests (test-runner is for integration only)
 }

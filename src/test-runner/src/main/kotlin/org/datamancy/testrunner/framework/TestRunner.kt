@@ -4,9 +4,12 @@ import kotlinx.coroutines.*
 import kotlin.system.measureTimeMillis
 
 class TestRunner(
-    val env: TestEnvironment,
+    val environment: TestEnvironment,
     val client: ServiceClient
 ) {
+    val env get() = environment
+    val endpoints get() = environment.endpoints
+
     private val results = mutableListOf<TestResult>()
 
     suspend fun suite(name: String, block: suspend TestSuite.() -> Unit) {

@@ -7,7 +7,6 @@ plugins {
 
 dependencies {
     // Test commons (for config and ServicePorts)
-    implementation(project(":test-commons"))
 
     // Kotlinx
     implementation(libs.kotlinx.coroutines.core)

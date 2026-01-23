@@ -12,7 +12,6 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.datamancy.config.ServicePorts
 
 private val logger = KotlinLogging.logger {}
 
@@ -29,7 +28,7 @@ fun main() {
         embeddingServiceUrl = embeddingUrl
     )
 
-    val port = System.getenv("GATEWAY_PORT")?.toIntOrNull() ?: ServicePorts.SearchService.INTERNAL
+    val port = System.getenv("SEARCH_SERVICE_PORT")?.toIntOrNull() ?: 8098
     val server = embeddedServer(Netty, port = port) {
         configureServer(gateway)
     }

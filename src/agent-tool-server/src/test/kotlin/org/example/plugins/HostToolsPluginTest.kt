@@ -175,7 +175,8 @@ class HostToolsPluginTest {
         fun `returns list of containers`() {
             try {
                 val result = tools.docker_list_containers()
-                assertTrue(result is List<*>)
+                // Result is always a List, but may be empty
+                assertTrue(result.isEmpty() || result.isNotEmpty())
                 // If Docker is available, each item should have id and name
                 if (result.isNotEmpty()) {
                     val first = result[0]

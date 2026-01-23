@@ -139,13 +139,20 @@ class SearchGateway(
 
         return points.map { point ->
             val payload = point.payloadMap
+            // Pipeline stores: title, link, description (or url, text, etc.)
+            val url = payload["link"]?.stringValue ?: payload["url"]?.stringValue ?: ""
+            val title = payload["title"]?.stringValue ?: payload["name"]?.stringValue ?: ""
+            val snippet = payload["description"]?.stringValue ?: payload["text"]?.stringValue?.take(200) ?: ""
+            val metadata = mapOf("type" to "vector")
             SearchResult(
-                url = payload["page_url"]?.stringValue ?: "",
-                title = payload["page_name"]?.stringValue ?: "",
-                snippet = payload["content_snippet"]?.stringValue ?: "",
+                url = url,
+                title = title,
+                snippet = snippet,
                 score = point.score.toDouble(),
                 source = collection,
-                metadata = mapOf("type" to "vector")
+                metadata = metadata,
+                contentType = SearchResult.inferContentType(collection, url, metadata),
+                capabilities = SearchResult.inferCapabilities(collection, url, metadata)
             )
         }
     }
@@ -179,13 +186,19 @@ class SearchGateway(
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery(sql)
                 while (rs.next()) {
+                    val url = rs.getString("page_url")
+                    val title = rs.getString("page_name")
+                    val snippet = rs.getString("snippet")
+                    val metadata = mapOf("type" to "bm25")
                     results.add(SearchResult(
-                        url = rs.getString("page_url"),
-                        title = rs.getString("page_name"),
-                        snippet = rs.getString("snippet"),
+                        url = url,
+                        title = title,
+                        snippet = snippet,
                         score = rs.getDouble("term_freq"),
                         source = collection,
-                        metadata = mapOf("type" to "bm25")
+                        metadata = metadata,
+                        contentType = SearchResult.inferContentType(collection, url, metadata),
+                        capabilities = SearchResult.inferCapabilities(collection, url, metadata)
                     ))
                 }
             }
@@ -224,9 +237,10 @@ class SearchGateway(
             .sortedByDescending { it.value }
             .take(limit)
             .mapNotNull { (url, score) ->
-                resultMap[url]?.copy(
+                val original = resultMap[url]
+                original?.copy(
                     score = score,
-                    metadata = resultMap[url]!!.metadata + ("reranked_score" to score.toString())
+                    metadata = original.metadata + ("reranked_score" to score.toString())
                 )
             }
     }
@@ -293,11 +307,11 @@ data class SearchResult(
     val score: Double,
     val source: String,
     val metadata: Map<String, String> = emptyMap(),
-    val contentType: String = inferContentType(source, url, metadata),
-    val capabilities: ContentCapabilities = inferCapabilities(source, url, metadata)
+    val contentType: String,
+    val capabilities: ContentCapabilities
 ) {
     companion object {
-        private fun inferContentType(source: String, url: String, metadata: Map<String, String>): String {
+        fun inferContentType(source: String, url: String, metadata: Map<String, String>): String {
             return when {
                 source.contains("bookstack") || url.contains("bookstack") -> "bookstack"
                 source.contains("rss") || source.contains("arxiv") || source.contains("news") -> "article"
@@ -310,7 +324,7 @@ data class SearchResult(
             }
         }
 
-        private fun inferCapabilities(source: String, url: String, metadata: Map<String, String>): ContentCapabilities {
+        fun inferCapabilities(source: String, url: String, metadata: Map<String, String>): ContentCapabilities {
             val type = inferContentType(source, url, metadata)
             return when (type) {
                 "bookstack" -> ContentCapabilities(

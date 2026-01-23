@@ -8,6 +8,107 @@ import org.datamancy.testrunner.framework.TestRunner
 
 suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider") {
 
+    // Setup: Seed test data into Qdrant
+    suspend fun seedTestData() {
+        println("      [SETUP] Seeding test data into Qdrant...")
+
+        // First, create test collections
+        val collections = listOf("test-docs", "test-market", "test-bookstack")
+        for (collection in collections) {
+            try {
+                val createRequest = buildJsonObject {
+                    putJsonObject("vectors") {
+                        put("size", 768)
+                        put("distance", "Cosine")
+                    }
+                }
+                client.putRaw("${env.endpoints.qdrant}/collections/$collection") {
+                    contentType(ContentType.Application.Json)
+                    setBody(createRequest.toString())
+                }
+            } catch (e: Exception) {
+                // Collection may already exist, ignore
+            }
+        }
+
+        val testDocuments = listOf(
+            mapOf(
+                "text" to "Kubernetes deployment guide for production environments",
+                "collection" to "test-docs",
+                "title" to "Kubernetes Deployment Guide",
+                "url" to "https://test.example.com/k8s-deploy",
+                "source" to "documentation"
+            ),
+            mapOf(
+                "text" to "Bitcoin price analysis and market trends",
+                "collection" to "test-market",
+                "title" to "Bitcoin Market Analysis",
+                "url" to "https://test.example.com/btc-market",
+                "source" to "market"
+            ),
+            mapOf(
+                "text" to "BookStack documentation for knowledge management",
+                "collection" to "test-bookstack",
+                "title" to "BookStack Documentation",
+                "url" to "https://bookstack.test.com/docs",
+                "source" to "bookstack"
+            )
+        )
+
+        for (doc in testDocuments) {
+            try {
+                // Generate embedding
+                val embedResult = client.callTool("llm_embed_text", mapOf(
+                    "text" to doc["text"]!!,
+                    "model" to "bge-base-en-v1.5"
+                ))
+
+                if (embedResult is org.datamancy.testrunner.framework.ToolResult.Success) {
+                    // Parse vector from response
+                    val vectorStr = embedResult.output
+                        .removePrefix("[").removeSuffix("]")
+                    val vector = vectorStr.split(",").map { it.trim().toFloat() }
+
+                    // Insert directly into Qdrant using HTTP API
+                    val pointId = doc["title"].hashCode().toLong()
+                    val payload = buildJsonObject {
+                        put("title", doc["title"]!!)
+                        put("link", doc["url"]!!)
+                        put("url", doc["url"]!!)
+                        put("description", doc["text"]!!)
+                        put("text", doc["text"]!!)
+                        put("source", doc["source"]!!)
+                    }
+
+                    val upsertRequest = buildJsonObject {
+                        putJsonArray("points") {
+                            addJsonObject {
+                                put("id", pointId)
+                                putJsonArray("vector") {
+                                    vector.forEach { add(it) }
+                                }
+                                put("payload", payload)
+                            }
+                        }
+                    }
+
+                    client.postRaw("${env.endpoints.qdrant}/collections/${doc["collection"]}/points") {
+                        contentType(ContentType.Application.Json)
+                        setBody(upsertRequest.toString())
+                    }
+                }
+            } catch (e: Exception) {
+                println("      ⚠️  Failed to seed ${doc["title"]}: ${e.message}")
+            }
+        }
+        println("      ✓ Test data seeded")
+    }
+
+    // Run setup before tests
+    test("Setup: Seed test data") {
+        seedTestData()
+    }
+
     test("Search service is healthy") {
         val health = client.healthCheck("search-service")
         health.healthy shouldBe true
@@ -32,7 +133,8 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
 
         // Verify first result has contentType field
         val firstResult = results?.firstOrNull()?.jsonObject
-        firstResult?.containsKey("contentType") shouldBe true
+        require(firstResult != null) { "No search results returned - data may not be seeded yet" }
+        firstResult.containsKey("contentType") shouldBe true
     }
 
     test("Search returns results with capabilities") {
@@ -41,15 +143,17 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
 
         val results = result.results.jsonObject["results"]?.jsonArray
         val firstResult = results?.firstOrNull()?.jsonObject
+        require(firstResult != null) { "No search results returned - data may not be seeded yet" }
 
         // Check capabilities object exists
-        val capabilities = firstResult?.get("capabilities")?.jsonObject
-        capabilities?.containsKey("humanFriendly") shouldBe true
-        capabilities?.containsKey("agentFriendly") shouldBe true
-        capabilities?.containsKey("hasTimeSeries") shouldBe true
-        capabilities?.containsKey("hasRichContent") shouldBe true
-        capabilities?.containsKey("isInteractive") shouldBe true
-        capabilities?.containsKey("isStructured") shouldBe true
+        val capabilities = firstResult.get("capabilities")?.jsonObject
+        require(capabilities != null) { "Capabilities field missing from search result" }
+        capabilities.containsKey("humanFriendly") shouldBe true
+        capabilities.containsKey("agentFriendly") shouldBe true
+        capabilities.containsKey("hasTimeSeries") shouldBe true
+        capabilities.containsKey("hasRichContent") shouldBe true
+        capabilities.containsKey("isInteractive") shouldBe true
+        capabilities.containsKey("isStructured") shouldBe true
     }
 
     test("Human audience filter works") {
@@ -268,15 +372,16 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
 
         val results = result.results.jsonObject["results"]?.jsonArray
         val firstResult = results?.firstOrNull()?.jsonObject
+        require(firstResult != null) { "No search results returned - data may not be seeded yet" }
 
         // Check all required fields exist
-        firstResult?.containsKey("url") shouldBe true
-        firstResult?.containsKey("title") shouldBe true
-        firstResult?.containsKey("snippet") shouldBe true
-        firstResult?.containsKey("score") shouldBe true
-        firstResult?.containsKey("source") shouldBe true
-        firstResult?.containsKey("contentType") shouldBe true
-        firstResult?.containsKey("capabilities") shouldBe true
+        firstResult.containsKey("url") shouldBe true
+        firstResult.containsKey("title") shouldBe true
+        firstResult.containsKey("snippet") shouldBe true
+        firstResult.containsKey("score") shouldBe true
+        firstResult.containsKey("source") shouldBe true
+        firstResult.containsKey("contentType") shouldBe true
+        firstResult.containsKey("capabilities") shouldBe true
     }
 
     test("Empty query returns error or empty results") {

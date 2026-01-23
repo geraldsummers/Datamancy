@@ -30,7 +30,7 @@ class OpenWebUISchemaGeneratorTest {
         @Test
         fun `generateToolSchemas returns array`() {
             val result = OpenWebUISchemaGenerator.generateToolSchemas(registry)
-            assertTrue(result is ArrayNode)
+            assertTrue(result.isArray)
         }
 
         @Test
@@ -318,7 +318,7 @@ class OpenWebUISchemaGeneratorTest {
         @Test
         fun `generateFullSchema returns object node`() {
             val schema = OpenWebUISchemaGenerator.generateFullSchema(registry)
-            assertTrue(schema is ObjectNode)
+            assertTrue(schema.isObject)
         }
 
         @Test
