@@ -16,7 +16,34 @@ data class ServiceEndpoints(
     val valkey: String? = null,
     val ldap: String? = null,
     val userContext: String? = null,
-    val apiKey: String? = null
+    val apiKey: String? = null,
+    // Infrastructure
+    val caddy: String,
+    val authelia: String,
+    // User Interfaces
+    val openWebUI: String,
+    val jupyterhub: String,
+    // Communication
+    val mailserver: String,
+    val synapse: String,
+    val element: String,
+    // Collaboration
+    val mastodon: String,
+    val mastodonStreaming: String,
+    val roundcube: String,
+    // Productivity
+    val forgejo: String,
+    val planka: String,
+    // File Management
+    val seafile: String,
+    val onlyoffice: String,
+    // Security
+    val vaultwarden: String,
+    // Monitoring
+    val prometheus: String,
+    val grafana: String,
+    // Backup
+    val kopia: String
 ) {
     companion object {
         fun fromEnvironment(): ServiceEndpoints = ServiceEndpoints(
@@ -31,7 +58,7 @@ data class ServiceEndpoints(
                 port = env("POSTGRES_PORT")?.toInt() ?: 5432,
                 database = env("POSTGRES_DB") ?: "datamancy",
                 user = env("POSTGRES_USER") ?: "datamancer",
-                password = env("STACK_ADMIN_PASSWORD") ?: ""
+                password = env("POSTGRES_PASSWORD") ?: env("DATAMANCY_SERVICE_PASSWORD") ?: ""
             ),
             clickhouse = env("CLICKHOUSE_URL") ?: "http://clickhouse:8123",
             mariadb = DatabaseConfig(
@@ -44,7 +71,34 @@ data class ServiceEndpoints(
             qdrant = env("QDRANT_URL") ?: "http://qdrant:6333",
             valkey = env("VALKEY_URL") ?: "valkey:6379",
             ldap = env("LDAP_URL") ?: "ldap://ldap:389",
-            userContext = env("TEST_USER_CONTEXT") ?: "test-agent-user"
+            userContext = env("TEST_USER_CONTEXT") ?: "test-agent-user",
+            // Infrastructure
+            caddy = env("CADDY_URL") ?: "http://caddy:80",
+            authelia = env("AUTHELIA_URL") ?: "http://authelia:9091",
+            // User Interfaces
+            openWebUI = env("OPEN_WEBUI_URL") ?: "http://open-webui:8080",
+            jupyterhub = env("JUPYTERHUB_URL") ?: "http://jupyterhub:8000",
+            // Communication
+            mailserver = env("MAILSERVER_URL") ?: "mailserver:25",
+            synapse = env("SYNAPSE_URL") ?: "http://synapse:8008",
+            element = env("ELEMENT_URL") ?: "http://element:80",
+            // Collaboration
+            mastodon = env("MASTODON_URL") ?: "http://mastodon-web:3000",
+            mastodonStreaming = env("MASTODON_STREAMING_URL") ?: "http://mastodon-streaming:4000",
+            roundcube = env("ROUNDCUBE_URL") ?: "http://roundcube:80",
+            // Productivity
+            forgejo = env("FORGEJO_URL") ?: "http://forgejo:3000",
+            planka = env("PLANKA_URL") ?: "http://planka:1337",
+            // File Management
+            seafile = env("SEAFILE_URL") ?: "http://seafile:80",
+            onlyoffice = env("ONLYOFFICE_URL") ?: "http://onlyoffice:80",
+            // Security
+            vaultwarden = env("VAULTWARDEN_URL") ?: "http://vaultwarden:80",
+            // Monitoring
+            prometheus = env("PROMETHEUS_URL") ?: "http://prometheus:9090",
+            grafana = env("GRAFANA_URL") ?: "http://grafana:3000",
+            // Backup
+            kopia = env("KOPIA_URL") ?: "http://kopia:51515"
         )
 
         fun forLocalhost(): ServiceEndpoints = ServiceEndpoints(
@@ -60,7 +114,34 @@ data class ServiceEndpoints(
             qdrant = "http://localhost:16333",
             valkey = "localhost:16379",
             ldap = "ldap://localhost:10389",
-            userContext = "test-agent-user"
+            userContext = "test-agent-user",
+            // Infrastructure
+            caddy = "http://localhost:80",
+            authelia = "http://localhost:9091",
+            // User Interfaces
+            openWebUI = "http://localhost:8080",
+            jupyterhub = "http://localhost:8000",
+            // Communication
+            mailserver = "localhost:25",
+            synapse = "http://localhost:8008",
+            element = "http://localhost:8009",
+            // Collaboration
+            mastodon = "http://localhost:3000",
+            mastodonStreaming = "http://localhost:4000",
+            roundcube = "http://localhost:8010",
+            // Productivity
+            forgejo = "http://localhost:3001",
+            planka = "http://localhost:1337",
+            // File Management
+            seafile = "http://localhost:8011",
+            onlyoffice = "http://localhost:8012",
+            // Security
+            vaultwarden = "http://localhost:8013",
+            // Monitoring
+            prometheus = "http://localhost:9090",
+            grafana = "http://localhost:3002",
+            // Backup
+            kopia = "http://localhost:51515"
         )
     }
 }
@@ -83,15 +164,21 @@ data class DatabaseConfig(
 sealed interface TestEnvironment {
     val name: String
     val endpoints: ServiceEndpoints
+    val adminPassword: String
+    val ldapAdminPassword: String
 
     data object Container : TestEnvironment {
         override val name = "container"
         override val endpoints = ServiceEndpoints.fromEnvironment()
+        override val adminPassword = env("STACK_ADMIN_PASSWORD") ?: ""
+        override val ldapAdminPassword = env("LDAP_ADMIN_PASSWORD") ?: ""
     }
 
     data object Localhost : TestEnvironment {
         override val name = "localhost"
         override val endpoints = ServiceEndpoints.forLocalhost()
+        override val adminPassword = env("STACK_ADMIN_PASSWORD") ?: "admin"
+        override val ldapAdminPassword = env("LDAP_ADMIN_PASSWORD") ?: "admin"
     }
 
     companion object {

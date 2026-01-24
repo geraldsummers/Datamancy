@@ -187,26 +187,6 @@ identity_providers:
         response_types:
           - code
 
-      # Nextcloud
-      - client_id: nextcloud
-        client_name: Nextcloud
-        client_secret: '{{NEXTCLOUD_OAUTH_SECRET_HASH}}'
-        public: false
-        authorization_policy: one_factor
-        redirect_uris:
-          - https://nextcloud.{{DOMAIN}}/apps/oidc_login/oidc
-          - https://nextcloud.{{DOMAIN}}/apps/user_oidc/code
-        scopes:
-          - openid
-          - profile
-          - email
-          - groups
-        grant_types:
-          - authorization_code
-        response_types:
-          - code
-        token_endpoint_auth_method: client_secret_post
-
       # Dim Media Server
       - client_id: dim
         client_name: Dim

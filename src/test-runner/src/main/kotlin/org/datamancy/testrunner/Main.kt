@@ -9,6 +9,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.datamancy.testrunner.framework.*
 import org.datamancy.testrunner.suites.*
+import java.security.cert.X509Certificate
+import javax.net.ssl.X509TrustManager
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) = runBlocking {
@@ -34,7 +36,7 @@ fun main(args: Array<String>) = runBlocking {
 
     val httpClient = createHttpClient(verbose)
     val serviceClient = ServiceClient(env.endpoints, httpClient)
-    val runner = TestRunner(env, serviceClient)
+    val runner = TestRunner(env, serviceClient, httpClient)
 
     try {
         runTestSuite(runner, suite)
@@ -73,11 +75,23 @@ private fun createHttpClient(verbose: Boolean) = HttpClient(CIO) {
         }
     }
 
+    // Disable automatic redirect following to avoid TLS issues with Caddy redirects
+    followRedirects = false
+
     engine {
         requestTimeout = 180_000  // 3 minutes for Docker operations (image pulls, SSH setup, container creation)
         endpoint {
             connectTimeout = 15_000
             connectAttempts = 3
+        }
+        https {
+            // Disable TLS validation for internal testing (self-signed certs)
+            // Note: This doesn't work properly with Ktor CIO engine
+            trustManager = object : javax.net.ssl.X509TrustManager {
+                override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+            }
         }
     }
 }
@@ -92,6 +106,18 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "microservices" -> runner.microserviceTests()
         "search-service" -> runner.searchServiceTests()
         "e2e" -> runner.e2eTests()
+        // New HIGH priority suites
+        "infrastructure" -> runner.infrastructureTests()
+        "databases" -> runner.databaseTests()
+        "user-interface" -> runner.userInterfaceTests()
+        // New MEDIUM priority suites
+        "communication" -> runner.communicationTests()
+        "collaboration" -> runner.collaborationTests()
+        "productivity" -> runner.productivityTests()
+        "file-management" -> runner.fileManagementTests()
+        "security" -> runner.securityTests()
+        "monitoring" -> runner.monitoringTests()
+        "backup" -> runner.backupTests()
         "all" -> {
             runner.foundationTests()
             runner.dockerTests()
@@ -100,11 +126,23 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.dataPipelineTests()
             runner.microserviceTests()
             runner.searchServiceTests()
+            runner.infrastructureTests()
+            runner.databaseTests()
+            runner.userInterfaceTests()
+            runner.communicationTests()
+            runner.collaborationTests()
+            runner.productivityTests()
+            runner.fileManagementTests()
+            runner.securityTests()
+            runner.monitoringTests()
+            runner.backupTests()
             runner.e2eTests()
         }
         else -> {
             println("❌ Unknown suite: $suite")
-            println("Available suites: foundation, docker, llm, knowledge-base, data-pipeline, microservices, search-service, e2e, all")
+            println("Available suites: foundation, docker, llm, knowledge-base, data-pipeline, microservices,")
+            println("                  search-service, infrastructure, databases, user-interface, communication,")
+            println("                  collaboration, productivity, file-management, security, monitoring, backup, e2e, all")
             exitProcess(1)
         }
     }

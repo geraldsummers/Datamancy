@@ -107,6 +107,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
     // Run setup before tests
     test("Setup: Seed test data") {
         seedTestData()
+        kotlinx.coroutines.delay(5000) // Wait for Qdrant indexing to complete (increased from 2s)
     }
 
     test("Search service is healthy") {
@@ -138,22 +139,29 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
     }
 
     test("Search returns results with capabilities") {
-        val result = client.search("bitcoin", limit = 5)
+        val result = client.search("bitcoin market", limit = 10)
         result.success shouldBe true
 
         val results = result.results.jsonObject["results"]?.jsonArray
-        val firstResult = results?.firstOrNull()?.jsonObject
-        require(firstResult != null) { "No search results returned - data may not be seeded yet" }
+        require(!results.isNullOrEmpty()) { "No search results returned - data may not be seeded yet" }
 
-        // Check capabilities object exists
-        val capabilities = firstResult.get("capabilities")?.jsonObject
+        // Find a result from our test data (prefer market data for this test)
+        val testResult = results.firstOrNull {
+            it.jsonObject["source"]?.jsonPrimitive?.content?.contains("market") == true ||
+            it.jsonObject["contentType"]?.jsonPrimitive?.content == "market"
+        }?.jsonObject ?: results.firstOrNull()?.jsonObject
+
+        require(testResult != null) { "No valid test results found" }
+
+        // Check capabilities object exists with all required fields (keys must exist)
+        val capabilities = testResult.get("capabilities")?.jsonObject
         require(capabilities != null) { "Capabilities field missing from search result" }
-        capabilities.containsKey("humanFriendly") shouldBe true
-        capabilities.containsKey("agentFriendly") shouldBe true
-        capabilities.containsKey("hasTimeSeries") shouldBe true
-        capabilities.containsKey("hasRichContent") shouldBe true
-        capabilities.containsKey("isInteractive") shouldBe true
-        capabilities.containsKey("isStructured") shouldBe true
+        require(capabilities.containsKey("humanFriendly")) { "Missing humanFriendly field" }
+        require(capabilities.containsKey("agentFriendly")) { "Missing agentFriendly field" }
+        require(capabilities.containsKey("hasTimeSeries")) { "Missing hasTimeSeries field" }
+        require(capabilities.containsKey("hasRichContent")) { "Missing hasRichContent field" }
+        require(capabilities.containsKey("isInteractive")) { "Missing isInteractive field" }
+        require(capabilities.containsKey("isStructured")) { "Missing isStructured field" }
     }
 
     test("Human audience filter works") {
@@ -361,18 +369,19 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         response.status shouldBe HttpStatusCode.OK
 
         val html = response.body<String>()
-        html shouldContain "<!DOCTYPE html>"
+        html.uppercase() shouldContain "<!DOCTYPE HTML>"
         html shouldContain "Search Knowledge Base"
         html shouldContain "searchInput"
     }
 
     test("Results include all required fields") {
-        val result = client.search("test", limit = 1)
+        val result = client.search("kubernetes deployment", limit = 10)
         result.success shouldBe true
 
         val results = result.results.jsonObject["results"]?.jsonArray
-        val firstResult = results?.firstOrNull()?.jsonObject
-        require(firstResult != null) { "No search results returned - data may not be seeded yet" }
+        require(!results.isNullOrEmpty()) { "No search results returned - data may not be seeded yet" }
+        val firstResult = results.firstOrNull()?.jsonObject
+        require(firstResult != null) { "No valid result object found" }
 
         // Check all required fields exist
         firstResult.containsKey("url") shouldBe true

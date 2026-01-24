@@ -34,25 +34,6 @@ homeDirectory: /home/{{STACK_ADMIN_USER}}
 loginShell: /bin/bash
 userPassword: {{ADMIN_SSHA_PASSWORD}}
 
-# Default Regular User (optional - for testing)
-# Username: user
-# Password: From STACK_USER_PASSWORD environment variable (or same as admin if not set)
-dn: uid=user,ou=users,{{LDAP_BASE_DN}}
-objectClass: inetOrgPerson
-objectClass: posixAccount
-objectClass: shadowAccount
-uid: user
-cn: Regular User
-sn: User
-givenName: Regular
-mail: user@{{DOMAIN}}
-displayName: Regular User
-uidNumber: 10001
-gidNumber: 10001
-homeDirectory: /home/user
-loginShell: /bin/bash
-userPassword: {{USER_SSHA_PASSWORD}}
-
 # Shadow Agent Accounts (per-user, created dynamically)
 # Format: uid={username}-agent,ou=agents,{{LDAP_BASE_DN}}
 # These accounts are created on-demand by scripts/security/create-shadow-agent-account.main.kts
@@ -75,7 +56,6 @@ dn: cn=users,ou=groups,{{LDAP_BASE_DN}}
 objectClass: groupOfNames
 cn: users
 member: uid={{STACK_ADMIN_USER}},ou=users,{{LDAP_BASE_DN}}
-member: uid=user,ou=users,{{LDAP_BASE_DN}}
 
 # Service-specific Groups
 dn: cn=openwebui-admin,ou=groups,{{LDAP_BASE_DN}}

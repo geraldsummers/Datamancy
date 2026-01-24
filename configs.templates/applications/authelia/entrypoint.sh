@@ -19,7 +19,6 @@ if [ -f /config/configuration.yml ]; then
     # Note: Grafana, Home Assistant, JupyterHub use forward_auth - no OIDC secrets needed
     sed -i "s|\${PGADMIN_OAUTH_SECRET}|$PGADMIN_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${OPENWEBUI_OAUTH_SECRET}|$OPENWEBUI_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
-    sed -i "s|\${NEXTCLOUD_OAUTH_SECRET}|$NEXTCLOUD_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${DIM_OAUTH_SECRET}|$DIM_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${PLANKA_OAUTH_SECRET}|$PLANKA_OAUTH_SECRET|g" "$TEMP_CONFIG" || true
     sed -i "s|\${VAULTWARDEN_OAUTH_SECRET}|$VAULTWARDEN_OAUTH_SECRET|g" "$TEMP_CONFIG" || true

@@ -34,6 +34,7 @@ services:
       - backend
       - frontend
       - monitoring
+      - caddy
 
     environment:
       # Service endpoints (Docker network hostnames)
@@ -50,6 +51,7 @@ services:
       POSTGRES_PORT: "5432"
       POSTGRES_DB: "datamancy"
       POSTGRES_USER: "datamancer"
+      POSTGRES_PASSWORD: "${DATAMANCY_SERVICE_PASSWORD}"
 
       CLICKHOUSE_HOST: "clickhouse"
       CLICKHOUSE_PORT: "8123"
@@ -57,6 +59,8 @@ services:
 
       MARIADB_HOST: "mariadb"
       MARIADB_PORT: "3306"
+      MARIADB_USER: "bookstack"
+      MARIADB_PASSWORD: "${BOOKSTACK_DB_PASSWORD}"
 
       # Vector/cache services
       QDRANT_URL: "http://qdrant:6333"
@@ -64,6 +68,7 @@ services:
 
       # Auth services
       LDAP_URL: "ldap://ldap:389"
+      LDAP_ADMIN_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
 
       # Test configuration
       TEST_ENV: "container"
@@ -109,4 +114,6 @@ networks:
   frontend:
     external: false
   monitoring:
+    external: false
+  caddy:
     external: false

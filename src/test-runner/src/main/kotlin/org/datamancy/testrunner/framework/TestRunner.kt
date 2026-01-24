@@ -5,10 +5,23 @@ import kotlin.system.measureTimeMillis
 
 class TestRunner(
     val environment: TestEnvironment,
-    val client: ServiceClient
+    val client: ServiceClient,
+    val httpClient: io.ktor.client.HttpClient
 ) {
     val env get() = environment
     val endpoints get() = environment.endpoints
+
+    // Initialize LDAP helper if LDAP URL and admin password are available
+    private val ldapHelper: LdapHelper? = if (environment.endpoints.ldap != null && environment.ldapAdminPassword.isNotEmpty()) {
+        LdapHelper(
+            ldapUrl = environment.endpoints.ldap!!,
+            adminPassword = environment.ldapAdminPassword
+        )
+    } else {
+        null
+    }
+
+    val auth = AuthHelper(environment.endpoints.authelia, httpClient, ldapHelper)
 
     private val results = mutableListOf<TestResult>()
 
@@ -23,7 +36,7 @@ class TestRunner(
         var duration = 0L
         val result = try {
             duration = measureTimeMillis {
-                val ctx = TestContext(client)
+                val ctx = TestContext(client, auth)
                 ctx.block()
             }
             TestResult.Success(name, duration).also {
@@ -78,7 +91,7 @@ class TestSuite(val name: String, private val runner: TestRunner) {
     }
 }
 
-class TestContext(val client: ServiceClient) {
+class TestContext(val client: ServiceClient, val auth: AuthHelper) {
     // Fluent assertions
     infix fun String.shouldContain(substring: String) {
         if (!this.contains(substring)) {
@@ -126,6 +139,13 @@ class TestContext(val client: ServiceClient) {
     fun require(condition: Boolean, message: String = "Requirement failed") {
         if (!condition) {
             throw AssertionError(message)
+        }
+    }
+
+    // Additional assertion helpers
+    infix fun Int.shouldBeOneOf(values: List<Int>) {
+        if (this !in values) {
+            throw AssertionError("Expected $this to be one of $values")
         }
     }
 }

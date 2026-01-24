@@ -19,6 +19,7 @@ dependencies {
 
     // Database drivers for direct DB tests
     implementation(libs.postgres.jdbc)
+    implementation(libs.mariadb.jdbc)
     implementation(libs.bundles.clickhouse)
 
     // Shared test commons (for @IntegrationTest if needed)

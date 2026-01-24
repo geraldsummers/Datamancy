@@ -52,8 +52,8 @@ tasks.register("test") {
     dependsOn(
         ":agent-tool-server:test",
         ":search-service:test",
+        ":test-runner:test"  // Now includes unit tests for the integration test suites!
     )
-    // Note: test-commons and test-runner have no unit tests (test-runner is for integration only)
 }
 
 // Build test-runner container for integration tests

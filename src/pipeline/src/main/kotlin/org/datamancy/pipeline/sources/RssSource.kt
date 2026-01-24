@@ -22,8 +22,12 @@ class RssSource(
         feedUrls.forEach { feedUrl ->
             try {
                 logger.info { "Fetching RSS feed: $feedUrl" }
-                val feedInput = SyndFeedInput().apply { isAllowDoctypes = true }
-                val feed = feedInput.build(XmlReader(URL(feedUrl)))
+                val feedInput = SyndFeedInput().apply { isAllowDoctypes = false }
+
+                // Sanitize XML to handle malformed DOCTYPE declarations (e.g., arXiv feeds)
+                val content = URL(feedUrl).readText()
+                val sanitized = content.replace(Regex("<!DOCTYPE[^>]*>"), "").trim()
+                val feed = feedInput.build(java.io.StringReader(sanitized))
 
                 feed.entries.forEach { entry ->
                     val article = RssArticle(

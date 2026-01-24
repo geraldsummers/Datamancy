@@ -199,12 +199,12 @@ fun copyTestScripts(distDir: File) {
     step("Copying test runner files to dist")
 
     // Always copy test runner overlay
-    val testRunnerOverlay = File("compose.templates/testing.yml")
+    val testRunnerOverlay = File("compose.templates/testing/test-runner.yml")
     if (testRunnerOverlay.exists()) {
         testRunnerOverlay.copyTo(distDir.resolve("testing.yml"), overwrite = true)
         info("Copied testing.yml overlay")
     } else {
-        warn("compose.templates/testing.yml not found")
+        warn("compose.templates/testing/test-runner.yml not found")
     }
 
     // Copy Dockerfile.test-runner
@@ -334,15 +334,30 @@ fun copyComposeFiles(outputDir: File) {
         exitProcess(1)
     }
 
-    val composeFiles = listOf(
-        "networks.yml",
-        "volumes.yml",
-        "infrastructure.yml",
-        "databases.yml",
-        "applications.yml",
-        "datamancy-services.yml",
-        "ai-services.yml"
+    // Define category order for deterministic merge (dependency order)
+    val categoryOrder = listOf(
+        "gateway",
+        "identity",
+        "persistence",
+        "productivity",
+        "communication",
+        "ai",
+        "datamancy",
+        "observability",
+        "testing"
     )
+
+    // Collect all service files by category
+    val serviceFiles = mutableListOf<File>()
+    categoryOrder.forEach { category ->
+        val categoryDir = templatesDir.resolve(category)
+        if (categoryDir.exists() && categoryDir.isDirectory) {
+            val files = categoryDir.listFiles { file ->
+                file.isFile && file.extension == "yml"
+            }?.sortedBy { it.name } ?: emptyList()
+            serviceFiles.addAll(files)
+        }
+    }
 
     val mergedYaml = StringBuilder()
     mergedYaml.appendLine("# Auto-generated merged docker-compose.yml")
@@ -351,32 +366,30 @@ fun copyComposeFiles(outputDir: File) {
 
     // Group services from all files
     mergedYaml.appendLine("services:")
-    composeFiles.forEach { filename ->
-        val file = templatesDir.resolve(filename)
-        if (file.exists()) {
-            val lines = file.readText().lines()
-            var inServices = false
-            for (line in lines) {
-                if (line.trim() == "services:") {
-                    inServices = true
-                    continue
-                }
-                if (inServices) {
-                    if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("#")) {
-                        // Found next top-level key, stop copying services
-                        inServices = false
-                    } else if (line.isNotEmpty()) {
-                        mergedYaml.appendLine(line)
-                    }
+    serviceFiles.forEach { file ->
+        val lines = file.readText().lines()
+        var inServices = false
+        for (line in lines) {
+            if (line.trim() == "services:") {
+                inServices = true
+                continue
+            }
+            if (inServices) {
+                if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("#")) {
+                    // Found next top-level key, stop copying services
+                    inServices = false
+                } else if (line.isNotEmpty()) {
+                    mergedYaml.appendLine(line)
                 }
             }
         }
     }
     mergedYaml.appendLine()
 
-    // Add networks and volumes at the end
+    // Add networks and volumes at the end from _base/
+    val baseDir = templatesDir.resolve("_base")
     listOf("networks.yml", "volumes.yml").forEach { filename ->
-        val file = templatesDir.resolve(filename)
+        val file = baseDir.resolve(filename)
         if (file.exists()) {
             val content = file.readText()
                 .lines()
@@ -388,7 +401,7 @@ fun copyComposeFiles(outputDir: File) {
     }
 
     outputDir.resolve("docker-compose.yml").writeText(mergedYaml.toString())
-    info("Created merged docker-compose.yml")
+    info("Created merged docker-compose.yml from ${serviceFiles.size} service files")
 }
 
 fun generateAutheliaJWKS(outputDir: File): String {
@@ -617,7 +630,6 @@ fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: S
 
     // Secrets - provided
     env["STACK_ADMIN_PASSWORD"] = adminPassword
-    env["STACK_USER_PASSWORD"] = userPassword
     env["LDAP_ADMIN_PASSWORD"] = ldapAdminPassword
 
     // Generate secrets for all discovered runtime vars that aren't already set
