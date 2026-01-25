@@ -23,6 +23,8 @@ import org.datamancy.pipeline.sources.AustralianLaw
 import org.datamancy.pipeline.sources.AustralianLawsSource
 import org.datamancy.pipeline.sources.LinuxDoc
 import org.datamancy.pipeline.sources.LinuxDocsSource
+import org.datamancy.pipeline.sources.WikiSource
+import org.datamancy.pipeline.sources.WikiPage
 import org.datamancy.pipeline.storage.DeduplicationStore
 import org.datamancy.pipeline.storage.SourceMetadataStore
 import org.datamancy.pipeline.monitoring.MonitoringServer
@@ -56,6 +58,7 @@ fun main() {
         launch { runWikipediaPipeline(config, dedupStore, metadataStore) }
         launch { runAustralianLawsPipeline(config, dedupStore, metadataStore) }
         launch { runLinuxDocsPipeline(config, dedupStore, metadataStore) }
+        launch { runWikiPipeline(config, dedupStore, metadataStore) }
 
         // Keep running
         awaitCancellation()
@@ -710,8 +713,9 @@ suspend fun runAustralianLawsPipeline(
             var deduplicated = 0
 
             val source = AustralianLawsSource(
-                jurisdictions = listOf(config.australianLaws.jurisdiction),
-                maxLaws = config.australianLaws.maxLaws
+                jurisdictions = config.australianLaws.jurisdictions,
+                maxLawsPerJurisdiction = config.australianLaws.maxLawsPerJurisdiction,
+                startYear = config.australianLaws.startYear
             )
 
             source.fetch()
@@ -986,6 +990,145 @@ suspend fun runLinuxDocsPipeline(
         } catch (e: Exception) {
             logger.error(e) { "Linux Docs pipeline error: ${e.message}" }
             metadataStore.recordFailure("linux_docs")
+            logger.info { "Retrying in 30 minutes..." }
+            delay(TimeUnit.MINUTES.toMillis(30))
+        }
+    }
+}
+
+/**
+ * Wiki pipeline: Fetches documentation from Debian Wiki and Arch Wiki
+ */
+suspend fun runWikiPipeline(
+    config: PipelineConfig,
+    dedupStore: DeduplicationStore,
+    metadataStore: SourceMetadataStore
+) {
+    if (!config.wiki.enabled) {
+        logger.info { "Wiki pipeline disabled in config" }
+        return
+    }
+
+    logger.info { "Starting Wiki pipeline for: ${config.wiki.wikiTypes.joinToString()}" }
+
+    // Initialize embedder
+    val embedder = Embedder(config.embedding.serviceUrl)
+
+    // Schedule periodic runs
+    while (true) {
+        try {
+            // Process each wiki type
+            config.wiki.wikiTypes.forEach { wikiTypeStr ->
+                val wikiType = when (wikiTypeStr.uppercase()) {
+                    "DEBIAN" -> WikiSource.WikiType.DEBIAN
+                    "ARCH" -> WikiSource.WikiType.ARCH
+                    else -> {
+                        logger.warn { "Unknown wiki type: $wikiTypeStr" }
+                        return@forEach
+                    }
+                }
+
+                val collectionName = when (wikiType) {
+                    WikiSource.WikiType.DEBIAN -> config.qdrant.debianWikiCollection
+                    WikiSource.WikiType.ARCH -> config.qdrant.archWikiCollection
+                }
+
+                val qdrantSink = QdrantSink(
+                    qdrantUrl = config.qdrant.url,
+                    collectionName = collectionName,
+                    vectorSize = config.embedding.vectorSize
+                )
+
+                logger.info { "Fetching from ${wikiType.displayName}..." }
+
+                val startTime = System.currentTimeMillis()
+                var processed = 0
+                var failed = 0
+                var deduplicated = 0
+
+                val source = WikiSource(
+                    wikiType = wikiType,
+                    maxPages = config.wiki.maxPagesPerWiki,
+                    categories = config.wiki.categories
+                )
+
+                source.fetch()
+                    .buffer(1000)
+                    .map { page ->
+                        try {
+                            // Check deduplication
+                            val hash = page.contentHash()
+                            if (dedupStore.checkAndMark(hash, page.id)) {
+                                deduplicated++
+                                logger.debug { "Skipping duplicate page: ${page.id}" }
+                                return@map null
+                            }
+
+                            // Convert to text for embedding
+                            val text = page.toText()
+
+                            // Generate embedding
+                            val embedding = embedder.process(text)
+
+                            // Create document
+                            val document = VectorDocument(
+                                id = page.id,
+                                vector = embedding,
+                                metadata = mapOf(
+                                    "title" to page.title,
+                                    "url" to page.url,
+                                    "wiki_type" to page.wikiType,
+                                    "categories" to page.categories.joinToString(", "),
+                                    "content" to text,
+                                    "ingestion_timestamp" to System.currentTimeMillis()
+                                )
+                            )
+
+                            processed++
+                            if (processed % 100 == 0) {
+                                logger.info { "Processed $processed pages from ${wikiType.displayName}" }
+                            }
+
+                            document
+
+                        } catch (e: Exception) {
+                            logger.error(e) { "Failed to process page ${page.id}: ${e.message}" }
+                            failed++
+                            null
+                        }
+                    }
+                    .filterNotNull()
+                    .collect { document ->
+                        try {
+                            qdrantSink.write(document)
+                        } catch (e: Exception) {
+                            logger.error(e) { "Failed to save to Qdrant: ${e.message}" }
+                            failed++
+                        }
+                    }
+
+                val duration = System.currentTimeMillis() - startTime
+                val embedderStats = embedder.getStats()
+
+                logger.info {
+                    "=== ${wikiType.displayName} cycle complete: $processed processed, $failed failed, $deduplicated skipped (duplicates) in ${duration}ms | " +
+                            "Embeddings: ${embedderStats.totalRequests} requests, avg ${embedderStats.averageLatencyMs}ms ==="
+                }
+
+                metadataStore.recordSuccess(wikiType.name.lowercase(), processed.toLong(), failed.toLong())
+            }
+
+            // Wait before next cycle
+            val delayMinutes = config.wiki.scheduleMinutes
+            logger.info { "Next Wiki fetch in $delayMinutes minutes" }
+            delay(TimeUnit.MINUTES.toMillis(delayMinutes.toLong()))
+
+        } catch (e: CancellationException) {
+            logger.info { "Wiki pipeline cancelled" }
+            break
+        } catch (e: Exception) {
+            logger.error(e) { "Wiki pipeline error: ${e.message}" }
+            metadataStore.recordFailure("wiki")
             logger.info { "Retrying in 30 minutes..." }
             delay(TimeUnit.MINUTES.toMillis(30))
         }

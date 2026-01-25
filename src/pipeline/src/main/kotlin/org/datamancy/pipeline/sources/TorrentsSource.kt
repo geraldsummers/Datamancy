@@ -14,7 +14,11 @@ private val logger = KotlinLogging.logger {}
 
 /**
  * Fetches torrent metadata from torrents-csv dataset
- * Dataset: https://gitlab.com/dessalines/torrents.csv
+ *
+ * Current dataset: https://codeberg.org/heretic/torrents-csv-data
+ * Direct download: https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv
+ * Old dataset: https://gitlab.com/dessalines/torrents.csv (archived)
+ *
  * CSV format: infohash,name,size_bytes,created_unix,seeders,leechers,completed,scraped_date
  */
 class TorrentsSource(

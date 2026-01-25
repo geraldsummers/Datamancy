@@ -17,6 +17,7 @@ data class PipelineConfig(
     val wikipedia: WikipediaConfig = WikipediaConfig(),
     val australianLaws: AustralianLawsConfig = AustralianLawsConfig(),
     val linuxDocs: LinuxDocsConfig = LinuxDocsConfig(),
+    val wiki: WikiConfig = WikiConfig(),
     val embedding: EmbeddingConfig = EmbeddingConfig(),
     val qdrant: QdrantConfig = QdrantConfig(),
     val clickhouse: ClickHouseConfig = ClickHouseConfig(),
@@ -51,9 +52,11 @@ data class PipelineConfig(
                 ),
                 torrents = TorrentsConfig(
                     enabled = System.getenv("TORRENTS_ENABLED")?.toBoolean() ?: false,
-                    dataPath = System.getenv("TORRENTS_DATA_PATH") ?: "/app/data/torrents.csv.gz",
+                    dataPath = System.getenv("TORRENTS_DATA_PATH")
+                        ?: "https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv",
                     scheduleMinutes = System.getenv("TORRENTS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
-                    maxResults = System.getenv("TORRENTS_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE
+                    maxResults = System.getenv("TORRENTS_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE,
+                    startLine = System.getenv("TORRENTS_START_LINE")?.toLong() ?: 0
                 ),
                 binance = BinanceConfig(
                     enabled = System.getenv("BINANCE_ENABLED")?.toBoolean() ?: false,
@@ -70,15 +73,24 @@ data class PipelineConfig(
                 ),
                 australianLaws = AustralianLawsConfig(
                     enabled = System.getenv("AUSTRALIAN_LAWS_ENABLED")?.toBoolean() ?: false,
-                    jurisdiction = System.getenv("AUSTRALIAN_LAWS_JURISDICTION") ?: "commonwealth",
+                    jurisdictions = System.getenv("AUSTRALIAN_LAWS_JURISDICTIONS")?.split(",")
+                        ?: listOf("commonwealth", "nsw", "vic", "qld", "wa", "sa", "tas", "act", "nt"),
                     scheduleMinutes = System.getenv("AUSTRALIAN_LAWS_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
-                    maxLaws = System.getenv("AUSTRALIAN_LAWS_MAX")?.toInt() ?: Int.MAX_VALUE
+                    maxLawsPerJurisdiction = System.getenv("AUSTRALIAN_LAWS_MAX_PER_JURISDICTION")?.toInt() ?: 100,
+                    startYear = System.getenv("AUSTRALIAN_LAWS_START_YEAR")?.toInt() ?: 2020
                 ),
                 linuxDocs = LinuxDocsConfig(
                     enabled = System.getenv("LINUX_DOCS_ENABLED")?.toBoolean() ?: false,
                     sources = System.getenv("LINUX_DOCS_SOURCES")?.split(",") ?: listOf("MAN_PAGES"),
                     scheduleMinutes = System.getenv("LINUX_DOCS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
                     maxDocs = System.getenv("LINUX_DOCS_MAX")?.toInt() ?: Int.MAX_VALUE
+                ),
+                wiki = WikiConfig(
+                    enabled = System.getenv("WIKI_ENABLED")?.toBoolean() ?: false,
+                    wikiTypes = System.getenv("WIKI_TYPES")?.split(",") ?: listOf("DEBIAN", "ARCH"),
+                    maxPagesPerWiki = System.getenv("WIKI_MAX_PAGES_PER_WIKI")?.toInt() ?: 500,
+                    scheduleMinutes = System.getenv("WIKI_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
+                    categories = System.getenv("WIKI_CATEGORIES")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
                 ),
                 embedding = EmbeddingConfig(
                     serviceUrl = System.getenv("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000"
@@ -91,7 +103,9 @@ data class PipelineConfig(
                     marketCollection = System.getenv("QDRANT_MARKET_COLLECTION") ?: "market_data",
                     wikipediaCollection = System.getenv("QDRANT_WIKIPEDIA_COLLECTION") ?: "wikipedia",
                     australianLawsCollection = System.getenv("QDRANT_AUSTRALIAN_LAWS_COLLECTION") ?: "australian_laws",
-                    linuxDocsCollection = System.getenv("QDRANT_LINUX_DOCS_COLLECTION") ?: "linux_docs"
+                    linuxDocsCollection = System.getenv("QDRANT_LINUX_DOCS_COLLECTION") ?: "linux_docs",
+                    debianWikiCollection = System.getenv("QDRANT_DEBIAN_WIKI_COLLECTION") ?: "debian_wiki",
+                    archWikiCollection = System.getenv("QDRANT_ARCH_WIKI_COLLECTION") ?: "arch_wiki"
                 ),
                 clickhouse = ClickHouseConfig(
                     url = System.getenv("CLICKHOUSE_URL") ?: "http://clickhouse:8123"
@@ -142,9 +156,10 @@ data class CveConfig(
 @Serializable
 data class TorrentsConfig(
     val enabled: Boolean = false,
-    val dataPath: String = "/app/data/torrents.csv.gz",
+    val dataPath: String = "https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv",  // Can also be local file path
     val scheduleMinutes: Int = 10080,  // Weekly by default
-    val maxResults: Int = Int.MAX_VALUE
+    val maxResults: Int = Int.MAX_VALUE,
+    val startLine: Long = 0  // For resuming from checkpoint
 )
 
 @Serializable
@@ -165,7 +180,9 @@ data class QdrantConfig(
     val marketCollection: String = "market_data",
     val wikipediaCollection: String = "wikipedia",
     val australianLawsCollection: String = "australian_laws",
-    val linuxDocsCollection: String = "linux_docs"
+    val linuxDocsCollection: String = "linux_docs",
+    val debianWikiCollection: String = "debian_wiki",
+    val archWikiCollection: String = "arch_wiki"
 )
 
 @Serializable
@@ -186,9 +203,10 @@ data class WikipediaConfig(
 @Serializable
 data class AustralianLawsConfig(
     val enabled: Boolean = false,
-    val jurisdiction: String = "commonwealth",  // commonwealth, nsw, vic, qld, wa, sa, tas, act, nt
+    val jurisdictions: List<String> = listOf("commonwealth", "nsw", "vic", "qld", "wa", "sa", "tas", "act", "nt"),  // All Australian jurisdictions
     val scheduleMinutes: Int = 1440,  // Daily by default
-    val maxLaws: Int = Int.MAX_VALUE
+    val maxLawsPerJurisdiction: Int = 100,  // Max laws per jurisdiction (to keep it manageable)
+    val startYear: Int = 2020  // Focus on recent legislation
 )
 
 @Serializable
@@ -197,6 +215,15 @@ data class LinuxDocsConfig(
     val sources: List<String> = listOf("MAN_PAGES"),  // MAN_PAGES, DEBIAN_DOCS, KERNEL_DOCS
     val scheduleMinutes: Int = 10080,  // Weekly by default
     val maxDocs: Int = Int.MAX_VALUE
+)
+
+@Serializable
+data class WikiConfig(
+    val enabled: Boolean = false,
+    val wikiTypes: List<String> = listOf("DEBIAN", "ARCH"),  // DEBIAN, ARCH
+    val maxPagesPerWiki: Int = 500,
+    val scheduleMinutes: Int = 10080,  // Weekly by default
+    val categories: List<String> = emptyList()  // Empty = fetch recent pages
 )
 
 @Serializable

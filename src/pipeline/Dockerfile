@@ -1,10 +1,15 @@
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 
-# Add wget for health checks
-RUN apk add --no-cache wget
+# Install documentation packages and tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    man-db \
+    manpages \
+    manpages-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -S datamancer && adduser -S datamancer -G datamancer
+RUN groupadd -r datamancer && useradd -r -g datamancer datamancer
 
 WORKDIR /app
 

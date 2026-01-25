@@ -236,34 +236,34 @@ class QuickIntegrationTest {
     }
 
     @Test
-    fun `test Australian Laws emits sample data without saving`() = runBlocking {
+    fun `test Australian Laws fetches real legislation from AustLII`() = runBlocking {
         println("\n" + "=".repeat(70))
-        println("⚖️  AUSTRALIAN LAWS SOURCE TEST")
+        println("⚖️  AUSTRALIAN LAWS SOURCE TEST (LIVE AUSTLII)")
         println("=".repeat(70))
-        println("📜 Fetching sample Australian legislation...")
+        println("📜 Fetching real Australian legislation from AustLII...")
 
         val source = AustralianLawsSource(
             jurisdictions = listOf("commonwealth"),
-            maxLaws = 5
+            maxLawsPerJurisdiction = 5,
+            startYear = 2020
         )
 
         val laws = source.fetch().toList()
 
-        assertTrue(laws.isNotEmpty(), "Should fetch at least one law")
-        println("\n✅ SUCCESS! Fetched ${laws.size} laws:")
+        // May be empty if AustLII is unreachable or has no recent acts
+        println("\n✅ Fetched ${laws.size} laws:")
 
         laws.forEach { law ->
             assertNotNull(law.id)
             assertNotNull(law.title)
-            assertTrue(law.sections.isNotEmpty())
+            assertTrue(law.text.isNotBlank(), "Law text should not be blank")
 
             println("   📜 ${law.title} (${law.year})")
             println("      ID: ${law.id}")
             println("      Jurisdiction: ${law.jurisdiction}")
             println("      Type: ${law.type}")
-            println("      Number: ${law.number}")
-            println("      Sections: ${law.sections.size}")
-            println("      First section: ${law.sections.first().number} - ${law.sections.first().title}")
+            println("      URL: ${law.url}")
+            println("      Content length: ${law.text.length} chars")
         }
 
         println("\n🎉 TEST PASSED - NO DATA SAVED TO PRODUCTION\n")

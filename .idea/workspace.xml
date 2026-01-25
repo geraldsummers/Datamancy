@@ -4,11 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="compose cleanup">
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/checksums/checksums.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/checksums/md5-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/checksums/md5-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/checksums/sha1-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/checksums/sha1-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" afterDir="false" />
+    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="RAGTEST">
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.bin" afterDir="false" />
@@ -16,38 +12,17 @@
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build-datamancy.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/ai/embedding.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/ai/embedding.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compose.templates/datamancy/pipeline.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/datamancy/pipeline.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/persistence/qdrant.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/persistence/qdrant.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/productivity/bookstack.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/productivity/bookstack.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/mastodon/init-mastodon.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/.gradle/8.5/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/.gradle/8.5/fileHashes/fileHashes.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/.gradle/file-system.probe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/Dockerfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/pipeline/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/build.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/Main.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/config/Config.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/config/Config.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/processors/Embedder.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/processors/Embedder.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/RssSource.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/RssSource.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/WikipediaSource.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/WikipediaSource.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/SearchGateway.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/src/main/kotlin/org/datamancy/searchservice/SearchGateway.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/DataPipelineTests.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/DataPipelineTests.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/DockerTests.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/E2ETests.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/InfrastructureTests.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/InfrastructureTests.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/SearchServiceTests.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/SearchServiceTests.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/TestFrameworkTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/TestFrameworkTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/suites/AllTestSuitesTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/suites/AllTestSuitesTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/suites/DatabaseTestsTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/suites/DatabaseTestsTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/suites/InfrastructureTestsTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/suites/InfrastructureTestsTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/suites/UserInterfaceTestsTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/test/kotlin/org/datamancy/testrunner/suites/UserInterfaceTestsTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/AustralianLawsSource.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/AustralianLawsSource.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/TorrentsSource.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/TorrentsSource.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/test/kotlin/org/datamancy/pipeline/integration/DataSourceIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/test/kotlin/org/datamancy/pipeline/integration/DataSourceIntegrationTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/test/kotlin/org/datamancy/pipeline/integration/QuickIntegrationTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/test/kotlin/org/datamancy/pipeline/integration/QuickIntegrationTest.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -293,14 +268,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1764971190772</updated>
-    </task>
-    <task id="LOCAL-00006" summary="fff">
-      <option name="closed" value="true" />
-      <created>1765933845201</created>
-      <option name="number" value="00006" />
-      <option name="presentableId" value="LOCAL-00006" />
-      <option name="project" value="LOCAL" />
-      <updated>1765933845201</updated>
     </task>
     <task id="LOCAL-00007" summary="fff">
       <option name="closed" value="true" />
@@ -686,7 +653,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769301762369</updated>
     </task>
-    <option name="localTasksCounter" value="55" />
+    <task id="LOCAL-00055" summary="RAGTEST">
+      <option name="closed" value="true" />
+      <created>1769335180689</created>
+      <option name="number" value="00055" />
+      <option name="presentableId" value="LOCAL-00055" />
+      <option name="project" value="LOCAL" />
+      <updated>1769335180689</updated>
+    </task>
+    <option name="localTasksCounter" value="56" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -707,7 +682,8 @@
     <MESSAGE value="deploying" />
     <MESSAGE value="fixed?" />
     <MESSAGE value="compose cleanup" />
-    <option name="LAST_COMMIT_MESSAGE" value="compose cleanup" />
+    <MESSAGE value="RAGTEST" />
+    <option name="LAST_COMMIT_MESSAGE" value="RAGTEST" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/Datamancy$Datamancy__build_.ic" NAME="Datamancy [build] Coverage Results" MODIFIED="1766219509283" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="idea" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="true" />

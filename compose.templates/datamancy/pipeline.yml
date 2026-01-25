@@ -63,7 +63,7 @@ services:
 
       # Services
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
-      QDRANT_URL: http://qdrant:6333
+      QDRANT_URL: http://qdrant:6334
       CLICKHOUSE_URL: http://clickhouse:8123
 
       # BookStack integration (optional - for wiki presentation)

@@ -52,6 +52,9 @@ dependencies {
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // HTML Parsing (for web scraping legislation)
+    implementation(libs.jsoup)
+
     // BZip2 compression (for Wikipedia dumps)
     implementation("org.apache.commons:commons-compress:1.26.0")
 
