@@ -40,8 +40,9 @@ services:
     depends_on:
       litellm:
         condition: service_started
-      dind:
-        condition: service_healthy
+      # dind: REMOVED - docker_container_create tool disabled
+      # dind:
+      #   condition: service_healthy
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_BASE_URL: http://litellm:4000
@@ -68,8 +69,9 @@ services:
       SEARCH_SERVICE_URL: http://search-service:8098
       MCP_GRANT_HOST_NETWORK_HTTP: "true"
       MCP_GRANT_HOST_NETWORK_SSH: "true"
-      DOCKER_HOST: tcp://dind:2375
-      DIND_NETWORK: datamancy-stack_docker-proxy
+      # DinD removed - docker_container_create tool disabled
+      # DOCKER_HOST: tcp://dind:2375
+      # DIND_NETWORK: datamancy-stack_docker-proxy
       # SSH configuration for ops plugin
       TOOLSERVER_SSH_HOST: ${STACK_SSH_HOST:-latium.local}
       TOOLSERVER_SSH_USER: ${STACK_SSH_USER:-stackops}

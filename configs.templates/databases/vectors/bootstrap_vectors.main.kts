@@ -83,7 +83,7 @@ fun main(args: Array<String>) {
     val apiKey = getenv("QDRANT_API_KEY", null)
     val defaultSize = (getenv("VECTOR_SIZE", null)?.toIntOrNull())
         ?: (root["vector_size"] as? Number)?.toInt()
-        ?: 384
+        ?: 768  // BGE-base-en-v1.5 default (was 384, causing dimension mismatch!)
     val distance = (root["distance"] as? String) ?: "Cosine"
 
     @Suppress("UNCHECKED_CAST")

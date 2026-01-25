@@ -4,81 +4,18 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="fixed?">
-      <change afterPath="$PROJECT_DIR$/compose.templates/ai/embedding.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/ai/litellm.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/ai/open-webui.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/ai/vllm.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/communication/element.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/communication/mailserver.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/communication/mastodon.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/communication/ntfy.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/communication/roundcube.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/communication/synapse.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/datamancy/agent-tool-server.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/datamancy/dind.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/datamancy/pipeline.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/datamancy/search-service.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/gateway/docker-proxy.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/identity/authelia.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/identity/lam.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/identity/ldap.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/observability/cadvisor.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/observability/grafana.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/observability/node-exporter.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/observability/prometheus.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/observability/prompt-server.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/observability/watchtower.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/persistence/clickhouse.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/persistence/mariadb.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/persistence/memcached.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/persistence/postgres.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/persistence/qdrant.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/persistence/valkey.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/bookstack.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/forgejo.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/homeassistant.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/homepage.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/jupyterhub.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/kopia.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/onlyoffice.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/planka.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/qbittorrent.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/radicale.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/seafile.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compose.templates/productivity/vaultwarden.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/dependencies-accessors/dependencies-accessors.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.bin" afterDir="false" />
+    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="compose cleanup">
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/fileHashes.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.5/fileHashes/resourceHashesCache.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build-datamancy.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build-datamancy.main.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/.build-info" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/ai-services.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/applications.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/databases.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/datamancy-services.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/docker-compose.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/infrastructure.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/gateway/caddy.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/networks.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/_base/networks.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/testing.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/testing/test-runner.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/volumes.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/_base/volumes.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/datamancy/agent-tool-server.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/datamancy/agent-tool-server.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/datamancy/dind.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/productivity/jupyterhub.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/productivity/jupyterhub.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/configuration.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/applications/authelia/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/vectors/collections.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/vectors/collections.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/infrastructure/ldap/bootstrap_ldap.ldif.template" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/infrastructure/ldap/bootstrap_ldap.ldif.template" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/RssSource.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/RssSource.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/framework/TestEnvironment.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/framework/TestEnvironment.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/framework/TestRunner.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/framework/TestRunner.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/SearchServiceTests.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-runner/src/main/kotlin/org/datamancy/testrunner/suites/SearchServiceTests.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/vectors/bootstrap_vectors.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/vectors/bootstrap_vectors.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dind-debian/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dind-debian/dockerd-entrypoint.sh" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -324,14 +261,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1764971190772</updated>
-    </task>
-    <task id="LOCAL-00004" summary="fff">
-      <option name="closed" value="true" />
-      <created>1765791365804</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
-      <option name="project" value="LOCAL" />
-      <updated>1765791365804</updated>
     </task>
     <task id="LOCAL-00005" summary="fff">
       <option name="closed" value="true" />
@@ -717,7 +646,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769208266874</updated>
     </task>
-    <option name="localTasksCounter" value="53" />
+    <task id="LOCAL-00053" summary="compose cleanup">
+      <option name="closed" value="true" />
+      <created>1769295681680</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1769295681680</updated>
+    </task>
+    <option name="localTasksCounter" value="54" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -737,7 +674,8 @@
     <MESSAGE value="test writing" />
     <MESSAGE value="deploying" />
     <MESSAGE value="fixed?" />
-    <option name="LAST_COMMIT_MESSAGE" value="fixed?" />
+    <MESSAGE value="compose cleanup" />
+    <option name="LAST_COMMIT_MESSAGE" value="compose cleanup" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/Datamancy$Datamancy__build_.ic" NAME="Datamancy [build] Coverage Results" MODIFIED="1766219509283" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="idea" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="true" />

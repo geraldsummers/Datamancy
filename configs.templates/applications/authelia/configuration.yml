@@ -93,6 +93,9 @@ session:
       same_site: lax
       expiration: 8h
       inactivity: 1h
+    # NOTE: Internal Docker calls (Planka OIDC) will fail without proper domain
+    # Authelia requires domain with period or IP - "authelia" is invalid
+    # Workaround: Route all OIDC through Caddy or use IP address
   # Security: 7 days is safer than 1 month for production
   # If stolen, "remember me" cookie is only valid for 1 week
   remember_me: 7d

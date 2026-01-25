@@ -21,10 +21,14 @@ services:
         aliases:
           - jupyterhub.${DOMAIN}
     depends_on:
-      dind:
+      # dind: REMOVED - notebook spawning disabled
+      # dind:
+      #   condition: service_healthy
+      valkey:
         condition: service_healthy
     environment:
-      DOCKER_HOST: tcp://dind:2375
+      # DinD removed - JupyterHub notebook spawning disabled
+      # DOCKER_HOST: tcp://dind:2375
       DOCKER_NETWORK_NAME: datamancy-stack_litellm
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY}
