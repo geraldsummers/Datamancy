@@ -69,7 +69,7 @@ class DatabaseTestsTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         // Note: These tests will fail without real DB connections,
         // but we can verify the test structure exists

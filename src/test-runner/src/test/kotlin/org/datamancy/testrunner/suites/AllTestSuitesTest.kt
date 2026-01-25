@@ -71,7 +71,7 @@ class AllTestSuitesTest {
         val mockClient = createMockClient()
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.communicationTests()
         val summary = runner.summary()
@@ -98,7 +98,7 @@ class AllTestSuitesTest {
         val mockClient = createMockClient()
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.collaborationTests()
         val summary = runner.summary()
@@ -125,7 +125,7 @@ class AllTestSuitesTest {
         val mockClient = createMockClient()
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.productivityTests()
         val summary = runner.summary()
@@ -151,7 +151,7 @@ class AllTestSuitesTest {
         val mockClient = createMockClient()
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.fileManagementTests()
         val summary = runner.summary()
@@ -175,7 +175,7 @@ class AllTestSuitesTest {
         val mockClient = createMockClient()
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.securityTests()
         val summary = runner.summary()
@@ -201,7 +201,7 @@ class AllTestSuitesTest {
         val mockClient = createMockClient()
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.monitoringTests()
         val summary = runner.summary()
@@ -225,7 +225,7 @@ class AllTestSuitesTest {
         val mockClient = createMockClient()
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.backupTests()
         val summary = runner.summary()
@@ -255,7 +255,7 @@ class AllTestSuitesTest {
         )
 
         testCounts.forEach { (suite, expectedCount) ->
-            val runner = TestRunner(TestEnvironment.Container, serviceClient)
+            val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
             when (suite) {
                 "communication" -> runner.communicationTests()

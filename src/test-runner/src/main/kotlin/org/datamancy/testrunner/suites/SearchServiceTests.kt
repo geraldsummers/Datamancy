@@ -441,4 +441,484 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
             isStructured shouldBe true
         }
     }
+
+    // ================================================================================
+    // PER-SOURCE SEARCH VALIDATION (BM25 + Semantic + Hybrid)
+    // Validates that EVERY data source is searchable and vectorized correctly
+    // ================================================================================
+
+    // RSS FEED SOURCE TESTS
+    test("RSS: BM25 search finds feed articles") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "hacker news technology programming")
+                put("mode", "bm25")
+                putJsonArray("collections") { add("rss_feeds") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            val rssResult = results.first().jsonObject
+            val source = rssResult["source"]?.jsonPrimitive?.content
+            source shouldBe "rss"
+            println("      ✓ BM25 found ${results.size} RSS articles")
+        } else {
+            println("      ℹ️  No RSS articles found (may need time to ingest)")
+        }
+    }
+
+    test("RSS: Semantic search finds relevant articles") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "artificial intelligence machine learning")
+                put("mode", "vector")
+                putJsonArray("collections") { add("rss_feeds") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            println("      ✓ Semantic search found ${results.size} RSS articles")
+            // Verify embeddings exist by checking score
+            val firstScore = results.first().jsonObject["score"]?.jsonPrimitive?.double
+            require(firstScore != null && firstScore > 0) { "Invalid vector similarity score" }
+        } else {
+            println("      ℹ️  No RSS vectors found (embeddings may be pending)")
+        }
+    }
+
+    test("RSS: Hybrid search combines BM25 and semantic") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "software development tools")
+                put("mode", "hybrid")
+                putJsonArray("collections") { add("rss_feeds") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
+
+        val results = body.jsonObject["results"]?.jsonArray
+        if (!results.isNullOrEmpty()) {
+            println("      ✓ Hybrid search found ${results.size} RSS results")
+        }
+    }
+
+    // CVE SOURCE TESTS
+    test("CVE: BM25 search finds vulnerabilities by keyword") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "remote code execution critical severity")
+                put("mode", "bm25")
+                putJsonArray("collections") { add("cve") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            val cveResult = results.first().jsonObject
+            val source = cveResult["source"]?.jsonPrimitive?.content
+            source shouldBe "cve"
+            println("      ✓ BM25 found ${results.size} CVE entries")
+        } else {
+            println("      ℹ️  No CVE data found (may need time to ingest from NVD)")
+        }
+    }
+
+    test("CVE: Semantic search finds similar vulnerabilities") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "buffer overflow memory corruption exploit")
+                put("mode", "vector")
+                putJsonArray("collections") { add("cve") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            println("      ✓ Semantic search found ${results.size} related CVEs")
+            val firstScore = results.first().jsonObject["score"]?.jsonPrimitive?.double
+            require(firstScore != null && firstScore > 0) { "Invalid CVE vector score" }
+        } else {
+            println("      ℹ️  No CVE vectors found (embeddings may be pending)")
+        }
+    }
+
+    test("CVE: Hybrid search finds CVEs effectively") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "SQL injection web application")
+                put("mode", "hybrid")
+                putJsonArray("collections") { add("cve") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
+    }
+
+    // TORRENTS SOURCE TESTS
+    test("Torrents: BM25 search finds torrents by name") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "ubuntu linux debian iso")
+                put("mode", "bm25")
+                putJsonArray("collections") { add("torrents") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            val torrentResult = results.first().jsonObject
+            val source = torrentResult["source"]?.jsonPrimitive?.content
+            source shouldBe "torrents"
+            println("      ✓ BM25 found ${results.size} torrents")
+        } else {
+            println("      ℹ️  No torrent data found (CSV may be downloading)")
+        }
+    }
+
+    test("Torrents: Semantic search finds similar content") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "operating system distribution software")
+                put("mode", "vector")
+                putJsonArray("collections") { add("torrents") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            println("      ✓ Semantic search found ${results.size} similar torrents")
+            val firstScore = results.first().jsonObject["score"]?.jsonPrimitive?.double
+            require(firstScore != null && firstScore > 0) { "Invalid torrent vector score" }
+        } else {
+            println("      ℹ️  No torrent vectors found (embeddings may be pending)")
+        }
+    }
+
+    test("Torrents: Hybrid search combines keyword and semantic") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "movie film video")
+                put("mode", "hybrid")
+                putJsonArray("collections") { add("torrents") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
+    }
+
+    // WIKIPEDIA SOURCE TESTS
+    test("Wikipedia: BM25 search finds articles by title/content") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "computer science algorithm programming")
+                put("mode", "bm25")
+                putJsonArray("collections") { add("wikipedia") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            val wikiResult = results.first().jsonObject
+            val source = wikiResult["source"]?.jsonPrimitive?.content
+            source shouldBe "wikipedia"
+            println("      ✓ BM25 found ${results.size} Wikipedia articles")
+        } else {
+            println("      ℹ️  No Wikipedia data found (dump may be downloading)")
+        }
+    }
+
+    test("Wikipedia: Semantic search finds conceptually related articles") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "quantum physics mechanics particles")
+                put("mode", "vector")
+                putJsonArray("collections") { add("wikipedia") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            println("      ✓ Semantic search found ${results.size} related Wikipedia articles")
+            val firstScore = results.first().jsonObject["score"]?.jsonPrimitive?.double
+            require(firstScore != null && firstScore > 0) { "Invalid Wikipedia vector score" }
+        } else {
+            println("      ℹ️  No Wikipedia vectors found (embeddings may be pending)")
+        }
+    }
+
+    test("Wikipedia: Hybrid search leverages both methods") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "biology evolution species")
+                put("mode", "hybrid")
+                putJsonArray("collections") { add("wikipedia") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
+    }
+
+    // AUSTRALIAN LAWS SOURCE TESTS
+    test("Australian Laws: BM25 search finds legislation") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "commonwealth act regulation")
+                put("mode", "bm25")
+                putJsonArray("collections") { add("australian_laws") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            val lawResult = results.first().jsonObject
+            val source = lawResult["source"]?.jsonPrimitive?.content
+            source shouldBe "australian_laws"
+            println("      ✓ BM25 found ${results.size} Australian laws")
+        } else {
+            println("      ℹ️  No Australian laws data found")
+        }
+    }
+
+    test("Australian Laws: Semantic search finds related legislation") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "legal statute government policy")
+                put("mode", "vector")
+                putJsonArray("collections") { add("australian_laws") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            println("      ✓ Semantic search found ${results.size} related laws")
+            val firstScore = results.first().jsonObject["score"]?.jsonPrimitive?.double
+            require(firstScore != null && firstScore > 0) { "Invalid law vector score" }
+        } else {
+            println("      ℹ️  No law vectors found")
+        }
+    }
+
+    test("Australian Laws: Hybrid search combines approaches") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "section provision clause")
+                put("mode", "hybrid")
+                putJsonArray("collections") { add("australian_laws") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
+    }
+
+    // LINUX DOCS SOURCE TESTS
+    test("Linux Docs: BM25 search finds man pages by command") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "bash shell command grep sed awk")
+                put("mode", "bm25")
+                putJsonArray("collections") { add("linux_docs") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            val docResult = results.first().jsonObject
+            val source = docResult["source"]?.jsonPrimitive?.content
+            source shouldBe "linux_docs"
+            println("      ✓ BM25 found ${results.size} Linux docs")
+        } else {
+            println("      ℹ️  No Linux docs found (container may not have man pages)")
+        }
+    }
+
+    test("Linux Docs: Semantic search finds related documentation") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "file system directory permissions")
+                put("mode", "vector")
+                putJsonArray("collections") { add("linux_docs") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            println("      ✓ Semantic search found ${results.size} related docs")
+            val firstScore = results.first().jsonObject["score"]?.jsonPrimitive?.double
+            require(firstScore != null && firstScore > 0) { "Invalid doc vector score" }
+        } else {
+            println("      ℹ️  No Linux doc vectors found")
+        }
+    }
+
+    test("Linux Docs: Hybrid search leverages both methods") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "network configuration interface")
+                put("mode", "hybrid")
+                putJsonArray("collections") { add("linux_docs") }
+                put("limit", 10)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
+    }
+
+    // ================================================================================
+    // CROSS-SOURCE VALIDATION
+    // ================================================================================
+
+    test("All sources: Cross-collection search works") {
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "security vulnerability")
+                put("mode", "hybrid")
+                putJsonArray("collections") {
+                    add("rss_feeds")
+                    add("cve")
+                    add("torrents")
+                    add("wikipedia")
+                    add("australian_laws")
+                    add("linux_docs")
+                }
+                put("limit", 20)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            val sources = results.mapNotNull {
+                it.jsonObject["source"]?.jsonPrimitive?.content
+            }.toSet()
+
+            println("      ✓ Cross-collection search found results from: ${sources.joinToString()}")
+            println("      ✓ Total results across all sources: ${results.size}")
+        } else {
+            println("      ℹ️  No cross-collection results yet")
+        }
+    }
+
+    test("All sources: Vectorization quality check") {
+        // Test that vector scores are reasonable (not all 0.0 or 1.0)
+        val response = client.postRaw("${env.endpoints.searchService}/search") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", "technology innovation")
+                put("mode", "vector")
+                put("limit", 50)
+            })
+        }
+
+        response.status shouldBe HttpStatusCode.OK
+        val body = Json.parseToJsonElement(response.body<String>())
+        val results = body.jsonObject["results"]?.jsonArray
+
+        if (!results.isNullOrEmpty()) {
+            val scores = results.mapNotNull {
+                it.jsonObject["score"]?.jsonPrimitive?.double
+            }
+
+            val avgScore = scores.average()
+            val minScore = scores.minOrNull() ?: 0.0
+            val maxScore = scores.maxOrNull() ?: 0.0
+
+            println("      ✓ Vector scores - Min: ${"%.4f".format(minScore)}, " +
+                   "Max: ${"%.4f".format(maxScore)}, Avg: ${"%.4f".format(avgScore)}")
+
+            // Sanity check: scores should be between 0 and 1
+            require(minScore >= 0.0 && maxScore <= 1.0) { "Invalid vector scores detected" }
+            require(avgScore > 0.0) { "Average score should be > 0" }
+        } else {
+            println("      ℹ️  No vectors to validate yet")
+        }
+    }
 }

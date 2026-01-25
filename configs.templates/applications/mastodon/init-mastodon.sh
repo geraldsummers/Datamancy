@@ -38,5 +38,42 @@ else
     echo "[mastodon-init] WARNING: Search indices update failed (non-fatal)"
 fi
 
+# Setup default follows (IDEMPOTENT - follows are only created if they don't exist)
+echo "[mastodon-init] Setting up default follows..."
+ADMIN_USERNAME="${MASTODON_ADMIN_USERNAME:-admin}"  # Override via environment variable
+
+DEFAULT_FOLLOWS=(
+    "wikimediafoundation@wikimedia.social"
+    "internetarchive@mastodon.archive.org"
+    "creativecommons@mastodon.social"
+    "openstreetmap@en.osm.town"
+    "ProPublica@newsie.social"
+    "edyong209@mastodon.xyz"
+    "marynmck@mastodon.social"
+    "briankrebs@infosec.exchange"
+    "NASA@mstdn.social"
+    "ourworldindata@mas.to"
+    "AdamMGrant@mastodon.social"
+    "calnewport@mastodon.social"
+    "b0rk@jvns.ca"
+    "simon@fedi.simonwillison.net"
+    "prusaresearch@mastodon.social"
+    "VoronDesign@fosstodon.org"
+    "natgeo@mastodon.social"
+    "philosophybites@mastodon.social"
+    "tomscott@mastodon.social"
+    "standupmaths@mastodon.social"
+    "financialtimes@mastodon.social"
+)
+
+for account in "${DEFAULT_FOLLOWS[@]}"; do
+    echo "[mastodon-init] Making $ADMIN_USERNAME follow $account..."
+    if docker exec mastodon-web bundle exec tootctl accounts follow "$ADMIN_USERNAME" "$account" 2>&1; then
+        echo "[mastodon-init] Successfully following $account"
+    else
+        echo "[mastodon-init] WARNING: Could not follow $account (account may not exist yet)"
+    fi
+done
+
 echo "[mastodon-init] Mastodon initialization complete."
 exit 0

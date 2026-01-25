@@ -8,7 +8,7 @@ import org.datamancy.testrunner.framework.*
 suspend fun TestRunner.infrastructureTests() = suite("Infrastructure Tests") {
 
     // ================================================================================
-    // AUTHELIA - SSO/OIDC Gateway (5 tests)
+    // AUTHELIA - SSO/OIDC Gateway (6 tests)
     // ================================================================================
 
     test("Authelia SSO endpoint is accessible") {

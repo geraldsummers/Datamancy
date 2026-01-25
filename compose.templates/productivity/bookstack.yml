@@ -27,8 +27,8 @@ services:
       APP_KEY: ${BOOKSTACK_APP_KEY}
       DB_HOST: mariadb
       DB_PORT: 3306
-      DB_USER: bookstack
-      DB_PASS: ${BOOKSTACK_DB_PASSWORD}
+      DB_USERNAME: bookstack
+      DB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}
       DB_DATABASE: bookstack
       # Using Caddy forward_auth with Authelia (not OIDC)
     volumes:

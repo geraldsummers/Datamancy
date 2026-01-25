@@ -99,13 +99,11 @@ private fun createHttpClient(verbose: Boolean) = HttpClient(CIO) {
 private suspend fun runTestSuite(runner: TestRunner, suite: String) {
     when (suite) {
         "foundation" -> runner.foundationTests()
-        "docker" -> runner.dockerTests()
         "llm" -> runner.llmTests()
         "knowledge-base" -> runner.knowledgeBaseTests()
         "data-pipeline" -> runner.dataPipelineTests()
         "microservices" -> runner.microserviceTests()
         "search-service" -> runner.searchServiceTests()
-        "e2e" -> runner.e2eTests()
         // New HIGH priority suites
         "infrastructure" -> runner.infrastructureTests()
         "databases" -> runner.databaseTests()
@@ -120,7 +118,6 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "backup" -> runner.backupTests()
         "all" -> {
             runner.foundationTests()
-            runner.dockerTests()
             runner.llmTests()
             runner.knowledgeBaseTests()
             runner.dataPipelineTests()
@@ -136,13 +133,12 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.securityTests()
             runner.monitoringTests()
             runner.backupTests()
-            runner.e2eTests()
         }
         else -> {
             println("❌ Unknown suite: $suite")
-            println("Available suites: foundation, docker, llm, knowledge-base, data-pipeline, microservices,")
+            println("Available suites: foundation, llm, knowledge-base, data-pipeline, microservices,")
             println("                  search-service, infrastructure, databases, user-interface, communication,")
-            println("                  collaboration, productivity, file-management, security, monitoring, backup, e2e, all")
+            println("                  collaboration, productivity, file-management, security, monitoring, backup, all")
             exitProcess(1)
         }
     }
@@ -210,9 +206,11 @@ private fun printUsage() {
                              Values: container, internal, localhost, local
 
       --suite <suite>        Test suite to run (default: all)
-                             Values: foundation, docker, llm, knowledge-base,
+                             Values: foundation, llm, knowledge-base,
                                      data-pipeline, microservices, search-service,
-                                     e2e, all
+                                     infrastructure, databases, user-interface,
+                                     communication, collaboration, productivity,
+                                     file-management, security, monitoring, backup, all
 
       --verbose, -v          Enable verbose logging
       --help, -h             Show this help message
@@ -220,7 +218,7 @@ private fun printUsage() {
     Examples:
       test-runner                              # Auto-detect env, run all tests
       test-runner --env container --suite foundation
-      test-runner --suite docker --verbose
+      test-runner --suite llm --verbose
       test-runner --env localhost --suite all
 
     Environment Detection:

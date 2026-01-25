@@ -163,6 +163,20 @@ class SearchGateway(
     private fun searchClickHouse(collection: String, query: String, limit: Int): List<SearchResult> {
         val tableName = collection.replace("-", "_")
         val escapedQuery = query.replace("'", "''")
+        val jdbcUrl = "jdbc:clickhouse://${clickhouseUrl.removePrefix("http://").removePrefix("https://")}/default"
+
+        // Check if table exists first
+        val tableExists = DriverManager.getConnection(jdbcUrl, clickhouseUser, clickhousePassword).use { conn ->
+            conn.createStatement().use { stmt ->
+                val rs = stmt.executeQuery("EXISTS TABLE default.$tableName")
+                rs.next() && rs.getInt(1) == 1
+            }
+        }
+
+        if (!tableExists) {
+            logger.debug { "ClickHouse table default.$tableName does not exist, skipping BM25 search" }
+            return emptyList()
+        }
 
         // Simple full-text search using LIKE (could be improved with ClickHouse's full-text functions)
         val sql = """
@@ -180,7 +194,6 @@ class SearchGateway(
         """.trimIndent()
 
         val results = mutableListOf<SearchResult>()
-        val jdbcUrl = "jdbc:clickhouse://${clickhouseUrl.removePrefix("http://").removePrefix("https://")}/default"
 
         DriverManager.getConnection(jdbcUrl, clickhouseUser, clickhousePassword).use { conn ->
             conn.createStatement().use { stmt ->

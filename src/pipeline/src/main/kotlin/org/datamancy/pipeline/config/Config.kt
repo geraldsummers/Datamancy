@@ -19,7 +19,8 @@ data class PipelineConfig(
     val linuxDocs: LinuxDocsConfig = LinuxDocsConfig(),
     val embedding: EmbeddingConfig = EmbeddingConfig(),
     val qdrant: QdrantConfig = QdrantConfig(),
-    val clickhouse: ClickHouseConfig = ClickHouseConfig()
+    val clickhouse: ClickHouseConfig = ClickHouseConfig(),
+    val bookstack: BookStackConfig = BookStackConfig()
 ) {
     companion object {
         fun load(path: String = "/app/config/pipeline.yaml"): PipelineConfig {
@@ -94,6 +95,12 @@ data class PipelineConfig(
                 ),
                 clickhouse = ClickHouseConfig(
                     url = System.getenv("CLICKHOUSE_URL") ?: "http://clickhouse:8123"
+                ),
+                bookstack = BookStackConfig(
+                    enabled = System.getenv("BOOKSTACK_ENABLED")?.toBoolean() ?: false,
+                    url = System.getenv("BOOKSTACK_URL") ?: "http://bookstack:80",
+                    tokenId = System.getenv("BOOKSTACK_TOKEN_ID") ?: "",
+                    tokenSecret = System.getenv("BOOKSTACK_TOKEN_SECRET") ?: ""
                 )
             )
         }
@@ -190,4 +197,12 @@ data class LinuxDocsConfig(
     val sources: List<String> = listOf("MAN_PAGES"),  // MAN_PAGES, DEBIAN_DOCS, KERNEL_DOCS
     val scheduleMinutes: Int = 10080,  // Weekly by default
     val maxDocs: Int = Int.MAX_VALUE
+)
+
+@Serializable
+data class BookStackConfig(
+    val enabled: Boolean = false,
+    val url: String = "http://bookstack:80",
+    val tokenId: String = "",
+    val tokenSecret: String = ""
 )

@@ -16,6 +16,7 @@ services:
     environment:
       HF_HUB_ENABLE_HF_TRANSFER: 0
       MODEL_ID: BAAI/bge-base-en-v1.5
+      RUST_LOG: warn  # Only show warnings and errors, not INFO spam
     command: --port 8080
     deploy:
       resources:

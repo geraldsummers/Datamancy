@@ -63,6 +63,7 @@ fun Application.configureServer(gateway: SearchGateway) {
             prettyPrint = true
             isLenient = true
             ignoreUnknownKeys = true
+            encodeDefaults = true
         })
     }
 

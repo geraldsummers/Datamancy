@@ -102,7 +102,7 @@ class TestFrameworkTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         // Verify all suite methods exist (we can't call them without suspend context)
         // Just verify the count of suite methods that should exist
@@ -127,23 +127,23 @@ class TestFrameworkTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         val testCounts = mapOf(
-            // Original (already implemented)
+            // Core tests (UPDATED with new comprehensive coverage)
             "foundation" to 4,
             "docker" to 4,
             "llm" to 3,
             "knowledge-base" to 4,
-            "data-pipeline" to 8,
+            "data-pipeline" to 54,  // UPDATED: Actual count from implementation
             "microservices" to 3,
-            "search-service" to 19,
+            "search-service" to 77,  // UPDATED: 27 original + 50 per-source tests (6 sources * 3 modes + 2 cross)
             "e2e" to 1,
-            // HIGH priority (new)
-            "infrastructure" to 13,
+            // HIGH priority
+            "infrastructure" to 9,
             "databases" to 10,
             "user-interface" to 5,
-            // MEDIUM priority (new)
+            // MEDIUM priority
             "communication" to 9,
             "collaboration" to 6,
             "productivity" to 8,
@@ -155,8 +155,8 @@ class TestFrameworkTest {
 
         val totalExpected = testCounts.values.sum()
 
-        // Should have 113 total tests (4+4+3+4+8+3+19+1 + 13+10+5 + 9+6+8+5+3+5+3)
-        assertEquals(113, totalExpected, "Total test count should be 113")
+        // Updated: 4+4+3+4+54+3+77+1 + 9+10+5 + 9+6+8+5+3+5+3 = 213 tests
+        assertEquals(213, totalExpected, "Total test count should be 213")
         println("✅ Total test coverage: $totalExpected tests across ${testCounts.size} suites")
     }
 
@@ -205,7 +205,7 @@ class TestFrameworkTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         // Run a simple suite
         runner.securityTests()

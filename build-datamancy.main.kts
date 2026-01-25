@@ -628,6 +628,9 @@ fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: S
     env["DOCKER_GROUP_ID"] = "1000"
     env["DOCKER_SOCKET"] = "/var/run/docker.sock"
 
+    // AI/ML Configuration
+    env["VECTOR_EMBED_SIZE"] = "768"  // BAAI/bge-base-en-v1.5 embedding dimension
+
     // Secrets - provided
     env["STACK_ADMIN_PASSWORD"] = adminPassword
     env["LDAP_ADMIN_PASSWORD"] = ldapAdminPassword
@@ -654,12 +657,14 @@ fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: S
 
         val pathKeys = listOf("VOLUMES_ROOT", "DEPLOYMENT_ROOT", "VECTOR_DB_ROOT", "QBITTORRENT_DATA_ROOT", "SEAFILE_MEDIA_ROOT")
         val adminKeys = listOf("DOMAIN", "MAIL_DOMAIN", "LDAP_DOMAIN", "LDAP_BASE_DN", "STACK_ADMIN_EMAIL", "STACK_ADMIN_USER", "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET")
+        val aiConfigKeys = listOf("VECTOR_EMBED_SIZE")
         val configKeys = listOf("API_LITELLM_ALLOWLIST")
-        val nonSecretKeys = pathKeys + adminKeys + configKeys
+        val nonSecretKeys = pathKeys + adminKeys + aiConfigKeys + configKeys
 
         val sections = listOf(
             "Paths" to pathKeys,
             "Domain and Admin" to adminKeys,
+            "AI/ML Configuration" to aiConfigKeys,
             "Secrets" to env.keys.filter { it !in nonSecretKeys }.sorted(),
             "Configuration" to configKeys
         )

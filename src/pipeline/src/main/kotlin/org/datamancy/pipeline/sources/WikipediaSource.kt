@@ -3,12 +3,15 @@ package org.datamancy.pipeline.sources
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.datamancy.pipeline.core.Source
 import java.io.BufferedReader
 import java.io.File
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.net.URL
 import java.util.zip.GZIPInputStream
+import java.util.concurrent.atomic.AtomicLong
 import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamReader
 
@@ -30,6 +33,10 @@ class WikipediaSource(
 ) : Source<WikipediaArticle> {
     override val name = "WikipediaSource"
 
+    // Track IO stats (bytes read from disk/network)
+    private val bytesRead = AtomicLong(0)
+    private val articlesProcessed = AtomicLong(0)
+
     override suspend fun fetch(): Flow<WikipediaArticle> = flow {
         logger.info { "Starting Wikipedia fetch from $dumpPath (max: $maxArticles articles)" }
 
@@ -40,13 +47,13 @@ class WikipediaSource(
                 dumpPath.startsWith("http://") || dumpPath.startsWith("https://") -> {
                     logger.info { "Fetching Wikipedia dump from URL: $dumpPath" }
                     val connection = URL(dumpPath).openConnection()
+                    connection.setRequestProperty("User-Agent", "Datamancy/1.0 (Educational Research)")
                     val inputStream = connection.getInputStream()
 
-                    val stream = when {
+                    val stream: InputStream = when {
                         dumpPath.endsWith(".bz2") -> {
-                            // BZip2 requires external library - not included for now
-                            logger.error { "BZip2 decompression not implemented. Use .gz or uncompressed XML" }
-                            return@flow
+                            logger.info { "Decompressing BZip2 stream..." }
+                            BZip2CompressorInputStream(inputStream)
                         }
                         dumpPath.endsWith(".gz") -> GZIPInputStream(inputStream)
                         else -> inputStream
@@ -63,10 +70,10 @@ class WikipediaSource(
                     }
 
                     val inputStream = file.inputStream()
-                    val stream = when {
+                    val stream: InputStream = when {
                         dumpPath.endsWith(".bz2") -> {
-                            logger.error { "BZip2 decompression not implemented. Use .gz or uncompressed XML" }
-                            return@flow
+                            logger.info { "Decompressing BZip2 file..." }
+                            BZip2CompressorInputStream(inputStream)
                         }
                         dumpPath.endsWith(".gz") -> GZIPInputStream(inputStream)
                         else -> inputStream
@@ -102,7 +109,11 @@ class WikipediaSource(
                             when {
                                 inTitle -> currentTitle = xmlReader.text
                                 inId -> currentId = xmlReader.text
-                                inText -> currentText += xmlReader.text
+                                inText -> {
+                                    val text = xmlReader.text
+                                    currentText += text
+                                    bytesRead.addAndGet(text.length.toLong())
+                                }
                             }
                         }
                         XMLStreamReader.END_ELEMENT -> {
@@ -153,6 +164,7 @@ class WikipediaSource(
                                             }
 
                                             articleCount++
+                                            articlesProcessed.incrementAndGet()
 
                                             if (articleCount % 1000 == 0) {
                                                 logger.info { "Processed $articleCount articles" }
@@ -209,6 +221,35 @@ class WikipediaSource(
         cleaned = cleaned.trim()
 
         return cleaned
+    }
+
+    fun getIOStats(): WikipediaIOStats {
+        return WikipediaIOStats(
+            bytesRead = bytesRead.get(),
+            articlesProcessed = articlesProcessed.get()
+        )
+    }
+
+    fun resetStats() {
+        bytesRead.set(0)
+        articlesProcessed.set(0)
+    }
+}
+
+data class WikipediaIOStats(
+    val bytesRead: Long,
+    val articlesProcessed: Long
+) {
+    fun formatBytes(): String {
+        val kb = bytesRead / 1024.0
+        val mb = kb / 1024.0
+        val gb = mb / 1024.0
+        return when {
+            gb >= 1.0 -> "%.2f GB".format(gb)
+            mb >= 1.0 -> "%.2f MB".format(mb)
+            kb >= 1.0 -> "%.2f KB".format(kb)
+            else -> "$bytesRead bytes"
+        }
     }
 }
 

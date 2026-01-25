@@ -48,7 +48,7 @@ class InfrastructureTestsTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         var testPassed = false
         runner.infrastructureTests()
@@ -66,7 +66,7 @@ class InfrastructureTestsTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.infrastructureTests()
         val summary = runner.summary()
@@ -95,7 +95,7 @@ class InfrastructureTestsTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.infrastructureTests()
         val summary = runner.summary()
@@ -125,13 +125,13 @@ class InfrastructureTestsTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.infrastructureTests()
         val summary = runner.summary()
 
-        // Should run 13 tests (5 Caddy + 5 Authelia + 3 LDAP)
-        assertEquals(13, summary.total, "Should run exactly 13 infrastructure tests")
+        // Should run 9 tests (6 Authelia + 3 LDAP)
+        assertEquals(9, summary.total, "Should run exactly 9 infrastructure tests")
     }
 
     @Test
@@ -142,7 +142,7 @@ class InfrastructureTestsTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.infrastructureTests()
         val summary = runner.summary()
@@ -161,7 +161,7 @@ class InfrastructureTestsTest {
 
             val endpoints = ServiceEndpoints.fromEnvironment()
             val serviceClient = ServiceClient(endpoints, mockClient)
-            val runner = TestRunner(TestEnvironment.Container, serviceClient)
+            val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
             runner.infrastructureTests()
             val summary = runner.summary()

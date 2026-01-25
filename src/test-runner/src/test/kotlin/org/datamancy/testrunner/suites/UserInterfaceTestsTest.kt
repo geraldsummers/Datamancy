@@ -54,7 +54,7 @@ class UserInterfaceTestsTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.userInterfaceTests()
         val summary = runner.summary()
@@ -73,7 +73,7 @@ class UserInterfaceTestsTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.userInterfaceTests()
         val summary = runner.summary()
@@ -101,7 +101,7 @@ class UserInterfaceTestsTest {
 
         val endpoints = ServiceEndpoints.fromEnvironment()
         val serviceClient = ServiceClient(endpoints, mockClient)
-        val runner = TestRunner(TestEnvironment.Container, serviceClient)
+        val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
         runner.userInterfaceTests()
         val summary = runner.summary()

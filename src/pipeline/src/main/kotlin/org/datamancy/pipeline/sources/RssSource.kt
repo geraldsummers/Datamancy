@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.datamancy.pipeline.core.Source
 import java.net.URL
+import java.util.concurrent.atomic.AtomicLong
 
 private val logger = KotlinLogging.logger {}
 
@@ -18,6 +19,10 @@ class RssSource(
 ) : Source<RssArticle> {
     override val name = "RssSource"
 
+    // Track internet IO
+    private val bytesDownloaded = AtomicLong(0)
+    private val feedsFetched = AtomicLong(0)
+
     override suspend fun fetch(): Flow<RssArticle> = flow {
         feedUrls.forEach { feedUrl ->
             try {
@@ -26,6 +31,9 @@ class RssSource(
 
                 // Sanitize XML to handle malformed DOCTYPE declarations (e.g., arXiv feeds)
                 val content = URL(feedUrl).readText()
+                bytesDownloaded.addAndGet(content.length.toLong())
+                feedsFetched.incrementAndGet()
+
                 val sanitized = content.replace(Regex("<!DOCTYPE[^>]*>"), "").trim()
                 val feed = feedInput.build(java.io.StringReader(sanitized))
 
@@ -49,6 +57,33 @@ class RssSource(
             } catch (e: Exception) {
                 logger.error(e) { "Failed to fetch RSS feed $feedUrl: ${e.message}" }
             }
+        }
+    }
+
+    fun getIOStats(): IOStats {
+        return IOStats(
+            bytesDownloaded = bytesDownloaded.get(),
+            feedsFetched = feedsFetched.get()
+        )
+    }
+
+    fun resetStats() {
+        bytesDownloaded.set(0)
+        feedsFetched.set(0)
+    }
+}
+
+data class IOStats(
+    val bytesDownloaded: Long,
+    val feedsFetched: Long
+) {
+    fun formatBytes(): String {
+        val kb = bytesDownloaded / 1024.0
+        val mb = kb / 1024.0
+        return when {
+            mb >= 1.0 -> "%.2f MB".format(mb)
+            kb >= 1.0 -> "%.2f KB".format(kb)
+            else -> "$bytesDownloaded bytes"
         }
     }
 }

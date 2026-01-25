@@ -9,6 +9,8 @@ import org.datamancy.pipeline.processors.Embedder
 import org.datamancy.pipeline.processors.RssToText
 import org.datamancy.pipeline.sinks.QdrantSink
 import org.datamancy.pipeline.sinks.VectorDocument
+import org.datamancy.pipeline.sinks.BookStackSink
+import org.datamancy.pipeline.sinks.BookStackDocument
 import org.datamancy.pipeline.sources.RssArticle
 import org.datamancy.pipeline.sources.RssSource
 import org.datamancy.pipeline.sources.CveEntry
@@ -75,11 +77,20 @@ suspend fun runRssPipeline(
     // Initialize components
     val source = RssSource(config.rss.feedUrls)
     val embedder = Embedder(config.embedding.serviceUrl)
-    val sink = QdrantSink(
+    val qdrantSink = QdrantSink(
         qdrantUrl = config.qdrant.url,
         collectionName = config.qdrant.rssCollection,
         vectorSize = config.embedding.vectorSize
     )
+
+    // BookStack sink (optional - only if configured)
+    val bookstackSink = if (config.bookstack.enabled) {
+        BookStackSink(
+            bookstackUrl = config.bookstack.url,
+            tokenId = config.bookstack.tokenId,
+            tokenSecret = config.bookstack.tokenSecret
+        )
+    } else null
 
     // Schedule periodic runs
     while (true) {
@@ -110,8 +121,8 @@ suspend fun runRssPipeline(
                         // Generate embedding
                         val vector = embedder.process(text)
 
-                        // Create vector document
-                        val doc = VectorDocument(
+                        // Create vector document for Qdrant
+                        val qdrantDoc = VectorDocument(
                             id = article.guid,
                             vector = vector,
                             metadata = mapOf(
@@ -127,8 +138,26 @@ suspend fun runRssPipeline(
                             )
                         )
 
+                        // Create BookStack document (if sink enabled)
+                        val bookstackDoc = if (bookstackSink != null) {
+                            BookStackDocument(
+                                bookName = "RSS Feeds",
+                                bookDescription = "Articles from RSS feed aggregation",
+                                chapterName = article.feedTitle,
+                                chapterDescription = article.feedUrl,
+                                pageTitle = article.title,
+                                pageContent = buildRssArticleHtml(article),
+                                tags = mapOf(
+                                    "source" to "rss",
+                                    "feed" to article.feedTitle,
+                                    "published" to article.publishedDate,
+                                    "author" to article.author
+                                )
+                            )
+                        } else null
+
                         processed++
-                        doc
+                        Pair(qdrantDoc, bookstackDoc)
                     } catch (e: Exception) {
                         failed++
                         logger.error(e) { "Failed to process article: ${e.message}" }
@@ -136,9 +165,18 @@ suspend fun runRssPipeline(
                     }
                 }
                 .filterNotNull()
-                .collect { doc ->
+                .collect { (qdrantDoc, bookstackDoc) ->
                     try {
-                        sink.write(doc)
+                        qdrantSink.write(qdrantDoc)
+
+                        // Write to BookStack if enabled
+                        if (bookstackDoc != null && bookstackSink != null) {
+                            try {
+                                bookstackSink.write(bookstackDoc)
+                            } catch (e: Exception) {
+                                logger.warn(e) { "Failed to write to BookStack: ${e.message}" }
+                            }
+                        }
                     } catch (e: Exception) {
                         failed++
                         logger.error(e) { "Failed to write to Qdrant: ${e.message}" }
@@ -146,13 +184,18 @@ suspend fun runRssPipeline(
                 }
 
             val duration = System.currentTimeMillis() - startTime
+            val ioStats = source.getIOStats()
+            val embedStats = embedder.getStats()
             logger.info {
-                "=== RSS cycle complete: $processed processed, $failed failed, $deduplicated skipped (duplicates) in ${duration}ms ==="
+                "=== RSS cycle complete: $processed processed, $failed failed, $deduplicated skipped (duplicates) in ${duration}ms | " +
+                "Internet: ${ioStats.formatBytes()} from ${ioStats.feedsFetched} feeds | " +
+                "Embeddings: ${embedStats.totalRequests} requests, avg ${embedStats.averageLatencyMs}ms ==="
             }
 
             // Update metadata
             metadataStore.recordSuccess("rss", processed.toLong(), failed.toLong())
             dedupStore.flush()
+            source.resetStats()
 
             // Wait before next cycle
             val delayMinutes = config.rss.scheduleMinutes
@@ -185,11 +228,20 @@ suspend fun runCvePipeline(
 
     // Initialize components
     val embedder = Embedder(config.embedding.serviceUrl)
-    val sink = QdrantSink(
+    val qdrantSink = QdrantSink(
         qdrantUrl = config.qdrant.url,
         collectionName = config.qdrant.cveCollection,
         vectorSize = config.embedding.vectorSize
     )
+
+    // BookStack sink (optional - only if configured)
+    val bookstackSink = if (config.bookstack.enabled) {
+        BookStackSink(
+            bookstackUrl = config.bookstack.url,
+            tokenId = config.bookstack.tokenId,
+            tokenSecret = config.bookstack.tokenSecret
+        )
+    } else null
 
     // Schedule periodic runs
     while (true) {
@@ -229,8 +281,8 @@ suspend fun runCvePipeline(
                         // Generate embedding
                         val vector = embedder.process(text)
 
-                        // Create vector document
-                        val doc = VectorDocument(
+                        // Create vector document for Qdrant
+                        val qdrantDoc = VectorDocument(
                             id = cve.cveId,
                             vector = vector,
                             metadata = mapOf(
@@ -245,8 +297,26 @@ suspend fun runCvePipeline(
                             )
                         )
 
+                        // Create BookStack document (if sink enabled)
+                        val bookstackDoc = if (bookstackSink != null) {
+                            BookStackDocument(
+                                bookName = "Security Vulnerabilities",
+                                bookDescription = "CVE security vulnerability database",
+                                chapterName = cve.severity,
+                                chapterDescription = "CVEs with ${cve.severity} severity",
+                                pageTitle = cve.cveId,
+                                pageContent = buildCveHtml(cve),
+                                tags = mapOf(
+                                    "source" to "cve",
+                                    "severity" to cve.severity,
+                                    "published" to cve.publishedDate,
+                                    "baseScore" to (cve.baseScore?.toString() ?: "N/A")
+                                )
+                            )
+                        } else null
+
                         processed++
-                        doc
+                        Pair(qdrantDoc, bookstackDoc)
                     } catch (e: Exception) {
                         failed++
                         logger.error(e) { "Failed to process CVE: ${e.message}" }
@@ -254,9 +324,18 @@ suspend fun runCvePipeline(
                     }
                 }
                 .filterNotNull()
-                .collect { doc ->
+                .collect { (qdrantDoc, bookstackDoc) ->
                     try {
-                        sink.write(doc)
+                        qdrantSink.write(qdrantDoc)
+
+                        // Write to BookStack if enabled
+                        if (bookstackDoc != null && bookstackSink != null) {
+                            try {
+                                bookstackSink.write(bookstackDoc)
+                            } catch (e: Exception) {
+                                logger.warn(e) { "Failed to write to BookStack: ${e.message}" }
+                            }
+                        }
                     } catch (e: Exception) {
                         failed++
                         logger.error(e) { "Failed to write to Qdrant: ${e.message}" }
@@ -437,11 +516,20 @@ suspend fun runWikipediaPipeline(
 
     // Initialize components
     val embedder = Embedder(config.embedding.serviceUrl)
-    val sink = QdrantSink(
+    val qdrantSink = QdrantSink(
         qdrantUrl = config.qdrant.url,
         collectionName = config.qdrant.wikipediaCollection,
         vectorSize = config.embedding.vectorSize
     )
+
+    // BookStack sink (optional - only if configured)
+    val bookstackSink = if (config.bookstack.enabled) {
+        BookStackSink(
+            bookstackUrl = config.bookstack.url,
+            tokenId = config.bookstack.tokenId,
+            tokenSecret = config.bookstack.tokenSecret
+        )
+    } else null
 
     // Schedule periodic runs
     while (true) {
@@ -482,8 +570,8 @@ suspend fun runWikipediaPipeline(
                         // Generate embedding
                         val vector = embedder.process(text)
 
-                        // Create vector document
-                        val doc = VectorDocument(
+                        // Create vector document for Qdrant
+                        val qdrantDoc = VectorDocument(
                             id = "${article.title.hashCode()}_${article.chunkIndex}",
                             vector = vector,
                             metadata = mapOf(
@@ -496,11 +584,30 @@ suspend fun runWikipediaPipeline(
                             )
                         )
 
+                        // Create BookStack document (if sink enabled)
+                        val bookstackDoc = if (bookstackSink != null) {
+                            val firstLetter = article.title.firstOrNull()?.uppercaseChar()?.toString() ?: "#"
+                            BookStackDocument(
+                                bookName = "Wikipedia",
+                                bookDescription = "Wikipedia articles and knowledge",
+                                chapterName = firstLetter,
+                                chapterDescription = "Articles starting with $firstLetter",
+                                pageTitle = article.title + if (article.isChunk) " (Part ${article.chunkIndex + 1})" else "",
+                                pageContent = buildWikipediaHtml(article),
+                                tags = mapOf(
+                                    "source" to "wikipedia",
+                                    "title" to article.title,
+                                    "isChunk" to article.isChunk.toString(),
+                                    "chunkIndex" to article.chunkIndex.toString()
+                                )
+                            )
+                        } else null
+
                         processed++
                         if (processed % 100 == 0) {
                             logger.info { "Processed $processed Wikipedia articles (chunks)" }
                         }
-                        doc
+                        Pair(qdrantDoc, bookstackDoc)
                     } catch (e: Exception) {
                         failed++
                         if (failed % 100 == 0) {
@@ -510,9 +617,18 @@ suspend fun runWikipediaPipeline(
                     }
                 }
                 .filterNotNull()
-                .collect { doc ->
+                .collect { (qdrantDoc, bookstackDoc) ->
                     try {
-                        sink.write(doc)
+                        qdrantSink.write(qdrantDoc)
+
+                        // Write to BookStack if enabled
+                        if (bookstackDoc != null && bookstackSink != null) {
+                            try {
+                                bookstackSink.write(bookstackDoc)
+                            } catch (e: Exception) {
+                                logger.warn(e) { "Failed to write to BookStack: ${e.message}" }
+                            }
+                        }
                     } catch (e: Exception) {
                         failed++
                         logger.error(e) { "Failed to write to Qdrant: ${e.message}" }
@@ -520,8 +636,12 @@ suspend fun runWikipediaPipeline(
                 }
 
             val duration = System.currentTimeMillis() - startTime
+            val ioStats = source.getIOStats()
+            val embedStats = embedder.getStats()
             logger.info {
-                "=== Wikipedia cycle complete: $processed processed, $failed failed, $deduplicated skipped (duplicates) in ${duration}ms ==="
+                "=== Wikipedia cycle complete: $processed processed, $failed failed, $deduplicated skipped (duplicates) in ${duration}ms | " +
+                "Disk IO: ${ioStats.formatBytes()} read from ${ioStats.articlesProcessed} articles | " +
+                "Embeddings: ${embedStats.totalRequests} requests, avg ${embedStats.averageLatencyMs}ms ==="
             }
 
             // Update metadata
@@ -531,6 +651,7 @@ suspend fun runWikipediaPipeline(
                 failed.toLong()
             )
             dedupStore.flush()
+            source.resetStats()
 
             // Wait before next cycle
             val delayMinutes = config.wikipedia.scheduleMinutes
@@ -563,11 +684,20 @@ suspend fun runAustralianLawsPipeline(
 
     // Initialize components
     val embedder = Embedder(config.embedding.serviceUrl)
-    val sink = QdrantSink(
+    val qdrantSink = QdrantSink(
         qdrantUrl = config.qdrant.url,
         collectionName = config.qdrant.australianLawsCollection,
         vectorSize = config.embedding.vectorSize
     )
+
+    // BookStack sink (optional - only if configured)
+    val bookstackSink = if (config.bookstack.enabled) {
+        BookStackSink(
+            bookstackUrl = config.bookstack.url,
+            tokenId = config.bookstack.tokenId,
+            tokenSecret = config.bookstack.tokenSecret
+        )
+    } else null
 
     // Schedule periodic runs
     while (true) {
@@ -602,8 +732,8 @@ suspend fun runAustralianLawsPipeline(
                         // Generate embedding
                         val vector = embedder.process(text)
 
-                        // Create vector document
-                        val doc = VectorDocument(
+                        // Create vector document for Qdrant
+                        val qdrantDoc = VectorDocument(
                             id = law.id,
                             vector = vector,
                             metadata = mapOf(
@@ -619,8 +749,26 @@ suspend fun runAustralianLawsPipeline(
                             )
                         )
 
+                        // Create BookStack document (if sink enabled)
+                        val bookstackDoc = if (bookstackSink != null) {
+                            BookStackDocument(
+                                bookName = "Australian Legislation",
+                                bookDescription = "Australian laws and legislation",
+                                chapterName = law.jurisdiction,
+                                chapterDescription = "Laws from ${law.jurisdiction}",
+                                pageTitle = law.title,
+                                pageContent = buildAustralianLawHtml(law),
+                                tags = mapOf(
+                                    "source" to "australian_laws",
+                                    "jurisdiction" to law.jurisdiction,
+                                    "year" to law.year,
+                                    "type" to law.type
+                                )
+                            )
+                        } else null
+
                         processed++
-                        doc
+                        Pair(qdrantDoc, bookstackDoc)
                     } catch (e: Exception) {
                         failed++
                         logger.error(e) { "Failed to process law: ${e.message}" }
@@ -628,9 +776,18 @@ suspend fun runAustralianLawsPipeline(
                     }
                 }
                 .filterNotNull()
-                .collect { doc ->
+                .collect { (qdrantDoc, bookstackDoc) ->
                     try {
-                        sink.write(doc)
+                        qdrantSink.write(qdrantDoc)
+
+                        // Write to BookStack if enabled
+                        if (bookstackDoc != null && bookstackSink != null) {
+                            try {
+                                bookstackSink.write(bookstackDoc)
+                            } catch (e: Exception) {
+                                logger.warn(e) { "Failed to write to BookStack: ${e.message}" }
+                            }
+                        }
                     } catch (e: Exception) {
                         failed++
                         logger.error(e) { "Failed to write to Qdrant: ${e.message}" }
@@ -681,11 +838,20 @@ suspend fun runLinuxDocsPipeline(
 
     // Initialize components
     val embedder = Embedder(config.embedding.serviceUrl)
-    val sink = QdrantSink(
+    val qdrantSink = QdrantSink(
         qdrantUrl = config.qdrant.url,
         collectionName = config.qdrant.linuxDocsCollection,
         vectorSize = config.embedding.vectorSize
     )
+
+    // BookStack sink (optional - only if configured)
+    val bookstackSink = if (config.bookstack.enabled) {
+        BookStackSink(
+            bookstackUrl = config.bookstack.url,
+            tokenId = config.bookstack.tokenId,
+            tokenSecret = config.bookstack.tokenSecret
+        )
+    } else null
 
     // Schedule periodic runs
     while (true) {
@@ -732,8 +898,8 @@ suspend fun runLinuxDocsPipeline(
                         // Generate embedding
                         val vector = embedder.process(text)
 
-                        // Create vector document
-                        val vecDoc = VectorDocument(
+                        // Create vector document for Qdrant
+                        val qdrantDoc = VectorDocument(
                             id = doc.id,
                             vector = vector,
                             metadata = mapOf(
@@ -746,11 +912,29 @@ suspend fun runLinuxDocsPipeline(
                             )
                         )
 
+                        // Create BookStack document (if sink enabled)
+                        val bookstackDoc = if (bookstackSink != null) {
+                            BookStackDocument(
+                                bookName = "Linux Documentation",
+                                bookDescription = "Linux kernel and system documentation",
+                                chapterName = doc.section,
+                                chapterDescription = "Documentation for ${doc.section}",
+                                pageTitle = doc.title,
+                                pageContent = buildLinuxDocHtml(doc),
+                                tags = mapOf(
+                                    "source" to "linux_docs",
+                                    "section" to doc.section,
+                                    "type" to doc.type,
+                                    "path" to doc.path
+                                )
+                            )
+                        } else null
+
                         processed++
                         if (processed % 100 == 0) {
                             logger.info { "Processed $processed Linux docs" }
                         }
-                        vecDoc
+                        Pair(qdrantDoc, bookstackDoc)
                     } catch (e: Exception) {
                         failed++
                         if (failed % 100 == 0) {
@@ -760,9 +944,18 @@ suspend fun runLinuxDocsPipeline(
                     }
                 }
                 .filterNotNull()
-                .collect { vecDoc ->
+                .collect { (qdrantDoc, bookstackDoc) ->
                     try {
-                        sink.write(vecDoc)
+                        qdrantSink.write(qdrantDoc)
+
+                        // Write to BookStack if enabled
+                        if (bookstackDoc != null && bookstackSink != null) {
+                            try {
+                                bookstackSink.write(bookstackDoc)
+                            } catch (e: Exception) {
+                                logger.warn(e) { "Failed to write to BookStack: ${e.message}" }
+                            }
+                        }
                     } catch (e: Exception) {
                         failed++
                         logger.error(e) { "Failed to write to Qdrant: ${e.message}" }
@@ -797,4 +990,123 @@ suspend fun runLinuxDocsPipeline(
             delay(TimeUnit.MINUTES.toMillis(30))
         }
     }
+}
+
+// Helper functions to build HTML content for BookStack pages
+internal fun buildRssArticleHtml(article: RssArticle): String {
+    return """
+        <h1>${escapeHtml(article.title)}</h1>
+
+        <div style="background-color: #f5f5f5; padding: 10px; border-left: 4px solid #4CAF50; margin-bottom: 20px;">
+            <p><strong>Source:</strong> ${escapeHtml(article.feedTitle)}</p>
+            <p><strong>Published:</strong> ${escapeHtml(article.publishedDate)}</p>
+            ${if (article.author.isNotBlank()) "<p><strong>Author:</strong> ${escapeHtml(article.author)}</p>" else ""}
+            ${if (article.categories.isNotEmpty()) "<p><strong>Categories:</strong> ${article.categories.joinToString(", ") { escapeHtml(it) }}</p>" else ""}
+            <p><strong>Original Link:</strong> <a href="${escapeHtml(article.link)}" target="_blank">${escapeHtml(article.link)}</a></p>
+        </div>
+
+        <div>
+            ${article.description}
+        </div>
+    """.trimIndent()
+}
+
+internal fun buildCveHtml(cve: CveEntry): String {
+    val severityColor = when (cve.severity.uppercase()) {
+        "CRITICAL" -> "#d32f2f"
+        "HIGH" -> "#f57c00"
+        "MEDIUM" -> "#fbc02d"
+        "LOW" -> "#388e3c"
+        else -> "#757575"
+    }
+
+    return """
+        <h1>${escapeHtml(cve.cveId)}</h1>
+
+        <div style="background-color: #f5f5f5; padding: 10px; border-left: 4px solid $severityColor; margin-bottom: 20px;">
+            <p><strong>Severity:</strong> <span style="color: $severityColor; font-weight: bold;">${escapeHtml(cve.severity)}</span></p>
+            ${if (cve.baseScore != null) "<p><strong>CVSS Score:</strong> ${cve.baseScore}</p>" else ""}
+            <p><strong>Published:</strong> ${escapeHtml(cve.publishedDate)}</p>
+            <p><strong>Last Modified:</strong> ${escapeHtml(cve.lastModifiedDate)}</p>
+        </div>
+
+        <h2>Description</h2>
+        <p>${escapeHtml(cve.description)}</p>
+
+        ${if (cve.affectedProducts.isNotEmpty()) """
+            <h2>Affected Products</h2>
+            <ul>
+                ${cve.affectedProducts.take(20).joinToString("\n") { "<li>${escapeHtml(it)}</li>" }}
+                ${if (cve.affectedProducts.size > 20) "<li><em>... and ${cve.affectedProducts.size - 20} more</em></li>" else ""}
+            </ul>
+        """ else ""}
+    """.trimIndent()
+}
+
+internal fun buildWikipediaHtml(article: WikipediaArticle): String {
+    return """
+        <h1>${escapeHtml(article.title)}</h1>
+
+        ${if (article.isChunk) """
+            <div style="background-color: #fff3cd; padding: 10px; border-left: 4px solid #ff9800; margin-bottom: 20px;">
+                <p><strong>Note:</strong> This is chunk ${article.chunkIndex + 1} of a larger article.</p>
+                <p><strong>Original Article ID:</strong> ${escapeHtml(article.originalArticleId)}</p>
+            </div>
+        """ else ""}
+
+        <div>
+            ${escapeHtml(article.text).replace("\n", "<br>")}
+        </div>
+    """.trimIndent()
+}
+
+internal fun buildLinuxDocHtml(doc: LinuxDoc): String {
+    return """
+        <h1>${escapeHtml(doc.title)}</h1>
+
+        <div style="background-color: #f5f5f5; padding: 10px; border-left: 4px solid #2196F3; margin-bottom: 20px;">
+            <p><strong>Section:</strong> ${escapeHtml(doc.section)}</p>
+            <p><strong>Type:</strong> ${escapeHtml(doc.type)}</p>
+            <p><strong>Path:</strong> <code>${escapeHtml(doc.path)}</code></p>
+        </div>
+
+        <div>
+            <pre style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto;">${escapeHtml(doc.content)}</pre>
+        </div>
+    """.trimIndent()
+}
+
+internal fun buildAustralianLawHtml(law: AustralianLaw): String {
+    return """
+        <h1>${escapeHtml(law.title)}</h1>
+
+        <div style="background-color: #f5f5f5; padding: 10px; border-left: 4px solid #673ab7; margin-bottom: 20px;">
+            <p><strong>Jurisdiction:</strong> ${escapeHtml(law.jurisdiction)}</p>
+            <p><strong>Year:</strong> ${escapeHtml(law.year)}</p>
+            <p><strong>Number:</strong> ${escapeHtml(law.number)}</p>
+            <p><strong>Type:</strong> ${escapeHtml(law.type)}</p>
+            <p><strong>URL:</strong> <a href="${escapeHtml(law.url)}" target="_blank">${escapeHtml(law.url)}</a></p>
+        </div>
+
+        ${if (law.sections.isNotEmpty()) """
+            <h2>Sections</h2>
+            ${law.sections.joinToString("\n\n") { section ->
+                """
+                <div style="margin-bottom: 20px; padding: 10px; background-color: #fafafa; border-left: 2px solid #ddd;">
+                    <h3>${escapeHtml(section.title)}</h3>
+                    <p>${escapeHtml(section.text)}</p>
+                </div>
+                """.trimIndent()
+            }}
+        """ else ""}
+    """.trimIndent()
+}
+
+internal fun escapeHtml(text: String): String {
+    return text
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;")
 }
