@@ -44,7 +44,7 @@ class DebianWikiStandardizedSource(
 
     override fun needsChunking() = true
 
-    override fun chunker() = Chunker.forEmbeddingModel(tokenLimit = 512, overlapPercent = 0.20)
+    override fun chunker() = Chunker.forEmbeddingModel(tokenLimit = 8192, overlapPercent = 0.20)
 
     override suspend fun fetchForRun(metadata: RunMetadata): Flow<WikiPageChunkable> {
         // For Debian Wiki, we fetch from recent changes or categories

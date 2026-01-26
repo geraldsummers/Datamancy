@@ -32,7 +32,7 @@ private val logger = KotlinLogging.logger {}
  * Missing: VIC, NT, ACT (copyright restrictions)
  */
 class OpenAustralianLegalCorpusSource(
-    private val cacheDir: String = "/tmp/australian-legal-corpus",
+    private val cacheDir: String = "/data/australian-legal-corpus",
     private val filterJurisdictions: List<String>? = null,  // null = all jurisdictions
     private val filterTypes: List<String>? = null,  // null = all types, e.g. ["primary_legislation", "secondary_legislation"]
     private val maxDocuments: Int = Int.MAX_VALUE
@@ -42,10 +42,13 @@ class OpenAustralianLegalCorpusSource(
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.MINUTES)
         .readTimeout(10, TimeUnit.MINUTES)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
-    // HuggingFace dataset files (Parquet format) - using first file only for now
-    private val datasetUrl = "https://huggingface.co/datasets/isaacus/open-australian-legal-corpus/resolve/refs%2Fconvert%2Fparquet/corpus/partial-corpus/0000.parquet"
+    // HuggingFace dataset files (Parquet format) - 4 files totaling ~900MB
+    private val datasetBaseUrl = "https://huggingface.co/datasets/isaacus/open-australian-legal-corpus/resolve/refs%2Fconvert%2Fparquet/corpus/partial-corpus"
+    private val parquetFiles = listOf("0000.parquet", "0001.parquet", "0002.parquet", "0003.parquet")
 
     override suspend fun fetch(): Flow<AustralianLegalDocument> = flow {
         logger.info { "Starting Open Australian Legal Corpus fetch" }
@@ -54,59 +57,89 @@ class OpenAustralianLegalCorpusSource(
         // Ensure cache directory exists
         val cacheDirFile = File(cacheDir)
         if (!cacheDirFile.exists()) {
-            cacheDirFile.mkdirs()
+            val created = cacheDirFile.mkdirs()
+            if (!created) {
+                throw RuntimeException("Failed to create cache directory: $cacheDir")
+            }
             logger.info { "Created cache directory: $cacheDir" }
         }
 
-        // Download Parquet file if not cached
-        val parquetFile = File(cacheDir, "corpus.parquet")
-        if (!parquetFile.exists()) {
-            logger.info { "Downloading corpus from HuggingFace..." }
-            downloadFile(datasetUrl, parquetFile)
-            logger.info { "Download complete: ${parquetFile.length() / (1024 * 1024)} MB" }
-        } else {
-            logger.info { "Using cached corpus: ${parquetFile.length() / (1024 * 1024)} MB" }
+        // Download all Parquet files if not cached
+        val downloadedFiles = mutableListOf<File>()
+        for ((index, filename) in parquetFiles.withIndex()) {
+            val parquetFile = File(cacheDir, filename)
+            if (!parquetFile.exists()) {
+                logger.info { "Downloading corpus file ${index + 1}/${parquetFiles.size}: $filename" }
+                val tempFile = File(cacheDir, "$filename.tmp")
+                try {
+                    val fileUrl = "$datasetBaseUrl/$filename"
+                    downloadFile(fileUrl, tempFile)
+                    // Atomic rename to prevent partial file issues
+                    if (!tempFile.renameTo(parquetFile)) {
+                        throw RuntimeException("Failed to rename downloaded file: $filename")
+                    }
+                    logger.info { "Download complete: ${parquetFile.length() / (1024 * 1024)} MB" }
+                } catch (e: Exception) {
+                    tempFile.delete()  // Clean up partial download
+                    throw e
+                }
+            } else {
+                logger.info { "Using cached corpus file ${index + 1}/${parquetFiles.size}: ${parquetFile.length() / (1024 * 1024)} MB" }
+            }
+            downloadedFiles.add(parquetFile)
         }
 
-        // Parse Parquet file
-        logger.info { "Parsing Parquet file..." }
+        logger.info { "Processing ${downloadedFiles.size} Parquet files..." }
 
-        val documents = withContext(Dispatchers.IO) {
-            val results = mutableListOf<AustralianLegalDocument>()
-            val conf = Configuration()
-            val path = Path("file://${parquetFile.absolutePath}")
-            val reader = ParquetReader.builder(GroupReadSupport(), path).withConf(conf).build()
+        // Parse all Parquet files
+        var totalProcessed = 0
+        var totalFiltered = 0
+        var totalFailed = 0
 
-            var filtered = 0
-            var record: Group? = reader.read()
-            while (record != null && results.size < maxDocuments) {
-                try {
-                    val doc = parseRecord(record)
-
-                    // Apply filters
-                    if (shouldInclude(doc)) {
-                        results.add(doc)
-
-                        if (results.size % 1000 == 0) {
-                            logger.info { "Processed ${results.size} documents (filtered: $filtered)" }
-                        }
-                    } else {
-                        filtered++
-                    }
-                } catch (e: Exception) {
-                    logger.error(e) { "Failed to parse record: ${e.message}" }
-                }
-
-                record = reader.read()
+        for ((index, parquetFile) in downloadedFiles.withIndex()) {
+            if (totalProcessed >= maxDocuments) {
+                logger.info { "Reached maxDocuments limit ($maxDocuments), stopping" }
+                break
             }
 
-            reader.close()
-            logger.info { "Corpus fetch complete: ${results.size} documents parsed, $filtered filtered" }
-            results
+            logger.info { "Parsing file ${index + 1}/${downloadedFiles.size}: ${parquetFile.name}" }
+
+            withContext(Dispatchers.IO) {
+                val conf = Configuration()
+                val path = Path("file://${parquetFile.absolutePath}")
+                val reader = ParquetReader.builder(GroupReadSupport(), path).withConf(conf).build()
+
+                var record: Group? = reader.read()
+                while (record != null && totalProcessed < maxDocuments) {
+                    try {
+                        val doc = parseRecord(record)
+
+                        // Apply filters
+                        if (shouldInclude(doc)) {
+                            emit(doc)
+                            totalProcessed++
+
+                            if (totalProcessed % 5000 == 0) {
+                                logger.info { "Progress: $totalProcessed processed, $totalFiltered filtered, $totalFailed failed" }
+                            }
+                        } else {
+                            totalFiltered++
+                        }
+                    } catch (e: Exception) {
+                        totalFailed++
+                        logger.error(e) { "Failed to parse record: ${e.message}" }
+                    }
+
+                    record = reader.read()
+                }
+
+                reader.close()
+            }
+
+            logger.info { "Completed file ${index + 1}/${downloadedFiles.size}: $totalProcessed total documents processed" }
         }
 
-        // Emit documents
-        documents.forEach { emit(it) }
+        logger.info { "Corpus fetch complete: $totalProcessed processed, $totalFiltered filtered, $totalFailed failed" }
     }
 
     private suspend fun downloadFile(url: String, destination: File) {

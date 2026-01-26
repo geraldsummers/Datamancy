@@ -66,6 +66,9 @@ dependencies {
     }
     implementation("org.apache.avro:avro:1.11.3")
 
+    // Tokenization (for accurate token counting)
+    implementation("com.knuddels:jtokkit:1.1.0")
+
     // Testing
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")

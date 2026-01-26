@@ -52,6 +52,7 @@ services:
         aliases:
           - matrix.${DOMAIN}
           - api.matrix.${DOMAIN}
+      internet:  # For Matrix federation with other homeservers
     depends_on:
       postgres:
         condition: service_started

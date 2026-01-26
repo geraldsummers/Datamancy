@@ -11,6 +11,7 @@ services:
       caddy:
         aliases:
           - kopia.${DOMAIN}
+      internet:  # For backup to cloud storage (S3, B2, etc.)
     environment:
       KOPIA_PASSWORD: ${STACK_ADMIN_PASSWORD}
       KOPIA_REPO_PATH: /app/repository

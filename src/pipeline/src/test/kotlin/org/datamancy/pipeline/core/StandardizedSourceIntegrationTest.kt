@@ -78,7 +78,7 @@ class StandardizedSourceIntegrationTest {
 
         // And: Should provide a chunker
         val chunker = source.chunker()
-        assertEquals(1523, chunker.maxChunkSize)  // Expected for 512 token limit
+        assertEquals(7372, chunker.maxTokens)  // Expected for 8192 token limit with 0.90 safety
     }
 
     @Test

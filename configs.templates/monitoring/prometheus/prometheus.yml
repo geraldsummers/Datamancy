@@ -6,11 +6,15 @@ global:
     cluster: 'datamancy'
     environment: 'production'
 
-# Alerting configuration (optional - configure alertmanager if needed)
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets: ['alertmanager:9093']
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Alert rules
+rule_files:
+  - /etc/prometheus/rules/*.yml
 
 # Scrape configurations
 scrape_configs:
@@ -39,6 +43,11 @@ scrape_configs:
   - job_name: 'docker'
     static_configs:
       - targets: ['cadvisor:8080']
+
+  # Docker Health Exporter - container health status
+  - job_name: 'docker-health-exporter'
+    static_configs:
+      - targets: ['docker-health-exporter:8080']
 
   # vLLM metrics (if exposed)
   - job_name: 'vllm'

@@ -84,7 +84,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
 
         val embedResult = client.callTool("llm_embed_text", mapOf(
             "text" to testText,
-            "model" to "bge-base-en-v1.5"
+            "model" to "bge-m3"
         ))
 
         require(embedResult is ToolResult.Success) {
@@ -99,7 +99,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
 
         val dimensions = embeddingOutput.split(",").size
         println("      ✓ Generated ${dimensions}d vector")
-        require(dimensions > 700) { "Expected ~768 dimensions, got $dimensions" }
+        require(dimensions > 1000) { "Expected ~1024 dimensions, got $dimensions" }
 
         // 2. Test semantic search with related query
         // Search should use embedding service to vectorize the query

@@ -29,7 +29,7 @@ class EmbedderTest {
         )
 
         // Mock successful response - wraps array in another array as service returns
-        val mockEmbedding = (1..768).map { it.toFloat() / 768f }
+        val mockEmbedding = (1..1024).map { it.toFloat() / 1024f }
         val responseBody = """[[${mockEmbedding.joinToString(",")}]]"""
 
         mockServer.enqueue(MockResponse()
@@ -39,7 +39,7 @@ class EmbedderTest {
 
         val result = embedder.process("test text")
 
-        assertEquals(768, result.size)
+        assertEquals(1024, result.size)
         assertEquals(1, mockServer.requestCount)
     }
 
@@ -51,7 +51,7 @@ class EmbedderTest {
             baseDelayMs = 10
         )
 
-        val mockEmbedding = (1..768).map { it.toFloat() / 768f }
+        val mockEmbedding = (1..1024).map { it.toFloat() / 1024f }
         val responseBody = """[[${mockEmbedding.joinToString(",")}]]"""
 
         // First request: 429 rate limit
@@ -65,7 +65,7 @@ class EmbedderTest {
 
         val result = embedder.process("test text")
 
-        assertEquals(768, result.size)
+        assertEquals(1024, result.size)
         assertEquals(2, mockServer.requestCount, "Should retry after 429")
     }
 
@@ -77,7 +77,7 @@ class EmbedderTest {
             baseDelayMs = 10
         )
 
-        val mockEmbedding = (1..768).map { it.toFloat() / 768f }
+        val mockEmbedding = (1..1024).map { it.toFloat() / 1024f }
         val responseBody = """[[${mockEmbedding.joinToString(",")}]]"""
 
         // First two requests: 503 errors
@@ -92,7 +92,7 @@ class EmbedderTest {
 
         val result = embedder.process("test text")
 
-        assertEquals(768, result.size)
+        assertEquals(1024, result.size)
         assertEquals(3, mockServer.requestCount, "Should retry twice on 503")
     }
 
@@ -104,7 +104,7 @@ class EmbedderTest {
             baseDelayMs = 100
         )
 
-        val mockEmbedding = (1..768).map { it.toFloat() / 768f }
+        val mockEmbedding = (1..1024).map { it.toFloat() / 1024f }
         val responseBody = """[[${mockEmbedding.joinToString(",")}]]"""
 
         // Fail 3 times, then succeed
@@ -120,7 +120,7 @@ class EmbedderTest {
         val result = embedder.process("test text")
         val elapsed = System.currentTimeMillis() - startTime
 
-        assertEquals(768, result.size)
+        assertEquals(1024, result.size)
         assertEquals(4, mockServer.requestCount)
 
         // Should have delays: ~100ms, ~200ms, ~400ms + jitter
@@ -172,12 +172,12 @@ class EmbedderTest {
     fun `test text truncation for max tokens`() = runBlocking {
         val embedder = Embedder(
             serviceUrl = mockServer.url("/").toString().removeSuffix("/"),
-            maxTokens = 512,
+            maxTokens = 8192,
             maxRetries = 0,
             baseDelayMs = 10
         )
 
-        val mockEmbedding = (1..768).map { it.toFloat() / 768f }
+        val mockEmbedding = (1..1024).map { it.toFloat() / 1024f }
         val responseBody = """[[${mockEmbedding.joinToString(",")}]]"""
 
         mockServer.enqueue(MockResponse()
@@ -185,19 +185,19 @@ class EmbedderTest {
             .setBody(responseBody)
             .addHeader("Content-Type", "application/json"))
 
-        // Create text > 512 tokens (approx 2048 chars)
-        val longText = "A".repeat(3000)
+        // Create text with 10,000 tokens (way over limit)
+        val longText = "word ".repeat(10000)
 
         val result = embedder.process(longText)
 
-        assertEquals(768, result.size)
+        assertEquals(1024, result.size)
 
         // Verify request body was truncated
         val recordedRequest = mockServer.takeRequest()
         val requestBody = recordedRequest.body.readUtf8()
 
-        // Should be truncated to ~2048 chars (512 tokens * 4 chars/token)
-        assertTrue(requestBody.length < 3000, "Request should truncate long text")
+        // Original text has ~50k characters (10k * "word "), truncated should be much smaller
+        assertTrue(requestBody.length < longText.length, "Request should truncate long text")
     }
 
     @Test
@@ -208,7 +208,7 @@ class EmbedderTest {
             baseDelayMs = 10
         )
 
-        val mockEmbedding = (1..768).map { it.toFloat() / 768f }
+        val mockEmbedding = (1..1024).map { it.toFloat() / 1024f }
         val responseBody = """[[${mockEmbedding.joinToString(",")}]]"""
 
         // Process 3 embeddings
@@ -236,7 +236,7 @@ class EmbedderTest {
             baseDelayMs = 100
         )
 
-        val mockEmbedding = (1..768).map { it.toFloat() / 768f }
+        val mockEmbedding = (1..1024).map { it.toFloat() / 1024f }
         val responseBody = """[[${mockEmbedding.joinToString(",")}]]"""
 
         // Fail twice, then succeed
@@ -253,7 +253,7 @@ class EmbedderTest {
         // We can't directly measure jitter, but we can verify it retries
         val result = embedder.process("test")
 
-        assertEquals(768, result.size)
+        assertEquals(1024, result.size)
         assertEquals(3, mockServer.requestCount)
     }
 
@@ -314,7 +314,7 @@ class EmbedderTest {
             )
 
             runBlocking {
-                val mockEmbedding = (1..768).map { it.toFloat() / 768f }
+                val mockEmbedding = (1..1024).map { it.toFloat() / 1024f }
                 val responseBody = """[[${mockEmbedding.joinToString(",")}]]"""
 
                 mockServer.enqueue(MockResponse().setResponseCode(code))
@@ -324,7 +324,7 @@ class EmbedderTest {
                     .addHeader("Content-Type", "application/json"))
 
                 val result = embedder.process("test for code $code")
-                assertEquals(768, result.size, "Should retry on $code")
+                assertEquals(1024, result.size, "Should retry on $code")
             }
         }
     }

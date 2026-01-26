@@ -1,0 +1,129 @@
+groups:
+  - name: container_health
+    interval: 30s
+    rules:
+      - alert: ContainerUnhealthy
+        expr: container_health_status == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: health
+        annotations:
+          summary: "Container {{ $labels.container }} is unhealthy"
+          description: "Container {{ $labels.container }} has been unhealthy for more than 2 minutes."
+
+      - alert: ContainerDown
+        expr: up{job="docker"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Container {{ $labels.container }} is down"
+          description: "Container {{ $labels.container }} has been down for more than 1 minute."
+
+      - alert: HighContainerRestartRate
+        expr: rate(container_restarts_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: stability
+        annotations:
+          summary: "Container {{ $labels.container }} is restarting frequently"
+          description: "Container {{ $labels.container }} has restarted {{ $value }} times in the last 5 minutes."
+
+      - alert: MultipleServicesDown
+        expr: count(container_health_status == 0) > 3
+        for: 2m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Multiple services are unhealthy"
+          description: "{{ $value }} containers are currently unhealthy. This may indicate a systemic issue."
+
+  - name: dependency_health
+    interval: 60s
+    rules:
+      - alert: DatabaseUnhealthy
+        expr: container_health_status{container=~"postgres|mariadb|clickhouse|qdrant"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Database {{ $labels.container }} is unhealthy"
+          description: "Critical database service {{ $labels.container }} has been unhealthy for more than 2 minutes."
+
+      - alert: AuthenticationServiceDown
+        expr: container_health_status{container=~"authelia|ldap"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Authentication service {{ $labels.container }} is down"
+          description: "Critical authentication service {{ $labels.container }} is unavailable."
+
+      - alert: GatewayUnhealthy
+        expr: container_health_status{container=~"caddy|traefik"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: gateway
+        annotations:
+          summary: "Gateway {{ $labels.container }} is unhealthy"
+          description: "Gateway service {{ $labels.container }} is unhealthy. External access may be impacted."
+
+      - alert: MonitoringServiceDown
+        expr: container_health_status{container=~"prometheus|grafana|alertmanager"} == 0
+        for: 3m
+        labels:
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "Monitoring service {{ $labels.container }} is down"
+          description: "Monitoring service {{ $labels.container }} is down. Observability may be impacted."
+
+  - name: resource_alerts
+    interval: 60s
+    rules:
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "Container {{ $labels.container }} high memory usage"
+          description: "Container {{ $labels.container }} is using {{ $value | humanizePercentage }} of its memory limit."
+
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "Container {{ $labels.container }} high CPU usage"
+          description: "Container {{ $labels.container }} has sustained high CPU usage for 10 minutes."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "Low disk space on {{ $labels.device }}"
+          description: "Disk {{ $labels.device }} on {{ $labels.instance }} has less than 10% free space."
+
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.05
+        for: 2m
+        labels:
+          severity: critical
+          category: storage
+        annotations:
+          summary: "Critical disk space on {{ $labels.device }}"
+          description: "Disk {{ $labels.device }} on {{ $labels.instance }} has less than 5% free space remaining."

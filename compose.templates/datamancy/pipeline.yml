@@ -14,7 +14,7 @@ services:
       - qdrant
       - clickhouse
       - ai-gateway
-      - caddy
+      - internet  # For fetching external data (RSS, CVE, Wikipedia, torrents)
     depends_on:
       qdrant:
         condition: service_started
@@ -43,7 +43,7 @@ services:
       # Wikipedia - ENABLED BY DEFAULT
       # Simple EN: https://dumps.wikimedia.org/simplewiki/latest/simplewiki-latest-pages-articles.xml.bz2 (200MB)
       # Full EN: https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2 (20GB!)
-      WIKIPEDIA_DUMP_PATH: "https://dumps.wikimedia.org/simplewiki/latest/simplewiki-latest-pages-articles.xml.bz2"
+      WIKIPEDIA_DUMP_PATH: "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2"
       WIKIPEDIA_SCHEDULE_MINUTES: "43200"  # Twice daily
       WIKIPEDIA_MAX_ARTICLES: "2147483647"  # ALL articles
       # WIKIPEDIA_ENABLED: "false"  # Uncomment to disable
@@ -88,6 +88,8 @@ services:
       QDRANT_LINUX_DOCS_COLLECTION: linux_docs
       QDRANT_DEBIAN_WIKI_COLLECTION: debian_wiki
       QDRANT_ARCH_WIKI_COLLECTION: arch_wiki
+    volumes:
+      - pipeline_data:/data
     healthcheck:
       test: ["CMD-SHELL", "timeout 5 wget --quiet --tries=1 -O /dev/null http://127.0.0.1:8090/health || exit 1"]
       interval: 60s

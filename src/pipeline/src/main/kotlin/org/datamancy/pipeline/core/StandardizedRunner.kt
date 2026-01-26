@@ -1,6 +1,9 @@
 package org.datamancy.pipeline.core
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import org.datamancy.pipeline.processors.Embedder
 import org.datamancy.pipeline.scheduling.SourceScheduler
@@ -74,23 +77,75 @@ class StandardizedRunner<T : Chunkable>(
 
             try {
                 // Fetch from source (handles initial vs resync)
+                // Process items in parallel batches for maximum CPU utilization
+                val batchSize = 50
+                val batch = mutableListOf<T>()
+
                 source.fetchForRun(metadata)
                     .buffer(100)
                     .collect { item ->
-                        try {
-                            processItem(item, dedupStore).forEach { vectorDoc ->
-                                qdrantSink.write(vectorDoc)
-                                processed++
-                            }
-                        } catch (e: Exception) {
-                            logger.error(e) { "[$sourceName] Failed to process item ${item.getId()}: ${e.message}" }
-                            failed++
-                        }
+                        batch.add(item)
 
-                        if ((processed + failed) % 100 == 0) {
-                            logger.info { "[$sourceName] Progress: $processed processed, $failed failed, $deduplicated deduplicated" }
+                        // When batch is full, process in parallel
+                        if (batch.size >= batchSize) {
+                            val currentBatch = batch.toList()
+                            batch.clear()
+
+                            // Process entire batch in parallel using coroutineScope
+                            coroutineScope {
+                                currentBatch.map { batchItem ->
+                                    async {
+                                        try {
+                                            val vectorDocs = processItem(batchItem, dedupStore)
+                                            vectorDocs to null
+                                        } catch (e: Exception) {
+                                            emptyList<VectorDocument>() to e
+                                        }
+                                    }
+                                }.awaitAll().forEach { (vectorDocs, error) ->
+                                    if (error != null) {
+                                        logger.error(error) { "[$sourceName] Failed to process item: ${error.message}" }
+                                        failed++
+                                    } else {
+                                        vectorDocs.forEach { vectorDoc ->
+                                            qdrantSink.write(vectorDoc)
+                                            processed++
+                                        }
+                                    }
+                                }
+                            }
+
+                            if ((processed + failed) % 100 == 0) {
+                                logger.info { "[$sourceName] Progress: $processed processed, $failed failed, $deduplicated deduplicated" }
+                            }
                         }
                     }
+
+                // Process remaining items in batch
+                if (batch.isNotEmpty()) {
+                    coroutineScope {
+                        batch.map { batchItem ->
+                            async {
+                                try {
+                                    val vectorDocs = processItem(batchItem, dedupStore)
+                                    vectorDocs to null
+                                } catch (e: Exception) {
+                                    emptyList<VectorDocument>() to e
+                                }
+                            }
+                        }.awaitAll().forEach { (vectorDocs, error) ->
+                            if (error != null) {
+                                logger.error(error) { "[$sourceName] Failed to process item: ${error.message}" }
+                                failed++
+                            } else {
+                                vectorDocs.forEach { vectorDoc ->
+                                    qdrantSink.write(vectorDoc)
+                                    processed++
+                                }
+                            }
+                        }
+                    }
+                }
 
                 val durationMs = System.currentTimeMillis() - startTime
                 logger.info { "[$sourceName] === ${metadata.runType} COMPLETE: $processed processed, $failed failed, $deduplicated deduplicated in ${durationMs}ms ===" }
@@ -148,30 +203,34 @@ class StandardizedRunner<T : Chunkable>(
 
     /**
      * Process item with chunking (long content)
+     * Embeds all chunks in parallel for maximum throughput
      */
-    private suspend fun processWithChunking(item: T): List<VectorDocument> {
+    private suspend fun processWithChunking(item: T): List<VectorDocument> = coroutineScope {
         val text = item.toText()
         val chunker = source.chunker()
         val chunks = chunker.process(text)
 
-        return chunks.map { chunk ->
-            val chunkText = chunk.text
-            val vector = embedder.process(chunkText)
+        // Embed all chunks in parallel
+        chunks.map { chunk ->
+            async {
+                val chunkText = chunk.text
+                val vector = embedder.process(chunkText)
 
-            val chunkedItem = ChunkedItem(
-                originalItem = item,
-                chunkText = chunkText,
-                chunkIndex = chunk.index,
-                totalChunks = chunks.size,
-                startPos = chunk.startPos,
-                endPos = chunk.endPos
-            )
+                val chunkedItem = ChunkedItem(
+                    originalItem = item,
+                    chunkText = chunkText,
+                    chunkIndex = chunk.index,
+                    totalChunks = chunks.size,
+                    startPos = chunk.startPos,
+                    endPos = chunk.endPos
+                )
 
-            VectorDocument(
-                id = chunkedItem.getId(),
-                vector = vector,
-                metadata = chunkedItem.getMetadata()
-            )
-        }
+                VectorDocument(
+                    id = chunkedItem.getId(),
+                    vector = vector,
+                    metadata = chunkedItem.getMetadata()
+                )
+            }
+        }.awaitAll()
     }
 }

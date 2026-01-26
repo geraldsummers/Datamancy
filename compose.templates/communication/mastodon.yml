@@ -50,6 +50,7 @@ services:
       - postgres
       - valkey
       - mastodon-internal
+      - internet  # For federation with other Mastodon instances
     depends_on:
       mastodon-init:
         condition: service_completed_successfully
@@ -132,6 +133,7 @@ services:
       - postgres
       - valkey
       - mastodon-internal
+      - internet  # For federation background jobs
     depends_on:
       mastodon-init:
         condition: service_completed_successfully

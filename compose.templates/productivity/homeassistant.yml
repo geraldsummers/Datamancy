@@ -27,6 +27,7 @@ services:
         aliases:
           - homeassistant.${DOMAIN}
           - api.homeassistant.${DOMAIN}
+      internet:  # For IoT device communication, cloud integrations
     environment:
       TZ: UTC
       PUID: ${DOCKER_USER_ID:-1000}

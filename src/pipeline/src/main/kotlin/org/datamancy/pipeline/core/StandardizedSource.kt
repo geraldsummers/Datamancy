@@ -40,7 +40,7 @@ interface StandardizedSource<T : Chunkable> : Source<T> {
      * Chunker configuration for this source
      * Only called if needsChunking() returns true
      */
-    fun chunker(): Chunker = Chunker.forEmbeddingModel(tokenLimit = 512, overlapPercent = 0.20)
+    fun chunker(): Chunker = Chunker.forEmbeddingModel(tokenLimit = 8192, overlapPercent = 0.20)
 
     /**
      * Fetch data based on run metadata (initial pull vs resync)

@@ -12,6 +12,7 @@ volumes:
   # ============================================================================
 
   # Application Data
+  alertmanager_data:
   bookstack_data:
   clickhouse_data:
   element_data:
@@ -38,6 +39,7 @@ volumes:
   couchdb_data:
   registry_data:
   forgejo_runner_data:
+  pipeline_data:
 
   # Configuration Volumes
   caddy_config:

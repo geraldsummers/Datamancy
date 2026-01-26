@@ -11,6 +11,7 @@ services:
       caddy:
         aliases:
           - qbittorrent.${DOMAIN}
+      internet:  # For BitTorrent P2P protocol
     depends_on:
       volume-init:
         condition: service_completed_successfully

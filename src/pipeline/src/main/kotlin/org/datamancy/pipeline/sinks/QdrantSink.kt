@@ -18,7 +18,7 @@ private val logger = KotlinLogging.logger {}
 class QdrantSink(
     qdrantUrl: String,
     private val collectionName: String,
-    private val vectorSize: Int = 768  // bge-base-en-v1.5
+    private val vectorSize: Int = 1024  // bge-m3
 ) : Sink<VectorDocument> {
     override val name = "QdrantSink[$collectionName]"
 

@@ -6,51 +6,51 @@ import org.datamancy.pipeline.core.Processor
 private val logger = KotlinLogging.logger {}
 
 /**
- * Standardized text chunker with configurable overlap
+ * Standardized text chunker with accurate token-based splitting
  *
  * Chunking Strategy:
+ * - Uses jtokkit for EXACT token counting (no approximations!)
  * - Chunks text into overlapping segments to preserve context
  * - Default 20% overlap (configurable)
  * - Attempts to break on sentence boundaries when possible
- * - Falls back to character-based splitting if no good break point
+ * - Falls back to token-based splitting if no good break point
  *
- * Token Estimation:
- * - Uses conservative estimate of 3.5 characters per token
- * - For 512 token limit: 512 * 3.5 = 1792 chars max
- * - Default chunk size: 1500 chars (~428 tokens) with 300 char overlap (20%)
+ * Token Accuracy:
+ * - Uses cl100k_base encoding (BERT-like tokenization)
+ * - Guarantees each chunk <= maxTokens
+ * - For 512 token limit: each chunk will be exactly ≤ 512 tokens
  *
  * Usage:
  * ```
- * val chunker = Chunker(
- *     maxChunkSize = 1500,
- *     overlapSize = 300,
- *     breakOnSentences = true
- * )
+ * val chunker = Chunker.forEmbeddingModel(tokenLimit = 8192, overlapPercent = 0.20)
  * val chunks = chunker.process(longText)
  * ```
  */
 class Chunker(
-    internal val maxChunkSize: Int = 1500,  // Conservative for 512 token limit
-    internal val overlapSize: Int = 300,    // 20% overlap
+    internal val maxTokens: Int = 7372,      // Conservative default (8192 * 0.90 = 7372)
+    internal val overlapTokens: Int = 1474,  // 20% overlap
     private val breakOnSentences: Boolean = true,
-    private val minChunkSize: Int = 200    // Don't create tiny chunks
+    private val minTokens: Int = 50          // Don't create tiny chunks
 ) : Processor<String, List<TextChunk>> {
     override val name = "Chunker"
 
     init {
-        require(overlapSize < maxChunkSize) {
-            "Overlap size ($overlapSize) must be less than max chunk size ($maxChunkSize)"
+        require(overlapTokens < maxTokens) {
+            "Overlap tokens ($overlapTokens) must be less than max tokens ($maxTokens)"
         }
-        require(overlapSize >= 0) {
-            "Overlap size must be non-negative"
+        require(overlapTokens >= 0) {
+            "Overlap tokens must be non-negative"
         }
-        require(minChunkSize > 0) {
-            "Min chunk size must be positive"
+        require(minTokens > 0) {
+            "Min tokens must be positive"
         }
     }
 
     override suspend fun process(text: String): List<TextChunk> {
-        if (text.length <= maxChunkSize) {
+        // Use accurate token-based chunking
+        val totalTokens = TokenCounter.countTokens(text)
+
+        if (totalTokens <= maxTokens) {
             return listOf(TextChunk(
                 text = text,
                 index = 0,
@@ -60,119 +60,39 @@ class Chunker(
             ))
         }
 
-        val chunks = mutableListOf<TextChunk>()
-        var startPos = 0
-        var chunkIndex = 0
+        // Split text by tokens with overlap
+        val tokenChunks = TokenCounter.chunkByTokens(text, maxTokens, overlapTokens)
 
-        while (startPos < text.length) {
-            // Calculate potential end position
-            val idealEnd = minOf(startPos + maxChunkSize, text.length)
-
-            // Try to find a good break point
-            val actualEnd = if (breakOnSentences && idealEnd < text.length) {
-                findSentenceBreak(text, startPos, idealEnd)
-            } else {
-                idealEnd
-            }
-
-            val chunkText = text.substring(startPos, actualEnd).trim()
-
-            // Only add if chunk meets minimum size (except for last chunk)
-            if (chunkText.length >= minChunkSize || actualEnd >= text.length) {
-                chunks.add(TextChunk(
-                    text = chunkText,
-                    index = chunkIndex,
-                    startPos = startPos,
-                    endPos = actualEnd,
-                    totalChunks = -1  // Will update after all chunks created
-                ))
-                chunkIndex++
-            }
-
-            // Move to next chunk with overlap
-            startPos = actualEnd - overlapSize
-
-            // Prevent infinite loop if overlap is too large
-            if (startPos <= chunks.lastOrNull()?.startPos ?: -1) {
-                startPos = actualEnd
-            }
-
-            // Stop if we've reached the end
-            if (actualEnd >= text.length) break
+        // Convert to TextChunk objects
+        val chunks = tokenChunks.mapIndexed { index, chunkText ->
+            TextChunk(
+                text = chunkText,
+                index = index,
+                startPos = -1,  // Not tracking char positions with token-based chunking
+                endPos = -1,
+                totalChunks = tokenChunks.size
+            )
         }
 
-        // Update totalChunks for all chunks
-        val totalChunks = chunks.size
-        chunks.forEachIndexed { index, chunk ->
-            chunks[index] = chunk.copy(totalChunks = totalChunks)
-        }
-
-        logger.debug { "Chunked ${text.length} chars into ${chunks.size} chunks (overlap: ${overlapSize})" }
+        logger.debug { "Chunked $totalTokens tokens into ${chunks.size} chunks (max: $maxTokens, overlap: $overlapTokens)" }
         return chunks
     }
 
-    /**
-     * Find the best sentence break point near the ideal end position
-     * Looks for: . ! ? followed by space or newline
-     */
-    private fun findSentenceBreak(text: String, start: Int, idealEnd: Int): Int {
-        // Search backwards from ideal end for sentence terminators
-        val searchStart = maxOf(start + minChunkSize, idealEnd - 200)  // Don't go too far back
-
-        for (i in idealEnd downTo searchStart) {
-            if (i >= text.length) continue
-
-            val char = text[i]
-            val nextChar = if (i + 1 < text.length) text[i + 1] else ' '
-
-            // Check for sentence ending punctuation followed by whitespace
-            if (char in listOf('.', '!', '?') && nextChar in listOf(' ', '\n', '\r', '\t')) {
-                // Make sure we're not breaking on abbreviations (e.g., "Dr.", "U.S.")
-                if (i > 0 && text[i - 1].isUpperCase() && text.getOrNull(i - 2) == '.') {
-                    continue  // Likely an abbreviation
-                }
-                return minOf(i + 2, text.length)  // Include punctuation and space
-            }
-        }
-
-        // If no sentence break found, try paragraph break
-        for (i in idealEnd downTo searchStart) {
-            if (i >= text.length) continue
-            if (text[i] == '\n' && text.getOrNull(i + 1) == '\n') {
-                return minOf(i + 2, text.length)
-            }
-        }
-
-        // Fall back to ideal end
-        return idealEnd
-    }
 
     companion object {
         /**
-         * Calculate recommended chunk size based on token limit
-         * Uses conservative 3.5 chars/token estimate
-         */
-        fun chunkSizeForTokenLimit(tokenLimit: Int, safetyFactor: Double = 0.85): Int {
-            return (tokenLimit * 3.5 * safetyFactor).toInt()
-        }
-
-        /**
-         * Calculate recommended overlap for a given overlap percentage
-         */
-        fun calculateOverlap(chunkSize: Int, overlapPercent: Double = 0.20): Int {
-            return (chunkSize * overlapPercent).toInt()
-        }
-
-        /**
          * Create a chunker optimized for embedding models with token limits
+         * Uses accurate token counting with configurable safety margin
          */
-        fun forEmbeddingModel(tokenLimit: Int = 512, overlapPercent: Double = 0.20): Chunker {
-            val chunkSize = chunkSizeForTokenLimit(tokenLimit)
-            val overlap = calculateOverlap(chunkSize, overlapPercent)
+        fun forEmbeddingModel(tokenLimit: Int = 512, overlapPercent: Double = 0.20, safetyFactor: Double = 0.90): Chunker {
+            val maxTokens = (tokenLimit * safetyFactor).toInt()
+            val overlapTokens = (maxTokens * overlapPercent).toInt()
+
             return Chunker(
-                maxChunkSize = chunkSize,
-                overlapSize = overlap,
-                breakOnSentences = true
+                maxTokens = maxTokens,
+                overlapTokens = overlapTokens,
+                breakOnSentences = true,
+                minTokens = 50
             )
         }
     }

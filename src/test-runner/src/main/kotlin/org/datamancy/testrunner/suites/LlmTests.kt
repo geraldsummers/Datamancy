@@ -43,7 +43,7 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
     test("LLM embed text returns vector") {
         val result = client.callTool("llm_embed_text", mapOf(
             "text" to "This is a test sentence for embedding.",
-            "model" to "bge-base-en-v1.5"
+            "model" to "bge-m3"
         ))
 
         require(result is ToolResult.Success, "Embedding failed")
@@ -51,8 +51,8 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
         output shouldContain "["
         output shouldContain "]"
 
-        // Vector should have ~768 dimensions for bge-base-en-v1.5
+        // Vector should have ~1024 dimensions for bge-m3
         val dimensions = output.split(",").size
-        dimensions shouldBeGreaterThan 700
+        dimensions shouldBeGreaterThan 1000
     }
 }

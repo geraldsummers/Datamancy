@@ -14,17 +14,24 @@ services:
       - ai
       - ai-gateway
     environment:
-      HF_HUB_ENABLE_HF_TRANSFER: 0
-      MODEL_ID: BAAI/bge-base-en-v1.5
       RUST_LOG: warn  # Only show warnings and errors, not INFO spam
-    command: --port 8080
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    command: >
+      --model-id /data/bge-m3
+      --dtype float32
+      --port 8080
+      --max-concurrent-requests 512
+      --max-batch-tokens 16384
+      --max-batch-requests 256
+      --pooling mean
+    # GPU disabled - runs on CPU to avoid OOM with vllm-7b
+    # Uncomment deploy section below to enable GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 60s

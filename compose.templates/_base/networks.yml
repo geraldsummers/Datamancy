@@ -2,8 +2,15 @@
 # Zero-trust network architecture - services only join networks they need
 
 networks:
+  # Internet-enabled network for services that need external connectivity
+  internet:
+    driver: bridge
+    # No custom IPAM = Docker handles NAT automatically
+
+  # Internal-only networks (no internet access)
   postgres:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.20.0.0/24
@@ -11,6 +18,7 @@ networks:
 
   mariadb:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.21.0.0/24
@@ -18,6 +26,7 @@ networks:
 
   clickhouse:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.22.0.0/24
@@ -25,6 +34,7 @@ networks:
 
   qdrant:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.23.0.0/24
@@ -32,6 +42,7 @@ networks:
 
   valkey:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.24.0.0/24
@@ -39,6 +50,7 @@ networks:
 
   ldap:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.25.0.0/24
@@ -46,6 +58,7 @@ networks:
 
   authelia:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.26.0.0/24
@@ -56,10 +69,11 @@ networks:
     ipam:
       config:
         - subnet: 172.27.0.0/24
-    # Mail server access
+    # Mail server access (needs SMTP federation)
 
   memcached:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.28.0.0/24
@@ -67,6 +81,7 @@ networks:
 
   docker-proxy:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.29.0.0/24
@@ -77,10 +92,11 @@ networks:
     ipam:
       config:
         - subnet: 172.30.0.0/24
-    # Caddy reverse proxy (web-exposed services)
+    # Caddy reverse proxy (needs Let's Encrypt, external web traffic)
 
   ai:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.40.0.0/24
@@ -88,6 +104,7 @@ networks:
 
   ai-gateway:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.41.0.0/24
@@ -95,6 +112,7 @@ networks:
 
   backend:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.43.0.0/24
@@ -102,6 +120,7 @@ networks:
 
   litellm:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.42.0.0/24
@@ -109,6 +128,7 @@ networks:
 
   monitoring:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.50.0.0/24
@@ -116,6 +136,7 @@ networks:
 
   mastodon-internal:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.52.0.0/24
@@ -123,6 +144,7 @@ networks:
 
   matrix-internal:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.53.0.0/24

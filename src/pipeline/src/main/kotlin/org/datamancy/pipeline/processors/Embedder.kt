@@ -19,8 +19,8 @@ private val logger = KotlinLogging.logger {}
  */
 class Embedder(
     private val serviceUrl: String,
-    private val model: String = "bge-base-en-v1.5",
-    private val maxTokens: Int = 512,  // text-embeddings-router has 512 token limit
+    private val model: String = "bge-m3",
+    private val maxTokens: Int = 8192,  // BGE-M3 supports 8192 tokens
     private val maxRetries: Int = 5,
     private val baseDelayMs: Long = 100
 ) : Processor<String, FloatArray> {
@@ -45,9 +45,11 @@ class Embedder(
         val startTime = System.currentTimeMillis()
         var lastException: Exception? = null
 
-        // Truncate text to approximate maxTokens (roughly 4 chars per token)
-        val truncatedText = if (text.length > maxTokens * 4) {
-            text.substring(0, maxTokens * 4)
+        // Use accurate token counting and truncation
+        val actualTokens = TokenCounter.countTokens(text)
+        val truncatedText = if (actualTokens > maxTokens) {
+            logger.debug { "Text has $actualTokens tokens, truncating to $maxTokens tokens" }
+            TokenCounter.truncateToTokens(text, maxTokens)
         } else {
             text
         }

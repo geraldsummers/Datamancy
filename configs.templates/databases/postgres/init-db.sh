@@ -254,7 +254,7 @@ echo "Datamancy database tables initialized successfully"
 
 # Create agent_observer schema in safe databases for public views
 # These schemas will hold views that expose only public/non-sensitive data
-for db in grafana planka mastodon forgejo bookstack; do
+for db in grafana planka mastodon forgejo; do
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" <<-EOSQL
         -- Create dedicated schema for observer views
         CREATE SCHEMA IF NOT EXISTS agent_observer;

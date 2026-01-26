@@ -45,7 +45,7 @@ data class PipelineConfig(
                     scheduleMinutes = System.getenv("RSS_SCHEDULE_MINUTES")?.toInt() ?: 15
                 ),
                 cve = CveConfig(
-                    enabled = System.getenv("CVE_ENABLED")?.toBoolean() ?: false,  // Disabled - requires CVE_API_KEY
+                    enabled = System.getenv("CVE_ENABLED")?.toBoolean() ?: false,  // Intentionally disabled by default (works without API key but rate-limited to 5 req/30s)
                     apiKey = System.getenv("CVE_API_KEY"),
                     scheduleMinutes = System.getenv("CVE_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
                     maxResults = System.getenv("CVE_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE
@@ -142,9 +142,9 @@ data class MarketConfig(
 @Serializable
 data class EmbeddingConfig(
     val serviceUrl: String = "http://embedding-service:8000",
-    val model: String = "bge-base-en-v1.5",
-    val vectorSize: Int = 768,
-    val maxTokens: Int = 8192  // Increased token limit
+    val model: String = "bge-m3",
+    val vectorSize: Int = 1024,  // BGE-M3 uses 1024 dimensions
+    val maxTokens: Int = 8192  // BGE-M3 supports 8192 tokens (16x larger than base!)
 )
 
 @Serializable

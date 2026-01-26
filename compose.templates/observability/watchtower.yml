@@ -9,6 +9,7 @@ services:
     restart: unless-stopped
     networks:
       - docker-proxy
+      - internet  # For pulling Docker image updates from registries
     environment:
       WATCHTOWER_CLEANUP: true
       WATCHTOWER_INCLUDE_RESTARTING: true
