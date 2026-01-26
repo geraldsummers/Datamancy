@@ -26,10 +26,11 @@ data class SourceMetadata(
  * Persists and retrieves source metadata
  */
 class SourceMetadataStore(
-    private val storePath: String = "/app/data/metadata"
+    private val storePath: String = System.getProperty("java.io.tmpdir") + "/datamancy/metadata"
 ) {
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
     private val storeDir = File(storePath)
+    private val memoryCache = mutableMapOf<String, SourceMetadata>()  // Fallback if disk fails
 
     init {
         storeDir.mkdirs()
@@ -39,18 +40,28 @@ class SourceMetadataStore(
      * Load metadata for a source
      */
     fun load(sourceName: String): SourceMetadata {
+        // Try memory cache first
+        memoryCache[sourceName]?.let { return it }
+
+        // Then try disk
         val file = File(storeDir, "${sourceName}.json")
         return try {
             if (file.exists()) {
                 val json = file.readText()
-                gson.fromJson(json, SourceMetadata::class.java)
+                val metadata = gson.fromJson(json, SourceMetadata::class.java)
+                memoryCache[sourceName] = metadata  // Update cache
+                metadata
             } else {
                 logger.info { "No metadata found for $sourceName, creating new" }
-                SourceMetadata(sourceName = sourceName)
+                val metadata = SourceMetadata(sourceName = sourceName)
+                memoryCache[sourceName] = metadata
+                metadata
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to load metadata for $sourceName: ${e.message}" }
-            SourceMetadata(sourceName = sourceName)
+            val metadata = SourceMetadata(sourceName = sourceName)
+            memoryCache[sourceName] = metadata
+            metadata
         }
     }
 
@@ -58,6 +69,15 @@ class SourceMetadataStore(
      * Save metadata for a source
      */
     fun save(metadata: SourceMetadata) {
+        // Always update memory cache first
+        memoryCache[metadata.sourceName] = metadata
+
+        // Then try to persist to disk
+        // Ensure directory exists before saving (for test environments)
+        if (!storeDir.exists()) {
+            storeDir.mkdirs()
+        }
+
         val file = File(storeDir, "${metadata.sourceName}.json")
         try {
             val json = gson.toJson(metadata)
@@ -65,6 +85,8 @@ class SourceMetadataStore(
             logger.debug { "Saved metadata for ${metadata.sourceName}" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to save metadata for ${metadata.sourceName}: ${e.message}" }
+            // Don't throw - log and continue (metadata is not critical for pipeline operation)
+            // Metadata is still available in memory cache
         }
     }
 

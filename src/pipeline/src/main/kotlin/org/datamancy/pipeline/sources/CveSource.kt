@@ -16,7 +16,10 @@ private val logger = KotlinLogging.logger {}
 /**
  * Fetches CVE (Common Vulnerabilities and Exposures) data from NVD API
  * API Docs: https://nvd.nist.gov/developers/vulnerabilities
- * Rate limit: 5 requests per 30 seconds (without API key)
+ * Rate limit: 5 requests per 30 seconds (without API key), 50 req/30sec with key
+ *
+ * NOTE: Requires API key from https://nvd.nist.gov/developers/request-an-api-key
+ * Set CVE_ENABLED=true and CVE_API_KEY environment variable to enable
  */
 class CveSource(
     private val apiKey: String? = null,

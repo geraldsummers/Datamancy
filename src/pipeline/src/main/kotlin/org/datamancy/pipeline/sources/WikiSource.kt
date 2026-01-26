@@ -113,7 +113,7 @@ class WikiSource(
             }
 
             val html = response.body?.string() ?: return emptyList()
-            val doc = Jsoup.parse(html)
+            val doc = Jsoup.parse(html, wikiType.baseUrl)
 
             // Extract page links based on wiki type
             val links = when (wikiType) {
@@ -170,7 +170,7 @@ class WikiSource(
 
                 if (response.isSuccessful) {
                     val html = response.body?.string() ?: return@forEach
-                    val doc = Jsoup.parse(html)
+                    val doc = Jsoup.parse(html, wikiType.baseUrl)
 
                     val links = doc.select("a[href^='/']")
                         .map { it.attr("abs:href") }
@@ -206,7 +206,7 @@ class WikiSource(
             }
 
             val html = response.body?.string() ?: return null
-            val doc = Jsoup.parse(html)
+            val doc = Jsoup.parse(html, wikiType.baseUrl)
 
             // Extract title
             val title = doc.select("h1#firstHeading, h1.title, h1").firstOrNull()?.text()

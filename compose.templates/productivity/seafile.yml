@@ -24,6 +24,8 @@ services:
         aliases:
           - seafile.${DOMAIN}
     depends_on:
+      volume-init:
+        condition: service_completed_successfully
       mariadb:
         condition: service_healthy
       mariadb-init:

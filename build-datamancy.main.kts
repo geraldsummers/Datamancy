@@ -366,6 +366,29 @@ fun copyComposeFiles(outputDir: File) {
 
     // Group services from all files
     mergedYaml.appendLine("services:")
+
+    // First, add base services (volume-init must come first as other services depend on it)
+    val baseDir = templatesDir.resolve("_base")
+    val volumeInitFile = baseDir.resolve("volume-init.yml")
+    if (volumeInitFile.exists()) {
+        val lines = volumeInitFile.readText().lines()
+        var inServices = false
+        for (line in lines) {
+            if (line.trim() == "services:") {
+                inServices = true
+                continue
+            }
+            if (inServices) {
+                if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("#")) {
+                    inServices = false
+                } else if (line.isNotEmpty()) {
+                    mergedYaml.appendLine(line)
+                }
+            }
+        }
+    }
+
+    // Then add all other service files
     serviceFiles.forEach { file ->
         val lines = file.readText().lines()
         var inServices = false
@@ -387,7 +410,6 @@ fun copyComposeFiles(outputDir: File) {
     mergedYaml.appendLine()
 
     // Add networks and volumes at the end from _base/
-    val baseDir = templatesDir.resolve("_base")
     listOf("networks.yml", "volumes.yml").forEach { filename ->
         val file = baseDir.resolve(filename)
         if (file.exists()) {

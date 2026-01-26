@@ -1,7 +1,6 @@
 plugins {
-    kotlin("jvm")
-    kotlin("plugin.serialization")
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    kotlin("jvm") version "2.0.21"
+    kotlin("plugin.serialization") version "2.0.21"
     application
 }
 
@@ -58,34 +57,28 @@ dependencies {
     // BZip2 compression (for Wikipedia dumps)
     implementation("org.apache.commons:commons-compress:1.26.0")
 
+    // Parquet (for Open Australian Legal Corpus)
+    implementation("org.apache.parquet:parquet-hadoop:1.14.1")
+    implementation("org.apache.hadoop:hadoop-client:3.3.6") {
+        exclude(group = "org.slf4j")
+        exclude(group = "log4j")
+        exclude(group = "javax.servlet")
+    }
+    implementation("org.apache.avro:avro:1.11.3")
+
     // Testing
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("io.mockk:mockk:1.13.8")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {
     useJUnitPlatform()
 }
 
-kotlin {
-    jvmToolchain(21)
-}
-
-// Override root project's warnings-as-errors for pipeline module
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    kotlinOptions {
-        allWarningsAsErrors = false
-    }
-}
-
 application {
     mainClass.set("org.datamancy.pipeline.MainKt")
-}
-
-tasks.shadowJar {
-    archiveBaseName.set("pipeline")
-    archiveClassifier.set("")
-    archiveVersion.set("")
-    mergeServiceFiles()
 }

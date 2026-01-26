@@ -11,6 +11,9 @@ services:
       caddy:
         aliases:
           - qbittorrent.${DOMAIN}
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     environment:
       PUID: ${DOCKER_USER_ID:-1000}
       PGID: ${DOCKER_GROUP_ID:-1000}

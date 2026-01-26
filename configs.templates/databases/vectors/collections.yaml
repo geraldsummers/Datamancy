@@ -2,33 +2,32 @@ vector_size: 768
 distance: Cosine
 
 # Collections to initialize in Qdrant for vectorized knowledge bases
+# NOTE: Only collections with active pipeline sources are included
 collections:
-  # Wikimedia projects (en only for v1)
-  - name: wiki_general
-    description: Combined Wikipedia/Wiktionary/Wikibooks/Wikisource/Wikiquote/Wikivoyage/Wikinews/Wikiversity
-  - name: wiki_species
-    description: Wikispecies extracts
-  - name: wiki_functions
-    description: Wikifunctions extracts
-
-  # RSS aggregation
-  - name: rss_aggregation
-    description: Aggregated RSS/Atom feeds from curated sources
-
-  # Macro series metadata (embeddable descriptions/notes)
-  - name: macro_series_meta
-    description: FRED/IMF/World Bank/OECD series metadata and notes
-
-  # Yahoo Finance entities
-  - name: yahoo_finance
-    description: Yahoo Finance tickers and company metadata
-
-  # Linux and Debian docs (separate per spec)
+  # Active pipeline sources
+  - name: rss_feeds
+    description: RSS/Atom feed articles from various sources
+  - name: cve
+    description: Common Vulnerabilities and Exposures from NVD
+  - name: torrents
+    description: Torrent metadata from DHT network
+  - name: wikipedia
+    description: Wikipedia article extracts and content
+  - name: australian_laws
+    description: Australian legislation from various jurisdictions
   - name: linux_docs
-    description: Linux kernel/docs/LFS and related documentation
-  - name: debian_docs
-    description: Debian manuals/wiki and related documentation
+    description: Linux kernel documentation and man pages
+  - name: debian_wiki
+    description: Debian Wiki documentation
+  - name: arch_wiki
+    description: Arch Linux Wiki documentation
 
-  # Torrents metadata (CSV-derived)
-  - name: torrents_csv
-    description: Torrents CSV dataset (metadata descriptions)
+  # REMOVED - No pipeline sources implemented:
+  # - wiki_general (no source code)
+  # - wiki_species (no source code)
+  # - wiki_functions (no source code)
+  # - rss_aggregation (duplicate of rss_feeds)
+  # - macro_series_meta (no source code)
+  # - yahoo_finance (no source code)
+  # - debian_docs (duplicate of debian_wiki)
+  # - torrents_csv (duplicate of torrents)

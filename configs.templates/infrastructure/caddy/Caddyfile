@@ -368,3 +368,11 @@ search.{$DOMAIN} {
 		reverse_proxy search-gateway:8097
 	}
 }
+
+# Pipeline Monitor (protected - read-only stats dashboard)
+pipeline.{$DOMAIN} {
+	route {
+		import authelia_auth
+		reverse_proxy pipeline:8090
+	}
+}

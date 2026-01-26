@@ -3,6 +3,7 @@ FROM eclipse-temurin:21-jre
 # Install documentation packages and tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
+    p7zip-full \
     man-db \
     manpages \
     manpages-dev \

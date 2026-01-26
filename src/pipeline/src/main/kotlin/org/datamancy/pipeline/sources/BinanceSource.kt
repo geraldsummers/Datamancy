@@ -18,9 +18,11 @@ private val logger = KotlinLogging.logger {}
  * Fetches historical price data (klines/candlesticks) from Binance API
  * API Docs: https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-data
  * Rate limit: 1200 requests per minute (20/sec)
+ *
+ * Can automatically fetch top N symbols by 24h volume if symbols list is empty or contains "TOP_N"
  */
 class BinanceSource(
-    private val symbols: List<String>,  // e.g., ["BTCUSDT", "ETHUSDT"]
+    private val symbols: List<String>,  // e.g., ["BTCUSDT", "ETHUSDT"] or ["TOP_250"] to auto-fetch
     private val interval: String = "1h",  // 1m, 5m, 15m, 1h, 4h, 1d, 1w
     private val startTime: Long? = null,  // Unix timestamp in milliseconds
     private val endTime: Long? = null,

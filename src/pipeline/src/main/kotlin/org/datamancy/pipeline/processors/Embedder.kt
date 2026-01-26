@@ -39,7 +39,7 @@ class Embedder(
     private val totalRetries = AtomicLong(0)
     private val totalDurationMs = AtomicLong(0)
     private var lastReportTime = System.currentTimeMillis()
-    private val reportIntervalMs = 300_000L // Report every 5 minutes (reduced noise)
+    private val reportIntervalMs = 3_600_000L // Report every 60 minutes (quieter)
 
     override suspend fun process(text: String): FloatArray {
         val startTime = System.currentTimeMillis()

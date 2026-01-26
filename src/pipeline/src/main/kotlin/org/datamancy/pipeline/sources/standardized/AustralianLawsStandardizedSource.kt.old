@@ -1,0 +1,70 @@
+package org.datamancy.pipeline.sources.standardized
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import org.datamancy.pipeline.core.Chunkable
+import org.datamancy.pipeline.core.StandardizedSource
+import org.datamancy.pipeline.processors.Chunker
+import org.datamancy.pipeline.scheduling.BackfillStrategy
+import org.datamancy.pipeline.scheduling.ResyncStrategy
+import org.datamancy.pipeline.scheduling.RunMetadata
+import org.datamancy.pipeline.scheduling.RunType
+import org.datamancy.pipeline.sources.AustralianLaw
+import org.datamancy.pipeline.sources.AustralianLawsSource
+
+/**
+ * Chunkable wrapper for Australian legislation
+ */
+data class AustralianLawChunkable(val law: AustralianLaw) : Chunkable {
+    override fun toText(): String = law.toText()
+    override fun getId(): String = law.id
+    override fun getMetadata(): Map<String, String> = mapOf(
+        "title" to law.title,
+        "jurisdiction" to law.jurisdiction,
+        "type" to law.type,
+        "year" to law.year,
+        "number" to law.number,
+        "url" to law.url
+    )
+}
+
+/**
+ * Standardized Australian Laws source with chunking and scheduling
+ */
+class AustralianLawsStandardizedSource(
+    private val jurisdictions: List<String> = listOf("commonwealth", "nsw", "vic", "qld", "wa", "sa", "tas", "act", "nt"),
+    private val maxLawsPerJurisdiction: Int = 100,
+    private val startYear: Int = 2020
+) : StandardizedSource<AustralianLawChunkable> {
+    override val name = "australian_laws"
+
+    override fun resyncStrategy() = ResyncStrategy.Monthly(dayOfMonth = 1, hour = 2, minute = 0)
+
+    override fun backfillStrategy() = BackfillStrategy.LegalDatabase(
+        jurisdictions = jurisdictions,
+        startYear = startYear
+    )
+
+    override fun needsChunking() = true
+
+    override fun chunker() = Chunker.forEmbeddingModel(tokenLimit = 512, overlapPercent = 0.20)
+
+    override suspend fun fetchForRun(metadata: RunMetadata): Flow<AustralianLawChunkable> {
+        // For Australian laws, we scrape AustLII
+        // Initial pull: fetch laws from startYear onwards
+        // Resync: fetch laws from current year (incremental update)
+
+        val yearFilter = when (metadata.runType) {
+            RunType.INITIAL_PULL -> startYear
+            RunType.RESYNC -> java.time.Year.now().value  // Only current year updates
+        }
+
+        val source = AustralianLawsSource(
+            jurisdictions = jurisdictions,
+            maxLawsPerJurisdiction = maxLawsPerJurisdiction,
+            startYear = yearFilter
+        )
+
+        return source.fetch().map { AustralianLawChunkable(it) }
+    }
+}

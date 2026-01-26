@@ -45,13 +45,13 @@ data class PipelineConfig(
                     scheduleMinutes = System.getenv("RSS_SCHEDULE_MINUTES")?.toInt() ?: 15
                 ),
                 cve = CveConfig(
-                    enabled = System.getenv("CVE_ENABLED")?.toBoolean() ?: false,
+                    enabled = System.getenv("CVE_ENABLED")?.toBoolean() ?: false,  // Disabled - requires CVE_API_KEY
                     apiKey = System.getenv("CVE_API_KEY"),
                     scheduleMinutes = System.getenv("CVE_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
                     maxResults = System.getenv("CVE_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE
                 ),
                 torrents = TorrentsConfig(
-                    enabled = System.getenv("TORRENTS_ENABLED")?.toBoolean() ?: false,
+                    enabled = System.getenv("TORRENTS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
                     dataPath = System.getenv("TORRENTS_DATA_PATH")
                         ?: "https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv",
                     scheduleMinutes = System.getenv("TORRENTS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
@@ -59,20 +59,20 @@ data class PipelineConfig(
                     startLine = System.getenv("TORRENTS_START_LINE")?.toLong() ?: 0
                 ),
                 binance = BinanceConfig(
-                    enabled = System.getenv("BINANCE_ENABLED")?.toBoolean() ?: false,
+                    enabled = System.getenv("BINANCE_ENABLED")?.toBoolean() ?: false,  // Disabled by default (needs symbols configured)
                     symbols = System.getenv("BINANCE_SYMBOLS")?.split(",") ?: emptyList(),
                     interval = System.getenv("BINANCE_INTERVAL") ?: "1h",
                     scheduleMinutes = System.getenv("BINANCE_SCHEDULE_MINUTES")?.toInt() ?: 60,  // Hourly
                     storeVectors = System.getenv("BINANCE_STORE_VECTORS")?.toBoolean() ?: false
                 ),
                 wikipedia = WikipediaConfig(
-                    enabled = System.getenv("WIKIPEDIA_ENABLED")?.toBoolean() ?: false,
+                    enabled = System.getenv("WIKIPEDIA_ENABLED")?.toBoolean() ?: true,  // Enabled by default
                     dumpPath = System.getenv("WIKIPEDIA_DUMP_PATH") ?: "/app/data/enwiki-latest-pages-articles.xml.bz2",
                     scheduleMinutes = System.getenv("WIKIPEDIA_SCHEDULE_MINUTES")?.toInt() ?: 43200,  // Twice daily
                     maxArticles = System.getenv("WIKIPEDIA_MAX_ARTICLES")?.toInt() ?: Int.MAX_VALUE
                 ),
                 australianLaws = AustralianLawsConfig(
-                    enabled = System.getenv("AUSTRALIAN_LAWS_ENABLED")?.toBoolean() ?: false,
+                    enabled = System.getenv("AUSTRALIAN_LAWS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
                     jurisdictions = System.getenv("AUSTRALIAN_LAWS_JURISDICTIONS")?.split(",")
                         ?: listOf("commonwealth", "nsw", "vic", "qld", "wa", "sa", "tas", "act", "nt"),
                     scheduleMinutes = System.getenv("AUSTRALIAN_LAWS_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
@@ -80,20 +80,21 @@ data class PipelineConfig(
                     startYear = System.getenv("AUSTRALIAN_LAWS_START_YEAR")?.toInt() ?: 2020
                 ),
                 linuxDocs = LinuxDocsConfig(
-                    enabled = System.getenv("LINUX_DOCS_ENABLED")?.toBoolean() ?: false,
-                    sources = System.getenv("LINUX_DOCS_SOURCES")?.split(",") ?: listOf("MAN_PAGES"),
+                    enabled = System.getenv("LINUX_DOCS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
+                    sources = System.getenv("LINUX_DOCS_SOURCES")?.split(",") ?: listOf("MAN_PAGES", "DEBIAN_DOCS"),
                     scheduleMinutes = System.getenv("LINUX_DOCS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
                     maxDocs = System.getenv("LINUX_DOCS_MAX")?.toInt() ?: Int.MAX_VALUE
                 ),
                 wiki = WikiConfig(
-                    enabled = System.getenv("WIKI_ENABLED")?.toBoolean() ?: false,
+                    enabled = System.getenv("WIKI_ENABLED")?.toBoolean() ?: true,  // Enabled by default
                     wikiTypes = System.getenv("WIKI_TYPES")?.split(",") ?: listOf("DEBIAN", "ARCH"),
                     maxPagesPerWiki = System.getenv("WIKI_MAX_PAGES_PER_WIKI")?.toInt() ?: 500,
                     scheduleMinutes = System.getenv("WIKI_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
                     categories = System.getenv("WIKI_CATEGORIES")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
                 ),
                 embedding = EmbeddingConfig(
-                    serviceUrl = System.getenv("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000"
+                    serviceUrl = System.getenv("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000",
+                    maxTokens = System.getenv("EMBEDDING_MAX_TOKENS")?.toInt() ?: 8192
                 ),
                 qdrant = QdrantConfig(
                     url = System.getenv("QDRANT_URL") ?: "http://qdrant:6333",
@@ -142,7 +143,8 @@ data class MarketConfig(
 data class EmbeddingConfig(
     val serviceUrl: String = "http://embedding-service:8000",
     val model: String = "bge-base-en-v1.5",
-    val vectorSize: Int = 768
+    val vectorSize: Int = 768,
+    val maxTokens: Int = 8192  // Increased token limit
 )
 
 @Serializable
