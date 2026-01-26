@@ -8,6 +8,17 @@ private val logger = KotlinLogging.logger {}
 
 /**
  * Simple hash-based deduplication store using local file persistence
+ *
+ * NOTE: This implementation uses file-based storage, NOT PostgreSQL.
+ * The PostgreSQL tables `dedupe_records` and `fetch_history` are legacy/unused.
+ *
+ * Architecture:
+ * - In-memory: ConcurrentHashMap for fast lookups during processing
+ * - Persistence: Flat file at /app/data/dedup with tab-separated hash\tmetadata
+ * - Performance: O(1) lookups, periodic flush to disk
+ *
+ * If PostgreSQL-backed deduplication is needed for multi-instance deployments,
+ * implement a PostgresDeduplicationStore that writes to the existing schema.
  */
 class DeduplicationStore(
     private val storePath: String = "/app/data/dedup"

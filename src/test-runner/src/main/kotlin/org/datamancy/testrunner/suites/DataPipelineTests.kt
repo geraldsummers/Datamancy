@@ -623,6 +623,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         if (status != null) {
             println("      ✓ Deduplication is built into pipeline processing")
             println("      ℹ️  Each source uses content hash to prevent re-ingestion")
+            println("      ℹ️  Using file-based storage (/app/data/dedup), NOT PostgreSQL")
         }
     }
 
@@ -631,6 +632,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         // This test verifies the mechanism exists in the code
         println("      ✓ Deduplication store flush is implemented")
         println("      ℹ️  DeduplicationStore.flush() called after each pipeline cycle")
+        println("      ℹ️  File-based storage at /app/data/dedup (PostgreSQL tables unused)")
     }
 
     // ================================================================================
@@ -641,11 +643,16 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         val status = getSourceStatus("cve")
         if (status != null) {
             val checkpoint = status["checkpointData"]?.jsonObject
-            if (checkpoint != null && checkpoint.containsKey("nextIndex")) {
-                val nextIndex = checkpoint["nextIndex"]?.jsonPrimitive?.content
-                println("      ✓ CVE checkpoint: nextIndex = $nextIndex")
+            // Note: checkpointData is always present but may be empty map
+            if (checkpoint != null && !checkpoint.isEmpty()) {
+                if (checkpoint.containsKey("nextIndex")) {
+                    val nextIndex = checkpoint["nextIndex"]?.jsonPrimitive?.content
+                    println("      ✓ CVE checkpoint: nextIndex = $nextIndex")
+                } else {
+                    println("      ✓ CVE has checkpoint data (fields: ${checkpoint.keys.joinToString()})")
+                }
             } else {
-                println("      ℹ️  No CVE checkpoint yet (first run)")
+                println("      ℹ️  No CVE checkpoint data yet (empty map - normal for completed sources)")
             }
         }
     }
@@ -654,20 +661,25 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         val status = getSourceStatus("torrents")
         if (status != null) {
             val checkpoint = status["checkpointData"]?.jsonObject
-            if (checkpoint != null && checkpoint.containsKey("nextLine")) {
-                val nextLine = checkpoint["nextLine"]?.jsonPrimitive?.content
-                println("      ✓ Torrents checkpoint: nextLine = $nextLine")
+            // Note: checkpointData is always present but may be empty map
+            if (checkpoint != null && !checkpoint.isEmpty()) {
+                if (checkpoint.containsKey("nextLine")) {
+                    val nextLine = checkpoint["nextLine"]?.jsonPrimitive?.content
+                    println("      ✓ Torrents checkpoint: nextLine = $nextLine")
+                } else {
+                    println("      ✓ Torrents has checkpoint data (fields: ${checkpoint.keys.joinToString()})")
+                }
             } else {
-                println("      ℹ️  No Torrents checkpoint yet (first run)")
+                println("      ℹ️  No Torrents checkpoint data (empty map - normal after full CSV ingestion)")
             }
         }
     }
 
     test("Checkpoint: Metadata store persists across restarts") {
-        // The SourceMetadataStore uses in-memory storage
-        // In production, this would be backed by persistent volume
+        // The SourceMetadataStore uses JSON file-based storage at /tmp/datamancy/metadata/
         println("      ✓ Checkpoint system is implemented in SourceMetadataStore")
-        println("      ℹ️  Production deployment should mount /app/metadata volume")
+        println("      ℹ️  File-based storage: /tmp/datamancy/metadata/*.json")
+        println("      ℹ️  PostgreSQL tables (dedupe_records, fetch_history) are unused/legacy")
     }
 
     // ================================================================================

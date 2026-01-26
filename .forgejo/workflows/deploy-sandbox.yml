@@ -1,0 +1,102 @@
+name: Deploy to Sandbox (External VM)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - master
+      - main
+
+jobs:
+  deploy-to-sandbox:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: datamancy-dist-${{ github.sha }}
+          path: dist/
+
+      - name: Deploy to sandbox VM
+        env:
+          SANDBOX_VM_HOST: ${{ secrets.SANDBOX_VM_HOST }}
+          SANDBOX_VM_SSH_KEY: ${{ secrets.SANDBOX_VM_SSH_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          # Set up SSH access to sandbox VM
+          mkdir -p ~/.ssh
+          echo "$SANDBOX_VM_SSH_KEY" > ~/.ssh/sandbox_key
+          chmod 600 ~/.ssh/sandbox_key
+
+          # Create deployment directory on sandbox VM
+          ssh -i ~/.ssh/sandbox_key -o StrictHostKeyChecking=no root@$SANDBOX_VM_HOST "mkdir -p /deployments/pr-${PR_NUMBER}"
+
+          # Copy dist/ to sandbox VM
+          scp -i ~/.ssh/sandbox_key -o StrictHostKeyChecking=no -r dist/* root@$SANDBOX_VM_HOST:/deployments/pr-${PR_NUMBER}/
+
+          # Deploy to sandbox VM's Docker daemon
+          ssh -i ~/.ssh/sandbox_key -o StrictHostKeyChecking=no root@$SANDBOX_VM_HOST << 'EOF'
+            cd /deployments/pr-${PR_NUMBER}
+
+            # Pull images from registry
+            export VERSION=$(echo $GIT_SHA | cut -c1-7)
+            docker pull localhost:5000/datamancy-jupyterhub:${VERSION}
+            docker pull localhost:5000/datamancy-jupyter-notebook:${VERSION}
+            docker pull localhost:5000/datamancy-agent-tool-server:${VERSION}
+            docker pull localhost:5000/datamancy-search-service:${VERSION}
+
+            # Deploy stack
+            docker-compose -p pr-${PR_NUMBER} up -d
+
+            # Wait for health checks
+            sleep 30
+
+            # Verify deployment
+            docker-compose -p pr-${PR_NUMBER} ps
+          EOF
+
+      - name: Run integration tests on sandbox
+        env:
+          SANDBOX_VM_HOST: ${{ secrets.SANDBOX_VM_HOST }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ssh -i ~/.ssh/sandbox_key -o StrictHostKeyChecking=no root@$SANDBOX_VM_HOST << 'EOF'
+            cd /deployments/pr-${PR_NUMBER}
+
+            # Run test-runner container
+            docker-compose -p pr-${PR_NUMBER} run --rm test-runner
+          EOF
+
+      - name: Comment on PR with preview URL
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const previewUrl = `https://preview-pr${prNumber}.datamancy.net`;
+
+            github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Sandbox Deployment Ready!**\n\n` +
+                    `Preview URL: [${previewUrl}](${previewUrl})\n` +
+                    `Commit: \`${context.sha.substring(0, 7)}\`\n\n` +
+                    `The stack is running in an isolated VM environment.`
+            });
+
+      - name: Cleanup on failure
+        if: failure()
+        env:
+          SANDBOX_VM_HOST: ${{ secrets.SANDBOX_VM_HOST }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ssh -i ~/.ssh/sandbox_key -o StrictHostKeyChecking=no root@$SANDBOX_VM_HOST << 'EOF'
+            cd /deployments/pr-${PR_NUMBER}
+            docker-compose -p pr-${PR_NUMBER} down -v
+            rm -rf /deployments/pr-${PR_NUMBER}
+          EOF

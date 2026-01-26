@@ -36,6 +36,8 @@ volumes:
   synapse_data:
   ntfy_data:
   couchdb_data:
+  registry_data:
+  forgejo_runner_data:
 
   # Configuration Volumes
   caddy_config:
@@ -45,8 +47,6 @@ volumes:
 
   # Credentials/Certificates
   caddy_data:
-  dind-certs:
-  dind-storage:
 
   # Seafile important files (on BTRFS)
   seafile_files:

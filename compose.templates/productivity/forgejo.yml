@@ -35,6 +35,9 @@ services:
       FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: true
       FORGEJO__openid__ENABLE_OPENID_SIGNIN: true
       FORGEJO__openid__ENABLE_OPENID_SIGNUP: true
+      # Enable Forgejo Actions (CI/CD)
+      FORGEJO__actions__ENABLED: true
+      FORGEJO__actions__DEFAULT_ACTIONS_URL: https://code.forgejo.org
       FORGEJO_OAUTH_SECRET: ${FORGEJO_OAUTH_SECRET}
       DOMAIN: ${DOMAIN}
       STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}

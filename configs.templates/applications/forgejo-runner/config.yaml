@@ -1,0 +1,53 @@
+# Forgejo Actions Runner Configuration
+# This runner executes CI/CD workflows for the Datamancy stack
+
+log:
+  level: info
+
+runner:
+  # File to store runner registration token
+  file: /data/.runner
+
+  # Maximum number of parallel jobs
+  capacity: 3
+
+  # Job timeout
+  timeout: 3h
+
+  # Whether the runner should run as root
+  insecure: false
+
+  # Fetch new jobs every 2 seconds
+  fetch_timeout: 2s
+
+  # Fetch interval when no jobs available
+  fetch_interval: 2s
+
+  # Labels for this runner (determines which jobs it can run)
+  labels:
+    - "ubuntu-latest:docker://node:20-bookworm"
+    - "ubuntu-22.04:docker://node:20-bookworm"
+    - "linux:docker://node:20-bookworm"
+
+cache:
+  enabled: true
+  dir: /data/cache
+  host: ""
+  port: 0
+
+container:
+  # Use the host Docker daemon
+  network: "datamancy-stack_docker-proxy"
+
+  # Enable Docker-in-Docker for builds
+  privileged: false
+
+  # Container options
+  options: ""
+
+  # Work directory inside job containers
+  workdir_parent: /workspace
+
+host:
+  # Work directory on the host
+  workdir_parent: /data/actions

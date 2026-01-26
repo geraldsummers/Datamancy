@@ -10,6 +10,12 @@ private val logger = KotlinLogging.logger {}
 
 /**
  * Tracks metadata for data sources (last run, items processed, failures, etc.)
+ *
+ * NOTE: This implementation uses JSON file-based storage at /tmp/datamancy/metadata/ (one .json file per source)
+ * The PostgreSQL tables `dedupe_records` and `fetch_history` are legacy/unused.
+ *
+ * Each source gets a separate JSON file (e.g., torrents.json, wikipedia.json)
+ * Files are persisted to disk and loaded on startup for checkpoint/resume functionality.
  */
 data class SourceMetadata(
     val sourceName: String,

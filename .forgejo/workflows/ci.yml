@@ -1,0 +1,110 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    container:
+      image: eclipse-temurin:17-jdk
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl gnupg docker.io docker-compose openssl
+
+      - name: Set up Kotlin environment
+        run: |
+          curl -s "https://get.sdkman.io" | bash
+          source "$HOME/.sdkman/bin/sdkman-init.sh"
+          sdk install kotlin
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Run Gradle tests
+        run: ./gradlew test --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+
+      - name: Build Datamancy stack
+        run: ./build-datamancy.main.kts --skip-gradle
+
+      - name: Build and tag Docker images
+        run: |
+          export GIT_SHA=$(git rev-parse --short HEAD)
+          export VERSION=${GIT_SHA}
+
+          cd dist
+
+          # Build custom images
+          docker build -t localhost:5000/datamancy-jupyterhub:${VERSION} ./src/jupyterhub
+          docker build -t localhost:5000/datamancy-jupyter-notebook:${VERSION} -f ./src/jupyter-notebook/Dockerfile.ai-ide ./src/jupyter-notebook
+          docker build -t localhost:5000/datamancy-agent-tool-server:${VERSION} ./src/agent-tool-server
+          docker build -t localhost:5000/datamancy-search-service:${VERSION} ./src/search-service
+          docker build -t localhost:5000/datamancy-test-runner:${VERSION} -f ./Dockerfile.test-runner .
+
+          # Tag with 'latest' as well
+          docker tag localhost:5000/datamancy-jupyterhub:${VERSION} localhost:5000/datamancy-jupyterhub:latest
+          docker tag localhost:5000/datamancy-jupyter-notebook:${VERSION} localhost:5000/datamancy-jupyter-notebook:latest
+          docker tag localhost:5000/datamancy-agent-tool-server:${VERSION} localhost:5000/datamancy-agent-tool-server:latest
+          docker tag localhost:5000/datamancy-search-service:${VERSION} localhost:5000/datamancy-search-service:latest
+          docker tag localhost:5000/datamancy-test-runner:${VERSION} localhost:5000/datamancy-test-runner:latest
+
+          echo "Built images with version: ${VERSION}"
+
+      - name: Push images to registry
+        run: |
+          export GIT_SHA=$(git rev-parse --short HEAD)
+          export VERSION=${GIT_SHA}
+
+          # Push versioned images
+          docker push localhost:5000/datamancy-jupyterhub:${VERSION}
+          docker push localhost:5000/datamancy-jupyter-notebook:${VERSION}
+          docker push localhost:5000/datamancy-agent-tool-server:${VERSION}
+          docker push localhost:5000/datamancy-search-service:${VERSION}
+          docker push localhost:5000/datamancy-test-runner:${VERSION}
+
+          # Push latest tags
+          docker push localhost:5000/datamancy-jupyterhub:latest
+          docker push localhost:5000/datamancy-jupyter-notebook:latest
+          docker push localhost:5000/datamancy-agent-tool-server:latest
+          docker push localhost:5000/datamancy-search-service:latest
+          docker push localhost:5000/datamancy-test-runner:latest
+
+          echo "Pushed images to registry"
+
+      - name: Run validation tests
+        run: |
+          chmod +x ./validate-integration-tests.sh
+          ./validate-integration-tests.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: datamancy-dist-${{ github.sha }}
+          path: dist/
+          retention-days: 7

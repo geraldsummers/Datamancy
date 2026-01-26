@@ -51,7 +51,8 @@ class MonitoringServer(
                             totalFailed = metadata.totalItemsFailed,
                             lastRunTime = metadata.lastSuccessfulRun ?: metadata.lastAttemptedRun ?: "never",
                             consecutiveFailures = metadata.consecutiveFailures,
-                            status = if (metadata.consecutiveFailures > 3) "degraded" else "healthy"
+                            status = if (metadata.consecutiveFailures > 3) "degraded" else "healthy",
+                            checkpointData = metadata.checkpointData
                         )
                     }
 
@@ -315,7 +316,8 @@ data class SourceStatus(
     val totalFailed: Long,
     val lastRunTime: String,
     val consecutiveFailures: Int,
-    val status: String
+    val status: String,
+    val checkpointData: Map<String, String> = emptyMap()
 )
 
 @Serializable

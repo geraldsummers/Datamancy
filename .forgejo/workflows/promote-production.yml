@@ -1,0 +1,115 @@
+name: Promote to Production
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to promote (git SHA or tag)'
+        required: false
+
+jobs:
+  promote-to-production:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(git rev-parse --short HEAD)
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Promoting version: ${VERSION}"
+
+      - name: Pre-promotion snapshot
+        env:
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
+          PRODUCTION_SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+        run: |
+          # Set up SSH access to production host
+          mkdir -p ~/.ssh
+          echo "$PRODUCTION_SSH_KEY" > ~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+
+          # Run pre-promotion snapshot script on production host
+          ssh -i ~/.ssh/prod_key -o StrictHostKeyChecking=no datamancy@$PRODUCTION_HOST << 'EOF'
+            cd ~/.datamancy
+            ./scripts/pre-promotion-snapshot.sh
+          EOF
+
+      - name: Promote to production
+        env:
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Run promotion script on production host
+          ssh -i ~/.ssh/prod_key -o StrictHostKeyChecking=no datamancy@$PRODUCTION_HOST << EOF
+            cd ~/.datamancy
+            ./scripts/promote.sh ${VERSION}
+          EOF
+
+      - name: Run smoke tests
+        env:
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
+        run: |
+          # Run basic health checks
+          ssh -i ~/.ssh/prod_key -o StrictHostKeyChecking=no datamancy@$PRODUCTION_HOST << 'EOF'
+            cd ~/.datamancy
+
+            # Wait for services to stabilize
+            sleep 30
+
+            # Check all services are healthy
+            docker-compose ps | grep -v "Up (healthy)" && exit 1 || echo "All services healthy"
+
+            # Run smoke tests via test-runner
+            docker-compose run --rm test-runner bash -c "
+              # Basic connectivity tests
+              curl -f http://caddy:80/health || exit 1
+              curl -f http://authelia:9091/api/health || exit 1
+              curl -f http://forgejo:3000/api/healthz || exit 1
+              curl -f http://jupyterhub:8000/hub/health || exit 1
+              echo 'Smoke tests passed!'
+            "
+          EOF
+
+      - name: Tag successful deployment
+        if: success()
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag -a "production-${VERSION}-$(date +%Y%m%d-%H%M%S)" -m "Production deployment of ${VERSION}"
+          git push origin --tags
+
+      - name: Rollback on failure
+        if: failure()
+        env:
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
+        run: |
+          echo "⚠️ Promotion failed! Initiating rollback..."
+          ssh -i ~/.ssh/prod_key -o StrictHostKeyChecking=no datamancy@$PRODUCTION_HOST << 'EOF'
+            cd ~/.datamancy
+            ./scripts/rollback.sh
+          EOF
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Production deployment successful!"
+          echo "Version: ${{ steps.version.outputs.version }}"
+          # Add notification webhook here (Slack, Discord, Email, etc.)
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment FAILED and was rolled back!"
+          # Add critical alert notification here
