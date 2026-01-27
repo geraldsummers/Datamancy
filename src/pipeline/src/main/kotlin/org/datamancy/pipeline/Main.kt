@@ -5,6 +5,7 @@ import kotlinx.coroutines.*
 import org.datamancy.pipeline.config.PipelineConfig
 import org.datamancy.pipeline.core.StandardizedRunner
 import org.datamancy.pipeline.processors.Embedder
+import org.datamancy.pipeline.sinks.BookStackSink
 import org.datamancy.pipeline.sinks.QdrantSink
 import org.datamancy.pipeline.sources.standardized.*
 import org.datamancy.pipeline.storage.DeduplicationStore
@@ -24,6 +25,19 @@ fun main() {
     val dedupStore = DeduplicationStore()
     val metadataStore = SourceMetadataStore()
 
+    // Initialize BookStack sink if enabled
+    val bookStackSink = if (config.bookstack.enabled) {
+        logger.info { "BookStack integration enabled: ${config.bookstack.url}" }
+        BookStackSink(
+            bookstackUrl = config.bookstack.url,
+            tokenId = config.bookstack.tokenId,
+            tokenSecret = config.bookstack.tokenSecret
+        )
+    } else {
+        logger.info { "BookStack integration disabled" }
+        null
+    }
+
     // Start monitoring HTTP server and pipelines
     runBlocking {
         // Start monitoring HTTP server in background coroutine
@@ -35,7 +49,7 @@ fun main() {
 
         // Launch all standardized sources
         if (config.rss.enabled) {
-            launch { runStandardizedSource("RSS", config, dedupStore, metadataStore) {
+            launch { runStandardizedSource("RSS", config, dedupStore, metadataStore, bookStackSink) {
                 RssStandardizedSource(
                     feedUrls = config.rss.feedUrls,
                     backfillDays = 7
@@ -44,7 +58,7 @@ fun main() {
         }
 
         if (config.cve.enabled) {
-            launch { runStandardizedSource("CVE", config, dedupStore, metadataStore) {
+            launch { runStandardizedSource("CVE", config, dedupStore, metadataStore, bookStackSink) {
                 CveStandardizedSource(
                     apiKey = config.cve.apiKey,
                     maxResults = config.cve.maxResults
@@ -53,7 +67,7 @@ fun main() {
         }
 
         if (config.torrents.enabled) {
-            launch { runStandardizedSource("Torrents", config, dedupStore, metadataStore) {
+            launch { runStandardizedSource("Torrents", config, dedupStore, metadataStore, bookStackSink) {
                 TorrentsStandardizedSource(
                     dataPath = config.torrents.dataPath,
                     maxTorrents = config.torrents.maxResults
@@ -62,7 +76,7 @@ fun main() {
         }
 
         if (config.wikipedia.enabled) {
-            launch { runStandardizedSource("Wikipedia", config, dedupStore, metadataStore) {
+            launch { runStandardizedSource("Wikipedia", config, dedupStore, metadataStore, bookStackSink) {
                 WikipediaStandardizedSource(
                     dumpUrl = config.wikipedia.dumpPath,
                     maxArticles = config.wikipedia.maxArticles
@@ -71,7 +85,7 @@ fun main() {
         }
 
         if (config.australianLaws.enabled) {
-            launch { runStandardizedSource("Australian Laws", config, dedupStore, metadataStore) {
+            launch { runStandardizedSource("Australian Laws", config, dedupStore, metadataStore, bookStackSink) {
                 OpenAustralianLegalCorpusStandardizedSource(
                     cacheDir = "/data/australian-legal-corpus",
                     jurisdictions = if (config.australianLaws.jurisdictions.isNotEmpty())
@@ -82,7 +96,7 @@ fun main() {
         }
 
         if (config.linuxDocs.enabled) {
-            launch { runStandardizedSource("Linux Docs", config, dedupStore, metadataStore) {
+            launch { runStandardizedSource("Linux Docs", config, dedupStore, metadataStore, bookStackSink) {
                 LinuxDocsStandardizedSource(
                     sources = config.linuxDocs.sources.mapNotNull {
                         try {
@@ -97,7 +111,7 @@ fun main() {
         if (config.wiki.enabled) {
             // Launch Debian Wiki
             if (config.wiki.wikiTypes.any { it.equals("debian", ignoreCase = true) }) {
-                launch { runStandardizedSource("Debian Wiki", config, dedupStore, metadataStore) {
+                launch { runStandardizedSource("Debian Wiki", config, dedupStore, metadataStore, bookStackSink) {
                     DebianWikiStandardizedSource(
                         maxPages = config.wiki.maxPagesPerWiki,
                         categories = config.wiki.categories
@@ -107,7 +121,7 @@ fun main() {
 
             // Launch Arch Wiki
             if (config.wiki.wikiTypes.any { it.equals("arch", ignoreCase = true) }) {
-                launch { runStandardizedSource("Arch Wiki", config, dedupStore, metadataStore) {
+                launch { runStandardizedSource("Arch Wiki", config, dedupStore, metadataStore, bookStackSink) {
                     ArchWikiStandardizedSource(
                         maxPages = config.wiki.maxPagesPerWiki,
                         categories = config.wiki.categories
@@ -130,6 +144,7 @@ suspend fun <T : org.datamancy.pipeline.core.Chunkable> runStandardizedSource(
     config: PipelineConfig,
     dedupStore: DeduplicationStore,
     metadataStore: SourceMetadataStore,
+    bookStackSink: BookStackSink?,
     sourceFactory: () -> org.datamancy.pipeline.core.StandardizedSource<T>
 ) {
     logger.info { "Launching $displayName pipeline with standardized runner" }
@@ -164,7 +179,8 @@ suspend fun <T : org.datamancy.pipeline.core.Chunkable> runStandardizedSource(
         qdrantSink = qdrantSink,
         embedder = embedder,
         dedupStore = dedupStore,
-        metadataStore = metadataStore
+        metadataStore = metadataStore,
+        bookStackSink = bookStackSink
     )
 
     runner.run()

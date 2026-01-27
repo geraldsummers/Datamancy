@@ -60,15 +60,17 @@ class StandardizedRunnerTest {
         coEvery { mockEmbedder.process(any()) } returns testVector
         coEvery { mockQdrantSink.write(any()) } just Runs
 
-        // Mock the scheduler to run once
-        mockkConstructor(SourceScheduler::class)
-        coEvery { anyConstructed<SourceScheduler>().schedule(any()) } coAnswers {
-            val onRun = firstArg<suspend (RunMetadata) -> Unit>()
-            onRun(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "test",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
+        val testRunner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
 
         // When: Runner processes source
-        runner.run()
+        testRunner.run()
 
         // Then: Item should be embedded and stored
         coVerify(exactly = 1) { mockEmbedder.process("Hello world") }
@@ -89,14 +91,17 @@ class StandardizedRunnerTest {
         coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f)
         coEvery { mockQdrantSink.write(any()) } just Runs
 
-        mockkConstructor(SourceScheduler::class)
-        coEvery { anyConstructed<SourceScheduler>().schedule(any()) } coAnswers {
-            val onRun = firstArg<suspend (RunMetadata) -> Unit>()
-            onRun(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "test",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
+        val testRunner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
 
         // When: Runner processes source
-        runner.run()
+        testRunner.run()
 
         // Then: Only one item should be processed
         coVerify(exactly = 1) { mockEmbedder.process(any()) }
@@ -119,14 +124,17 @@ class StandardizedRunnerTest {
         coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f, 0.2f)
         coEvery { mockQdrantSink.write(any()) } just Runs
 
-        mockkConstructor(SourceScheduler::class)
-        coEvery { anyConstructed<SourceScheduler>().schedule(any()) } coAnswers {
-            val onRun = firstArg<suspend (RunMetadata) -> Unit>()
-            onRun(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "test",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
+        val testRunner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
 
         // When: Runner processes source
-        runner.run()
+        testRunner.run()
 
         // Then: Both chunks should be processed
         coVerify(exactly = 2) { mockEmbedder.process(any()) }
@@ -149,7 +157,7 @@ class StandardizedRunnerTest {
         }
 
         // When: Runner processes source with mocked scheduler
-        val testRunner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, mockScheduler)
+        val testRunner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, mockScheduler)
         testRunner.run()
 
         // Then: Metadata should be recorded

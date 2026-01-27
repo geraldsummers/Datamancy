@@ -116,6 +116,13 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "security" -> runner.securityTests()
         "monitoring" -> runner.monitoringTests()
         "backup" -> runner.backupTests()
+        // Stack deployment tests (requires labware)
+        "stack-deployment" -> runner.stackDeploymentTests()
+        // BookStack integration tests
+        "bookstack" -> runner.bookStackIntegrationTests()
+        // CI/CD and labware tests
+        "cicd" -> runner.cicdTests()
+        "labware" -> runner.labwareTests()
         "all" -> {
             runner.foundationTests()
             runner.llmTests()
@@ -133,12 +140,15 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.securityTests()
             runner.monitoringTests()
             runner.backupTests()
+            runner.cicdTests()
+            runner.labwareTests()
         }
         else -> {
             println("❌ Unknown suite: $suite")
             println("Available suites: foundation, llm, knowledge-base, data-pipeline, microservices,")
             println("                  search-service, infrastructure, databases, user-interface, communication,")
-            println("                  collaboration, productivity, file-management, security, monitoring, backup, all")
+            println("                  collaboration, productivity, file-management, security, monitoring, backup,")
+            println("                  stack-deployment, bookstack, cicd, labware, all")
             exitProcess(1)
         }
     }
@@ -210,7 +220,8 @@ private fun printUsage() {
                                      data-pipeline, microservices, search-service,
                                      infrastructure, databases, user-interface,
                                      communication, collaboration, productivity,
-                                     file-management, security, monitoring, backup, all
+                                     file-management, security, monitoring, backup,
+                                     stack-deployment, bookstack, cicd, labware, all
 
       --verbose, -v          Enable verbose logging
       --help, -h             Show this help message

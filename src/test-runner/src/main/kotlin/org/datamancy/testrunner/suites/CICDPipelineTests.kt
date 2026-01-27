@@ -1,15 +1,185 @@
 package org.datamancy.testrunner.suites
 
+import org.datamancy.testrunner.framework.*
 import java.io.File
 import java.util.UUID
 
 /**
  * CI/CD Pipeline Integration Tests
  *
- * Standalone integration tests for the complete CI/CD pipeline using labware Docker socket.
+ * Tests for the complete CI/CD pipeline using labware Docker socket.
  * Tests image building, registry operations, deployments, and isolation.
- *
- * Run manually on deployed stack where labware socket and registry are available.
+ */
+suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
+    val labwareSocket = "/run/labware-docker.sock"
+    val registryHost = "registry:5000"
+    val testImagePrefix = "cicd-test"
+
+    // Check prerequisites
+    test("CI/CD prerequisites available") {
+        val socketFile = File(labwareSocket)
+        if (!socketFile.exists()) {
+            throw AssertionError("Labware socket not found at $labwareSocket - CI/CD infrastructure not configured")
+        }
+    }
+
+    test("Build Docker image on labware socket") {
+        val testId = UUID.randomUUID().toString().substring(0, 8)
+        val imageName = "$testImagePrefix-build:$testId"
+
+        val tempDir = File.createTempFile("dockerfile-", "").apply {
+            delete()
+            mkdir()
+        }
+
+        try {
+            File(tempDir, "Dockerfile").writeText("""
+                FROM alpine:latest
+                RUN echo "CI/CD Test Build $testId"
+                CMD ["echo", "Hello from CI/CD test"]
+            """.trimIndent())
+
+            val (exitCode, output) = execCICDDocker(labwareSocket, "build", "-t", imageName, tempDir.absolutePath)
+            if (exitCode != 0) {
+                throw AssertionError("Docker build failed: $output")
+            }
+
+            val (listExitCode, listOutput) = execCICDDocker(labwareSocket, "images", imageName, "-q")
+            if (listExitCode != 0 || listOutput.trim().isEmpty()) {
+                throw AssertionError("Image not found after build")
+            }
+
+            // Cleanup
+            execCICDDocker(labwareSocket, "rmi", "-f", imageName)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    test("Push image to registry") {
+        val testId = UUID.randomUUID().toString().substring(0, 8)
+        val localImageName = "$testImagePrefix-push:$testId"
+        val registryImageName = "$registryHost/$testImagePrefix-push:$testId"
+
+        val tempDir = File.createTempFile("dockerfile-", "").apply {
+            delete()
+            mkdir()
+        }
+
+        try {
+            File(tempDir, "Dockerfile").writeText("""
+                FROM alpine:latest
+                LABEL test.id="$testId"
+                CMD ["echo", "Registry test"]
+            """.trimIndent())
+
+            val (buildExitCode, buildOutput) = execCICDDocker(labwareSocket, "build", "-t", localImageName, tempDir.absolutePath)
+            if (buildExitCode != 0) {
+                throw AssertionError("Build failed: $buildOutput")
+            }
+
+            execCICDDocker(labwareSocket, "tag", localImageName, registryImageName)
+
+            val (pushExitCode, pushOutput) = execCICDDocker(labwareSocket, "push", registryImageName)
+            if (pushExitCode != 0) {
+                throw AssertionError("Push to registry failed: $pushOutput")
+            }
+
+            // Cleanup
+            execCICDDocker(labwareSocket, "rmi", "-f", localImageName, registryImageName)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    test("Verify labware container isolation") {
+        val testId = UUID.randomUUID().toString().substring(0, 8)
+        val containerName = "$testImagePrefix-isolation-$testId"
+
+        try {
+            val (startExitCode, _) = execCICDDocker(
+                labwareSocket, "run", "-d", "--name", containerName, "alpine:latest", "sleep", "30"
+            )
+            if (startExitCode != 0) {
+                throw AssertionError("Container start failed")
+            }
+
+            // Check container exists on labware
+            val (labwareCheckCode, labwareOutput) = execCICDDocker(
+                labwareSocket, "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
+            )
+            if (labwareCheckCode != 0 || !labwareOutput.contains(containerName)) {
+                throw AssertionError("Container not found on labware")
+            }
+
+            // Check container NOT visible on production
+            val prodProcess = ProcessBuilder("docker", "ps", "--filter", "name=$containerName", "--format", "{{.Names}}").start()
+            val prodOutput = prodProcess.inputStream.bufferedReader().readText()
+            prodProcess.waitFor()
+
+            if (prodOutput.contains(containerName)) {
+                throw AssertionError("Container visible on production - isolation breach!")
+            }
+
+            // Cleanup
+            execCICDDocker(labwareSocket, "rm", "-f", containerName)
+        } catch (e: Exception) {
+            execCICDDocker(labwareSocket, "rm", "-f", containerName)
+            throw e
+        }
+    }
+
+    test("Multi-stage Docker build") {
+        val testId = UUID.randomUUID().toString().substring(0, 8)
+        val imageName = "$testImagePrefix-multistage:$testId"
+
+        val tempDir = File.createTempFile("dockerfile-", "").apply {
+            delete()
+            mkdir()
+        }
+
+        try {
+            File(tempDir, "Dockerfile").writeText("""
+                FROM alpine:latest AS builder
+                RUN echo "Building artifact..." > /artifact.txt
+
+                FROM alpine:latest
+                COPY --from=builder /artifact.txt /app/artifact.txt
+                CMD ["cat", "/app/artifact.txt"]
+            """.trimIndent())
+
+            val (buildExitCode, buildOutput) = execCICDDocker(labwareSocket, "build", "-t", imageName, tempDir.absolutePath)
+            if (buildExitCode != 0) {
+                throw AssertionError("Multi-stage build failed: $buildOutput")
+            }
+
+            val (runExitCode, runOutput) = execCICDDocker(labwareSocket, "run", "--rm", imageName)
+            if (runExitCode != 0 || !runOutput.contains("Building artifact")) {
+                throw AssertionError("Multi-stage container output incorrect")
+            }
+
+            // Cleanup
+            execCICDDocker(labwareSocket, "rmi", "-f", imageName)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+}
+
+private fun execCICDDocker(socketPath: String, vararg args: String): Pair<Int, String> {
+    val command = listOf("docker", "-H", "unix://$socketPath") + args
+    val process = ProcessBuilder(command)
+        .redirectErrorStream(true)
+        .start()
+
+    val output = process.inputStream.bufferedReader().readText()
+    val exitCode = process.waitFor()
+
+    return exitCode to output
+}
+
+/**
+ * Standalone entry point for manual testing
  */
 object CICDPipelineTests {
 

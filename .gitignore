@@ -67,3 +67,6 @@ htmlReport/.gradle-container/
 
 *.tar.*
 *.tar
+
+# Heap dumps from OutOfMemoryError
+*.hprof

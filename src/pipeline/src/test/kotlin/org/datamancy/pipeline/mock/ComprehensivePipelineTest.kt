@@ -62,18 +62,17 @@ class ComprehensivePipelineTest {
         coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f)
         coEvery { mockQdrantSink.write(any()) } just Runs
 
-        // Mock scheduler to immediately invoke callback
-        val mockScheduler = mockk<SourceScheduler>()
-        coEvery { mockScheduler.schedule(any()) } coAnswers {
-            val callback = firstArg<suspend (RunMetadata) -> Unit>()
-            callback(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "mock_source",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
 
-        // When: Process through runner with mocked scheduler (with timeout)
-        kotlinx.coroutines.withTimeout(30000) {  // 30 second timeout for 1000 items
-            val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, mockScheduler)
-            runner.run()
-        }
+        // When: Process through runner
+        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
+        runner.run()
 
         // Then: All items should be processed
         coVerify(exactly = 1000) { mockQdrantSink.write(any()) }
@@ -93,18 +92,17 @@ class ComprehensivePipelineTest {
         coEvery { mockEmbedder.process("bad") } throws RuntimeException("Embedding failed")
         coEvery { mockQdrantSink.write(any()) } just Runs
 
-        // Mock scheduler to immediately invoke callback
-        val mockScheduler = mockk<SourceScheduler>()
-        coEvery { mockScheduler.schedule(any()) } coAnswers {
-            val callback = firstArg<suspend (RunMetadata) -> Unit>()
-            callback(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "mock_source",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
 
-        // When: Process through runner with mocked scheduler (with timeout)
-        kotlinx.coroutines.withTimeout(5000) {  // 5 second timeout
-            val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, mockScheduler)
-            runner.run()
-        }
+        // When: Process through runner
+        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
+        runner.run()
 
         // Then: Good items should succeed, bad ones should be counted as failures
         coVerify(exactly = 2) { mockQdrantSink.write(any()) }
@@ -128,20 +126,28 @@ class ComprehensivePipelineTest {
         coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f)
         coEvery { mockQdrantSink.write(any()) } just Runs
 
-        // Mock scheduler
-        val mockScheduler = mockk<SourceScheduler>()
-        coEvery { mockScheduler.schedule(any()) } coAnswers {
-            firstArg<suspend (RunMetadata) -> Unit>()(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "mock_source",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
 
         // First run
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(*run1Items.toTypedArray())
-        var runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, mockScheduler)
+        var runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
         runner.run()
 
-        // Second run
+        // Second run - create new scheduler for second run
+        val testScheduler2 = SourceScheduler(
+            sourceName = "mock_source",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(*run2Items.toTypedArray())
-        runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, mockScheduler)
+        runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler2)
         runner.run()
 
         // Then: Should process 3 unique items total (not 4)
@@ -164,14 +170,16 @@ class ComprehensivePipelineTest {
         coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f)
         coEvery { mockQdrantSink.write(any()) } just Runs
 
-        // Mock scheduler
-        val mockScheduler = mockk<SourceScheduler>()
-        coEvery { mockScheduler.schedule(any()) } coAnswers {
-            firstArg<suspend (RunMetadata) -> Unit>()(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "mock_source",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
 
         // When: Process
-        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, mockScheduler)
+        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
         runner.run()
 
         // Then: Should create 2 vectors (one per chunk)
@@ -190,14 +198,16 @@ class ComprehensivePipelineTest {
         // Given: Source that returns no items
         coEvery { mockSource.fetchForRun(any()) } returns flowOf()
 
-        // Mock scheduler
-        val mockScheduler = mockk<SourceScheduler>()
-        coEvery { mockScheduler.schedule(any()) } coAnswers {
-            firstArg<suspend (RunMetadata) -> Unit>()(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "mock_source",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
 
         // When: Process
-        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, mockScheduler)
+        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
         runner.run()
 
         // Then: Should complete without error
@@ -222,14 +232,16 @@ class ComprehensivePipelineTest {
         coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f)
         coEvery { mockQdrantSink.write(any()) } just Runs
 
-        // Mock scheduler
-        val mockScheduler = mockk<SourceScheduler>()
-        coEvery { mockScheduler.schedule(any()) } coAnswers {
-            firstArg<suspend (RunMetadata) -> Unit>()(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "mock_source",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
 
         // When: Process
-        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, mockScheduler)
+        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
         runner.run()
 
         // Then: Metadata should include chunk info
@@ -256,14 +268,16 @@ class ComprehensivePipelineTest {
         coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f)
         coEvery { mockQdrantSink.write(any()) } just Runs
 
-        // Mock scheduler
-        val mockScheduler = mockk<SourceScheduler>()
-        coEvery { mockScheduler.schedule(any()) } coAnswers {
-            firstArg<suspend (RunMetadata) -> Unit>()(RunMetadata(RunType.INITIAL_PULL, 1, true))
-        }
+        // Use a test scheduler with runOnce=true
+        val testScheduler = SourceScheduler(
+            sourceName = "mock_source",
+            resyncStrategy = ResyncStrategy.DailyAt(1, 0),
+            initialPullEnabled = true,
+            runOnce = true
+        )
 
         // When: Process
-        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, mockScheduler)
+        val runner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
         runner.run()
 
         // Then: Should only process first occurrence

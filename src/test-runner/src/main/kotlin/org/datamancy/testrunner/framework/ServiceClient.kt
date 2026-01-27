@@ -96,11 +96,22 @@ class ServiceClient(
     }
 
     suspend fun getRawResponse(url: String): HttpResponse {
-        return client.get(url)
+        return client.get(url) {
+            // Automatically add BookStack auth headers if URL is BookStack and credentials available
+            if (url.contains("/api/") && endpoints.bookstackTokenId != null && endpoints.bookstackTokenSecret != null) {
+                header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
+            }
+        }
     }
 
     suspend fun getRawResponse(url: String, block: HttpRequestBuilder.() -> Unit): HttpResponse {
-        return client.get(url, block)
+        return client.get(url) {
+            // Automatically add BookStack auth headers if URL is BookStack and credentials available
+            if (url.contains("/api/") && endpoints.bookstackTokenId != null && endpoints.bookstackTokenSecret != null) {
+                header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
+            }
+            block()
+        }
     }
 
     suspend fun postRaw(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {

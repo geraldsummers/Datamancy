@@ -19,7 +19,14 @@ model_list:
   #    max_tokens: 8192
   #  supports_function_calling: true
 
-  # BGE Base embeddings for RAG
+  # BGE-M3 embeddings (1024 dimensions) - primary embedding model
+  - model_name: bge-m3
+    litellm_params:
+      model: huggingface/BAAI/bge-m3
+      api_base: http://embedding-service:8080
+      api_key: unused
+
+  # BGE Base embeddings (768 dimensions) - lightweight alternative
   - model_name: bge-base-en-v1.5
     litellm_params:
       model: huggingface/BAAI/bge-base-en-v1.5

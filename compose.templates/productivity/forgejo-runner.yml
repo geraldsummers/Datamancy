@@ -32,9 +32,9 @@ services:
       - /run/labware-docker.sock:/run/labware-docker.sock
       - ./configs/applications/forgejo-runner:/etc/forgejo-runner:ro
     command: >
-      bash -c "
+      sh -c "
         # Wait for Forgejo to be ready
-        until curl -sf http://forgejo:3000/api/healthz > /dev/null; do
+        until nc -z forgejo 3000; do
           echo 'Waiting for Forgejo...'
           sleep 5
         done

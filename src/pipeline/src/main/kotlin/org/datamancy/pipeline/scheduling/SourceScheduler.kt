@@ -42,7 +42,8 @@ class SourceScheduler(
     private val initialPullEnabled: Boolean = true,
     private val timezone: ZoneId = ZoneId.systemDefault(),
     private val backoffBaseMinutes: Long = 5,  // Configurable for testing
-    private val backoffMaxMinutes: Long = 120
+    private val backoffMaxMinutes: Long = 120,
+    private val runOnce: Boolean = false  // For testing: run initial pull only, then exit
 ) {
     private val hasCompletedInitialPull = AtomicBoolean(false)
     private var consecutiveFailures = 0
@@ -87,6 +88,12 @@ class SourceScheduler(
         } else {
             hasCompletedInitialPull.set(true)
             logger.info { "[$sourceName] Initial pull disabled, proceeding to resync schedule" }
+        }
+
+        // Exit early if runOnce mode (for testing)
+        if (runOnce) {
+            logger.info { "[$sourceName] runOnce=true, exiting after initial pull" }
+            return
         }
 
         // Phase 2: Periodic resyncs

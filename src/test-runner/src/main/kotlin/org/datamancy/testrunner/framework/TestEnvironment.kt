@@ -17,6 +17,9 @@ data class ServiceEndpoints(
     val ldap: String? = null,
     val userContext: String? = null,
     val apiKey: String? = null,
+    // BookStack API credentials
+    val bookstackTokenId: String? = null,
+    val bookstackTokenSecret: String? = null,
     // Infrastructure
     val caddy: String,
     val authelia: String,
@@ -72,6 +75,9 @@ data class ServiceEndpoints(
             valkey = env("VALKEY_URL") ?: "valkey:6379",
             ldap = env("LDAP_URL") ?: "ldap://ldap:389",
             userContext = env("TEST_USER_CONTEXT") ?: "test-agent-user",
+            // BookStack API credentials
+            bookstackTokenId = env("BOOKSTACK_API_TOKEN_ID"),
+            bookstackTokenSecret = env("BOOKSTACK_API_TOKEN_SECRET"),
             // Infrastructure
             caddy = env("CADDY_URL") ?: "http://caddy:80",
             authelia = env("AUTHELIA_URL") ?: "http://authelia:9091",
@@ -115,6 +121,9 @@ data class ServiceEndpoints(
             valkey = "localhost:16379",
             ldap = "ldap://localhost:10389",
             userContext = "test-agent-user",
+            // BookStack API credentials
+            bookstackTokenId = env("BOOKSTACK_API_TOKEN_ID"),
+            bookstackTokenSecret = env("BOOKSTACK_API_TOKEN_SECRET"),
             // Infrastructure
             caddy = "http://localhost:80",
             authelia = "http://localhost:9091",

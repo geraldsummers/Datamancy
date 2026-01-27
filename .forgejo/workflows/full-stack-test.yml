@@ -1,0 +1,133 @@
+name: Full Stack Integration Test
+
+on:
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  stack-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build Datamancy stack
+        run: |
+          echo "Building Datamancy from source..."
+          ./build-datamancy.main.kts
+
+      - name: Start test stack on labware
+        env:
+          COMPOSE_PROJECT_NAME: datamancy-test-${{ github.run_id }}
+        run: |
+          cd dist
+
+          # Use labware socket for isolated testing
+          export DOCKER_HOST=unix:///run/labware-docker.sock
+
+          echo "Starting test stack with isolated project name: $COMPOSE_PROJECT_NAME"
+          docker compose up -d
+
+          echo "Waiting for core services to start..."
+          sleep 30
+
+      - name: Wait for services to become healthy
+        env:
+          COMPOSE_PROJECT_NAME: datamancy-test-${{ github.run_id }}
+        timeout-minutes: 15
+        run: |
+          cd dist
+          export DOCKER_HOST=unix:///run/labware-docker.sock
+
+          echo "Waiting for critical services to become healthy..."
+
+          # Services that must be healthy
+          CRITICAL_SERVICES=(
+            "postgres"
+            "ldap"
+            "caddy"
+            "authelia"
+          )
+
+          # Services that can take longer
+          SLOW_SERVICES=(
+            "forgejo"
+            "mastodon-web"
+            "grafana"
+          )
+
+          # Wait for critical services (max 5 minutes)
+          echo "Waiting for critical services..."
+          for service in "${CRITICAL_SERVICES[@]}"; do
+            echo "Checking $service..."
+            timeout 300 bash -c "
+              until docker compose ps $service | grep -q 'healthy'; do
+                echo '  Still waiting for $service...'
+                sleep 10
+              done
+            " || {
+              echo "ERROR: $service failed to become healthy"
+              docker compose logs $service
+              exit 1
+            }
+            echo "  ✓ $service is healthy"
+          done
+
+          # Wait for slow services (max 10 minutes each)
+          echo "Waiting for slow-starting services..."
+          for service in "${SLOW_SERVICES[@]}"; do
+            echo "Checking $service..."
+            timeout 600 bash -c "
+              until docker compose ps $service 2>/dev/null | grep -q 'healthy'; do
+                echo '  Still waiting for $service...'
+                sleep 15
+              done
+            " || {
+              echo "WARNING: $service failed to become healthy (non-critical)"
+              docker compose logs $service --tail=50
+            }
+            echo "  ✓ $service is healthy"
+          done
+
+          echo "All critical services are healthy!"
+
+      - name: Run integration tests
+        env:
+          COMPOSE_PROJECT_NAME: datamancy-test-${{ github.run_id }}
+        run: |
+          export DOCKER_HOST=unix:///run/labware-docker.sock
+
+          echo "Running LabwareDockerTests..."
+          cd dist
+          ./gradlew test-runner:run --args="org.datamancy.testrunner.suites.LabwareDockerTests"
+
+          echo "Running CICDPipelineTests..."
+          ./gradlew test-runner:run --args="org.datamancy.testrunner.suites.CICDPipelineTests"
+
+      - name: Cleanup test stack
+        if: always()
+        env:
+          COMPOSE_PROJECT_NAME: datamancy-test-${{ github.run_id }}
+        run: |
+          cd dist
+          export DOCKER_HOST=unix:///run/labware-docker.sock
+
+          echo "Cleaning up test stack..."
+          docker compose down -v || true
+
+          echo "Cleaning up test images..."
+          docker image prune -f --filter "label=test-run=${{ github.run_id }}" || true
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-logs
+          path: |
+            dist/logs/
+          retention-days: 7

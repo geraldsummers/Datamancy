@@ -10,6 +10,7 @@ import org.datamancy.pipeline.scheduling.BackfillStrategy
 import org.datamancy.pipeline.scheduling.ResyncStrategy
 import org.datamancy.pipeline.scheduling.RunMetadata
 import org.datamancy.pipeline.scheduling.RunType
+import org.datamancy.pipeline.sinks.BookStackDocument
 import org.datamancy.pipeline.sources.MediaWikiXmlDumpParser
 import org.datamancy.pipeline.sources.WikiPage
 import org.datamancy.pipeline.sources.WikiSource

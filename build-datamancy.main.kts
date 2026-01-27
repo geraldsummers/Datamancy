@@ -195,136 +195,8 @@ fun copyBuildArtifacts(distDir: File) {
     info("Copied src/ directory to dist/")
 }
 
-fun copyTestScripts(distDir: File) {
-    step("Copying test runner files to dist")
 
-    // Always copy test runner overlay
-    val testRunnerOverlay = File("compose.templates/testing/test-runner.yml")
-    if (testRunnerOverlay.exists()) {
-        testRunnerOverlay.copyTo(distDir.resolve("testing.yml"), overwrite = true)
-        info("Copied testing.yml overlay")
-    } else {
-        warn("compose.templates/testing/test-runner.yml not found")
-    }
 
-    // Copy Dockerfile.test-runner
-    val dockerfileTestRunner = File("src/test-runner/Dockerfile")
-    if (dockerfileTestRunner.exists()) {
-        dockerfileTestRunner.copyTo(distDir.resolve("Dockerfile.test-runner"), overwrite = true)
-        info("Copied Dockerfile.test-runner")
-    } else {
-        warn("src/test-runner/Dockerfile not found")
-    }
-
-    // Copy gradle files needed for test-runner build
-    listOf("gradlew", "build.gradle.kts", "settings.gradle.kts", "gradle.properties").forEach { filename ->
-        val file = File(filename)
-        if (file.exists()) {
-            file.copyTo(distDir.resolve(filename), overwrite = true)
-            if (file.canExecute()) {
-                distDir.resolve(filename).setExecutable(true)
-            }
-        }
-    }
-
-    // Copy gradle directory
-    val gradleDir = File("gradle")
-    if (gradleDir.exists()) {
-        val destGradleDir = distDir.resolve("gradle")
-        destGradleDir.mkdirs()
-        gradleDir.walkTopDown().forEach { source ->
-            if (source.isFile) {
-                val relativePath = source.relativeTo(gradleDir)
-                val dest = destGradleDir.resolve(relativePath)
-                dest.parentFile.mkdirs()
-                source.copyTo(dest, overwrite = true)
-            }
-        }
-        info("Copied gradle directory")
-    }
-
-    // Copy test-runner entrypoint script
-    val testRunnerScriptsDir = File("scripts/test-runner")
-    if (testRunnerScriptsDir.exists()) {
-        val destScriptsDir = distDir.resolve("scripts/test-runner")
-        destScriptsDir.mkdirs()
-        testRunnerScriptsDir.walkTopDown().forEach { source ->
-            if (source.isFile) {
-                val dest = destScriptsDir.resolve(source.name)
-                source.copyTo(dest, overwrite = true)
-                if (source.canExecute()) {
-                    dest.setExecutable(true)
-                }
-            }
-        }
-        info("Copied test-runner scripts")
-    }
-
-    val scriptsDir = File("scripts/stack-health")
-    if (!scriptsDir.exists()) {
-        warn("scripts/stack-health/ not found, skipping test scripts")
-        return
-    }
-
-    val destScriptsDir = distDir.resolve("test-scripts")
-    destScriptsDir.mkdirs()
-
-    // Copy all test scripts
-    scriptsDir.walkTopDown().forEach { source ->
-        if (source.isFile && (source.extension == "kts" || source.extension == "sh" || source.extension == "md")) {
-            val dest = destScriptsDir.resolve(source.name)
-            source.copyTo(dest, overwrite = true)
-            // Make scripts executable
-            if (source.extension == "kts" || source.extension == "sh") {
-                dest.setExecutable(true)
-            }
-        }
-    }
-
-    info("Copied test scripts to dist/test-scripts/")
-}
-
-fun copyRotationScripts(distDir: File) {
-    step("Copying credential rotation scripts to dist")
-
-    val securityDir = File("scripts/security")
-    if (!securityDir.exists()) {
-        warn("scripts/security/ not found, skipping rotation scripts")
-        return
-    }
-
-    val destSecurityDir = distDir.resolve("scripts/security")
-    destSecurityDir.mkdirs()
-
-    // Copy all rotation scripts and libraries
-    securityDir.walkTopDown().forEach { source ->
-        if (source.isFile) {
-            val relativePath = source.relativeTo(securityDir)
-            val dest = destSecurityDir.resolve(relativePath)
-            dest.parentFile.mkdirs()
-            source.copyTo(dest, overwrite = true)
-
-            // Make scripts executable
-            if (source.extension == "kts" || source.extension == "sh") {
-                dest.setExecutable(true)
-            }
-        }
-    }
-
-    // Create secrets directories
-    val secretsDir = distDir.resolve("secrets")
-    secretsDir.resolve("backups").mkdirs()
-    secretsDir.resolve("audit").mkdirs()
-
-    // Copy credentials.yaml
-    val credentialsFile = File("secrets/credentials.yaml")
-    if (credentialsFile.exists()) {
-        credentialsFile.copyTo(secretsDir.resolve("credentials.yaml"), overwrite = true)
-        info("Copied credentials.yaml")
-    }
-
-    info("Copied rotation scripts to dist/scripts/security/")
-}
 
 fun copyComposeFiles(outputDir: File) {
     step("Merging compose files into single docker-compose.yml")
@@ -781,8 +653,6 @@ ${CYAN}╔═══════════════════════�
     buildGradleServices(skipGradle)
     copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
-    copyTestScripts(distDir)
-    copyRotationScripts(distDir)
     val autheliaOidcKey = generateAutheliaJWKS(distDir)
     processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, ldapAdminPassword, oauthHashes, autheliaOidcKey)
 

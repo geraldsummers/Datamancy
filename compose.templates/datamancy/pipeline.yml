@@ -72,8 +72,8 @@ services:
       QDRANT_URL: http://qdrant:6334
       CLICKHOUSE_URL: http://clickhouse:8123
 
-      # BookStack integration (optional - for wiki presentation)
-      BOOKSTACK_ENABLED: "${BOOKSTACK_ENABLED:-false}"
+      # BookStack integration - ENABLED BY DEFAULT (for wiki presentation)
+      BOOKSTACK_ENABLED: "${BOOKSTACK_ENABLED:-true}"
       BOOKSTACK_URL: "http://bookstack:80"
       BOOKSTACK_TOKEN_ID: "${BOOKSTACK_API_TOKEN_ID:-}"
       BOOKSTACK_TOKEN_SECRET: "${BOOKSTACK_API_TOKEN_SECRET:-}"

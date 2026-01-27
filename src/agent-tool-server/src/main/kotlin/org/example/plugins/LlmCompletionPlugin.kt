@@ -236,7 +236,7 @@ class LlmCompletionPlugin : Plugin {
                 val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
 
                 if (response.statusCode() != 200) {
-                    return emptyList()
+                    throw Exception("Embedding API returned ${response.statusCode()}: ${response.body()}")
                 }
 
                 val responseJson = mapper.readTree(response.body())
@@ -244,9 +244,13 @@ class LlmCompletionPlugin : Plugin {
                     .path(0)
                     .path("embedding")
 
+                if (embedding.isMissingNode || embedding.size() == 0) {
+                    throw Exception("Empty embedding returned from API")
+                }
+
                 return embedding.map { it.asDouble() }
             } catch (e: Exception) {
-                return emptyList()
+                throw Exception("Failed to generate embedding: ${e.message}", e)
             }
         }
     }

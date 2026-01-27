@@ -2,6 +2,7 @@ package org.datamancy.pipeline.sources
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
@@ -51,8 +52,8 @@ class OpenAustralianLegalCorpusSource(
     private val parquetFiles = listOf("0000.parquet", "0001.parquet", "0002.parquet", "0003.parquet")
 
     override suspend fun fetch(): Flow<AustralianLegalDocument> = flow {
-        logger.info { "Starting Open Australian Legal Corpus fetch" }
-        logger.info { "Cache directory: $cacheDir" }
+        logger.info { "[AusLaw] Starting fetch (maxDocs=$maxDocuments, jurisdictions=${filterJurisdictions ?: "all"})" }
+        logger.info { "[AusLaw] Cache directory: $cacheDir" }
 
         // Ensure cache directory exists
         val cacheDirFile = File(cacheDir)
@@ -61,7 +62,7 @@ class OpenAustralianLegalCorpusSource(
             if (!created) {
                 throw RuntimeException("Failed to create cache directory: $cacheDir")
             }
-            logger.info { "Created cache directory: $cacheDir" }
+            logger.info { "[AusLaw] Created cache directory: $cacheDir" }
         }
 
         // Download all Parquet files if not cached
@@ -69,7 +70,7 @@ class OpenAustralianLegalCorpusSource(
         for ((index, filename) in parquetFiles.withIndex()) {
             val parquetFile = File(cacheDir, filename)
             if (!parquetFile.exists()) {
-                logger.info { "Downloading corpus file ${index + 1}/${parquetFiles.size}: $filename" }
+                logger.info { "[AusLaw] Downloading corpus file ${index + 1}/${parquetFiles.size}: $filename" }
                 val tempFile = File(cacheDir, "$filename.tmp")
                 try {
                     val fileUrl = "$datasetBaseUrl/$filename"
@@ -78,68 +79,88 @@ class OpenAustralianLegalCorpusSource(
                     if (!tempFile.renameTo(parquetFile)) {
                         throw RuntimeException("Failed to rename downloaded file: $filename")
                     }
-                    logger.info { "Download complete: ${parquetFile.length() / (1024 * 1024)} MB" }
+                    logger.info { "[AusLaw] Download complete: ${parquetFile.length() / (1024 * 1024)} MB" }
                 } catch (e: Exception) {
                     tempFile.delete()  // Clean up partial download
                     throw e
                 }
             } else {
-                logger.info { "Using cached corpus file ${index + 1}/${parquetFiles.size}: ${parquetFile.length() / (1024 * 1024)} MB" }
+                logger.info { "[AusLaw] Using cached corpus file ${index + 1}/${parquetFiles.size}: ${parquetFile.length() / (1024 * 1024)} MB" }
             }
             downloadedFiles.add(parquetFile)
         }
 
-        logger.info { "Processing ${downloadedFiles.size} Parquet files..." }
+        logger.info { "[AusLaw] Processing ${downloadedFiles.size} Parquet files..." }
 
         // Parse all Parquet files
         var totalProcessed = 0
         var totalFiltered = 0
         var totalFailed = 0
+        var totalRecordsRead = 0
 
         for ((index, parquetFile) in downloadedFiles.withIndex()) {
             if (totalProcessed >= maxDocuments) {
-                logger.info { "Reached maxDocuments limit ($maxDocuments), stopping" }
+                logger.info { "[AusLaw] Reached maxDocuments limit ($maxDocuments), stopping early" }
                 break
             }
 
-            logger.info { "Parsing file ${index + 1}/${downloadedFiles.size}: ${parquetFile.name}" }
+            logger.info { "[AusLaw] Parsing file ${index + 1}/${downloadedFiles.size}: ${parquetFile.name}" }
+
+            // For small limits, only process first file to avoid reading entire corpus
+            if (maxDocuments <= 10 && index > 0) {
+                logger.info { "[AusLaw] Small maxDocuments ($maxDocuments), skipping remaining files" }
+                break
+            }
 
             withContext(Dispatchers.IO) {
                 val conf = Configuration()
                 val path = Path("file://${parquetFile.absolutePath}")
                 val reader = ParquetReader.builder(GroupReadSupport(), path).withConf(conf).build()
 
-                var record: Group? = reader.read()
-                while (record != null && totalProcessed < maxDocuments) {
-                    try {
-                        val doc = parseRecord(record)
+                try {
+                    var record: Group? = reader.read()
+                    while (record != null && totalProcessed < maxDocuments) {
+                        totalRecordsRead++
 
-                        // Apply filters
-                        if (shouldInclude(doc)) {
-                            emit(doc)
-                            totalProcessed++
+                        try {
+                            val doc = parseRecord(record)
 
-                            if (totalProcessed % 5000 == 0) {
-                                logger.info { "Progress: $totalProcessed processed, $totalFiltered filtered, $totalFailed failed" }
+                            // Apply filters
+                            if (shouldInclude(doc)) {
+                                emit(doc)
+                                totalProcessed++
+                                ensureActive()
+
+                                // Log every 100 documents normally, every 10 in test mode
+                                val logInterval = if (maxDocuments < 100) 10 else 100
+                                if (totalProcessed % logInterval == 0) {
+                                    logger.info { "[AusLaw] Progress: $totalProcessed processed, $totalFiltered filtered, $totalFailed failed (read $totalRecordsRead records)" }
+                                }
+                            } else {
+                                totalFiltered++
                             }
-                        } else {
-                            totalFiltered++
+                        } catch (e: Exception) {
+                            totalFailed++
+                            logger.error { "[AusLaw] Failed to parse record #$totalRecordsRead: ${e.javaClass.simpleName} - ${e.message}" }
                         }
-                    } catch (e: Exception) {
-                        totalFailed++
-                        logger.error(e) { "Failed to parse record: ${e.message}" }
+
+                        record = reader.read()
                     }
-
-                    record = reader.read()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    logger.debug { "[AusLaw] Flow cancelled (likely via .take()), cleaning up..." }
+                    throw e  // Re-throw to properly cancel the flow
+                } catch (e: Exception) {
+                    logger.error(e) { "[AusLaw] Error in Parquet parsing: ${e.message}" }
+                    throw e
+                } finally {
+                    reader.close()
                 }
-
-                reader.close()
             }
 
-            logger.info { "Completed file ${index + 1}/${downloadedFiles.size}: $totalProcessed total documents processed" }
+            logger.info { "[AusLaw] Completed file ${index + 1}/${downloadedFiles.size}: $totalProcessed total documents processed" }
         }
 
-        logger.info { "Corpus fetch complete: $totalProcessed processed, $totalFiltered filtered, $totalFailed failed" }
+        logger.info { "[AusLaw] Corpus fetch COMPLETE: $totalProcessed processed, $totalFiltered filtered, $totalFailed failed (read $totalRecordsRead total records)" }
     }
 
     private suspend fun downloadFile(url: String, destination: File) {

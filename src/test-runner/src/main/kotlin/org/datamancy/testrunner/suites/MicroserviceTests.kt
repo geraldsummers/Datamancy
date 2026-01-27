@@ -34,10 +34,10 @@ suspend fun TestRunner.microserviceTests() = suite("Pipeline Tests") {
         val sources = json["sources"]?.jsonArray
 
         require(sources != null) { "sources array missing" }
-        require(sources.size == 6) { "Expected 6 sources, got ${sources.size}" }
+        require(sources.size == 8) { "Expected 8 sources, got ${sources.size}" }
 
         val sourceNames = sources.map { it.jsonObject["id"]?.jsonPrimitive?.content }
-        val expectedSources = listOf("rss", "cve", "torrents", "wikipedia", "australian_laws", "linux_docs")
+        val expectedSources = listOf("rss", "cve", "torrents", "wikipedia", "australian_laws", "linux_docs", "debian_wiki", "arch_wiki")
 
         expectedSources.forEach { expected ->
             require(expected in sourceNames) { "Missing source: $expected" }
@@ -56,7 +56,7 @@ suspend fun TestRunner.microserviceTests() = suite("Pipeline Tests") {
 
         require(uptime != null) { "uptime missing" }
         require(sources != null) { "sources array missing" }
-        require(sources.size == 6) { "Expected 6 sources in status" }
+        require(sources.size == 8) { "Expected 8 sources in status" }
 
         // Check each source has required fields
         sources.forEach { sourceElement ->

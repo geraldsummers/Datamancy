@@ -7,6 +7,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import org.datamancy.pipeline.processors.Embedder
 import org.datamancy.pipeline.scheduling.SourceScheduler
+import org.datamancy.pipeline.sinks.BookStackDocument
+import org.datamancy.pipeline.sinks.BookStackSink
 import org.datamancy.pipeline.sinks.QdrantSink
 import org.datamancy.pipeline.sinks.VectorDocument
 import org.datamancy.pipeline.storage.DeduplicationStore
@@ -46,6 +48,7 @@ class StandardizedRunner<T : Chunkable>(
     private val embedder: Embedder,
     private val dedupStore: DeduplicationStore,
     private val metadataStore: SourceMetadataStore,
+    private val bookStackSink: BookStackSink? = null,  // Optional BookStack sink
     private val scheduler: SourceScheduler? = null  // Allow injection for testing
 ) {
     private val sourceName = source.name
@@ -97,12 +100,12 @@ class StandardizedRunner<T : Chunkable>(
                                     async {
                                         try {
                                             val vectorDocs = processItem(batchItem, dedupStore)
-                                            vectorDocs to null
+                                            Triple(batchItem, vectorDocs, null)
                                         } catch (e: Exception) {
-                                            emptyList<VectorDocument>() to e
+                                            Triple(batchItem, emptyList<VectorDocument>(), e)
                                         }
                                     }
-                                }.awaitAll().forEach { (vectorDocs, error) ->
+                                }.awaitAll().forEach { (batchItem, vectorDocs, error) ->
                                     if (error != null) {
                                         logger.error(error) { "[$sourceName] Failed to process item: ${error.message}" }
                                         failed++
@@ -110,6 +113,14 @@ class StandardizedRunner<T : Chunkable>(
                                         vectorDocs.forEach { vectorDoc ->
                                             qdrantSink.write(vectorDoc)
                                             processed++
+                                        }
+                                        // Write to BookStack if enabled (only for first chunk/non-chunked items)
+                                        if (bookStackSink != null && vectorDocs.isNotEmpty()) {
+                                            try {
+                                                writeToBookStack(batchItem)
+                                            } catch (e: Exception) {
+                                                logger.warn(e) { "[$sourceName] Failed to write to BookStack: ${e.message}" }
+                                            }
                                         }
                                     }
                                 }
@@ -128,12 +139,12 @@ class StandardizedRunner<T : Chunkable>(
                             async {
                                 try {
                                     val vectorDocs = processItem(batchItem, dedupStore)
-                                    vectorDocs to null
+                                    Triple(batchItem, vectorDocs, null)
                                 } catch (e: Exception) {
-                                    emptyList<VectorDocument>() to e
+                                    Triple(batchItem, emptyList<VectorDocument>(), e)
                                 }
                             }
-                        }.awaitAll().forEach { (vectorDocs, error) ->
+                        }.awaitAll().forEach { (batchItem, vectorDocs, error) ->
                             if (error != null) {
                                 logger.error(error) { "[$sourceName] Failed to process item: ${error.message}" }
                                 failed++
@@ -141,6 +152,14 @@ class StandardizedRunner<T : Chunkable>(
                                 vectorDocs.forEach { vectorDoc ->
                                     qdrantSink.write(vectorDoc)
                                     processed++
+                                }
+                                // Write to BookStack if enabled (only for first chunk/non-chunked items)
+                                if (bookStackSink != null && vectorDocs.isNotEmpty()) {
+                                    try {
+                                        writeToBookStack(batchItem)
+                                    } catch (e: Exception) {
+                                        logger.warn(e) { "[$sourceName] Failed to write to BookStack: ${e.message}" }
+                                    }
                                 }
                             }
                         }
@@ -232,5 +251,31 @@ class StandardizedRunner<T : Chunkable>(
                 )
             }
         }.awaitAll()
+    }
+
+    /**
+     * Write item to BookStack using reflection to call toBookStackDocument()
+     * All Chunkable implementations should have this method
+     */
+    private suspend fun writeToBookStack(item: T) {
+        if (bookStackSink == null) return
+
+        try {
+            // Use reflection to call toBookStackDocument() on the item
+            val method = item::class.java.getMethod("toBookStackDocument")
+            val bookStackDoc = method.invoke(item) as? BookStackDocument
+
+            if (bookStackDoc != null) {
+                bookStackSink.write(bookStackDoc)
+                logger.debug { "[$sourceName] Wrote to BookStack: ${bookStackDoc.pageTitle}" }
+            } else {
+                logger.warn { "[$sourceName] toBookStackDocument() returned null for item ${item.getId()}" }
+            }
+        } catch (e: NoSuchMethodException) {
+            logger.warn { "[$sourceName] Item ${item::class.simpleName} does not implement toBookStackDocument() - skipping BookStack write" }
+        } catch (e: Exception) {
+            logger.error(e) { "[$sourceName] Error writing to BookStack for item ${item.getId()}: ${e.message}" }
+            throw e
+        }
     }
 }

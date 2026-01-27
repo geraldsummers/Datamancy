@@ -1,5 +1,6 @@
 package org.datamancy.testrunner.suites
 
+import org.datamancy.testrunner.framework.*
 import java.io.File
 import java.net.UnixDomainSocketAddress
 import java.nio.channels.SocketChannel
@@ -7,10 +8,82 @@ import java.nio.channels.SocketChannel
 /**
  * Labware Docker Socket Tests
  *
- * Standalone integration tests for the labware virtualized Docker socket at /run/labware-docker.sock
+ * Integration tests for the labware virtualized Docker socket at /run/labware-docker.sock
  * These tests verify isolated Docker daemon access for CI/CD sandbox deployments.
- *
- * Run manually on deployed stack where labware socket is available.
+ */
+suspend fun TestRunner.labwareTests() = suite("Labware Docker Socket Tests") {
+    val socketPath = "/run/labware-docker.sock"
+
+    test("Labware socket file exists") {
+        val socketFile = File(socketPath)
+        if (!socketFile.exists()) {
+            throw AssertionError("Labware socket not found at $socketPath - labware VM may not be configured")
+        }
+        socketFile.canRead() shouldBe true
+    }
+
+    test("Labware socket is connectable") {
+        val socketAddress = UnixDomainSocketAddress.of(socketPath)
+        SocketChannel.open(socketAddress).use { channel ->
+            channel.isConnected shouldBe true
+        }
+    }
+
+    test("Labware Docker version responds") {
+        val (exitCode, output) = execLabwareDocker(socketPath, "version", "--format", "{{.Server.Version}}")
+        exitCode shouldBe 0
+        output.trim().isNotEmpty() shouldBe true
+    }
+
+    test("Labware Docker ps command works") {
+        val (exitCode, _) = execLabwareDocker(socketPath, "ps", "--format", "{{.ID}}")
+        exitCode shouldBe 0
+    }
+
+    test("Labware containers isolated from production") {
+        val (_, labwareOutput) = execLabwareDocker(socketPath, "ps", "--format", "{{.Names}}")
+        val labwareContainers = labwareOutput.lines().filter { it.isNotBlank() }.toSet()
+
+        val prodProcess = ProcessBuilder("docker", "ps", "--format", "{{.Names}}").start()
+        val prodOutput = prodProcess.inputStream.bufferedReader().readText()
+        prodProcess.waitFor()
+        val prodContainers = prodOutput.lines().filter { it.isNotBlank() }.toSet()
+
+        val overlap = labwareContainers.intersect(prodContainers)
+        if (overlap.isNotEmpty()) {
+            throw AssertionError("Isolation breach: Found overlapping containers: $overlap")
+        }
+    }
+
+    test("Labware Docker images command works") {
+        val (exitCode, _) = execLabwareDocker(socketPath, "images", "--format", "{{.Repository}}:{{.Tag}}")
+        exitCode shouldBe 0
+    }
+
+    test("Labware can create and run containers") {
+        val containerName = "labware-test-${System.currentTimeMillis()}"
+        val (runExitCode, output) = execLabwareDocker(
+            socketPath, "run", "--name", containerName, "--rm", "alpine:latest", "echo", "test"
+        )
+        runExitCode shouldBe 0
+        output shouldContain "test"
+    }
+}
+
+private fun execLabwareDocker(socketPath: String, vararg args: String): Pair<Int, String> {
+    val command = listOf("docker", "-H", "unix://$socketPath") + args
+    val process = ProcessBuilder(command)
+        .redirectErrorStream(true)
+        .start()
+
+    val output = process.inputStream.bufferedReader().readText()
+    val exitCode = process.waitFor()
+
+    return exitCode to output
+}
+
+/**
+ * Standalone entry point for manual testing
  */
 object LabwareDockerTests {
 

@@ -143,7 +143,18 @@ class SearchGateway(
             val url = payload["link"]?.stringValue ?: payload["url"]?.stringValue ?: ""
             val title = payload["title"]?.stringValue ?: payload["name"]?.stringValue ?: ""
             val snippet = payload["description"]?.stringValue ?: payload["text"]?.stringValue?.take(200) ?: ""
-            val metadata = mapOf("type" to "vector")
+
+            // Preserve ALL payload fields in metadata (not just hardcoded ones)
+            val metadata = mutableMapOf<String, String>("type" to "vector")
+            payload.forEach { (key, value) ->
+                when {
+                    value.hasStringValue() -> metadata[key] = value.stringValue
+                    value.hasIntegerValue() -> metadata[key] = value.integerValue.toString()
+                    value.hasDoubleValue() -> metadata[key] = value.doubleValue.toString()
+                    value.hasBoolValue() -> metadata[key] = value.boolValue.toString()
+                }
+            }
+
             SearchResult(
                 url = url,
                 title = title,

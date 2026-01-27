@@ -16,23 +16,22 @@ class SourceSchedulerTest {
 
     @Test
     fun `should execute initial pull on startup`() = runBlocking {
-        // Given: Scheduler with initial pull enabled
+        // Given: Scheduler with initial pull enabled and runOnce=true
         val scheduler = SourceScheduler(
             sourceName = "test",
             resyncStrategy = ResyncStrategy.FixedInterval(Duration.ofHours(1)),
-            initialPullEnabled = true
+            initialPullEnabled = true,
+            runOnce = true
         )
 
         var initialPullExecuted = false
         var resyncExecuted = false
 
-        // When: Schedule with timeout (to avoid infinite loop)
-        kotlinx.coroutines.withTimeoutOrNull(100) {
-            scheduler.schedule { metadata ->
-                when (metadata.runType) {
-                    RunType.INITIAL_PULL -> initialPullExecuted = true
-                    RunType.RESYNC -> resyncExecuted = true
-                }
+        // When: Schedule
+        scheduler.schedule { metadata ->
+            when (metadata.runType) {
+                RunType.INITIAL_PULL -> initialPullExecuted = true
+                RunType.RESYNC -> resyncExecuted = true
             }
         }
 

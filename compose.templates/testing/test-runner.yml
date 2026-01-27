@@ -32,7 +32,6 @@ services:
       - ldap
       - valkey
       - backend
-      - frontend
       - monitoring
       - caddy
 
@@ -86,6 +85,10 @@ services:
     # Don't restart automatically
     restart: "no"
 
+    # Labware Docker socket for CI/CD testing
+    volumes:
+      - /run/labware-docker.sock:/run/labware-docker.sock
+
     # No persistent volumes needed (tests are ephemeral)
     tmpfs:
       - /tmp
@@ -110,8 +113,6 @@ networks:
   valkey:
     external: false
   backend:
-    external: false
-  frontend:
     external: false
   monitoring:
     external: false
