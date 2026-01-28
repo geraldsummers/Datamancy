@@ -623,12 +623,40 @@ ${CYAN}╔═══════════════════════�
     info("Domain: ${config.runtime.domain}")
     info("Admin: ${config.runtime.admin_user} <${config.runtime.admin_email}>")
 
-    // Clean dist/
+    // Clean dist/ but preserve secrets
+    val envBackup = distDir.resolve(".env")
+    val secretsBackup = distDir.resolve("secrets")
+    val preservedEnv = if (envBackup.exists()) envBackup.readText() else null
+    val preservedSecrets = mutableMapOf<String, ByteArray>()
+
+    if (secretsBackup.exists() && secretsBackup.isDirectory) {
+        secretsBackup.walkTopDown().forEach { file ->
+            if (file.isFile) {
+                val relativePath = file.relativeTo(secretsBackup)
+                preservedSecrets[relativePath.path] = file.readBytes()
+            }
+        }
+    }
+
     if (distDir.exists()) {
-        step("Cleaning dist/")
+        step("Cleaning dist/ (preserving .env and secrets/)")
         distDir.deleteRecursively()
     }
     distDir.mkdirs()
+
+    // Restore preserved files
+    if (preservedEnv != null) {
+        envBackup.writeText(preservedEnv)
+        info("Restored existing .env")
+    }
+    if (preservedSecrets.isNotEmpty()) {
+        preservedSecrets.forEach { (path, content) ->
+            val file = secretsBackup.resolve(path)
+            file.parentFile.mkdirs()
+            file.writeBytes(content)
+        }
+        info("Restored ${preservedSecrets.size} files from secrets/")
+    }
 
     // Generate secrets upfront (needed for both LDAP bootstrap and .env)
     val adminPassword = generateSecret()

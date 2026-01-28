@@ -216,18 +216,17 @@ class LlmCompletionPlugin : Plugin {
             text: String,
             model: String = "embed-small"
         ): List<Double> {
-            val litellmBaseUrl = System.getenv("LITELLM_BASE_URL") ?: "http://litellm:4000"
-            val litellmApiKey = System.getenv("LITELLM_MASTER_KEY") ?: ""
+            // Direct call to embedding service (bypass LiteLLM for embeddings)
+            // text-embeddings-inference API format: POST /embed {"inputs": "text"}
+            val embeddingServiceUrl = System.getenv("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8080"
 
             val requestBody = mapper.createObjectNode().apply {
-                put("model", model)
-                put("input", text)
+                put("inputs", text)
             }
 
             val request = HttpRequest.newBuilder()
-                .uri(URI.create("$litellmBaseUrl/v1/embeddings"))
+                .uri(URI.create("$embeddingServiceUrl/embed"))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer $litellmApiKey")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
                 .timeout(Duration.ofSeconds(60))
                 .build()
@@ -239,12 +238,16 @@ class LlmCompletionPlugin : Plugin {
                     throw Exception("Embedding API returned ${response.statusCode()}: ${response.body()}")
                 }
 
+                // Response format: [[float, float, ...]] - array of embedding arrays
                 val responseJson = mapper.readTree(response.body())
-                val embedding = responseJson.path("data")
-                    .path(0)
-                    .path("embedding")
 
-                if (embedding.isMissingNode || embedding.size() == 0) {
+                if (!responseJson.isArray || responseJson.size() == 0) {
+                    throw Exception("Invalid embedding response format")
+                }
+
+                val embedding = responseJson.get(0)
+
+                if (!embedding.isArray || embedding.size() == 0) {
                     throw Exception("Empty embedding returned from API")
                 }
 
