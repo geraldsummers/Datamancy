@@ -717,7 +717,15 @@ fun generateEnvFileFromSchema(
                         if (value.isEmpty()) {
                             appendLine("$key=")
                         } else {
-                            appendLine("$key=$value")
+                            // Quote values that contain special characters
+                            val needsQuoting = value.contains(Regex("[/\\s\"'\\$`\\\\]"))
+                            if (needsQuoting) {
+                                // Escape any existing quotes and wrap in double quotes
+                                val escaped = value.replace("\"", "\\\"")
+                                appendLine("$key=\"$escaped\"")
+                            } else {
+                                appendLine("$key=$value")
+                            }
                         }
                     }
                 }
