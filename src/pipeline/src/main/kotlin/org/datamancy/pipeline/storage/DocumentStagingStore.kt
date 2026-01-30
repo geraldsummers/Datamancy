@@ -12,10 +12,19 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * Escape single quotes for ClickHouse string literals
- * ClickHouse uses '' to represent a single quote within a string
+ * Escape all special characters for ClickHouse string literals
+ * Reference: https://clickhouse.com/docs/en/sql-reference/syntax#string
  */
-private fun String.escapeClickHouse(): String = this.replace("'", "''")
+private fun String.escapeClickHouse(): String {
+    return this
+        .replace("\\", "\\\\")   // Backslash (must be first)
+        .replace("'", "\\'")      // Single quote
+        .replace("\n", "\\n")     // Newline
+        .replace("\r", "\\r")     // Carriage return
+        .replace("\t", "\\t")     // Tab
+        .replace("\b", "\\b")     // Backspace
+        .replace("\u0000", "")    // Remove null bytes (invalid in strings)
+}
 
 /**
  * Status tracking for documents in the embedding pipeline

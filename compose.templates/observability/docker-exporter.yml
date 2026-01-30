@@ -14,8 +14,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9066/metrics"]
-      interval: 30s
-      timeout: 5s
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--timeout=15", "--spider", "http://localhost:9066/metrics"]
+      interval: 60s
+      timeout: 20s
       retries: 3
-      start_period: 10s
+      start_period: 60s
