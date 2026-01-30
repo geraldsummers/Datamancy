@@ -199,6 +199,41 @@ fun getGitVersion(): String {
     } catch (e: Exception) { "unknown" }
 }
 
+fun checkGitClean() {
+    try {
+        // Check for uncommitted changes
+        val statusProcess = ProcessBuilder("git", "status", "--porcelain")
+            .redirectErrorStream(true)
+            .start()
+        val statusOutput = statusProcess.inputStream.readBytes().toString(Charsets.UTF_8).trim()
+        statusProcess.waitFor()
+
+        if (statusOutput.isNotEmpty()) {
+            error("Git working directory is dirty. Refusing to build.")
+            error("Commit or stash your changes first:")
+            println(statusOutput)
+            exitProcess(1)
+        }
+
+        // Check for untracked files
+        val untrackedProcess = ProcessBuilder("git", "ls-files", "--others", "--exclude-standard")
+            .redirectErrorStream(true)
+            .start()
+        val untrackedOutput = untrackedProcess.inputStream.readBytes().toString(Charsets.UTF_8).trim()
+        untrackedProcess.waitFor()
+
+        if (untrackedOutput.isNotEmpty()) {
+            error("Git working directory has untracked files. Refusing to build.")
+            error("Add or ignore these files first:")
+            println(untrackedOutput)
+            exitProcess(1)
+        }
+    } catch (e: Exception) {
+        warn("Could not verify git status: ${e.message}")
+        warn("Proceeding anyway (not a git repository?)")
+    }
+}
+
 // ============================================================================
 // Build Steps
 // ============================================================================
@@ -721,6 +756,10 @@ ${CYAN}╔═══════════════════════�
 ║  Datamancy Build System                ║
 ╚════════════════════════════════════════╝${RESET}
 """)
+
+    // Check for clean git state
+    step("Verifying git working directory is clean")
+    checkGitClean()
 
     // Load config
     step("Loading datamancy.config.yaml")
