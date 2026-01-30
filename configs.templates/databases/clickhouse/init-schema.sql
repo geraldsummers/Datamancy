@@ -36,7 +36,8 @@ ALTER TABLE default.economic_indicators ADD INDEX idx_series_id series_id TYPE b
 
 -- Create materialized views for common queries
 CREATE MATERIALIZED VIEW IF NOT EXISTS default.market_data_daily
-ENGINE = SummaryMerge()
+ENGINE = SummingMergeTree()
+ORDER BY (symbol, date, source)
 AS SELECT
     symbol,
     toDate(timestamp) as date,

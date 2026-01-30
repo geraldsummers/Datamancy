@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="RAGTEST" />
+    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="RAGTEST">
+      <change beforePath="$PROJECT_DIR$/compose.templates/datamancy/agent-tool-server.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/datamancy/agent-tool-server.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/clickhouse/init-schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/clickhouse/init-schema.sql" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -257,14 +260,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1764971190772</updated>
-    </task>
-    <task id="LOCAL-00017" summary="test writing">
-      <option name="closed" value="true" />
-      <created>1766141752077</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1766141752077</updated>
     </task>
     <task id="LOCAL-00018" summary="test writing">
       <option name="closed" value="true" />
@@ -650,7 +645,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769762332129</updated>
     </task>
-    <option name="localTasksCounter" value="66" />
+    <task id="LOCAL-00066" summary="RAGTEST">
+      <option name="closed" value="true" />
+      <created>1769763685813</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1769763685813</updated>
+    </task>
+    <option name="localTasksCounter" value="67" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
