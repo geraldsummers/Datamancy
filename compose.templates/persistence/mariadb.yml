@@ -16,6 +16,7 @@ services:
       MYSQL_PASSWORD: ${MARIADB_ROOT_PASSWORD}
       BOOKSTACK_DB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}
       MARIADB_SEAFILE_PASSWORD: ${MARIADB_SEAFILE_PASSWORD}
+      AGENT_MARIADB_OBSERVER_PASSWORD: ${AGENT_MARIADB_OBSERVER_PASSWORD}
     volumes:
       - mariadb_data:/var/lib/mysql
       - ./configs/databases/mariadb/init-template.sql:/docker-entrypoint-initdb.d/init-template.sql:ro
