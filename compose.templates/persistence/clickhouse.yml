@@ -11,8 +11,6 @@ services:
       - clickhouse
     environment:
       CLICKHOUSE_DB: default
-      CLICKHOUSE_USER: ${STACK_ADMIN_USER}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
