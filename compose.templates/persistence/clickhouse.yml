@@ -17,12 +17,13 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - ./configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
       - ./configs/databases/clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - ./configs/databases/clickhouse/init-schema.sql:/docker-entrypoint-initdb.d/init-schema.sql:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping"]
       interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     deploy:
       resources:
         limits:

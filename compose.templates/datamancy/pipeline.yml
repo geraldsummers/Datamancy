@@ -22,7 +22,7 @@ services:
       qdrant:
         condition: service_started
       clickhouse:
-        condition: service_started
+        condition: service_healthy
       embedding-service:
         condition: service_started
     environment:
