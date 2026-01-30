@@ -278,6 +278,16 @@ fun generateRSAKey(): String {
     return output  // Return PEM directly, don't base64 encode
 }
 
+fun writeAutheliaRSAKey(outputDir: File, rsaKey: String) {
+    val autheliaDir = outputDir.resolve("configs/applications/authelia")
+    autheliaDir.mkdirs()
+    val rsaKeyFile = autheliaDir.resolve("oidc_rsa.pem")
+    rsaKeyFile.writeText(rsaKey)
+    rsaKeyFile.setReadable(true, true)  // Owner read-only
+    rsaKeyFile.setWritable(false)
+    info("Generated Authelia OIDC RSA key at ${rsaKeyFile.relativeTo(outputDir)}")
+}
+
 // ============================================================================
 // Hash Generation Functions
 // ============================================================================
@@ -863,6 +873,15 @@ ${CYAN}╔═══════════════════════�
     buildGradleServices()
     copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
+
+    // Write Authelia RSA key to file
+    val autheliaRSAKey = credentials["AUTHELIA_OIDC_PRIVATE_KEY"]?.plaintext
+    if (autheliaRSAKey != null) {
+        writeAutheliaRSAKey(distDir, autheliaRSAKey)
+    } else {
+        warn("AUTHELIA_OIDC_PRIVATE_KEY not found in credentials")
+    }
+
     processConfigsWithSchema(distDir, schema, credentials, sanitized)
 
     // Only generate .env if it doesn't exist (preserves existing secrets)
