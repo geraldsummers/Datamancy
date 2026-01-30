@@ -13,6 +13,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.File
+import java.security.MessageDigest
 import java.time.Instant
 import java.util.Base64
 import kotlin.system.exitProcess
@@ -455,10 +456,18 @@ fun processConfigs(outputDir: File, sanitized: SanitizedConfig, adminPassword: S
                 .replace("{{USER_SSHA_PASSWORD}}", generatePasswordHash(userPassword))
         } else if (relativePath.contains("clickhouse/users.xml")) {
             // ClickHouse XML configs don't support env var substitution - must bake in passwords
+            // Hash passwords with SHA256 as ClickHouse expects
+            val adminHash = MessageDigest.getInstance("SHA-256")
+                .digest(clickhouseAdminPassword.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+            val serviceHash = MessageDigest.getInstance("SHA-256")
+                .digest(datamancyServicePassword.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+
             processedContent = processedContent
                 .replace("{{STACK_ADMIN_USER}}", sanitized.adminUser)
-                .replace("{{CLICKHOUSE_ADMIN_PASSWORD}}", clickhouseAdminPassword)
-                .replace("{{DATAMANCY_SERVICE_PASSWORD}}", datamancyServicePassword)
+                .replace("{{CLICKHOUSE_ADMIN_PASSWORD}}", adminHash)
+                .replace("{{DATAMANCY_SERVICE_PASSWORD}}", serviceHash)
         } else if (relativePath.contains("mailserver/ldap-domains.cf") || relativePath.contains("mailserver/dovecot-ldap.conf.ext")) {
             // Mailserver LDAP configs need password baked in (Postfix/Dovecot don't support env var substitution)
             processedContent = processedContent.replace("{{LDAP_ADMIN_PASSWORD}}", ldapAdminPassword)

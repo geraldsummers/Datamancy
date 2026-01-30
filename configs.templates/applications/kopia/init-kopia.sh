@@ -4,7 +4,7 @@
 set -eu
 
 KOPIA_REPO_PATH="${KOPIA_REPO_PATH:-/repository}"
-KOPIA_PASSWORD="${KOPIA_PASSWORD:-changeme}"
+KOPIA_PASSWORD="${KOPIA_PASSWORD:?ERROR: KOPIA_PASSWORD must be set}"
 VOLUMES_ROOT="${VOLUMES_ROOT:-/app/volumes}"
 
 echo "[kopia-init] Using repo path: ${KOPIA_REPO_PATH}"

@@ -50,9 +50,13 @@ AUTH_FILE = CONFIG_DIR / ".storage" / "auth"
 PERSON_FILE = CONFIG_DIR / ".storage" / "person"
 
 # Admin credentials from environment
-admin_username = os.environ.get("STACK_ADMIN_USER", "admin")
-admin_password = os.environ.get("STACK_ADMIN_PASSWORD", "changeme")
+admin_username = os.environ.get("STACK_ADMIN_USER")
+admin_password = os.environ.get("STACK_ADMIN_PASSWORD")
 admin_email = os.environ.get("STACK_ADMIN_EMAIL", "{{STACK_ADMIN_EMAIL}}")
+
+if not admin_username or not admin_password:
+    print("ERROR: STACK_ADMIN_USER and STACK_ADMIN_PASSWORD must be set")
+    exit(1)
 
 # Generate user ID
 user_id = secrets.token_hex(16)
