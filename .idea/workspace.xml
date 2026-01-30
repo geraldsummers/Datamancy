@@ -4,9 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="RAGTEST">
-      <change beforePath="$PROJECT_DIR$/build-datamancy-v2.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build-datamancy-v2.main.kts" afterDir="false" />
-    </list>
+    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="RAGTEST" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -259,22 +257,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1764971190772</updated>
-    </task>
-    <task id="LOCAL-00019" summary="test writing">
-      <option name="closed" value="true" />
-      <created>1766441943994</created>
-      <option name="number" value="00019" />
-      <option name="presentableId" value="LOCAL-00019" />
-      <option name="project" value="LOCAL" />
-      <updated>1766441943994</updated>
-    </task>
-    <task id="LOCAL-00020" summary="test writing">
-      <option name="closed" value="true" />
-      <created>1766451482240</created>
-      <option name="number" value="00020" />
-      <option name="presentableId" value="LOCAL-00020" />
-      <option name="project" value="LOCAL" />
-      <updated>1766451482240</updated>
     </task>
     <task id="LOCAL-00021" summary="test writing">
       <option name="closed" value="true" />
@@ -652,7 +634,23 @@
       <option name="project" value="LOCAL" />
       <updated>1769765362288</updated>
     </task>
-    <option name="localTasksCounter" value="68" />
+    <task id="LOCAL-00068" summary="RAGTEST">
+      <option name="closed" value="true" />
+      <created>1769767711076</created>
+      <option name="number" value="00068" />
+      <option name="presentableId" value="LOCAL-00068" />
+      <option name="project" value="LOCAL" />
+      <updated>1769767711076</updated>
+    </task>
+    <task id="LOCAL-00069" summary="RAGTEST">
+      <option name="closed" value="true" />
+      <created>1769767881353</created>
+      <option name="number" value="00069" />
+      <option name="presentableId" value="LOCAL-00069" />
+      <option name="project" value="LOCAL" />
+      <updated>1769767881354</updated>
+    </task>
+    <option name="localTasksCounter" value="70" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
