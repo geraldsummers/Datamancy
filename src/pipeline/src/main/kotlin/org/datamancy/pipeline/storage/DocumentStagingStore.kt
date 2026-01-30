@@ -150,35 +150,49 @@ class DocumentStagingStore(
 
     /**
      * Stage multiple documents in batch (much faster)
+     * Uses ClickHouse CSV format to avoid escaping issues with complex strings
      */
     suspend fun stageBatch(docs: List<StagedDocument>) {
         if (docs.isEmpty()) return
 
         try {
-            val values = docs.joinToString(",\n") { doc ->
-                val metadataJson = json.encodeToString(doc.metadata).escapeClickHouse()
-                val errorMsg = doc.errorMessage?.escapeClickHouse() ?: ""
+            // Build CSV data - ClickHouse CSV format handles escaping properly
+            val csvData = docs.joinToString("\n") { doc ->
+                val metadataJson = json.encodeToString(doc.metadata)
+                val errorMsg = doc.errorMessage ?: ""
 
-                """
-                (
-                    '${doc.id.escapeClickHouse()}',
-                    '${doc.source.escapeClickHouse()}',
-                    '${doc.collection.escapeClickHouse()}',
-                    '${doc.text.escapeClickHouse()}',
-                    '$metadataJson',
-                    '${doc.embeddingStatus.name}',
-                    ${doc.chunkIndex ?: "NULL"},
-                    ${doc.totalChunks ?: "NULL"},
-                    toDateTime64(${doc.createdAt.toEpochMilli()}, 3),
-                    toDateTime64(${doc.updatedAt.toEpochMilli()}, 3),
-                    ${doc.retryCount},
-                    ${if (doc.errorMessage != null) "'$errorMsg'" else "NULL"}
-                )
-                """.trimIndent()
+                // CSV format: escape quotes by doubling them, wrap fields in quotes
+                listOf(
+                    doc.id,
+                    doc.source,
+                    doc.collection,
+                    doc.text,
+                    metadataJson,
+                    doc.embeddingStatus.name,
+                    doc.chunkIndex?.toString() ?: "",
+                    doc.totalChunks?.toString() ?: "",
+                    doc.createdAt.toEpochMilli().toString(),
+                    doc.updatedAt.toEpochMilli().toString(),
+                    doc.retryCount.toString(),
+                    errorMsg
+                ).joinToString(",") { field ->
+                    // Properly escape CSV fields
+                    "\"${field.replace("\"", "\"\"")}\""
+                }
             }
 
-            val insertSQL = "INSERT INTO document_staging VALUES $values"
-            client.read(node).query(insertSQL).executeAndWait()
+            val insertSQL = """
+                INSERT INTO document_staging
+                (id, source, collection, text, metadata, embedding_status, chunk_index, total_chunks, created_at, updated_at, retry_count, error_message)
+                FORMAT CSV
+            """.trimIndent()
+
+            // Send data with CSV format
+            client.read(node).write()
+                .query(insertSQL)
+                .data(csvData)
+                .executeAndWait()
+
             logger.info { "Staged ${docs.size} documents" }
 
         } catch (e: Exception) {
@@ -298,8 +312,9 @@ class DocumentStagingStore(
 
             response.use { result ->
                 result.records().forEach { record ->
-                    val status = record.getValue("embedding_status").asString().lowercase()
-                    val count = record.getValue("count").asLong()
+                    // Use column index instead of name to avoid JDBC driver column resolution issues
+                    val status = record.getValue(0).asString().lowercase()
+                    val count = record.getValue(1).asLong()
                     stats[status] = count
                 }
             }
@@ -343,8 +358,9 @@ class DocumentStagingStore(
 
             response.use { result ->
                 result.records().forEach { record ->
-                    val status = record.getValue("embedding_status").asString().lowercase()
-                    val count = record.getValue("count").asLong()
+                    // Use column index instead of name to avoid JDBC driver column resolution issues
+                    val status = record.getValue(0).asString().lowercase()
+                    val count = record.getValue(1).asLong()
                     stats[status] = count
                 }
             }

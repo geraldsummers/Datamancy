@@ -17,7 +17,7 @@ services:
     environment:
       DOZZLE_BASE: /dozzle
       DOZZLE_LEVEL: info
-      DOZZLE_TAILSIZE: 300
+      # DOZZLE_TAILSIZE removed - not a valid environment variable in v8.10.1
       DOZZLE_FILTER: "status=running"
       DOZZLE_NO_ANALYTICS: "true"
       DOZZLE_ENABLE_ACTIONS: "false"

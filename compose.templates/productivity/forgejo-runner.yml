@@ -4,7 +4,10 @@
 
 services:
   forgejo-runner:
-    image: code.forgejo.org/forgejo/runner:3.5.1
+    build:
+      context: .
+      dockerfile: src/forgejo-runner/Dockerfile
+    image: datamancy/forgejo-runner:3.5.1
     container_name: forgejo-runner
     restart: unless-stopped
     networks:
@@ -36,10 +39,7 @@ services:
       - forgejo_data:/forgejo-data:ro
     command: >
       sh -c "
-        # Install dependencies for token generation
-        apk add --no-cache curl jq netcat-openbsd
-
-        # Wait for Forgejo to be ready
+        # Wait for Forgejo to be ready (dependencies pre-installed in custom image)
         until nc -z forgejo 3000; do
           echo 'Waiting for Forgejo...'
           sleep 5

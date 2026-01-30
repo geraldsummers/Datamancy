@@ -4,7 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="RAGTEST" />
+    <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="RAGTEST">
+      <change beforePath="$PROJECT_DIR$/compose.templates/observability/docker-exporter.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/observability/docker-exporter.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/observability/dozzle.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/observability/dozzle.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/observability/prompt-server.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/productivity/forgejo-runner.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/productivity/forgejo-runner.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.templates/testing/test-runner.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs.templates/databases/vectors/bootstrap_vectors.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/vectors/bootstrap_vectors.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DocumentStagingStore.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DocumentStagingStore.kt" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

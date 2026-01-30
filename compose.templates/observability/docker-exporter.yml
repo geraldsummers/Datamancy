@@ -2,6 +2,7 @@
 # Docker container health exporter for Prometheus
 # Image versions are HARDCODED at build time
 # Only secrets and deployment paths use runtime ${VARS}
+# NOTE: May report warnings for locally-built images (e.g., embedding-service) - this is a known issue with the exporter
 
 services:
   docker-health-exporter:
