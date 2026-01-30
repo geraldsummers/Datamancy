@@ -33,6 +33,7 @@ class TorrentsSource(
 
         var currentLine = 0L
         var emittedCount = 0
+        var failureCount = 0
 
         try {
             val reader: BufferedReader = when {
@@ -104,16 +105,24 @@ class TorrentsSource(
                             emittedCount++
 
                             if (emittedCount % 10000 == 0) {
-                                logger.info { "Processed $emittedCount torrents (line $currentLine)" }
+                                logger.info { "Processed $emittedCount torrents (line $currentLine), failures: $failureCount" }
                             }
                         }
                     } catch (e: Exception) {
+                        failureCount++
                         logger.error(e) { "Failed to parse torrent at line $currentLine: ${e.message}" }
+
+                        // Fail fast if failure rate exceeds 10% after processing at least 100 records
+                        val totalProcessed = emittedCount + failureCount
+                        if (totalProcessed >= 100 && failureCount.toDouble() / totalProcessed > 0.10) {
+                            val failureRate = "%.2f%%".format(failureCount.toDouble() / totalProcessed * 100)
+                            throw IllegalStateException("Torrent parsing failure rate too high: $failureCount/$totalProcessed ($failureRate). Aborting to prevent data corruption.")
+                        }
                     }
                 }
             }
 
-            logger.info { "Torrent fetch complete: $emittedCount torrents emitted" }
+            logger.info { "Torrent fetch complete: $emittedCount torrents emitted, $failureCount failures" }
 
         } catch (e: Exception) {
             logger.error(e) { "Failed to fetch torrents: ${e.message}" }
@@ -150,7 +159,8 @@ class TorrentsSource(
     }
 
     /**
-     * Simple CSV parser that handles quoted fields
+     * RFC 4180 compliant CSV parser that handles quoted fields
+     * Properly handles escaped quotes ("") per CSV standard
      */
     private fun parseCSVLine(line: String): List<String> {
         val result = mutableListOf<String>()
@@ -162,8 +172,15 @@ class TorrentsSource(
             val char = line[i]
 
             when {
-                char == '"' && (i == 0 || line[i - 1] != '\\') -> {
-                    inQuotes = !inQuotes
+                char == '"' -> {
+                    if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
+                        // Escaped quote ("") - add one quote and skip next
+                        current.append('"')
+                        i++  // Skip the second quote
+                    } else {
+                        // Toggle quote state
+                        inQuotes = !inQuotes
+                    }
                 }
                 char == ',' && !inQuotes -> {
                     result.add(current.toString())
@@ -180,7 +197,7 @@ class TorrentsSource(
         // Add last field
         result.add(current.toString())
 
-        return result.map { it.trim('"', ' ') }
+        return result
     }
 }
 
