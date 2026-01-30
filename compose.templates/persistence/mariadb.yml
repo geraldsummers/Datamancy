@@ -41,6 +41,7 @@ services:
       BOOKSTACK_DB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}
       MARIADB_SEAFILE_PASSWORD: ${MARIADB_SEAFILE_PASSWORD}
       STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
+      AGENT_MARIADB_OBSERVER_PASSWORD: ${AGENT_MARIADB_OBSERVER_PASSWORD}
     volumes:
       - ./configs/databases/mariadb/init-db.sh:/init-db.sh:ro
     entrypoint:

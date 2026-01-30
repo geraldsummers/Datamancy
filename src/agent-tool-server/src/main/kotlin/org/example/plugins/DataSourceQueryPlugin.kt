@@ -3,6 +3,10 @@ package org.example.plugins
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import com.fasterxml.jackson.databind.node.ObjectNode
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
+import net.sf.jsqlparser.parser.CCJSqlParserUtil
+import net.sf.jsqlparser.statement.select.Select
 import org.example.api.LlmTool
 import org.example.api.Plugin
 import org.example.api.PluginContext
@@ -19,58 +23,200 @@ import java.sql.DriverManager
 import java.sql.ResultSet
 import java.util.Base64
 
+// SQL Query Validation
+sealed class QueryValidationResult {
+    data class Approved(val query: String) : QueryValidationResult()
+    data class Rejected(val reason: String) : QueryValidationResult()
+}
+
+private fun validateSqlQuery(query: String, requiredSchema: String? = null): QueryValidationResult {
+    return try {
+        // Parse SQL to AST (catches malformed queries and comment-based bypasses)
+        val statement = CCJSqlParserUtil.parse(query)
+
+        // Only allow SELECT statements
+        if (statement !is Select) {
+            return QueryValidationResult.Rejected("Only SELECT queries allowed")
+        }
+
+        // Validate schema requirement via simple string check
+        // (Parser already validated query structure, this is defense in depth)
+        if (requiredSchema != null) {
+            if (!query.contains(requiredSchema, ignoreCase = true)) {
+                return QueryValidationResult.Rejected(
+                    "Query must reference $requiredSchema schema"
+                )
+            }
+        }
+
+        // Check for dangerous functions
+        val queryLower = query.lowercase()
+        val dangerousFunctions = listOf(
+            "pg_sleep", "pg_read_file", "pg_ls_dir",
+            "copy ", "\\copy", "lo_import", "lo_export",
+            "dblink", "pg_execute", "xmlparse"
+        )
+
+        if (dangerousFunctions.any { queryLower.contains(it) }) {
+            return QueryValidationResult.Rejected("Query contains forbidden functions")
+        }
+
+        // Limit complexity (prevent DoS)
+        val selectCount = query.split("SELECT", ignoreCase = true).size - 1
+        if (selectCount > 3) {
+            return QueryValidationResult.Rejected("Too many nested subqueries (max 3)")
+        }
+
+        QueryValidationResult.Approved(query)
+
+    } catch (e: Exception) {
+        QueryValidationResult.Rejected("Invalid SQL syntax: ${e.message}")
+    }
+}
+
+// Configuration data classes
+data class PostgresConfig(
+    val host: String,
+    val port: Int,
+    val user: String,
+    val password: String
+)
+
+data class MariaDBConfig(
+    val host: String,
+    val port: Int,
+    val user: String,
+    val password: String
+)
+
+data class ClickHouseConfig(
+    val host: String,
+    val port: Int,
+    val user: String,
+    val password: String
+)
+
+data class QdrantConfig(
+    val host: String,
+    val port: Int,
+    val apiKey: String
+)
+
+data class LdapConfig(
+    val host: String,
+    val port: Int,
+    val bindDn: String,
+    val password: String,
+    val baseDn: String
+)
+
+data class SearchServiceConfig(
+    val url: String
+)
+
+/**
+ * Data source configuration holder (supports dependency injection)
+ */
+data class DataSourceConfigs(
+    val postgresConfig: PostgresConfig? = null,
+    val mariadbConfig: MariaDBConfig? = null,
+    val clickhouseConfig: ClickHouseConfig? = null,
+    val qdrantConfig: QdrantConfig? = null,
+    val ldapConfig: LdapConfig? = null,
+    val searchServiceConfig: SearchServiceConfig? = null
+) {
+    companion object {
+        /**
+         * Create configs from environment variables (production use)
+         */
+        fun fromEnvironment(): DataSourceConfigs {
+            val env = System.getenv()
+
+            val postgresConfig = env["POSTGRES_HOST"]?.let {
+                PostgresConfig(
+                    host = it,
+                    port = env["POSTGRES_PORT"]?.toIntOrNull() ?: 5432,
+                    user = env["POSTGRES_OBSERVER_USER"] ?: "agent_observer",
+                    password = env["POSTGRES_OBSERVER_PASSWORD"]
+                        ?: throw IllegalStateException("POSTGRES_OBSERVER_PASSWORD must be set")
+                )
+            }
+
+            val mariadbConfig = env["MARIADB_HOST"]?.let {
+                MariaDBConfig(
+                    host = it,
+                    port = env["MARIADB_PORT"]?.toIntOrNull() ?: 3306,
+                    user = env["MARIADB_OBSERVER_USER"] ?: "agent_observer",
+                    password = env["MARIADB_OBSERVER_PASSWORD"]
+                        ?: throw IllegalStateException("MARIADB_OBSERVER_PASSWORD must be set")
+                )
+            }
+
+            val clickhouseConfig = env["CLICKHOUSE_HOST"]?.let {
+                ClickHouseConfig(
+                    host = it,
+                    port = env["CLICKHOUSE_PORT"]?.toIntOrNull() ?: 8123,
+                    user = env["CLICKHOUSE_OBSERVER_USER"] ?: "default",
+                    password = env["CLICKHOUSE_OBSERVER_PASSWORD"]
+                        ?: throw IllegalStateException("CLICKHOUSE_OBSERVER_PASSWORD must be set")
+                )
+            }
+
+            val qdrantConfig = env["QDRANT_HOST"]?.let {
+                val apiKey = env["QDRANT_OBSERVER_API_KEY"] ?: ""
+                if (apiKey.isEmpty()) {
+                    println("[WARN] QDRANT_OBSERVER_API_KEY not set - Qdrant access will be unauthenticated")
+                }
+                QdrantConfig(
+                    host = it,
+                    port = env["QDRANT_PORT"]?.toIntOrNull() ?: 6333,
+                    apiKey = apiKey
+                )
+            }
+
+            val ldapConfig = env["LDAP_HOST"]?.let {
+                val password = env["LDAP_OBSERVER_PASSWORD"] ?: ""
+                if (password.isEmpty()) {
+                    println("[WARN] LDAP_OBSERVER_PASSWORD not set - will attempt anonymous LDAP bind (not recommended for production)")
+                }
+                LdapConfig(
+                    host = it,
+                    port = env["LDAP_PORT"]?.toIntOrNull() ?: 389,
+                    bindDn = env["LDAP_OBSERVER_DN"] ?: "cn=agent_observer,dc=stack,dc=local",
+                    password = password,
+                    baseDn = env["LDAP_BASE_DN"] ?: "dc=stack,dc=local"
+                )
+            }
+
+            val searchServiceConfig = env["SEARCH_SERVICE_URL"]?.let {
+                SearchServiceConfig(url = it)
+            }
+
+            return DataSourceConfigs(
+                postgresConfig = postgresConfig,
+                mariadbConfig = mariadbConfig,
+                clickhouseConfig = clickhouseConfig,
+                qdrantConfig = qdrantConfig,
+                ldapConfig = ldapConfig,
+                searchServiceConfig = searchServiceConfig
+            )
+        }
+    }
+}
+
 /**
  * DataSourceQueryPlugin - Provides LM-friendly tools to query various data sources
  * with read-only observation accounts.
  *
  * Supports: PostgreSQL, MariaDB, ClickHouse, CouchDB, Qdrant, LDAP
  */
-class DataSourceQueryPlugin : Plugin {
-    internal data class PostgresConfig(
-        val host: String,
-        val port: Int,
-        val user: String,
-        val password: String
-    )
-
-    internal data class MariaDBConfig(
-        val host: String,
-        val port: Int,
-        val user: String,
-        val password: String
-    )
-
-    internal data class ClickHouseConfig(
-        val host: String,
-        val port: Int,
-        val user: String,
-        val password: String
-    )
-
-    internal data class QdrantConfig(
-        val host: String,
-        val port: Int,
-        val apiKey: String
-    )
-
-    internal data class LdapConfig(
-        val host: String,
-        val port: Int,
-        val bindDn: String,
-        val password: String,
-        val baseDn: String
-    )
-
-    internal data class SearchServiceConfig(
-        val url: String
-    )
-
-    private var postgresConfig: PostgresConfig? = null
-    private var mariadbConfig: MariaDBConfig? = null
-    private var clickhouseConfig: ClickHouseConfig? = null
-    private var qdrantConfig: QdrantConfig? = null
-    private var ldapConfig: LdapConfig? = null
-    private var searchServiceConfig: SearchServiceConfig? = null
+class DataSourceQueryPlugin(
+    private val configs: DataSourceConfigs = DataSourceConfigs.fromEnvironment()
+) : Plugin {
+    // Connection pools for database connections (prevents connection exhaustion)
+    private var postgresPool: HikariDataSource? = null
+    private var mariadbPool: HikariDataSource? = null
+    private var clickhousePool: HikariDataSource? = null
 
     override fun manifest() = PluginManifest(
         id = "org.example.plugins.datasource",
@@ -82,89 +228,98 @@ class DataSourceQueryPlugin : Plugin {
     )
 
     override fun init(context: PluginContext) {
-        // Load configurations from environment
-        val env = System.getenv()
-
-        postgresConfig = env["POSTGRES_HOST"]?.let {
-            PostgresConfig(
-                host = it,
-                port = env["POSTGRES_PORT"]?.toIntOrNull() ?: 5432,
-                user = env["POSTGRES_OBSERVER_USER"] ?: "agent_observer",
-                password = env["POSTGRES_OBSERVER_PASSWORD"] ?: ""
-            )
+        // Use injected configs (allows testing without environment variables)
+        // Initialize connection pools for configured databases
+        configs.postgresConfig?.let { config ->
+            val hikariConfig = HikariConfig().apply {
+                jdbcUrl = "jdbc:postgresql://${config.host}:${config.port}/postgres"
+                username = config.user
+                password = config.password
+                maximumPoolSize = 5
+                minimumIdle = 1
+                connectionTimeout = 10000
+                idleTimeout = 300000
+                maxLifetime = 600000
+                poolName = "agent-postgres-pool"
+                // Additional safety settings
+                isReadOnly = true
+                transactionIsolation = "TRANSACTION_READ_COMMITTED"
+            }
+            postgresPool = HikariDataSource(hikariConfig)
+            println("[DataSourceQueryPlugin] PostgreSQL connection pool initialized")
         }
 
-        mariadbConfig = env["MARIADB_HOST"]?.let {
-            MariaDBConfig(
-                host = it,
-                port = env["MARIADB_PORT"]?.toIntOrNull() ?: 3306,
-                user = env["MARIADB_OBSERVER_USER"] ?: "agent_observer",
-                password = env["MARIADB_OBSERVER_PASSWORD"] ?: ""
-            )
+        configs.mariadbConfig?.let { config ->
+            val hikariConfig = HikariConfig().apply {
+                jdbcUrl = "jdbc:mariadb://${config.host}:${config.port}"
+                username = config.user
+                password = config.password
+                maximumPoolSize = 5
+                minimumIdle = 1
+                connectionTimeout = 10000
+                idleTimeout = 300000
+                maxLifetime = 600000
+                poolName = "agent-mariadb-pool"
+                isReadOnly = true
+            }
+            mariadbPool = HikariDataSource(hikariConfig)
+            println("[DataSourceQueryPlugin] MariaDB connection pool initialized")
         }
 
-        clickhouseConfig = env["CLICKHOUSE_HOST"]?.let {
-            ClickHouseConfig(
-                host = it,
-                port = env["CLICKHOUSE_PORT"]?.toIntOrNull() ?: 8123,
-                user = env["CLICKHOUSE_OBSERVER_USER"] ?: "default",
-                password = env["CLICKHOUSE_OBSERVER_PASSWORD"] ?: ""
-            )
-        }
-
-        qdrantConfig = env["QDRANT_HOST"]?.let {
-            QdrantConfig(
-                host = it,
-                port = env["QDRANT_PORT"]?.toIntOrNull() ?: 6333,
-                apiKey = env["QDRANT_OBSERVER_API_KEY"] ?: ""
-            )
-        }
-
-        ldapConfig = env["LDAP_HOST"]?.let {
-            LdapConfig(
-                host = it,
-                port = env["LDAP_PORT"]?.toIntOrNull() ?: 389,
-                bindDn = env["LDAP_OBSERVER_DN"] ?: "cn=agent_observer,dc=stack,dc=local",
-                password = env["LDAP_OBSERVER_PASSWORD"] ?: "",
-                baseDn = env["LDAP_BASE_DN"] ?: "dc=stack,dc=local"
-            )
-        }
-
-        searchServiceConfig = env["SEARCH_SERVICE_URL"]?.let {
-            SearchServiceConfig(url = it)
+        configs.clickhouseConfig?.let { config ->
+            val hikariConfig = HikariConfig().apply {
+                jdbcUrl = "jdbc:clickhouse://${config.host}:${config.port}/default"
+                username = config.user
+                password = config.password
+                maximumPoolSize = 5
+                minimumIdle = 1
+                connectionTimeout = 10000
+                idleTimeout = 300000
+                maxLifetime = 600000
+                poolName = "agent-clickhouse-pool"
+                isReadOnly = true
+            }
+            clickhousePool = HikariDataSource(hikariConfig)
+            println("[DataSourceQueryPlugin] ClickHouse connection pool initialized")
         }
 
         println("[DataSourceQueryPlugin] Initialized with ${listOfNotNull(
-            postgresConfig?.let { "postgres" },
-            mariadbConfig?.let { "mariadb" },
-            clickhouseConfig?.let { "clickhouse" },
-            qdrantConfig?.let { "qdrant" },
-            ldapConfig?.let { "ldap" },
-            searchServiceConfig?.let { "search-service" }
+            configs.postgresConfig?.let { "postgres" },
+            configs.mariadbConfig?.let { "mariadb" },
+            configs.clickhouseConfig?.let { "clickhouse" },
+            configs.qdrantConfig?.let { "qdrant" },
+            configs.ldapConfig?.let { "ldap" },
+            configs.searchServiceConfig?.let { "search-service" }
         ).joinToString(", ")}")
     }
 
     override fun tools(): List<Any> = listOf(Tools(
-        postgresConfig,
-        mariadbConfig,
-        clickhouseConfig,
-        qdrantConfig,
-        ldapConfig,
-        searchServiceConfig
+        configs.postgresConfig,
+        configs.mariadbConfig,
+        configs.clickhouseConfig,
+        configs.qdrantConfig,
+        configs.ldapConfig,
+        configs.searchServiceConfig,
+        postgresPool,
+        mariadbPool,
+        clickhousePool
     ))
 
     override fun registerTools(registry: ToolRegistry) {
         val pluginId = manifest().id
         val tools = Tools(
-            postgresConfig,
-            mariadbConfig,
-            clickhouseConfig,
-            qdrantConfig,
-            ldapConfig,
-            searchServiceConfig
+            configs.postgresConfig,
+            configs.mariadbConfig,
+            configs.clickhouseConfig,
+            configs.qdrantConfig,
+            configs.ldapConfig,
+            configs.searchServiceConfig,
+            postgresPool,
+            mariadbPool,
+            clickhousePool
         )
 
-        if (postgresConfig != null) {
+        if (configs.postgresConfig != null) {
             registry.register(
                 ToolDefinition(
                     name = "query_postgres",
@@ -186,7 +341,7 @@ class DataSourceQueryPlugin : Plugin {
             )
         }
 
-        if (mariadbConfig != null) {
+        if (configs.mariadbConfig != null) {
             registry.register(
                 ToolDefinition(
                     name = "query_mariadb",
@@ -208,7 +363,7 @@ class DataSourceQueryPlugin : Plugin {
             )
         }
 
-        if (clickhouseConfig != null) {
+        if (configs.clickhouseConfig != null) {
             registry.register(
                 ToolDefinition(
                     name = "query_clickhouse",
@@ -228,7 +383,7 @@ class DataSourceQueryPlugin : Plugin {
             )
         }
 
-        if (qdrantConfig != null) {
+        if (configs.qdrantConfig != null) {
             registry.register(
                 ToolDefinition(
                     name = "search_qdrant",
@@ -253,7 +408,7 @@ class DataSourceQueryPlugin : Plugin {
             )
         }
 
-        if (ldapConfig != null) {
+        if (configs.ldapConfig != null) {
             registry.register(
                 ToolDefinition(
                     name = "search_ldap",
@@ -285,7 +440,7 @@ class DataSourceQueryPlugin : Plugin {
         }
 
         // Register semantic search tool if search-service is configured
-        if (searchServiceConfig != null) {
+        if (configs.searchServiceConfig != null) {
             registry.register(
                 ToolDefinition(
                     name = "semantic_search",
@@ -318,7 +473,15 @@ class DataSourceQueryPlugin : Plugin {
     }
 
     override fun shutdown() {
-        // No cleanup needed
+        // Close connection pools to release resources
+        try {
+            postgresPool?.close()
+            mariadbPool?.close()
+            clickhousePool?.close()
+            println("[DataSourceQueryPlugin] Connection pools closed successfully")
+        } catch (e: Exception) {
+            println("[DataSourceQueryPlugin] Error closing connection pools: ${e.message}")
+        }
     }
 
     internal class Tools(
@@ -327,7 +490,10 @@ class DataSourceQueryPlugin : Plugin {
         private val clickhouseConfig: ClickHouseConfig?,
         private val qdrantConfig: QdrantConfig?,
         private val ldapConfig: LdapConfig?,
-        private val searchServiceConfig: SearchServiceConfig?
+        private val searchServiceConfig: SearchServiceConfig?,
+        private val postgresPool: HikariDataSource?,
+        private val mariadbPool: HikariDataSource?,
+        private val clickhousePool: HikariDataSource?
     ) {
         private val secretsDir = System.getenv("SHADOW_ACCOUNTS_SECRETS_DIR") ?: "/run/secrets/datamancy"
 
@@ -361,21 +527,15 @@ class DataSourceQueryPlugin : Plugin {
                 return "ERROR: Database '$database' not accessible. Allowed: ${allowedDbs.joinToString(", ")}"
             }
 
-            // Safety checks
-            val queryUpper = query.trim().uppercase()
-            if (!queryUpper.startsWith("SELECT")) {
-                return "ERROR: Only SELECT queries are allowed"
-            }
-
-            // Must query from agent_observer schema only
-            if (!query.contains("agent_observer.", ignoreCase = true)) {
-                return "ERROR: Queries must use agent_observer schema (e.g., SELECT * FROM agent_observer.public_dashboards)"
-            }
-
-            // Forbidden patterns
-            val forbidden = listOf("information_schema", "pg_catalog", "public.", "DROP", "INSERT", "UPDATE", "DELETE", "ALTER", "CREATE")
-            if (forbidden.any { queryUpper.contains(it) }) {
-                return "ERROR: Query contains forbidden patterns"
+            // Validate query with SQL parser (prevents injection via comments, encoding, etc.)
+            when (val validation = validateSqlQuery(query, "agent_observer")) {
+                is QueryValidationResult.Rejected -> {
+                    println("[AUDIT] user=${userContext ?: "anonymous"} database=$database query_rejected reason=\"${validation.reason}\"")
+                    return """{"error": "${validation.reason}"}"""
+                }
+                is QueryValidationResult.Approved -> {
+                    // Query validated, proceed with execution
+                }
             }
 
             // Determine credentials (shadow account if userContext provided, otherwise fallback to config)
@@ -392,12 +552,15 @@ class DataSourceQueryPlugin : Plugin {
                 Pair(config.user, config.password)
             }
 
-            val url = "jdbc:postgresql://${config.host}:${config.port}/$database"
-
             return try {
-                DriverManager.getConnection(url, dbUser, dbPassword).use { conn ->
-                    // Set search path to agent_observer schema only for extra safety
+                // Use connection pool instead of DriverManager for better performance
+                val pool = postgresPool ?: return "ERROR: PostgreSQL connection pool not initialized"
+
+                pool.connection.use { conn ->
+                    // Switch to the requested database
                     conn.createStatement().execute("SET search_path TO agent_observer")
+                    conn.catalog = database
+
                     val startTime = System.currentTimeMillis()
                     conn.createStatement().use { stmt ->
                         stmt.maxRows = 100
@@ -448,8 +611,13 @@ class DataSourceQueryPlugin : Plugin {
             }
 
             return try {
-                val url = "jdbc:mariadb://${config.host}:${config.port}/$database"
-                DriverManager.getConnection(url, username, config.password).use { conn ->
+                // Use connection pool instead of DriverManager for better performance
+                val pool = mariadbPool ?: return "ERROR: MariaDB connection pool not initialized"
+
+                pool.connection.use { conn ->
+                    // Switch to the requested database
+                    conn.catalog = database
+
                     val startTime = System.currentTimeMillis()
                     conn.createStatement().use { stmt ->
                         stmt.maxRows = 100

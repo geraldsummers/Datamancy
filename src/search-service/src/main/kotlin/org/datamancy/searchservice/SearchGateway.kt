@@ -2,6 +2,8 @@ package org.datamancy.searchservice
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.qdrant.client.QdrantClient
 import io.qdrant.client.QdrantGrpcClient
@@ -11,6 +13,8 @@ import io.qdrant.client.WithPayloadSelectorFactory
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -23,6 +27,7 @@ private val logger = KotlinLogging.logger {}
 
 /**
  * Hybrid search gateway combining vector search (Qdrant) and BM25 (ClickHouse).
+ * Provides close() method for proper resource management.
  */
 class SearchGateway(
     private val qdrantUrl: String,
@@ -44,6 +49,22 @@ class SearchGateway(
     private val qdrantHost = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":")[0]
     private val qdrantPort = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":").getOrNull(1)?.toIntOrNull() ?: 6334
     private val qdrant = QdrantClient(QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, false).build())
+
+    // ClickHouse connection pool (prevents connection exhaustion under load)
+    private val clickhousePool: HikariDataSource by lazy {
+        HikariConfig().apply {
+            jdbcUrl = "jdbc:clickhouse://${clickhouseUrl.removePrefix("http://").removePrefix("https://")}/default"
+            username = clickhouseUser
+            password = clickhousePassword
+            maximumPoolSize = 10
+            minimumIdle = 2
+            connectionTimeout = 5000
+            idleTimeout = 300000
+            maxLifetime = 600000
+            poolName = "search-clickhouse-pool"
+            isReadOnly = true
+        }.let { HikariDataSource(it) }
+    }
 
     /**
      * Performs hybrid search across specified collections.
@@ -126,8 +147,9 @@ class SearchGateway(
 
     /**
      * Searches Qdrant collection.
+     * Runs on IO dispatcher to avoid blocking coroutine threads.
      */
-    private fun searchQdrant(collection: String, embedding: List<Float>, limit: Int): List<SearchResult> {
+    private suspend fun searchQdrant(collection: String, embedding: List<Float>, limit: Int): List<SearchResult> = withContext(Dispatchers.IO) {
         val points = qdrant.searchAsync(
             SearchPoints.newBuilder()
                 .setCollectionName(collection)
@@ -137,7 +159,7 @@ class SearchGateway(
                 .build()
         ).get()
 
-        return points.map { point ->
+        return@withContext points.map { point ->
             val payload = point.payloadMap
             // Pipeline stores: title, link, description (or url, text, etc.)
             val url = payload["link"]?.stringValue ?: payload["url"]?.stringValue ?: ""
@@ -169,15 +191,30 @@ class SearchGateway(
     }
 
     /**
-     * Searches ClickHouse table using full-text search.
+     * Validates and sanitizes table/collection name to prevent SQL injection.
      */
-    private fun searchClickHouse(collection: String, query: String, limit: Int): List<SearchResult> {
-        val tableName = collection.replace("-", "_")
-        val escapedQuery = query.replace("'", "''")
-        val jdbcUrl = "jdbc:clickhouse://${clickhouseUrl.removePrefix("http://").removePrefix("https://")}/default"
+    private fun sanitizeTableName(name: String): String {
+        // ClickHouse table names: alphanumeric, underscore only (no dashes, no special chars)
+        require(name.isNotBlank()) { "Table name cannot be blank" }
+        val sanitized = name.replace("-", "_")
+        require(sanitized.matches(Regex("^[a-zA-Z0-9_]{1,64}$"))) {
+            "Invalid table name: $name (must be alphanumeric/underscore, max 64 chars)"
+        }
+        return sanitized
+    }
 
-        // Check if table exists first
-        val tableExists = DriverManager.getConnection(jdbcUrl, clickhouseUser, clickhousePassword).use { conn ->
+    /**
+     * Searches ClickHouse table using full-text search.
+     * Uses parameterized queries to prevent SQL injection.
+     * Runs on IO dispatcher to avoid blocking coroutine threads.
+     */
+    private suspend fun searchClickHouse(collection: String, query: String, limit: Int): List<SearchResult> = withContext(Dispatchers.IO) {
+        val tableName = sanitizeTableName(collection)
+        val safeLimit = limit.coerceIn(1, 1000) // Prevent DoS with massive limits
+
+        // Check if table exists first (using connection pool)
+        val tableExists = clickhousePool.connection.use { conn ->
+            // ClickHouse doesn't support PreparedStatement for EXISTS, but table name is now sanitized
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery("EXISTS TABLE default.$tableName")
                 rs.next() && rs.getInt(1) == 1
@@ -186,10 +223,11 @@ class SearchGateway(
 
         if (!tableExists) {
             logger.debug { "ClickHouse table default.$tableName does not exist, skipping BM25 search" }
-            return emptyList()
+            return@withContext emptyList()
         }
 
-        // Simple full-text search using LIKE (could be improved with ClickHouse's full-text functions)
+        // Use parameterized query to prevent SQL injection
+        // Note: ClickHouse JDBC driver has limited PreparedStatement support, but we use it where possible
         val sql = """
             SELECT
                 page_id,
@@ -197,28 +235,36 @@ class SearchGateway(
                 page_url,
                 substring(content, 1, 200) as snippet,
                 length(content) as doc_length,
-                (length(content) - length(replaceAll(lower(content), lower('$escapedQuery'), ''))) / length('$escapedQuery') as term_freq
+                (length(content) - length(replaceAll(lower(content), lower(?), ''))) / length(?) as term_freq
             FROM default.$tableName
-            WHERE positionCaseInsensitive(content, '$escapedQuery') > 0
+            WHERE positionCaseInsensitive(content, ?) > 0
             ORDER BY term_freq DESC
-            LIMIT $limit
+            LIMIT ?
         """.trimIndent()
 
         val results = mutableListOf<SearchResult>()
 
-        DriverManager.getConnection(jdbcUrl, clickhouseUser, clickhousePassword).use { conn ->
-            conn.createStatement().use { stmt ->
-                val rs = stmt.executeQuery(sql)
+        clickhousePool.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                // Set parameters (query appears 3 times in SQL)
+                stmt.setString(1, query)
+                stmt.setString(2, query)
+                stmt.setString(3, query)
+                stmt.setInt(4, safeLimit)
+
+                val rs = stmt.executeQuery()
                 while (rs.next()) {
-                    val url = rs.getString("page_url")
-                    val title = rs.getString("page_name")
-                    val snippet = rs.getString("snippet")
+                    val url = rs.getString("page_url") ?: ""
+                    val title = rs.getString("page_name") ?: ""
+                    val snippet = rs.getString("snippet") ?: ""
+                    val termFreq = rs.getDouble("term_freq")
+
                     val metadata = mapOf("type" to "bm25")
                     results.add(SearchResult(
                         url = url,
                         title = title,
                         snippet = snippet,
-                        score = rs.getDouble("term_freq"),
+                        score = termFreq,
                         source = collection,
                         metadata = metadata,
                         contentType = SearchResult.inferContentType(collection, url, metadata),
@@ -228,7 +274,7 @@ class SearchGateway(
             }
         }
 
-        return results
+        return@withContext results
     }
 
     /**
@@ -271,8 +317,9 @@ class SearchGateway(
 
     /**
      * Generates embedding using embedding service.
+     * Runs on IO dispatcher to avoid blocking coroutine threads.
      */
-    private fun generateEmbedding(text: String): List<Float> {
+    private suspend fun generateEmbedding(text: String): List<Float> = withContext(Dispatchers.IO) {
         // Embedding service expects {"inputs": text} format
         val payload = gson.toJson(mapOf("inputs" to text))
 
@@ -290,19 +337,38 @@ class SearchGateway(
             val responseBody = response.body?.string()
             val json = gson.fromJson(responseBody, com.google.gson.JsonArray::class.java)
             val embeddingArray = json.get(0).asJsonArray
-            return embeddingArray.map { it.asFloat }
+            return@withContext embeddingArray.map { it.asFloat }
         }
     }
 
     /**
      * Lists available Qdrant collections.
+     * Runs on IO dispatcher to avoid blocking coroutine threads.
      */
-    fun listCollections(): List<String> {
-        return try {
+    suspend fun listCollections(): List<String> = withContext(Dispatchers.IO) {
+        return@withContext try {
             qdrant.listCollectionsAsync().get()
         } catch (e: Exception) {
             logger.error(e) { "Failed to list collections" }
             emptyList()
+        }
+    }
+
+    /**
+     * Cleanup resources (connection pools, HTTP clients) on shutdown.
+     */
+    fun close() {
+        try {
+            // Close ClickHouse connection pool
+            try {
+                clickhousePool.close()
+            } catch (e: Exception) {
+                logger.debug(e) { "ClickHouse pool close failed" }
+            }
+
+            logger.info { "SearchGateway resources cleaned up successfully" }
+        } catch (e: Exception) {
+            logger.warn(e) { "Error during SearchGateway cleanup" }
         }
     }
 }
@@ -408,7 +474,7 @@ data class SearchResult(
                     isStructured = false
                 )
                 else -> ContentCapabilities(
-                    humanFriendly = false,
+                    humanFriendly = true,
                     agentFriendly = true,
                     hasTimeSeries = false,
                     hasRichContent = false,

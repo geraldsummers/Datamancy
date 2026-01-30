@@ -12,6 +12,21 @@ import org.datamancy.pipeline.sources.BinanceKline
 private val logger = KotlinLogging.logger {}
 
 /**
+ * Escape all special characters for ClickHouse string literals
+ * Reference: https://clickhouse.com/docs/en/sql-reference/syntax#string
+ */
+private fun escapeString(value: String): String {
+    return value
+        .replace("\\", "\\\\")   // Backslash (must be first)
+        .replace("'", "\\'")      // Single quote
+        .replace("\n", "\\n")     // Newline
+        .replace("\r", "\\r")     // Carriage return
+        .replace("\t", "\\t")     // Tab
+        .replace("\b", "\\b")     // Backspace
+        .replace("\u0000", "")    // Remove null bytes (invalid in strings)
+}
+
+/**
  * Writes Binance klines to ClickHouse time-series database
  */
 class ClickHouseSink(
@@ -82,8 +97,8 @@ class ClickHouseSink(
         try {
             val insertSQL = """
                 INSERT INTO market_klines VALUES (
-                    '${item.symbol}',
-                    '${item.interval}',
+                    '${escapeString(item.symbol)}',
+                    '${escapeString(item.interval)}',
                     toDateTime64(${item.openTime}, 3),
                     ${item.open},
                     ${item.high},
@@ -114,8 +129,8 @@ class ClickHouseSink(
             val values = items.joinToString(",\n") { item ->
                 """
                 (
-                    '${item.symbol}',
-                    '${item.interval}',
+                    '${escapeString(item.symbol)}',
+                    '${escapeString(item.interval)}',
                     toDateTime64(${item.openTime}, 3),
                     ${item.open},
                     ${item.high},

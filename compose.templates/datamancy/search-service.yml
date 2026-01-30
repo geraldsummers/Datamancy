@@ -13,7 +13,7 @@ services:
     networks:
       - qdrant
       - clickhouse
-      - ai-gateway
+      - ai
     depends_on:
       qdrant:
         condition: service_started

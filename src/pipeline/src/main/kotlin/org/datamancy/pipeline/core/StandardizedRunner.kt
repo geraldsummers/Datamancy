@@ -12,7 +12,11 @@ import org.datamancy.pipeline.sinks.BookStackSink
 import org.datamancy.pipeline.sinks.QdrantSink
 import org.datamancy.pipeline.sinks.VectorDocument
 import org.datamancy.pipeline.storage.DeduplicationStore
+import org.datamancy.pipeline.storage.DocumentStagingStore
+import org.datamancy.pipeline.storage.EmbeddingStatus
 import org.datamancy.pipeline.storage.SourceMetadataStore
+import org.datamancy.pipeline.storage.StagedDocument
+import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
@@ -21,44 +25,54 @@ private val logger = KotlinLogging.logger {}
  *
  * ALL sources run through this - NO MORE CUSTOM LOOPS IN MAIN.KT!
  *
+ * NEW ARCHITECTURE (Decoupled Scraping/Embedding):
+ * - Scraping → ClickHouse staging (fast, unlimited buffering)
+ * - Separate scheduler pulls from ClickHouse → Embedding → Qdrant
+ * - Benefits: no backpressure, resumable, observable, rate-limited
+ *
  * This handles:
  * - Scheduling (initial pull + resync)
  * - Chunking (if source needs it)
- * - Embedding (with retry)
+ * - Staging to ClickHouse (replaces direct embedding)
  * - Deduplication
- * - Vector storage
  * - Metrics/logging
  *
  * Usage:
  * ```
  * val runner = StandardizedRunner(
  *     source = RssStandardizedSource(feedUrls),
- *     qdrantSink = QdrantSink(...),
- *     embedder = Embedder(...),
+ *     collectionName = "rss",
+ *     stagingStore = stagingStore,
  *     dedupStore = dedupStore,
  *     metadataStore = metadataStore
  * )
  *
- * runner.run()  // That's it! Handles everything.
+ * runner.run()  // Scrapes and stages to ClickHouse
  * ```
+ *
+ * Then separately run EmbeddingScheduler to process staged docs.
  */
 class StandardizedRunner<T : Chunkable>(
     private val source: StandardizedSource<T>,
-    private val qdrantSink: QdrantSink,
-    private val embedder: Embedder,
+    private val collectionName: String,              // Target Qdrant collection
+    private val stagingStore: DocumentStagingStore,  // ClickHouse staging
     private val dedupStore: DeduplicationStore,
     private val metadataStore: SourceMetadataStore,
     private val bookStackSink: BookStackSink? = null,  // Optional BookStack sink
-    private val scheduler: SourceScheduler? = null  // Allow injection for testing
+    private val scheduler: SourceScheduler? = null     // Allow injection for testing
 ) {
     private val sourceName = source.name
 
     /**
-     * Run the source with standardized scheduling, chunking, embedding, storage
+     * Run the source with standardized scheduling, chunking, staging
      * This is the ONLY way sources should run - enforces consistency
+     *
+     * NEW: Instead of embed→insert, we stage→ClickHouse
+     * Separate EmbeddingScheduler handles embedding and Qdrant insertion
      */
     suspend fun run() {
-        logger.info { "[$sourceName] Starting standardized runner" }
+        logger.info { "[$sourceName] Starting standardized runner (NEW DECOUPLED ARCHITECTURE)" }
+        logger.info { "[$sourceName] Target collection: $collectionName" }
         logger.info { "[$sourceName] Resync: ${source.resyncStrategy().describe()}" }
         logger.info { "[$sourceName] Backfill: ${source.backfillStrategy().describe()}" }
         logger.info { "[$sourceName] Chunking: ${if (source.needsChunking()) "enabled" else "disabled"}" }
@@ -99,23 +113,25 @@ class StandardizedRunner<T : Chunkable>(
                                 currentBatch.map { batchItem ->
                                     async {
                                         try {
-                                            val vectorDocs = processItem(batchItem, dedupStore)
-                                            Triple(batchItem, vectorDocs, null)
+                                            val stagedDocs = processItemToStaging(batchItem, dedupStore)
+                                            Triple(batchItem, stagedDocs, null)
                                         } catch (e: Exception) {
-                                            Triple(batchItem, emptyList<VectorDocument>(), e)
+                                            Triple(batchItem, emptyList<StagedDocument>(), e)
                                         }
                                     }
-                                }.awaitAll().forEach { (batchItem, vectorDocs, error) ->
+                                }.awaitAll().forEach { (batchItem, stagedDocs, error) ->
                                     if (error != null) {
                                         logger.error(error) { "[$sourceName] Failed to process item: ${error.message}" }
                                         failed++
                                     } else {
-                                        vectorDocs.forEach { vectorDoc ->
-                                            qdrantSink.write(vectorDoc)
-                                            processed++
+                                        // Write to ClickHouse staging
+                                        if (stagedDocs.isNotEmpty()) {
+                                            stagingStore.stageBatch(stagedDocs)
+                                            processed += stagedDocs.size
                                         }
+
                                         // Write to BookStack if enabled (only for first chunk/non-chunked items)
-                                        if (bookStackSink != null && vectorDocs.isNotEmpty()) {
+                                        if (bookStackSink != null && stagedDocs.isNotEmpty()) {
                                             try {
                                                 writeToBookStack(batchItem)
                                             } catch (e: Exception) {
@@ -127,7 +143,7 @@ class StandardizedRunner<T : Chunkable>(
                             }
 
                             if ((processed + failed) % 100 == 0) {
-                                logger.info { "[$sourceName] Progress: $processed processed, $failed failed, $deduplicated deduplicated" }
+                                logger.info { "[$sourceName] Progress: $processed staged, $failed failed, $deduplicated deduplicated" }
                             }
                         }
                     }
@@ -138,23 +154,25 @@ class StandardizedRunner<T : Chunkable>(
                         batch.map { batchItem ->
                             async {
                                 try {
-                                    val vectorDocs = processItem(batchItem, dedupStore)
-                                    Triple(batchItem, vectorDocs, null)
+                                    val stagedDocs = processItemToStaging(batchItem, dedupStore)
+                                    Triple(batchItem, stagedDocs, null)
                                 } catch (e: Exception) {
-                                    Triple(batchItem, emptyList<VectorDocument>(), e)
+                                    Triple(batchItem, emptyList<StagedDocument>(), e)
                                 }
                             }
-                        }.awaitAll().forEach { (batchItem, vectorDocs, error) ->
+                        }.awaitAll().forEach { (batchItem, stagedDocs, error) ->
                             if (error != null) {
                                 logger.error(error) { "[$sourceName] Failed to process item: ${error.message}" }
                                 failed++
                             } else {
-                                vectorDocs.forEach { vectorDoc ->
-                                    qdrantSink.write(vectorDoc)
-                                    processed++
+                                // Write to ClickHouse staging
+                                if (stagedDocs.isNotEmpty()) {
+                                    stagingStore.stageBatch(stagedDocs)
+                                    processed += stagedDocs.size
                                 }
+
                                 // Write to BookStack if enabled (only for first chunk/non-chunked items)
-                                if (bookStackSink != null && vectorDocs.isNotEmpty()) {
+                                if (bookStackSink != null && stagedDocs.isNotEmpty()) {
                                     try {
                                         writeToBookStack(batchItem)
                                     } catch (e: Exception) {
@@ -167,7 +185,8 @@ class StandardizedRunner<T : Chunkable>(
                 }
 
                 val durationMs = System.currentTimeMillis() - startTime
-                logger.info { "[$sourceName] === ${metadata.runType} COMPLETE: $processed processed, $failed failed, $deduplicated deduplicated in ${durationMs}ms ===" }
+                logger.info { "[$sourceName] === ${metadata.runType} COMPLETE: $processed staged, $failed failed, $deduplicated deduplicated in ${durationMs}ms ===" }
+                logger.info { "[$sourceName] Documents staged in ClickHouse - EmbeddingScheduler will process them" }
 
                 // Update metadata
                 metadataStore.recordSuccess(
@@ -185,10 +204,13 @@ class StandardizedRunner<T : Chunkable>(
     }
 
     /**
-     * Process a single item: dedup, chunk (if needed), embed, create vectors
-     * Returns list of VectorDocuments (1 if no chunking, N if chunked)
+     * Process a single item: dedup, chunk (if needed), stage to ClickHouse
+     * Returns list of StagedDocuments (1 if no chunking, N if chunked)
+     *
+     * NEW: No embedding here! Just prepare documents for staging.
+     * EmbeddingScheduler will handle embedding later.
      */
-    private suspend fun processItem(item: T, dedupStore: DeduplicationStore): List<VectorDocument> {
+    private suspend fun processItemToStaging(item: T, dedupStore: DeduplicationStore): List<StagedDocument> {
         // Check deduplication
         val itemId = item.getId()
         val hash = itemId.hashCode().toString()
@@ -200,57 +222,71 @@ class StandardizedRunner<T : Chunkable>(
 
         // Chunk if needed
         if (source.needsChunking()) {
-            return processWithChunking(item)
+            return processWithChunkingToStaging(item)
         } else {
-            return listOf(processSingle(item))
+            return listOf(processSingleToStaging(item))
         }
     }
 
     /**
-     * Process item without chunking (short content)
+     * Process item without chunking (short content) - stage to ClickHouse
      */
-    private suspend fun processSingle(item: T): VectorDocument {
+    private suspend fun processSingleToStaging(item: T): StagedDocument {
         val text = item.toText()
-        val vector = embedder.process(text)
 
-        return VectorDocument(
+        return StagedDocument(
             id = item.getId(),
-            vector = vector,
-            metadata = item.getMetadata()
+            source = sourceName,
+            collection = collectionName,
+            text = text,
+            metadata = item.getMetadata(),
+            embeddingStatus = EmbeddingStatus.PENDING,
+            chunkIndex = null,
+            totalChunks = null,
+            createdAt = Instant.now(),
+            updatedAt = Instant.now(),
+            retryCount = 0,
+            errorMessage = null
         )
     }
 
     /**
-     * Process item with chunking (long content)
-     * Embeds all chunks in parallel for maximum throughput
+     * Process item with chunking (long content) - stage all chunks to ClickHouse
+     * No embedding yet! Just prepare chunks for later processing.
      */
-    private suspend fun processWithChunking(item: T): List<VectorDocument> = coroutineScope {
+    private suspend fun processWithChunkingToStaging(item: T): List<StagedDocument> {
         val text = item.toText()
         val chunker = source.chunker()
         val chunks = chunker.process(text)
 
-        // Embed all chunks in parallel
-        chunks.map { chunk ->
-            async {
-                val chunkText = chunk.text
-                val vector = embedder.process(chunkText)
+        // Create staged documents for all chunks
+        return chunks.map { chunk ->
+            val chunkText = chunk.text
 
-                val chunkedItem = ChunkedItem(
-                    originalItem = item,
-                    chunkText = chunkText,
-                    chunkIndex = chunk.index,
-                    totalChunks = chunks.size,
-                    startPos = chunk.startPos,
-                    endPos = chunk.endPos
-                )
+            val chunkedItem = ChunkedItem(
+                originalItem = item,
+                chunkText = chunkText,
+                chunkIndex = chunk.index,
+                totalChunks = chunks.size,
+                startPos = chunk.startPos,
+                endPos = chunk.endPos
+            )
 
-                VectorDocument(
-                    id = chunkedItem.getId(),
-                    vector = vector,
-                    metadata = chunkedItem.getMetadata()
-                )
-            }
-        }.awaitAll()
+            StagedDocument(
+                id = chunkedItem.getId(),
+                source = sourceName,
+                collection = collectionName,
+                text = chunkText,
+                metadata = chunkedItem.getMetadata(),
+                embeddingStatus = EmbeddingStatus.PENDING,
+                chunkIndex = chunk.index,
+                totalChunks = chunks.size,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now(),
+                retryCount = 0,
+                errorMessage = null
+            )
+        }
     }
 
     /**

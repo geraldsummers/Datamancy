@@ -1,0 +1,370 @@
+package org.datamancy.pipeline.storage
+
+import com.clickhouse.client.ClickHouseClient
+import com.clickhouse.client.ClickHouseCredentials
+import com.clickhouse.client.ClickHouseNode
+import com.clickhouse.client.ClickHouseProtocol
+import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.time.Instant
+
+private val logger = KotlinLogging.logger {}
+
+/**
+ * Escape single quotes for ClickHouse string literals
+ * ClickHouse uses '' to represent a single quote within a string
+ */
+private fun String.escapeClickHouse(): String = this.replace("'", "''")
+
+/**
+ * Status tracking for documents in the embedding pipeline
+ */
+enum class EmbeddingStatus {
+    PENDING,      // Scraped, waiting for embedding
+    IN_PROGRESS,  // Currently being embedded
+    COMPLETED,    // Successfully embedded and inserted to Qdrant
+    FAILED        // Embedding/insertion failed (will retry)
+}
+
+/**
+ * Document staging in ClickHouse
+ * Decouples scraping from embedding - stores raw documents and tracks embedding progress
+ */
+data class StagedDocument(
+    val id: String,                          // Unique document ID
+    val source: String,                      // Source name (rss, wikipedia, etc)
+    val collection: String,                  // Target Qdrant collection
+    val text: String,                        // Document text (or chunk text)
+    val metadata: Map<String, String>,       // Document metadata
+    val embeddingStatus: EmbeddingStatus,    // Current status
+    val chunkIndex: Int? = null,             // Chunk index (null if not chunked)
+    val totalChunks: Int? = null,            // Total chunks (null if not chunked)
+    val createdAt: Instant = Instant.now(),  // When scraped
+    val updatedAt: Instant = Instant.now(),  // Last status update
+    val retryCount: Int = 0,                 // Number of retry attempts
+    val errorMessage: String? = null         // Last error (if failed)
+)
+
+/**
+ * ClickHouse-backed document staging store
+ * Handles buffering scraped documents and tracking embedding progress
+ */
+class DocumentStagingStore(
+    clickhouseUrl: String,
+    private val user: String = "default",
+    private val password: String = ""
+) {
+    private val host: String
+    private val port: Int
+    private val json = Json { ignoreUnknownKeys = true }
+
+    init {
+        val urlParts = clickhouseUrl
+            .removePrefix("http://")
+            .removePrefix("https://")
+            .split(":")
+
+        host = urlParts[0]
+        port = urlParts.getOrNull(1)?.toIntOrNull() ?: 8123
+    }
+
+    private val node = ClickHouseNode.builder()
+        .host(host)
+        .port(ClickHouseProtocol.HTTP, port)
+        .credentials(ClickHouseCredentials.fromUserAndPassword(user, password))
+        .build()
+
+    private val client = ClickHouseClient.newInstance(node.protocol)
+
+    init {
+        ensureTableExists()
+    }
+
+    private fun ensureTableExists() {
+        try {
+            logger.info { "Ensuring ClickHouse document staging table exists" }
+
+            val createTableSQL = """
+                CREATE TABLE IF NOT EXISTS document_staging (
+                    id String,
+                    source String,
+                    collection String,
+                    text String,
+                    metadata String,  -- JSON encoded
+                    embedding_status String,
+                    chunk_index Nullable(Int32),
+                    total_chunks Nullable(Int32),
+                    created_at DateTime64(3),
+                    updated_at DateTime64(3),
+                    retry_count UInt8,
+                    error_message Nullable(String)
+                ) ENGINE = MergeTree()
+                PARTITION BY (source, toYYYYMM(created_at))
+                ORDER BY (source, embedding_status, created_at, id)
+                SETTINGS index_granularity = 8192
+            """.trimIndent()
+
+            client.read(node).query(createTableSQL).executeAndWait()
+            logger.info { "ClickHouse document_staging table ready" }
+
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to create document_staging table: ${e.message}" }
+            throw e
+        }
+    }
+
+    /**
+     * Stage a document for embedding
+     */
+    suspend fun stage(doc: StagedDocument) {
+        try {
+            val metadataJson = json.encodeToString(doc.metadata).escapeClickHouse()
+            val errorMsg = doc.errorMessage?.escapeClickHouse() ?: ""
+
+            val insertSQL = """
+                INSERT INTO document_staging VALUES (
+                    '${doc.id.escapeClickHouse()}',
+                    '${doc.source.escapeClickHouse()}',
+                    '${doc.collection.escapeClickHouse()}',
+                    '${doc.text.escapeClickHouse()}',
+                    '$metadataJson',
+                    '${doc.embeddingStatus.name}',
+                    ${doc.chunkIndex ?: "NULL"},
+                    ${doc.totalChunks ?: "NULL"},
+                    toDateTime64(${doc.createdAt.toEpochMilli()}, 3),
+                    toDateTime64(${doc.updatedAt.toEpochMilli()}, 3),
+                    ${doc.retryCount},
+                    ${if (doc.errorMessage != null) "'$errorMsg'" else "NULL"}
+                )
+            """.trimIndent()
+
+            client.read(node).query(insertSQL).executeAndWait()
+            logger.debug { "Staged document: ${doc.id}" }
+
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to stage document: ${e.message}" }
+            throw e
+        }
+    }
+
+    /**
+     * Stage multiple documents in batch (much faster)
+     */
+    suspend fun stageBatch(docs: List<StagedDocument>) {
+        if (docs.isEmpty()) return
+
+        try {
+            val values = docs.joinToString(",\n") { doc ->
+                val metadataJson = json.encodeToString(doc.metadata).escapeClickHouse()
+                val errorMsg = doc.errorMessage?.escapeClickHouse() ?: ""
+
+                """
+                (
+                    '${doc.id.escapeClickHouse()}',
+                    '${doc.source.escapeClickHouse()}',
+                    '${doc.collection.escapeClickHouse()}',
+                    '${doc.text.escapeClickHouse()}',
+                    '$metadataJson',
+                    '${doc.embeddingStatus.name}',
+                    ${doc.chunkIndex ?: "NULL"},
+                    ${doc.totalChunks ?: "NULL"},
+                    toDateTime64(${doc.createdAt.toEpochMilli()}, 3),
+                    toDateTime64(${doc.updatedAt.toEpochMilli()}, 3),
+                    ${doc.retryCount},
+                    ${if (doc.errorMessage != null) "'$errorMsg'" else "NULL"}
+                )
+                """.trimIndent()
+            }
+
+            val insertSQL = "INSERT INTO document_staging VALUES $values"
+            client.read(node).query(insertSQL).executeAndWait()
+            logger.info { "Staged ${docs.size} documents" }
+
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to stage batch: ${e.message}" }
+            throw e
+        }
+    }
+
+    /**
+     * Get pending documents ready for embedding (limited batch)
+     */
+    suspend fun getPendingBatch(limit: Int = 100): List<StagedDocument> {
+        try {
+            val selectSQL = """
+                SELECT
+                    id, source, collection, text, metadata,
+                    embedding_status, chunk_index, total_chunks,
+                    created_at, updated_at, retry_count, error_message
+                FROM document_staging
+                WHERE embedding_status = 'PENDING'
+                ORDER BY created_at ASC
+                LIMIT $limit
+            """.trimIndent()
+
+            val response = client.read(node).query(selectSQL).executeAndWait()
+            val documents = mutableListOf<StagedDocument>()
+
+            response.use { result ->
+                result.records().forEach { record ->
+                    try {
+                        val metadata = record.getValue("metadata").asString()
+                        val metadataMap = if (metadata.isNotBlank()) {
+                            json.decodeFromString<Map<String, String>>(metadata)
+                        } else {
+                            emptyMap()
+                        }
+
+                        val doc = StagedDocument(
+                            id = record.getValue("id").asString(),
+                            source = record.getValue("source").asString(),
+                            collection = record.getValue("collection").asString(),
+                            text = record.getValue("text").asString(),
+                            metadata = metadataMap,
+                            embeddingStatus = EmbeddingStatus.valueOf(record.getValue("embedding_status").asString()),
+                            chunkIndex = if (record.getValue("chunk_index").isNullOrEmpty) null else record.getValue("chunk_index").asInteger(),
+                            totalChunks = if (record.getValue("total_chunks").isNullOrEmpty) null else record.getValue("total_chunks").asInteger(),
+                            createdAt = Instant.parse(record.getValue("created_at").asString()),
+                            updatedAt = Instant.parse(record.getValue("updated_at").asString()),
+                            retryCount = record.getValue("retry_count").asInteger(),
+                            errorMessage = if (record.getValue("error_message").isNullOrEmpty) null else record.getValue("error_message").asString()
+                        )
+                        documents.add(doc)
+                    } catch (e: Exception) {
+                        logger.warn(e) { "Failed to parse document record, skipping" }
+                    }
+                }
+            }
+
+            logger.debug { "Retrieved ${documents.size} pending documents" }
+            return documents
+
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get pending batch: ${e.message}" }
+            return emptyList()
+        }
+    }
+
+    /**
+     * Update document status (e.g. PENDING → IN_PROGRESS → COMPLETED)
+     */
+    suspend fun updateStatus(
+        id: String,
+        newStatus: EmbeddingStatus,
+        errorMessage: String? = null,
+        incrementRetry: Boolean = false
+    ) {
+        try {
+            val errorClause = if (errorMessage != null) {
+                ", error_message = '${errorMessage.escapeClickHouse()}'"
+            } else ""
+
+            val retryClause = if (incrementRetry) ", retry_count = retry_count + 1" else ""
+
+            val updateSQL = """
+                ALTER TABLE document_staging
+                UPDATE
+                    embedding_status = '${newStatus.name}',
+                    updated_at = toDateTime64(${Instant.now().toEpochMilli()}, 3)
+                    $errorClause
+                    $retryClause
+                WHERE id = '${id.escapeClickHouse()}'
+            """.trimIndent()
+
+            client.read(node).query(updateSQL).executeAndWait()
+            logger.debug { "Updated status for $id: $newStatus" }
+
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to update status: ${e.message}" }
+        }
+    }
+
+    /**
+     * Get stats for monitoring dashboard
+     */
+    suspend fun getStats(): Map<String, Long> {
+        try {
+            val statsSQL = """
+                SELECT
+                    embedding_status,
+                    count() as count
+                FROM document_staging
+                GROUP BY embedding_status
+            """.trimIndent()
+
+            val response = client.read(node).query(statsSQL).executeAndWait()
+            val stats = mutableMapOf<String, Long>()
+
+            response.use { result ->
+                result.records().forEach { record ->
+                    val status = record.getValue("embedding_status").asString().lowercase()
+                    val count = record.getValue("count").asLong()
+                    stats[status] = count
+                }
+            }
+
+            // Ensure all statuses are present (with 0 if missing)
+            return mapOf(
+                "pending" to (stats["pending"] ?: 0L),
+                "in_progress" to (stats["in_progress"] ?: 0L),
+                "completed" to (stats["completed"] ?: 0L),
+                "failed" to (stats["failed"] ?: 0L)
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get stats: ${e.message}" }
+            return mapOf(
+                "pending" to 0L,
+                "in_progress" to 0L,
+                "completed" to 0L,
+                "failed" to 0L
+            )
+        }
+    }
+
+    /**
+     * Get stats by source
+     */
+    suspend fun getStatsBySource(source: String): Map<String, Long> {
+        try {
+            // Escape source parameter to prevent SQL injection
+            val statsSQL = """
+                SELECT
+                    embedding_status,
+                    count() as count
+                FROM document_staging
+                WHERE source = '${source.escapeClickHouse()}'
+                GROUP BY embedding_status
+            """.trimIndent()
+
+            val response = client.read(node).query(statsSQL).executeAndWait()
+            val stats = mutableMapOf<String, Long>()
+
+            response.use { result ->
+                result.records().forEach { record ->
+                    val status = record.getValue("embedding_status").asString().lowercase()
+                    val count = record.getValue("count").asLong()
+                    stats[status] = count
+                }
+            }
+
+            // Ensure all statuses are present (with 0 if missing)
+            return mapOf(
+                "pending" to (stats["pending"] ?: 0L),
+                "in_progress" to (stats["in_progress"] ?: 0L),
+                "completed" to (stats["completed"] ?: 0L),
+                "failed" to (stats["failed"] ?: 0L)
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get source stats: ${e.message}" }
+            return mapOf(
+                "pending" to 0L,
+                "in_progress" to 0L,
+                "completed" to 0L,
+                "failed" to 0L
+            )
+        }
+    }
+}

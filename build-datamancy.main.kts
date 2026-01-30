@@ -18,8 +18,54 @@ import java.util.Base64
 import kotlin.system.exitProcess
 
 // ============================================================================
-// Configuration
+// Configuration & Validation
 // ============================================================================
+
+// Input validation functions
+fun sanitizeDomain(domain: String): String {
+    require(domain.matches(Regex("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"))) {
+        "Invalid domain format: $domain (must be valid DNS name)"
+    }
+    return domain
+}
+
+fun sanitizeEmail(email: String): String {
+    require(email.matches(Regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"))) {
+        "Invalid email format: $email"
+    }
+    return email
+}
+
+fun sanitizeUsername(username: String): String {
+    require(username.matches(Regex("^[a-zA-Z0-9_-]{3,32}$"))) {
+        "Invalid username: $username (must be 3-32 chars, alphanumeric/dash/underscore only)"
+    }
+    return username
+}
+
+data class SanitizedConfig(
+    val domain: String,
+    val mailDomain: String,
+    val ldapDomain: String,
+    val ldapBaseDn: String,
+    val adminEmail: String,
+    val adminUser: String
+)
+
+fun sanitizedConfigFrom(config: DatamancyConfig): SanitizedConfig {
+    val domain = sanitizeDomain(config.runtime.domain)
+    val email = sanitizeEmail(config.runtime.admin_email)
+    val user = sanitizeUsername(config.runtime.admin_user)
+
+    return SanitizedConfig(
+        domain = domain,
+        mailDomain = domain,
+        ldapDomain = domain,
+        ldapBaseDn = "dc=" + domain.split(".").joinToString(",dc="),
+        adminEmail = email,
+        adminUser = user
+    )
+}
 
 data class CustomStorageConfig(
     val qbittorrent_data: String? = null,
@@ -130,14 +176,14 @@ fun warn(msg: String) = println("${YELLOW}[WARN]${RESET} $msg")
 fun error(msg: String) = println("${RED}[ERROR]${RESET} $msg")
 fun step(msg: String) = println("\n${CYAN}▸${RESET} $msg")
 
-fun exec(command: String, ignoreError: Boolean = false): Int {
-    info("Running: $command")
-    val process = ProcessBuilder(*command.split(" ").toTypedArray())
+fun exec(vararg command: String, ignoreError: Boolean = false): Int {
+    info("Running: ${command.joinToString(" ")}")
+    val process = ProcessBuilder(*command)
         .inheritIO()
         .start()
     val exitCode = process.waitFor()
     if (exitCode != 0 && !ignoreError) {
-        error("Command failed: $command")
+        error("Command failed (exit $exitCode): ${command.joinToString(" ")}")
         exitProcess(exitCode)
     }
     return exitCode
@@ -167,7 +213,7 @@ fun buildGradleServices(skipGradle: Boolean) {
         return
     }
     step("Building JARs with Gradle")
-    exec("./gradlew build -x test")
+    exec("./gradlew", "clean", "shadowJar")
 }
 
 
@@ -326,7 +372,7 @@ fun generateAutheliaJWKS(outputDir: File): String {
     return pem
 }
 
-fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, ldapAdminPassword: String, oauthHashes: Map<String, String>, autheliaOidcKey: String) {
+fun processConfigs(outputDir: File, sanitized: SanitizedConfig, adminPassword: String, userPassword: String, ldapAdminPassword: String, oauthHashes: Map<String, String>, autheliaOidcKey: String, clickhouseAdminPassword: String, datamancyServicePassword: String) {
     step("Processing config templates")
     val templatesDir = File("configs.templates")
     if (!templatesDir.exists()) {
@@ -342,31 +388,48 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
 
         val relativePath = source.relativeTo(templatesDir).path
         val target = configsDir.resolve(relativePath.removeSuffix(".template"))
-        target.parentFile.mkdirs()
 
-        var content = source.readText()
+        try {
+            target.parentFile.mkdirs()
+        } catch (e: java.io.IOException) {
+            error("Failed to create directory for $relativePath: ${e.message}")
+            exitProcess(1)
+        }
 
-        // Hardcode domain/admin at build time
-        content = content
-            .replace("{{DOMAIN}}", domain)
-            .replace("{{MAIL_DOMAIN}}", domain)
-            .replace("{{LDAP_DOMAIN}}", domain)
-            .replace("{{LDAP_BASE_DN}}", "dc=" + domain.split(".").joinToString(",dc="))
-            .replace("{{STACK_ADMIN_EMAIL}}", adminEmail)
-            .replace("{{STACK_ADMIN_USER}}", adminUser)
+        val content = try {
+            source.readText()
+        } catch (e: java.io.IOException) {
+            error("Failed to read template $relativePath: ${e.message}")
+            exitProcess(1)
+        }
+
+        // Use sanitized/validated values (prevents injection)
+        var processedContent = content
+            .replace("{{DOMAIN}}", sanitized.domain)
+            .replace("{{MAIL_DOMAIN}}", sanitized.mailDomain)
+            .replace("{{LDAP_DOMAIN}}", sanitized.ldapDomain)
+            .replace("{{LDAP_BASE_DN}}", sanitized.ldapBaseDn)
+            .replace("{{STACK_ADMIN_EMAIL}}", sanitized.adminEmail)
+            .replace("{{STACK_ADMIN_USER}}", sanitized.adminUser)
             .replace("{{GENERATION_TIMESTAMP}}", Instant.now().toString())
 
         // Special handling for LDAP bootstrap
         if (relativePath.contains("ldap/bootstrap_ldap.ldif")) {
-            content = content
+            processedContent = processedContent
                 .replace("{{ADMIN_SSHA_PASSWORD}}", generatePasswordHash(adminPassword))
                 .replace("{{USER_SSHA_PASSWORD}}", generatePasswordHash(userPassword))
+        } else if (relativePath.contains("clickhouse/users.xml")) {
+            // ClickHouse XML configs don't support env var substitution - must bake in passwords
+            processedContent = processedContent
+                .replace("{{STACK_ADMIN_USER}}", sanitized.adminUser)
+                .replace("{{CLICKHOUSE_ADMIN_PASSWORD}}", clickhouseAdminPassword)
+                .replace("{{DATAMANCY_SERVICE_PASSWORD}}", datamancyServicePassword)
         } else if (relativePath.contains("mailserver/ldap-domains.cf") || relativePath.contains("mailserver/dovecot-ldap.conf.ext")) {
             // Mailserver LDAP configs need password baked in (Postfix/Dovecot don't support env var substitution)
-            content = content.replace("{{LDAP_ADMIN_PASSWORD}}", ldapAdminPassword)
+            processedContent = processedContent.replace("{{LDAP_ADMIN_PASSWORD}}", ldapAdminPassword)
 
             // Convert other {{VAR}} to ${VAR} for runtime vars
-            content = content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
+            processedContent = processedContent.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
                 val varName = match.groupValues[1]
                 if (varName in RUNTIME_VARS) "\${$varName}"
                 else {
@@ -377,14 +440,14 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
         } else {
             // Replace OAuth secret hashes first (before general substitution)
             oauthHashes.forEach { (varName, hashValue) ->
-                content = content.replace("{{$varName}}", hashValue)
+                processedContent = processedContent.replace("{{$varName}}", hashValue)
             }
 
             // Special handling for Authelia OIDC private key
             // Need to match the indentation of the template variable for each line
             if (relativePath.contains("authelia/configuration.yml")) {
                 // Find the line with the variable and extract its indentation
-                val lines = content.lines()
+                val lines = processedContent.lines()
                 val varLineIndex = lines.indexOfFirst { it.contains("{{AUTHELIA_OIDC_PRIVATE_KEY}}") }
                 if (varLineIndex >= 0) {
                     val varLine = lines[varLineIndex]
@@ -393,12 +456,12 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
                     val indentedKey = autheliaOidcKey.trim().lines().joinToString("\n") { line ->
                         if (line.isNotBlank()) "$indent$line" else ""
                     }
-                    content = content.replace("$indent{{AUTHELIA_OIDC_PRIVATE_KEY}}", indentedKey)
+                    processedContent = processedContent.replace("$indent{{AUTHELIA_OIDC_PRIVATE_KEY}}", indentedKey)
                 }
             }
 
             // Convert {{VAR}} to ${VAR} for runtime vars
-            content = content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
+            processedContent = processedContent.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
                 val varName = match.groupValues[1]
                 if (varName in RUNTIME_VARS) "\${$varName}"
                 else {
@@ -408,7 +471,12 @@ fun processConfigs(outputDir: File, domain: String, adminEmail: String, adminUse
             }
         }
 
-        target.writeText(content)
+        try {
+            target.writeText(processedContent)
+        } catch (e: java.io.IOException) {
+            error("Failed to write config file $relativePath: ${e.message}")
+            exitProcess(1)
+        }
         if (source.canExecute()) target.setExecutable(true)
         count++
     }
@@ -421,9 +489,20 @@ fun generatePasswordHash(password: String): String {
         "docker", "run", "--rm", "--entrypoint", "/usr/sbin/slappasswd",
         "osixia/openldap:1.5.0", "-s", password
     )
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectErrorStream(true)
         .start()
-    return process.inputStream.bufferedReader().readText().trim()
+    val output = process.inputStream.bufferedReader().readText().trim()
+    val exitCode = process.waitFor()
+
+    if (exitCode != 0) {
+        error("Failed to generate LDAP password hash (exit $exitCode): $output")
+        throw RuntimeException("Password hash generation failed")
+    }
+    if (output.isBlank() || !output.startsWith("{SSHA}")) {
+        error("Invalid password hash format: $output")
+        throw RuntimeException("Password hash generation returned invalid format")
+    }
+    return output
 }
 
 fun generateAutheliaHash(password: String): String {
@@ -431,38 +510,68 @@ fun generateAutheliaHash(password: String): String {
         "docker", "run", "--rm", "authelia/authelia:latest",
         "authelia", "crypto", "hash", "generate", "argon2", "--password", password
     )
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
         .redirectErrorStream(true)
         .start()
     val output = process.inputStream.bufferedReader().readText()
-    // Extract hash from output like "Digest: $argon2id$..."
-    return output.lines().find { it.startsWith("Digest: ") }?.substringAfter("Digest: ")?.trim()
-        ?: throw RuntimeException("Failed to generate Authelia hash: $output")
+    val exitCode = process.waitFor()
+
+    if (exitCode != 0) {
+        error("Failed to generate Authelia hash (exit $exitCode): $output")
+        throw RuntimeException("Authelia hash generation failed")
+    }
+
+    val hash = output.lines().find { it.startsWith("Digest: ") }?.substringAfter("Digest: ")?.trim()
+    if (hash.isNullOrBlank() || !hash.startsWith("\$argon2")) {
+        error("Failed to parse Authelia hash from output: $output")
+        throw RuntimeException("Authelia hash parsing failed")
+    }
+    return hash
 }
 
 fun generateSecret(): String {
     val process = ProcessBuilder("openssl", "rand", "-hex", "32")
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectErrorStream(true)
         .start()
-    return process.inputStream.bufferedReader().readText().trim()
+    val output = process.inputStream.bufferedReader().readText().trim()
+    val exitCode = process.waitFor()
+
+    if (exitCode != 0 || output.isBlank()) {
+        error("Failed to generate secret (exit $exitCode)")
+        throw RuntimeException("Secret generation failed")
+    }
+    if (!output.matches(Regex("^[0-9a-f]{64}$"))) {
+        error("Invalid secret format: $output")
+        throw RuntimeException("Secret generation returned invalid format")
+    }
+    return output
 }
 
 fun generateBookStackAppKey(): String {
-    // BookStack (Laravel) requires base64-encoded 32-byte key
-    // Generate 32 random bytes, encode as base64, and prefix with "base64:"
     val process = ProcessBuilder("openssl", "rand", "-base64", "32")
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectErrorStream(true)
         .start()
-    val base64Key = process.inputStream.bufferedReader().readText().trim()
-    return "base64:$base64Key"
+    val output = process.inputStream.bufferedReader().readText().trim()
+    val exitCode = process.waitFor()
+
+    if (exitCode != 0 || output.isBlank()) {
+        error("Failed to generate BookStack key (exit $exitCode)")
+        throw RuntimeException("BookStack key generation failed")
+    }
+    return "base64:$output"
 }
 
 fun generateRSAKey(): String {
-    val pem = ProcessBuilder("openssl", "genrsa", "4096")
-        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+    val process = ProcessBuilder("openssl", "genrsa", "4096")
+        .redirectErrorStream(true)
         .start()
-        .inputStream.bufferedReader().readText().trim()
-    return Base64.getEncoder().encodeToString(pem.toByteArray())
+    val output = process.inputStream.bufferedReader().readText().trim()
+    val exitCode = process.waitFor()
+
+    if (exitCode != 0 || output.isBlank()) {
+        error("Failed to generate RSA key (exit $exitCode)")
+        throw RuntimeException("RSA key generation failed")
+    }
+    return Base64.getEncoder().encodeToString(output.toByteArray())
 }
 
 // Generate appropriate secret based on variable name pattern
@@ -500,7 +609,7 @@ fun generateSecretForVar(varName: String): String {
     }
 }
 
-fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: String, adminPassword: String, userPassword: String, ldapAdminPassword: String, config: DatamancyConfig) {
+fun generateEnvFile(file: File, sanitized: SanitizedConfig, adminPassword: String, userPassword: String, ldapAdminPassword: String, oauthSecrets: Map<String, String>, config: DatamancyConfig, clickhouseAdminPassword: String, datamancyServicePassword: String) {
     step("Generating .env with secrets")
 
     val env = mutableMapOf<String, String>()
@@ -512,13 +621,13 @@ fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: S
     env["QBITTORRENT_DATA_ROOT"] = config.storage.custom?.qbittorrent_data ?: "/mnt/media/qbittorrent"
     env["SEAFILE_MEDIA_ROOT"] = config.storage.custom?.seafile_media ?: "/mnt/media/seafile-media"
 
-    // Domain and Admin
-    env["DOMAIN"] = domain
-    env["MAIL_DOMAIN"] = domain
-    env["LDAP_DOMAIN"] = domain
-    env["LDAP_BASE_DN"] = "dc=" + domain.split(".").joinToString(",dc=")
-    env["STACK_ADMIN_EMAIL"] = adminEmail
-    env["STACK_ADMIN_USER"] = adminUser
+    // Domain and Admin (sanitized)
+    env["DOMAIN"] = sanitized.domain
+    env["MAIL_DOMAIN"] = sanitized.mailDomain
+    env["LDAP_DOMAIN"] = sanitized.ldapDomain
+    env["LDAP_BASE_DN"] = sanitized.ldapBaseDn
+    env["STACK_ADMIN_EMAIL"] = sanitized.adminEmail
+    env["STACK_ADMIN_USER"] = sanitized.adminUser
     env["DOCKER_USER_ID"] = "1000"
     env["DOCKER_GROUP_ID"] = "1000"
     env["DOCKER_SOCKET"] = "/var/run/docker.sock"
@@ -531,9 +640,14 @@ fun generateEnvFile(file: File, domain: String, adminEmail: String, adminUser: S
     env["FORGEJO_RUNNER_NAME"] = "datamancy-runner"
     env["FORGEJO_RUNNER_LABELS"] = "ubuntu-latest:docker://node:20-bullseye,ubuntu-22.04:docker://node:20-bullseye"
 
-    // Secrets - provided
+    // Secrets - provided (pre-generated to match baked-in configs)
     env["STACK_ADMIN_PASSWORD"] = adminPassword
     env["LDAP_ADMIN_PASSWORD"] = ldapAdminPassword
+    env["CLICKHOUSE_ADMIN_PASSWORD"] = clickhouseAdminPassword
+    env["DATAMANCY_SERVICE_PASSWORD"] = datamancyServicePassword
+
+    // OAuth secrets - use the same secrets that were hashed for Authelia config
+    env.putAll(oauthSecrets)
 
     // Generate secrets for all discovered runtime vars that aren't already set
     val alreadySet = env.keys
@@ -620,8 +734,17 @@ ${CYAN}╔═══════════════════════�
         .registerModule(KotlinModule.Builder().build())
     val config = mapper.readValue<DatamancyConfig>(configFile)
 
-    info("Domain: ${config.runtime.domain}")
-    info("Admin: ${config.runtime.admin_user} <${config.runtime.admin_email}>")
+    // Validate and sanitize configuration
+    val sanitized = try {
+        sanitizedConfigFrom(config)
+    } catch (e: IllegalArgumentException) {
+        error("❌ Configuration validation failed!")
+        error(e.message ?: "Invalid configuration")
+        exitProcess(1)
+    }
+
+    info("Domain: ${sanitized.domain}")
+    info("Admin: ${sanitized.adminUser} <${sanitized.adminEmail}>")
 
     // Clean dist/ but preserve secrets
     val envBackup = distDir.resolve(".env")
@@ -662,17 +785,25 @@ ${CYAN}╔═══════════════════════�
     val adminPassword = generateSecret()
     val userPassword = generateSecret()
     val ldapAdminPassword = generateSecret()
+    val clickhouseAdminPassword = generateSecret()
+    val datamancyServicePassword = generateSecret()
 
     // Generate OAuth secrets and their hashes
     // Auto-discover services that need OAuth hashes by finding *_OAUTH_SECRET_HASH in templates
     step("Generating OAuth secret hashes (this may take a minute...)")
     val oauthHashVars = RUNTIME_VARS.filter { it.endsWith("_OAUTH_SECRET_HASH") }
     val oauthHashes = mutableMapOf<String, String>()
+    val oauthSecrets = mutableMapOf<String, String>() // Store plaintext secrets for .env
 
     oauthHashVars.forEach { hashVarName ->
         val secret = generateSecret()
         val hash = generateAutheliaHash(secret)
         oauthHashes[hashVarName] = hash
+
+        // Store plaintext secret for .env (remove _HASH suffix to get the env var name)
+        val secretVarName = hashVarName.removeSuffix("_HASH")
+        oauthSecrets[secretVarName] = secret
+
         val serviceName = hashVarName.removeSuffix("_OAUTH_SECRET_HASH")
         info("Generated hash for $serviceName")
     }
@@ -682,12 +813,12 @@ ${CYAN}╔═══════════════════════�
     copyBuildArtifacts(distDir)
     copyComposeFiles(distDir)
     val autheliaOidcKey = generateAutheliaJWKS(distDir)
-    processConfigs(distDir, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, ldapAdminPassword, oauthHashes, autheliaOidcKey)
+    processConfigs(distDir, sanitized, adminPassword, userPassword, ldapAdminPassword, oauthHashes, autheliaOidcKey, clickhouseAdminPassword, datamancyServicePassword)
 
     // Only generate .env if it doesn't exist (preserves existing secrets)
     val envFile = distDir.resolve(".env")
     if (!envFile.exists()) {
-        generateEnvFile(envFile, config.runtime.domain, config.runtime.admin_email, config.runtime.admin_user, adminPassword, userPassword, ldapAdminPassword, config)
+        generateEnvFile(envFile, sanitized, adminPassword, userPassword, ldapAdminPassword, oauthSecrets, config, clickhouseAdminPassword, datamancyServicePassword)
     } else {
         info("Preserving existing .env file")
     }
@@ -705,6 +836,10 @@ ${GREEN}✓ Build complete!${RESET}
 
 ${CYAN}Output:${RESET} ${distDir.absolutePath}
 ${CYAN}Version:${RESET} $version
+
+${YELLOW}⚠️  Post-deployment:${RESET}
+   After deploying to server with Forgejo running, generate runner token:
+   ${CYAN}./generate-forgejo-token.sh${RESET}
 
 
 """)

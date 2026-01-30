@@ -8,7 +8,9 @@ import org.datamancy.pipeline.scheduling.*
 import org.datamancy.pipeline.sinks.QdrantSink
 import org.datamancy.pipeline.sinks.VectorDocument
 import org.datamancy.pipeline.storage.DeduplicationStore
+import org.datamancy.pipeline.storage.DocumentStagingStore
 import org.datamancy.pipeline.storage.SourceMetadataStore
+import org.datamancy.pipeline.storage.StagedDocument
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.BeforeTest
@@ -19,8 +21,7 @@ import kotlin.test.BeforeTest
 class StandardizedRunnerTest {
 
     private lateinit var mockSource: StandardizedSource<TestChunkable>
-    private lateinit var mockQdrantSink: QdrantSink
-    private lateinit var mockEmbedder: Embedder
+    private lateinit var mockStagingStore: DocumentStagingStore
     private lateinit var dedupStore: DeduplicationStore
     private lateinit var metadataStore: SourceMetadataStore
     private lateinit var runner: StandardizedRunner<TestChunkable>
@@ -32,8 +33,7 @@ class StandardizedRunnerTest {
         tempDir = java.nio.file.Files.createTempDirectory("test-").toFile()
 
         mockSource = mockk()
-        mockQdrantSink = mockk()
-        mockEmbedder = mockk()
+        mockStagingStore = mockk(relaxed = true)
         dedupStore = DeduplicationStore(storePath = tempDir.absolutePath + "/dedup")
         metadataStore = SourceMetadataStore(storePath = tempDir.absolutePath + "/metadata")
 
@@ -43,8 +43,8 @@ class StandardizedRunnerTest {
 
         runner = StandardizedRunner(
             source = mockSource,
-            qdrantSink = mockQdrantSink,
-            embedder = mockEmbedder,
+            collectionName = "test_collection",
+            stagingStore = mockStagingStore,
             dedupStore = dedupStore,
             metadataStore = metadataStore
         )
@@ -54,11 +54,9 @@ class StandardizedRunnerTest {
     fun `should process items without chunking`() = runBlocking {
         // Given: Source that doesn't need chunking
         val testItem = TestChunkable("test-1", "Hello world")
-        val testVector = floatArrayOf(0.1f, 0.2f, 0.3f)
 
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(testItem)
-        coEvery { mockEmbedder.process(any()) } returns testVector
-        coEvery { mockQdrantSink.write(any()) } just Runs
+        coEvery { mockStagingStore.stageBatch(any()) } just Runs
 
         // Use a test scheduler with runOnce=true
         val testScheduler = SourceScheduler(
@@ -67,16 +65,25 @@ class StandardizedRunnerTest {
             initialPullEnabled = true,
             runOnce = true
         )
-        val testRunner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
+        val testRunner = StandardizedRunner(
+            source = mockSource,
+            collectionName = "test_collection",
+            stagingStore = mockStagingStore,
+            dedupStore = dedupStore,
+            metadataStore = metadataStore,
+            scheduler = testScheduler
+        )
 
         // When: Runner processes source
         testRunner.run()
 
-        // Then: Item should be embedded and stored
-        coVerify(exactly = 1) { mockEmbedder.process("Hello world") }
+        // Then: Item should be staged to ClickHouse
         coVerify(exactly = 1) {
-            mockQdrantSink.write(match {
-                it.id == "test-1" && it.vector.contentEquals(testVector)
+            mockStagingStore.stageBatch(match { docs ->
+                docs.size == 1 &&
+                docs[0].id == "test-1" &&
+                docs[0].text == "Hello world" &&
+                docs[0].collection == "test_collection"
             })
         }
     }
@@ -88,8 +95,7 @@ class StandardizedRunnerTest {
         val item2 = TestChunkable("test-1", "Hello")
 
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(item1, item2)
-        coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f)
-        coEvery { mockQdrantSink.write(any()) } just Runs
+        coEvery { mockStagingStore.stageBatch(any()) } just Runs
 
         // Use a test scheduler with runOnce=true
         val testScheduler = SourceScheduler(
@@ -98,14 +104,22 @@ class StandardizedRunnerTest {
             initialPullEnabled = true,
             runOnce = true
         )
-        val testRunner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
+        val testRunner = StandardizedRunner(
+            source = mockSource,
+            collectionName = "test_collection",
+            stagingStore = mockStagingStore,
+            dedupStore = dedupStore,
+            metadataStore = metadataStore,
+            scheduler = testScheduler
+        )
 
         // When: Runner processes source
         testRunner.run()
 
-        // Then: Only one item should be processed
-        coVerify(exactly = 1) { mockEmbedder.process(any()) }
-        coVerify(exactly = 1) { mockQdrantSink.write(any()) }
+        // Then: Only one item should be staged (duplicate skipped)
+        coVerify(exactly = 1) {
+            mockStagingStore.stageBatch(match { docs -> docs.size == 1 })
+        }
     }
 
     @Test
@@ -121,8 +135,7 @@ class StandardizedRunnerTest {
 
         val testItem = TestChunkable("test-1", "Long text that needs chunking")
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(testItem)
-        coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f, 0.2f)
-        coEvery { mockQdrantSink.write(any()) } just Runs
+        coEvery { mockStagingStore.stageBatch(any()) } just Runs
 
         // Use a test scheduler with runOnce=true
         val testScheduler = SourceScheduler(
@@ -131,14 +144,26 @@ class StandardizedRunnerTest {
             initialPullEnabled = true,
             runOnce = true
         )
-        val testRunner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, testScheduler)
+        val testRunner = StandardizedRunner(
+            source = mockSource,
+            collectionName = "test_collection",
+            stagingStore = mockStagingStore,
+            dedupStore = dedupStore,
+            metadataStore = metadataStore,
+            scheduler = testScheduler
+        )
 
         // When: Runner processes source
         testRunner.run()
 
-        // Then: Both chunks should be processed
-        coVerify(exactly = 2) { mockEmbedder.process(any()) }
-        coVerify(exactly = 2) { mockQdrantSink.write(any()) }
+        // Then: Both chunks should be staged
+        coVerify(exactly = 1) {
+            mockStagingStore.stageBatch(match { docs ->
+                docs.size == 2 &&
+                docs[0].chunkIndex == 0 &&
+                docs[1].chunkIndex == 1
+            })
+        }
     }
 
     @Test
@@ -146,8 +171,7 @@ class StandardizedRunnerTest {
         // Given: Successful processing
         val testItem = TestChunkable("test-1", "Hello")
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(testItem)
-        coEvery { mockEmbedder.process(any()) } returns floatArrayOf(0.1f)
-        coEvery { mockQdrantSink.write(any()) } just Runs
+        coEvery { mockStagingStore.stageBatch(any()) } just Runs
 
         // Mock scheduler
         val mockScheduler = mockk<SourceScheduler>()
@@ -157,7 +181,14 @@ class StandardizedRunnerTest {
         }
 
         // When: Runner processes source with mocked scheduler
-        val testRunner = StandardizedRunner(mockSource, mockQdrantSink, mockEmbedder, dedupStore, metadataStore, null, mockScheduler)
+        val testRunner = StandardizedRunner(
+            source = mockSource,
+            collectionName = "test_collection",
+            stagingStore = mockStagingStore,
+            dedupStore = dedupStore,
+            metadataStore = metadataStore,
+            scheduler = mockScheduler
+        )
         testRunner.run()
 
         // Then: Metadata should be recorded

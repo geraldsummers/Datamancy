@@ -5,7 +5,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.apache.hadoop.conf.Configuration
@@ -112,49 +114,49 @@ class OpenAustralianLegalCorpusSource(
                 break
             }
 
-            withContext(Dispatchers.IO) {
-                val conf = Configuration()
-                val path = Path("file://${parquetFile.absolutePath}")
-                val reader = ParquetReader.builder(GroupReadSupport(), path).withConf(conf).build()
+            val conf = Configuration()
+            val path = Path("file://${parquetFile.absolutePath}")
+            val reader = withContext(Dispatchers.IO) {
+                ParquetReader.builder(GroupReadSupport(), path).withConf(conf).build()
+            }
 
-                try {
-                    var record: Group? = reader.read()
-                    while (record != null && totalProcessed < maxDocuments) {
-                        totalRecordsRead++
+            try {
+                var record: Group? = withContext(Dispatchers.IO) { reader.read() }
+                while (record != null && totalProcessed < maxDocuments) {
+                    totalRecordsRead++
 
-                        try {
-                            val doc = parseRecord(record)
+                    try {
+                        val doc = parseRecord(record)
 
-                            // Apply filters
-                            if (shouldInclude(doc)) {
-                                emit(doc)
-                                totalProcessed++
-                                ensureActive()
+                        // Apply filters
+                        if (shouldInclude(doc)) {
+                            emit(doc)
+                            totalProcessed++
+                            coroutineContext.ensureActive()
 
-                                // Log every 100 documents normally, every 10 in test mode
-                                val logInterval = if (maxDocuments < 100) 10 else 100
-                                if (totalProcessed % logInterval == 0) {
-                                    logger.info { "[AusLaw] Progress: $totalProcessed processed, $totalFiltered filtered, $totalFailed failed (read $totalRecordsRead records)" }
-                                }
-                            } else {
-                                totalFiltered++
+                            // Log every 100 documents normally, every 10 in test mode
+                            val logInterval = if (maxDocuments < 100) 10 else 100
+                            if (totalProcessed % logInterval == 0) {
+                                logger.info { "[AusLaw] Progress: $totalProcessed processed, $totalFiltered filtered, $totalFailed failed (read $totalRecordsRead records)" }
                             }
-                        } catch (e: Exception) {
-                            totalFailed++
-                            logger.error { "[AusLaw] Failed to parse record #$totalRecordsRead: ${e.javaClass.simpleName} - ${e.message}" }
+                        } else {
+                            totalFiltered++
                         }
-
-                        record = reader.read()
+                    } catch (e: Exception) {
+                        totalFailed++
+                        logger.error { "[AusLaw] Failed to parse record #$totalRecordsRead: ${e.javaClass.simpleName} - ${e.message}" }
                     }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    logger.debug { "[AusLaw] Flow cancelled (likely via .take()), cleaning up..." }
-                    throw e  // Re-throw to properly cancel the flow
-                } catch (e: Exception) {
-                    logger.error(e) { "[AusLaw] Error in Parquet parsing: ${e.message}" }
-                    throw e
-                } finally {
-                    reader.close()
+
+                    record = withContext(Dispatchers.IO) { reader.read() }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                logger.debug { "[AusLaw] Flow cancelled (likely via .take()), cleaning up..." }
+                throw e  // Re-throw to properly cancel the flow
+            } catch (e: Exception) {
+                logger.error(e) { "[AusLaw] Error in Parquet parsing: ${e.message}" }
+                throw e
+            } finally {
+                withContext(Dispatchers.IO) { reader.close() }
             }
 
             logger.info { "[AusLaw] Completed file ${index + 1}/${downloadedFiles.size}: $totalProcessed total documents processed" }
@@ -193,8 +195,20 @@ class OpenAustralianLegalCorpusSource(
         val jurisdiction = record.getString("jurisdiction", 0)
         val source = record.getString("source", 0)
         val mime = record.getString("mime", 0)
-        val date = record.getString("date", 0) ?: "unknown"
-        val citation = record.getString("citation", 0) ?: ""
+
+        // Safe field access for optional fields that may be missing or empty
+        val date = try {
+            record.getString("date", 0) ?: "unknown"
+        } catch (e: Exception) {
+            "unknown"  // Field missing or empty
+        }
+
+        val citation = try {
+            record.getString("citation", 0) ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+
         val url = record.getString("url", 0)
         val whenScraped = record.getString("when_scraped", 0)
         val text = record.getString("text", 0)

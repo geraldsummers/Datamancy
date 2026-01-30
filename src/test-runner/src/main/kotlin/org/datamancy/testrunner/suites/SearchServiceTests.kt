@@ -57,9 +57,14 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
 
         for (doc in testDocuments) {
             try {
+                val text = doc["text"] ?: continue
+                val title = doc["title"] ?: "Untitled"
+                val url = doc["url"] ?: ""
+                val source = doc["source"] ?: "unknown"
+
                 // Generate embedding
                 val embedResult = client.callTool("llm_embed_text", mapOf(
-                    "text" to doc["text"]!!,
+                    "text" to text,
                     "model" to "bge-base-en-v1.5"
                 ))
 
@@ -70,14 +75,14 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
                     val vector = vectorStr.split(",").map { it.trim().toFloat() }
 
                     // Insert directly into Qdrant using HTTP API
-                    val pointId = doc["title"].hashCode().toLong()
+                    val pointId = title.hashCode().toLong()
                     val payload = buildJsonObject {
-                        put("title", doc["title"]!!)
-                        put("link", doc["url"]!!)
-                        put("url", doc["url"]!!)
-                        put("description", doc["text"]!!)
-                        put("text", doc["text"]!!)
-                        put("source", doc["source"]!!)
+                        put("title", title)
+                        put("link", url)
+                        put("url", url)
+                        put("description", text)
+                        put("text", text)
+                        put("source", source)
                     }
 
                     val upsertRequest = buildJsonObject {

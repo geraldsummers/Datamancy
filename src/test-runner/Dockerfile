@@ -3,23 +3,23 @@
 
 FROM eclipse-temurin:21-jre-alpine
 
-# Install test utilities
-RUN apk add --no-cache bash curl jq
+# Install test utilities and Docker CLI for labware tests
+RUN apk add --no-cache bash curl jq docker-cli
 
-# Create app user
-RUN addgroup -S datamancer && adduser -S datamancer -G datamancer
+# Create app user and add to docker group for socket access
+RUN addgroup -S datamancer && adduser -S datamancer -G datamancer \
+    && addgroup datamancer docker 2>/dev/null || true
 
 WORKDIR /app
 
-# Copy pre-built distribution from Gradle installDist
-COPY src/test-runner/build/install/test-runner /app/
+# Copy pre-built shadow JAR from Gradle
+COPY src/test-runner/build/libs/test-runner.jar /app/test-runner.jar
 
-# Set ownership and make scripts executable
-RUN chown -R datamancer:datamancer /app && \
-    chmod +x /app/bin/test-runner
+# Set ownership
+RUN chown -R datamancer:datamancer /app
 
 USER datamancer
 
 # Run test-runner
-ENTRYPOINT ["/app/bin/test-runner", "--env", "container", "--suite"]
+ENTRYPOINT ["java", "-jar", "/app/test-runner.jar", "--env", "container", "--suite"]
 CMD ["all"]

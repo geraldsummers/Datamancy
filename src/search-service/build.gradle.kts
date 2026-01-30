@@ -22,6 +22,9 @@ dependencies {
     // ClickHouse JDBC
     implementation(libs.bundles.clickhouse)
 
+    // Connection pooling
+    implementation("com.zaxxer:HikariCP:5.1.0")
+
     // HTTP client (for embedding service)
     implementation(libs.okhttp)
 
@@ -34,6 +37,7 @@ dependencies {
     // Tests
     testImplementation(libs.bundles.testing)
     testImplementation(libs.bundles.testcontainers)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
 
 application {

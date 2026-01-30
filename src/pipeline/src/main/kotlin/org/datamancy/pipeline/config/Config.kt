@@ -34,88 +34,95 @@ data class PipelineConfig(
             }
         }
 
+        // Helper to read from environment variable or system property (for testing)
+        private fun getEnvOrProperty(key: String): String? {
+            return System.getenv(key) ?: System.getProperty(key)
+        }
+
         fun fromEnv(): PipelineConfig {
             return PipelineConfig(
                 rss = RssConfig(
-                    enabled = System.getenv("RSS_ENABLED")?.toBoolean() ?: true,
-                    feedUrls = System.getenv("RSS_FEED_URLS")?.split(",") ?: listOf(
+                    enabled = getEnvOrProperty("RSS_ENABLED")?.toBoolean() ?: true,
+                    feedUrls = getEnvOrProperty("RSS_FEED_URLS")?.split(",") ?: listOf(
                         "https://hnrss.org/frontpage",
                         "https://arxiv.org/rss/cs.AI"
                     ),
-                    scheduleMinutes = System.getenv("RSS_SCHEDULE_MINUTES")?.toInt() ?: 15
+                    scheduleMinutes = getEnvOrProperty("RSS_SCHEDULE_MINUTES")?.toInt() ?: 15
                 ),
                 cve = CveConfig(
-                    enabled = System.getenv("CVE_ENABLED")?.toBoolean() ?: false,  // Intentionally disabled by default (works without API key but rate-limited to 5 req/30s)
-                    apiKey = System.getenv("CVE_API_KEY"),
-                    scheduleMinutes = System.getenv("CVE_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
-                    maxResults = System.getenv("CVE_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE
+                    enabled = getEnvOrProperty("CVE_ENABLED")?.toBoolean() ?: false,  // Intentionally disabled by default (works without API key but rate-limited to 5 req/30s)
+                    apiKey = getEnvOrProperty("CVE_API_KEY"),
+                    scheduleMinutes = getEnvOrProperty("CVE_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
+                    maxResults = getEnvOrProperty("CVE_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE
                 ),
                 torrents = TorrentsConfig(
-                    enabled = System.getenv("TORRENTS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
-                    dataPath = System.getenv("TORRENTS_DATA_PATH")
+                    enabled = getEnvOrProperty("TORRENTS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
+                    dataPath = getEnvOrProperty("TORRENTS_DATA_PATH")
                         ?: "https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv",
-                    scheduleMinutes = System.getenv("TORRENTS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
-                    maxResults = System.getenv("TORRENTS_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE,
-                    startLine = System.getenv("TORRENTS_START_LINE")?.toLong() ?: 0
+                    scheduleMinutes = getEnvOrProperty("TORRENTS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
+                    maxResults = getEnvOrProperty("TORRENTS_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE,
+                    startLine = getEnvOrProperty("TORRENTS_START_LINE")?.toLong() ?: 0
                 ),
                 binance = BinanceConfig(
-                    enabled = System.getenv("BINANCE_ENABLED")?.toBoolean() ?: false,  // Disabled by default (needs symbols configured)
-                    symbols = System.getenv("BINANCE_SYMBOLS")?.split(",") ?: emptyList(),
-                    interval = System.getenv("BINANCE_INTERVAL") ?: "1h",
-                    scheduleMinutes = System.getenv("BINANCE_SCHEDULE_MINUTES")?.toInt() ?: 60,  // Hourly
-                    storeVectors = System.getenv("BINANCE_STORE_VECTORS")?.toBoolean() ?: false
+                    enabled = getEnvOrProperty("BINANCE_ENABLED")?.toBoolean() ?: false,  // Disabled by default (needs symbols configured)
+                    symbols = getEnvOrProperty("BINANCE_SYMBOLS")?.split(",") ?: emptyList(),
+                    interval = getEnvOrProperty("BINANCE_INTERVAL") ?: "1h",
+                    scheduleMinutes = getEnvOrProperty("BINANCE_SCHEDULE_MINUTES")?.toInt() ?: 60,  // Hourly
+                    storeVectors = getEnvOrProperty("BINANCE_STORE_VECTORS")?.toBoolean() ?: false
                 ),
                 wikipedia = WikipediaConfig(
-                    enabled = System.getenv("WIKIPEDIA_ENABLED")?.toBoolean() ?: true,  // Enabled by default
-                    dumpPath = System.getenv("WIKIPEDIA_DUMP_PATH") ?: "/app/data/enwiki-latest-pages-articles.xml.bz2",
-                    scheduleMinutes = System.getenv("WIKIPEDIA_SCHEDULE_MINUTES")?.toInt() ?: 43200,  // Twice daily
-                    maxArticles = System.getenv("WIKIPEDIA_MAX_ARTICLES")?.toInt() ?: Int.MAX_VALUE
+                    enabled = getEnvOrProperty("WIKIPEDIA_ENABLED")?.toBoolean() ?: true,  // Enabled by default
+                    dumpPath = getEnvOrProperty("WIKIPEDIA_DUMP_PATH") ?: "/app/data/enwiki-latest-pages-articles.xml.bz2",
+                    scheduleMinutes = getEnvOrProperty("WIKIPEDIA_SCHEDULE_MINUTES")?.toInt() ?: 43200,  // Twice daily
+                    maxArticles = getEnvOrProperty("WIKIPEDIA_MAX_ARTICLES")?.toInt() ?: Int.MAX_VALUE
                 ),
                 australianLaws = AustralianLawsConfig(
-                    enabled = System.getenv("AUSTRALIAN_LAWS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
-                    jurisdictions = System.getenv("AUSTRALIAN_LAWS_JURISDICTIONS")?.split(",")
+                    enabled = getEnvOrProperty("AUSTRALIAN_LAWS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
+                    jurisdictions = getEnvOrProperty("AUSTRALIAN_LAWS_JURISDICTIONS")?.split(",")
                         ?: listOf("commonwealth", "nsw", "vic", "qld", "wa", "sa", "tas", "act", "nt"),
-                    scheduleMinutes = System.getenv("AUSTRALIAN_LAWS_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
-                    maxLawsPerJurisdiction = System.getenv("AUSTRALIAN_LAWS_MAX_PER_JURISDICTION")?.toInt() ?: 100,
-                    startYear = System.getenv("AUSTRALIAN_LAWS_START_YEAR")?.toInt() ?: 2020
+                    scheduleMinutes = getEnvOrProperty("AUSTRALIAN_LAWS_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
+                    maxLawsPerJurisdiction = getEnvOrProperty("AUSTRALIAN_LAWS_MAX_PER_JURISDICTION")?.toInt() ?: 100,
+                    startYear = getEnvOrProperty("AUSTRALIAN_LAWS_START_YEAR")?.toInt() ?: 2020
                 ),
                 linuxDocs = LinuxDocsConfig(
-                    enabled = System.getenv("LINUX_DOCS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
-                    sources = System.getenv("LINUX_DOCS_SOURCES")?.split(",") ?: listOf("MAN_PAGES", "DEBIAN_DOCS"),
-                    scheduleMinutes = System.getenv("LINUX_DOCS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
-                    maxDocs = System.getenv("LINUX_DOCS_MAX")?.toInt() ?: Int.MAX_VALUE
+                    enabled = getEnvOrProperty("LINUX_DOCS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
+                    sources = getEnvOrProperty("LINUX_DOCS_SOURCES")?.split(",") ?: listOf("MAN_PAGES", "DEBIAN_DOCS"),
+                    scheduleMinutes = getEnvOrProperty("LINUX_DOCS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
+                    maxDocs = getEnvOrProperty("LINUX_DOCS_MAX")?.toInt() ?: Int.MAX_VALUE
                 ),
                 wiki = WikiConfig(
-                    enabled = System.getenv("WIKI_ENABLED")?.toBoolean() ?: true,  // Enabled by default
-                    wikiTypes = System.getenv("WIKI_TYPES")?.split(",") ?: listOf("DEBIAN", "ARCH"),
-                    maxPagesPerWiki = System.getenv("WIKI_MAX_PAGES_PER_WIKI")?.toInt() ?: 500,
-                    scheduleMinutes = System.getenv("WIKI_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
-                    categories = System.getenv("WIKI_CATEGORIES")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+                    enabled = getEnvOrProperty("WIKI_ENABLED")?.toBoolean() ?: true,  // Enabled by default
+                    wikiTypes = getEnvOrProperty("WIKI_TYPES")?.split(",") ?: listOf("DEBIAN", "ARCH"),
+                    maxPagesPerWiki = getEnvOrProperty("WIKI_MAX_PAGES_PER_WIKI")?.toInt() ?: 500,
+                    scheduleMinutes = getEnvOrProperty("WIKI_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
+                    categories = getEnvOrProperty("WIKI_CATEGORIES")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
                 ),
                 embedding = EmbeddingConfig(
-                    serviceUrl = System.getenv("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000",
-                    maxTokens = System.getenv("EMBEDDING_MAX_TOKENS")?.toInt() ?: 8192
+                    serviceUrl = getEnvOrProperty("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000",
+                    maxTokens = getEnvOrProperty("EMBEDDING_MAX_TOKENS")?.toInt() ?: 8192
                 ),
                 qdrant = QdrantConfig(
-                    url = System.getenv("QDRANT_URL") ?: "http://qdrant:6333",
-                    rssCollection = System.getenv("QDRANT_RSS_COLLECTION") ?: "rss_feeds",
-                    cveCollection = System.getenv("QDRANT_CVE_COLLECTION") ?: "cve",
-                    torrentsCollection = System.getenv("QDRANT_TORRENTS_COLLECTION") ?: "torrents",
-                    marketCollection = System.getenv("QDRANT_MARKET_COLLECTION") ?: "market_data",
-                    wikipediaCollection = System.getenv("QDRANT_WIKIPEDIA_COLLECTION") ?: "wikipedia",
-                    australianLawsCollection = System.getenv("QDRANT_AUSTRALIAN_LAWS_COLLECTION") ?: "australian_laws",
-                    linuxDocsCollection = System.getenv("QDRANT_LINUX_DOCS_COLLECTION") ?: "linux_docs",
-                    debianWikiCollection = System.getenv("QDRANT_DEBIAN_WIKI_COLLECTION") ?: "debian_wiki",
-                    archWikiCollection = System.getenv("QDRANT_ARCH_WIKI_COLLECTION") ?: "arch_wiki"
+                    url = getEnvOrProperty("QDRANT_URL") ?: "http://qdrant:6333",
+                    rssCollection = getEnvOrProperty("QDRANT_RSS_COLLECTION") ?: "rss_feeds",
+                    cveCollection = getEnvOrProperty("QDRANT_CVE_COLLECTION") ?: "cve",
+                    torrentsCollection = getEnvOrProperty("QDRANT_TORRENTS_COLLECTION") ?: "torrents",
+                    marketCollection = getEnvOrProperty("QDRANT_MARKET_COLLECTION") ?: "market_data",
+                    wikipediaCollection = getEnvOrProperty("QDRANT_WIKIPEDIA_COLLECTION") ?: "wikipedia",
+                    australianLawsCollection = getEnvOrProperty("QDRANT_AUSTRALIAN_LAWS_COLLECTION") ?: "australian_laws",
+                    linuxDocsCollection = getEnvOrProperty("QDRANT_LINUX_DOCS_COLLECTION") ?: "linux_docs",
+                    debianWikiCollection = getEnvOrProperty("QDRANT_DEBIAN_WIKI_COLLECTION") ?: "debian_wiki",
+                    archWikiCollection = getEnvOrProperty("QDRANT_ARCH_WIKI_COLLECTION") ?: "arch_wiki"
                 ),
                 clickhouse = ClickHouseConfig(
-                    url = System.getenv("CLICKHOUSE_URL") ?: "http://clickhouse:8123"
+                    url = getEnvOrProperty("CLICKHOUSE_URL") ?: "http://clickhouse:8123",
+                    user = getEnvOrProperty("CLICKHOUSE_USER") ?: "default",
+                    password = getEnvOrProperty("CLICKHOUSE_PASSWORD") ?: ""
                 ),
                 bookstack = BookStackConfig(
-                    enabled = System.getenv("BOOKSTACK_ENABLED")?.toBoolean() ?: false,
-                    url = System.getenv("BOOKSTACK_URL") ?: "http://bookstack:80",
-                    tokenId = System.getenv("BOOKSTACK_TOKEN_ID") ?: "",
-                    tokenSecret = System.getenv("BOOKSTACK_TOKEN_SECRET") ?: ""
+                    enabled = getEnvOrProperty("BOOKSTACK_ENABLED")?.toBoolean() ?: false,
+                    url = getEnvOrProperty("BOOKSTACK_URL") ?: "http://bookstack:80",
+                    tokenId = getEnvOrProperty("BOOKSTACK_TOKEN_ID") ?: "",
+                    tokenSecret = getEnvOrProperty("BOOKSTACK_TOKEN_SECRET") ?: ""
                 )
             )
         }

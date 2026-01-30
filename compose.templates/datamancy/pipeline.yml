@@ -10,11 +10,14 @@ services:
       dockerfile: Dockerfile
     container_name: pipeline
     restart: unless-stopped
+    profiles:
+      - ingestion
     networks:
       - qdrant
       - clickhouse
-      - ai-gateway
+      - ai
       - internet  # For fetching external data (RSS, CVE, Wikipedia, torrents)
+      - mariadb  # For BookStack connectivity
     depends_on:
       qdrant:
         condition: service_started
@@ -71,6 +74,8 @@ services:
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
       QDRANT_URL: http://qdrant:6334
       CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: datamancy_service
+      CLICKHOUSE_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
 
       # BookStack integration - ENABLED BY DEFAULT (for wiki presentation)
       BOOKSTACK_ENABLED: "${BOOKSTACK_ENABLED:-true}"

@@ -45,8 +45,9 @@ dependencies {
     implementation("io.grpc:grpc-protobuf:1.63.0")
     implementation("io.grpc:grpc-netty:1.63.0")
 
-    // ClickHouse (for future market data)
+    // ClickHouse (for document staging)
     implementation("com.clickhouse:clickhouse-jdbc:0.6.0")
+    implementation("org.lz4:lz4-java:1.8.0")  // LZ4 compression support
 
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
@@ -72,10 +73,13 @@ dependencies {
     // Testing
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+
     testImplementation("io.mockk:mockk:1.13.8")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+
 }
 
 tasks.test {

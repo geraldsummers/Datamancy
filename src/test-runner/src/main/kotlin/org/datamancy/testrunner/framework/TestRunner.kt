@@ -12,13 +12,15 @@ class TestRunner(
     val endpoints get() = environment.endpoints
 
     // Initialize LDAP helper if LDAP URL and admin password are available
-    private val ldapHelper: LdapHelper? = if (environment.endpoints.ldap != null && environment.ldapAdminPassword.isNotEmpty()) {
-        LdapHelper(
-            ldapUrl = environment.endpoints.ldap!!,
-            adminPassword = environment.ldapAdminPassword
-        )
-    } else {
-        null
+    private val ldapHelper: LdapHelper? = environment.endpoints.ldap?.let { ldapUrl ->
+        if (environment.ldapAdminPassword.isNotEmpty()) {
+            LdapHelper(
+                ldapUrl = ldapUrl,
+                adminPassword = environment.ldapAdminPassword
+            )
+        } else {
+            null
+        }
     }
 
     val auth = AuthHelper(environment.endpoints.authelia, httpClient, ldapHelper)

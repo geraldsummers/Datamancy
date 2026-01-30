@@ -12,7 +12,6 @@ services:
     restart: unless-stopped
     networks:
       - ai
-      - ai-gateway
     environment:
       RUST_LOG: warn  # Only show warnings and errors, not INFO spam
     command: >
@@ -24,14 +23,17 @@ services:
       --max-batch-requests 256
       --pooling mean
     # GPU disabled - runs on CPU to avoid OOM with vllm-7b
-    # Uncomment deploy section below to enable GPU
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    # Uncomment GPU section below to enable GPU
+    deploy:
+      resources:
+        limits:
+          cpus: '20.0'     # Max 20 CPU cores (adjust for your system)
+        # GPU disabled - uncomment to enable:
+        # reservations:
+        #   devices:
+        #     - driver: nvidia
+        #       count: 1
+        #       capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 60s

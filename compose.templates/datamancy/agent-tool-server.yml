@@ -15,9 +15,6 @@ services:
       ai:
         aliases:
           - agent-tool-server.${DOMAIN}
-      ai-gateway:
-        aliases:
-          - agent-tool-server.${DOMAIN}
       # caddy: REMOVED - no external access
       postgres:
         aliases:

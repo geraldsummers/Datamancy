@@ -24,14 +24,12 @@ services:
     # ALL networks for integration testing (violates zero-trust, but essential for tests)
     networks:
       - ai
-      - ai-gateway
       - postgres
       - mariadb
       - clickhouse
       - qdrant
       - ldap
       - valkey
-      - backend
       - monitoring
       - caddy
 
@@ -86,6 +84,9 @@ services:
     restart: "no"
 
     # Labware Docker socket for CI/CD testing
+    # NOTE: Uses isolated labware socket (/run/labware-docker.sock) intentionally
+    #       This socket must be set up separately for labware tests to pass
+    #       Provides isolation from main Docker daemon for security
     volumes:
       - /run/labware-docker.sock:/run/labware-docker.sock
 
@@ -98,8 +99,6 @@ networks:
   # This overlay just connects to them
   ai:
     external: false
-  ai-gateway:
-    external: false
   postgres:
     external: false
   mariadb:
@@ -111,8 +110,6 @@ networks:
   ldap:
     external: false
   valkey:
-    external: false
-  backend:
     external: false
   monitoring:
     external: false

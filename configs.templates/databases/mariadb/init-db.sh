@@ -11,6 +11,7 @@ echo "Starting MariaDB database initialization..."
 BOOKSTACK_DB_PASSWORD="${BOOKSTACK_DB_PASSWORD:?ERROR: BOOKSTACK_DB_PASSWORD not set}"
 MARIADB_SEAFILE_PASSWORD="${MARIADB_SEAFILE_PASSWORD:?ERROR: MARIADB_SEAFILE_PASSWORD not set}"
 STACK_ADMIN_PASSWORD="${STACK_ADMIN_PASSWORD:?ERROR: STACK_ADMIN_PASSWORD not set}"
+AGENT_MARIADB_OBSERVER_PASSWORD="${AGENT_MARIADB_OBSERVER_PASSWORD:?ERROR: AGENT_MARIADB_OBSERVER_PASSWORD not set}"
 
 # Wait for MariaDB to be ready
 echo "Waiting for MariaDB to be ready..."
@@ -49,6 +50,14 @@ mariadb -h mariadb -u root -p"$MYSQL_ROOT_PASSWORD" --ssl=0 <<-EOSQL
     GRANT ALL PRIVILEGES ON seafile.* TO 'seafile'@'%';
     GRANT ALL PRIVILEGES ON ccnet.* TO 'seafile'@'%';
     GRANT ALL PRIVILEGES ON seahub.* TO 'seafile'@'%';
+
+    -- Agent Tool Server Observer Account
+    -- Global read-only account for agent-tool-server to query application databases
+    CREATE USER IF NOT EXISTS 'agent_observer'@'%' IDENTIFIED BY '$AGENT_MARIADB_OBSERVER_PASSWORD';
+    GRANT SELECT ON bookstack.* TO 'agent_observer'@'%';
+    GRANT SELECT ON seafile.* TO 'agent_observer'@'%';
+    GRANT SELECT ON ccnet.* TO 'agent_observer'@'%';
+    GRANT SELECT ON seahub.* TO 'agent_observer'@'%';
 
     FLUSH PRIVILEGES;
 

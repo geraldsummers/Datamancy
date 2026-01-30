@@ -48,7 +48,6 @@ services:
       ldap:
       litellm:
       ai:
-      ai-gateway:
       mailserver:
       memcached:
       matrix-internal:

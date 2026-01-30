@@ -8,7 +8,9 @@ import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
+import org.datamancy.pipeline.storage.DocumentStagingStore
 import org.datamancy.pipeline.storage.SourceMetadataStore
 import java.util.concurrent.atomic.AtomicReference
 
@@ -19,7 +21,8 @@ private val logger = KotlinLogging.logger {}
  */
 class MonitoringServer(
     private val port: Int = 8090,
-    private val metadataStore: SourceMetadataStore
+    private val metadataStore: SourceMetadataStore,
+    private val stagingStore: DocumentStagingStore? = null  // NEW: Optional staging store for queue monitoring
 ) {
     private val server = AtomicReference<NettyApplicationEngine?>()
 
@@ -75,6 +78,57 @@ class MonitoringServer(
                     )
 
                     call.respond(SourcesResponse(sources = sources))
+                }
+
+                // NEW: Embedding queue status endpoint
+                get("/queue") {
+                    if (stagingStore == null) {
+                        call.respond(QueueStatusResponse(
+                            available = false,
+                            message = "Queue monitoring not available (staging store not configured)"
+                        ))
+                        return@get
+                    }
+
+                    val stats = runBlocking { stagingStore.getStats() }
+
+                    call.respond(QueueStatusResponse(
+                        available = true,
+                        pending = stats["pending"] ?: 0,
+                        inProgress = stats["in_progress"] ?: 0,
+                        completed = stats["completed"] ?: 0,
+                        failed = stats["failed"] ?: 0,
+                        message = "Embedding queue status"
+                    ))
+                }
+
+                // NEW: Per-source queue status
+                get("/queue/{source}") {
+                    val source = call.parameters["source"] ?: return@get call.respond(
+                        io.ktor.http.HttpStatusCode.BadRequest,
+                        mapOf("error" to "Source parameter required")
+                    )
+
+                    if (stagingStore == null) {
+                        call.respond(SourceQueueStatusResponse(
+                            source = source,
+                            available = false,
+                            message = "Queue monitoring not available"
+                        ))
+                        return@get
+                    }
+
+                    val stats = runBlocking { stagingStore.getStatsBySource(source) }
+
+                    call.respond(SourceQueueStatusResponse(
+                        source = source,
+                        available = true,
+                        pending = stats["pending"] ?: 0,
+                        inProgress = stats["in_progress"] ?: 0,
+                        completed = stats["completed"] ?: 0,
+                        failed = stats["failed"] ?: 0,
+                        message = "Queue status for $source"
+                    ))
                 }
 
                 get("/") {
@@ -330,4 +384,25 @@ data class SourceInfo(
     val id: String,
     val name: String,
     val description: String
+)
+
+@Serializable
+data class QueueStatusResponse(
+    val available: Boolean,
+    val pending: Long = 0,
+    val inProgress: Long = 0,
+    val completed: Long = 0,
+    val failed: Long = 0,
+    val message: String
+)
+
+@Serializable
+data class SourceQueueStatusResponse(
+    val source: String,
+    val available: Boolean,
+    val pending: Long = 0,
+    val inProgress: Long = 0,
+    val completed: Long = 0,
+    val failed: Long = 0,
+    val message: String
 )

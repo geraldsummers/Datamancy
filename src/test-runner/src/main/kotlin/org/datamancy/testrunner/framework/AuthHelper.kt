@@ -8,6 +8,23 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
 /**
+ * Validates credentials meet security requirements
+ * @throws IllegalArgumentException if validation fails
+ */
+fun validateCredentials(username: String, password: String) {
+    require(username.isNotBlank()) { "Username cannot be blank" }
+    require(username.length in 3..64) { "Username must be 3-64 characters" }
+    require(password.isNotBlank()) { "Password cannot be blank" }
+    require(password.length >= 8) { "Password must be at least 8 characters" }
+
+    // Check for common weak passwords (in test environment)
+    val weakPasswords = setOf("password", "12345678", "admin123", "test1234")
+    require(password.lowercase() !in weakPasswords) {
+        "Password is too weak (common password detected)"
+    }
+}
+
+/**
  * Helper for Authelia authentication in tests
  *
  * Authelia auth flow:
@@ -32,6 +49,12 @@ class AuthHelper(
      */
     suspend fun login(username: String = "admin", password: String): AuthResult {
         return try {
+            // Validate credentials before attempting login
+            try {
+                validateCredentials(username, password)
+            } catch (e: IllegalArgumentException) {
+                return AuthResult.Error("Credential validation failed: ${e.message}")
+            }
             val response = client.post("$autheliaUrl/api/firstfactor") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
@@ -47,11 +70,9 @@ class AuthHelper(
                     val cookies = response.setCookie()
                     sessionCookie = cookies.find { it.name == "authelia_session" }
 
-                    if (sessionCookie != null) {
-                        AuthResult.Success(sessionCookie!!)
-                    } else {
-                        AuthResult.Error("No session cookie in response")
-                    }
+                    sessionCookie?.let {
+                        AuthResult.Success(it)
+                    } ?: AuthResult.Error("No session cookie in response")
                 }
                 HttpStatusCode.Unauthorized -> {
                     val body = response.bodyAsText()
@@ -101,11 +122,11 @@ class AuthHelper(
      * Verify authentication is still valid
      */
     suspend fun verifyAuth(): Boolean {
-        if (sessionCookie == null) return false
+        val cookie = sessionCookie ?: return false
 
         return try {
             val response = client.get("$autheliaUrl/api/verify") {
-                cookie(sessionCookie!!.name, sessionCookie!!.value)
+                cookie(cookie.name, cookie.value)
             }
             response.status == HttpStatusCode.OK
         } catch (e: Exception) {
@@ -130,10 +151,11 @@ class AuthHelper(
             return AuthResult.Error("Failed to create ephemeral user: ${userResult.exceptionOrNull()?.message}")
         }
 
-        ephemeralUser = userResult.getOrNull()!!
+        val user = userResult.getOrNull() ?: return AuthResult.Error("Failed to create ephemeral user")
+        ephemeralUser = user
 
         // Login with ephemeral user
-        return login(ephemeralUser!!.username, ephemeralUser!!.password)
+        return login(user.username, user.password)
     }
 
     /**

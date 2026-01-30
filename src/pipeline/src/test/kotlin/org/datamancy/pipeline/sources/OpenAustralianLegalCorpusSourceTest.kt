@@ -133,9 +133,10 @@ class OpenAustralianLegalCorpusSourceTest {
         ))
 
         // Mock download by placing file in expected location
+        // Source expects files named 0000.parquet, 0001.parquet, etc.
         val cacheDir = tempDir.resolve("cache").toFile()
         cacheDir.mkdirs()
-        val cachedFile = cacheDir.resolve("corpus.parquet")
+        val cachedFile = cacheDir.resolve("0000.parquet")
         parquetFile.copyTo(cachedFile, overwrite = true)
 
         val source = OpenAustralianLegalCorpusSource(
@@ -203,7 +204,7 @@ class OpenAustralianLegalCorpusSourceTest {
 
         val cacheDir = tempDir.resolve("cache").toFile()
         cacheDir.mkdirs()
-        parquetFile.copyTo(cacheDir.resolve("corpus.parquet"), overwrite = true)
+        parquetFile.copyTo(cacheDir.resolve("0000.parquet"), overwrite = true)
 
         val source = OpenAustralianLegalCorpusSource(
             cacheDir = cacheDir.absolutePath,
@@ -264,7 +265,7 @@ class OpenAustralianLegalCorpusSourceTest {
 
         val cacheDir = tempDir.resolve("cache").toFile()
         cacheDir.mkdirs()
-        parquetFile.copyTo(cacheDir.resolve("corpus.parquet"), overwrite = true)
+        parquetFile.copyTo(cacheDir.resolve("0000.parquet"), overwrite = true)
 
         val source = OpenAustralianLegalCorpusSource(
             cacheDir = cacheDir.absolutePath,
@@ -311,7 +312,7 @@ class OpenAustralianLegalCorpusSourceTest {
 
         val cacheDir = tempDir.resolve("cache").toFile()
         cacheDir.mkdirs()
-        parquetFile.copyTo(cacheDir.resolve("corpus.parquet"), overwrite = true)
+        parquetFile.copyTo(cacheDir.resolve("0000.parquet"), overwrite = true)
 
         val source = OpenAustralianLegalCorpusSource(
             cacheDir = cacheDir.absolutePath,
@@ -347,7 +348,7 @@ class OpenAustralianLegalCorpusSourceTest {
 
         val cacheDir = tempDir.resolve("cache").toFile()
         cacheDir.mkdirs()
-        parquetFile.copyTo(cacheDir.resolve("corpus.parquet"), overwrite = true)
+        parquetFile.copyTo(cacheDir.resolve("0000.parquet"), overwrite = true)
 
         val source = OpenAustralianLegalCorpusSource(
             cacheDir = cacheDir.absolutePath,

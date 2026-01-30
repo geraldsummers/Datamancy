@@ -22,8 +22,16 @@ GRANT ALL PRIVILEGES ON ccnet_db.* TO 'seafile'@'%';
 GRANT ALL PRIVILEGES ON seafile_db.* TO 'seafile'@'%';
 GRANT ALL PRIVILEGES ON seahub_db.* TO 'seafile'@'%';
 
+-- Agent Tool Server Observer Account
+-- Global read-only account for agent-tool-server to query application databases
+CREATE USER IF NOT EXISTS 'agent_observer'@'%' IDENTIFIED BY '$AGENT_MARIADB_OBSERVER_PASSWORD';
+GRANT SELECT ON bookstack.* TO 'agent_observer'@'%';
+GRANT SELECT ON ccnet_db.* TO 'agent_observer'@'%';
+GRANT SELECT ON seafile_db.* TO 'agent_observer'@'%';
+GRANT SELECT ON seahub_db.* TO 'agent_observer'@'%';
+
 -- Shadow agent accounts are created per-user via scripts/security/create-shadow-agent-account.main.kts
--- No global agent_observer account (security: per-user shadow accounts for traceability)
+-- (security: per-user shadow accounts for traceability)
 -- Each user gets: {username}-agent user with read-only SELECT access to bookstack and seafile databases
 -- Provisioned via: scripts/security/provision-shadow-database-access.sh
 --

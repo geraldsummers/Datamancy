@@ -11,141 +11,77 @@ networks:
   postgres:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.20.0.0/24
     # PostgreSQL database access
 
   mariadb:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.21.0.0/24
     # MariaDB database access
 
   clickhouse:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.22.0.0/24
     # ClickHouse database access
 
   qdrant:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.23.0.0/24
     # Qdrant vector database access
 
   valkey:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.24.0.0/24
     # Valkey (Redis) access
 
   ldap:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.25.0.0/24
     # LDAP directory access
 
   authelia:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.26.0.0/24
     # Authelia SSO access
 
   mailserver:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.27.0.0/24
     # Mail server access (needs SMTP federation)
 
   memcached:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.28.0.0/24
     # Memcached access (Seafile)
 
   docker-proxy:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.29.0.0/24
     # Docker socket proxy access
 
   caddy:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.30.0.0/24
     # Caddy reverse proxy (needs Let's Encrypt, external web traffic)
 
   ai:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.40.0.0/24
-    # ISOLATED AI/LLM services (external actor zone)
-
-  ai-gateway:
-    driver: bridge
-    internal: true
-    ipam:
-      config:
-        - subnet: 172.41.0.0/24
-    # Controlled gateway between AI and backend
-
-  backend:
-    driver: bridge
-    internal: true
-    ipam:
-      config:
-        - subnet: 172.43.0.0/24
-    # Backend services communication (microservices)
+    # AI/LLM services
 
   litellm:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.42.0.0/24
     # LiteLLM AI gateway access
 
   monitoring:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.50.0.0/24
     # Prometheus, Node Exporter, cAdvisor metrics collection
 
   mastodon-internal:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.52.0.0/24
     # Mastodon multi-container internal communication
 
   matrix-internal:
     driver: bridge
     internal: true
-    ipam:
-      config:
-        - subnet: 172.53.0.0/24
     # Matrix Synapse and Element communication

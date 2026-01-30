@@ -59,38 +59,53 @@ fun main(args: Array<String>) = runBlocking {
     }
 }
 
-private fun createHttpClient(verbose: Boolean) = HttpClient(CIO) {
-    install(ContentNegotiation) {
-        json(Json {
-            ignoreUnknownKeys = true
-            isLenient = true
-            prettyPrint = verbose
-        })
+private fun createHttpClient(verbose: Boolean): HttpClient {
+    // Only disable TLS validation if explicitly enabled via environment variable
+    val disableTlsValidation = System.getenv("DISABLE_TLS_VALIDATION")?.toBoolean() ?: false
+
+    if (disableTlsValidation) {
+        println("⚠️  WARNING: TLS certificate validation is DISABLED")
+        println("   This should only be used in isolated test environments with self-signed certificates")
+        println("   Set DISABLE_TLS_VALIDATION=false or unset to enable validation")
     }
 
-    if (verbose) {
-        install(Logging) {
-            level = LogLevel.INFO
-            logger = Logger.DEFAULT
+    return HttpClient(CIO) {
+        install(ContentNegotiation) {
+            json(Json {
+                ignoreUnknownKeys = true
+                isLenient = true
+                prettyPrint = verbose
+            })
         }
-    }
 
-    // Disable automatic redirect following to avoid TLS issues with Caddy redirects
-    followRedirects = false
-
-    engine {
-        requestTimeout = 180_000  // 3 minutes for Docker operations (image pulls, SSH setup, container creation)
-        endpoint {
-            connectTimeout = 15_000
-            connectAttempts = 3
+        if (verbose) {
+            install(Logging) {
+                level = LogLevel.INFO
+                logger = Logger.DEFAULT
+            }
         }
-        https {
-            // Disable TLS validation for internal testing (self-signed certs)
-            // Note: This doesn't work properly with Ktor CIO engine
-            trustManager = object : javax.net.ssl.X509TrustManager {
-                override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
-                override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
-                override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+
+        // Disable automatic redirect following to avoid TLS issues with Caddy redirects
+        followRedirects = false
+
+        engine {
+            requestTimeout = 180_000  // 3 minutes for Docker operations (image pulls, SSH setup, container creation)
+            endpoint {
+                connectTimeout = 15_000
+                connectAttempts = 3
+            }
+            https {
+                if (disableTlsValidation) {
+                    // Only disable TLS validation if explicitly requested (for self-signed certs in test environments)
+                    trustManager = object : X509TrustManager {
+                        override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+                        override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                        override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                    }
+                } else {
+                    // Use default TLS validation (secure)
+                    // The default TrustManager validates certificates against system trust store
+                }
             }
         }
     }

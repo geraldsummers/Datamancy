@@ -112,15 +112,59 @@ class HostToolsPlugin : Plugin {
             .connectTimeout(Duration.ofSeconds(5))
             .build()
 
-        // Helper to run docker commands against host socket
-        private fun runHostDockerCmd(args: List<String>): Pair<Int, String> {
+        // Input validation helpers
+        private fun sanitizeContainerName(name: String): String {
+            require(name.isNotBlank()) { "Container name cannot be blank" }
+            require(name.matches(Regex("^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"))) {
+                "Invalid container name: $name (must be alphanumeric, dash, underscore, or dot)"
+            }
+            return name
+        }
+
+        private fun sanitizePath(path: String): String {
+            require(!path.contains("..")) { "Path traversal detected: $path" }
+            require(!path.contains('\u0000')) { "Null byte detected in path: $path" }
+            val normalized = File(path).normalize().absolutePath
+            return normalized
+        }
+
+        private fun validateCommandArguments(args: List<String>) {
+            val dangerous = setOf(">", ">>", "<", "|", "||", "&&", ";", "&", "`", "$", "(", ")", "{", "}", "[", "]", "*", "?", "~", "!", "\n", "\r")
+            args.forEach { arg ->
+                require(dangerous.none { it in arg }) {
+                    "Dangerous shell metacharacter detected in argument: $arg"
+                }
+            }
+        }
+
+        // Helper to run docker commands against host socket with timeout
+        private fun runHostDockerCmd(args: List<String>, timeoutSeconds: Long = 30): Pair<Int, String> {
+            validateCommandArguments(args)
+
             val cmd = listOf("docker", "-H", "unix:///var/run/docker.sock.host") + args
             val pb = ProcessBuilder(cmd)
             pb.redirectErrorStream(true)
             val p = pb.start()
-            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
-            val code = p.waitFor()
-            return code to out
+
+            // Start output reader thread
+            val output = StringBuilder()
+            val readerThread = Thread {
+                BufferedReader(InputStreamReader(p.inputStream)).use { reader ->
+                    reader.lines().forEach { output.append(it).append('\n') }
+                }
+            }
+            readerThread.start()
+
+            // Wait with timeout
+            val completed = p.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+            if (!completed) {
+                p.destroyForcibly()
+                throw RuntimeException("Command timed out after ${timeoutSeconds}s: ${cmd.joinToString(" ")}")
+            }
+
+            readerThread.join(1000) // Wait for reader to finish
+            val code = p.exitValue()
+            return code to output.toString()
         }
 
         @LlmTool(
@@ -149,16 +193,45 @@ class HostToolsPlugin : Plugin {
                 "journalctl", "dmesg"
             )
 
+            // Validate executable name (must be basename only, no path)
             val exe = cmd[0]
+            require(!exe.contains('/') && !exe.contains('\\')) {
+                "Executable must be basename only (no path): $exe"
+            }
             require(exe in allowed) { "command '$exe' is not allowed" }
-            require(cmd.none { it in setOf(">", ">>", "|", "&&", ";", "|&", "tee") }) { "redirection/pipes not allowed" }
+
+            // Validate all arguments
+            validateCommandArguments(cmd.drop(1))
+
+            // Validate and sanitize working directory
+            val workingDir = if (cwd != null) {
+                val sanitized = sanitizePath(cwd)
+                val dir = File(sanitized)
+                require(dir.exists() && dir.isDirectory) {
+                    "Working directory does not exist or is not a directory: $sanitized"
+                }
+                dir
+            } else null
 
             val pb = ProcessBuilder(cmd)
-            if (cwd != null) pb.directory(File(cwd))
+            if (workingDir != null) pb.directory(workingDir)
             pb.redirectErrorStream(true)
+
             val p = pb.start()
+
+            // Wait with timeout (30 seconds for read-only commands)
+            val completed = p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)
+            if (!completed) {
+                p.destroyForcibly()
+                return mapOf(
+                    "exitCode" to -1,
+                    "error" to "Command timed out after 30 seconds"
+                )
+            }
+
             val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
-            val code = p.waitFor()
+            val code = p.exitValue()
+
             return mapOf(
                 "exitCode" to code,
                 "output" to out.take(200_000) // prevent massive outputs
@@ -197,9 +270,9 @@ class HostToolsPlugin : Plugin {
             container: String,
             tail: Int = 200
         ): Map<String, Any?> {
-            require(container.isNotBlank()) { "container is required" }
+            val sanitized = sanitizeContainerName(container)
             val safeTail = tail.coerceIn(1, 5000)
-            val (code, out) = runHostDockerCmd(listOf("logs", "--tail", safeTail.toString(), container))
+            val (code, out) = runHostDockerCmd(listOf("logs", "--tail", safeTail.toString(), sanitized))
             return mapOf("exitCode" to code, "logs" to out.take(500_000))
         }
 
@@ -211,9 +284,9 @@ class HostToolsPlugin : Plugin {
                 "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"}},\"required\":[\"container\"]}"
         )
         fun docker_stats(container: String): Map<String, Any?> {
-            require(container.isNotBlank()) { "container is required" }
+            val sanitized = sanitizeContainerName(container)
             val fmt = "{{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}"
-            val (code, out) = runHostDockerCmd(listOf("stats", "--no-stream", "--format", fmt, container))
+            val (code, out) = runHostDockerCmd(listOf("stats", "--no-stream", "--format", fmt, sanitized))
 
             if (code != 0 || out.isBlank()) {
                 return mapOf("exitCode" to code, "error" to "Failed to get stats", "raw" to out)
@@ -240,8 +313,8 @@ class HostToolsPlugin : Plugin {
                 "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"}},\"required\":[\"container\"]}"
         )
         fun docker_inspect(container: String): Map<String, Any?> {
-            require(container.isNotBlank()) { "container is required" }
-            val (code, out) = runHostDockerCmd(listOf("inspect", container))
+            val sanitized = sanitizeContainerName(container)
+            val (code, out) = runHostDockerCmd(listOf("inspect", sanitized))
             return mapOf(
                 "exitCode" to code,
                 "json" to out.take(500_000)
@@ -283,10 +356,10 @@ class HostToolsPlugin : Plugin {
                 "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"}},\"required\":[\"container\"]}"
         )
         fun docker_restart(container: String): Map<String, Any?> {
-            require(container.isNotBlank()) { "container is required" }
+            val sanitized = sanitizeContainerName(container)
 
             val startTime = System.currentTimeMillis()
-            val (code, out) = runHostDockerCmd(listOf("restart", container))
+            val (code, out) = runHostDockerCmd(listOf("restart", sanitized), timeoutSeconds = 60)
             val elapsedMs = System.currentTimeMillis() - startTime
 
             return mapOf(
@@ -305,21 +378,26 @@ class HostToolsPlugin : Plugin {
                 "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"},\"cmd\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"container\",\"cmd\"]}"
         )
         fun docker_exec(container: String, cmd: List<String>): Map<String, Any?> {
-            require(container.isNotBlank()) { "container is required" }
+            val sanitized = sanitizeContainerName(container)
             require(cmd.isNotEmpty()) { "cmd must not be empty" }
 
-            // Whitelist safe commands only
+            // Whitelist safe commands only (exact match, not contains)
             val allowedCommands = setOf(
                 "nginx", "caddy", "systemctl", "kill", "pkill",
-                "reload", "graceful", "touch", "cat", "ls"
+                "reload", "graceful", "touch", "cat", "ls", "sh", "bash"
             )
 
             val exe = cmd[0]
-            require(allowedCommands.any { exe.contains(it, ignoreCase = true) }) {
-                "command '$exe' is not in whitelist"
+            // Must match exactly or be a path containing an allowed command
+            val exeBasename = File(exe).name
+            require(exeBasename in allowedCommands) {
+                "command '$exeBasename' is not in whitelist"
             }
 
-            val (code, out) = runHostDockerCmd(listOf("exec", container) + cmd)
+            // Validate command arguments
+            validateCommandArguments(cmd.drop(1))
+
+            val (code, out) = runHostDockerCmd(listOf("exec", sanitized) + cmd, timeoutSeconds = 45)
 
             return mapOf(
                 "exitCode" to code,
@@ -336,7 +414,7 @@ class HostToolsPlugin : Plugin {
                 "\"type\":\"object\",\"properties\":{\"container\":{\"type\":\"string\"},\"timeoutSec\":{\"type\":\"integer\",\"minimum\":5,\"maximum\":300}},\"required\":[\"container\"]}"
         )
         fun docker_health_wait(container: String, timeoutSec: Int = 60): Map<String, Any?> {
-            require(container.isNotBlank()) { "container is required" }
+            val sanitized = sanitizeContainerName(container)
             val safeTimeout = timeoutSec.coerceIn(5, 300)
             val deadline = System.currentTimeMillis() + (safeTimeout * 1000)
 
@@ -345,7 +423,7 @@ class HostToolsPlugin : Plugin {
 
             while (System.currentTimeMillis() < deadline) {
                 attempts++
-                val (_, out) = runHostDockerCmd(listOf("inspect", "--format", "{{.State.Health.Status}}", container))
+                val (_, out) = runHostDockerCmd(listOf("inspect", "--format", "{{.State.Health.Status}}", sanitized))
                 lastStatus = out.trim()
 
                 when (lastStatus) {
@@ -390,10 +468,24 @@ class HostToolsPlugin : Plugin {
         fun docker_compose_restart(service: String, composeFile: String? = null): Map<String, Any?> {
             require(service.isNotBlank()) { "service is required" }
 
+            // Validate service name (similar to container name)
+            require(service.matches(Regex("^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$"))) {
+                "Invalid service name: $service"
+            }
+
             val cmd = mutableListOf("docker", "compose")
             if (composeFile != null) {
+                // Validate and sanitize compose file path
+                val sanitizedPath = sanitizePath(composeFile)
+                val file = File(sanitizedPath)
+                require(file.exists() && file.isFile) {
+                    "Compose file does not exist or is not a file: $sanitizedPath"
+                }
+                require(file.extension in setOf("yml", "yaml")) {
+                    "Compose file must be .yml or .yaml: ${file.name}"
+                }
                 cmd.add("-f")
-                cmd.add(composeFile)
+                cmd.add(sanitizedPath)
             }
             cmd.addAll(listOf("restart", service))
 
@@ -402,8 +494,21 @@ class HostToolsPlugin : Plugin {
             val pb = ProcessBuilder(cmd)
             pb.redirectErrorStream(true)
             val p = pb.start()
+
+            // Wait with timeout
+            val completed = p.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)
+            if (!completed) {
+                p.destroyForcibly()
+                return mapOf(
+                    "exitCode" to -1,
+                    "success" to false,
+                    "error" to "Command timed out after 90 seconds",
+                    "elapsedMs" to (System.currentTimeMillis() - startTime)
+                )
+            }
+
             val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText() }
-            val code = p.waitFor()
+            val code = p.exitValue()
             val elapsedMs = System.currentTimeMillis() - startTime
 
             return mapOf(
