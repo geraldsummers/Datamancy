@@ -12,18 +12,18 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * Sanitize CSV field to prevent formula injection
- * Prepends single quote if field starts with special characters
+ * Escape all special characters for ClickHouse string literals
+ * Reference: https://clickhouse.com/docs/en/sql-reference/syntax#string
  */
-private fun String.sanitizeCSV(): String {
-    val field = this.replace("\"", "\"\"")  // Escape quotes per CSV spec
-    // Prevent CSV formula injection
-    return if (field.startsWith("=") || field.startsWith("+") ||
-               field.startsWith("-") || field.startsWith("@")) {
-        "'$field"
-    } else {
-        field
-    }
+private fun String.escapeClickHouseString(): String {
+    return this
+        .replace("\\", "\\\\")   // Backslash (must be first)
+        .replace("'", "\\'")      // Single quote
+        .replace("\n", "\\n")     // Newline
+        .replace("\r", "\\r")     // Carriage return
+        .replace("\t", "\\t")     // Tab
+        .replace("\b", "\\b")     // Backspace
+        .replace("\u0000", "")    // Remove null bytes (invalid in strings)
 }
 
 /**
@@ -133,49 +133,43 @@ class DocumentStagingStore(
 
     /**
      * Stage multiple documents in batch (much faster)
-     * Uses ClickHouse CSV format with proper sanitization
+     * Uses ClickHouse VALUES format with proper escaping
      */
     suspend fun stageBatch(docs: List<StagedDocument>) {
         if (docs.isEmpty()) return
 
         try {
-            // Build CSV data with sanitization to prevent CSV formula injection
-            val csvData = docs.joinToString("\n") { doc ->
-                val metadataJson = json.encodeToString(doc.metadata).sanitizeCSV()
-                val errorMsg = (doc.errorMessage ?: "").sanitizeCSV()
+            // Build VALUES clauses with proper ClickHouse string escaping
+            val values = docs.joinToString(",\n") { doc ->
+                val metadataJson = json.encodeToString(doc.metadata).escapeClickHouseString()
+                val errorMsg = (doc.errorMessage ?: "").escapeClickHouseString()
+                val text = doc.text.escapeClickHouseString()
 
-                // CSV format: escape quotes by doubling them, wrap fields in quotes
-                listOf(
-                    doc.id.sanitizeCSV(),
-                    doc.source.sanitizeCSV(),
-                    doc.collection.sanitizeCSV(),
-                    doc.text.sanitizeCSV(),
-                    metadataJson,
-                    doc.embeddingStatus.name,
-                    doc.chunkIndex?.toString() ?: "",
-                    doc.totalChunks?.toString() ?: "",
-                    doc.createdAt.toEpochMilli().toString(),
-                    doc.updatedAt.toEpochMilli().toString(),
-                    doc.retryCount.toString(),
-                    errorMsg
-                ).joinToString(",") { field ->
-                    // Wrap fields in quotes for CSV format
-                    "\"$field\""
-                }
+                """
+                (
+                    '${doc.id.escapeClickHouseString()}',
+                    '${doc.source.escapeClickHouseString()}',
+                    '${doc.collection.escapeClickHouseString()}',
+                    '$text',
+                    '$metadataJson',
+                    '${doc.embeddingStatus.name}',
+                    ${doc.chunkIndex ?: "NULL"},
+                    ${doc.totalChunks ?: "NULL"},
+                    toDateTime64(${doc.createdAt.toEpochMilli()}, 3),
+                    toDateTime64(${doc.updatedAt.toEpochMilli()}, 3),
+                    ${doc.retryCount},
+                    ${if (errorMsg.isEmpty()) "NULL" else "'$errorMsg'"}
+                )
+                """.trimIndent()
             }
 
             val insertSQL = """
                 INSERT INTO document_staging
                 (id, source, collection, text, metadata, embedding_status, chunk_index, total_chunks, created_at, updated_at, retry_count, error_message)
-                FORMAT CSV
+                VALUES $values
             """.trimIndent()
 
-            // Send data with CSV format
-            client.read(node).write()
-                .query(insertSQL)
-                .data(csvData)
-                .executeAndWait()
-
+            client.read(node).query(insertSQL).executeAndWait()
             logger.info { "Staged ${docs.size} documents" }
 
         } catch (e: Exception) {
@@ -260,8 +254,8 @@ class DocumentStagingStore(
             updates.add("updated_at = toDateTime64(${Instant.now().toEpochMilli()}, 3)")
 
             if (errorMessage != null) {
-                // Use CSV-escaped format for error message
-                val escapedMsg = errorMessage.sanitizeCSV()
+                // Use ClickHouse-escaped format for error message
+                val escapedMsg = errorMessage.escapeClickHouseString()
                 updates.add("error_message = '$escapedMsg'")
             }
 
@@ -335,7 +329,7 @@ class DocumentStagingStore(
     suspend fun getStatsBySource(source: String): Map<String, Long> {
         try {
             // Use hash matching for safer querying
-            val sanitizedSource = source.take(100).sanitizeCSV()
+            val sanitizedSource = source.take(100).escapeClickHouseString()
             val statsSQL = """
                 SELECT
                     embedding_status,

@@ -15,12 +15,12 @@ dependencies {
     // Ktor server
     implementation(libs.bundles.ktor.server)
 
-    // Qdrant client
+    // Qdrant client (uses shaded gRPC internally to avoid conflicts)
     implementation(libs.qdrant.client)
     implementation(libs.protobuf.java)
     implementation(libs.grpc.stub)
     implementation(libs.grpc.protobuf)
-    implementation(libs.grpc.netty)
+    // Note: grpc-netty removed - Qdrant client uses grpc-netty-shaded internally
     implementation(libs.guava)
 
     // ClickHouse JDBC

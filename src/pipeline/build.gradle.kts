@@ -49,6 +49,10 @@ dependencies {
     implementation("com.clickhouse:clickhouse-jdbc:0.6.0")
     implementation("org.lz4:lz4-java:1.8.0")  // LZ4 compression support
 
+    // Apache HTTP Client 5 (required by ClickHouse JDBC for optimal performance)
+    implementation("org.apache.httpcomponents.client5:httpclient5:5.3")
+    implementation("org.apache.httpcomponents.core5:httpcore5:5.2.4")
+
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
 
