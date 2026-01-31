@@ -39,6 +39,7 @@ volumes:
   couchdb_data:
   registry_data:
   forgejo_runner_data:
+  forgejo_runner_token:
   pipeline_data:
 
   # Configuration Volumes
