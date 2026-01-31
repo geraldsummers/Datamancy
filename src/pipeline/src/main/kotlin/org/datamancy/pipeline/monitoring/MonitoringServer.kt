@@ -1,11 +1,13 @@
 package org.datamancy.pipeline.monitoring
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.runBlocking
@@ -18,15 +20,41 @@ private val logger = KotlinLogging.logger {}
 
 /**
  * Lightweight HTTP server for monitoring pipeline health and status
+ * Supports optional API key authentication via MONITORING_API_KEY environment variable
  */
 class MonitoringServer(
     private val port: Int = 8090,
     private val metadataStore: SourceMetadataStore,
-    private val stagingStore: DocumentStagingStore? = null  // NEW: Optional staging store for queue monitoring
+    private val stagingStore: DocumentStagingStore? = null,
+    private val apiKey: String? = System.getenv("MONITORING_API_KEY")  // Optional auth token
 ) {
     private val server = AtomicReference<NettyApplicationEngine?>()
 
+    /**
+     * Intercept and validate API key if configured
+     */
+    private suspend fun ApplicationCall.requireAuth(): Boolean {
+        if (apiKey.isNullOrBlank()) {
+            return true  // Auth disabled
+        }
+
+        val providedKey = request.header("X-API-Key") ?: request.header("Authorization")?.removePrefix("Bearer ")
+
+        if (providedKey != apiKey) {
+            logger.warn { "Unauthorized monitoring access attempt from ${request.local.remoteHost}" }
+            respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing API key"))
+            return false
+        }
+
+        return true
+    }
+
     fun start() {
+        if (apiKey.isNullOrBlank()) {
+            logger.warn { "⚠️  Monitoring server starting WITHOUT authentication - set MONITORING_API_KEY for production!" }
+        } else {
+            logger.info { "🔒 Monitoring server starting WITH authentication enabled" }
+        }
         logger.info { "Starting monitoring server on port $port" }
 
         val engine = embeddedServer(Netty, host = "0.0.0.0", port = port) {
@@ -36,10 +64,12 @@ class MonitoringServer(
 
             routing {
                 get("/health") {
+                    if (!call.requireAuth()) return@get
                     call.respond(HealthResponse(status = "ok", message = "Pipeline service running"))
                 }
 
                 get("/status") {
+                    if (!call.requireAuth()) return@get
                     val sources = listOf(
                         "rss", "cve", "torrents", "wikipedia",
                         "australian_laws", "linux_docs", "debian_wiki", "arch_wiki"
@@ -66,6 +96,7 @@ class MonitoringServer(
                 }
 
                 get("/sources") {
+                    if (!call.requireAuth()) return@get
                     val sources = listOf(
                         SourceInfo("rss", "RSS Feeds", "Aggregates news and blog feeds"),
                         SourceInfo("cve", "CVE Database", "Security vulnerabilities from NVD"),
@@ -82,6 +113,7 @@ class MonitoringServer(
 
                 // NEW: Embedding queue status endpoint
                 get("/queue") {
+                    if (!call.requireAuth()) return@get
                     if (stagingStore == null) {
                         call.respond(QueueStatusResponse(
                             available = false,
@@ -104,8 +136,9 @@ class MonitoringServer(
 
                 // NEW: Per-source queue status
                 get("/queue/{source}") {
+                    if (!call.requireAuth()) return@get
                     val source = call.parameters["source"] ?: return@get call.respond(
-                        io.ktor.http.HttpStatusCode.BadRequest,
+                        HttpStatusCode.BadRequest,
                         mapOf("error" to "Source parameter required")
                     )
 

@@ -7,6 +7,7 @@ import org.datamancy.pipeline.sinks.QdrantSink
 import org.datamancy.pipeline.sinks.VectorDocument
 import org.datamancy.pipeline.storage.DocumentStagingStore
 import org.datamancy.pipeline.storage.EmbeddingStatus
+import kotlin.math.pow
 import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
@@ -157,14 +158,20 @@ class EmbeddingScheduler(
                     incrementRetry = false
                 )
             } else {
-                // Mark for retry
+                // Exponential backoff: 2^retryCount seconds (1s, 2s, 4s, 8s, etc.)
+                val backoffSeconds = 2.0.pow(doc.retryCount.toDouble()).toLong()
+                logger.warn { "Retry ${doc.retryCount + 1}/$maxRetries for ${doc.id} after ${backoffSeconds}s backoff" }
+
+                // Wait before marking as pending again
+                delay(backoffSeconds * 1000)
+
+                // Mark for retry after backoff
                 stagingStore.updateStatus(
                     id = doc.id,
                     newStatus = EmbeddingStatus.PENDING,
                     errorMessage = e.message,
                     incrementRetry = true
                 )
-                logger.warn { "Retry ${doc.retryCount + 1}/$maxRetries for ${doc.id}" }
             }
         }
     }

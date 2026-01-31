@@ -39,67 +39,114 @@ data class PipelineConfig(
             return System.getenv(key) ?: System.getProperty(key)
         }
 
+        // Safe integer parsing with validation
+        private fun getEnvOrPropertyInt(key: String, default: Int, min: Int = Int.MIN_VALUE, max: Int = Int.MAX_VALUE): Int {
+            return try {
+                val value = getEnvOrProperty(key)?.toInt() ?: default
+                when {
+                    value < min -> {
+                        println("Warning: $key value $value below minimum $min, using $min")
+                        min
+                    }
+                    value > max -> {
+                        println("Warning: $key value $value above maximum $max, using $max")
+                        max
+                    }
+                    else -> value
+                }
+            } catch (e: NumberFormatException) {
+                println("Warning: Invalid integer for $key, using default $default")
+                default
+            }
+        }
+
+        // Safe long parsing with validation
+        private fun getEnvOrPropertyLong(key: String, default: Long, min: Long = 0): Long {
+            return try {
+                val value = getEnvOrProperty(key)?.toLong() ?: default
+                if (value < min) {
+                    println("Warning: $key value $value below minimum $min, using $min")
+                    min
+                } else {
+                    value
+                }
+            } catch (e: NumberFormatException) {
+                println("Warning: Invalid long for $key, using default $default")
+                default
+            }
+        }
+
+        // Safe boolean parsing
+        private fun getEnvOrPropertyBoolean(key: String, default: Boolean): Boolean {
+            return try {
+                getEnvOrProperty(key)?.toBoolean() ?: default
+            } catch (e: Exception) {
+                println("Warning: Invalid boolean for $key, using default $default")
+                default
+            }
+        }
+
         fun fromEnv(): PipelineConfig {
             return PipelineConfig(
                 rss = RssConfig(
-                    enabled = getEnvOrProperty("RSS_ENABLED")?.toBoolean() ?: true,
-                    feedUrls = getEnvOrProperty("RSS_FEED_URLS")?.split(",") ?: listOf(
+                    enabled = getEnvOrPropertyBoolean("RSS_ENABLED", true),
+                    feedUrls = getEnvOrProperty("RSS_FEED_URLS")?.split(",")?.filter { it.isNotBlank() } ?: listOf(
                         "https://hnrss.org/frontpage",
                         "https://arxiv.org/rss/cs.AI"
                     ),
-                    scheduleMinutes = getEnvOrProperty("RSS_SCHEDULE_MINUTES")?.toInt() ?: 15
+                    scheduleMinutes = getEnvOrPropertyInt("RSS_SCHEDULE_MINUTES", 15, min = 1, max = 10080)
                 ),
                 cve = CveConfig(
-                    enabled = getEnvOrProperty("CVE_ENABLED")?.toBoolean() ?: false,  // Intentionally disabled by default (works without API key but rate-limited to 5 req/30s)
+                    enabled = getEnvOrPropertyBoolean("CVE_ENABLED", false),
                     apiKey = getEnvOrProperty("CVE_API_KEY"),
-                    scheduleMinutes = getEnvOrProperty("CVE_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
-                    maxResults = getEnvOrProperty("CVE_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE
+                    scheduleMinutes = getEnvOrPropertyInt("CVE_SCHEDULE_MINUTES", 1440, min = 1),
+                    maxResults = getEnvOrPropertyInt("CVE_MAX_RESULTS", Int.MAX_VALUE, min = 1)
                 ),
                 torrents = TorrentsConfig(
-                    enabled = getEnvOrProperty("TORRENTS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
+                    enabled = getEnvOrPropertyBoolean("TORRENTS_ENABLED", true),
                     dataPath = getEnvOrProperty("TORRENTS_DATA_PATH")
                         ?: "https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv",
-                    scheduleMinutes = getEnvOrProperty("TORRENTS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
-                    maxResults = getEnvOrProperty("TORRENTS_MAX_RESULTS")?.toInt() ?: Int.MAX_VALUE,
-                    startLine = getEnvOrProperty("TORRENTS_START_LINE")?.toLong() ?: 0
+                    scheduleMinutes = getEnvOrPropertyInt("TORRENTS_SCHEDULE_MINUTES", 10080, min = 1),
+                    maxResults = getEnvOrPropertyInt("TORRENTS_MAX_RESULTS", Int.MAX_VALUE, min = 1),
+                    startLine = getEnvOrPropertyLong("TORRENTS_START_LINE", 0)
                 ),
                 binance = BinanceConfig(
-                    enabled = getEnvOrProperty("BINANCE_ENABLED")?.toBoolean() ?: false,  // Disabled by default (needs symbols configured)
-                    symbols = getEnvOrProperty("BINANCE_SYMBOLS")?.split(",") ?: emptyList(),
+                    enabled = getEnvOrPropertyBoolean("BINANCE_ENABLED", false),
+                    symbols = getEnvOrProperty("BINANCE_SYMBOLS")?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
                     interval = getEnvOrProperty("BINANCE_INTERVAL") ?: "1h",
-                    scheduleMinutes = getEnvOrProperty("BINANCE_SCHEDULE_MINUTES")?.toInt() ?: 60,  // Hourly
-                    storeVectors = getEnvOrProperty("BINANCE_STORE_VECTORS")?.toBoolean() ?: false
+                    scheduleMinutes = getEnvOrPropertyInt("BINANCE_SCHEDULE_MINUTES", 60, min = 1),
+                    storeVectors = getEnvOrPropertyBoolean("BINANCE_STORE_VECTORS", false)
                 ),
                 wikipedia = WikipediaConfig(
-                    enabled = getEnvOrProperty("WIKIPEDIA_ENABLED")?.toBoolean() ?: true,  // Enabled by default
+                    enabled = getEnvOrPropertyBoolean("WIKIPEDIA_ENABLED", true),
                     dumpPath = getEnvOrProperty("WIKIPEDIA_DUMP_PATH") ?: "/app/data/enwiki-latest-pages-articles.xml.bz2",
-                    scheduleMinutes = getEnvOrProperty("WIKIPEDIA_SCHEDULE_MINUTES")?.toInt() ?: 43200,  // Twice daily
-                    maxArticles = getEnvOrProperty("WIKIPEDIA_MAX_ARTICLES")?.toInt() ?: Int.MAX_VALUE
+                    scheduleMinutes = getEnvOrPropertyInt("WIKIPEDIA_SCHEDULE_MINUTES", 43200, min = 1),
+                    maxArticles = getEnvOrPropertyInt("WIKIPEDIA_MAX_ARTICLES", Int.MAX_VALUE, min = 1)
                 ),
                 australianLaws = AustralianLawsConfig(
-                    enabled = getEnvOrProperty("AUSTRALIAN_LAWS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
-                    jurisdictions = getEnvOrProperty("AUSTRALIAN_LAWS_JURISDICTIONS")?.split(",")
+                    enabled = getEnvOrPropertyBoolean("AUSTRALIAN_LAWS_ENABLED", true),
+                    jurisdictions = getEnvOrProperty("AUSTRALIAN_LAWS_JURISDICTIONS")?.split(",")?.filter { it.isNotBlank() }
                         ?: listOf("commonwealth", "nsw", "vic", "qld", "wa", "sa", "tas", "act", "nt"),
-                    scheduleMinutes = getEnvOrProperty("AUSTRALIAN_LAWS_SCHEDULE_MINUTES")?.toInt() ?: 1440,  // Daily
-                    maxLawsPerJurisdiction = getEnvOrProperty("AUSTRALIAN_LAWS_MAX_PER_JURISDICTION")?.toInt() ?: 100,
-                    startYear = getEnvOrProperty("AUSTRALIAN_LAWS_START_YEAR")?.toInt() ?: 2020
+                    scheduleMinutes = getEnvOrPropertyInt("AUSTRALIAN_LAWS_SCHEDULE_MINUTES", 1440, min = 1),
+                    maxLawsPerJurisdiction = getEnvOrPropertyInt("AUSTRALIAN_LAWS_MAX_PER_JURISDICTION", 100, min = 1),
+                    startYear = getEnvOrPropertyInt("AUSTRALIAN_LAWS_START_YEAR", 2020, min = 1900, max = 2100)
                 ),
                 linuxDocs = LinuxDocsConfig(
-                    enabled = getEnvOrProperty("LINUX_DOCS_ENABLED")?.toBoolean() ?: true,  // Enabled by default
-                    sources = getEnvOrProperty("LINUX_DOCS_SOURCES")?.split(",") ?: listOf("MAN_PAGES", "DEBIAN_DOCS"),
-                    scheduleMinutes = getEnvOrProperty("LINUX_DOCS_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
-                    maxDocs = getEnvOrProperty("LINUX_DOCS_MAX")?.toInt() ?: Int.MAX_VALUE
+                    enabled = getEnvOrPropertyBoolean("LINUX_DOCS_ENABLED", true),
+                    sources = getEnvOrProperty("LINUX_DOCS_SOURCES")?.split(",")?.filter { it.isNotBlank() } ?: listOf("MAN_PAGES", "DEBIAN_DOCS"),
+                    scheduleMinutes = getEnvOrPropertyInt("LINUX_DOCS_SCHEDULE_MINUTES", 10080, min = 1),
+                    maxDocs = getEnvOrPropertyInt("LINUX_DOCS_MAX", Int.MAX_VALUE, min = 1)
                 ),
                 wiki = WikiConfig(
-                    enabled = getEnvOrProperty("WIKI_ENABLED")?.toBoolean() ?: true,  // Enabled by default
-                    wikiTypes = getEnvOrProperty("WIKI_TYPES")?.split(",") ?: listOf("DEBIAN", "ARCH"),
-                    maxPagesPerWiki = getEnvOrProperty("WIKI_MAX_PAGES_PER_WIKI")?.toInt() ?: 500,
-                    scheduleMinutes = getEnvOrProperty("WIKI_SCHEDULE_MINUTES")?.toInt() ?: 10080,  // Weekly
+                    enabled = getEnvOrPropertyBoolean("WIKI_ENABLED", true),
+                    wikiTypes = getEnvOrProperty("WIKI_TYPES")?.split(",")?.filter { it.isNotBlank() } ?: listOf("DEBIAN", "ARCH"),
+                    maxPagesPerWiki = getEnvOrPropertyInt("WIKI_MAX_PAGES_PER_WIKI", 500, min = 1),
+                    scheduleMinutes = getEnvOrPropertyInt("WIKI_SCHEDULE_MINUTES", 10080, min = 1),
                     categories = getEnvOrProperty("WIKI_CATEGORIES")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
                 ),
                 embedding = EmbeddingConfig(
                     serviceUrl = getEnvOrProperty("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000",
-                    maxTokens = getEnvOrProperty("EMBEDDING_MAX_TOKENS")?.toInt() ?: 8192
+                    maxTokens = getEnvOrPropertyInt("EMBEDDING_MAX_TOKENS", 8192, min = 1, max = 100000)
                 ),
                 qdrant = QdrantConfig(
                     url = getEnvOrProperty("QDRANT_URL") ?: "http://qdrant:6333",

@@ -9,8 +9,23 @@ import io.qdrant.client.PointIdFactory.id
 import io.qdrant.client.VectorsFactory.vectors
 import io.qdrant.client.ValueFactory.value
 import org.datamancy.pipeline.core.Sink
+import java.security.MessageDigest
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 private val logger = KotlinLogging.logger {}
+private const val QDRANT_TIMEOUT_SECONDS = 30L
+
+/**
+ * Generate deterministic UUID from string (prevents collisions from hashCode())
+ */
+private fun String.toDeterministicUUID(): UUID {
+    val md = MessageDigest.getInstance("SHA-256")
+    val hash = md.digest(this.toByteArray())
+    // Use first 16 bytes of SHA-256 hash for UUID
+    return UUID.nameUUIDFromBytes(hash.copyOf(16))
+}
 
 /**
  * Writes vectors to Qdrant
@@ -58,14 +73,21 @@ class QdrantSink(
 
     override suspend fun write(item: VectorDocument) {
         try {
+            // Use deterministic UUID instead of hashCode to prevent collisions
+            val deterministicId = item.id.toDeterministicUUID()
+
             val point = PointStruct.newBuilder()
-                .setId(id(item.id.hashCode().toLong()))
+                .setId(id(deterministicId.mostSignificantBits xor deterministicId.leastSignificantBits))
                 .setVectors(vectors(item.vector.toList()))
                 .putAllPayload(item.metadata.mapValues { (_, v) -> value(v.toString()) })
                 .build()
 
-            client.upsertAsync(collectionName, listOf(point)).get()
+            // Add timeout to prevent hanging indefinitely
+            client.upsertAsync(collectionName, listOf(point)).get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             logger.debug { "Wrote vector ${item.id} to $collectionName" }
+        } catch (e: TimeoutException) {
+            logger.error { "Timeout writing to Qdrant after ${QDRANT_TIMEOUT_SECONDS}s: ${item.id}" }
+            throw RuntimeException("Qdrant write timeout", e)
         } catch (e: Exception) {
             logger.error(e) { "Failed to write to Qdrant: ${e.message}" }
             throw e
@@ -75,15 +97,22 @@ class QdrantSink(
     override suspend fun writeBatch(items: List<VectorDocument>) {
         try {
             val points = items.map { item ->
+                // Use deterministic UUID instead of hashCode to prevent collisions
+                val deterministicId = item.id.toDeterministicUUID()
+
                 PointStruct.newBuilder()
-                    .setId(id(item.id.hashCode().toLong()))
+                    .setId(id(deterministicId.mostSignificantBits xor deterministicId.leastSignificantBits))
                     .setVectors(vectors(item.vector.toList()))
                     .putAllPayload(item.metadata.mapValues { (_, v) -> value(v.toString()) })
                     .build()
             }
 
-            client.upsertAsync(collectionName, points).get()
+            // Add timeout to prevent hanging indefinitely
+            client.upsertAsync(collectionName, points).get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             logger.info { "Wrote ${items.size} vectors to $collectionName" }
+        } catch (e: TimeoutException) {
+            logger.error { "Timeout writing batch to Qdrant after ${QDRANT_TIMEOUT_SECONDS}s: ${items.size} items" }
+            throw RuntimeException("Qdrant batch write timeout", e)
         } catch (e: Exception) {
             logger.error(e) { "Failed to write batch to Qdrant: ${e.message}" }
             throw e
@@ -92,8 +121,11 @@ class QdrantSink(
 
     override suspend fun healthCheck(): Boolean {
         return try {
-            client.listCollectionsAsync().get()
+            client.listCollectionsAsync().get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             true
+        } catch (e: TimeoutException) {
+            logger.error { "Qdrant health check timeout after ${QDRANT_TIMEOUT_SECONDS}s" }
+            false
         } catch (e: Exception) {
             logger.error(e) { "Qdrant health check failed: ${e.message}" }
             false

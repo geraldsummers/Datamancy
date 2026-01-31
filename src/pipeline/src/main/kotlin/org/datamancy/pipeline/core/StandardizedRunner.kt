@@ -5,6 +5,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.datamancy.pipeline.processors.Embedder
 import org.datamancy.pipeline.scheduling.SourceScheduler
 import org.datamancy.pipeline.sinks.BookStackDocument
@@ -59,9 +61,11 @@ class StandardizedRunner<T : Chunkable>(
     private val dedupStore: DeduplicationStore,
     private val metadataStore: SourceMetadataStore,
     private val bookStackSink: BookStackSink? = null,  // Optional BookStack sink
-    private val scheduler: SourceScheduler? = null     // Allow injection for testing
+    private val scheduler: SourceScheduler? = null,    // Allow injection for testing
+    private val maxConcurrency: Int = 10               // Limit concurrent processing
 ) {
     private val sourceName = source.name
+    private val semaphore = Semaphore(maxConcurrency)  // Control concurrent operations
 
     /**
      * Run the source with standardized scheduling, chunking, staging
@@ -108,15 +112,17 @@ class StandardizedRunner<T : Chunkable>(
                             val currentBatch = batch.toList()
                             batch.clear()
 
-                            // Process entire batch in parallel using coroutineScope
+                            // Process entire batch in parallel with semaphore limiting concurrency
                             coroutineScope {
                                 currentBatch.map { batchItem ->
                                     async {
-                                        try {
-                                            val stagedDocs = processItemToStaging(batchItem, dedupStore)
-                                            Triple(batchItem, stagedDocs, null)
-                                        } catch (e: Exception) {
-                                            Triple(batchItem, emptyList<StagedDocument>(), e)
+                                        semaphore.withPermit {
+                                            try {
+                                                val stagedDocs = processItemToStaging(batchItem, dedupStore)
+                                                Triple(batchItem, stagedDocs, null)
+                                            } catch (e: Exception) {
+                                                Triple(batchItem, emptyList<StagedDocument>(), e)
+                                            }
                                         }
                                     }
                                 }.awaitAll().forEach { (batchItem, stagedDocs, error) ->
@@ -148,16 +154,18 @@ class StandardizedRunner<T : Chunkable>(
                         }
                     }
 
-                // Process remaining items in batch
+                // Process remaining items in batch with semaphore limiting concurrency
                 if (batch.isNotEmpty()) {
                     coroutineScope {
                         batch.map { batchItem ->
                             async {
-                                try {
-                                    val stagedDocs = processItemToStaging(batchItem, dedupStore)
-                                    Triple(batchItem, stagedDocs, null)
-                                } catch (e: Exception) {
-                                    Triple(batchItem, emptyList<StagedDocument>(), e)
+                                semaphore.withPermit {
+                                    try {
+                                        val stagedDocs = processItemToStaging(batchItem, dedupStore)
+                                        Triple(batchItem, stagedDocs, null)
+                                    } catch (e: Exception) {
+                                        Triple(batchItem, emptyList<StagedDocument>(), e)
+                                    }
                                 }
                             }
                         }.awaitAll().forEach { (batchItem, stagedDocs, error) ->

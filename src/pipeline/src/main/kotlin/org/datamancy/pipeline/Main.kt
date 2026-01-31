@@ -35,6 +35,18 @@ fun main() {
     )
     logger.info { "📦 ClickHouse document staging initialized: ${config.clickhouse.url}" }
 
+    // Add shutdown hook for graceful cleanup
+    Runtime.getRuntime().addShutdownHook(Thread {
+        logger.info { "Shutdown signal received, cleaning up resources..." }
+        try {
+            dedupStore.flush()
+            stagingStore.close()
+            logger.info { "Resources cleaned up successfully" }
+        } catch (e: Exception) {
+            logger.error(e) { "Error during shutdown: ${e.message}" }
+        }
+    })
+
     // Initialize BookStack sink if enabled
     val bookStackSink = if (config.bookstack.enabled) {
         logger.info { "BookStack integration enabled: ${config.bookstack.url}" }

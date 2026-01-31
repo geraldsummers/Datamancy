@@ -18,6 +18,10 @@ dependencies {
     // Qdrant client
     implementation(libs.qdrant.client)
     implementation(libs.protobuf.java)
+    implementation(libs.grpc.stub)
+    implementation(libs.grpc.protobuf)
+    implementation(libs.grpc.netty)
+    implementation(libs.guava)
 
     // ClickHouse JDBC
     implementation(libs.bundles.clickhouse)

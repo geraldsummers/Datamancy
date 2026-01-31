@@ -33,7 +33,8 @@ class TorrentsSource(
 
         var currentLine = 0L
         var emittedCount = 0
-        var failureCount = 0
+        var parseFailureCount = 0  // Permanent failures (bad data)
+        var transientFailureCount = 0  // Transient failures (IO/network)
 
         try {
             val reader: BufferedReader = when {
@@ -105,24 +106,39 @@ class TorrentsSource(
                             emittedCount++
 
                             if (emittedCount % 10000 == 0) {
-                                logger.info { "Processed $emittedCount torrents (line $currentLine), failures: $failureCount" }
+                                logger.info { "Processed $emittedCount torrents (line $currentLine), parse failures: $parseFailureCount, transient: $transientFailureCount" }
                             }
                         }
-                    } catch (e: Exception) {
-                        failureCount++
+                    } catch (e: java.io.IOException) {
+                        // Transient failures (network, IO) - don't count toward fail-fast
+                        transientFailureCount++
+                        logger.warn(e) { "Transient failure at line $currentLine: ${e.message}" }
+                    } catch (e: NumberFormatException) {
+                        // Parse failures (bad data) - count toward fail-fast
+                        parseFailureCount++
                         logger.error(e) { "Failed to parse torrent at line $currentLine: ${e.message}" }
 
-                        // Fail fast if failure rate exceeds 10% after processing at least 100 records
-                        val totalProcessed = emittedCount + failureCount
-                        if (totalProcessed >= 100 && failureCount.toDouble() / totalProcessed > 0.10) {
-                            val failureRate = "%.2f%%".format(failureCount.toDouble() / totalProcessed * 100)
-                            throw IllegalStateException("Torrent parsing failure rate too high: $failureCount/$totalProcessed ($failureRate). Aborting to prevent data corruption.")
+                        // Fail fast if PARSE failure rate exceeds 10% after processing at least 100 records
+                        val totalProcessed = emittedCount + parseFailureCount
+                        if (totalProcessed >= 100 && parseFailureCount.toDouble() / totalProcessed > 0.10) {
+                            val failureRate = "%.2f%%".format(parseFailureCount.toDouble() / totalProcessed * 100)
+                            throw IllegalStateException("Torrent parsing failure rate too high: $parseFailureCount/$totalProcessed ($failureRate). Aborting to prevent data corruption.")
+                        }
+                    } catch (e: Exception) {
+                        // Unknown failures - treat as parse failures for safety
+                        parseFailureCount++
+                        logger.error(e) { "Unknown error parsing torrent at line $currentLine: ${e.message}" }
+
+                        val totalProcessed = emittedCount + parseFailureCount
+                        if (totalProcessed >= 100 && parseFailureCount.toDouble() / totalProcessed > 0.10) {
+                            val failureRate = "%.2f%%".format(parseFailureCount.toDouble() / totalProcessed * 100)
+                            throw IllegalStateException("Torrent parsing failure rate too high: $parseFailureCount/$totalProcessed ($failureRate). Aborting to prevent data corruption.")
                         }
                     }
                 }
             }
 
-            logger.info { "Torrent fetch complete: $emittedCount torrents emitted, $failureCount failures" }
+            logger.info { "Torrent fetch complete: $emittedCount torrents emitted, parse failures: $parseFailureCount, transient failures: $transientFailureCount" }
 
         } catch (e: Exception) {
             logger.error(e) { "Failed to fetch torrents: ${e.message}" }

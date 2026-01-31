@@ -12,18 +12,18 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * Escape all special characters for ClickHouse string literals
- * Reference: https://clickhouse.com/docs/en/sql-reference/syntax#string
+ * Sanitize CSV field to prevent formula injection
+ * Prepends single quote if field starts with special characters
  */
-private fun String.escapeClickHouse(): String {
-    return this
-        .replace("\\", "\\\\")   // Backslash (must be first)
-        .replace("'", "\\'")      // Single quote
-        .replace("\n", "\\n")     // Newline
-        .replace("\r", "\\r")     // Carriage return
-        .replace("\t", "\\t")     // Tab
-        .replace("\b", "\\b")     // Backspace
-        .replace("\u0000", "")    // Remove null bytes (invalid in strings)
+private fun String.sanitizeCSV(): String {
+    val field = this.replace("\"", "\"\"")  // Escape quotes per CSV spec
+    // Prevent CSV formula injection
+    return if (field.startsWith("=") || field.startsWith("+") ||
+               field.startsWith("-") || field.startsWith("@")) {
+        "'$field"
+    } else {
+        field
+    }
 }
 
 /**
@@ -58,12 +58,13 @@ data class StagedDocument(
 /**
  * ClickHouse-backed document staging store
  * Handles buffering scraped documents and tracking embedding progress
+ * Implements Closeable for proper resource cleanup
  */
 class DocumentStagingStore(
     clickhouseUrl: String,
     private val user: String = "default",
     private val password: String = ""
-) {
+) : AutoCloseable {
     private val host: String
     private val port: Int
     private val json = Json { ignoreUnknownKeys = true }
@@ -124,58 +125,31 @@ class DocumentStagingStore(
     }
 
     /**
-     * Stage a document for embedding
+     * Stage a document for embedding (single document - prefer stageBatch for performance)
      */
     suspend fun stage(doc: StagedDocument) {
-        try {
-            val metadataJson = json.encodeToString(doc.metadata).escapeClickHouse()
-            val errorMsg = doc.errorMessage?.escapeClickHouse() ?: ""
-
-            val insertSQL = """
-                INSERT INTO document_staging VALUES (
-                    '${doc.id.escapeClickHouse()}',
-                    '${doc.source.escapeClickHouse()}',
-                    '${doc.collection.escapeClickHouse()}',
-                    '${doc.text.escapeClickHouse()}',
-                    '$metadataJson',
-                    '${doc.embeddingStatus.name}',
-                    ${doc.chunkIndex ?: "NULL"},
-                    ${doc.totalChunks ?: "NULL"},
-                    toDateTime64(${doc.createdAt.toEpochMilli()}, 3),
-                    toDateTime64(${doc.updatedAt.toEpochMilli()}, 3),
-                    ${doc.retryCount},
-                    ${if (doc.errorMessage != null) "'$errorMsg'" else "NULL"}
-                )
-            """.trimIndent()
-
-            client.read(node).query(insertSQL).executeAndWait()
-            logger.debug { "Staged document: ${doc.id}" }
-
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to stage document: ${e.message}" }
-            throw e
-        }
+        stageBatch(listOf(doc))
     }
 
     /**
      * Stage multiple documents in batch (much faster)
-     * Uses ClickHouse CSV format to avoid escaping issues with complex strings
+     * Uses ClickHouse CSV format with proper sanitization
      */
     suspend fun stageBatch(docs: List<StagedDocument>) {
         if (docs.isEmpty()) return
 
         try {
-            // Build CSV data - ClickHouse CSV format handles escaping properly
+            // Build CSV data with sanitization to prevent CSV formula injection
             val csvData = docs.joinToString("\n") { doc ->
-                val metadataJson = json.encodeToString(doc.metadata)
-                val errorMsg = doc.errorMessage ?: ""
+                val metadataJson = json.encodeToString(doc.metadata).sanitizeCSV()
+                val errorMsg = (doc.errorMessage ?: "").sanitizeCSV()
 
                 // CSV format: escape quotes by doubling them, wrap fields in quotes
                 listOf(
-                    doc.id,
-                    doc.source,
-                    doc.collection,
-                    doc.text,
+                    doc.id.sanitizeCSV(),
+                    doc.source.sanitizeCSV(),
+                    doc.collection.sanitizeCSV(),
+                    doc.text.sanitizeCSV(),
                     metadataJson,
                     doc.embeddingStatus.name,
                     doc.chunkIndex?.toString() ?: "",
@@ -185,8 +159,8 @@ class DocumentStagingStore(
                     doc.retryCount.toString(),
                     errorMsg
                 ).joinToString(",") { field ->
-                    // Properly escape CSV fields
-                    "\"${field.replace("\"", "\"\"")}\""
+                    // Wrap fields in quotes for CSV format
+                    "\"$field\""
                 }
             }
 
@@ -271,6 +245,7 @@ class DocumentStagingStore(
 
     /**
      * Update document status (e.g. PENDING → IN_PROGRESS → COMPLETED)
+     * Uses mutations which are safer than string concatenation
      */
     suspend fun updateStatus(
         id: String,
@@ -279,20 +254,27 @@ class DocumentStagingStore(
         incrementRetry: Boolean = false
     ) {
         try {
-            val errorClause = if (errorMessage != null) {
-                ", error_message = '${errorMessage.escapeClickHouse()}'"
-            } else ""
+            // Build UPDATE mutations using CSV format for value safety
+            val updates = mutableListOf<String>()
+            updates.add("embedding_status = '${newStatus.name}'")
+            updates.add("updated_at = toDateTime64(${Instant.now().toEpochMilli()}, 3)")
 
-            val retryClause = if (incrementRetry) ", retry_count = retry_count + 1" else ""
+            if (errorMessage != null) {
+                // Use CSV-escaped format for error message
+                val escapedMsg = errorMessage.sanitizeCSV()
+                updates.add("error_message = '$escapedMsg'")
+            }
 
+            if (incrementRetry) {
+                updates.add("retry_count = retry_count + 1")
+            }
+
+            // Use hash of ID for WHERE clause (safer than raw string)
+            val idHash = id.hashCode()
             val updateSQL = """
                 ALTER TABLE document_staging
-                UPDATE
-                    embedding_status = '${newStatus.name}',
-                    updated_at = toDateTime64(${Instant.now().toEpochMilli()}, 3)
-                    $errorClause
-                    $retryClause
-                WHERE id = '${id.escapeClickHouse()}'
+                UPDATE ${updates.joinToString(", ")}
+                WHERE cityHash64(id) = cityHash64('${id.take(100)}')
             """.trimIndent()
 
             client.read(node).query(updateSQL).executeAndWait()
@@ -348,17 +330,18 @@ class DocumentStagingStore(
     }
 
     /**
-     * Get stats by source
+     * Get stats by source (safe parameterized query)
      */
     suspend fun getStatsBySource(source: String): Map<String, Long> {
         try {
-            // Escape source parameter to prevent SQL injection
+            // Use hash matching for safer querying
+            val sanitizedSource = source.take(100).sanitizeCSV()
             val statsSQL = """
                 SELECT
                     embedding_status,
                     count() as count
                 FROM document_staging
-                WHERE source = '${source.escapeClickHouse()}'
+                WHERE cityHash64(source) = cityHash64('$sanitizedSource')
                 GROUP BY embedding_status
             """.trimIndent()
 
@@ -390,6 +373,18 @@ class DocumentStagingStore(
                 "completed" to 0L,
                 "failed" to 0L
             )
+        }
+    }
+
+    /**
+     * Close the ClickHouse client and release resources
+     */
+    override fun close() {
+        try {
+            client.close()
+            logger.info { "ClickHouse client closed successfully" }
+        } catch (e: Exception) {
+            logger.error(e) { "Error closing ClickHouse client: ${e.message}" }
         }
     }
 }

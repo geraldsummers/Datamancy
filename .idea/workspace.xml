@@ -5,13 +5,22 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="RAGTEST">
-      <change beforePath="$PROJECT_DIR$/compose.templates/observability/docker-exporter.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/observability/docker-exporter.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/observability/dozzle.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/observability/dozzle.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/observability/prompt-server.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/productivity/forgejo-runner.yml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.templates/productivity/forgejo-runner.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.templates/testing/test-runner.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs.templates/databases/vectors/bootstrap_vectors.main.kts" beforeDir="false" afterPath="$PROJECT_DIR$/configs.templates/databases/vectors/bootstrap_vectors.main.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/cache.properties" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/cache.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/Main.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/config/Config.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/config/Config.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/core/StandardizedRunner.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/core/StandardizedRunner.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/embedding/EmbeddingScheduler.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/embedding/EmbeddingScheduler.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/monitoring/MonitoringServer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/monitoring/MonitoringServer.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sinks/QdrantSink.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sinks/QdrantSink.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/TorrentsSource.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/TorrentsSource.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DeduplicationStore.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DeduplicationStore.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DocumentStagingStore.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DocumentStagingStore.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pipeline/src/test/kotlin/org/datamancy/pipeline/storage/DeduplicationStoreTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/test/kotlin/org/datamancy/pipeline/storage/DeduplicationStoreTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/search-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/build.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -63,7 +72,7 @@
     &quot;accountId&quot;: &quot;f0199216-3948-45b6-94d7-8f5b66421c9f&quot;
   }
 }</component>
-  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="$USER_HOME$/.gradle/wrapper/dists/gradle-8.5-bin/5t9huq95ubn472n8rpzujfbqh/gradle-8.5" javaHome="/usr/lib/jvm/temurin-21-jdk-amd64" gradleVersion="8.5" />
+  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="$USER_HOME$/.gradle/wrapper/dists/gradle-8.14-bin/38aieal9i53h9rfe7vjup95b9/gradle-8.14" javaHome="/usr/lib/jvm/temurin-21-jdk-amd64" gradleVersion="8.14" />
   <component name="ProjectColorInfo">{
   &quot;customColor&quot;: &quot;&quot;,
   &quot;associatedIndex&quot;: 2
