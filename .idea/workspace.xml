@@ -5,22 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="59262e67-9bb5-421b-a3d2-3f831a7473de" name="Changes" comment="RAGTEST">
-      <change beforePath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/checksums/checksums.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/cache.properties" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/cache.properties" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/config/Config.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/config/Config.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/core/StandardizedRunner.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/core/StandardizedRunner.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/embedding/EmbeddingScheduler.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/embedding/EmbeddingScheduler.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/monitoring/MonitoringServer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/monitoring/MonitoringServer.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sinks/QdrantSink.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sinks/QdrantSink.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/TorrentsSource.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/sources/TorrentsSource.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DeduplicationStore.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DeduplicationStore.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DocumentStagingStore.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/main/kotlin/org/datamancy/pipeline/storage/DocumentStagingStore.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pipeline/src/test/kotlin/org/datamancy/pipeline/storage/DeduplicationStoreTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/pipeline/src/test/kotlin/org/datamancy/pipeline/storage/DeduplicationStoreTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/search-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/src/search-service/build.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -257,6 +245,17 @@
       <RunAsTest>true</RunAsTest>
       <method v="2" />
     </configuration>
+    <configuration default="true" type="JetRunConfigurationType">
+      <module name="kotlin.scripts.MainKtsScript.build-datamancy-v2.main.kts" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
+      <module name="kotlin.scripts.MainKtsScript.build-datamancy-v2.main.kts" />
+      <option name="filePath" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
         <item itemvalue="Gradle.Datamancy [clean test]" />
@@ -274,14 +273,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1764971190772</updated>
-    </task>
-    <task id="LOCAL-00022" summary="test writing">
-      <option name="closed" value="true" />
-      <created>1766679338709</created>
-      <option name="number" value="00022" />
-      <option name="presentableId" value="LOCAL-00022" />
-      <option name="project" value="LOCAL" />
-      <updated>1766679338709</updated>
     </task>
     <task id="LOCAL-00023" summary="deploying">
       <option name="closed" value="true" />
@@ -667,7 +658,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769767956422</updated>
     </task>
-    <option name="localTasksCounter" value="71" />
+    <task id="LOCAL-00071" summary="RAGTEST">
+      <option name="closed" value="true" />
+      <created>1769820439878</created>
+      <option name="number" value="00071" />
+      <option name="presentableId" value="LOCAL-00071" />
+      <option name="project" value="LOCAL" />
+      <updated>1769820439878</updated>
+    </task>
+    <option name="localTasksCounter" value="72" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

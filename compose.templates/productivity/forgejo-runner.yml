@@ -74,9 +74,9 @@ services:
           forgejo-runner register \
             --no-interactive \
             --instance "http://forgejo:3000" \
-            --token "$RUNNER_TOKEN" \
-            --name "$FORGEJO_RUNNER_NAME" \
-            --labels "$FORGEJO_RUNNER_LABELS"
+            --token "$$RUNNER_TOKEN" \
+            --name "$$FORGEJO_RUNNER_NAME" \
+            --labels "$$FORGEJO_RUNNER_LABELS"
         else
           echo 'Runner already registered'
         fi
