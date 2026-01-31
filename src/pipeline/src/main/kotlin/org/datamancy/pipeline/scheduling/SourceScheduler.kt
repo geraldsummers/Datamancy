@@ -131,7 +131,8 @@ class SourceScheduler(
     }
 
     /**
-     * Calculate exponential backoff delay based on failure count
+     * Calculate exponential backoff delay based on failure count with jitter
+     * Jitter prevents thundering herd when multiple sources fail simultaneously
      */
     private fun calculateBackoff(failures: Int): Duration {
         // Handle zero backoff for testing
@@ -139,12 +140,16 @@ class SourceScheduler(
             return Duration.ofMillis(1)  // 1ms minimum to avoid busy-waiting
         }
 
-        val delayMinutes = minOf(
+        val baseDelayMinutes = minOf(
             backoffBaseMinutes * (1L shl minOf(failures - 1, 5)),  // 2^failures with cap at 2^5
             backoffMaxMinutes
         )
 
-        return Duration.ofMinutes(delayMinutes)
+        // Add full jitter: random delay between 0 and baseDelay
+        // This prevents all failed sources from retrying simultaneously
+        val jitteredMinutes = (baseDelayMinutes * Math.random()).toLong()
+
+        return Duration.ofMinutes(jitteredMinutes.coerceAtLeast(1))
     }
 
     companion object {

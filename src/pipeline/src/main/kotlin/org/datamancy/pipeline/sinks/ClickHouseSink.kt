@@ -5,6 +5,7 @@ import com.clickhouse.client.ClickHouseCredentials
 import com.clickhouse.client.ClickHouseNode
 import com.clickhouse.client.ClickHouseProtocol
 import com.clickhouse.client.ClickHouseRequest
+import com.clickhouse.client.config.ClickHouseClientOption
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.datamancy.pipeline.core.Sink
 import org.datamancy.pipeline.sources.BinanceKline
@@ -53,6 +54,8 @@ class ClickHouseSink(
         .host(host)
         .port(ClickHouseProtocol.HTTP, port)
         .credentials(ClickHouseCredentials.fromUserAndPassword(user, password))
+        .addOption(ClickHouseClientOption.SOCKET_TIMEOUT, 120000)  // 2 minutes for bulk inserts
+        .addOption(ClickHouseClientOption.MAX_EXECUTION_TIME, 120)  // 2 minutes server-side timeout
         .build()
 
     private val client = ClickHouseClient.newInstance(node.protocol)
