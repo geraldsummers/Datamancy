@@ -251,12 +251,12 @@ class DataSourceQueryPlugin(
 
         configs.mariadbConfig?.let { config ->
             val hikariConfig = HikariConfig().apply {
-                jdbcUrl = "jdbc:mariadb://${config.host}:${config.port}"
+                jdbcUrl = "jdbc:mariadb://${config.host}:${config.port}/information_schema"
                 username = config.user
                 password = config.password
                 maximumPoolSize = 5
                 minimumIdle = 1
-                connectionTimeout = 10000
+                connectionTimeout = 30000
                 idleTimeout = 300000
                 maxLifetime = 600000
                 poolName = "agent-mariadb-pool"

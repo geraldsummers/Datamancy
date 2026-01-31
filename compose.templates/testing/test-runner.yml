@@ -69,7 +69,7 @@ services:
       MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
 
       # Vector/cache services
-      QDRANT_URL: "http://qdrant:6334"
+      QDRANT_URL: "http://qdrant:6333"
       QDRANT_API_KEY: "${AGENT_QDRANT_API_KEY}"
       VALKEY_URL: "valkey:6379"
 
