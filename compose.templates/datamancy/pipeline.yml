@@ -20,11 +20,11 @@ services:
       - mariadb  # For BookStack connectivity
     depends_on:
       qdrant:
-        condition: service_started
+        condition: service_healthy
       clickhouse:
         condition: service_healthy
       embedding-service:
-        condition: service_started
+        condition: service_healthy
     environment:
       # RSS Feed - ENABLED BY DEFAULT
       RSS_SCHEDULE_MINUTES: "60"  # Hourly

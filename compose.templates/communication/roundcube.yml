@@ -61,9 +61,9 @@ services:
       - postgres
     depends_on:
       mailserver:
-        condition: service_started
+        condition: service_healthy
       postgres:
-        condition: service_started
+        condition: service_healthy
       roundcube-init:
         condition: service_completed_successfully
     environment:

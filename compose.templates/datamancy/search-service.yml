@@ -16,11 +16,11 @@ services:
       - ai
     depends_on:
       qdrant:
-        condition: service_started
+        condition: service_healthy
       clickhouse:
         condition: service_healthy
       embedding-service:
-        condition: service_started
+        condition: service_healthy
     environment:
       SEARCH_SERVICE_PORT: 8098
       QDRANT_HOST: qdrant

@@ -55,13 +55,13 @@ services:
       internet:  # For Matrix federation with other homeservers
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       synapse-init:
         condition: service_completed_successfully
       valkey:
-        condition: service_started
+        condition: service_healthy
       ldap:
-        condition: service_started
+        condition: service_healthy
       authelia:
         condition: service_healthy
     environment:

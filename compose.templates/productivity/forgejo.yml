@@ -17,7 +17,7 @@ services:
       internet:  # For cloning/pushing to external Git repos, Actions downloads
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
     environment:
       USER_UID: ${DOCKER_USER_ID:-1000}
       USER_GID: ${DOCKER_GROUP_ID:-1000}
@@ -54,4 +54,4 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 300s
+      start_period: 600s  # 10 minutes - Forgejo can take 4-5min on cold start with migrations

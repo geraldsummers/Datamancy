@@ -16,7 +16,7 @@ services:
           - element.${DOMAIN}
     depends_on:
       synapse:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - element_data:/app/config
       - ./configs/applications/element/config.json:/app/config.json:ro

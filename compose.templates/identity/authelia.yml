@@ -25,7 +25,7 @@ services:
           - auth.${DOMAIN}
     depends_on:
       ldap:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
       valkey:

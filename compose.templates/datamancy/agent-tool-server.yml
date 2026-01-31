@@ -36,7 +36,7 @@ services:
           - agent-tool-server.${DOMAIN}
     depends_on:
       litellm:
-        condition: service_started
+        condition: service_healthy
       # dind: REMOVED - docker_container_create tool disabled
       # dind:
       #   condition: service_healthy

@@ -31,7 +31,7 @@ services:
       mariadb-init:
         condition: service_completed_successfully
       seafile-memcached:
-        condition: service_started
+        condition: service_healthy
       valkey:
         condition: service_healthy
     environment:

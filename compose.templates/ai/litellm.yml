@@ -22,9 +22,9 @@ services:
           - api.litellm.${DOMAIN}
     depends_on:
       vllm-7b:
-        condition: service_started
+        condition: service_healthy
       embedding-service:
-        condition: service_started
+        condition: service_healthy
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       UI_USERNAME: ${STACK_ADMIN_USER}

@@ -16,7 +16,7 @@ services:
           - lam.${DOMAIN}
     depends_on:
       ldap:
-        condition: service_started
+        condition: service_healthy
     environment:
       LDAP_DOMAIN: ${LDAP_DOMAIN}
       LDAP_BASE_DN: ${LDAP_BASE_DN}

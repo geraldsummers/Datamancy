@@ -21,7 +21,7 @@ services:
       postgres-init:
         condition: service_completed_successfully
       authelia:
-        condition: service_started
+        condition: service_healthy
     environment:
       BASE_URL: https://planka.${DOMAIN}
       DATABASE_URL: postgresql://planka:${PLANKA_DB_PASSWORD_ENCODED:-${PLANKA_DB_PASSWORD}}@postgres:5432/planka

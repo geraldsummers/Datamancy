@@ -14,7 +14,7 @@ services:
       postgres-init:
         condition: service_completed_successfully
       valkey:
-        condition: service_started
+        condition: service_healthy
     environment:
       LOCAL_DOMAIN: ${DOMAIN}
       RAILS_ENV: production
@@ -107,9 +107,9 @@ services:
       - mastodon-internal
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       valkey:
-        condition: service_started
+        condition: service_healthy
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
