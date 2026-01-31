@@ -834,42 +834,15 @@ ${CYAN}╔═══════════════════════�
     info("Domain: ${sanitized.domain}")
     info("Admin: ${sanitized.adminUser} <${sanitized.adminEmail}>")
 
-    // Clean dist/ but preserve secrets
-    val envBackup = distDir.resolve(".env")
-    val secretsBackup = distDir.resolve("secrets")
-    val preservedEnv = if (envBackup.exists()) envBackup.readText() else null
-    val preservedSecrets = mutableMapOf<String, ByteArray>()
-
-    if (secretsBackup.exists() && secretsBackup.isDirectory) {
-        secretsBackup.walkTopDown().forEach { file ->
-            if (file.isFile) {
-                val relativePath = file.relativeTo(secretsBackup)
-                preservedSecrets[relativePath.path] = file.readBytes()
-            }
-        }
-    }
-
+    // Clean dist/ completely - DO NOT preserve .env between builds
+    // (preserving .env causes credential mismatches because configs are regenerated)
     if (distDir.exists()) {
-        step("Cleaning dist/ (preserving .env and secrets/)")
+        step("Cleaning dist/ completely")
         distDir.deleteRecursively()
     }
     distDir.mkdirs()
 
-    // Restore preserved files
-    if (preservedEnv != null) {
-        envBackup.writeText(preservedEnv)
-        info("Restored existing .env")
-    }
-    if (preservedSecrets.isNotEmpty()) {
-        preservedSecrets.forEach { (path, content) ->
-            val file = secretsBackup.resolve(path)
-            file.parentFile.mkdirs()
-            file.writeBytes(content)
-        }
-        info("Restored ${preservedSecrets.size} files from secrets/")
-    }
-
-    // Generate all credentials from schema
+    // Generate all credentials from schema (fresh every build)
     val credentials = generateCredentialsFromSchema(schema, sanitized)
 
     // Build steps
@@ -889,17 +862,7 @@ ${CYAN}╔═══════════════════════�
     val version = getGitVersion()
 
     processConfigsWithSchema(distDir, schema, credentials, sanitized)
-
-    // Only generate .env if it doesn't exist (preserves existing secrets)
-    val envFile = distDir.resolve(".env")
-    if (!envFile.exists()) {
-        generateEnvFileFromSchema(envFile, schema, credentials, config, version)
-    } else {
-        warn("⚠️  Preserving existing .env file - configs may be MISMATCHED!")
-        warn("    .env preserved from previous build, but configs regenerated with NEW passwords")
-        warn("    This WILL cause authentication failures!")
-        warn("    To fix: rm -rf dist/ before building")
-    }
+    generateEnvFileFromSchema(distDir.resolve(".env"), schema, credentials, config, version)
 
     // Build info
     distDir.resolve(".build-info").writeText("""
