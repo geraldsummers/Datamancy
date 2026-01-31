@@ -70,16 +70,24 @@ class MonitoringServer(
 
                 get("/status") {
                     if (!call.requireAuth()) return@get
-                    val sources = listOf(
-                        "rss", "cve", "torrents", "wikipedia",
-                        "australian_laws", "linux_docs", "debian_wiki", "arch_wiki"
+
+                    // Read enabled status from environment (same logic as PipelineConfig.fromEnv())
+                    val enabledSources = mapOf(
+                        "rss" to (System.getenv("RSS_ENABLED")?.toBoolean() ?: true),
+                        "cve" to (System.getenv("CVE_ENABLED")?.toBoolean() ?: true),
+                        "torrents" to (System.getenv("TORRENTS_ENABLED")?.toBoolean() ?: true),
+                        "wikipedia" to (System.getenv("WIKIPEDIA_ENABLED")?.toBoolean() ?: true),
+                        "australian_laws" to (System.getenv("AUSTRALIAN_LAWS_ENABLED")?.toBoolean() ?: true),
+                        "linux_docs" to (System.getenv("LINUX_DOCS_ENABLED")?.toBoolean() ?: true),
+                        "debian_wiki" to (System.getenv("WIKI_ENABLED")?.toBoolean() ?: true),
+                        "arch_wiki" to (System.getenv("WIKI_ENABLED")?.toBoolean() ?: true)
                     )
 
-                    val statuses = sources.map { sourceName ->
+                    val statuses = enabledSources.map { (sourceName, enabled) ->
                         val metadata = metadataStore.load(sourceName)
                         SourceStatus(
                             source = sourceName,
-                            enabled = true, // Could read from config
+                            enabled = enabled,
                             totalProcessed = metadata.totalItemsProcessed,
                             totalFailed = metadata.totalItemsFailed,
                             lastRunTime = metadata.lastSuccessfulRun ?: metadata.lastAttemptedRun ?: "never",
