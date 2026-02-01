@@ -4,10 +4,7 @@
 
 services:
   alertmanager:
-    build:
-      context: ./containers.src/alertmanager
-      dockerfile: Dockerfile
-    image: datamancy/alertmanager:local-build
+    image: prom/alertmanager:v0.28.1
     container_name: alertmanager
     restart: unless-stopped
     networks:
