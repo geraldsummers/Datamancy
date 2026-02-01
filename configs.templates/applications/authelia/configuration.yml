@@ -93,16 +93,10 @@ session:
       same_site: lax
       expiration: 8h
       inactivity: 1h
-    # Internal Docker network session cookie for service-to-service calls
-    - domain: authelia.internal
-      name: authelia_internal_session
-      authelia_url: http://authelia:9091
-      same_site: lax
-      expiration: 8h
-      inactivity: 1h
-    # NOTE: Internal Docker calls (Planka OIDC) will fail without proper domain
-    # Authelia requires domain with period or IP - "authelia" is invalid
-    # Workaround: Route all OIDC through Caddy or use IP address
+    # Internal Docker network session cookie removed - causes validation error
+    # Authelia requires authelia_url hostname to match cookie domain scope
+    # For internal service-to-service calls, use the main session cookie via Caddy
+    # NOTE: Internal Docker calls (Planka OIDC) should route through Caddy proxy
   # Security: 7 days is safer than 1 month for production
   # If stolen, "remember me" cookie is only valid for 1 week
   remember_me: 7d
