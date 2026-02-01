@@ -185,9 +185,15 @@ fun exec(vararg command: String, ignoreError: Boolean = false): Int {
     return exitCode
 }
 
+fun getScriptDir(): File {
+    // Get the directory where this script is located
+    return File(__FILE__).parentFile.canonicalFile
+}
+
 fun getGitVersion(): String {
     return try {
         val process = ProcessBuilder("git", "describe", "--tags", "--always", "--dirty")
+            .directory(getScriptDir())
             .redirectErrorStream(true)
             .start()
         process.inputStream.readBytes().toString(Charsets.UTF_8).trim()
@@ -197,7 +203,10 @@ fun getGitVersion(): String {
 
 fun checkGitClean() {
     try {
+        val scriptDir = getScriptDir()
+
         val statusProcess = ProcessBuilder("git", "status", "--porcelain")
+            .directory(scriptDir)
             .redirectErrorStream(true)
             .start()
         val statusOutput = statusProcess.inputStream.readBytes().toString(Charsets.UTF_8).trim()
@@ -211,6 +220,7 @@ fun checkGitClean() {
         }
 
         val untrackedProcess = ProcessBuilder("git", "ls-files", "--others", "--exclude-standard")
+            .directory(scriptDir)
             .redirectErrorStream(true)
             .start()
         val untrackedOutput = untrackedProcess.inputStream.readBytes().toString(Charsets.UTF_8).trim()
