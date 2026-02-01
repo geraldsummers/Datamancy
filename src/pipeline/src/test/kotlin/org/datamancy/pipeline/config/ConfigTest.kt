@@ -293,7 +293,7 @@ class ConfigTest {
 
         // Embedding defaults
         assertEquals(8192, config.embedding.maxTokens)
-        assertEquals(768, config.embedding.vectorSize)
+        assertEquals(1024, config.embedding.vectorSize)
         assertEquals("bge-m3", config.embedding.model)
 
         // Connection defaults
@@ -305,7 +305,7 @@ class ConfigTest {
     fun `EmbeddingConfig has correct BGE-M3 specifications`() {
         val config = EmbeddingConfig()
 
-        assertEquals(768, config.vectorSize, "BGE-M3 uses 768 dimensions by default")
+        assertEquals(1024, config.vectorSize, "BGE-M3 uses 1024 dimensions")
         assertEquals(8192, config.maxTokens, "BGE-M3 supports 8192 tokens")
         assertEquals("bge-m3", config.model)
     }

@@ -147,7 +147,7 @@ data class PipelineConfig(
                 embedding = EmbeddingConfig(
                     serviceUrl = getEnvOrProperty("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000",
                     model = getEnvOrProperty("EMBEDDING_MODEL") ?: "bge-m3",
-                    vectorSize = getEnvOrPropertyInt("EMBEDDING_VECTOR_SIZE", 768, min = 128, max = 4096),
+                    vectorSize = getEnvOrPropertyInt("EMBEDDING_VECTOR_SIZE", 1024, min = 128, max = 4096),
                     maxTokens = getEnvOrPropertyInt("EMBEDDING_MAX_TOKENS", 8192, min = 1, max = 100000)
                 ),
                 qdrant = QdrantConfig(
@@ -199,7 +199,7 @@ data class MarketConfig(
 data class EmbeddingConfig(
     val serviceUrl: String = "http://embedding-service:8000",
     val model: String = "bge-m3",
-    val vectorSize: Int = 768,  // BGE-M3 uses 768 dimensions by default
+    val vectorSize: Int = 1024,  // BGE-M3 uses 1024 dimensions
     val maxTokens: Int = 8192  // BGE-M3 supports 8192 tokens (16x larger than base!)
 )
 
