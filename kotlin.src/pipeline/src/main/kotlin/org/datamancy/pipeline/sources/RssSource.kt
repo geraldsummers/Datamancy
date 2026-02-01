@@ -29,7 +29,6 @@ class RssSource(
                 logger.info { "Fetching RSS feed: $feedUrl" }
                 val feedInput = SyndFeedInput().apply {
                     isAllowDoctypes = true  // Allow DOCTYPE declarations (required for ArXiv and some feeds)
-                    isXmlHealerOn = true    // Auto-fix malformed XML
                 }
 
                 // Use XmlReader which properly handles redirects and content encoding
