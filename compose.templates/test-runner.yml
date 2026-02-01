@@ -89,6 +89,9 @@ services:
       BOOKSTACK_API_TOKEN_ID: "${BOOKSTACK_API_TOKEN_ID:-}"
       BOOKSTACK_API_TOKEN_SECRET: "${BOOKSTACK_API_TOKEN_SECRET:-}"
 
+      # Registry for CI/CD tests
+      REGISTRY_HOST: "registry:5000"
+
     # Only run when explicitly requested
     profiles:
       - testing
