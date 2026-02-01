@@ -116,7 +116,7 @@ class ClickHouseSink(
                 )
             """.trimIndent()
 
-            client.read(node).query(insertSQL).executeAndWait()
+            client.write(node).query(insertSQL).executeAndWait()
             logger.debug { "Wrote kline for ${item.symbol} at ${item.openTime}" }
 
         } catch (e: Exception) {
@@ -151,7 +151,7 @@ class ClickHouseSink(
 
             val insertSQL = "INSERT INTO market_klines VALUES $values"
 
-            client.read(node).query(insertSQL).executeAndWait()
+            client.write(node).query(insertSQL).executeAndWait()
             logger.info { "Wrote ${items.size} klines to ClickHouse" }
 
         } catch (e: Exception) {

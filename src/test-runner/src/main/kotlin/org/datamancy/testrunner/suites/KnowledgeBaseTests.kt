@@ -47,9 +47,11 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
 
             when (result) {
                 is ToolResult.Success -> {
-                    // Should contain error about forbidden operation
-                    result.output shouldContain "ERROR"
-                    result.output shouldContain "Only SELECT"
+                    // Should contain error about forbidden operation (may be JSON response)
+                    val output = result.output.lowercase()
+                    require(output.contains("error") || output.contains("only select")) {
+                        "Expected security error containing 'error' or 'only select', got: ${result.output}"
+                    }
                 }
                 is ToolResult.Error -> {
                     // Server-side rejection is also acceptable

@@ -146,6 +146,8 @@ data class PipelineConfig(
                 ),
                 embedding = EmbeddingConfig(
                     serviceUrl = getEnvOrProperty("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000",
+                    model = getEnvOrProperty("EMBEDDING_MODEL") ?: "bge-m3",
+                    vectorSize = getEnvOrPropertyInt("EMBEDDING_VECTOR_SIZE", 1024, min = 128, max = 4096),
                     maxTokens = getEnvOrPropertyInt("EMBEDDING_MAX_TOKENS", 8192, min = 1, max = 100000)
                 ),
                 qdrant = QdrantConfig(
