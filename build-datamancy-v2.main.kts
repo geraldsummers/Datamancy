@@ -426,25 +426,50 @@ fun buildGradleServices() {
 
 fun copyBuildArtifacts(distDir: File) {
     step("Copying build artifacts to dist")
+
+    // Copy containers.src (Dockerfiles and container-only projects)
     val containersSrcDir = File("containers.src")
-    if (!containersSrcDir.exists()) {
-        warn("containers.src/ directory not found, skipping")
-        return
-    }
+    if (containersSrcDir.exists()) {
+        val destContainersDir = distDir.resolve("containers.src")
+        destContainersDir.mkdirs()
 
-    val destContainersDir = distDir.resolve("containers.src")
-    destContainersDir.mkdirs()
-
-    containersSrcDir.walkTopDown().forEach { source ->
-        if (source.isFile) {
-            val relativePath = source.relativeTo(containersSrcDir)
-            val dest = destContainersDir.resolve(relativePath)
-            dest.parentFile.mkdirs()
-            source.copyTo(dest, overwrite = true)
+        containersSrcDir.walkTopDown().forEach { source ->
+            if (source.isFile) {
+                val relativePath = source.relativeTo(containersSrcDir)
+                val dest = destContainersDir.resolve(relativePath)
+                dest.parentFile.mkdirs()
+                source.copyTo(dest, overwrite = true)
+            }
         }
+        info("Copied containers.src/ directory to dist/")
+    } else {
+        warn("containers.src/ directory not found, skipping")
     }
 
-    info("Copied containers.src/ directory to dist/")
+    // Copy kotlin.src build artifacts (JARs only, not source code)
+    val kotlinSrcDir = File("kotlin.src")
+    if (kotlinSrcDir.exists()) {
+        val destKotlinDir = distDir.resolve("kotlin.src")
+
+        kotlinSrcDir.listFiles()?.forEach { projectDir ->
+            if (projectDir.isDirectory) {
+                val buildDir = projectDir.resolve("build/libs")
+                if (buildDir.exists()) {
+                    val destBuildDir = destKotlinDir.resolve("${projectDir.name}/build/libs")
+                    destBuildDir.mkdirs()
+
+                    buildDir.listFiles()?.forEach { jarFile ->
+                        if (jarFile.isFile && jarFile.extension == "jar") {
+                            jarFile.copyTo(destBuildDir.resolve(jarFile.name), overwrite = true)
+                        }
+                    }
+                }
+            }
+        }
+        info("Copied Kotlin build artifacts (JARs) to dist/")
+    } else {
+        warn("kotlin.src/ directory not found, skipping")
+    }
 }
 
 fun copyComposeFiles(outputDir: File) {
