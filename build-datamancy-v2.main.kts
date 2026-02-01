@@ -426,25 +426,25 @@ fun buildGradleServices() {
 
 fun copyBuildArtifacts(distDir: File) {
     step("Copying build artifacts to dist")
-    val srcDir = File("src")
-    if (!srcDir.exists()) {
-        warn("src/ directory not found, skipping")
+    val containersSrcDir = File("containers.src")
+    if (!containersSrcDir.exists()) {
+        warn("containers.src/ directory not found, skipping")
         return
     }
 
-    val destSrcDir = distDir.resolve("src")
-    destSrcDir.mkdirs()
+    val destContainersDir = distDir.resolve("containers.src")
+    destContainersDir.mkdirs()
 
-    srcDir.walkTopDown().forEach { source ->
+    containersSrcDir.walkTopDown().forEach { source ->
         if (source.isFile) {
-            val relativePath = source.relativeTo(srcDir)
-            val dest = destSrcDir.resolve(relativePath)
+            val relativePath = source.relativeTo(containersSrcDir)
+            val dest = destContainersDir.resolve(relativePath)
             dest.parentFile.mkdirs()
             source.copyTo(dest, overwrite = true)
         }
     }
 
-    info("Copied src/ directory to dist/")
+    info("Copied containers.src/ directory to dist/")
 }
 
 fun copyComposeFiles(outputDir: File) {
@@ -455,22 +455,9 @@ fun copyComposeFiles(outputDir: File) {
         exitProcess(1)
     }
 
-    val categoryOrder = listOf(
-        "gateway", "identity", "persistence", "infrastructure",
-        "productivity", "communication", "ai", "datamancy",
-        "observability", "testing"
-    )
-
-    val serviceFiles = mutableListOf<File>()
-    categoryOrder.forEach { category ->
-        val categoryDir = templatesDir.resolve(category)
-        if (categoryDir.exists() && categoryDir.isDirectory) {
-            val files = categoryDir.listFiles { file ->
-                file.isFile && file.extension == "yml"
-            }?.sortedBy { it.name } ?: emptyList()
-            serviceFiles.addAll(files)
-        }
-    }
+    val serviceFiles = templatesDir.listFiles { file ->
+        file.isFile && file.extension == "yml"
+    }?.sortedBy { it.name } ?: emptyList()
 
     val mergedYaml = StringBuilder()
     mergedYaml.appendLine("# Auto-generated merged docker-compose.yml")
@@ -478,8 +465,8 @@ fun copyComposeFiles(outputDir: File) {
     mergedYaml.appendLine()
     mergedYaml.appendLine("services:")
 
-    val baseDir = templatesDir.resolve("_base")
-    val volumeInitFile = baseDir.resolve("volume-init.yml")
+    val settingsDir = File("compose.settings")
+    val volumeInitFile = settingsDir.resolve("volume-init.yml")
     if (volumeInitFile.exists()) {
         val lines = volumeInitFile.readText().lines()
         var inServices = false
@@ -518,7 +505,7 @@ fun copyComposeFiles(outputDir: File) {
     mergedYaml.appendLine()
 
     listOf("networks.yml", "volumes.yml").forEach { filename ->
-        val file = baseDir.resolve(filename)
+        val file = settingsDir.resolve(filename)
         if (file.exists()) {
             val content = file.readText()
                 .lines()
@@ -800,9 +787,9 @@ ${CYAN}╔═══════════════════════�
 
     // Load schema
     step("Loading credentials.schema.yaml")
-    val schemaFile = File("credentials.schema.yaml")
+    val schemaFile = File("compose.settings/credentials.schema.yaml")
     if (!schemaFile.exists()) {
-        error("credentials.schema.yaml not found")
+        error("compose.settings/credentials.schema.yaml not found")
         exitProcess(1)
     }
 
@@ -814,9 +801,9 @@ ${CYAN}╔═══════════════════════�
 
     // Load config
     step("Loading datamancy.config.yaml")
-    val configFile = File("datamancy.config.yaml")
+    val configFile = File("compose.settings/datamancy.config.yaml")
     if (!configFile.exists()) {
-        error("datamancy.config.yaml not found")
+        error("compose.settings/datamancy.config.yaml not found")
         exitProcess(1)
     }
 
