@@ -339,8 +339,11 @@ fun generateArgon2IDHash(password: String): String {
         throw RuntimeException("Authelia hash generation failed")
     }
 
-    val hash = output.lines().find { it.startsWith("Digest: ") }?.substringAfter("Digest: ")?.trim()
-    if (hash.isNullOrBlank() || !hash.startsWith("\$argon2")) {
+    val hash = output.lines()
+        .find { it.startsWith("Digest: \$argon2") }
+        ?.substringAfter("Digest: ")
+        ?.trim()
+    if (hash.isNullOrBlank()) {
         error("Failed to parse Authelia hash from output: $output")
         throw RuntimeException("Authelia hash parsing failed")
     }
