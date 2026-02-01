@@ -9,7 +9,7 @@ RUN addgroup -S datamancer && adduser -S datamancer -G datamancer
 WORKDIR /app
 
 # Copy JAR (shadowJar strips version)
-COPY ../../kotlin.src/search-service/build/libs/search-service.jar /app/app.jar
+COPY kotlin.src/search-service/build/libs/search-service.jar /app/app.jar
 
 # Set ownership
 RUN chown -R datamancer:datamancer /app

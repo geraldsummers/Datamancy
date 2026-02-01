@@ -13,7 +13,7 @@ RUN apt-get update \
     && usermod -aG docker appuser
 
 # App jar
-COPY ../../kotlin.src/agent-tool-server/build/libs/agent-tool-server.jar /app/app.jar
+COPY kotlin.src/agent-tool-server/build/libs/agent-tool-server.jar /app/app.jar
 
 EXPOSE 8081
 # Run as root to access host Docker socket (mounted at /var/run/docker.sock.host)

@@ -13,7 +13,7 @@ RUN addgroup -S datamancer && adduser -S datamancer -G datamancer \
 WORKDIR /app
 
 # Copy pre-built shadow JAR from Gradle
-COPY ../../kotlin.src/test-runner/build/libs/test-runner.jar /app/test-runner.jar
+COPY kotlin.src/test-runner/build/libs/test-runner.jar /app/test-runner.jar
 
 # Set ownership
 RUN chown -R datamancer:datamancer /app
