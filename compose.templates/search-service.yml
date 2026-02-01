@@ -6,8 +6,8 @@ services:
   search-service:
     image: datamancy/search-service:local-build
     build:
-      context: ./src/search-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./containers.src/search-service/Dockerfile
     container_name: search-service
     restart: unless-stopped
     networks:

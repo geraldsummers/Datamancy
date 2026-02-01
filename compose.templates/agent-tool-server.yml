@@ -6,8 +6,8 @@ services:
   agent-tool-server:
     image: datamancy/agent-tool-server:local-build
     build:
-      context: ./src/agent-tool-server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./containers.src/agent-tool-server/Dockerfile
     container_name: agent-tool-server
     restart: unless-stopped
     networks:

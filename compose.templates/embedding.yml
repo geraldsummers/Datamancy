@@ -6,7 +6,7 @@ services:
   embedding-service:
     image: datamancy/embedding-bge:latest
     build:
-      context: ./src/embedding-bge
+      context: ./containers.src/embedding-bge
       dockerfile: Dockerfile
     container_name: embedding-service
     restart: unless-stopped

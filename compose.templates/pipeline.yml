@@ -6,8 +6,8 @@ services:
   pipeline:
     image: datamancy/pipeline:local-build
     build:
-      context: ./src/pipeline
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./containers.src/pipeline/Dockerfile
     container_name: pipeline
     restart: unless-stopped
     profiles:

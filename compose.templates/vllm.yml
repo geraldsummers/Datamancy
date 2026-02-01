@@ -6,7 +6,7 @@ services:
   vllm-7b:
     image: datamancy/vllm-qwen-7b:latest
     build:
-      context: ./src/vllm-qwen-7b
+      context: ./containers.src/vllm-qwen-7b
       dockerfile: Dockerfile
     container_name: vllm-7b
     restart: unless-stopped

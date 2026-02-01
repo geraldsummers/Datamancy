@@ -6,7 +6,7 @@ services:
   jupyterhub:
     image: datamancy-jupyterhub:5.4.3
     build:
-      context: ./src/jupyterhub
+      context: ./containers.src/jupyterhub
       dockerfile: Dockerfile
     container_name: jupyterhub
     restart: unless-stopped
