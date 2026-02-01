@@ -284,7 +284,7 @@ fun generateRSAKey(): String {
 }
 
 fun writeAutheliaRSAKey(outputDir: File, rsaKey: String) {
-    val autheliaDir = outputDir.resolve("configs/applications/authelia")
+    val autheliaDir = outputDir.resolve("configs/authelia")
     autheliaDir.mkdirs()
     val rsaKeyFile = autheliaDir.resolve("oidc_rsa.pem")
     rsaKeyFile.writeText(rsaKey)
