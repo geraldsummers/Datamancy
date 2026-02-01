@@ -755,11 +755,11 @@ This document provides a complete reference of all credentials, secrets, and con
 
 ### `VECTOR_EMBED_SIZE`
 
-**Description:** Vector embedding dimension (BAAI/bge-base-en-v1.5)
+**Description:** Vector embedding dimension (BAAI/bge-m3)
 
 **Type:** `config_value`
 
-**Default:** `768`
+**Default:** `1024`
 
 ---
 

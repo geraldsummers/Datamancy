@@ -10,11 +10,15 @@ services:
     networks:
       - monitoring
       - caddy
+    environment:
+      NTFY_USERNAME: ${NTFY_USERNAME}
+      NTFY_PASSWORD: ${NTFY_PASSWORD}
     volumes:
       - alertmanager_data:/alertmanager
       - ./configs/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./configs/monitoring/alertmanager/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: /entrypoint.sh
     command:
-      - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
       - --web.external-url=https://alerts.${DOMAIN}
     healthcheck:

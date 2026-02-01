@@ -69,12 +69,15 @@ fun ensureCollection(
 /**
  * Simple YAML parser for collections.yaml (avoids external dependencies)
  * Expected format:
+ *   vector_size: 1024  # Global default
+ *   distance: Cosine   # Global default
  *   collections:
  *     - name: collection1
- *       vector_size: 1024
+ *       vector_size: 1024  # Optional override
  *     - name: collection2
  */
-fun parseCollectionsYaml(yamlText: String): List<Map<String, String>> {
+fun parseCollectionsYaml(yamlText: String): Pair<Map<String, String>, List<Map<String, String>>> {
+    val globalDefaults = mutableMapOf<String, String>()
     val collections = mutableListOf<Map<String, String>>()
     val lines = yamlText.lines()
     var inCollections = false
@@ -85,6 +88,12 @@ fun parseCollectionsYaml(yamlText: String): List<Map<String, String>> {
         when {
             trimmed.startsWith("collections:") -> {
                 inCollections = true
+            }
+            !inCollections && trimmed.startsWith("vector_size:") -> {
+                globalDefaults["vector_size"] = trimmed.removePrefix("vector_size:").trim()
+            }
+            !inCollections && trimmed.startsWith("distance:") -> {
+                globalDefaults["distance"] = trimmed.removePrefix("distance:").trim()
             }
             inCollections && trimmed.startsWith("- name:") -> {
                 if (currentCollection.isNotEmpty()) {
@@ -107,7 +116,7 @@ fun parseCollectionsYaml(yamlText: String): List<Map<String, String>> {
     if (currentCollection.isNotEmpty()) {
         collections.add(currentCollection)
     }
-    return collections
+    return Pair(globalDefaults, collections)
 }
 
 fun main(args: Array<String>) {
@@ -118,23 +127,31 @@ fun main(args: Array<String>) {
 
     val yamlPath = args[0]
     val yamlText = File(yamlPath).readText()
-    val collections = parseCollectionsYaml(yamlText)
+    val (globalDefaults, collections) = parseCollectionsYaml(yamlText)
 
     val baseUrl = (getenv("QDRANT_URL", "http://localhost:6333") ?: "http://localhost:6333").trimEnd('/')
     val apiKey = getenv("QDRANT_API_KEY", null)
-    val defaultSize = getenv("VECTOR_SIZE", "1024")?.toIntOrNull() ?: 1024
+
+    // Priority: global YAML default > env var > hardcoded fallback
+    val defaultSize = globalDefaults["vector_size"]?.toIntOrNull()
+                      ?: getenv("VECTOR_SIZE", "1024")?.toIntOrNull()
+                      ?: 1024
+    val defaultDistance = globalDefaults["distance"] ?: "Cosine"
 
     if (collections.isEmpty()) {
         println("[bootstrap_vectors.kts] No collections defined; exiting.")
         return
     }
 
+    println("[bootstrap_vectors.kts] Default vector size: $defaultSize")
+    println("[bootstrap_vectors.kts] Default distance: $defaultDistance")
+
     val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
 
     for (c in collections) {
         val name = c["name"] ?: continue
         val size = c["vector_size"]?.toIntOrNull() ?: defaultSize
-        val distance = c["distance"] ?: "Cosine"
+        val distance = c["distance"] ?: defaultDistance
         ensureCollection(client, baseUrl, name, size, distance, apiKey)
     }
 

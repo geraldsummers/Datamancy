@@ -39,7 +39,7 @@ services:
         condition: service_healthy
     environment:
       QDRANT_URL: http://qdrant:6333
-      VECTOR_SIZE: ${VECTOR_EMBED_SIZE:-768}
+      VECTOR_SIZE: ${VECTOR_EMBED_SIZE:-1024}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
     volumes:
       - ./configs/databases/vectors/collections.yaml:/configs/collections.yaml:ro

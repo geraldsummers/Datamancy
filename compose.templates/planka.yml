@@ -36,8 +36,8 @@ services:
       OIDC_USERNAME_ATTRIBUTE: preferred_username
       OIDC_REDIRECT_URI: https://planka.${DOMAIN}/oidc-callback
       OIDC_AUTHORIZATION_ENDPOINT: https://auth.${DOMAIN}/api/oidc/authorization
-      OIDC_TOKEN_ENDPOINT: http://authelia:9091/api/oidc/token
-      OIDC_USERINFO_ENDPOINT: http://authelia:9091/api/oidc/userinfo
+      OIDC_TOKEN_ENDPOINT: https://auth.${DOMAIN}/api/oidc/token
+      OIDC_USERINFO_ENDPOINT: https://auth.${DOMAIN}/api/oidc/userinfo
       OIDC_TOKEN_ENDPOINT_AUTH_METHOD: client_secret_post
       OIDC_ENFORCED: false
       NODE_EXTRA_CA_CERTS: /usr/local/share/ca-certificates/caddy-ca.crt

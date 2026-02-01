@@ -18,7 +18,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
             try {
                 val createRequest = buildJsonObject {
                     putJsonObject("vectors") {
-                        put("size", 768)
+                        put("size", 1024)
                         put("distance", "Cosine")
                     }
                 }
