@@ -185,15 +185,10 @@ fun exec(vararg command: String, ignoreError: Boolean = false): Int {
     return exitCode
 }
 
-fun getScriptDir(): File {
-    // Get the directory where this script is located
-    return File(__FILE__).parentFile.canonicalFile
-}
-
-fun getGitVersion(): String {
+fun getGitVersion(workDir: File): String {
     return try {
         val process = ProcessBuilder("git", "describe", "--tags", "--always", "--dirty")
-            .directory(getScriptDir())
+            .directory(workDir)
             .redirectErrorStream(true)
             .start()
         process.inputStream.readBytes().toString(Charsets.UTF_8).trim()
@@ -201,9 +196,9 @@ fun getGitVersion(): String {
     } catch (e: Exception) { "unknown" }
 }
 
-fun checkGitClean() {
+fun checkGitClean(workDir: File) {
     try {
-        val scriptDir = getScriptDir()
+        val scriptDir = workDir
 
         val statusProcess = ProcessBuilder("git", "status", "--porcelain")
             .directory(scriptDir)
@@ -807,7 +802,19 @@ fun validateCredentialSchema(schema: CredentialsSchema) {
 // ============================================================================
 
 fun main(args: Array<String>) {
-    val distDir = File("dist")
+    // Determine script directory - look for the project marker files
+    val workDir = File(".").canonicalFile.let { current ->
+        // If we're in the project root (has compose.settings/), use it
+        if (File(current, "compose.settings").exists()) {
+            current
+        } else {
+            // Otherwise fail - script must be run from project root
+            error("Script must be run from project root (directory containing compose.settings/)")
+            exitProcess(1)
+        }
+    }
+
+    val distDir = File(workDir, "dist")
 
     println("""
 ${CYAN}╔════════════════════════════════════════╗
@@ -818,7 +825,7 @@ ${CYAN}╔═══════════════════════�
 
     // Check for clean git state
     step("Verifying git working directory is clean")
-    checkGitClean()
+    checkGitClean(workDir)
 
     // Load schema
     step("Loading credentials.schema.yaml")
@@ -881,7 +888,7 @@ ${CYAN}╔═══════════════════════�
     }
 
     // Get version BEFORE processing configs so we can stamp .env
-    val version = getGitVersion()
+    val version = getGitVersion(workDir)
 
     processConfigsWithSchema(distDir, schema, credentials, sanitized)
     generateEnvFileFromSchema(distDir.resolve(".env"), schema, credentials, config, version)
