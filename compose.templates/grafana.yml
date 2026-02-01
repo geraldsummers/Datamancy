@@ -43,8 +43,8 @@ services:
       GF_AUTH_PROXY_HEADERS: "Email:Remote-Email Name:Remote-Name"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./configs/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./configs/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./configs/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./configs/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 15s

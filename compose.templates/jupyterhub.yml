@@ -34,7 +34,7 @@ services:
       JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY}
     volumes:
       - ./volumes/data/jupyterhub:/srv/jupyterhub
-      - ./configs/applications/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
+      - ./configs/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/hub/health || exit 1"]
       interval: 60s

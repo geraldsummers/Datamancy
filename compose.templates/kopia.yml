@@ -20,7 +20,7 @@ services:
       - kopia_data:/app
       - postgres_data:/backup/postgres:ro
       - mariadb_data:/backup/mariadb:ro
-      - ./configs/applications/kopia/init-kopia.sh:/init-kopia.sh:ro
+      - ./configs/kopia/init-kopia.sh:/init-kopia.sh:ro
     entrypoint:
       - sh
       - /init-kopia.sh

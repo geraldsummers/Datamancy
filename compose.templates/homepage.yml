@@ -23,11 +23,11 @@ services:
       HOMEPAGE_ALLOWED_HOSTS: homepage.${DOMAIN}
       DOCKER_HOST: tcp://docker-proxy:2375
     volumes:
-      - ./configs/applications/homepage/services.yaml:/app/config/services.yaml:ro
-      - ./configs/applications/homepage/settings.yaml:/app/config/settings.yaml:ro
-      - ./configs/applications/homepage/widgets.yaml:/app/config/widgets.yaml:ro
-      - ./configs/applications/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
-      - ./configs/applications/homepage/docker.yaml:/app/config/docker.yaml:ro
+      - ./configs/homepage/services.yaml:/app/config/services.yaml:ro
+      - ./configs/homepage/settings.yaml:/app/config/settings.yaml:ro
+      - ./configs/homepage/widgets.yaml:/app/config/widgets.yaml:ro
+      - ./configs/homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
+      - ./configs/homepage/docker.yaml:/app/config/docker.yaml:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
       interval: 60s

@@ -51,9 +51,9 @@ services:
       MATRIX_OAUTH_SECRET: ${MATRIX_OAUTH_SECRET}
     volumes:
       - authelia_data:/config
-      - ./configs/applications/authelia/configuration.yml:/config/configuration.yml:ro
-      - ./configs/applications/authelia/oidc_rsa.pem:/config/oidc_rsa.pem:ro
-      - ./configs/applications/authelia/entrypoint.sh:/entrypoint.sh:ro
+      - ./configs/authelia/configuration.yml:/config/configuration.yml:ro
+      - ./configs/authelia/oidc_rsa.pem:/config/oidc_rsa.pem:ro
+      - ./configs/authelia/entrypoint.sh:/entrypoint.sh:ro
     command:
       - --config
       - /config/configuration.yml

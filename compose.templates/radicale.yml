@@ -13,8 +13,8 @@ services:
       TZ: UTC
     volumes:
       - radicale_data:/data
-      - ./configs/applications/radicale/config:/etc/radicale/config:ro
-      - ./configs/applications/radicale/users:/data/users
+      - ./configs/radicale/config:/etc/radicale/config:ro
+      - ./configs/radicale/users:/data/users
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5232/.web/"]
       interval: 60s

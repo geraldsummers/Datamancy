@@ -72,8 +72,8 @@ services:
       AGENT_POSTGRES_OBSERVER_PASSWORD: ${AGENT_POSTGRES_OBSERVER_PASSWORD}
       DATAMANCY_SERVICE_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
     volumes:
-      - ./configs/databases/postgres/init-db.sh:/init-db.sh:ro
-      - ./configs/databases/postgres/roundcube-schema.sql:/docker-entrypoint-initdb.d/roundcube-schema.sql:ro
+      - ./configs/postgres/init-db.sh:/init-db.sh:ro
+      - ./configs/postgres/roundcube-schema.sql:/docker-entrypoint-initdb.d/roundcube-schema.sql:ro
     entrypoint:
       - /bin/bash
       - -c
@@ -117,7 +117,7 @@ services:
       PGHOST: postgres
       PGPORT: 5432
     volumes:
-      - ./configs/databases/postgres/create-observer-views.sql:/create-observer-views.sql:ro
+      - ./configs/postgres/create-observer-views.sql:/create-observer-views.sql:ro
     entrypoint:
       - /bin/bash
       - -c

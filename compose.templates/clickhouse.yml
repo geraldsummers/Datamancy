@@ -13,9 +13,9 @@ services:
       CLICKHOUSE_DB: default
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./configs/databases/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
-      - ./configs/databases/clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
-      - ./configs/databases/clickhouse/init-schema.sql:/docker-entrypoint-initdb.d/init-schema.sql:ro
+      - ./configs/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
+      - ./configs/clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - ./configs/clickhouse/init-schema.sql:/docker-entrypoint-initdb.d/init-schema.sql:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping"]
       interval: 30s

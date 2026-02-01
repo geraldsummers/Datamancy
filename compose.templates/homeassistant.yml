@@ -50,13 +50,13 @@ services:
     volumes:
       - ./volumes/data/homeassistant:/config
       - /etc/localtime:/etc/localtime:ro
-      - ./configs/applications/homeassistant/configuration.yaml:/config/configuration.yaml:ro
-      - ./configs/applications/homeassistant/automations.yaml:/config/automations.yaml:rw
-      - ./configs/applications/homeassistant/scripts.yaml:/config/scripts.yaml:rw
-      - ./configs/applications/homeassistant/scenes.yaml:/config/scenes.yaml:rw
-      - ./configs/applications/homeassistant/init-homeassistant.sh:/init-homeassistant.sh:ro
-      - ./configs/applications/homeassistant/entrypoint.sh:/entrypoint-wrapper.sh:ro
-      - ./configs/applications/homeassistant/auth_ldap.py:/usr/src/homeassistant/homeassistant/auth/providers/auth_ldap.py:ro
+      - ./configs/homeassistant/configuration.yaml:/config/configuration.yaml:ro
+      - ./configs/homeassistant/automations.yaml:/config/automations.yaml:rw
+      - ./configs/homeassistant/scripts.yaml:/config/scripts.yaml:rw
+      - ./configs/homeassistant/scenes.yaml:/config/scenes.yaml:rw
+      - ./configs/homeassistant/init-homeassistant.sh:/init-homeassistant.sh:ro
+      - ./configs/homeassistant/entrypoint.sh:/entrypoint-wrapper.sh:ro
+      - ./configs/homeassistant/auth_ldap.py:/usr/src/homeassistant/homeassistant/auth/providers/auth_ldap.py:ro
     entrypoint:
       - /entrypoint-wrapper.sh
     healthcheck:

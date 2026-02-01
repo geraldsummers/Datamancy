@@ -72,11 +72,11 @@ services:
       - mailserver_data:/var/mail/
       - /etc/localtime:/etc/localtime:ro
       - caddy_data:/caddy-certs:ro
-      - ./configs/applications/mailserver/find-certs.sh:/tmp/docker-mailserver/find-certs.sh:ro
-      - ./configs/infrastructure/mailserver/setup-dkim.sh:/tmp/docker-mailserver/setup-dkim.sh:ro
-      - ./configs/infrastructure/mailserver/entrypoint-wrapper.sh:/tmp/docker-mailserver/entrypoint-wrapper.sh:ro
-      - ./configs/infrastructure/mailserver/dovecot-ldap.conf.ext:/etc/dovecot/dovecot-ldap.conf.ext.template:ro
-      - ./configs/infrastructure/mailserver/ldap-domains.cf:/etc/postfix/ldap-domains.cf:ro
+      - ./configs/mailserver/find-certs.sh:/tmp/docker-mailserver/find-certs.sh:ro
+      - ./configs/mailserver/setup-dkim.sh:/tmp/docker-mailserver/setup-dkim.sh:ro
+      - ./configs/mailserver/entrypoint-wrapper.sh:/tmp/docker-mailserver/entrypoint-wrapper.sh:ro
+      - ./configs/mailserver/dovecot-ldap.conf.ext:/etc/dovecot/dovecot-ldap.conf.ext.template:ro
+      - ./configs/mailserver/ldap-domains.cf:/etc/postfix/ldap-domains.cf:ro
     healthcheck:
       test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993|:143' && supervisorctl status | grep -E 'postfix.*RUNNING' && supervisorctl status | grep -E 'dovecot.*RUNNING'"]
       interval: 60s

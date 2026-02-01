@@ -33,7 +33,7 @@ services:
       # Using Caddy forward_auth with Authelia (not OIDC)
     volumes:
       - bookstack_data:/config
-      - ./configs/applications/bookstack/init:/custom-cont-init.d:ro
+      - ./configs/bookstack/init:/custom-cont-init.d:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/login"]
       interval: 60s

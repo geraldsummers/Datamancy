@@ -19,8 +19,8 @@ services:
       AGENT_MARIADB_OBSERVER_PASSWORD: ${AGENT_MARIADB_OBSERVER_PASSWORD}
     volumes:
       - mariadb_data:/var/lib/mysql
-      - ./configs/databases/mariadb/init-template.sql:/docker-entrypoint-initdb.d/init-template.sql:ro
-      - ./configs/databases/mariadb/init-wrapper.sh:/docker-entrypoint-initdb.d/01-init-wrapper.sh:ro
+      - ./configs/mariadb/init-template.sql:/docker-entrypoint-initdb.d/init-template.sql:ro
+      - ./configs/mariadb/init-wrapper.sh:/docker-entrypoint-initdb.d/01-init-wrapper.sh:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
@@ -44,7 +44,7 @@ services:
       STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
       AGENT_MARIADB_OBSERVER_PASSWORD: ${AGENT_MARIADB_OBSERVER_PASSWORD}
     volumes:
-      - ./configs/databases/mariadb/init-db.sh:/init-db.sh:ro
+      - ./configs/mariadb/init-db.sh:/init-db.sh:ro
     entrypoint:
       - /bin/bash
       - -c

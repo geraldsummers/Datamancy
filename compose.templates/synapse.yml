@@ -11,7 +11,7 @@ services:
       - postgres
     volumes:
       - ./volumes/data/synapse:/data
-      - ./configs/applications/synapse/entrypoint.sh:/tmp/entrypoint.sh:ro
+      - ./configs/synapse/entrypoint.sh:/tmp/entrypoint.sh:ro
     command:
       - sh
       - -c
@@ -88,7 +88,7 @@ services:
     entrypoint: ["/data/entrypoint.sh"]
     volumes:
       - ./volumes/data/synapse:/data
-      - ./configs/applications/synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./configs/synapse/homeserver.yaml:/data/homeserver.yaml:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8008/health || exit 1"]
       interval: 60s

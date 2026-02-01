@@ -23,7 +23,7 @@ services:
     volumes:
       - qbittorrent_config:/config
       - qbittorrent_data:/downloads
-      - ./configs/applications/qbittorrent/init:/custom-cont-init.d:ro
+      - ./configs/qbittorrent/init:/custom-cont-init.d:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 60s

@@ -15,8 +15,8 @@ services:
       NTFY_PASSWORD: ${NTFY_PASSWORD}
     volumes:
       - alertmanager_data:/alertmanager
-      - ./configs/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - ./configs/monitoring/alertmanager/entrypoint.sh:/entrypoint.sh:ro
+      - ./configs/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./configs/alertmanager/entrypoint.sh:/entrypoint.sh:ro
     entrypoint: /entrypoint.sh
     command:
       - --storage.path=/alertmanager

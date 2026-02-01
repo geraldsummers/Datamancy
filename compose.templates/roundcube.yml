@@ -19,7 +19,7 @@ services:
       POSTGRES_USER: ${STACK_ADMIN_USER}
       ROUNDCUBE_DB_PASSWORD: ${ROUNDCUBE_DB_PASSWORD}
     volumes:
-      - ./configs/databases/postgres/roundcube-schema.sql:/tmp/roundcube-schema.sql:ro
+      - ./configs/postgres/roundcube-schema.sql:/tmp/roundcube-schema.sql:ro
     command:
       - bash
       - -c

@@ -42,8 +42,8 @@ services:
       VECTOR_SIZE: ${VECTOR_EMBED_SIZE:-1024}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
     volumes:
-      - ./configs/databases/vectors/collections.yaml:/configs/collections.yaml:ro
-      - ./configs/databases/vectors/bootstrap_vectors.main.kts:/scripts/bootstrap_vectors.main.kts:ro
+      - ./configs/vectors/collections.yaml:/configs/collections.yaml:ro
+      - ./configs/vectors/bootstrap_vectors.main.kts:/scripts/bootstrap_vectors.main.kts:ro
     command:
       - kotlin
       - /scripts/bootstrap_vectors.main.kts

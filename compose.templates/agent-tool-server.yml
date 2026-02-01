@@ -82,7 +82,7 @@ services:
       # SSH keys should be mounted at runtime via docker-compose override or deployment config
       # - /path/to/ssh/keys:/app/keys:ro
       - ./agent_tool_server/known_hosts:/app/known_hosts:ro
-      - ./configs/infrastructure/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
+      - ./configs/ssh/bootstrap_known_hosts.sh:/app/scripts/bootstrap_known_hosts.sh:ro
       # Mount host Docker socket for stack operations (rw for docker commands)
       - /var/run/docker.sock:/var/run/docker.sock.host:rw
     group_add:

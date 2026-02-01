@@ -33,7 +33,7 @@ services:
       - forgejo_runner_token:/runner-token:ro
       # Mount labware Docker socket (host must have labware VM socket at /run/labware-docker.sock)
       - /run/labware-docker.sock:/run/labware-docker.sock
-      - ./configs/applications/forgejo-runner:/etc/forgejo-runner:ro
+      - ./configs/forgejo-runner:/etc/forgejo-runner:ro
     command: >
       sh -c "
         echo '[forgejo-runner] Starting runner initialization...'
