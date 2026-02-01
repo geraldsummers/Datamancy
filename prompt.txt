@@ -4,6 +4,7 @@ Drop a ls ~/datamancy
 Run the test runner container and collect results (integration-test-runner in compose file)
 Grep all logs for exception,error,fail
 GET HYPED WE'RE BUILDING FIRE
+Once you have found errors precisely identify what you would have to change in the local repo to fix them - but do not change yet.
 
 docker compose not docker-compose
 dont edit stuff on the server just fix stuff in the local repo and i'll apply changes to the server!

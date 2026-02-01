@@ -28,6 +28,14 @@ fun main() {
         embeddingServiceUrl = embeddingUrl
     )
 
+    // Ensure required collections exist on startup (gracefully handle failures)
+    try {
+        gateway.ensureCollectionsExist()
+        logger.info { "Collection existence check completed" }
+    } catch (e: Exception) {
+        logger.warn(e) { "Failed to verify collections (may not affect operations if collections already exist)" }
+    }
+
     val port = System.getenv("SEARCH_SERVICE_PORT")?.toIntOrNull() ?: 8098
     val server = embeddedServer(Netty, port = port) {
         configureServer(gateway)

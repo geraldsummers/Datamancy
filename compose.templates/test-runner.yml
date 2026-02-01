@@ -100,6 +100,10 @@ services:
     # NOTE: Uses isolated labware socket (/run/labware-docker.sock) intentionally
     #       This socket must be set up separately for labware tests to pass
     #       Provides isolation from main Docker daemon for security
+
+    # Run as host user (1000:1000) to access labware socket owned by gerald:gerald
+    user: "1000:1000"
+
     volumes:
       - /run/labware-docker.sock:/run/labware-docker.sock
 

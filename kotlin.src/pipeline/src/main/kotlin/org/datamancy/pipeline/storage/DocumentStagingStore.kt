@@ -84,11 +84,11 @@ class DocumentStagingStore(
         .host(host)
         .port(ClickHouseProtocol.HTTP, port)
         .credentials(ClickHouseCredentials.fromUserAndPassword(user, password))
-        .addOption(ClickHouseClientOption.SOCKET_TIMEOUT.key, "300000")  // 5 minutes for bulk inserts
-        .addOption(ClickHouseClientOption.MAX_EXECUTION_TIME.key, "300")  // 5 minutes server-side timeout
+        .addOption(ClickHouseClientOption.SOCKET_TIMEOUT.key, "600000")  // 10 minutes for bulk inserts (increased from 5)
+        .addOption(ClickHouseClientOption.MAX_EXECUTION_TIME.key, "600")  // 10 minutes server-side timeout (increased from 5)
         .addOption(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.key, "4")  // Limit threads per client
-        .addOption(ClickHouseClientOption.CONNECTION_TIMEOUT.key, "30000")  // 30s connection timeout
-        .addOption(ClickHouseClientOption.MAX_QUEUED_REQUESTS.key, "50")  // Queue up to 50 requests
+        .addOption(ClickHouseClientOption.CONNECTION_TIMEOUT.key, "60000")  // 60s connection timeout (increased from 30s)
+        .addOption(ClickHouseClientOption.MAX_QUEUED_REQUESTS.key, "100")  // Queue up to 100 requests (increased from 50)
         .build()
 
     private val client = ClickHouseClient.newInstance(node.protocol)

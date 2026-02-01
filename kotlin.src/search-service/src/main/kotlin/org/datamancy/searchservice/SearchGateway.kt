@@ -115,7 +115,17 @@ class SearchGateway(
                 try {
                     searchQdrant(collection, embedding, limit)
                 } catch (e: Exception) {
-                    logger.warn(e) { "Failed to search Qdrant collection: $collection" }
+                    when {
+                        e.message?.contains("doesn't exist", ignoreCase = true) == true -> {
+                            logger.info { "Collection does not exist yet: $collection (skipping)" }
+                        }
+                        e.message?.contains("NOT_FOUND", ignoreCase = true) == true -> {
+                            logger.info { "Collection not found: $collection (skipping)" }
+                        }
+                        else -> {
+                            logger.warn(e) { "Failed to search Qdrant collection: $collection" }
+                        }
+                    }
                     emptyList()
                 }
             }
@@ -351,6 +361,42 @@ class SearchGateway(
         } catch (e: Exception) {
             logger.error(e) { "Failed to list collections" }
             emptyList()
+        }
+    }
+
+    /**
+     * Ensures required Qdrant collections exist. Creates them if missing.
+     * Called on service startup to prevent search failures.
+     */
+    fun ensureCollectionsExist() {
+        val requiredCollections = listOf(
+            "bookstack-docs", "rss_feeds", "cve", "torrents",
+            "wikipedia", "australian_laws", "linux_docs", "debian_wiki", "arch_wiki"
+        )
+
+        logger.info { "Checking existence of ${requiredCollections.size} required collections..." }
+
+        for (collectionName in requiredCollections) {
+            try {
+                // Check if collection exists
+                qdrant.getCollectionInfoAsync(collectionName).get()
+                logger.debug { "Collection exists: $collectionName" }
+            } catch (e: Exception) {
+                // Collection doesn't exist - create it
+                logger.info { "Creating missing collection: $collectionName" }
+                try {
+                    qdrant.createCollectionAsync(
+                        collectionName,
+                        io.qdrant.client.grpc.Collections.VectorParams.newBuilder()
+                            .setSize(1024)  // BGE-M3 embedding size
+                            .setDistance(io.qdrant.client.grpc.Collections.Distance.Cosine)
+                            .build()
+                    ).get()
+                    logger.info { "Created collection: $collectionName" }
+                } catch (createError: Exception) {
+                    logger.warn(createError) { "Failed to create collection $collectionName (may already exist or permissions issue)" }
+                }
+            }
         }
     }
 
