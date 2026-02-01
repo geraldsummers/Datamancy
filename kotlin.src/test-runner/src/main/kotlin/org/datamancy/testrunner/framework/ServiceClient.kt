@@ -122,6 +122,10 @@ class ServiceClient(
         return client.put(url, block)
     }
 
+    suspend fun deleteRaw(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
+        return client.delete(url, block)
+    }
+
     suspend fun queryMariaDB(query: String): MariaDbResult {
         return try {
             val response = client.post("${endpoints.agentToolServer}/call-tool") {

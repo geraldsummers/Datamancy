@@ -93,10 +93,14 @@ session:
       same_site: lax
       expiration: 8h
       inactivity: 1h
-    # Internal Docker network session cookie removed - causes validation error
-    # Authelia requires authelia_url hostname to match cookie domain scope
-    # For internal service-to-service calls, use the main session cookie via Caddy
-    # NOTE: Internal Docker calls (Planka OIDC) should route through Caddy proxy
+    # Internal Docker network session cookie for service-to-service auth
+    # Uses http://authelia:9091 as authelia_url for internal calls
+    - domain: authelia
+      name: authelia_session_internal
+      authelia_url: http://authelia:9091
+      same_site: lax
+      expiration: 8h
+      inactivity: 1h
   # Security: 7 days is safer than 1 month for production
   # If stolen, "remember me" cookie is only valid for 1 week
   remember_me: 7d

@@ -12,13 +12,22 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
     suspend fun seedTestData() {
         println("      [SETUP] Seeding test data into Qdrant...")
 
-        // First, create test collections
+        // First, delete and recreate test collections to ensure correct dimensions (1024 for BGE-M3)
         val collections = listOf("test-docs", "test-market", "test-bookstack")
         for (collection in collections) {
             try {
+                // Delete existing collection (may fail if doesn't exist)
+                client.deleteRaw("${env.endpoints.qdrant}/collections/$collection")
+                println("      ✓ Deleted existing collection: $collection")
+            } catch (e: Exception) {
+                // Collection doesn't exist, that's fine
+            }
+
+            try {
+                // Create collection with 1024 dimensions (BGE-M3 embedding model)
                 val createRequest = buildJsonObject {
                     putJsonObject("vectors") {
-                        put("size", 1024)
+                        put("size", 1024)  // Must match embedding service output (BGE-M3 = 1024-dim)
                         put("distance", "Cosine")
                     }
                 }
@@ -26,8 +35,9 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
                     contentType(ContentType.Application.Json)
                     setBody(createRequest.toString())
                 }
+                println("      ✓ Created collection: $collection (1024-dim)")
             } catch (e: Exception) {
-                // Collection may already exist, ignore
+                println("      ⚠️  Failed to create collection $collection: ${e.message}")
             }
         }
 
