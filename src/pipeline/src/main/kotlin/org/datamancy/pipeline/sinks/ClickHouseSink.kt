@@ -54,8 +54,8 @@ class ClickHouseSink(
         .host(host)
         .port(ClickHouseProtocol.HTTP, port)
         .credentials(ClickHouseCredentials.fromUserAndPassword(user, password))
-        .addOption(ClickHouseClientOption.SOCKET_TIMEOUT.key, "120000")  // 2 minutes for bulk inserts
-        .addOption(ClickHouseClientOption.MAX_EXECUTION_TIME.key, "120")  // 2 minutes server-side timeout
+        .addOption(ClickHouseClientOption.SOCKET_TIMEOUT.key, "300000")  // 5 minutes for bulk inserts
+        .addOption(ClickHouseClientOption.MAX_EXECUTION_TIME.key, "300")  // 5 minutes server-side timeout
         .build()
 
     private val client = ClickHouseClient.newInstance(node.protocol)

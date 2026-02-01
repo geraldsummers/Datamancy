@@ -1,4 +1,4 @@
-vector_size: 768
+vector_size: 1024
 distance: Cosine
 
 # Collections to initialize in Qdrant for vectorized knowledge bases

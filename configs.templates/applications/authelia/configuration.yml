@@ -93,6 +93,13 @@ session:
       same_site: lax
       expiration: 8h
       inactivity: 1h
+    # Internal Docker network session cookie for service-to-service calls
+    - domain: authelia.internal
+      name: authelia_internal_session
+      authelia_url: http://authelia:9091
+      same_site: lax
+      expiration: 8h
+      inactivity: 1h
     # NOTE: Internal Docker calls (Planka OIDC) will fail without proper domain
     # Authelia requires domain with period or IP - "authelia" is invalid
     # Workaround: Route all OIDC through Caddy or use IP address

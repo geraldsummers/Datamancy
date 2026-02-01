@@ -93,3 +93,45 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  postgres-observer-views:
+    image: postgres:16.11
+    container_name: postgres-observer-views
+    restart: no
+    networks:
+      - postgres
+    depends_on:
+      postgres-init:
+        condition: service_completed_successfully
+      grafana:
+        condition: service_healthy
+      planka:
+        condition: service_healthy
+      mastodon-init:
+        condition: service_completed_successfully
+      forgejo:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
+      POSTGRES_USER: postgres
+      PGHOST: postgres
+      PGPORT: 5432
+    volumes:
+      - ./configs/databases/postgres/create-observer-views.sql:/create-observer-views.sql:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        echo "Creating agent_observer views in safe databases..."
+        until pg_isready -h postgres -U postgres; do
+          sleep 2
+        done
+        psql -U postgres -f /create-observer-views.sql || true
+        touch /tmp/views_created
+        echo "Observer views creation complete"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/views_created"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

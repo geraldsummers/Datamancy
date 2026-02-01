@@ -23,6 +23,9 @@ receivers:
         send_resolved: true
         http_config:
           follow_redirects: true
+          basic_auth:
+            username: ${NTFY_USERNAME}
+            password: ${NTFY_PASSWORD}
 
   - name: 'ntfy-critical'
     webhook_configs:
@@ -30,6 +33,9 @@ receivers:
         send_resolved: true
         http_config:
           follow_redirects: true
+          basic_auth:
+            username: ${NTFY_USERNAME}
+            password: ${NTFY_PASSWORD}
 
   - name: 'ntfy-warning'
     webhook_configs:
@@ -37,6 +43,9 @@ receivers:
         send_resolved: true
         http_config:
           follow_redirects: true
+          basic_auth:
+            username: ${NTFY_USERNAME}
+            password: ${NTFY_PASSWORD}
 
 inhibit_rules:
   - source_match:
