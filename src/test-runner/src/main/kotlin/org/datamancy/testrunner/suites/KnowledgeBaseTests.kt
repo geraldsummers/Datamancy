@@ -50,7 +50,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
                     // Should contain error about forbidden operation (may be JSON response)
                     val output = result.output.lowercase()
                     require(output.contains("error") || output.contains("only select")) {
-                        "Expected security error containing 'error' or 'only select', got: ${result.output}"
+                        "Expected error response containing 'error' or 'only select' (case-insensitive), got: ${result.output}"
                     }
                 }
                 is ToolResult.Error -> {

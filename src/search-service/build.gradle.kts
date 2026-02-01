@@ -29,6 +29,13 @@ dependencies {
     // Connection pooling
     implementation("com.zaxxer:HikariCP:5.1.0")
 
+    // LZ4 compression (for ClickHouse)
+    implementation("org.lz4:lz4-java:1.8.0")
+
+    // Apache HTTP Client 5 (for ClickHouse performance)
+    implementation("org.apache.httpcomponents.client5:httpclient5:5.3")
+    implementation("org.apache.httpcomponents.core5:httpcore5:5.2.4")
+
     // HTTP client (for embedding service)
     implementation(libs.okhttp)
 

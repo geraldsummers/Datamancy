@@ -33,7 +33,7 @@ private fun String.toDeterministicUUID(): UUID {
 class QdrantSink(
     qdrantUrl: String,
     private val collectionName: String,
-    private val vectorSize: Int = 1024  // bge-m3
+    private val vectorSize: Int = 768  // bge-m3 default
 ) : Sink<VectorDocument> {
     override val name = "QdrantSink[$collectionName]"
 
