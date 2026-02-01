@@ -5,8 +5,8 @@
 services:
   forgejo-runner:
     build:
-      context: .
-      dockerfile: src/forgejo-runner/Dockerfile
+      context: ./containers.src/forgejo-runner
+      dockerfile: Dockerfile
     image: datamancy/forgejo-runner:3.5.1
     container_name: forgejo-runner
     restart: unless-stopped

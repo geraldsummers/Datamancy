@@ -17,7 +17,7 @@ services:
   integration-test-runner:
     build:
       context: .
-      dockerfile: src/test-runner/Dockerfile
+      dockerfile: ./containers.src/test-runner/Dockerfile
     image: datamancy/test-runner:local-build
     container_name: integration-test-runner
 
