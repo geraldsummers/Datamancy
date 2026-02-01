@@ -30,7 +30,7 @@ class RssSource(
                 val feedInput = SyndFeedInput().apply { isAllowDoctypes = false }
 
                 // Sanitize XML to handle malformed DOCTYPE declarations and unclosed tags (e.g., arXiv feeds)
-                val content = URL(feedUrl).readText()
+                val content = java.net.URI(feedUrl).toURL().readText()
                 bytesDownloaded.addAndGet(content.length.toLong())
                 feedsFetched.incrementAndGet()
 

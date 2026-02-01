@@ -40,7 +40,7 @@ class TorrentsSource(
             val reader: BufferedReader = when {
                 dataPath.startsWith("http://") || dataPath.startsWith("https://") -> {
                     logger.info { "Fetching torrents.csv from URL: $dataPath" }
-                    val connection = URL(dataPath).openConnection()
+                    val connection = java.net.URI(dataPath).toURL().openConnection()
                     val inputStream = connection.getInputStream()
 
                     // Check if gzipped

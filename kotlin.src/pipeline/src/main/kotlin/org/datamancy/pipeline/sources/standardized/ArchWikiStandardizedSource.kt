@@ -89,7 +89,7 @@ class ArchWikiStandardizedSource(
             logger.info { "Downloading Arch Wiki XML dump (117 MB)..." }
 
             val url = "https://archive.org/download/wiki-wikiarchlinuxorg/wikiarchlinuxorg-20200209-history.xml.7z"
-            val connection = java.net.URL(url).openConnection()
+            val connection = java.net.URI(url).toURL().openConnection()
             connection.setRequestProperty("User-Agent", "Datamancy-Pipeline/1.0 (Educational/Research)")
 
             connection.getInputStream().use { input ->

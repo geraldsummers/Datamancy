@@ -93,14 +93,11 @@ session:
       same_site: lax
       expiration: 8h
       inactivity: 1h
-    # Internal Docker network session cookie for service-to-service auth
-    # Uses http://authelia:9091 as authelia_url for internal calls
-    - domain: authelia
-      name: authelia_session_internal
-      authelia_url: http://authelia:9091
-      same_site: lax
-      expiration: 8h
-      inactivity: 1h
+    # Internal Docker network session cookie removed - Authelia v4.39+ validation:
+    # - Cookie domain must contain a period or be an IP (single-label domains like "authelia" are rejected)
+    # - authelia_url must use https:// scheme (http:// is rejected)
+    # For internal service-to-service calls that fail with session errors,
+    # services should route through Caddy proxy (https://auth.{{DOMAIN}}) instead of direct http://authelia:9091
   # Security: 7 days is safer than 1 month for production
   # If stolen, "remember me" cookie is only valid for 1 week
   remember_me: 7d

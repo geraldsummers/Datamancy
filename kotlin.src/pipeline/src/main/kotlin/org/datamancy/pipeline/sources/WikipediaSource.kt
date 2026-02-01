@@ -46,7 +46,7 @@ class WikipediaSource(
             val reader: BufferedReader = when {
                 dumpPath.startsWith("http://") || dumpPath.startsWith("https://") -> {
                     logger.info { "Fetching Wikipedia dump from URL: $dumpPath" }
-                    val connection = URL(dumpPath).openConnection()
+                    val connection = java.net.URI(dumpPath).toURL().openConnection()
                     connection.setRequestProperty("User-Agent", "Datamancy/1.0 (Educational Research)")
                     val inputStream = connection.getInputStream()
 

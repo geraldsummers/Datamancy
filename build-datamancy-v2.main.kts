@@ -863,11 +863,10 @@ ${CYAN}╔═══════════════════════�
     info("Domain: ${sanitized.domain}")
     info("Admin: ${sanitized.adminUser} <${sanitized.adminEmail}>")
 
-    // Clean dist/ completely - DO NOT preserve .env between builds
-    // (preserving .env causes credential mismatches because configs are regenerated)
+    // Fail if dist/ already exists
     if (distDir.exists()) {
-        step("Cleaning dist/ completely")
-        distDir.deleteRecursively()
+        error("dist/ directory already exists. Delete it first to ensure clean build.")
+        exitProcess(1)
     }
     distDir.mkdirs()
 

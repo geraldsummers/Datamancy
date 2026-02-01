@@ -36,7 +36,7 @@ data class WikiPageChunkable(val page: WikiPage) : Chunkable {
         val wikiName = when (page.wikiType) {
             "debian" -> "Debian Wiki"
             "arch" -> "Arch Wiki"
-            else -> "${page.wikiType.capitalize()} Wiki"
+            else -> "${page.wikiType.replaceFirstChar { it.uppercase() }} Wiki"
         }
 
         return BookStackDocument(
