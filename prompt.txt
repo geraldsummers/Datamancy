@@ -8,4 +8,4 @@ GET HYPED WE'RE BUILDING FIRE
 docker compose not docker-compose
 dont edit stuff on the server just fix stuff in the local repo and i'll apply changes to the server!
 dont fix anything just make me a comprehensive error report
-this was freshly deployed from the latest repo just for you!
+this was freshly deployed from the latest repo just for you! NOTE WELL: this stack was deployed COMPLETELY FRESH after very AGGRESSIVE docker cleaning - no state persists from outside of your scope

@@ -29,17 +29,11 @@ class RssSource(
                 logger.info { "Fetching RSS feed: $feedUrl" }
                 val feedInput = SyndFeedInput().apply { isAllowDoctypes = false }
 
-                // Sanitize XML to handle malformed DOCTYPE declarations and unclosed tags (e.g., arXiv feeds)
-                val content = java.net.URI(feedUrl).toURL().readText()
-                bytesDownloaded.addAndGet(content.length.toLong())
-                feedsFetched.incrementAndGet()
-
-                // Remove DOCTYPE and fix common HTML tag issues
-                var sanitized = content.replace(Regex("<!DOCTYPE[^>]*>"), "").trim()
-                // Fix unclosed <hr> tags (common in arXiv feeds)
-                sanitized = sanitized.replace(Regex("<hr\\s*>"), "<hr/>")
-
-                val feed = feedInput.build(java.io.StringReader(sanitized))
+                // Use XmlReader which properly handles redirects and content encoding
+                val feed = XmlReader(URL(feedUrl)).use { reader ->
+                    feedsFetched.incrementAndGet()
+                    feedInput.build(reader)
+                }
 
                 feed.entries.forEach { entry ->
                     val article = RssArticle(

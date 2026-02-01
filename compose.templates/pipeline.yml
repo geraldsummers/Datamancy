@@ -25,6 +25,8 @@ services:
         condition: service_healthy
       embedding-service:
         condition: service_healthy
+      bookstack:
+        condition: service_healthy
     environment:
       # RSS Feed - ENABLED BY DEFAULT
       RSS_SCHEDULE_MINUTES: "60"  # Hourly

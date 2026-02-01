@@ -105,37 +105,37 @@ class WikiSource(
                 .header("User-Agent", "Datamancy-Pipeline/1.0 (Educational/Research Purpose)")
                 .build()
 
-            val response = client.newCall(request).execute()
-
-            if (!response.isSuccessful) {
-                logger.error { "Failed to fetch recent pages: ${response.code}" }
-                return emptyList()
-            }
-
-            val html = response.body?.string() ?: return emptyList()
-            val doc = Jsoup.parse(html, wikiType.baseUrl)
-
-            // Extract page links based on wiki type
-            val links = when (wikiType) {
-                WikiType.DEBIAN -> {
-                    // Debian wiki uses different link format
-                    doc.select("a[href^='/']")
-                        .map { it.attr("abs:href") }
-                        .filter { it.startsWith("${wikiType.baseUrl}/") }
-                        .filter { !it.contains("action=") }
-                        .filter { !it.contains("RecentChanges") }
-                        .distinct()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    logger.error { "Failed to fetch recent pages: ${response.code}" }
+                    return emptyList()
                 }
-                WikiType.ARCH -> {
-                    // Arch wiki recent changes page
-                    doc.select("a.mw-changeslist-title")
-                        .map { it.attr("abs:href") }
-                        .distinct()
-                }
-            }
 
-            pages.addAll(links.take(maxPages * 2))  // Get extra in case some fail
-            logger.info { "Found ${pages.size} candidate pages" }
+                val html = response.body?.string() ?: return emptyList()
+                val doc = Jsoup.parse(html, wikiType.baseUrl)
+
+                // Extract page links based on wiki type
+                val links = when (wikiType) {
+                    WikiType.DEBIAN -> {
+                        // Debian wiki uses different link format
+                        doc.select("a[href^='/']")
+                            .map { it.attr("abs:href") }
+                            .filter { it.startsWith("${wikiType.baseUrl}/") }
+                            .filter { !it.contains("action=") }
+                            .filter { !it.contains("RecentChanges") }
+                            .distinct()
+                    }
+                    WikiType.ARCH -> {
+                        // Arch wiki recent changes page
+                        doc.select("a.mw-changeslist-title")
+                            .map { it.attr("abs:href") }
+                            .distinct()
+                    }
+                }
+
+                pages.addAll(links.take(maxPages * 2))  // Get extra in case some fail
+                logger.info { "Found ${pages.size} candidate pages" }
+            }
 
         } catch (e: Exception) {
             logger.error(e) { "Failed to fetch recent pages: ${e.message}" }
@@ -166,18 +166,18 @@ class WikiSource(
                     .header("User-Agent", "Datamancy-Pipeline/1.0 (Educational/Research Purpose)")
                     .build()
 
-                val response = client.newCall(request).execute()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val html = response.body?.string() ?: return@forEach
+                        val doc = Jsoup.parse(html, wikiType.baseUrl)
 
-                if (response.isSuccessful) {
-                    val html = response.body?.string() ?: return@forEach
-                    val doc = Jsoup.parse(html, wikiType.baseUrl)
+                        val links = doc.select("a[href^='/']")
+                            .map { it.attr("abs:href") }
+                            .filter { it.startsWith("${wikiType.baseUrl}/") }
+                            .filter { !it.contains("action=") }
 
-                    val links = doc.select("a[href^='/']")
-                        .map { it.attr("abs:href") }
-                        .filter { it.startsWith("${wikiType.baseUrl}/") }
-                        .filter { !it.contains("action=") }
-
-                    pages.addAll(links)
+                        pages.addAll(links)
+                    }
                 }
 
             } catch (e: Exception) {
@@ -198,59 +198,59 @@ class WikiSource(
                 .header("User-Agent", "Datamancy-Pipeline/1.0 (Educational/Research Purpose)")
                 .build()
 
-            val response = client.newCall(request).execute()
-
-            if (!response.isSuccessful) {
-                logger.warn { "Failed to fetch page: ${response.code} $url" }
-                return null
-            }
-
-            val html = response.body?.string() ?: return null
-            val doc = Jsoup.parse(html, wikiType.baseUrl)
-
-            // Extract title
-            val title = doc.select("h1#firstHeading, h1.title, h1").firstOrNull()?.text()
-                ?: doc.select("title").firstOrNull()?.text()
-                ?: url.substringAfterLast("/")
-
-            // Extract main content based on wiki type
-            val content = when (wikiType) {
-                WikiType.DEBIAN -> {
-                    // Debian wiki content is in #content div
-                    doc.select("#content, .wiki-content, .page-content").text()
+            return client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    logger.warn { "Failed to fetch page: ${response.code} $url" }
+                    return@use null
                 }
-                WikiType.ARCH -> {
-                    // Arch wiki content is in #mw-content-text
-                    doc.select("#mw-content-text .mw-parser-output").text()
+
+                val html = response.body?.string() ?: return@use null
+                val doc = Jsoup.parse(html, wikiType.baseUrl)
+
+                // Extract title
+                val title = doc.select("h1#firstHeading, h1.title, h1").firstOrNull()?.text()
+                    ?: doc.select("title").firstOrNull()?.text()
+                    ?: url.substringAfterLast("/")
+
+                // Extract main content based on wiki type
+                val content = when (wikiType) {
+                    WikiType.DEBIAN -> {
+                        // Debian wiki content is in #content div
+                        doc.select("#content, .wiki-content, .page-content").text()
+                    }
+                    WikiType.ARCH -> {
+                        // Arch wiki content is in #mw-content-text
+                        doc.select("#mw-content-text .mw-parser-output").text()
+                    }
                 }
+
+                if (content.isBlank() || content.length < 100) {
+                    logger.debug { "Skipping page with insufficient content: $title" }
+                    return@use null
+                }
+
+                // Extract categories/tags
+                val categories = doc.select("a[href*='Category:']")
+                    .map { it.text() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+
+                // Limit content size for embeddings
+                val truncatedContent = if (content.length > 10000) {
+                    content.substring(0, 10000)
+                } else {
+                    content
+                }
+
+                WikiPage(
+                    id = "${wikiType.name.lowercase()}:${url.substringAfterLast("/")}",
+                    title = title,
+                    url = url,
+                    content = truncatedContent,
+                    wikiType = wikiType.displayName,
+                    categories = categories
+                )
             }
-
-            if (content.isBlank() || content.length < 100) {
-                logger.debug { "Skipping page with insufficient content: $title" }
-                return null
-            }
-
-            // Extract categories/tags
-            val categories = doc.select("a[href*='Category:']")
-                .map { it.text() }
-                .filter { it.isNotBlank() }
-                .distinct()
-
-            // Limit content size for embeddings
-            val truncatedContent = if (content.length > 10000) {
-                content.substring(0, 10000)
-            } else {
-                content
-            }
-
-            return WikiPage(
-                id = "${wikiType.name.lowercase()}:${url.substringAfterLast("/")}",
-                title = title,
-                url = url,
-                content = truncatedContent,
-                wikiType = wikiType.displayName,
-                categories = categories
-            )
 
         } catch (e: Exception) {
             logger.error(e) { "Failed to parse page $url: ${e.message}" }
