@@ -19,22 +19,14 @@ fun main() {
     logger.info { "Starting Search Gateway Service..." }
 
     val qdrantUrl = System.getenv("QDRANT_URL") ?: "http://qdrant:6334"
-    val clickhouseUrl = System.getenv("CLICKHOUSE_URL") ?: "http://clickhouse:8123"
+    val postgresJdbcUrl = System.getenv("POSTGRES_JDBC_URL") ?: "jdbc:postgresql://postgres:5432/datamancy"
     val embeddingUrl = System.getenv("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000"
 
     val gateway = SearchGateway(
         qdrantUrl = qdrantUrl,
-        clickhouseUrl = clickhouseUrl,
+        postgresJdbcUrl = postgresJdbcUrl,
         embeddingServiceUrl = embeddingUrl
     )
-
-    // Ensure required collections exist on startup (gracefully handle failures)
-    try {
-        gateway.ensureCollectionsExist()
-        logger.info { "Collection existence check completed" }
-    } catch (e: Exception) {
-        logger.warn(e) { "Failed to verify collections (may not affect operations if collections already exist)" }
-    }
 
     val port = System.getenv("SEARCH_SERVICE_PORT")?.toIntOrNull() ?: 8098
     val server = embeddedServer(Netty, port = port) {
@@ -184,8 +176,8 @@ fun Application.configureServer(gateway: SearchGateway) {
 
                 // Filter results based on audience
                 val filteredResults = when (request.audience) {
-                    "human" -> results.filter { it.capabilities.humanFriendly }
-                    "agent" -> results.filter { it.capabilities.agentFriendly }
+                    "human" -> results.filter { it.capabilities.contains("humanFriendly") }
+                    "agent" -> results.filter { it.capabilities.contains("agentFriendly") }
                     else -> results // "both" or unspecified returns all
                 }
 
@@ -226,8 +218,16 @@ fun Application.configureServer(gateway: SearchGateway) {
         }
 
         get("/collections") {
-            val collections = gateway.listCollections()
-            call.respond(mapOf("collections" to collections))
+            try {
+                val collections = gateway.getCollections()
+                call.respond(mapOf("collections" to collections))
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to list collections" }
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    mapOf("error" to "Failed to list collections")
+                )
+            }
         }
     }
 }

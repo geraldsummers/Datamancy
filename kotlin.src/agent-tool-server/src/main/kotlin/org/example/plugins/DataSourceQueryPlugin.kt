@@ -89,13 +89,6 @@ data class MariaDBConfig(
     val password: String
 )
 
-data class ClickHouseConfig(
-    val host: String,
-    val port: Int,
-    val user: String,
-    val password: String
-)
-
 data class QdrantConfig(
     val host: String,
     val port: Int,
@@ -120,7 +113,6 @@ data class SearchServiceConfig(
 data class DataSourceConfigs(
     val postgresConfig: PostgresConfig? = null,
     val mariadbConfig: MariaDBConfig? = null,
-    val clickhouseConfig: ClickHouseConfig? = null,
     val qdrantConfig: QdrantConfig? = null,
     val ldapConfig: LdapConfig? = null,
     val searchServiceConfig: SearchServiceConfig? = null
@@ -149,16 +141,6 @@ data class DataSourceConfigs(
                     user = env["MARIADB_OBSERVER_USER"] ?: "agent_observer",
                     password = env["MARIADB_OBSERVER_PASSWORD"]
                         ?: throw IllegalStateException("MARIADB_OBSERVER_PASSWORD must be set")
-                )
-            }
-
-            val clickhouseConfig = env["CLICKHOUSE_HOST"]?.let {
-                ClickHouseConfig(
-                    host = it,
-                    port = env["CLICKHOUSE_PORT"]?.toIntOrNull() ?: 8123,
-                    user = env["CLICKHOUSE_OBSERVER_USER"] ?: "default",
-                    password = env["CLICKHOUSE_OBSERVER_PASSWORD"]
-                        ?: throw IllegalStateException("CLICKHOUSE_OBSERVER_PASSWORD must be set")
                 )
             }
 
@@ -195,7 +177,6 @@ data class DataSourceConfigs(
             return DataSourceConfigs(
                 postgresConfig = postgresConfig,
                 mariadbConfig = mariadbConfig,
-                clickhouseConfig = clickhouseConfig,
                 qdrantConfig = qdrantConfig,
                 ldapConfig = ldapConfig,
                 searchServiceConfig = searchServiceConfig
@@ -208,7 +189,7 @@ data class DataSourceConfigs(
  * DataSourceQueryPlugin - Provides LM-friendly tools to query various data sources
  * with read-only observation accounts.
  *
- * Supports: PostgreSQL, MariaDB, ClickHouse, CouchDB, Qdrant, LDAP
+ * Supports: PostgreSQL, MariaDB, Qdrant, LDAP
  */
 class DataSourceQueryPlugin(
     private val configs: DataSourceConfigs = DataSourceConfigs.fromEnvironment()
@@ -216,7 +197,6 @@ class DataSourceQueryPlugin(
     // Connection pools for database connections (prevents connection exhaustion)
     private var postgresPool: HikariDataSource? = null
     private var mariadbPool: HikariDataSource? = null
-    private var clickhousePool: HikariDataSource? = null
 
     override fun manifest() = PluginManifest(
         id = "org.example.plugins.datasource",
@@ -266,27 +246,9 @@ class DataSourceQueryPlugin(
             println("[DataSourceQueryPlugin] MariaDB connection pool initialized")
         }
 
-        configs.clickhouseConfig?.let { config ->
-            val hikariConfig = HikariConfig().apply {
-                jdbcUrl = "jdbc:clickhouse://${config.host}:${config.port}/default"
-                username = config.user
-                password = config.password
-                maximumPoolSize = 5
-                minimumIdle = 1
-                connectionTimeout = 10000
-                idleTimeout = 300000
-                maxLifetime = 600000
-                poolName = "agent-clickhouse-pool"
-                isReadOnly = true
-            }
-            clickhousePool = HikariDataSource(hikariConfig)
-            println("[DataSourceQueryPlugin] ClickHouse connection pool initialized")
-        }
-
         println("[DataSourceQueryPlugin] Initialized with ${listOfNotNull(
             configs.postgresConfig?.let { "postgres" },
             configs.mariadbConfig?.let { "mariadb" },
-            configs.clickhouseConfig?.let { "clickhouse" },
             configs.qdrantConfig?.let { "qdrant" },
             configs.ldapConfig?.let { "ldap" },
             configs.searchServiceConfig?.let { "search-service" }
@@ -296,13 +258,11 @@ class DataSourceQueryPlugin(
     override fun tools(): List<Any> = listOf(Tools(
         configs.postgresConfig,
         configs.mariadbConfig,
-        configs.clickhouseConfig,
         configs.qdrantConfig,
         configs.ldapConfig,
         configs.searchServiceConfig,
         postgresPool,
-        mariadbPool,
-        clickhousePool
+        mariadbPool
     ))
 
     override fun registerTools(registry: ToolRegistry) {
@@ -310,13 +270,11 @@ class DataSourceQueryPlugin(
         val tools = Tools(
             configs.postgresConfig,
             configs.mariadbConfig,
-            configs.clickhouseConfig,
             configs.qdrantConfig,
             configs.ldapConfig,
             configs.searchServiceConfig,
             postgresPool,
-            mariadbPool,
-            clickhousePool
+            mariadbPool
         )
 
         if (configs.postgresConfig != null) {
@@ -359,26 +317,6 @@ class DataSourceQueryPlugin(
                     val database = args.get("database")?.asText() ?: throw IllegalArgumentException("database required")
                     val query = args.get("query")?.asText() ?: throw IllegalArgumentException("query required")
                     tools.query_mariadb(database, query, userContext)
-                }
-            )
-        }
-
-        if (configs.clickhouseConfig != null) {
-            registry.register(
-                ToolDefinition(
-                    name = "query_clickhouse",
-                    description = "Execute read-only query on ClickHouse",
-                    shortDescription = "Query ClickHouse database",
-                    longDescription = "Execute a SELECT query on ClickHouse analytics database. Returns results as JSON.",
-                    parameters = listOf(
-                        ToolParam("query", "string", true, "SQL SELECT query to execute")
-                    ),
-                    paramsSpec = """{"type":"object","required":["query"],"properties":{"query":{"type":"string"}}}""",
-                    pluginId = pluginId
-                ),
-                ToolHandler { args, _ ->
-                    val query = args.get("query")?.asText() ?: throw IllegalArgumentException("query required")
-                    tools.query_clickhouse(query)
                 }
             )
         }
@@ -477,7 +415,6 @@ class DataSourceQueryPlugin(
         try {
             postgresPool?.close()
             mariadbPool?.close()
-            clickhousePool?.close()
             println("[DataSourceQueryPlugin] Connection pools closed successfully")
         } catch (e: Exception) {
             println("[DataSourceQueryPlugin] Error closing connection pools: ${e.message}")
@@ -487,13 +424,11 @@ class DataSourceQueryPlugin(
     internal class Tools(
         private val postgresConfig: PostgresConfig?,
         private val mariadbConfig: MariaDBConfig?,
-        private val clickhouseConfig: ClickHouseConfig?,
         private val qdrantConfig: QdrantConfig?,
         private val ldapConfig: LdapConfig?,
         private val searchServiceConfig: SearchServiceConfig?,
         private val postgresPool: HikariDataSource?,
-        private val mariadbPool: HikariDataSource?,
-        private val clickhousePool: HikariDataSource?
+        private val mariadbPool: HikariDataSource?
     ) {
         private val secretsDir = System.getenv("SHADOW_ACCOUNTS_SECRETS_DIR") ?: "/run/secrets/datamancy"
 
@@ -633,15 +568,6 @@ class DataSourceQueryPlugin(
                 println("[AUDIT] user=${userContext ?: "anonymous"} shadow=$username database=$database query=\"${query.take(100)}\" success=false error=\"${e.message}\"")
                 "ERROR: ${e.message}"
             }
-        }
-
-        @LlmTool(
-            shortDescription = "Query ClickHouse database (DISABLED)",
-            longDescription = "ClickHouse querying is currently disabled. Safe views must be created first to expose only aggregated/public metrics.",
-            paramsSpec = """{"type":"object","required":["query"],"properties":{"query":{"type":"string"}}}"""
-        )
-        fun query_clickhouse(query: String): String {
-            return "ERROR: ClickHouse querying is disabled until safe aggregated views are created. Analytics data may contain sensitive metrics."
         }
 
         @LlmTool(

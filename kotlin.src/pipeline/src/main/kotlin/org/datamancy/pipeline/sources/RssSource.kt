@@ -6,7 +6,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.datamancy.pipeline.core.Source
-import java.net.URL
+import java.net.URI
 import java.util.concurrent.atomic.AtomicLong
 
 private val logger = KotlinLogging.logger {}
@@ -32,9 +32,11 @@ class RssSource(
                 }
 
                 // Use XmlReader which properly handles redirects and content encoding
-                val feed = XmlReader(URL(feedUrl)).use { reader ->
-                    feedsFetched.incrementAndGet()
-                    feedInput.build(reader)
+                val feed = URI(feedUrl).toURL().openStream().use { stream ->
+                    XmlReader(stream).use { reader ->
+                        feedsFetched.incrementAndGet()
+                        feedInput.build(reader)
+                    }
                 }
 
                 feed.entries.forEach { entry ->

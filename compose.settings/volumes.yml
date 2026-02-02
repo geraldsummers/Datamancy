@@ -14,7 +14,7 @@ volumes:
   # Application Data
   alertmanager_data:
   bookstack_data:
-  clickhouse_data:
+  # clickhouse_data removed - migrated to PostgreSQL
   element_data:
   forgejo_data:
   grafana_data:

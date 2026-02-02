@@ -15,7 +15,6 @@ dependencies {
     // JDBC drivers for DataSourceQueryPlugin
     implementation(libs.postgres.jdbc)
     implementation(libs.mariadb.jdbc)
-    implementation(libs.bundles.clickhouse)
     implementation("com.zaxxer:HikariCP:5.1.0")
 
     // SQL parser for query validation

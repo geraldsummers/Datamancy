@@ -10,84 +10,67 @@ import org.junit.jupiter.api.Test
 class SearchGatewayTest {
 
     @Test
-    fun `SearchResult inferContentType identifies bookstack`() {
-        val type = SearchResult.inferContentType("bookstack_docs", "http://bookstack.com", emptyMap())
-        assertEquals("bookstack", type)
-    }
-
-    @Test
     fun `SearchResult inferContentType identifies articles`() {
         val type = SearchResult.inferContentType("rss_feeds", "http://news.com", emptyMap())
         assertEquals("article", type)
     }
 
     @Test
-    fun `SearchResult inferContentType identifies market data`() {
-        val type = SearchResult.inferContentType("market_data", "http://example.com", emptyMap())
-        assertEquals("market", type)
+    fun `SearchResult inferContentType identifies wikipedia`() {
+        val type = SearchResult.inferContentType("wiki", "http://example.com", emptyMap())
+        assertEquals("documentation", type)
     }
 
     @Test
     fun `SearchResult inferContentType identifies CVE`() {
         val type = SearchResult.inferContentType("cve_database", "http://example.com", emptyMap())
-        assertEquals("cve", type)
+        assertEquals("vulnerability", type)
     }
 
     @Test
-    fun `SearchResult inferContentType identifies wikipedia`() {
-        val type = SearchResult.inferContentType("wiki", "http://example.com", emptyMap())
-        assertEquals("wikipedia", type)
+    fun `SearchResult inferContentType identifies legal`() {
+        val type = SearchResult.inferContentType("legal_docs", "http://example.com", emptyMap())
+        assertEquals("legal", type)
     }
 
     @Test
-    fun `SearchResult inferContentType defaults to generic`() {
+    fun `SearchResult inferContentType identifies code`() {
+        val type = SearchResult.inferContentType("code_repo", "http://github.com", emptyMap())
+        assertEquals("code", type)
+    }
+
+    @Test
+    fun `SearchResult inferContentType defaults to document`() {
         val type = SearchResult.inferContentType("unknown_source", "http://example.com", emptyMap())
-        assertEquals("generic", type)
+        assertEquals("document", type)
     }
 
     @Test
-    fun `SearchResult inferCapabilities for bookstack`() {
-        val caps = SearchResult.inferCapabilities("bookstack_docs", "", emptyMap())
+    fun `SearchResult inferCapabilities for URL with linkable`() {
+        val caps = SearchResult.inferCapabilities("test", "http://example.com", emptyMap())
 
-        assertTrue(caps.humanFriendly)
-        assertTrue(caps.agentFriendly)
-        assertTrue(caps.hasRichContent)
-        assertTrue(caps.isInteractive)
+        assertTrue(caps.contains("linkable"))
     }
 
     @Test
-    fun `SearchResult inferCapabilities for market data`() {
-        val caps = SearchResult.inferCapabilities("market_data", "", emptyMap())
+    fun `SearchResult inferCapabilities for URL without URL`() {
+        val caps = SearchResult.inferCapabilities("test", "", emptyMap())
 
-        assertTrue(caps.hasTimeSeries)
-        assertTrue(caps.isStructured)
-        assertFalse(caps.hasRichContent)
+        assertFalse(caps.contains("linkable"))
     }
 
     @Test
-    fun `SearchResult inferCapabilities for CVE`() {
-        val caps = SearchResult.inferCapabilities("cve", "", emptyMap())
+    fun `SearchResult inferCapabilities includes sourced when metadata has source`() {
+        val caps = SearchResult.inferCapabilities("test", "", mapOf("source" to "example"))
 
-        assertTrue(caps.hasRichContent)
-        assertTrue(caps.isStructured)
-        assertTrue(caps.isInteractive)
+        assertTrue(caps.contains("sourced"))
     }
 
     @Test
-    fun `SearchResult inferCapabilities for weather`() {
-        val caps = SearchResult.inferCapabilities("weather_api", "", emptyMap())
+    fun `SearchResult inferCapabilities without source metadata`() {
+        val caps = SearchResult.inferCapabilities("test", "", emptyMap())
 
-        assertTrue(caps.hasTimeSeries)
-        assertTrue(caps.isStructured)
-    }
-
-    @Test
-    fun `SearchResult inferCapabilities defaults`() {
-        val caps = SearchResult.inferCapabilities("unknown", "", emptyMap())
-
-        assertTrue(caps.humanFriendly)
-        assertTrue(caps.agentFriendly)
-        assertFalse(caps.hasRichContent)
+        assertFalse(caps.contains("sourced"))
     }
 
     @Test
@@ -99,11 +82,8 @@ class SearchGatewayTest {
             snippet = "Test snippet",
             score = 0.95,
             metadata = mapOf("key" to "value"),
-            contentType = "generic",
-            capabilities = ContentCapabilities(
-                humanFriendly = true,
-                agentFriendly = true
-            )
+            contentType = "document",
+            capabilities = listOf("linkable")
         )
 
         assertEquals("test_source", result.source)
@@ -111,21 +91,7 @@ class SearchGatewayTest {
         assertEquals("https://example.com", result.url)
         assertEquals(0.95, result.score)
         assertEquals("value", result.metadata["key"])
-    }
-
-    @Test
-    fun `ContentCapabilities data class has sensible defaults`() {
-        val caps = ContentCapabilities(
-            humanFriendly = true,
-            agentFriendly = true
-        )
-
-        assertTrue(caps.humanFriendly)
-        assertTrue(caps.agentFriendly)
-        assertFalse(caps.hasRichContent)
-        assertFalse(caps.isInteractive)
-        assertFalse(caps.hasTimeSeries)
-        assertFalse(caps.isStructured)
+        assertEquals("document", result.contentType)
     }
 
     @Test
@@ -137,11 +103,8 @@ class SearchGatewayTest {
             snippet = "Snippet",
             score = 1.0,
             metadata = emptyMap(),
-            contentType = "generic",
-            capabilities = ContentCapabilities(
-                humanFriendly = true,
-                agentFriendly = true
-            )
+            contentType = "document",
+            capabilities = listOf("linkable")
         )
 
         assertTrue(result.metadata.isEmpty())
@@ -156,11 +119,8 @@ class SearchGatewayTest {
             snippet = "Snippet with \"quotes\" and <tags>",
             score = 0.5,
             metadata = mapOf("key" to "value with 'quotes'"),
-            contentType = "generic",
-            capabilities = ContentCapabilities(
-                humanFriendly = true,
-                agentFriendly = true
-            )
+            contentType = "document",
+            capabilities = listOf("linkable")
         )
 
         assertTrue(result.title.contains("<html>"))

@@ -14,14 +14,14 @@ services:
       - ingestion
     networks:
       - qdrant
-      - clickhouse
+      - postgres  # PostgreSQL for document staging
       - ai
       - internet  # For fetching external data (RSS, CVE, Wikipedia, torrents)
       - mariadb  # For BookStack connectivity
     depends_on:
       qdrant:
         condition: service_healthy
-      clickhouse:
+      postgres:
         condition: service_healthy
       embedding-service:
         condition: service_healthy
@@ -75,9 +75,9 @@ services:
       # Services
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
       QDRANT_URL: http://qdrant:6334
-      CLICKHOUSE_URL: http://clickhouse:8123
-      CLICKHOUSE_USER: datamancy_service
-      CLICKHOUSE_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
+      POSTGRES_USER: datamancer
+      POSTGRES_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
 
       # BookStack integration - ENABLED BY DEFAULT (for wiki presentation)
       BOOKSTACK_ENABLED: "${BOOKSTACK_ENABLED:-true}"

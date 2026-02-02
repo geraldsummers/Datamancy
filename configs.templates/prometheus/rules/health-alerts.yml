@@ -46,7 +46,7 @@ groups:
     interval: 60s
     rules:
       - alert: DatabaseUnhealthy
-        expr: container_health_status{container=~"postgres|mariadb|clickhouse|qdrant"} == 0
+        expr: container_health_status{container=~"postgres|mariadb|qdrant"} == 0
         for: 2m
         labels:
           severity: critical

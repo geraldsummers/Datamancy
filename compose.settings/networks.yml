@@ -18,10 +18,7 @@ networks:
     internal: true
     # MariaDB database access
 
-  clickhouse:
-    driver: bridge
-    internal: true
-    # ClickHouse database access
+  # clickhouse network removed - migrated to PostgreSQL
 
   qdrant:
     driver: bridge

@@ -43,7 +43,6 @@ services:
       authelia:
       postgres:
       mariadb:
-      clickhouse:
       qdrant:
       ldap:
       litellm:

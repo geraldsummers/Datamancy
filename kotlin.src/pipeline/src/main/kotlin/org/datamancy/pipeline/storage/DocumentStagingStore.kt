@@ -186,7 +186,8 @@ class DocumentStagingStore(
         return try {
             transaction {
                 DocumentStagingTable
-                    .select { DocumentStagingTable.embeddingStatus eq EmbeddingStatus.PENDING.name }
+                    .selectAll()
+                    .where { DocumentStagingTable.embeddingStatus eq EmbeddingStatus.PENDING.name }
                     .orderBy(DocumentStagingTable.createdAt to SortOrder.ASC)
                     .limit(limit)
                     .map { row ->
@@ -256,12 +257,12 @@ class DocumentStagingStore(
     suspend fun getStats(): Map<String, Long> {
         return try {
             transaction {
+                val countExpr = DocumentStagingTable.id.count()
                 val stats = DocumentStagingTable
-                    .slice(DocumentStagingTable.embeddingStatus, DocumentStagingTable.embeddingStatus.count())
-                    .selectAll()
+                    .select(DocumentStagingTable.embeddingStatus, countExpr)
                     .groupBy(DocumentStagingTable.embeddingStatus)
                     .associate { row ->
-                        row[DocumentStagingTable.embeddingStatus].lowercase() to row[DocumentStagingTable.embeddingStatus.count()]
+                        row[DocumentStagingTable.embeddingStatus].lowercase() to row[countExpr]
                     }
 
                 mapOf(
@@ -288,12 +289,13 @@ class DocumentStagingStore(
     suspend fun getStatsBySource(source: String): Map<String, Long> {
         return try {
             transaction {
+                val countExpr = DocumentStagingTable.id.count()
                 val stats = DocumentStagingTable
-                    .slice(DocumentStagingTable.embeddingStatus, DocumentStagingTable.embeddingStatus.count())
-                    .select { DocumentStagingTable.sourceName eq source }
+                    .select(DocumentStagingTable.embeddingStatus, countExpr)
+                    .where { DocumentStagingTable.sourceName eq source }
                     .groupBy(DocumentStagingTable.embeddingStatus)
                     .associate { row ->
-                        row[DocumentStagingTable.embeddingStatus].lowercase() to row[DocumentStagingTable.embeddingStatus.count()]
+                        row[DocumentStagingTable.embeddingStatus].lowercase() to row[countExpr]
                     }
 
                 mapOf(
@@ -321,7 +323,8 @@ class DocumentStagingStore(
         return try {
             transaction {
                 DocumentStagingTable
-                    .select {
+                    .selectAll()
+                    .where {
                         (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.PENDING.name) or
                         (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.FAILED.name and
                          (DocumentStagingTable.retryCount less 3))

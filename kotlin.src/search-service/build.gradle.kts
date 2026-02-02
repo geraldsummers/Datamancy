@@ -23,18 +23,15 @@ dependencies {
     // Note: grpc-netty removed - Qdrant client uses grpc-netty-shaded internally
     implementation(libs.guava)
 
-    // ClickHouse JDBC
-    implementation(libs.bundles.clickhouse)
+    // PostgreSQL JDBC for full-text search
+    implementation("org.postgresql:postgresql:42.7.1")
 
     // Connection pooling
     implementation("com.zaxxer:HikariCP:5.1.0")
 
-    // LZ4 compression (for ClickHouse)
-    implementation("org.lz4:lz4-java:1.8.0")
-
-    // Apache HTTP Client 5 (for ClickHouse performance)
-    implementation("org.apache.httpcomponents.client5:httpclient5:5.3")
-    implementation("org.apache.httpcomponents.core5:httpcore5:5.2.4")
+    // Exposed ORM (optional, for easier PostgreSQL queries)
+    implementation("org.jetbrains.exposed:exposed-core:0.47.0")
+    implementation("org.jetbrains.exposed:exposed-jdbc:0.47.0")
 
     // HTTP client (for embedding service)
     implementation(libs.okhttp)

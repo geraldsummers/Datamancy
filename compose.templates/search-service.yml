@@ -12,12 +12,12 @@ services:
     restart: unless-stopped
     networks:
       - qdrant
-      - clickhouse
+      - postgres  # PostgreSQL for search metadata/caching
       - ai
     depends_on:
       qdrant:
         condition: service_healthy
-      clickhouse:
+      postgres:
         condition: service_healthy
       embedding-service:
         condition: service_healthy
@@ -26,10 +26,9 @@ services:
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6334
       QDRANT_API_KEY: ${QDRANT_API_KEY}
-      CLICKHOUSE_HOST: clickhouse
-      CLICKHOUSE_PORT: 8123
-      CLICKHOUSE_USER: ${STACK_ADMIN_USER}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_ADMIN_PASSWORD}
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
+      POSTGRES_USER: datamancer
+      POSTGRES_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
     healthcheck:
       test: ["CMD-SHELL", "timeout 5 wget --quiet --tries=1 -O /dev/null http://127.0.0.1:8098/ || exit 1"]
