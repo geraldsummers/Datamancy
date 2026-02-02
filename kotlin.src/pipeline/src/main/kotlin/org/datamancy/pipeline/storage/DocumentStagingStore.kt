@@ -70,24 +70,24 @@ object DocumentStagingTable : Table("document_staging") {
 class DocumentStagingStore(
     private val jdbcUrl: String,
     private val user: String = "datamancer",
-    private val password: String = ""
+    private val dbPassword: String = ""
 ) : AutoCloseable {
     private val json = Json { ignoreUnknownKeys = true }
     private val dataSource: HikariDataSource
 
     init {
         // DEBUG: Log what we're receiving
-        logger.info { "DocumentStagingStore init: jdbcUrl=$jdbcUrl, user=$user, password.length=${password.length}" }
+        logger.info { "DocumentStagingStore init: jdbcUrl=$jdbcUrl, user=$user, password.length=${dbPassword.length}" }
 
         // Configure HikariCP connection pool
         val config = HikariConfig().apply {
             // Use explicit setter syntax to avoid shadowing issues
             setJdbcUrl(this@DocumentStagingStore.jdbcUrl)
             setUsername(user)
-            setPassword(password)
+            setPassword(dbPassword)
 
             // DEBUG: Verify what was set
-            logger.info { "HikariConfig: jdbcUrl=$jdbcUrl, username=$username, password.length=${password?.length ?: 0}" }
+            logger.info { "HikariConfig: jdbcUrl=$jdbcUrl, username=$username, password.length=${dbPassword.length}" }
             // Auto-detect driver based on JDBC URL
             driverClassName = when {
                 this@DocumentStagingStore.jdbcUrl.startsWith("jdbc:postgresql") -> "org.postgresql.Driver"

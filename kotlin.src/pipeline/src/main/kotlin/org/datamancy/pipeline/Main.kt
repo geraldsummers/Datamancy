@@ -31,7 +31,7 @@ fun main() {
     val stagingStore = DocumentStagingStore(
         jdbcUrl = config.postgres.jdbcUrl,
         user = config.postgres.user,
-        password = config.postgres.password
+        dbPassword = config.postgres.password
     )
     logger.info { "📦 PostgreSQL document staging initialized: ${config.postgres.jdbcUrl}" }
 

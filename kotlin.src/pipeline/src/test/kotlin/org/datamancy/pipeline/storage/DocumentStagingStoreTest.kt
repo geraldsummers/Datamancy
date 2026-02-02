@@ -24,7 +24,7 @@ class DocumentStagingStoreTest {
             stagingStore = DocumentStagingStore(
                 jdbcUrl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
                 user = "sa",
-                password = ""
+                dbPassword = ""
             )
         }
 
