@@ -306,7 +306,7 @@ class SearchGateway(
      * Gets embedding vector for query text from embedding service.
      */
     private suspend fun getEmbedding(text: String): List<Float> = withContext(Dispatchers.IO) {
-        val requestBody = gson.toJson(mapOf("text" to text))
+        val requestBody = gson.toJson(mapOf("inputs" to text))
         val request = Request.Builder()
             .url("$embeddingServiceUrl/embed")
             .post(requestBody.toRequestBody(jsonMediaType))
