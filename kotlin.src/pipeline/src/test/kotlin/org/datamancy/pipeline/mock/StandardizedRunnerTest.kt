@@ -77,7 +77,7 @@ class StandardizedRunnerTest {
         // When: Runner processes source
         testRunner.run()
 
-        // Then: Item should be staged to ClickHouse
+        // Then: Item should be staged to PostgreSQL
         coVerify(exactly = 1) {
             mockStagingStore.stageBatch(match { docs ->
                 docs.size == 1 &&

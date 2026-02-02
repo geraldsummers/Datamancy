@@ -27,13 +27,13 @@ fun main() {
     val dedupStore = DeduplicationStore()
     val metadataStore = SourceMetadataStore()
 
-    // NEW: Initialize ClickHouse document staging store
+    // NEW: Initialize PostgreSQL document staging store
     val stagingStore = DocumentStagingStore(
-        clickhouseUrl = config.clickhouse.url,
-        user = config.clickhouse.user,
-        password = config.clickhouse.password
+        jdbcUrl = config.postgres.jdbcUrl,
+        user = config.postgres.user,
+        password = config.postgres.password
     )
-    logger.info { "📦 ClickHouse document staging initialized: ${config.clickhouse.url}" }
+    logger.info { "📦 PostgreSQL document staging initialized: ${config.postgres.jdbcUrl}" }
 
     // Add shutdown hook for graceful cleanup
     Runtime.getRuntime().addShutdownHook(Thread {
@@ -110,9 +110,9 @@ fun main() {
 
         delay(1000)
 
-        // Launch all standardized sources (now they stage to ClickHouse instead of direct embedding)
+        // Launch all standardized sources (now they stage to PostgreSQL instead of direct embedding)
         if (config.rss.enabled) {
-            launch { runStandardizedSource("RSS", config.qdrant.rssCollection, config, stagingStore, dedupStore, metadataStore, bookStackSink) {
+            launch { runStandardizedSource("RSS", config.qdrant.rssCollection, config, stagingStore, dedupStore, metadataStore) {
                 RssStandardizedSource(
                     feedUrls = config.rss.feedUrls,
                     backfillDays = 7
@@ -121,7 +121,7 @@ fun main() {
         }
 
         if (config.cve.enabled) {
-            launch { runStandardizedSource("CVE", config.qdrant.cveCollection, config, stagingStore, dedupStore, metadataStore, bookStackSink) {
+            launch { runStandardizedSource("CVE", config.qdrant.cveCollection, config, stagingStore, dedupStore, metadataStore) {
                 CveStandardizedSource(
                     apiKey = config.cve.apiKey,
                     maxResults = config.cve.maxResults
@@ -130,7 +130,7 @@ fun main() {
         }
 
         if (config.torrents.enabled) {
-            launch { runStandardizedSource("Torrents", config.qdrant.torrentsCollection, config, stagingStore, dedupStore, metadataStore, bookStackSink) {
+            launch { runStandardizedSource("Torrents", config.qdrant.torrentsCollection, config, stagingStore, dedupStore, metadataStore) {
                 TorrentsStandardizedSource(
                     dataPath = config.torrents.dataPath,
                     maxTorrents = config.torrents.maxResults
@@ -139,7 +139,7 @@ fun main() {
         }
 
         if (config.wikipedia.enabled) {
-            launch { runStandardizedSource("Wikipedia", config.qdrant.wikipediaCollection, config, stagingStore, dedupStore, metadataStore, bookStackSink) {
+            launch { runStandardizedSource("Wikipedia", config.qdrant.wikipediaCollection, config, stagingStore, dedupStore, metadataStore) {
                 WikipediaStandardizedSource(
                     dumpUrl = config.wikipedia.dumpPath,
                     maxArticles = config.wikipedia.maxArticles
@@ -148,7 +148,7 @@ fun main() {
         }
 
         if (config.australianLaws.enabled) {
-            launch { runStandardizedSource("Australian Laws", config.qdrant.australianLawsCollection, config, stagingStore, dedupStore, metadataStore, bookStackSink) {
+            launch { runStandardizedSource("Australian Laws", config.qdrant.australianLawsCollection, config, stagingStore, dedupStore, metadataStore) {
                 OpenAustralianLegalCorpusStandardizedSource(
                     cacheDir = "/data/australian-legal-corpus",
                     jurisdictions = if (config.australianLaws.jurisdictions.isNotEmpty())
@@ -159,7 +159,7 @@ fun main() {
         }
 
         if (config.linuxDocs.enabled) {
-            launch { runStandardizedSource("Linux Docs", config.qdrant.linuxDocsCollection, config, stagingStore, dedupStore, metadataStore, bookStackSink) {
+            launch { runStandardizedSource("Linux Docs", config.qdrant.linuxDocsCollection, config, stagingStore, dedupStore, metadataStore) {
                 LinuxDocsStandardizedSource(
                     sources = config.linuxDocs.sources.mapNotNull {
                         try {
@@ -174,7 +174,7 @@ fun main() {
         if (config.wiki.enabled) {
             // Launch Debian Wiki
             if (config.wiki.wikiTypes.any { it.equals("debian", ignoreCase = true) }) {
-                launch { runStandardizedSource("Debian Wiki", config.qdrant.debianWikiCollection, config, stagingStore, dedupStore, metadataStore, bookStackSink) {
+                launch { runStandardizedSource("Debian Wiki", config.qdrant.debianWikiCollection, config, stagingStore, dedupStore, metadataStore) {
                     DebianWikiStandardizedSource(
                         maxPages = config.wiki.maxPagesPerWiki,
                         categories = config.wiki.categories
@@ -184,12 +184,26 @@ fun main() {
 
             // Launch Arch Wiki
             if (config.wiki.wikiTypes.any { it.equals("arch", ignoreCase = true) }) {
-                launch { runStandardizedSource("Arch Wiki", config.qdrant.archWikiCollection, config, stagingStore, dedupStore, metadataStore, bookStackSink) {
+                launch { runStandardizedSource("Arch Wiki", config.qdrant.archWikiCollection, config, stagingStore, dedupStore, metadataStore) {
                     ArchWikiStandardizedSource(
                         maxPages = config.wiki.maxPagesPerWiki,
                         categories = config.wiki.categories
                     )
                 } }
+            }
+        }
+
+        // Launch BookStack writer if enabled
+        if (bookStackSink != null) {
+            launch {
+                logger.info { "🚀 Starting BookStack writer..." }
+                val bookStackWriter = org.datamancy.pipeline.workers.BookStackWriter(
+                    stagingStore = stagingStore,
+                    bookStackSink = bookStackSink,
+                    pollIntervalSeconds = 5,
+                    batchSize = 50
+                )
+                bookStackWriter.start()
             }
         }
 
@@ -202,16 +216,15 @@ fun main() {
  * Generic function to run any standardized source
  * All sources go through StandardizedRunner - no more ad-hoc loops!
  *
- * NEW: Uses decoupled architecture - stages to ClickHouse instead of direct embedding
+ * NEW: Uses decoupled architecture - stages to PostgreSQL instead of direct embedding
  */
 suspend fun <T : org.datamancy.pipeline.core.Chunkable> runStandardizedSource(
     displayName: String,
     collectionName: String,              // Explicit collection name
     config: PipelineConfig,
-    stagingStore: DocumentStagingStore,  // NEW: ClickHouse staging
+    stagingStore: DocumentStagingStore,  // NEW: PostgreSQL staging
     dedupStore: DeduplicationStore,
     metadataStore: SourceMetadataStore,
-    bookStackSink: BookStackSink?,
     sourceFactory: () -> org.datamancy.pipeline.core.StandardizedSource<T>
 ) {
     logger.info { "Launching $displayName pipeline with standardized runner (DECOUPLED)" }
@@ -223,8 +236,7 @@ suspend fun <T : org.datamancy.pipeline.core.Chunkable> runStandardizedSource(
         collectionName = collectionName,
         stagingStore = stagingStore,
         dedupStore = dedupStore,
-        metadataStore = metadataStore,
-        bookStackSink = bookStackSink
+        metadataStore = metadataStore
     )
 
     runner.run()

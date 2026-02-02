@@ -1,31 +1,18 @@
 package org.datamancy.pipeline.storage
 
-import com.clickhouse.client.ClickHouseClient
-import com.clickhouse.client.ClickHouseCredentials
-import com.clickhouse.client.ClickHouseNode
-import com.clickhouse.client.ClickHouseProtocol
-import com.clickhouse.client.config.ClickHouseClientOption
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.dao.id.IntIdTable
+import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.javatime.timestamp
+import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.plus
 import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
-
-/**
- * Escape all special characters for ClickHouse string literals
- * Reference: https://clickhouse.com/docs/en/sql-reference/syntax#string
- */
-private fun String.escapeClickHouseString(): String {
-    return this
-        .replace("\\", "\\\\")   // Backslash (must be first)
-        .replace("'", "\\'")      // Single quote
-        .replace("\n", "\\n")     // Newline
-        .replace("\r", "\\r")     // Carriage return
-        .replace("\t", "\\t")     // Tab
-        .replace("\b", "\\b")     // Backspace
-        .replace("\u0000", "")    // Remove null bytes (invalid in strings)
-}
 
 /**
  * Status tracking for documents in the embedding pipeline
@@ -38,7 +25,7 @@ enum class EmbeddingStatus {
 }
 
 /**
- * Document staging in ClickHouse
+ * Document staging in PostgreSQL
  * Decouples scraping from embedding - stores raw documents and tracks embedding progress
  */
 data class StagedDocument(
@@ -57,98 +44,97 @@ data class StagedDocument(
 )
 
 /**
- * ClickHouse-backed document staging store
+ * Exposed table definition for document staging
+ */
+object DocumentStagingTable : Table("document_staging") {
+    val id = varchar("id", 500)
+    val sourceName = varchar("source", 255)
+    val collection = varchar("collection", 255)
+    val text = text("text")
+    val metadata = text("metadata")  // JSON-encoded
+    val embeddingStatus = varchar("embedding_status", 50)
+    val chunkIndex = integer("chunk_index").nullable()
+    val totalChunks = integer("total_chunks").nullable()
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    val retryCount = integer("retry_count").default(0)
+    val errorMessage = text("error_message").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+/**
+ * PostgreSQL-backed document staging store using Exposed ORM
  * Handles buffering scraped documents and tracking embedding progress
- * Implements Closeable for proper resource cleanup
  */
 class DocumentStagingStore(
-    clickhouseUrl: String,
-    private val user: String = "default",
+    private val jdbcUrl: String,
+    private val user: String = "datamancer",
     private val password: String = ""
 ) : AutoCloseable {
-    private val host: String
-    private val port: Int
     private val json = Json { ignoreUnknownKeys = true }
+    private val dataSource: HikariDataSource
 
     init {
-        val urlParts = clickhouseUrl
-            .removePrefix("http://")
-            .removePrefix("https://")
-            .split(":")
+        // Configure HikariCP connection pool
+        val config = HikariConfig().apply {
+            this.jdbcUrl = this@DocumentStagingStore.jdbcUrl
+            this.username = user
+            this.password = password
+            // Auto-detect driver based on JDBC URL
+            driverClassName = when {
+                this@DocumentStagingStore.jdbcUrl.startsWith("jdbc:postgresql") -> "org.postgresql.Driver"
+                this@DocumentStagingStore.jdbcUrl.startsWith("jdbc:h2") -> "org.h2.Driver"
+                else -> "org.postgresql.Driver"
+            }
 
-        host = urlParts[0]
-        port = urlParts.getOrNull(1)?.toIntOrNull() ?: 8123
-    }
+            // Connection pool settings
+            maximumPoolSize = 20
+            minimumIdle = 5
+            connectionTimeout = 30000  // 30 seconds
+            idleTimeout = 600000       // 10 minutes
+            maxLifetime = 1800000      // 30 minutes
 
-    private val node = ClickHouseNode.builder()
-        .host(host)
-        .port(ClickHouseProtocol.HTTP, port)
-        .credentials(ClickHouseCredentials.fromUserAndPassword(user, password))
-        // Timeouts - critical for preventing long-running operations
-        .addOption(ClickHouseClientOption.SOCKET_TIMEOUT.key, "600000")  // 10 minutes socket timeout
-        .addOption(ClickHouseClientOption.MAX_EXECUTION_TIME.key, "600")  // 10 minutes server-side timeout
-        .addOption(ClickHouseClientOption.CONNECTION_TIMEOUT.key, "10000")  // 10s connection establish (fail fast)
-        // Keep-alive for connection reuse
-        .addOption("socket_keepalive", "true")  // Enable TCP keep-alive
-        // Async insert for better throughput
-        .addOption("async_insert", "1")  // ClickHouse buffers inserts internally
-        .addOption("wait_for_async_insert", "0")  // Fire-and-forget
-        .build()
+            // Performance
+            isAutoCommit = true
+            transactionIsolation = "TRANSACTION_READ_COMMITTED"
 
-    companion object {
-        // Shared client instance - reuses connection pool across all DocumentStagingStore instances
-        // Configure Apache HTTP Client pool via system properties BEFORE client creation
-        private val sharedClient: ClickHouseClient by lazy {
-            logger.info { "Configuring Apache HTTP Client connection pool (max 100 connections)" }
-
-            // Set system properties for Apache HTTP Client 5 connection pool
-            // These MUST be set before the client is instantiated
-            System.setProperty("http.maxConnections", "100")  // Deprecated but still works
-            System.setProperty("http.keepAlive", "true")
-
-            // For ClickHouse's internal Apache HTTP Client, these are the environment variables it checks:
-            System.setProperty("clickhouse.client.http.max_open_connections", "100")
-            System.setProperty("clickhouse.client.http.connection_ttl", "300000")  // 5 minutes
-            System.setProperty("clickhouse.client.http.keep_alive_timeout", "300000")  // 5 minutes
-
-            logger.info { "Creating shared ClickHouse HTTP client (v0.9.6)" }
-            ClickHouseClient.newInstance(ClickHouseProtocol.HTTP)
+            // Validation
+            connectionTestQuery = "SELECT 1"
+            validationTimeout = 5000
         }
-    }
 
-    private val client = sharedClient
+        dataSource = HikariDataSource(config)
+        Database.connect(dataSource)
 
-    init {
+        logger.info { "Connected to PostgreSQL: $jdbcUrl (HikariCP pool size: ${config.maximumPoolSize})" }
+
         ensureTableExists()
     }
 
     private fun ensureTableExists() {
         try {
-            logger.info { "Ensuring ClickHouse document staging table exists" }
+            transaction {
+                SchemaUtils.createMissingTablesAndColumns(DocumentStagingTable)
 
-            val createTableSQL = """
-                CREATE TABLE IF NOT EXISTS document_staging (
-                    id String,
-                    source String,
-                    collection String,
-                    text String,
-                    metadata String,  -- JSON encoded
-                    embedding_status String,
-                    chunk_index Nullable(Int32),
-                    total_chunks Nullable(Int32),
-                    created_at DateTime64(3),
-                    updated_at DateTime64(3),
-                    retry_count UInt8,
-                    error_message Nullable(String)
-                ) ENGINE = MergeTree()
-                PARTITION BY (source, toYYYYMM(created_at))
-                ORDER BY (source, embedding_status, created_at, id)
-                SETTINGS index_granularity = 8192
-            """.trimIndent()
+                // Create indexes for performance (only in production PostgreSQL)
+                // Skip index creation for H2 test database to avoid compatibility issues
+                if (jdbcUrl.startsWith("jdbc:postgresql")) {
+                    // PostgreSQL supports partial indexes with WHERE clause
+                    exec("""
+                        CREATE INDEX IF NOT EXISTS idx_staging_status_created
+                        ON document_staging(embedding_status, created_at)
+                        WHERE embedding_status = 'PENDING'
+                    """.trimIndent())
 
-            client.read(node).query(createTableSQL).executeAndWait()
-            logger.info { "ClickHouse document_staging table ready" }
+                    exec("""
+                        CREATE INDEX IF NOT EXISTS idx_staging_source
+                        ON document_staging(source)
+                    """.trimIndent())
+                }
+            }
 
+            logger.info { "PostgreSQL document_staging table ready" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to create document_staging table: ${e.message}" }
             throw e
@@ -163,67 +149,30 @@ class DocumentStagingStore(
     }
 
     /**
-     * Stage multiple documents in batch (much faster)
-     * Uses ClickHouse VALUES format with proper escaping
-     * Automatically chunks large batches to avoid connection pool exhaustion
+     * Stage multiple documents in batch (much faster than individual inserts)
      */
     suspend fun stageBatch(docs: List<StagedDocument>) {
         if (docs.isEmpty()) return
 
-        // Chunk large batches to avoid holding connections for too long
-        // 5000 docs per batch is a good balance between throughput and connection time
-        val chunkSize = 5000
-        if (docs.size > chunkSize) {
-            logger.info { "Chunking ${docs.size} documents into batches of $chunkSize" }
-            docs.chunked(chunkSize).forEach { chunk ->
-                stageBatchInternal(chunk)
-            }
-            logger.info { "Staged total of ${docs.size} documents in ${(docs.size + chunkSize - 1) / chunkSize} batches" }
-        } else {
-            stageBatchInternal(docs)
-        }
-    }
-
-    /**
-     * Internal method to stage a single batch (should be <= 5000 docs)
-     */
-    private suspend fun stageBatchInternal(docs: List<StagedDocument>) {
-        if (docs.isEmpty()) return
-
         try {
-            // Build VALUES clauses with proper ClickHouse string escaping
-            val values = docs.joinToString(",\n") { doc ->
-                val metadataJson = json.encodeToString(doc.metadata).escapeClickHouseString()
-                val errorMsg = (doc.errorMessage ?: "").escapeClickHouseString()
-                val text = doc.text.escapeClickHouseString()
-
-                """
-                (
-                    '${doc.id.escapeClickHouseString()}',
-                    '${doc.source.escapeClickHouseString()}',
-                    '${doc.collection.escapeClickHouseString()}',
-                    '$text',
-                    '$metadataJson',
-                    '${doc.embeddingStatus.name}',
-                    ${doc.chunkIndex ?: "NULL"},
-                    ${doc.totalChunks ?: "NULL"},
-                    toDateTime64(${doc.createdAt.toEpochMilli()}, 3),
-                    toDateTime64(${doc.updatedAt.toEpochMilli()}, 3),
-                    ${doc.retryCount},
-                    ${if (errorMsg.isEmpty()) "NULL" else "'$errorMsg'"}
-                )
-                """.trimIndent()
+            transaction {
+                DocumentStagingTable.batchInsert(docs) { doc ->
+                    this[DocumentStagingTable.id] = doc.id
+                    this[DocumentStagingTable.sourceName] = doc.source
+                    this[DocumentStagingTable.collection] = doc.collection
+                    this[DocumentStagingTable.text] = doc.text
+                    this[DocumentStagingTable.metadata] = json.encodeToString(doc.metadata)
+                    this[DocumentStagingTable.embeddingStatus] = doc.embeddingStatus.name
+                    this[DocumentStagingTable.chunkIndex] = doc.chunkIndex
+                    this[DocumentStagingTable.totalChunks] = doc.totalChunks
+                    this[DocumentStagingTable.createdAt] = doc.createdAt
+                    this[DocumentStagingTable.updatedAt] = doc.updatedAt
+                    this[DocumentStagingTable.retryCount] = doc.retryCount
+                    this[DocumentStagingTable.errorMessage] = doc.errorMessage
+                }
             }
 
-            val insertSQL = """
-                INSERT INTO document_staging
-                (id, source, collection, text, metadata, embedding_status, chunk_index, total_chunks, created_at, updated_at, retry_count, error_message)
-                VALUES $values
-            """.trimIndent()
-
-            client.read(node).query(insertSQL).executeAndWait()
             logger.info { "Staged ${docs.size} documents" }
-
         } catch (e: Exception) {
             logger.error(e) { "Failed to stage batch: ${e.message}" }
             throw e
@@ -234,64 +183,44 @@ class DocumentStagingStore(
      * Get pending documents ready for embedding (limited batch)
      */
     suspend fun getPendingBatch(limit: Int = 100): List<StagedDocument> {
-        try {
-            val selectSQL = """
-                SELECT
-                    id, source, collection, text, metadata,
-                    embedding_status, chunk_index, total_chunks,
-                    created_at, updated_at, retry_count, error_message
-                FROM document_staging
-                WHERE embedding_status = 'PENDING'
-                ORDER BY created_at ASC
-                LIMIT $limit
-            """.trimIndent()
-
-            val response = client.read(node).query(selectSQL).executeAndWait()
-            val documents = mutableListOf<StagedDocument>()
-
-            response.use { result ->
-                result.records().forEach { record ->
-                    try {
-                        val metadata = record.getValue("metadata").asString()
-                        val metadataMap = if (metadata.isNotBlank()) {
-                            json.decodeFromString<Map<String, String>>(metadata)
+        return try {
+            transaction {
+                DocumentStagingTable
+                    .select { DocumentStagingTable.embeddingStatus eq EmbeddingStatus.PENDING.name }
+                    .orderBy(DocumentStagingTable.createdAt to SortOrder.ASC)
+                    .limit(limit)
+                    .map { row ->
+                        val metadataStr = row[DocumentStagingTable.metadata]
+                        val metadata = if (metadataStr.isNotBlank()) {
+                            json.decodeFromString<Map<String, String>>(metadataStr)
                         } else {
                             emptyMap()
                         }
 
-                        val doc = StagedDocument(
-                            id = record.getValue("id").asString(),
-                            source = record.getValue("source").asString(),
-                            collection = record.getValue("collection").asString(),
-                            text = record.getValue("text").asString(),
-                            metadata = metadataMap,
-                            embeddingStatus = EmbeddingStatus.valueOf(record.getValue("embedding_status").asString()),
-                            chunkIndex = if (record.getValue("chunk_index").isNullOrEmpty) null else record.getValue("chunk_index").asInteger(),
-                            totalChunks = if (record.getValue("total_chunks").isNullOrEmpty) null else record.getValue("total_chunks").asInteger(),
-                            createdAt = Instant.parse(record.getValue("created_at").asString()),
-                            updatedAt = Instant.parse(record.getValue("updated_at").asString()),
-                            retryCount = record.getValue("retry_count").asInteger(),
-                            errorMessage = if (record.getValue("error_message").isNullOrEmpty) null else record.getValue("error_message").asString()
+                        StagedDocument(
+                            id = row[DocumentStagingTable.id],
+                            source = row[DocumentStagingTable.sourceName],
+                            collection = row[DocumentStagingTable.collection],
+                            text = row[DocumentStagingTable.text],
+                            metadata = metadata,
+                            embeddingStatus = EmbeddingStatus.valueOf(row[DocumentStagingTable.embeddingStatus]),
+                            chunkIndex = row[DocumentStagingTable.chunkIndex],
+                            totalChunks = row[DocumentStagingTable.totalChunks],
+                            createdAt = row[DocumentStagingTable.createdAt],
+                            updatedAt = row[DocumentStagingTable.updatedAt],
+                            retryCount = row[DocumentStagingTable.retryCount],
+                            errorMessage = row[DocumentStagingTable.errorMessage]
                         )
-                        documents.add(doc)
-                    } catch (e: Exception) {
-                        logger.warn(e) { "Failed to parse document record, skipping" }
                     }
-                }
             }
-
-            logger.debug { "Retrieved ${documents.size} pending documents" }
-            return documents
-
         } catch (e: Exception) {
             logger.error(e) { "Failed to get pending batch: ${e.message}" }
-            return emptyList()
+            emptyList()
         }
     }
 
     /**
      * Update document status (e.g. PENDING → IN_PROGRESS → COMPLETED)
-     * Uses mutations which are safer than string concatenation
      */
     suspend fun updateStatus(
         id: String,
@@ -300,32 +229,22 @@ class DocumentStagingStore(
         incrementRetry: Boolean = false
     ) {
         try {
-            // Build UPDATE mutations using CSV format for value safety
-            val updates = mutableListOf<String>()
-            updates.add("embedding_status = '${newStatus.name}'")
-            updates.add("updated_at = toDateTime64(${Instant.now().toEpochMilli()}, 3)")
+            transaction {
+                DocumentStagingTable.update({ DocumentStagingTable.id eq id }) {
+                    it[embeddingStatus] = newStatus.name
+                    it[updatedAt] = Instant.now()
 
-            if (errorMessage != null) {
-                // Use ClickHouse-escaped format for error message
-                val escapedMsg = errorMessage.escapeClickHouseString()
-                updates.add("error_message = '$escapedMsg'")
+                    if (errorMessage != null) {
+                        it[DocumentStagingTable.errorMessage] = errorMessage
+                    }
+
+                    if (incrementRetry) {
+                        it[retryCount] = DocumentStagingTable.retryCount + 1
+                    }
+                }
             }
 
-            if (incrementRetry) {
-                updates.add("retry_count = retry_count + 1")
-            }
-
-            // Use hash of ID for WHERE clause (safer than raw string)
-            val idHash = id.hashCode()
-            val updateSQL = """
-                ALTER TABLE document_staging
-                UPDATE ${updates.joinToString(", ")}
-                WHERE cityHash64(id) = cityHash64('${id.take(100)}')
-            """.trimIndent()
-
-            client.read(node).query(updateSQL).executeAndWait()
             logger.debug { "Updated status for $id: $newStatus" }
-
         } catch (e: Exception) {
             logger.error(e) { "Failed to update status: ${e.message}" }
         }
@@ -335,38 +254,26 @@ class DocumentStagingStore(
      * Get stats for monitoring dashboard
      */
     suspend fun getStats(): Map<String, Long> {
-        try {
-            val statsSQL = """
-                SELECT
-                    embedding_status,
-                    count() as count
-                FROM document_staging
-                GROUP BY embedding_status
-            """.trimIndent()
+        return try {
+            transaction {
+                val stats = DocumentStagingTable
+                    .slice(DocumentStagingTable.embeddingStatus, DocumentStagingTable.embeddingStatus.count())
+                    .selectAll()
+                    .groupBy(DocumentStagingTable.embeddingStatus)
+                    .associate { row ->
+                        row[DocumentStagingTable.embeddingStatus].lowercase() to row[DocumentStagingTable.embeddingStatus.count()]
+                    }
 
-            val response = client.read(node).query(statsSQL).executeAndWait()
-            val stats = mutableMapOf<String, Long>()
-
-            response.use { result ->
-                result.records().forEach { record ->
-                    // Use column index instead of name to avoid JDBC driver column resolution issues
-                    val status = record.getValue(0).asString().lowercase()
-                    val count = record.getValue(1).asLong()
-                    stats[status] = count
-                }
+                mapOf(
+                    "pending" to (stats["pending"] ?: 0L),
+                    "in_progress" to (stats["in_progress"] ?: 0L),
+                    "completed" to (stats["completed"] ?: 0L),
+                    "failed" to (stats["failed"] ?: 0L)
+                )
             }
-
-            // Ensure all statuses are present (with 0 if missing)
-            return mapOf(
-                "pending" to (stats["pending"] ?: 0L),
-                "in_progress" to (stats["in_progress"] ?: 0L),
-                "completed" to (stats["completed"] ?: 0L),
-                "failed" to (stats["failed"] ?: 0L)
-            )
-
         } catch (e: Exception) {
             logger.error(e) { "Failed to get stats: ${e.message}" }
-            return mapOf(
+            mapOf(
                 "pending" to 0L,
                 "in_progress" to 0L,
                 "completed" to 0L,
@@ -376,44 +283,29 @@ class DocumentStagingStore(
     }
 
     /**
-     * Get stats by source (safe parameterized query)
+     * Get stats by source
      */
     suspend fun getStatsBySource(source: String): Map<String, Long> {
-        try {
-            // Use hash matching for safer querying
-            val sanitizedSource = source.take(100).escapeClickHouseString()
-            val statsSQL = """
-                SELECT
-                    embedding_status,
-                    count() as count
-                FROM document_staging
-                WHERE cityHash64(source) = cityHash64('$sanitizedSource')
-                GROUP BY embedding_status
-            """.trimIndent()
+        return try {
+            transaction {
+                val stats = DocumentStagingTable
+                    .slice(DocumentStagingTable.embeddingStatus, DocumentStagingTable.embeddingStatus.count())
+                    .select { DocumentStagingTable.sourceName eq source }
+                    .groupBy(DocumentStagingTable.embeddingStatus)
+                    .associate { row ->
+                        row[DocumentStagingTable.embeddingStatus].lowercase() to row[DocumentStagingTable.embeddingStatus.count()]
+                    }
 
-            val response = client.read(node).query(statsSQL).executeAndWait()
-            val stats = mutableMapOf<String, Long>()
-
-            response.use { result ->
-                result.records().forEach { record ->
-                    // Use column index instead of name to avoid JDBC driver column resolution issues
-                    val status = record.getValue(0).asString().lowercase()
-                    val count = record.getValue(1).asLong()
-                    stats[status] = count
-                }
+                mapOf(
+                    "pending" to (stats["pending"] ?: 0L),
+                    "in_progress" to (stats["in_progress"] ?: 0L),
+                    "completed" to (stats["completed"] ?: 0L),
+                    "failed" to (stats["failed"] ?: 0L)
+                )
             }
-
-            // Ensure all statuses are present (with 0 if missing)
-            return mapOf(
-                "pending" to (stats["pending"] ?: 0L),
-                "in_progress" to (stats["in_progress"] ?: 0L),
-                "completed" to (stats["completed"] ?: 0L),
-                "failed" to (stats["failed"] ?: 0L)
-            )
-
         } catch (e: Exception) {
             logger.error(e) { "Failed to get source stats: ${e.message}" }
-            return mapOf(
+            mapOf(
                 "pending" to 0L,
                 "in_progress" to 0L,
                 "completed" to 0L,
@@ -423,12 +315,89 @@ class DocumentStagingStore(
     }
 
     /**
-     * Close the ClickHouse client and release resources
-     * NOTE: Since we use a shared client instance, this is a no-op.
-     * The shared client will be closed when the JVM shuts down.
+     * Get pending documents for BookStack writing
+     */
+    suspend fun getPendingForBookStack(limit: Int = 50): List<StagedDocument> {
+        return try {
+            transaction {
+                DocumentStagingTable
+                    .select {
+                        (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.PENDING.name) or
+                        (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.FAILED.name and
+                         (DocumentStagingTable.retryCount less 3))
+                    }
+                    .orderBy(DocumentStagingTable.createdAt to SortOrder.ASC)
+                    .limit(limit)
+                    .map { row ->
+                        val metadataStr = row[DocumentStagingTable.metadata]
+                        val metadata = if (metadataStr.isNotBlank()) {
+                            json.decodeFromString<Map<String, String>>(metadataStr)
+                        } else {
+                            emptyMap()
+                        }
+
+                        StagedDocument(
+                            id = row[DocumentStagingTable.id],
+                            source = row[DocumentStagingTable.sourceName],
+                            collection = row[DocumentStagingTable.collection],
+                            text = row[DocumentStagingTable.text],
+                            metadata = metadata,
+                            embeddingStatus = EmbeddingStatus.valueOf(row[DocumentStagingTable.embeddingStatus]),
+                            chunkIndex = row[DocumentStagingTable.chunkIndex],
+                            totalChunks = row[DocumentStagingTable.totalChunks],
+                            createdAt = row[DocumentStagingTable.createdAt],
+                            updatedAt = row[DocumentStagingTable.updatedAt],
+                            retryCount = row[DocumentStagingTable.retryCount],
+                            errorMessage = row[DocumentStagingTable.errorMessage]
+                        )
+                    }
+            }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get pending BookStack docs: ${e.message}" }
+            emptyList()
+        }
+    }
+
+    /**
+     * Mark document as BookStack write complete
+     */
+    suspend fun markBookStackComplete(id: String) {
+        try {
+            transaction {
+                DocumentStagingTable.update({ DocumentStagingTable.id eq id }) {
+                    it[updatedAt] = Instant.now()
+                    // We don't change embedding status - that's independent
+                }
+            }
+            logger.debug { "Marked BookStack write complete for $id" }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to mark BookStack complete: ${e.message}" }
+        }
+    }
+
+    /**
+     * Mark document as BookStack write failed
+     */
+    suspend fun markBookStackFailed(id: String, error: String) {
+        try {
+            transaction {
+                DocumentStagingTable.update({ DocumentStagingTable.id eq id }) {
+                    it[updatedAt] = Instant.now()
+                    it[retryCount] = DocumentStagingTable.retryCount + 1
+                    it[errorMessage] = "BookStack write failed: $error"
+                }
+            }
+            logger.debug { "Marked BookStack write failed for $id: $error" }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to mark BookStack failed: ${e.message}" }
+        }
+    }
+
+    /**
+     * Close the connection pool and release resources
      */
     override fun close() {
-        // No-op: shared client is managed globally
-        logger.debug { "DocumentStagingStore instance closed (shared client remains active)" }
+        dataSource.close()
+        logger.info { "DocumentStagingStore closed (connection pool released)" }
     }
 }

@@ -20,7 +20,7 @@ data class PipelineConfig(
     val wiki: WikiConfig = WikiConfig(),
     val embedding: EmbeddingConfig = EmbeddingConfig(),
     val qdrant: QdrantConfig = QdrantConfig(),
-    val clickhouse: ClickHouseConfig = ClickHouseConfig(),
+    val postgres: PostgresConfig = PostgresConfig(),
     val bookstack: BookStackConfig = BookStackConfig()
 ) {
     companion object {
@@ -162,10 +162,10 @@ data class PipelineConfig(
                     debianWikiCollection = getEnvOrProperty("QDRANT_DEBIAN_WIKI_COLLECTION") ?: "debian_wiki",
                     archWikiCollection = getEnvOrProperty("QDRANT_ARCH_WIKI_COLLECTION") ?: "arch_wiki"
                 ),
-                clickhouse = ClickHouseConfig(
-                    url = getEnvOrProperty("CLICKHOUSE_URL") ?: "http://clickhouse:8123",
-                    user = getEnvOrProperty("CLICKHOUSE_USER") ?: "default",
-                    password = getEnvOrProperty("CLICKHOUSE_PASSWORD") ?: ""
+                postgres = PostgresConfig(
+                    jdbcUrl = getEnvOrProperty("POSTGRES_JDBC_URL") ?: "jdbc:postgresql://postgres:5432/datamancy",
+                    user = getEnvOrProperty("POSTGRES_USER") ?: "datamancer",
+                    password = getEnvOrProperty("POSTGRES_PASSWORD") ?: ""
                 ),
                 bookstack = BookStackConfig(
                     enabled = getEnvOrProperty("BOOKSTACK_ENABLED")?.toBoolean() ?: false,
@@ -244,9 +244,9 @@ data class QdrantConfig(
 )
 
 @Serializable
-data class ClickHouseConfig(
-    val url: String = "http://clickhouse:8123",
-    val user: String = "default",
+data class PostgresConfig(
+    val jdbcUrl: String = "jdbc:postgresql://postgres:5432/datamancy",
+    val user: String = "datamancer",
     val password: String = ""
 )
 

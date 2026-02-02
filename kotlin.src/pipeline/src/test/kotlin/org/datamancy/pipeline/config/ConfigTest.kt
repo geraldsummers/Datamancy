@@ -19,7 +19,7 @@ class ConfigTest {
         assertTrue(config.torrents.enabled)
         assertEquals("http://embedding-service:8000", config.embedding.serviceUrl)
         assertEquals("http://qdrant:6333", config.qdrant.url)
-        assertEquals("http://clickhouse:8123", config.clickhouse.url)
+        assertEquals("jdbc:postgresql://postgres:5432/datamancy", config.postgres.jdbcUrl)
     }
 
     @Test
@@ -195,17 +195,17 @@ class ConfigTest {
     }
 
     @Test
-    fun `fromEnv parses ClickHouse configuration from environment`() {
+    fun `fromEnv parses PostgreSQL configuration from environment`() {
         withEnvironment(
-            "CLICKHOUSE_URL" to "http://custom-clickhouse:9123",
-            "CLICKHOUSE_USER" to "admin",
-            "CLICKHOUSE_PASSWORD" to "secure_password_123"
+            "POSTGRES_JDBC_URL" to "jdbc:postgresql://custom-postgres:5433/testdb",
+            "POSTGRES_USER" to "admin",
+            "POSTGRES_PASSWORD" to "secure_password_123"
         ) {
             val config = PipelineConfig.fromEnv()
 
-            assertEquals("http://custom-clickhouse:9123", config.clickhouse.url)
-            assertEquals("admin", config.clickhouse.user)
-            assertEquals("secure_password_123", config.clickhouse.password)
+            assertEquals("jdbc:postgresql://custom-postgres:5433/testdb", config.postgres.jdbcUrl)
+            assertEquals("admin", config.postgres.user)
+            assertEquals("secure_password_123", config.postgres.password)
         }
     }
 
@@ -298,7 +298,7 @@ class ConfigTest {
 
         // Connection defaults
         assertTrue(config.qdrant.url.contains("qdrant"))
-        assertTrue(config.clickhouse.url.contains("clickhouse"))
+        assertTrue(config.postgres.jdbcUrl.contains("postgres"))
     }
 
     @Test
@@ -350,10 +350,10 @@ class ConfigTest {
     }
 
     @Test
-    fun `ClickHouseConfig handles empty password`() {
-        val config = ClickHouseConfig(
-            url = "http://localhost:8123",
-            user = "default",
+    fun `PostgresConfig handles empty password`() {
+        val config = PostgresConfig(
+            jdbcUrl = "jdbc:postgresql://localhost:5432/test",
+            user = "datamancer",
             password = ""
         )
 
@@ -462,10 +462,10 @@ class ConfigTest {
                         debianWikiCollection = System.getProperty("QDRANT_DEBIAN_WIKI_COLLECTION") ?: "debian_wiki",
                         archWikiCollection = System.getProperty("QDRANT_ARCH_WIKI_COLLECTION") ?: "arch_wiki"
                     ),
-                    clickhouse = ClickHouseConfig(
-                        url = System.getProperty("CLICKHOUSE_URL") ?: "http://clickhouse:8123",
-                        user = System.getProperty("CLICKHOUSE_USER") ?: "default",
-                        password = System.getProperty("CLICKHOUSE_PASSWORD") ?: ""
+                    postgres = PostgresConfig(
+                        jdbcUrl = System.getProperty("POSTGRES_JDBC_URL") ?: "jdbc:postgresql://postgres:5432/datamancy",
+                        user = System.getProperty("POSTGRES_USER") ?: "datamancer",
+                        password = System.getProperty("POSTGRES_PASSWORD") ?: ""
                     ),
                     bookstack = BookStackConfig(
                         enabled = System.getProperty("BOOKSTACK_ENABLED")?.toBoolean() ?: false,

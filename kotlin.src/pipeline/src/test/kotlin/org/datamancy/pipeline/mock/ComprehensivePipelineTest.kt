@@ -70,10 +70,10 @@ class ComprehensivePipelineTest {
         )
 
         // When: Process through runner
-        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, null, testScheduler)
+        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, testScheduler)
         runner.run()
 
-        // Then: All items should be staged to ClickHouse
+        // Then: All items should be staged to PostgreSQL
         // Note: Batch count is variable due to flow buffering - just verify metadata
         coVerify(atLeast = 1) { mockStagingStore.stageBatch(any()) }
         assertEquals(1000, metadataStore.load("mock_source").totalItemsProcessed)
@@ -101,10 +101,10 @@ class ComprehensivePipelineTest {
         )
 
         // When: Process through runner
-        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, null, testScheduler)
+        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, testScheduler)
         runner.run()
 
-        // Then: DECOUPLED ARCH: All items stage successfully to ClickHouse
+        // Then: DECOUPLED ARCH: All items stage successfully to PostgreSQL
         // Failures only happen later during embedding by EmbeddingScheduler
         // So staging phase has 0 failures - all 3 items staged successfully
         val metadata = metadataStore.load("mock_source")
@@ -137,7 +137,7 @@ class ComprehensivePipelineTest {
 
         // First run
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(*run1Items.toTypedArray())
-        var runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, null, testScheduler)
+        var runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, testScheduler)
         runner.run()
 
         // Second run - create new scheduler for second run
@@ -147,7 +147,7 @@ class ComprehensivePipelineTest {
             initialPullEnabled = true,
             runOnce = true
         )
-        runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, null, testScheduler2)
+        runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, testScheduler2)
         runner.run()
 
         // Then: Should process 3 unique items total (not 4)
@@ -182,10 +182,10 @@ class ComprehensivePipelineTest {
         )
 
         // When: Process
-        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, null, testScheduler)
+        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, testScheduler)
         runner.run()
 
-        // Then: Should stage 2 chunks to ClickHouse
+        // Then: Should stage 2 chunks to PostgreSQL
         // With relaxed mocking, we just verify stageBatch was called
         // The log output shows: "2 staged, 0 failed" which confirms chunks were created
         coVerify(atLeast = 1) {
@@ -210,7 +210,7 @@ class ComprehensivePipelineTest {
         )
 
         // When: Process
-        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, null, testScheduler)
+        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, testScheduler)
         runner.run()
 
         // Then: Should complete without error
@@ -245,7 +245,7 @@ class ComprehensivePipelineTest {
         )
 
         // When: Process
-        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, null, testScheduler)
+        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, testScheduler)
         runner.run()
 
         // Then: Metadata should include chunk info
@@ -282,7 +282,7 @@ class ComprehensivePipelineTest {
         )
 
         // When: Process
-        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, null, testScheduler)
+        val runner = StandardizedRunner(mockSource, "test_collection", mockStagingStore, dedupStore, metadataStore, testScheduler)
         runner.run()
 
         // Then: Should only process first occurrence

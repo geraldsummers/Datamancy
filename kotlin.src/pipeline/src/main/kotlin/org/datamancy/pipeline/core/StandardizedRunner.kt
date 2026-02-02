@@ -1,18 +1,8 @@
 package org.datamancy.pipeline.core
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
-import org.datamancy.pipeline.processors.Embedder
 import org.datamancy.pipeline.scheduling.SourceScheduler
-import org.datamancy.pipeline.sinks.BookStackDocument
-import org.datamancy.pipeline.sinks.BookStackSink
-import org.datamancy.pipeline.sinks.QdrantSink
-import org.datamancy.pipeline.sinks.VectorDocument
 import org.datamancy.pipeline.storage.DeduplicationStore
 import org.datamancy.pipeline.storage.DocumentStagingStore
 import org.datamancy.pipeline.storage.EmbeddingStatus
@@ -23,19 +13,24 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * Standardized runner for pipeline sources
+ * Standardized runner for pipeline sources (SIMPLIFIED VERSION)
  *
  * ALL sources run through this - NO MORE CUSTOM LOOPS IN MAIN.KT!
  *
  * NEW ARCHITECTURE (Decoupled Scraping/Embedding):
- * - Scraping → ClickHouse staging (fast, unlimited buffering)
- * - Separate scheduler pulls from ClickHouse → Embedding → Qdrant
+ * - Scraping → PostgreSQL staging (fast, unlimited buffering)
+ * - Separate scheduler pulls from PostgreSQL → Embedding → Qdrant
  * - Benefits: no backpressure, resumable, observable, rate-limited
+ *
+ * SIMPLIFICATIONS:
+ * - Removed generic <T : Chunkable> (now concrete)
+ * - Sequential processing instead of parallel batching with semaphores
+ * - Cleaner control flow with batch insert every 100 docs
  *
  * This handles:
  * - Scheduling (initial pull + resync)
  * - Chunking (if source needs it)
- * - Staging to ClickHouse (replaces direct embedding)
+ * - Staging to PostgreSQL (replaces direct embedding)
  * - Deduplication
  * - Metrics/logging
  *
@@ -49,7 +44,7 @@ private val logger = KotlinLogging.logger {}
  *     metadataStore = metadataStore
  * )
  *
- * runner.run()  // Scrapes and stages to ClickHouse
+ * runner.run()  // Scrapes and stages to PostgreSQL
  * ```
  *
  * Then separately run EmbeddingScheduler to process staged docs.
@@ -57,25 +52,22 @@ private val logger = KotlinLogging.logger {}
 class StandardizedRunner<T : Chunkable>(
     private val source: StandardizedSource<T>,
     private val collectionName: String,              // Target Qdrant collection
-    private val stagingStore: DocumentStagingStore,  // ClickHouse staging
+    private val stagingStore: DocumentStagingStore,  // PostgreSQL staging
     private val dedupStore: DeduplicationStore,
     private val metadataStore: SourceMetadataStore,
-    private val bookStackSink: BookStackSink? = null,  // Optional BookStack sink
-    private val scheduler: SourceScheduler? = null,    // Allow injection for testing
-    private val maxConcurrency: Int = 10               // Limit concurrent processing
+    private val scheduler: SourceScheduler? = null     // Allow injection for testing
 ) {
     private val sourceName = source.name
-    private val semaphore = Semaphore(maxConcurrency)  // Control concurrent operations
 
     /**
      * Run the source with standardized scheduling, chunking, staging
      * This is the ONLY way sources should run - enforces consistency
      *
-     * NEW: Instead of embed→insert, we stage→ClickHouse
+     * NEW: Instead of embed→insert, we stage→PostgreSQL
      * Separate EmbeddingScheduler handles embedding and Qdrant insertion
      */
     suspend fun run() {
-        logger.info { "[$sourceName] Starting standardized runner (NEW DECOUPLED ARCHITECTURE)" }
+        logger.info { "[$sourceName] Starting standardized runner (SIMPLIFIED ARCHITECTURE)" }
         logger.info { "[$sourceName] Target collection: $collectionName" }
         logger.info { "[$sourceName] Resync: ${source.resyncStrategy().describe()}" }
         logger.info { "[$sourceName] Backfill: ${source.backfillStrategy().describe()}" }
@@ -97,104 +89,51 @@ class StandardizedRunner<T : Chunkable>(
             val startTime = System.currentTimeMillis()
 
             try {
-                // Fetch from source (handles initial vs resync)
-                // Process items in parallel batches for maximum CPU utilization
-                val batchSize = 50
-                val batch = mutableListOf<T>()
+                // Collect documents in batches for efficient insertion
+                val batchSize = 100
+                val batch = mutableListOf<StagedDocument>()
 
+                // Sequential processing (simpler than parallel with semaphores)
                 source.fetchForRun(metadata)
-                    .buffer(100)
+                    .buffer(100)  // Buffer for smoother flow
                     .collect { item ->
-                        batch.add(item)
+                        try {
+                            // Process item: dedup, chunk, stage
+                            val stagedDocs = processItemToStaging(item, dedupStore)
 
-                        // When batch is full, process in parallel
-                        if (batch.size >= batchSize) {
-                            val currentBatch = batch.toList()
-                            batch.clear()
-
-                            // Process entire batch in parallel with semaphore limiting concurrency
-                            coroutineScope {
-                                currentBatch.map { batchItem ->
-                                    async {
-                                        semaphore.withPermit {
-                                            try {
-                                                val stagedDocs = processItemToStaging(batchItem, dedupStore)
-                                                Triple(batchItem, stagedDocs, null)
-                                            } catch (e: Exception) {
-                                                Triple(batchItem, emptyList<StagedDocument>(), e)
-                                            }
-                                        }
-                                    }
-                                }.awaitAll().forEach { (batchItem, stagedDocs, error) ->
-                                    if (error != null) {
-                                        logger.error(error) { "[$sourceName] Failed to process item: ${error.message}" }
-                                        failed++
-                                    } else {
-                                        // Write to ClickHouse staging
-                                        if (stagedDocs.isNotEmpty()) {
-                                            stagingStore.stageBatch(stagedDocs)
-                                            processed += stagedDocs.size
-                                        }
-
-                                        // Write to BookStack if enabled (only for first chunk/non-chunked items)
-                                        if (bookStackSink != null && stagedDocs.isNotEmpty()) {
-                                            try {
-                                                writeToBookStack(batchItem)
-                                            } catch (e: Exception) {
-                                                logger.warn(e) { "[$sourceName] Failed to write to BookStack: ${e.message}" }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if ((processed + failed) % 100 == 0) {
-                                logger.info { "[$sourceName] Progress: $processed staged, $failed failed, $deduplicated deduplicated" }
-                            }
-                        }
-                    }
-
-                // Process remaining items in batch with semaphore limiting concurrency
-                if (batch.isNotEmpty()) {
-                    coroutineScope {
-                        batch.map { batchItem ->
-                            async {
-                                semaphore.withPermit {
-                                    try {
-                                        val stagedDocs = processItemToStaging(batchItem, dedupStore)
-                                        Triple(batchItem, stagedDocs, null)
-                                    } catch (e: Exception) {
-                                        Triple(batchItem, emptyList<StagedDocument>(), e)
-                                    }
-                                }
-                            }
-                        }.awaitAll().forEach { (batchItem, stagedDocs, error) ->
-                            if (error != null) {
-                                logger.error(error) { "[$sourceName] Failed to process item: ${error.message}" }
-                                failed++
+                            if (stagedDocs.isEmpty()) {
+                                deduplicated++
                             } else {
-                                // Write to ClickHouse staging
-                                if (stagedDocs.isNotEmpty()) {
-                                    stagingStore.stageBatch(stagedDocs)
-                                    processed += stagedDocs.size
-                                }
-
-                                // Write to BookStack if enabled (only for first chunk/non-chunked items)
-                                if (bookStackSink != null && stagedDocs.isNotEmpty()) {
-                                    try {
-                                        writeToBookStack(batchItem)
-                                    } catch (e: Exception) {
-                                        logger.warn(e) { "[$sourceName] Failed to write to BookStack: ${e.message}" }
-                                    }
-                                }
+                                batch.addAll(stagedDocs)
                             }
+
+                            // Batch insert when we have enough documents
+                            if (batch.size >= batchSize) {
+                                stagingStore.stageBatch(batch)
+                                processed += batch.size
+                                batch.clear()
+                            }
+
+                        } catch (e: Exception) {
+                            logger.error(e) { "[$sourceName] Failed to process item: ${e.message}" }
+                            failed++
+                        }
+
+                        // Progress logging
+                        if ((processed + failed + deduplicated) % 100 == 0) {
+                            logger.info { "[$sourceName] Progress: $processed staged, $failed failed, $deduplicated deduplicated" }
                         }
                     }
+
+                // Flush remaining batch
+                if (batch.isNotEmpty()) {
+                    stagingStore.stageBatch(batch)
+                    processed += batch.size
                 }
 
                 val durationMs = System.currentTimeMillis() - startTime
                 logger.info { "[$sourceName] === ${metadata.runType} COMPLETE: $processed staged, $failed failed, $deduplicated deduplicated in ${durationMs}ms ===" }
-                logger.info { "[$sourceName] Documents staged in ClickHouse - EmbeddingScheduler will process them" }
+                logger.info { "[$sourceName] Documents staged in PostgreSQL - EmbeddingScheduler will process them" }
 
                 // Update metadata
                 metadataStore.recordSuccess(
@@ -212,7 +151,7 @@ class StandardizedRunner<T : Chunkable>(
     }
 
     /**
-     * Process a single item: dedup, chunk (if needed), stage to ClickHouse
+     * Process a single item: dedup, chunk (if needed), stage to PostgreSQL
      * Returns list of StagedDocuments (1 if no chunking, N if chunked)
      *
      * NEW: No embedding here! Just prepare documents for staging.
@@ -237,7 +176,7 @@ class StandardizedRunner<T : Chunkable>(
     }
 
     /**
-     * Process item without chunking (short content) - stage to ClickHouse
+     * Process item without chunking (short content) - stage to PostgreSQL
      */
     private suspend fun processSingleToStaging(item: T): StagedDocument {
         val text = item.toText()
@@ -259,7 +198,7 @@ class StandardizedRunner<T : Chunkable>(
     }
 
     /**
-     * Process item with chunking (long content) - stage all chunks to ClickHouse
+     * Process item with chunking (long content) - stage all chunks to PostgreSQL
      * No embedding yet! Just prepare chunks for later processing.
      */
     private suspend fun processWithChunkingToStaging(item: T): List<StagedDocument> {
@@ -297,29 +236,4 @@ class StandardizedRunner<T : Chunkable>(
         }
     }
 
-    /**
-     * Write item to BookStack using reflection to call toBookStackDocument()
-     * All Chunkable implementations should have this method
-     */
-    private suspend fun writeToBookStack(item: T) {
-        if (bookStackSink == null) return
-
-        try {
-            // Use reflection to call toBookStackDocument() on the item
-            val method = item::class.java.getMethod("toBookStackDocument")
-            val bookStackDoc = method.invoke(item) as? BookStackDocument
-
-            if (bookStackDoc != null) {
-                bookStackSink.write(bookStackDoc)
-                logger.debug { "[$sourceName] Wrote to BookStack: ${bookStackDoc.pageTitle}" }
-            } else {
-                logger.warn { "[$sourceName] toBookStackDocument() returned null for item ${item.getId()}" }
-            }
-        } catch (e: NoSuchMethodException) {
-            logger.warn { "[$sourceName] Item ${item::class.simpleName} does not implement toBookStackDocument() - skipping BookStack write" }
-        } catch (e: Exception) {
-            logger.error(e) { "[$sourceName] Error writing to BookStack for item ${item.getId()}: ${e.message}" }
-            throw e
-        }
-    }
 }

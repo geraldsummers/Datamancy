@@ -45,8 +45,15 @@ dependencies {
     implementation("io.grpc:grpc-protobuf:1.63.0")
     implementation("io.grpc:grpc-netty:1.63.0")
 
-    // ClickHouse (for document staging) - Using latest JDBC driver (keeps v1 API compatibility)
-    implementation("com.clickhouse:clickhouse-jdbc:0.9.6:all")  // :all includes all dependencies (HTTP client, lz4, etc)
+    // PostgreSQL (for document staging)
+    implementation("org.postgresql:postgresql:42.7.1")
+    implementation("com.zaxxer:HikariCP:5.1.0")
+
+    // Exposed ORM
+    implementation("org.jetbrains.exposed:exposed-core:0.47.0")
+    implementation("org.jetbrains.exposed:exposed-dao:0.47.0")
+    implementation("org.jetbrains.exposed:exposed-jdbc:0.47.0")
+    implementation("org.jetbrains.exposed:exposed-java-time:0.47.0")
 
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
@@ -78,11 +85,23 @@ dependencies {
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
+    // H2 in-memory database for testing
+    testImplementation("com.h2database:h2:2.2.224")
+
 
 }
 
 tasks.test {
     useJUnitPlatform()
+
+    // Increase heap size for tests to avoid OOM
+    maxHeapSize = "2g"
+
+    // Enable detailed test logging
+    testLogging {
+        events("passed", "skipped", "failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }
 
 application {
