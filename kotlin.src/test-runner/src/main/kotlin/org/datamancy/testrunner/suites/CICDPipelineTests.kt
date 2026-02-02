@@ -12,9 +12,14 @@ import java.util.UUID
  */
 suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
     val labwareSocket = "/run/labware-docker.sock"
-    // Use host.docker.internal for registry access from labware containers
+
+    // Labware containers run on isolated Docker daemon and need to reach registry via host IP
     // Registry is exposed on host port 5000
-    val registryHost = "host.docker.internal:5000"
+    // On Linux, host.docker.internal doesn't exist - use HOST_IP from environment
+    val registryHost = System.getenv("HOST_IP")?.let { "$it:5000" }
+        ?: detectLabwareHostIP(labwareSocket)
+        ?: "192.168.0.11:5000"  // Fallback
+
     val testImagePrefix = "cicd-test"
 
     // Check if labware socket is available - skip suite if not
@@ -165,6 +170,30 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
         } finally {
             tempDir.deleteRecursively()
         }
+    }
+}
+
+/**
+ * Detect host IP from labware container's perspective
+ * Runs a test container and gets the default gateway IP
+ */
+private fun detectLabwareHostIP(socket: String): String? {
+    return try {
+        val (exitCode, output) = execCICDDocker(
+            socket,
+            "run", "--rm", "alpine:latest",
+            "sh", "-c", "ip route show default | awk '{print \$3}'"
+        )
+
+        if (exitCode == 0) {
+            val gateway = output.trim()
+            // Return gateway or environment override
+            System.getenv("HOST_IP") ?: gateway
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        null
     }
 }
 

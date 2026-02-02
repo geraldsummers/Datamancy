@@ -11,8 +11,7 @@ services:
       caddy:
         aliases:
           - ntfy.${DOMAIN}
-    command:
-      - serve
+    entrypoint: /entrypoint.sh
     environment:
       TZ: America/New_York
       NTFY_BASE_URL: https://ntfy.${DOMAIN}
@@ -21,8 +20,13 @@ services:
       NTFY_AUTH_DEFAULT_ACCESS: deny-all
       NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
       NTFY_ENABLE_LOGIN: true
+      # User provisioning credentials
+      NTFY_USERNAME: ${NTFY_USERNAME}
+      NTFY_PASSWORD: ${NTFY_PASSWORD}
     volumes:
       - ntfy_data:/var/lib/ntfy
+      - ./configs/ntfy/entrypoint.sh:/entrypoint.sh:ro
+      - ./configs/ntfy/init-users.sh:/init-users.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q --tries=1 --spider http://localhost:80/v1/health || exit 1"]
       interval: 30s

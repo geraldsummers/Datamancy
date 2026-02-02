@@ -30,15 +30,11 @@ fi
 if [ -z "$DB_DATABASE" ]; then
     DB_DATABASE=$(grep "^DB_DATABASE=" "$ENV_FILE" | cut -d'=' -f2)
 fi
-if [ -z "$DB_USER" ]; then
+if [ -z "$DB_USERNAME" ]; then
     DB_USERNAME=$(grep "^DB_USERNAME=" "$ENV_FILE" | cut -d'=' -f2)
-else
-    DB_USERNAME="$DB_USER"
 fi
-if [ -z "$DB_PASS" ]; then
+if [ -z "$DB_PASSWORD" ]; then
     DB_PASSWORD=$(grep "^DB_PASSWORD=" "$ENV_FILE" | cut -d'=' -f2)
-else
-    DB_PASSWORD="$DB_PASS"
 fi
 
 if [ -z "$DB_HOST" ] || [ -z "$DB_DATABASE" ] || [ -z "$DB_USERNAME" ] || [ -z "$DB_PASSWORD" ]; then
