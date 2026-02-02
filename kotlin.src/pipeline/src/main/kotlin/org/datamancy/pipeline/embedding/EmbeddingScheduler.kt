@@ -15,20 +15,20 @@ private val logger = KotlinLogging.logger {}
 /**
  * Embedding scheduler - decoupled from scraping
  *
- * Monitors ClickHouse for pending documents and processes them through embedding service
+ * Monitors PostgreSQL for pending documents and processes them through embedding service
  * at a controlled rate. This prevents backpressure from slow embedding blocking scraping.
  *
  * Architecture:
- * 1. Scraper writes raw docs to ClickHouse (fast, unlimited capacity)
+ * 1. Scraper writes raw docs to PostgreSQL document_staging (fast, unlimited capacity)
  * 2. Scheduler periodically checks for pending docs
  * 3. Pulls batches based on embedding service capacity
  * 4. Embeds and inserts to Qdrant
- * 5. Updates status in ClickHouse (PENDING → IN_PROGRESS → COMPLETED)
+ * 5. Updates status in PostgreSQL document_staging (PENDING → IN_PROGRESS → COMPLETED)
  *
  * Benefits:
  * - Scraping never blocks on embedding
  * - Resumable (restart continues from checkpoint)
- * - Observable (query ClickHouse for queue depth)
+ * - Observable (query PostgreSQL for queue depth)
  * - Rate-limited (respects embedding service capacity)
  */
 class EmbeddingScheduler(

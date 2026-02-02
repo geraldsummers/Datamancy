@@ -18,12 +18,12 @@ class SimpleTests {
         assertNotNull(endpoints.agentToolServer)
         assertNotNull(endpoints.pipeline)
         assertNotNull(endpoints.qdrant)
-        assertNotNull(endpoints.clickhouse)
+        assertNotNull(endpoints.postgres)
 
         assertTrue(endpoints.agentToolServer.startsWith("http://"))
         assertTrue(endpoints.pipeline.contains("pipeline"))
         assertTrue(endpoints.qdrant.contains("6333"))
-        assertTrue(endpoints.clickhouse.contains("8123"))
+        assertTrue(endpoints.postgres.jdbcUrl.contains("postgresql"))
     }
 
     @Test
@@ -33,7 +33,7 @@ class SimpleTests {
         assertTrue(endpoints.agentToolServer.contains("localhost"))
         assertTrue(endpoints.pipeline.contains("localhost:18080"))
         assertTrue(endpoints.qdrant.contains("localhost:16333"))
-        assertTrue(endpoints.clickhouse.contains("localhost:18123"))
+        assertTrue(endpoints.postgres.host.contains("localhost"))
     }
 
     @Test
@@ -134,12 +134,11 @@ class SimpleTests {
     }
 
     @Test
-    fun `ClickHouse uses HTTP URL not JDBC`() {
+    fun `PostgreSQL uses JDBC URL`() {
         val endpoints = ServiceEndpoints.fromEnvironment()
 
-        // ClickHouse should be HTTP URL for REST API
-        assertTrue(endpoints.clickhouse.startsWith("http://"))
-        assertTrue(!endpoints.clickhouse.startsWith("jdbc:"))
+        // PostgreSQL should use JDBC URL
+        assertTrue(endpoints.postgres.jdbcUrl.startsWith("jdbc:postgresql://"))
     }
 
     @Test

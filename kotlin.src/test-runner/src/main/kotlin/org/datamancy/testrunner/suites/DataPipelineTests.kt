@@ -151,21 +151,27 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         }
     }
 
-    test("ClickHouse market_klines table exists") {
+    test("PostgreSQL document_staging table exists") {
         try {
-            val response = client.getRawResponse(
-                "${endpoints.clickhouse}/?query=SELECT%20count()%20FROM%20system.tables%20WHERE%20name='market_klines'"
+            val conn = java.sql.DriverManager.getConnection(
+                endpoints.postgres.jdbcUrl,
+                endpoints.postgres.user,
+                endpoints.postgres.password
             )
-            if (response.status == HttpStatusCode.OK) {
-                val count = response.bodyAsText().trim()
-                if (count == "1") {
-                    println("      ✓ market_klines table exists")
-                } else {
-                    println("      ℹ️  market_klines table not yet created")
+            conn.use {
+                val stmt = it.createStatement()
+                val rs = stmt.executeQuery("SELECT count(*) FROM information_schema.tables WHERE table_name='document_staging'")
+                if (rs.next()) {
+                    val count = rs.getInt(1)
+                    if (count == 1) {
+                        println("      ✓ document_staging table exists")
+                    } else {
+                        println("      ℹ️  document_staging table not yet created")
+                    }
                 }
             }
         } catch (e: Exception) {
-            println("      ⚠️  Could not verify ClickHouse: ${e.message}")
+            println("      ⚠️  Could not verify PostgreSQL: ${e.message}")
         }
     }
 

@@ -52,7 +52,6 @@ class TestFrameworkTest {
 
         // Databases
         assertNotNull(endpoints.postgres)
-        assertNotNull(endpoints.clickhouse)
         assertNotNull(endpoints.qdrant)
         assertNotNull(endpoints.valkey)
         assertNotNull(endpoints.mariadb)
@@ -233,9 +232,9 @@ class TestFrameworkTest {
 
         // Services covered by tests
         val coveredServices = setOf(
-            // Original (11)
+            // Original (10)
             "agent-tool-server", "search-service", "pipeline", "vllm-7b",
-            "embedding-service", "postgres", "clickhouse", "qdrant",
+            "embedding-service", "postgres", "qdrant",
             "dind", "litellm", "bookstack",
             // HIGH priority (5)
             "caddy", "authelia", "ldap", "open-webui", "jupyterhub",

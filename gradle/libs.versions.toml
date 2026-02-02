@@ -9,8 +9,6 @@ jackson = "2.17.1"
 sshj = "0.39.0"
 postgres = "42.7.2"
 mariadb = "3.3.3"
-clickhouse = "0.6.0"
-clickhouse-http = "0.6.0"
 qdrant = "1.9.0"
 protobuf = "3.25.1"
 grpc = "1.58.0"
@@ -39,8 +37,6 @@ sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }
 # JDBC drivers
 postgres-jdbc = { module = "org.postgresql:postgresql", version.ref = "postgres" }
 mariadb-jdbc = { module = "org.mariadb.jdbc:mariadb-java-client", version.ref = "mariadb" }
-clickhouse-jdbc = { module = "com.clickhouse:clickhouse-jdbc", version.ref = "clickhouse" }
-clickhouse-http-client = { module = "com.clickhouse:clickhouse-http-client", version.ref = "clickhouse-http" }
 
 # Ktor Server
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
@@ -87,7 +83,6 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 testcontainers-core = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 testcontainers-mariadb = { module = "org.testcontainers:mariadb", version.ref = "testcontainers" }
-testcontainers-clickhouse = { module = "org.testcontainers:clickhouse", version.ref = "testcontainers" }
 
 # Other
 jsoup = "org.jsoup:jsoup:1.17.2"
@@ -95,7 +90,6 @@ jsoup = "org.jsoup:jsoup:1.17.2"
 [bundles]
 ktor-server = ["ktor-server-core", "ktor-server-netty", "ktor-server-content-negotiation", "ktor-serialization-kotlinx-json"]
 ktor-client = ["ktor-client-core", "ktor-client-cio", "ktor-client-content-negotiation", "ktor-serialization-kotlinx-json"]
-clickhouse = ["clickhouse-jdbc", "clickhouse-http-client"]
 logging = ["logging", "logback"]
 testing = ["kotlin-test", "junit-jupiter", "mockk", "kotlinx-coroutines-test"]
-testcontainers = ["testcontainers-core", "testcontainers-postgresql", "testcontainers-mariadb", "testcontainers-clickhouse"]
+testcontainers = ["testcontainers-core", "testcontainers-postgresql", "testcontainers-mariadb"]

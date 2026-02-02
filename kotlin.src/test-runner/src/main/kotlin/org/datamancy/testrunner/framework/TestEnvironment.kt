@@ -10,7 +10,6 @@ data class ServiceEndpoints(
     val liteLLM: String,
     val bookstack: String,
     val postgres: DatabaseConfig,
-    val clickhouse: String,  // Changed to String for HTTP API
     val mariadb: DatabaseConfig? = null,
     val qdrant: String,
     val valkey: String? = null,
@@ -63,7 +62,6 @@ data class ServiceEndpoints(
                 user = env("POSTGRES_USER") ?: "datamancer",
                 password = env("POSTGRES_PASSWORD") ?: env("DATAMANCY_SERVICE_PASSWORD") ?: ""
             ),
-            clickhouse = env("CLICKHOUSE_URL") ?: "http://clickhouse:8123",
             mariadb = DatabaseConfig(
                 host = env("MARIADB_HOST") ?: "mariadb",
                 port = env("MARIADB_PORT")?.toInt() ?: 3306,
@@ -115,7 +113,6 @@ data class ServiceEndpoints(
             liteLLM = "http://localhost:14001",
             bookstack = "http://localhost:10080",
             postgres = DatabaseConfig("localhost", 15432, "datamancy", "datamancer", ""),
-            clickhouse = "http://localhost:18123",
             mariadb = DatabaseConfig("localhost", 13306, "bookstack", "bookstack", ""),
             qdrant = "http://localhost:16333",
             valkey = "localhost:16379",
@@ -166,7 +163,7 @@ data class DatabaseConfig(
         get() = when {
             port == 5432 -> "jdbc:postgresql://$host:$port/$database"
             port == 3306 -> "jdbc:mariadb://$host:$port/$database"
-            else -> "jdbc:clickhouse://$host:$port/$database"
+            else -> "jdbc:postgresql://$host:$port/$database"
         }
 }
 

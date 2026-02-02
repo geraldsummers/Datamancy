@@ -191,7 +191,7 @@ fun Application.configureServer(gateway: SearchGateway) {
                 logger.error(e) { "Database error during search - query: '${request.query}', collections: ${request.collections}, mode: ${request.mode}" }
                 call.respond(
                     HttpStatusCode.InternalServerError,
-                    mapOf("error" to "Database service error", "service" to "clickhouse")
+                    mapOf("error" to "Database service error", "service" to "postgresql")
                 )
             } catch (e: java.io.IOException) {
                 // Network/IO errors (qdrant, embedding service)
