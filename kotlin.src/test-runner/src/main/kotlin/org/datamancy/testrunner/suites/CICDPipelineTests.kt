@@ -12,7 +12,9 @@ import java.util.UUID
  */
 suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
     val labwareSocket = "/run/labware-docker.sock"
-    val registryHost = "registry:5000"
+    // Use host.docker.internal for registry access from labware containers
+    // Registry is exposed on host port 5000
+    val registryHost = "host.docker.internal:5000"
     val testImagePrefix = "cicd-test"
 
     // Check if labware socket is available - skip suite if not

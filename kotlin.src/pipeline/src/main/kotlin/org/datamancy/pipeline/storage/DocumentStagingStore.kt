@@ -76,11 +76,18 @@ class DocumentStagingStore(
     private val dataSource: HikariDataSource
 
     init {
+        // DEBUG: Log what we're receiving
+        logger.info { "DocumentStagingStore init: jdbcUrl=$jdbcUrl, user=$user, password.length=${password.length}" }
+
         // Configure HikariCP connection pool
         val config = HikariConfig().apply {
-            this.jdbcUrl = this@DocumentStagingStore.jdbcUrl
-            this.username = user
-            this.password = password
+            // Use explicit setter syntax to avoid shadowing issues
+            setJdbcUrl(this@DocumentStagingStore.jdbcUrl)
+            setUsername(user)
+            setPassword(password)
+
+            // DEBUG: Verify what was set
+            logger.info { "HikariConfig: jdbcUrl=$jdbcUrl, username=$username, password.length=${password?.length ?: 0}" }
             // Auto-detect driver based on JDBC URL
             driverClassName = when {
                 this@DocumentStagingStore.jdbcUrl.startsWith("jdbc:postgresql") -> "org.postgresql.Driver"
