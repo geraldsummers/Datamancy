@@ -97,9 +97,21 @@ class DocumentStagingStore(
 
     companion object {
         // Shared client instance - reuses connection pool across all DocumentStagingStore instances
-        // clickhouse-jdbc:0.9.6 uses Apache HTTP Client with improved connection pool (default ~20 connections)
+        // Configure Apache HTTP Client pool via system properties BEFORE client creation
         private val sharedClient: ClickHouseClient by lazy {
-            logger.info { "Creating shared ClickHouse HTTP client (v0.9.6 with improved connection pool)" }
+            logger.info { "Configuring Apache HTTP Client connection pool (max 100 connections)" }
+
+            // Set system properties for Apache HTTP Client 5 connection pool
+            // These MUST be set before the client is instantiated
+            System.setProperty("http.maxConnections", "100")  // Deprecated but still works
+            System.setProperty("http.keepAlive", "true")
+
+            // For ClickHouse's internal Apache HTTP Client, these are the environment variables it checks:
+            System.setProperty("clickhouse.client.http.max_open_connections", "100")
+            System.setProperty("clickhouse.client.http.connection_ttl", "300000")  // 5 minutes
+            System.setProperty("clickhouse.client.http.keep_alive_timeout", "300000")  // 5 minutes
+
+            logger.info { "Creating shared ClickHouse HTTP client (v0.9.6)" }
             ClickHouseClient.newInstance(ClickHouseProtocol.HTTP)
         }
     }
