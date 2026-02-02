@@ -18,28 +18,20 @@ if [ ! -f "/app/www/artisan" ]; then
     exit 0
 fi
 
-# Check if token credentials are provided
-if [ -z "$BOOKSTACK_TOKEN_ID" ] || [ -z "$BOOKSTACK_TOKEN_SECRET" ]; then
-    echo "[BookStack API Token] WARNING: BOOKSTACK_TOKEN_ID or BOOKSTACK_TOKEN_SECRET not set"
-    echo "[BookStack API Token] Generating new token credentials..."
-
-    # Generate token credentials
-    BOOKSTACK_TOKEN_ID="datamancy-automation-$(date +%s)"
-    BOOKSTACK_TOKEN_SECRET="$(openssl rand -hex 32)"
-
-    echo "=========================================="
-    echo "GENERATED BOOKSTACK API TOKEN"
-    echo "=========================================="
-    echo "Add these to your .env file:"
-    echo "BOOKSTACK_API_TOKEN_ID=$BOOKSTACK_TOKEN_ID"
-    echo "BOOKSTACK_API_TOKEN_SECRET=$BOOKSTACK_TOKEN_SECRET"
-    echo "=========================================="
-    echo ""
-    echo "These credentials have been set for this container session."
-    echo "Pipeline will work until container restart."
-    echo "To persist across restarts, add to .env file."
-    echo "=========================================="
+# Check if token credentials are provided from build-time generation
+if [ -z "$BOOKSTACK_API_TOKEN_ID" ] || [ -z "$BOOKSTACK_API_TOKEN_SECRET" ]; then
+    echo "[BookStack API Token] ERROR: BOOKSTACK_API_TOKEN_ID or BOOKSTACK_API_TOKEN_SECRET not set"
+    echo "[BookStack API Token] These should be generated at build time by build-datamancy-v2.main.kts"
+    echo "[BookStack API Token] Please rebuild your stack to generate API tokens"
+    exit 1
 fi
+
+# Use the build-time generated credentials
+BOOKSTACK_TOKEN_ID="$BOOKSTACK_API_TOKEN_ID"
+BOOKSTACK_TOKEN_SECRET="$BOOKSTACK_API_TOKEN_SECRET"
+
+echo "[BookStack API Token] Using build-time generated API token"
+echo "[BookStack API Token] Token ID: $BOOKSTACK_TOKEN_ID"
 
 cd /app/www
 
@@ -79,26 +71,9 @@ RESULT=$(php artisan tinker --execute="$CREATE_CMD" 2>&1 | tail -1)
 if echo "$RESULT" | grep -q "SUCCESS"; then
     echo "[BookStack API Token] ✓ API token created successfully"
     echo "[BookStack API Token] Token ID: $BOOKSTACK_TOKEN_ID"
-
-    # Write credentials to shared volume for pipeline container
-    CREDS_DIR="/shared-credentials"
-    if [ -d "$CREDS_DIR" ]; then
-        echo "[BookStack API Token] Writing credentials to shared volume..."
-        cat > "$CREDS_DIR/bookstack-api-token.env" <<EOF
-# Auto-generated BookStack API Token
-# Created: $(date -Iseconds)
-export BOOKSTACK_API_TOKEN_ID="$BOOKSTACK_TOKEN_ID"
-export BOOKSTACK_API_TOKEN_SECRET="$BOOKSTACK_TOKEN_SECRET"
-export BOOKSTACK_TOKEN_ID="$BOOKSTACK_TOKEN_ID"
-export BOOKSTACK_TOKEN_SECRET="$BOOKSTACK_TOKEN_SECRET"
-EOF
-        chmod 600 "$CREDS_DIR/bookstack-api-token.env"
-        echo "[BookStack API Token] ✓ Credentials written to $CREDS_DIR/bookstack-api-token.env"
-    else
-        echo "[BookStack API Token] WARNING: Shared credentials directory not mounted"
-        echo "[BookStack API Token] Pipeline will need credentials from .env file"
-    fi
+    echo "[BookStack API Token] Pipeline will use this token from environment variables"
 else
     echo "[BookStack API Token] ERROR: Failed to create token"
     echo "$RESULT"
+    exit 1
 fi

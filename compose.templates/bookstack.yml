@@ -30,6 +30,9 @@ services:
       DB_USERNAME: bookstack
       DB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}
       DB_DATABASE: bookstack
+      # API Token for pipeline automation (generated at build time)
+      BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID}
+      BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET}
       # Using Caddy forward_auth with Authelia (not OIDC)
     volumes:
       - bookstack_data:/config

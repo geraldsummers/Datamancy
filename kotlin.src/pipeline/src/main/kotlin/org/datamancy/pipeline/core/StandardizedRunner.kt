@@ -118,11 +118,6 @@ class StandardizedRunner<T : Chunkable>(
                             logger.error(e) { "[$sourceName] Failed to process item: ${e.message}" }
                             failed++
                         }
-
-                        // Progress logging
-                        if ((processed + failed + deduplicated) % 100 == 0) {
-                            logger.info { "[$sourceName] Progress: $processed staged, $failed failed, $deduplicated deduplicated" }
-                        }
                     }
 
                 // Flush remaining batch

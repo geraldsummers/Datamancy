@@ -57,15 +57,12 @@ class EmbeddingScheduler(
                 // Get current stats
                 val stats = stagingStore.getStats()
                 val pending = stats["pending"] ?: 0
-                val inProgress = stats["in_progress"] ?: 0
-                val completed = stats["completed"] ?: 0
-                val failed = stats["failed"] ?: 0
 
                 if (pending > 0) {
-                    logger.info { "📊 Queue status: $pending pending, $inProgress in-progress, $completed completed, $failed failed" }
+                    logger.debug { "Processing batch..." }
                     processBatch()
                 } else {
-                    logger.debug { "💤 No pending documents, sleeping..." }
+                    logger.debug { "No pending documents, sleeping..." }
                 }
 
             } catch (e: Exception) {
@@ -86,7 +83,7 @@ class EmbeddingScheduler(
             return
         }
 
-        logger.info { "🔄 Processing batch of ${pendingDocs.size} documents" }
+        logger.debug { "🔄 Processing batch of ${pendingDocs.size} documents" }
 
         // Group by collection for efficient sink routing
         val byCollection = pendingDocs.groupBy { it.collection }

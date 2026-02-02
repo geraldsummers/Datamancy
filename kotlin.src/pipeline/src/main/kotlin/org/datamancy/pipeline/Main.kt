@@ -93,6 +93,16 @@ fun main() {
         // Give monitoring server time to start
         delay(1000)
 
+        // Start unified progress reporter
+        val progressReporter = org.datamancy.pipeline.monitoring.ProgressReporter(
+            stagingStore = stagingStore,
+            reportIntervalSeconds = 30
+        )
+
+        launch {
+            progressReporter.start()
+        }
+
         // NEW: Start embedding scheduler in background
         val embeddingScheduler = EmbeddingScheduler(
             stagingStore = stagingStore,

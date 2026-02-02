@@ -179,7 +179,7 @@ class DocumentStagingStore(
                 }
             }
 
-            logger.info { "Staged ${docs.size} documents" }
+            logger.debug { "Staged ${docs.size} documents" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to stage batch: ${e.message}" }
             throw e

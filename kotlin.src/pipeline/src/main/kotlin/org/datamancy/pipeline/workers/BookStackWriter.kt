@@ -61,8 +61,6 @@ class BookStackWriter(
                     continue
                 }
 
-                logger.info { "Processing ${pendingDocs.size} documents for BookStack" }
-
                 // Process each document
                 pendingDocs.forEach { doc ->
                     try {
