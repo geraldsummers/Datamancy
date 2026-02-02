@@ -165,7 +165,13 @@ data class PipelineConfig(
                 postgres = PostgresConfig(
                     jdbcUrl = getEnvOrProperty("POSTGRES_JDBC_URL") ?: "jdbc:postgresql://postgres:5432/datamancy",
                     user = getEnvOrProperty("POSTGRES_USER") ?: "datamancer",
-                    password = getEnvOrProperty("POSTGRES_PASSWORD") ?: ""
+                    password = (getEnvOrProperty("POSTGRES_PASSWORD") ?: "").also { pwd ->
+                        if (pwd.isEmpty()) {
+                            println("WARNING: POSTGRES_PASSWORD is empty or not set!")
+                        } else {
+                            println("✓ PostgreSQL password loaded (${pwd.length} chars)")
+                        }
+                    }
                 ),
                 bookstack = BookStackConfig(
                     enabled = getEnvOrProperty("BOOKSTACK_ENABLED")?.toBoolean() ?: false,
