@@ -34,6 +34,10 @@ services:
     depends_on:
       litellm:
         condition: service_healthy
+      mariadb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
       # dind: REMOVED - docker_container_create tool disabled
       # dind:
       #   condition: service_healthy

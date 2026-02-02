@@ -70,6 +70,10 @@ class BookStackWriter(
                         // Write to BookStack
                         bookStackSink.write(bookStackDoc)
 
+                        // Rate limiting: Wait between API calls to avoid 429 errors
+                        // BookStack API rate limit: ~5-10 req/sec, so 500ms = 2 req/sec is safe
+                        delay(500)
+
                         // Mark as completed
                         stagingStore.markBookStackComplete(doc.id)
 
