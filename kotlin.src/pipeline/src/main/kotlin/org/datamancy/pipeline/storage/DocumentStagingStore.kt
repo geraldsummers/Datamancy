@@ -334,7 +334,7 @@ class DocumentStagingStore(
                     .where {
                         // FIX: Only select documents that have been successfully embedded
                         // and haven't exceeded retry limit for BookStack writes
-                        (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.SUCCESS.name) and
+                        (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name) and
                         (DocumentStagingTable.retryCount less 3)
                     }
                     .orderBy(DocumentStagingTable.createdAt to SortOrder.ASC)
