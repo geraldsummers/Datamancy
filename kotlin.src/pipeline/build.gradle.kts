@@ -45,13 +45,8 @@ dependencies {
     implementation("io.grpc:grpc-protobuf:1.63.0")
     implementation("io.grpc:grpc-netty:1.63.0")
 
-    // ClickHouse (for document staging)
-    implementation("com.clickhouse:clickhouse-jdbc:0.6.0")
-    implementation("org.lz4:lz4-java:1.8.0")  // LZ4 compression support
-
-    // Apache HTTP Client 5 (required by ClickHouse JDBC for optimal performance)
-    implementation("org.apache.httpcomponents.client5:httpclient5:5.3")
-    implementation("org.apache.httpcomponents.core5:httpcore5:5.2.4")
+    // ClickHouse (for document staging) - Using latest JDBC driver (keeps v1 API compatibility)
+    implementation("com.clickhouse:clickhouse-jdbc:0.9.6:all")  // :all includes all dependencies (HTTP client, lz4, etc)
 
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")

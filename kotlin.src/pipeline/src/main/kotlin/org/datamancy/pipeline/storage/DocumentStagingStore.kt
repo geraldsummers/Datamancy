@@ -84,14 +84,27 @@ class DocumentStagingStore(
         .host(host)
         .port(ClickHouseProtocol.HTTP, port)
         .credentials(ClickHouseCredentials.fromUserAndPassword(user, password))
-        .addOption(ClickHouseClientOption.SOCKET_TIMEOUT.key, "600000")  // 10 minutes for bulk inserts (increased from 5)
-        .addOption(ClickHouseClientOption.MAX_EXECUTION_TIME.key, "600")  // 10 minutes server-side timeout (increased from 5)
-        .addOption(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.key, "4")  // Limit threads per client
-        .addOption(ClickHouseClientOption.CONNECTION_TIMEOUT.key, "60000")  // 60s connection timeout (increased from 30s)
-        .addOption(ClickHouseClientOption.MAX_QUEUED_REQUESTS.key, "100")  // Queue up to 100 requests (increased from 50)
+        // Timeouts - critical for preventing long-running operations
+        .addOption(ClickHouseClientOption.SOCKET_TIMEOUT.key, "600000")  // 10 minutes socket timeout
+        .addOption(ClickHouseClientOption.MAX_EXECUTION_TIME.key, "600")  // 10 minutes server-side timeout
+        .addOption(ClickHouseClientOption.CONNECTION_TIMEOUT.key, "10000")  // 10s connection establish (fail fast)
+        // Keep-alive for connection reuse
+        .addOption("socket_keepalive", "true")  // Enable TCP keep-alive
+        // Async insert for better throughput
+        .addOption("async_insert", "1")  // ClickHouse buffers inserts internally
+        .addOption("wait_for_async_insert", "0")  // Fire-and-forget
         .build()
 
-    private val client = ClickHouseClient.newInstance(node.protocol)
+    companion object {
+        // Shared client instance - reuses connection pool across all DocumentStagingStore instances
+        // clickhouse-jdbc:0.9.6 uses Apache HTTP Client with improved connection pool (default ~20 connections)
+        private val sharedClient: ClickHouseClient by lazy {
+            logger.info { "Creating shared ClickHouse HTTP client (v0.9.6 with improved connection pool)" }
+            ClickHouseClient.newInstance(ClickHouseProtocol.HTTP)
+        }
+    }
+
+    private val client = sharedClient
 
     init {
         ensureTableExists()
@@ -140,8 +153,29 @@ class DocumentStagingStore(
     /**
      * Stage multiple documents in batch (much faster)
      * Uses ClickHouse VALUES format with proper escaping
+     * Automatically chunks large batches to avoid connection pool exhaustion
      */
     suspend fun stageBatch(docs: List<StagedDocument>) {
+        if (docs.isEmpty()) return
+
+        // Chunk large batches to avoid holding connections for too long
+        // 5000 docs per batch is a good balance between throughput and connection time
+        val chunkSize = 5000
+        if (docs.size > chunkSize) {
+            logger.info { "Chunking ${docs.size} documents into batches of $chunkSize" }
+            docs.chunked(chunkSize).forEach { chunk ->
+                stageBatchInternal(chunk)
+            }
+            logger.info { "Staged total of ${docs.size} documents in ${(docs.size + chunkSize - 1) / chunkSize} batches" }
+        } else {
+            stageBatchInternal(docs)
+        }
+    }
+
+    /**
+     * Internal method to stage a single batch (should be <= 5000 docs)
+     */
+    private suspend fun stageBatchInternal(docs: List<StagedDocument>) {
         if (docs.isEmpty()) return
 
         try {
@@ -378,13 +412,11 @@ class DocumentStagingStore(
 
     /**
      * Close the ClickHouse client and release resources
+     * NOTE: Since we use a shared client instance, this is a no-op.
+     * The shared client will be closed when the JVM shuts down.
      */
     override fun close() {
-        try {
-            client.close()
-            logger.info { "ClickHouse client closed successfully" }
-        } catch (e: Exception) {
-            logger.error(e) { "Error closing ClickHouse client: ${e.message}" }
-        }
+        // No-op: shared client is managed globally
+        logger.debug { "DocumentStagingStore instance closed (shared client remains active)" }
     }
 }
