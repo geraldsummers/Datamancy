@@ -317,9 +317,12 @@ class SearchGateway(
                 throw Exception("Embedding service error: ${response.code}")
             }
 
-            val json = gson.fromJson(response.body?.string(), JsonObject::class.java)
-            val embeddingArray = json.getAsJsonArray("embedding")
-            embeddingArray.map { it.asFloat }
+            // Response format: [[float, float, ...]] - array of embedding arrays
+            val json = gson.fromJson(response.body?.string(), Array<FloatArray>::class.java)
+            if (json.isEmpty()) {
+                throw Exception("Empty embedding response")
+            }
+            json[0].toList()
         }
     }
 

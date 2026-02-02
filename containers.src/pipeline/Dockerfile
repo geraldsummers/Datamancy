@@ -41,8 +41,8 @@ elif [ -z "$BOOKSTACK_TOKEN_ID" ] || [ -z "$BOOKSTACK_TOKEN_SECRET" ]; then\n\
   echo "[Pipeline] WARNING: BookStack credentials not found in shared volume or env"\n\
   echo "[Pipeline] BookStack integration will be disabled"\n\
 fi\n\
-# Drop to datamancer user and run app (environment is preserved with su -m)\n\
-exec su -m datamancer -c "exec \\$*"\n\
+# Drop to datamancer user and run app\n\
+exec gosu datamancer "$@"\n\
 ' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 8090
