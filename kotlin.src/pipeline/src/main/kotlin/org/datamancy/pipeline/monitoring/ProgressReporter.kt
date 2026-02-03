@@ -90,7 +90,7 @@ class ProgressReporter(
             if (deltaStaged == 0L && deltaEmbedded == 0L) {
                 appendLine("  💤 Idle")
             }
-            appendLine("  📊 Queue: $pending pending, $inProgress processing | Total: $completed completed, $failed failed")
+            appendLine("  📊 Queue: $pending pending | Total: $completed completed, $failed failed")
 
             append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         }
