@@ -79,9 +79,8 @@ services:
       POSTGRES_USER: datamancer
       POSTGRES_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
 
-      # BookStack integration - DISABLED BY DEFAULT (pending fix for infinite retry bug)
-      # TODO: Re-enable after fixing getPendingForBookStack() query logic
-      BOOKSTACK_ENABLED: "${BOOKSTACK_ENABLED:-false}"
+      # BookStack integration - ENABLED BY DEFAULT
+      BOOKSTACK_ENABLED: "${BOOKSTACK_ENABLED:-true}"
       BOOKSTACK_URL: "http://bookstack:80"
       BOOKSTACK_TOKEN_ID: "${BOOKSTACK_API_TOKEN_ID:-}"
       BOOKSTACK_TOKEN_SECRET: "${BOOKSTACK_API_TOKEN_SECRET:-}"

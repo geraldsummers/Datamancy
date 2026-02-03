@@ -368,7 +368,7 @@ data class SearchResult(
     val source: String,
     val metadata: Map<String, String> = emptyMap(),
     val contentType: String = "unknown",
-    val capabilities: List<String> = emptyList()
+    val capabilities: Map<String, Boolean> = emptyMap()
 ) {
     companion object {
         fun inferContentType(collection: String, url: String, metadata: Map<String, String>): String {
@@ -382,11 +382,16 @@ data class SearchResult(
             }
         }
 
-        fun inferCapabilities(collection: String, url: String, metadata: Map<String, String>): List<String> {
-            val caps = mutableListOf<String>()
-            if (url.isNotBlank()) caps.add("linkable")
-            if (metadata.containsKey("source")) caps.add("sourced")
-            return caps
+        fun inferCapabilities(collection: String, url: String, metadata: Map<String, String>): Map<String, Boolean> {
+            val contentType = inferContentType(collection, url, metadata)
+            return mapOf(
+                "humanFriendly" to (contentType in listOf("article", "documentation", "legal")),
+                "agentFriendly" to (contentType in listOf("code", "documentation", "vulnerability")),
+                "hasTimeSeries" to (collection.contains("market") || metadata.containsKey("timeseries")),
+                "hasRichContent" to (url.isNotBlank()),
+                "isInteractive" to (metadata.containsKey("interactive")),
+                "isStructured" to (contentType in listOf("code", "legal", "vulnerability"))
+            )
         }
     }
 }

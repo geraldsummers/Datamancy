@@ -176,8 +176,8 @@ fun Application.configureServer(gateway: SearchGateway) {
 
                 // Filter results based on audience
                 val filteredResults = when (request.audience) {
-                    "human" -> results.filter { it.capabilities.contains("humanFriendly") }
-                    "agent" -> results.filter { it.capabilities.contains("agentFriendly") }
+                    "human" -> results.filter { it.capabilities["humanFriendly"] == true }
+                    "agent" -> results.filter { it.capabilities["agentFriendly"] == true }
                     else -> results // "both" or unspecified returns all
                 }
 

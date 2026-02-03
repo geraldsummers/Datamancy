@@ -46,31 +46,31 @@ class SearchGatewayTest {
     }
 
     @Test
-    fun `SearchResult inferCapabilities for URL with linkable`() {
+    fun `SearchResult inferCapabilities for URL with hasRichContent`() {
         val caps = SearchResult.inferCapabilities("test", "http://example.com", emptyMap())
 
-        assertTrue(caps.contains("linkable"))
+        assertTrue(caps["hasRichContent"] == true)
     }
 
     @Test
     fun `SearchResult inferCapabilities for URL without URL`() {
         val caps = SearchResult.inferCapabilities("test", "", emptyMap())
 
-        assertFalse(caps.contains("linkable"))
+        assertTrue(caps["hasRichContent"] == false)
     }
 
     @Test
-    fun `SearchResult inferCapabilities includes sourced when metadata has source`() {
-        val caps = SearchResult.inferCapabilities("test", "", mapOf("source" to "example"))
+    fun `SearchResult inferCapabilities includes humanFriendly for articles`() {
+        val caps = SearchResult.inferCapabilities("rss_feeds", "", emptyMap())
 
-        assertTrue(caps.contains("sourced"))
+        assertTrue(caps["humanFriendly"] == true)
     }
 
     @Test
-    fun `SearchResult inferCapabilities without source metadata`() {
-        val caps = SearchResult.inferCapabilities("test", "", emptyMap())
+    fun `SearchResult inferCapabilities includes agentFriendly for code`() {
+        val caps = SearchResult.inferCapabilities("test", "https://github.com/test", emptyMap())
 
-        assertFalse(caps.contains("sourced"))
+        assertTrue(caps["agentFriendly"] == true)
     }
 
     @Test
@@ -83,7 +83,7 @@ class SearchGatewayTest {
             score = 0.95,
             metadata = mapOf("key" to "value"),
             contentType = "document",
-            capabilities = listOf("linkable")
+            capabilities = mapOf("linkable" to true)
         )
 
         assertEquals("test_source", result.source)
@@ -104,7 +104,7 @@ class SearchGatewayTest {
             score = 1.0,
             metadata = emptyMap(),
             contentType = "document",
-            capabilities = listOf("linkable")
+            capabilities = mapOf("linkable" to true)
         )
 
         assertTrue(result.metadata.isEmpty())
@@ -120,7 +120,7 @@ class SearchGatewayTest {
             score = 0.5,
             metadata = mapOf("key" to "value with 'quotes'"),
             contentType = "document",
-            capabilities = listOf("linkable")
+            capabilities = mapOf("linkable" to true)
         )
 
         assertTrue(result.title.contains("<html>"))
