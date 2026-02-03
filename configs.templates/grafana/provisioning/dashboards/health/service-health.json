@@ -1,117 +1,115 @@
 {
-  "dashboard": {
-    "title": "Service Health Overview",
-    "tags": ["health", "monitoring", "docker"],
-    "timezone": "browser",
-    "schemaVersion": 16,
-    "version": 1,
-    "refresh": "30s",
-    "panels": [
-      {
-        "id": 1,
-        "title": "Container Health Status",
-        "type": "stat",
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
-        "targets": [
-          {
-            "expr": "count(container_health_status == 1)",
-            "legendFormat": "Healthy",
-            "refId": "A"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {"mode": "thresholds"},
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {"color": "red", "value": null},
-                {"color": "yellow", "value": 30},
-                {"color": "green", "value": 40}
-              ]
-            }
-          }
+  "title": "Service Health Overview",
+  "tags": ["health", "monitoring", "docker"],
+  "timezone": "browser",
+  "schemaVersion": 16,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Container Health Status",
+      "type": "stat",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "count(container_health_status == 1)",
+          "legendFormat": "Healthy",
+          "refId": "A"
         }
-      },
-      {
-        "id": 2,
-        "title": "Unhealthy Containers",
-        "type": "stat",
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
-        "targets": [
-          {
-            "expr": "count(container_health_status == 0)",
-            "legendFormat": "Unhealthy",
-            "refId": "A"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {"mode": "thresholds"},
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {"color": "green", "value": null},
-                {"color": "yellow", "value": 1},
-                {"color": "red", "value": 5}
-              ]
-            }
-          }
-        }
-      },
-      {
-        "id": 3,
-        "title": "Container Health by Service",
-        "type": "table",
-        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8},
-        "targets": [
-          {
-            "expr": "container_health_status",
-            "format": "table",
-            "instant": true,
-            "refId": "A"
-          }
-        ],
-        "transformations": [
-          {
-            "id": "organize",
-            "options": {
-              "excludeByName": {"Time": true, "__name__": true},
-              "indexByName": {},
-              "renameByName": {
-                "container": "Container",
-                "Value": "Status"
-              }
-            }
-          }
-        ]
-      },
-      {
-        "id": 4,
-        "title": "Service Uptime",
-        "type": "timeseries",
-        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 18},
-        "targets": [
-          {
-            "expr": "avg_over_time(container_health_status{container=~\".*\"}[5m])",
-            "legendFormat": "{{container}}",
-            "refId": "A"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {"mode": "palette-classic"},
-            "custom": {
-              "axisLabel": "Health Status",
-              "drawStyle": "line",
-              "lineInterpolation": "stepAfter",
-              "fillOpacity": 10
-            },
-            "min": 0,
-            "max": 1
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 30},
+              {"color": "green", "value": 40}
+            ]
           }
         }
       }
-    ]
-  }
+    },
+    {
+      "id": 2,
+      "title": "Unhealthy Containers",
+      "type": "stat",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "count(container_health_status == 0)",
+          "legendFormat": "Unhealthy",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 5}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Container Health by Service",
+      "type": "table",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "container_health_status",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {"Time": true, "__name__": true},
+            "indexByName": {},
+            "renameByName": {
+              "container": "Container",
+              "Value": "Status"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Service Uptime",
+      "type": "timeseries",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 18},
+      "targets": [
+        {
+          "expr": "avg_over_time(container_health_status{container=~\".*\"}[5m])",
+          "legendFormat": "{{container}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "Health Status",
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 10
+          },
+          "min": 0,
+          "max": 1
+        }
+      }
+    }
+  ]
 }

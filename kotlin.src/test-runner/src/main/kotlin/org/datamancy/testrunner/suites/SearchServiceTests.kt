@@ -362,7 +362,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
             setBody(buildJsonObject {
                 put("query", "test")
                 putJsonArray("collections") {
-                    add("bookstack-docs")
+                    add("test-bookstack")  // Use test collection that was seeded in setup
                 }
                 put("limit", 5)
             })
