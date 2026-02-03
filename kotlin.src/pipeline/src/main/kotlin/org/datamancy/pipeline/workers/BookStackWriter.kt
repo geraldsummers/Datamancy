@@ -70,6 +70,14 @@ class BookStackWriter(
                         // Write to BookStack
                         bookStackSink.write(bookStackDoc)
 
+                        // Get the page URL that was just written
+                        val pageUrl = bookStackSink.getLastPageUrl(bookStackDoc.pageTitle)
+
+                        // Store the BookStack URL back to staging table
+                        if (pageUrl != null) {
+                            stagingStore.updateBookStackUrl(doc.id, pageUrl)
+                        }
+
                         // Rate limiting: Wait between API calls to avoid 429 errors
                         // BookStack API rate limit: ~5-10 req/sec, so 500ms = 2 req/sec is safe
                         delay(500)
@@ -77,7 +85,7 @@ class BookStackWriter(
                         // Mark as completed
                         stagingStore.markBookStackComplete(doc.id)
 
-                        logger.debug { "Wrote document ${doc.id} to BookStack" }
+                        logger.debug { "Wrote document ${doc.id} to BookStack: $pageUrl" }
 
                     } catch (e: Exception) {
                         logger.error(e) { "Failed to write document ${doc.id} to BookStack: ${e.message}" }

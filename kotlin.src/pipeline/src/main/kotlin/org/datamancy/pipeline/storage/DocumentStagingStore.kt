@@ -40,7 +40,8 @@ data class StagedDocument(
     val createdAt: Instant = Instant.now(),  // When scraped
     val updatedAt: Instant = Instant.now(),  // Last status update
     val retryCount: Int = 0,                 // Number of retry attempts
-    val errorMessage: String? = null         // Last error (if failed)
+    val errorMessage: String? = null,        // Last error (if failed)
+    val bookstackUrl: String? = null         // BookStack page URL (set after write)
 )
 
 /**
@@ -59,6 +60,7 @@ object DocumentStagingTable : Table("document_staging") {
     val updatedAt = timestamp("updated_at")
     val retryCount = integer("retry_count").default(0)
     val errorMessage = text("error_message").nullable()
+    val bookstackUrl = text("bookstack_url").nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -176,6 +178,7 @@ class DocumentStagingStore(
                     this[DocumentStagingTable.updatedAt] = doc.updatedAt
                     this[DocumentStagingTable.retryCount] = doc.retryCount
                     this[DocumentStagingTable.errorMessage] = doc.errorMessage
+                    this[DocumentStagingTable.bookstackUrl] = doc.bookstackUrl
                 }
             }
 
@@ -217,7 +220,8 @@ class DocumentStagingStore(
                             createdAt = row[DocumentStagingTable.createdAt],
                             updatedAt = row[DocumentStagingTable.updatedAt],
                             retryCount = row[DocumentStagingTable.retryCount],
-                            errorMessage = row[DocumentStagingTable.errorMessage]
+                            errorMessage = row[DocumentStagingTable.errorMessage],
+                            bookstackUrl = row[DocumentStagingTable.bookstackUrl]
                         )
                     }
             }
@@ -291,6 +295,23 @@ class DocumentStagingStore(
     }
 
     /**
+     * Update BookStack URL for a document after it's been written
+     */
+    suspend fun updateBookStackUrl(id: String, bookstackUrl: String) {
+        try {
+            transaction {
+                DocumentStagingTable.update({ DocumentStagingTable.id eq id }) {
+                    it[DocumentStagingTable.bookstackUrl] = bookstackUrl
+                    it[updatedAt] = Instant.now()
+                }
+            }
+            logger.debug { "Updated BookStack URL for $id: $bookstackUrl" }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to update BookStack URL for $id: ${e.message}" }
+        }
+    }
+
+    /**
      * Get stats by source
      */
     suspend fun getStatsBySource(source: String): Map<String, Long> {
@@ -359,7 +380,8 @@ class DocumentStagingStore(
                             createdAt = row[DocumentStagingTable.createdAt],
                             updatedAt = row[DocumentStagingTable.updatedAt],
                             retryCount = row[DocumentStagingTable.retryCount],
-                            errorMessage = row[DocumentStagingTable.errorMessage]
+                            errorMessage = row[DocumentStagingTable.errorMessage],
+                            bookstackUrl = row[DocumentStagingTable.bookstackUrl]
                         )
                     }
             }

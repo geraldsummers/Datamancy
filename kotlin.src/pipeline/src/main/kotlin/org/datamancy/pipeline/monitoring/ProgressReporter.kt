@@ -87,7 +87,7 @@ class ProgressReporter(
                 appendLine()
             }
 
-            // Stage 2: Staging → Qdrant (Embedding + Vector DB)
+            // Stage 2a: Staging → Qdrant (Embedding + Vector DB for search)
             if (deltaEmbedded > 0 || deltaEmbedFailed > 0) {
                 append("  🧠 STAGING → QDRANT: +$deltaEmbedded embedded")
                 if (deltaEmbedFailed > 0) append(", +$deltaEmbedFailed failed")
@@ -95,9 +95,9 @@ class ProgressReporter(
                 appendLine()
             }
 
-            // Stage 3: Qdrant → BookStack
+            // Stage 2b: Staging → BookStack (Prettified wiki pages for humans)
             if (deltaBookstack > 0) {
-                append("  📚 QDRANT → BOOKSTACK: +$deltaBookstack written")
+                append("  📚 STAGING → BOOKSTACK: +$deltaBookstack written")
                 if (bookstackRate > 0) append(" @ $bookstackRate/min")
                 appendLine()
             }

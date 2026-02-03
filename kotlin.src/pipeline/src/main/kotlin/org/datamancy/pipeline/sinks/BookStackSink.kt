@@ -36,6 +36,13 @@ class BookStackSink(
     private val bookCache = mutableMapOf<String, Int>()
     private val chapterCache = mutableMapOf<String, Int>()
 
+    // Store last written page URL (thread-safe for concurrent writes)
+    private val lastPageUrlMap = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * Write a document to BookStack and return the page URL
+     * The URL is stored in a thread-safe map that can be retrieved via getLastPageUrl()
+     */
     override suspend fun write(item: BookStackDocument) {
         try {
             // Ensure book exists
@@ -46,10 +53,13 @@ class BookStackSink(
                 getOrCreateChapter(bookId, item.chapterName, item.chapterDescription)
             } else null
 
-            // Create or update page
-            createOrUpdatePage(bookId, chapterId, item)
+            // Create or update page and get URL
+            val pageUrl = createOrUpdatePage(bookId, chapterId, item)
 
-            logger.debug { "Wrote page '${item.pageTitle}' to BookStack" }
+            // Store the URL for retrieval
+            lastPageUrlMap[item.pageTitle] = pageUrl
+
+            logger.debug { "Wrote page '${item.pageTitle}' to BookStack: $pageUrl" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to write to BookStack: ${e.message}" }
             throw e
@@ -58,6 +68,14 @@ class BookStackSink(
 
     override suspend fun writeBatch(items: List<BookStackDocument>) {
         items.forEach { write(it) }
+    }
+
+    /**
+     * Get the URL of the last written page for a given title
+     * Returns null if the page hasn't been written yet
+     */
+    fun getLastPageUrl(pageTitle: String): String? {
+        return lastPageUrlMap[pageTitle]
     }
 
     override suspend fun healthCheck(): Boolean {
@@ -197,7 +215,7 @@ class BookStackSink(
         }
     }
 
-    private fun createOrUpdatePage(bookId: Int, chapterId: Int?, doc: BookStackDocument) {
+    private fun createOrUpdatePage(bookId: Int, chapterId: Int?, doc: BookStackDocument): String {
         // Search for existing page by name
         var existingPageId: Int? = null
         try {
@@ -259,7 +277,13 @@ class BookStackSink(
                 if (!response.isSuccessful) {
                     throw Exception("Failed to update page: ${response.code} $bodyString")
                 }
+
+                val json = JsonParser.parseString(bodyString).asJsonObject
+                val slug = json.get("slug")?.asString ?: throw Exception("No slug in response")
+                val pageUrl = "$bookstackUrl/books/${json.get("book_slug")?.asString}/page/$slug"
+
                 logger.debug { "Updated BookStack page: ${doc.pageTitle} (ID: $existingPageId)" }
+                return pageUrl
             }
         } else {
             // Create new page
@@ -278,7 +302,11 @@ class BookStackSink(
 
                 val json = JsonParser.parseString(bodyString).asJsonObject
                 val pageId = json.get("id").asInt
+                val slug = json.get("slug")?.asString ?: throw Exception("No slug in response")
+                val pageUrl = "$bookstackUrl/books/${json.get("book_slug")?.asString}/page/$slug"
+
                 logger.debug { "Created BookStack page: ${doc.pageTitle} (ID: $pageId)" }
+                return pageUrl
             }
         }
     }

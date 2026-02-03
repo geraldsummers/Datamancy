@@ -127,11 +127,17 @@ class EmbeddingScheduler(
             logger.debug { "Embedding document: ${doc.id}" }
             val vector = embedder.process(doc.text)
 
-            // Create vector document
+            // Create vector document with BookStack URL if available
+            val enrichedMetadata = if (doc.bookstackUrl != null) {
+                doc.metadata + ("bookstack_url" to doc.bookstackUrl)
+            } else {
+                doc.metadata
+            }
+
             val vectorDoc = VectorDocument(
                 id = doc.id,
                 vector = vector,
-                metadata = doc.metadata
+                metadata = enrichedMetadata
             )
 
             // Insert to Qdrant
