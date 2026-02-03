@@ -49,10 +49,17 @@ class ProgressReporter(
         val completed = stats["completed"] ?: 0L
         val failed = stats["failed"] ?: 0L
 
+        // Get BookStack stats
+        val bookstackStats = stagingStore.getBookStackStats()
+        val bookstackCompleted = bookstackStats["bookstack_completed"] ?: 0L
+        val bookstackPending = bookstackStats["bookstack_pending"] ?: 0L
+        val bookstackFailed = bookstackStats["bookstack_failed"] ?: 0L
+
         // Calculate deltas
         val lastPending = lastStats["pending"] ?: 0L
         val lastCompleted = lastStats["completed"] ?: 0L
         val lastFailed = lastStats["failed"] ?: 0L
+        val lastBookstackCompleted = lastStats["bookstack_completed"] ?: 0L
 
         val totalProcessed = completed + failed
         val lastTotalProcessed = (lastStats["completed"] ?: 0L) + (lastStats["failed"] ?: 0L)
@@ -60,10 +67,12 @@ class ProgressReporter(
         val deltaStaged = totalProcessed - lastTotalProcessed
         val deltaEmbedded = completed - lastCompleted
         val deltaEmbedFailed = failed - lastFailed
+        val deltaBookstack = bookstackCompleted - lastBookstackCompleted
 
         // Calculate rates (docs per minute)
         val stagedRate = if (elapsed > 0) (deltaStaged * 60000.0 / elapsed).toInt() else 0
         val embeddedRate = if (elapsed > 0) (deltaEmbedded * 60000.0 / elapsed).toInt() else 0
+        val bookstackRate = if (elapsed > 0) (deltaBookstack * 60000.0 / elapsed).toInt() else 0
 
         // Build summary message
         val summary = buildString {
@@ -86,11 +95,18 @@ class ProgressReporter(
                 appendLine()
             }
 
+            // Stage 3: Qdrant → BookStack
+            if (deltaBookstack > 0) {
+                append("  📚 QDRANT → BOOKSTACK: +$deltaBookstack written")
+                if (bookstackRate > 0) append(" @ $bookstackRate/min")
+                appendLine()
+            }
+
             // Queue and totals
-            if (deltaStaged == 0L && deltaEmbedded == 0L) {
+            if (deltaStaged == 0L && deltaEmbedded == 0L && deltaBookstack == 0L) {
                 appendLine("  💤 Idle")
             }
-            appendLine("  📊 Queue: $pending pending | Total: $completed completed, $failed failed")
+            appendLine("  📊 Queue: $pending pending | Embedded: $completed | BookStack: $bookstackCompleted written, $bookstackPending pending")
 
             append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         }
@@ -101,7 +117,8 @@ class ProgressReporter(
         lastStats = mapOf(
             "pending" to pending,
             "completed" to completed,
-            "failed" to failed
+            "failed" to failed,
+            "bookstack_completed" to bookstackCompleted
         )
         lastReportTime = now
     }

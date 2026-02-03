@@ -405,6 +405,52 @@ class DocumentStagingStore(
     }
 
     /**
+     * Get BookStack write statistics
+     * Returns pending (embeddingCompleted && retryCount < 3) and failed (retryCount >= 3) counts
+     */
+    suspend fun getBookStackStats(): Map<String, Long> {
+        return try {
+            transaction {
+                val totalCompleted = DocumentStagingTable
+                    .select(DocumentStagingTable.id.count())
+                    .where { DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name }
+                    .single()[DocumentStagingTable.id.count()]
+
+                val pending = DocumentStagingTable
+                    .select(DocumentStagingTable.id.count())
+                    .where {
+                        (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name) and
+                        (DocumentStagingTable.retryCount less 3)
+                    }
+                    .single()[DocumentStagingTable.id.count()]
+
+                val failed = DocumentStagingTable
+                    .select(DocumentStagingTable.id.count())
+                    .where {
+                        (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name) and
+                        (DocumentStagingTable.retryCount greaterEq 3)
+                    }
+                    .single()[DocumentStagingTable.id.count()]
+
+                mapOf(
+                    "total_embedded" to totalCompleted,
+                    "bookstack_pending" to pending,
+                    "bookstack_failed" to failed,
+                    "bookstack_completed" to (totalCompleted - pending - failed)
+                )
+            }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to get BookStack stats: ${e.message}" }
+            mapOf(
+                "total_embedded" to 0L,
+                "bookstack_pending" to 0L,
+                "bookstack_failed" to 0L,
+                "bookstack_completed" to 0L
+            )
+        }
+    }
+
+    /**
      * Close the connection pool and release resources
      */
     override fun close() {
