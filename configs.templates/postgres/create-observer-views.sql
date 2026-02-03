@@ -72,15 +72,27 @@ CREATE SCHEMA IF NOT EXISTS agent_observer;
 DO $$
 BEGIN
     IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'board') THEN
-        CREATE OR REPLACE VIEW agent_observer.public_boards AS
-        SELECT
-            id,
-            name,
-            created_at,
-            updated_at
-        FROM board
-        WHERE is_archived = false;
-        RAISE NOTICE 'Created agent_observer.public_boards view';
+        -- Check if is_archived column exists
+        IF EXISTS (SELECT FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'board' AND column_name = 'is_archived') THEN
+            CREATE OR REPLACE VIEW agent_observer.public_boards AS
+            SELECT
+                id,
+                name,
+                created_at,
+                updated_at
+            FROM board
+            WHERE is_archived = false;
+            RAISE NOTICE 'Created agent_observer.public_boards view (with is_archived filter)';
+        ELSE
+            CREATE OR REPLACE VIEW agent_observer.public_boards AS
+            SELECT
+                id,
+                name,
+                created_at,
+                updated_at
+            FROM board;
+            RAISE NOTICE 'Created agent_observer.public_boards view (no is_archived column, showing all boards)';
+        END IF;
     ELSE
         RAISE NOTICE 'Skipping agent_observer.public_boards - board table does not exist yet';
     END IF;
@@ -91,17 +103,31 @@ DO $$
 BEGIN
     IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'list')
        AND EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'board') THEN
-        CREATE OR REPLACE VIEW agent_observer.public_lists AS
-        SELECT
-            l.id,
-            l.board_id,
-            l.name,
-            l.position,
-            b.name as board_name
-        FROM list l
-        JOIN board b ON l.board_id = b.id
-        WHERE b.is_archived = false;
-        RAISE NOTICE 'Created agent_observer.public_lists view';
+        -- Check if is_archived column exists in board table
+        IF EXISTS (SELECT FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'board' AND column_name = 'is_archived') THEN
+            CREATE OR REPLACE VIEW agent_observer.public_lists AS
+            SELECT
+                l.id,
+                l.board_id,
+                l.name,
+                l.position,
+                b.name as board_name
+            FROM list l
+            JOIN board b ON l.board_id = b.id
+            WHERE b.is_archived = false;
+            RAISE NOTICE 'Created agent_observer.public_lists view (with is_archived filter)';
+        ELSE
+            CREATE OR REPLACE VIEW agent_observer.public_lists AS
+            SELECT
+                l.id,
+                l.board_id,
+                l.name,
+                l.position,
+                b.name as board_name
+            FROM list l
+            JOIN board b ON l.board_id = b.id;
+            RAISE NOTICE 'Created agent_observer.public_lists view (no is_archived filter)';
+        END IF;
     ELSE
         RAISE NOTICE 'Skipping agent_observer.public_lists - list or board table does not exist yet';
     END IF;
@@ -111,14 +137,25 @@ END $$;
 DO $$
 BEGIN
     IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'card') THEN
-        CREATE OR REPLACE VIEW agent_observer.public_list_stats AS
-        SELECT
-            list_id,
-            COUNT(*) as card_count
-        FROM card
-        WHERE is_archived = false
-        GROUP BY list_id;
-        RAISE NOTICE 'Created agent_observer.public_list_stats view';
+        -- Check if is_archived column exists
+        IF EXISTS (SELECT FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'card' AND column_name = 'is_archived') THEN
+            CREATE OR REPLACE VIEW agent_observer.public_list_stats AS
+            SELECT
+                list_id,
+                COUNT(*) as card_count
+            FROM card
+            WHERE is_archived = false
+            GROUP BY list_id;
+            RAISE NOTICE 'Created agent_observer.public_list_stats view (with is_archived filter)';
+        ELSE
+            CREATE OR REPLACE VIEW agent_observer.public_list_stats AS
+            SELECT
+                list_id,
+                COUNT(*) as card_count
+            FROM card
+            GROUP BY list_id;
+            RAISE NOTICE 'Created agent_observer.public_list_stats view (no is_archived filter)';
+        END IF;
     ELSE
         RAISE NOTICE 'Skipping agent_observer.public_list_stats - card table does not exist yet';
     END IF;
@@ -138,21 +175,39 @@ CREATE SCHEMA IF NOT EXISTS agent_observer;
 DO $$
 BEGIN
     IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'repository') THEN
-        CREATE OR REPLACE VIEW agent_observer.public_repositories AS
-        SELECT
-            id,
-            owner_id,
-            name,
-            description,
-            is_private,
-            is_archived,
-            num_stars,
-            num_forks,
-            created_unix,
-            updated_unix
-        FROM repository
-        WHERE is_private = false AND is_archived = false;
-        RAISE NOTICE 'Created agent_observer.public_repositories view';
+        -- Check if is_archived column exists
+        IF EXISTS (SELECT FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'repository' AND column_name = 'is_archived') THEN
+            CREATE OR REPLACE VIEW agent_observer.public_repositories AS
+            SELECT
+                id,
+                owner_id,
+                name,
+                description,
+                is_private,
+                is_archived,
+                num_stars,
+                num_forks,
+                created_unix,
+                updated_unix
+            FROM repository
+            WHERE is_private = false AND is_archived = false;
+            RAISE NOTICE 'Created agent_observer.public_repositories view (with is_archived filter)';
+        ELSE
+            CREATE OR REPLACE VIEW agent_observer.public_repositories AS
+            SELECT
+                id,
+                owner_id,
+                name,
+                description,
+                is_private,
+                num_stars,
+                num_forks,
+                created_unix,
+                updated_unix
+            FROM repository
+            WHERE is_private = false;
+            RAISE NOTICE 'Created agent_observer.public_repositories view (no is_archived column)';
+        END IF;
     ELSE
         RAISE NOTICE 'Skipping agent_observer.public_repositories - repository table does not exist yet';
     END IF;
@@ -194,19 +249,34 @@ END $$;
 DO $$
 BEGIN
     IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'accounts') THEN
-        CREATE OR REPLACE VIEW agent_observer.public_accounts AS
-        SELECT
-            id,
-            username,
-            domain,
-            display_name,
-            created_at,
-            updated_at,
-            followers_count,
-            following_count
-        FROM accounts
-        WHERE suspended_at IS NULL;
-        RAISE NOTICE 'Created agent_observer.public_accounts view';
+        -- Check if followers_count column exists
+        IF EXISTS (SELECT FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'accounts' AND column_name = 'followers_count') THEN
+            CREATE OR REPLACE VIEW agent_observer.public_accounts AS
+            SELECT
+                id,
+                username,
+                domain,
+                display_name,
+                created_at,
+                updated_at,
+                followers_count,
+                following_count
+            FROM accounts
+            WHERE suspended_at IS NULL;
+            RAISE NOTICE 'Created agent_observer.public_accounts view (with followers_count)';
+        ELSE
+            CREATE OR REPLACE VIEW agent_observer.public_accounts AS
+            SELECT
+                id,
+                username,
+                domain,
+                display_name,
+                created_at,
+                updated_at
+            FROM accounts
+            WHERE suspended_at IS NULL;
+            RAISE NOTICE 'Created agent_observer.public_accounts view (no followers_count column)';
+        END IF;
     ELSE
         RAISE NOTICE 'Skipping agent_observer.public_accounts - accounts table does not exist yet';
     END IF;

@@ -10,6 +10,11 @@ RUN apk add --no-cache bash curl jq docker-cli
 RUN addgroup -S datamancer && adduser -S datamancer -G datamancer \
     && addgroup datamancer docker 2>/dev/null || true
 
+# Configure Docker daemon to allow insecure registry access
+# This is needed for CI/CD tests that push to HTTP-only registry
+RUN mkdir -p /etc/docker && \
+    echo '{"insecure-registries": ["192.168.0.11:5000", "registry:5000"]}' > /etc/docker/daemon.json
+
 WORKDIR /app
 
 # Copy pre-built shadow JAR from Gradle

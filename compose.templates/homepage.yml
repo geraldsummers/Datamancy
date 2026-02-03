@@ -20,7 +20,7 @@ services:
     environment:
       PUID: ${DOCKER_USER_ID:-1000}
       PGID: ${DOCKER_GROUP_ID:-1000}
-      HOMEPAGE_ALLOWED_HOSTS: homepage.${DOMAIN}
+      HOMEPAGE_ALLOWED_HOSTS: homepage.${DOMAIN},homepage,homepage:3000
       DOCKER_HOST: tcp://docker-proxy:2375
     volumes:
       - ./configs/homepage/services.yaml:/app/config/services.yaml:ro

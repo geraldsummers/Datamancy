@@ -3,6 +3,50 @@
 # Only secrets and deployment paths use runtime ${VARS}
 
 services:
+  forgejo-token-generator:
+    image: codeberg.org/forgejo/forgejo:9.0
+    container_name: forgejo-token-generator
+    restart: "no"
+    networks:
+      - postgres
+    depends_on:
+      forgejo:
+        condition: service_healthy
+    environment:
+      USER_UID: ${DOCKER_USER_ID:-1000}
+      USER_GID: ${DOCKER_GROUP_ID:-1000}
+    volumes:
+      - forgejo_data:/data
+      - forgejo_runner_token:/runner-token
+    command: >
+      sh -c "
+        echo '[token-generator] Waiting for Forgejo to be fully ready...'
+        sleep 10
+        echo '[token-generator] Generating runner registration token...'
+        su git -c 'forgejo --config /data/gitea/conf/app.ini actions generate-runner-token' > /runner-token/token 2>/tmp/token-gen.err || {
+          echo '[token-generator] Failed to generate token via CLI'
+          echo '[token-generator] Error output:'
+          cat /tmp/token-gen.err
+          echo '[token-generator] Attempting workaround...'
+          # Try without explicit config path
+          su git -c 'cd /data && forgejo actions generate-runner-token' > /runner-token/token 2>&1 || {
+            echo '[token-generator] ❌ All methods failed. Manual intervention required.'
+            echo '[token-generator] Run: docker exec forgejo forgejo actions generate-runner-token > /path/to/token'
+            exit 1
+          }
+        }
+        if [ -s /runner-token/token ]; then
+          echo '[token-generator] ✓ Token generated successfully'
+          chmod 644 /runner-token/token
+          echo '[token-generator] Token preview (first 10 chars):'
+          head -c 10 /runner-token/token
+          echo '...'
+        else
+          echo '[token-generator] ❌ Token file is empty'
+          exit 1
+        fi
+      "
+
   forgejo:
     image: codeberg.org/forgejo/forgejo:9.0
     container_name: forgejo
