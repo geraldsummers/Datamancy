@@ -63,5 +63,5 @@ services:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9091/api/health"]
       interval: 15s
       timeout: 10s
-      retries: 3
-      start_period: 90s
+      retries: 5
+      start_period: 120s
