@@ -115,8 +115,54 @@ class Embedder(
                 } else {
                     logger.error(e) { "Embedding failed after $maxRetries retries: ${e.message}" }
                 }
+            } catch (e: java.net.ConnectException) {
+                // Connection refused - embedding service may be restarting (profile swap)
+                lastException = RetryableException("Connection refused (service may be restarting)", e)
+
+                if (attempt < maxRetries) {
+                    // Longer backoff for connection failures: 1s, 2s, 4s, 8s, 16s
+                    val backoffMs = 1000L * (1 shl attempt)
+                    val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
+                    val totalDelay = backoffMs + jitterMs
+
+                    totalRetries.incrementAndGet()
+                    logger.warn { "Embedding service unreachable (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms" }
+                    delay(totalDelay)
+                } else {
+                    logger.error(e) { "Embedding service unreachable after $maxRetries retries" }
+                }
+            } catch (e: java.net.SocketTimeoutException) {
+                // Timeout - service may be overloaded or restarting
+                lastException = RetryableException("Socket timeout (service overloaded or restarting)", e)
+
+                if (attempt < maxRetries) {
+                    val backoffMs = 1000L * (1 shl attempt)
+                    val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
+                    val totalDelay = backoffMs + jitterMs
+
+                    totalRetries.incrementAndGet()
+                    logger.warn { "Embedding request timeout (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms" }
+                    delay(totalDelay)
+                } else {
+                    logger.error(e) { "Embedding request timeout after $maxRetries retries" }
+                }
+            } catch (e: java.io.IOException) {
+                // Network IO error - treat as retryable
+                lastException = RetryableException("Network IO error", e)
+
+                if (attempt < maxRetries) {
+                    val backoffMs = 1000L * (1 shl attempt)
+                    val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
+                    val totalDelay = backoffMs + jitterMs
+
+                    totalRetries.incrementAndGet()
+                    logger.warn { "Network error (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms: ${e.message}" }
+                    delay(totalDelay)
+                } else {
+                    logger.error(e) { "Network error after $maxRetries retries: ${e.message}" }
+                }
             } catch (e: Exception) {
-                // Non-retryable error
+                // Non-retryable error (e.g., malformed response, invalid JSON)
                 logger.error(e) { "Failed to generate embedding (non-retryable): ${e.message}" }
                 throw e
             }
