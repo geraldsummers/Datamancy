@@ -5,6 +5,7 @@ import io.ktor.client.engine.mock.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.utils.io.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
@@ -23,10 +24,26 @@ class TokenManagerTest {
             engine {
                 addHandler { request ->
                     val url = request.url.toString()
-                    val response = responses[url] ?: Pair(HttpStatusCode.NotFound, "{}")
+                    // Normalize URL by adding :80 if missing and scheme is http
+                    val normalizedUrl = if (url.startsWith("http://")) {
+                        val afterScheme = url.substring(7) // Remove "http://"
+                        val slashIndex = afterScheme.indexOf('/')
+                        val colonIndex = afterScheme.indexOf(':')
+
+                        // Only add :80 if there's no port specified
+                        if (slashIndex > 0 && (colonIndex < 0 || colonIndex > slashIndex)) {
+                            "http://" + afterScheme.substring(0, slashIndex) + ":80" + afterScheme.substring(slashIndex)
+                        } else {
+                            url
+                        }
+                    } else {
+                        url
+                    }
+
+                    val response = responses[normalizedUrl] ?: Pair(HttpStatusCode.NotFound, "{}")
 
                     respond(
-                        content = response.second,
+                        content = ByteReadChannel(response.second),
                         status = response.first,
                         headers = headersOf(HttpHeaders.ContentType, "application/json")
                     )

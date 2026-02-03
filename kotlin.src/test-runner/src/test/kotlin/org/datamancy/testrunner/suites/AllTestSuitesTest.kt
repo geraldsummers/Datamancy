@@ -206,8 +206,8 @@ class AllTestSuitesTest {
         runner.monitoringTests()
         val summary = runner.summary()
 
-        // Should run 5 tests (3 Prometheus + 2 Grafana)
-        assertEquals(5, summary.total)
+        // Should run 13 tests (3 Prometheus + 2 Grafana + 4 Metrics Exporters + 2 Dozzle + 2 AlertManager)
+        assertEquals(13, summary.total)
     }
 
     // ============================================================================
@@ -250,7 +250,7 @@ class AllTestSuitesTest {
             "productivity" to 8,
             "file-management" to 5,
             "security" to 3,
-            "monitoring" to 5,
+            "monitoring" to 13,
             "backup" to 3
         )
 

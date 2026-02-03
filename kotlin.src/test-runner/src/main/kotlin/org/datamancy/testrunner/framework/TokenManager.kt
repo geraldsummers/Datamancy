@@ -111,7 +111,7 @@ class TokenManager(
     suspend fun acquireForgejoToken(username: String, password: String): Result<String> {
         return try {
             // Forgejo API token creation
-            val response = client.post("http://forgejo:3000/api/v1/users/$username/tokens") {
+            val response = client.post("${endpoints.forgejo}/api/v1/users/$username/tokens") {
                 basicAuth(username, password)
                 contentType(ContentType.Application.Json)
                 setBody("""{"name":"integration-test-${System.currentTimeMillis()}"}""")
@@ -142,7 +142,7 @@ class TokenManager(
     suspend fun acquireMastodonToken(email: String, password: String): Result<String> {
         return try {
             // Step 1: Register OAuth application
-            val appResponse = client.post("http://mastodon-web:3000/api/v1/apps") {
+            val appResponse = client.post("${endpoints.mastodon}/api/v1/apps") {
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody("client_name=test-client&redirect_uris=urn:ietf:wg:oauth:2.0:oob&scopes=read write")
             }
@@ -158,7 +158,7 @@ class TokenManager(
                 ?: return Result.failure(Exception("No client_secret"))
 
             // Step 2: Get OAuth token
-            val tokenResponse = client.post("http://mastodon-web:3000/oauth/token") {
+            val tokenResponse = client.post("${endpoints.mastodon}/oauth/token") {
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody("client_id=$clientId&client_secret=$clientSecret&grant_type=password&username=$email&password=$password&scope=read write")
             }
@@ -187,7 +187,7 @@ class TokenManager(
      */
     suspend fun acquireSeafileToken(username: String, password: String): Result<String> {
         return try {
-            val response = client.post("http://seafile:80/api2/auth-token/") {
+            val response = client.post("${endpoints.seafile}/api2/auth-token/") {
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody("username=$username&password=$password")
             }
@@ -216,7 +216,7 @@ class TokenManager(
      */
     suspend fun acquirePlankaToken(email: String, password: String): Result<String> {
         return try {
-            val response = client.post("http://planka:1337/api/access-tokens") {
+            val response = client.post("${endpoints.planka}/api/access-tokens") {
                 contentType(ContentType.Application.Json)
                 setBody("""{"emailOrUsername":"$email","password":"$password"}""")
             }
@@ -269,7 +269,7 @@ class TokenManager(
      */
     suspend fun acquireQbittorrentSession(username: String = "admin", password: String): Result<List<Cookie>> {
         return try {
-            val response = client.post("http://qbittorrent:8080/api/v2/auth/login") {
+            val response = client.post("${endpoints.qbittorrent}/api/v2/auth/login") {
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody("username=$username&password=$password")
             }
@@ -295,7 +295,7 @@ class TokenManager(
      */
     suspend fun acquireOpenWebUIToken(email: String, password: String): Result<String> {
         return try {
-            val response = client.post("http://open-webui:8080/api/v1/auths/signin") {
+            val response = client.post("${endpoints.openWebUI}/api/v1/auths/signin") {
                 contentType(ContentType.Application.Json)
                 setBody("""{"email":"$email","password":"$password"}""")
             }
@@ -325,7 +325,7 @@ class TokenManager(
     suspend fun acquireJupyterHubToken(username: String, password: String): Result<String> {
         return try {
             // JupyterHub uses PAM authentication, need to get token via API
-            val response = client.post("http://jupyterhub:8000/hub/api/users/$username/tokens") {
+            val response = client.post("${endpoints.jupyterhub}/hub/api/users/$username/tokens") {
                 basicAuth(username, password)
                 contentType(ContentType.Application.Json)
                 setBody("""{"note":"integration-test"}""")

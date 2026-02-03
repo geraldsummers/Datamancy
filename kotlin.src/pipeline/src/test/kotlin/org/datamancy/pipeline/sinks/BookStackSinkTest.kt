@@ -87,7 +87,7 @@ class BookStackSinkTest {
         // Mock page creation
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
-            .setBody("""{"id": 1, "name": "Test Page"}"""))
+            .setBody("""{"id": 1, "name": "Test Page", "slug": "test-page", "book_slug": "test-book"}"""))
 
         val doc = BookStackDocument(
             bookName = "Test Book",
@@ -133,7 +133,7 @@ class BookStackSinkTest {
         // Mock page creation
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
-            .setBody("""{"id": 10, "name": "Test Page"}"""))
+            .setBody("""{"id": 10, "name": "Test Page", "slug": "test-page", "book_slug": "existing-book"}"""))
 
         val doc = BookStackDocument(
             bookName = "Existing Book",
@@ -165,7 +165,7 @@ class BookStackSinkTest {
         // Mock page creation
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
-            .setBody("""{"id": 20, "name": "Test Page"}"""))
+            .setBody("""{"id": 20, "name": "Test Page", "slug": "test-page", "book_slug": "test-book"}"""))
 
         val doc = BookStackDocument(
             bookName = "Test Book",
@@ -200,7 +200,7 @@ class BookStackSinkTest {
         // Mock page update
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
-            .setBody("""{"id": 50, "name": "Test Page"}"""))
+            .setBody("""{"id": 50, "name": "Test Page", "slug": "test-page", "book_slug": "test-book"}"""))
 
         val doc = BookStackDocument(
             bookName = "Test Book",
@@ -223,7 +223,7 @@ class BookStackSinkTest {
         // Mock responses
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": [{"id": 1, "name": "Book"}]}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
-        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1, "slug": "page", "book_slug": "book"}"""))
 
         val doc = BookStackDocument(
             bookName = "Book",
@@ -258,9 +258,9 @@ class BookStackSinkTest {
         // Mock responses for both documents
         repeat(2) {
             mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
-            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": $it}"""))
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": $it, "slug": "book$it"}"""))
             mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
-            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": $it}"""))
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": $it, "slug": "page$it", "book_slug": "book$it"}"""))
         }
 
         sink.writeBatch(docs)
@@ -289,7 +289,7 @@ class BookStackSinkTest {
     fun `test handles HTML content correctly`() = runBlocking {
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": [{"id": 1, "name": "Book"}]}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
-        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1, "slug": "test", "book_slug": "book"}"""))
 
         val htmlContent = """
             <h1>Test Article</h1>
@@ -320,11 +320,11 @@ class BookStackSinkTest {
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 99, "name": "Same Book"}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
-        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1, "slug": "page-1", "book_slug": "same-book"}"""))
 
         // Second write - should use cached book ID
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
-        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 2}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 2, "slug": "page-2", "book_slug": "same-book"}"""))
 
         val doc1 = BookStackDocument(bookName = "Same Book", pageTitle = "Page 1", pageContent = "<p>1</p>")
         val doc2 = BookStackDocument(bookName = "Same Book", pageTitle = "Page 2", pageContent = "<p>2</p>")
