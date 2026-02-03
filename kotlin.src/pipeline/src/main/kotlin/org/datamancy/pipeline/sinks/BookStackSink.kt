@@ -68,8 +68,9 @@ class BookStackSink(
                 .get()
                 .build()
 
-            val response = client.newCall(request).execute()
-            response.isSuccessful
+            client.newCall(request).execute().use { response ->
+                response.isSuccessful
+            }
         } catch (e: Exception) {
             logger.error(e) { "BookStack health check failed: ${e.message}" }
             false
@@ -88,17 +89,19 @@ class BookStackSink(
                 .get()
                 .build()
 
-            val response = client.newCall(searchRequest).execute()
-            if (response.isSuccessful) {
-                val json = JsonParser.parseString(response.body?.string()).asJsonObject
-                val books = json.getAsJsonArray("data")
+            client.newCall(searchRequest).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyString = response.body?.string() ?: return@use
+                    val json = JsonParser.parseString(bodyString).asJsonObject
+                    val books = json.getAsJsonArray("data")
 
-                for (book in books) {
-                    val bookObj = book.asJsonObject
-                    if (bookObj.get("name").asString == name) {
-                        val id = bookObj.get("id").asInt
-                        bookCache[name] = id
-                        return id
+                    for (book in books) {
+                        val bookObj = book.asJsonObject
+                        if (bookObj.get("name").asString == name) {
+                            val id = bookObj.get("id").asInt
+                            bookCache[name] = id
+                            return id
+                        }
                     }
                 }
             }
@@ -118,16 +121,19 @@ class BookStackSink(
             .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            throw Exception("Failed to create book: ${response.code} ${response.body?.string()}")
-        }
+        client.newCall(request).execute().use { response ->
+            val bodyString = response.body?.string() ?: throw Exception("Empty response body")
 
-        val json = JsonParser.parseString(response.body?.string()).asJsonObject
-        val id = json.get("id").asInt
-        bookCache[name] = id
-        logger.info { "Created BookStack book: $name (ID: $id)" }
-        return id
+            if (!response.isSuccessful) {
+                throw Exception("Failed to create book: ${response.code} $bodyString")
+            }
+
+            val json = JsonParser.parseString(bodyString).asJsonObject
+            val id = json.get("id").asInt
+            bookCache[name] = id
+            logger.info { "Created BookStack book: $name (ID: $id)" }
+            return id
+        }
     }
 
     private fun getOrCreateChapter(bookId: Int, name: String, description: String?): Int {
@@ -142,18 +148,20 @@ class BookStackSink(
                 .get()
                 .build()
 
-            val response = client.newCall(searchRequest).execute()
-            if (response.isSuccessful) {
-                val json = JsonParser.parseString(response.body?.string()).asJsonObject
-                val contents = json.getAsJsonArray("contents")
+            client.newCall(searchRequest).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyString = response.body?.string() ?: return@use
+                    val json = JsonParser.parseString(bodyString).asJsonObject
+                    val contents = json.getAsJsonArray("contents")
 
-                for (content in contents) {
-                    val contentObj = content.asJsonObject
-                    if (contentObj.get("type").asString == "chapter" &&
-                        contentObj.get("name").asString == name) {
-                        val id = contentObj.get("id").asInt
-                        chapterCache[cacheKey] = id
-                        return id
+                    for (content in contents) {
+                        val contentObj = content.asJsonObject
+                        if (contentObj.get("type").asString == "chapter" &&
+                            contentObj.get("name").asString == name) {
+                            val id = contentObj.get("id").asInt
+                            chapterCache[cacheKey] = id
+                            return id
+                        }
                     }
                 }
             }
@@ -174,16 +182,19 @@ class BookStackSink(
             .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            throw Exception("Failed to create chapter: ${response.code} ${response.body?.string()}")
-        }
+        client.newCall(request).execute().use { response ->
+            val bodyString = response.body?.string() ?: throw Exception("Empty response body")
 
-        val json = JsonParser.parseString(response.body?.string()).asJsonObject
-        val id = json.get("id").asInt
-        chapterCache[cacheKey] = id
-        logger.info { "Created BookStack chapter: $name (ID: $id)" }
-        return id
+            if (!response.isSuccessful) {
+                throw Exception("Failed to create chapter: ${response.code} $bodyString")
+            }
+
+            val json = JsonParser.parseString(bodyString).asJsonObject
+            val id = json.get("id").asInt
+            chapterCache[cacheKey] = id
+            logger.info { "Created BookStack chapter: $name (ID: $id)" }
+            return id
+        }
     }
 
     private fun createOrUpdatePage(bookId: Int, chapterId: Int?, doc: BookStackDocument) {
@@ -196,22 +207,24 @@ class BookStackSink(
                 .get()
                 .build()
 
-            val response = client.newCall(searchRequest).execute()
-            if (response.isSuccessful) {
-                val json = JsonParser.parseString(response.body?.string()).asJsonObject
-                val pages = json.getAsJsonArray("data")
+            client.newCall(searchRequest).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyString = response.body?.string() ?: return@use
+                    val json = JsonParser.parseString(bodyString).asJsonObject
+                    val pages = json.getAsJsonArray("data")
 
-                for (page in pages) {
-                    val pageObj = page.asJsonObject
-                    // Check if page is in the same book/chapter
-                    val pageBookId = pageObj.get("book_id").asInt
-                    val pageChapterId = pageObj.get("chapter_id")?.let {
-                        if (it.isJsonNull) null else it.asInt
-                    }
+                    for (page in pages) {
+                        val pageObj = page.asJsonObject
+                        // Check if page is in the same book/chapter
+                        val pageBookId = pageObj.get("book_id").asInt
+                        val pageChapterId = pageObj.get("chapter_id")?.let {
+                            if (it.isJsonNull) null else it.asInt
+                        }
 
-                    if (pageBookId == bookId && pageChapterId == chapterId) {
-                        existingPageId = pageObj.get("id").asInt
-                        break
+                        if (pageBookId == bookId && pageChapterId == chapterId) {
+                            existingPageId = pageObj.get("id").asInt
+                            break
+                        }
                     }
                 }
             }
@@ -240,11 +253,14 @@ class BookStackSink(
                 .put(gson.toJson(payload).toRequestBody(jsonMediaType))
                 .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                throw Exception("Failed to update page: ${response.code} ${response.body?.string()}")
+            client.newCall(request).execute().use { response ->
+                val bodyString = response.body?.string() ?: throw Exception("Empty response body")
+
+                if (!response.isSuccessful) {
+                    throw Exception("Failed to update page: ${response.code} $bodyString")
+                }
+                logger.debug { "Updated BookStack page: ${doc.pageTitle} (ID: $existingPageId)" }
             }
-            logger.debug { "Updated BookStack page: ${doc.pageTitle} (ID: $existingPageId)" }
         } else {
             // Create new page
             val request = Request.Builder()
@@ -253,14 +269,17 @@ class BookStackSink(
                 .post(gson.toJson(payload).toRequestBody(jsonMediaType))
                 .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                throw Exception("Failed to create page: ${response.code} ${response.body?.string()}")
-            }
+            client.newCall(request).execute().use { response ->
+                val bodyString = response.body?.string() ?: throw Exception("Empty response body")
 
-            val json = JsonParser.parseString(response.body?.string()).asJsonObject
-            val pageId = json.get("id").asInt
-            logger.debug { "Created BookStack page: ${doc.pageTitle} (ID: $pageId)" }
+                if (!response.isSuccessful) {
+                    throw Exception("Failed to create page: ${response.code} $bodyString")
+                }
+
+                val json = JsonParser.parseString(bodyString).asJsonObject
+                val pageId = json.get("id").asInt
+                logger.debug { "Created BookStack page: ${doc.pageTitle} (ID: $pageId)" }
+            }
         }
     }
 }
