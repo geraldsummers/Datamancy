@@ -1,0 +1,36 @@
+# Authelia Session Cookie Domain Fix
+# Merge into configs/authelia/configuration.yml
+
+session:
+  name: authelia_session
+  # Primary domain for external access
+  domain: latium.local
+
+  # Session settings
+  same_site: lax
+  inactivity: 5m
+  expiration: 1h
+  remember_me: 1M
+
+  # Redis for session storage
+  redis:
+    host: valkey
+    port: 6379
+    database_index: 0
+
+  # Allow multiple domains/hostnames (external + internal)
+  cookies:
+    - domain: latium.local
+      authelia_url: https://auth.latium.local
+    - domain: authelia
+      authelia_url: http://authelia:9091
+
+# OR simpler approach - just use wildcard for internal network:
+# session:
+#   domain: latium.local
+#   same_site: lax
+#   inactivity: 5m
+#   expiration: 1h
+#   redis:
+#     host: valkey
+#     port: 6379

@@ -52,7 +52,6 @@ class QdrantSink(
     private fun ensureCollection() {
         try {
             // Try to create collection (will fail if exists, which is fine)
-            logger.info { "Ensuring Qdrant collection exists: $collectionName" }
             try {
                 client.createCollectionAsync(
                     collectionName,
@@ -61,10 +60,8 @@ class QdrantSink(
                         .setDistance(Distance.Cosine)
                         .build()
                 ).get()
-                logger.info { "Created collection: $collectionName" }
             } catch (e: Exception) {
                 // Collection likely already exists, which is fine
-                logger.debug { "Collection $collectionName already exists or creation skipped" }
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to ensure collection exists: ${e.message}" }

@@ -17,11 +17,10 @@ import org.datamancy.pipeline.monitoring.MonitoringServer
 private val logger = KotlinLogging.logger {}
 
 fun main() {
-    logger.info { "🔥 Datamancy Pipeline Service Starting (DECOUPLED ARCHITECTURE)..." }
+    logger.info { "🔥 Pipeline starting" }
 
     // Load configuration
     val config = PipelineConfig.fromEnv()
-    logger.info { "Configuration loaded: ${config.rss.feedUrls.size} RSS feeds configured" }
 
     // Initialize shared infrastructure
     val dedupStore = DeduplicationStore()
@@ -33,15 +32,12 @@ fun main() {
         user = config.postgres.user,
         dbPassword = config.postgres.password
     )
-    logger.info { "📦 PostgreSQL document staging initialized: ${config.postgres.jdbcUrl}" }
 
     // Add shutdown hook for graceful cleanup
     Runtime.getRuntime().addShutdownHook(Thread {
-        logger.info { "Shutdown signal received, cleaning up resources..." }
         try {
             dedupStore.flush()
             stagingStore.close()
-            logger.info { "Resources cleaned up successfully" }
         } catch (e: Exception) {
             logger.error(e) { "Error during shutdown: ${e.message}" }
         }
@@ -49,14 +45,12 @@ fun main() {
 
     // Initialize BookStack sink if enabled
     val bookStackSink = if (config.bookstack.enabled) {
-        logger.info { "BookStack integration enabled: ${config.bookstack.url}" }
         BookStackSink(
             bookstackUrl = config.bookstack.url,
             tokenId = config.bookstack.tokenId,
             tokenSecret = config.bookstack.tokenSecret
         )
     } else {
-        logger.info { "BookStack integration disabled" }
         null
     }
 
@@ -77,8 +71,6 @@ fun main() {
         config.qdrant.archWikiCollection to QdrantSink(config.qdrant.url, config.qdrant.archWikiCollection, config.embedding.vectorSize)
     )
 
-    logger.info { "🧠 Embedding service configured: ${config.embedding.serviceUrl}" }
-    logger.info { "📊 Qdrant sinks initialized for ${qdrantSinks.size} collections" }
 
     // Start monitoring HTTP server and pipelines
     runBlocking {
@@ -114,7 +106,6 @@ fun main() {
         )
 
         launch {
-            logger.info { "🚀 Starting embedding scheduler..." }
             embeddingScheduler.start()
         }
 
@@ -206,7 +197,6 @@ fun main() {
         // Launch BookStack writer if enabled
         if (bookStackSink != null) {
             launch {
-                logger.info { "🚀 Starting BookStack writer..." }
                 val bookStackWriter = org.datamancy.pipeline.workers.BookStackWriter(
                     stagingStore = stagingStore,
                     bookStackSink = bookStackSink,
@@ -237,8 +227,6 @@ suspend fun <T : org.datamancy.pipeline.core.Chunkable> runStandardizedSource(
     metadataStore: SourceMetadataStore,
     sourceFactory: () -> org.datamancy.pipeline.core.StandardizedSource<T>
 ) {
-    logger.info { "Launching $displayName pipeline with standardized runner (DECOUPLED)" }
-
     val source = sourceFactory()
 
     val runner = StandardizedRunner(

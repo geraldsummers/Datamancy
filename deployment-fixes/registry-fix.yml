@@ -1,0 +1,30 @@
+# Fix for Docker Registry HTTP/HTTPS mismatch
+# Apply to docker-compose.yml registry service
+
+registry:
+  image: registry:2.8
+  container_name: registry
+  restart: unless-stopped
+  environment:
+    - REGISTRY_HTTP_ADDR=0.0.0.0:5000
+    - REGISTRY_STORAGE_DELETE_ENABLED=true
+    # Allow HTTP (insecure) for internal registry
+    - REGISTRY_HTTP_SECRET=changeme
+  volumes:
+    - ./volumes/registry:/var/lib/registry
+  networks:
+    - datamancy
+  healthcheck:
+    test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5000/v2/"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+  ports:
+    - "5000:5000"
+
+# ALSO REQUIRED: On host machine, allow insecure registry
+# Create/edit /etc/docker/daemon.json:
+# {
+#   "insecure-registries": ["192.168.0.11:5000", "localhost:5000"]
+# }
+# Then: sudo systemctl restart docker

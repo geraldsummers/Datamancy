@@ -1,0 +1,45 @@
+# Caddyfile Fixes for Open-WebUI and Radicale
+# Apply to configs/caddy/Caddyfile
+
+# ===== OPEN-WEBUI FIX (prevent 307 redirect) =====
+open-webui.latium.local {
+    reverse_proxy open-webui:8080 {
+        # Preserve headers to prevent redirect loops
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+
+        # Don't follow redirects from backend
+        # This prevents 307 loops
+    }
+
+    # Optional: Add CORS headers if needed
+    header {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Content-Type, Authorization"
+    }
+}
+
+# ===== RADICALE FIX (handle auth redirect) =====
+radicale.latium.local {
+    reverse_proxy radicale:5232 {
+        # Preserve auth headers
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Remote-User {http.auth.user.id}
+
+        # Handle WebDAV properly
+        transport http {
+            read_buffer 4096
+        }
+    }
+
+    # Allow CalDAV/CardDAV discovery
+    redir /.well-known/carddav /radicale.latium.local/ permanent
+    redir /.well-known/caldav /radicale.latium.local/ permanent
+}

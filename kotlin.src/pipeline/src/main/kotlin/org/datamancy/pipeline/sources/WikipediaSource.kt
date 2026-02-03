@@ -45,21 +45,37 @@ class WikipediaSource(
         try {
             val reader: BufferedReader = when {
                 dumpPath.startsWith("http://") || dumpPath.startsWith("https://") -> {
-                    logger.info { "Fetching Wikipedia dump from URL: $dumpPath" }
-                    val connection = java.net.URI(dumpPath).toURL().openConnection()
-                    connection.setRequestProperty("User-Agent", "Datamancy/1.0 (Educational Research)")
-                    val inputStream = connection.getInputStream()
+                    // Retry logic with exponential backoff for network failures
+                    var retries = 3
+                    var lastException: Exception? = null
 
-                    val stream: InputStream = when {
-                        dumpPath.endsWith(".bz2") -> {
-                            logger.info { "Decompressing BZip2 stream..." }
-                            BZip2CompressorInputStream(inputStream)
+                    while (retries > 0) {
+                        try {
+                            val connection = java.net.URI(dumpPath).toURL().openConnection()
+                            connection.setRequestProperty("User-Agent", "Datamancy/1.0 (Educational Research)")
+                            connection.connectTimeout = 60000  // 60 seconds
+                            connection.readTimeout = 1800000   // 30 minutes for large dumps
+                            val inputStream = connection.getInputStream()
+
+                            val stream: InputStream = when {
+                                dumpPath.endsWith(".bz2") -> BZip2CompressorInputStream(inputStream, true)
+                                dumpPath.endsWith(".gz") -> GZIPInputStream(inputStream)
+                                else -> inputStream
+                            }
+
+                            return@when BufferedReader(InputStreamReader(stream, Charsets.UTF_8))
+                        } catch (e: Exception) {
+                            lastException = e
+                            retries--
+                            if (retries > 0) {
+                                val backoffSeconds = (4 - retries) * 60  // 60s, 120s, 180s
+                                logger.warn { "Wikipedia download failed, retrying in ${backoffSeconds}s (${retries} attempts left): ${e.message}" }
+                                Thread.sleep(backoffSeconds * 1000L)
+                            }
                         }
-                        dumpPath.endsWith(".gz") -> GZIPInputStream(inputStream)
-                        else -> inputStream
                     }
 
-                    BufferedReader(InputStreamReader(stream, Charsets.UTF_8))
+                    throw lastException ?: Exception("Failed to download Wikipedia dump after 3 retries")
                 }
                 else -> {
                     logger.info { "Reading Wikipedia dump from file: $dumpPath" }

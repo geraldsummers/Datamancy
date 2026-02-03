@@ -67,12 +67,6 @@ class StandardizedRunner<T : Chunkable>(
      * Separate EmbeddingScheduler handles embedding and Qdrant insertion
      */
     suspend fun run() {
-        logger.info { "[$sourceName] Starting standardized runner (SIMPLIFIED ARCHITECTURE)" }
-        logger.info { "[$sourceName] Target collection: $collectionName" }
-        logger.info { "[$sourceName] Resync: ${source.resyncStrategy().describe()}" }
-        logger.info { "[$sourceName] Backfill: ${source.backfillStrategy().describe()}" }
-        logger.info { "[$sourceName] Chunking: ${if (source.needsChunking()) "enabled" else "disabled"}" }
-
         // Create scheduler from source config (or use injected one for testing)
         val actualScheduler = scheduler ?: SourceScheduler(
             sourceName = sourceName,
@@ -81,7 +75,6 @@ class StandardizedRunner<T : Chunkable>(
 
         // Run scheduled pipeline
         actualScheduler.schedule { metadata ->
-            logger.info { "[$sourceName] === ${metadata.runType} ===" }
 
             var processed = 0
             var failed = 0
@@ -135,9 +128,7 @@ class StandardizedRunner<T : Chunkable>(
                 val bandwidthMB = totalBytes / (1024.0 * 1024.0)
                 val throughputMBps = if (durationMs > 0) (bandwidthMB / (durationMs / 1000.0)) else 0.0
 
-                logger.info { "[$sourceName] === ${metadata.runType} COMPLETE: $processed staged, $failed failed, $deduplicated deduplicated in ${durationMs}ms ===" }
-                logger.info { "[$sourceName] Bandwidth: %.2f MB processed (%.2f MB/s)".format(bandwidthMB, throughputMBps) }
-                logger.info { "[$sourceName] Documents staged in PostgreSQL - EmbeddingScheduler will process them" }
+                logger.info { "[$sourceName] Completed: $processed staged, $failed failed (${durationMs/1000}s, %.2f MB/s)".format(throughputMBps) }
 
                 // Update metadata
                 metadataStore.recordSuccess(

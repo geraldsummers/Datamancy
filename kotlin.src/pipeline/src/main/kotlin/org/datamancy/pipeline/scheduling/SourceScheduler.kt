@@ -55,12 +55,9 @@ class SourceScheduler(
      *              Should throw exception on failure for automatic retry/backoff.
      */
     suspend fun schedule(onRun: suspend (RunMetadata) -> Unit) {
-        logger.info { "[$sourceName] Starting scheduler (initial pull: $initialPullEnabled, resync: $resyncStrategy)" }
-
         // Phase 1: Initial pull (if enabled)
         if (initialPullEnabled) {
             try {
-                logger.info { "[$sourceName] === Starting INITIAL PULL ===" }
                 val metadata = RunMetadata(
                     runType = RunType.INITIAL_PULL,
                     attemptNumber = 1,
@@ -71,7 +68,6 @@ class SourceScheduler(
 
                 hasCompletedInitialPull.set(true)
                 consecutiveFailures = 0
-                logger.info { "[$sourceName] === INITIAL PULL COMPLETE ===" }
 
             } catch (e: Exception) {
                 logger.error(e) { "[$sourceName] Initial pull failed: ${e.message}" }
@@ -79,7 +75,6 @@ class SourceScheduler(
 
                 // Retry initial pull with exponential backoff
                 val retryDelay = calculateBackoff(consecutiveFailures)
-                logger.info { "[$sourceName] Retrying initial pull in ${retryDelay.toMinutes()} minutes..." }
                 delay(retryDelay.toMillis())
 
                 // Recursive retry (will eventually succeed or keep backing off)
@@ -87,12 +82,10 @@ class SourceScheduler(
             }
         } else {
             hasCompletedInitialPull.set(true)
-            logger.info { "[$sourceName] Initial pull disabled, proceeding to resync schedule" }
         }
 
         // Exit early if runOnce mode (for testing)
         if (runOnce) {
-            logger.info { "[$sourceName] runOnce=true, exiting after initial pull" }
             return
         }
 
@@ -101,12 +94,10 @@ class SourceScheduler(
             try {
                 // Calculate time until next resync
                 val delayUntilNext = resyncStrategy.calculateDelayUntilNext(timezone)
-                logger.info { "[$sourceName] Next resync in ${delayUntilNext.toMinutes()} minutes (${resyncStrategy.describe()})" }
 
                 delay(delayUntilNext.toMillis())
 
                 // Perform resync
-                logger.info { "[$sourceName] === Starting RESYNC ===" }
                 val metadata = RunMetadata(
                     runType = RunType.RESYNC,
                     attemptNumber = 1,
@@ -116,7 +107,6 @@ class SourceScheduler(
                 onRun(metadata)
 
                 consecutiveFailures = 0
-                logger.info { "[$sourceName] === RESYNC COMPLETE ===" }
 
             } catch (e: Exception) {
                 logger.error(e) { "[$sourceName] Resync failed: ${e.message}" }
@@ -124,7 +114,6 @@ class SourceScheduler(
 
                 // Wait before next attempt with exponential backoff
                 val retryDelay = calculateBackoff(consecutiveFailures)
-                logger.info { "[$sourceName] Retrying in ${retryDelay.toMinutes()} minutes..." }
                 delay(retryDelay.toMillis())
             }
         }

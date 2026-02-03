@@ -1,0 +1,34 @@
+# Radicale Configuration Fix
+# Replace configs/radicale/config with this
+
+[server]
+hosts = 0.0.0.0:5232
+
+[encoding]
+request = utf-8
+stock = utf-8
+
+[auth]
+# Disable auth for internal Docker network
+# Services can access without credentials
+type = none
+
+# Alternative: If you want authentication, use:
+# type = htpasswd
+# htpasswd_filename = /data/users
+# htpasswd_encryption = bcrypt
+# Then create users: htpasswd -B /data/users username
+
+[rights]
+# Full access for all users (since auth is disabled)
+type = owner_only
+
+[storage]
+filesystem_folder = /data/collections
+
+[web]
+type = internal
+
+[logging]
+level = info
+mask_passwords = True

@@ -2,14 +2,23 @@
 <configuration>
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -- %msg%n</pattern>
+            <pattern>%d{HH:mm:ss} %-5level %logger{0} - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <root level="INFO">
+    <!-- Silence noisy third-party libraries -->
+    <logger name="org.apache.parquet" level="WARN"/>
+    <logger name="org.apache.hadoop" level="ERROR"/>
+    <logger name="Exposed" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="io.grpc" level="ERROR"/>
+    <logger name="ktor.application" level="WARN"/>
+    <logger name="io.qdrant.client" level="ERROR"/>
+
+    <!-- Your application -->
+    <logger name="org.datamancy.pipeline" level="INFO"/>
+
+    <root level="WARN">
         <appender-ref ref="STDOUT"/>
     </root>
-
-    <!-- Set to DEBUG for more verbose output -->
-    <logger name="org.datamancy.pipeline" level="INFO"/>
 </configuration>
