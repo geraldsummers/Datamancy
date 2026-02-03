@@ -123,6 +123,7 @@ services:
       PGHOST: postgres
       PGPORT: 5432
       PGPASSWORD: ${POSTGRES_ROOT_PASSWORD}
+      STACK_ADMIN_USER: ${STACK_ADMIN_USER}
     volumes:
       - ./configs/postgres/create-observer-views.sql:/create-observer-views.sql:ro
     entrypoint:
@@ -131,12 +132,12 @@ services:
       - |
         set -e
         echo "Creating agent_observer views in safe databases..."
-        until pg_isready -h postgres -U "${POSTGRES_USER}"; do
+        until pg_isready -h postgres -U "${STACK_ADMIN_USER}"; do
           echo "Waiting for postgres..."
           sleep 2
         done
         echo "Running observer views script..."
-        psql -U "${POSTGRES_USER}" -f /create-observer-views.sql || true
+        psql -U "${STACK_ADMIN_USER}" -f /create-observer-views.sql || true
         touch /tmp/views_created
         echo "Observer views creation complete"
     healthcheck:
