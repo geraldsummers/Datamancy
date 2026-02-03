@@ -30,7 +30,7 @@ services:
     environment:
       # RSS Feed - ENABLED BY DEFAULT
       RSS_SCHEDULE_MINUTES: "60"  # Hourly
-      RSS_FEED_URLS: "https://hnrss.org/frontpage,https://arxiv.org/rss/cs.AI,https://www.reddit.com/r/programming/.rss,https://feeds.arstechnica.com/arstechnica/index"
+      RSS_FEED_URLS: "https://hnrss.org/frontpage,https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml,https://www.reddit.com/r/programming/.rss,https://feeds.arstechnica.com/arstechnica/index"
       # RSS_ENABLED: "false"  # Uncomment to disable
 
       # CVE - ENABLED BY DEFAULT (no API key = 5 req/30s, with key = 50 req/30s)
