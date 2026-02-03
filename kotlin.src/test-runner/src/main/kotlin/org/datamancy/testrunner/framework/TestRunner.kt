@@ -24,6 +24,7 @@ class TestRunner(
     }
 
     val auth = AuthHelper(environment.endpoints.authelia, httpClient, ldapHelper)
+    val tokens = TokenManager(httpClient, environment.endpoints)
 
     private val results = mutableListOf<TestResult>()
 
@@ -38,7 +39,7 @@ class TestRunner(
         var duration = 0L
         val result = try {
             duration = measureTimeMillis {
-                val ctx = TestContext(client, auth)
+                val ctx = TestContext(client, auth, tokens)
                 ctx.block()
             }
             TestResult.Success(name, duration).also {
@@ -93,7 +94,7 @@ class TestSuite(val name: String, private val runner: TestRunner) {
     }
 }
 
-class TestContext(val client: ServiceClient, val auth: AuthHelper) {
+class TestContext(val client: ServiceClient, val auth: AuthHelper, val tokens: TokenManager) {
     // Fluent assertions
     infix fun String.shouldContain(substring: String) {
         if (!this.contains(substring)) {

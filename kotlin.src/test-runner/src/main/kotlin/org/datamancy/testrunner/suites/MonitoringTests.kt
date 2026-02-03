@@ -37,4 +37,74 @@ suspend fun TestRunner.monitoringTests() = suite("Monitoring Tests") {
         val response = client.getRawResponse("${env.endpoints.grafana}/login")
         response.status shouldBe HttpStatusCode.OK
     }
+
+    // METRICS EXPORTERS
+    test("Node Exporter metrics endpoint") {
+        val response = client.getRawResponse("http://node-exporter:9100/metrics")
+        response.status shouldBe HttpStatusCode.OK
+        val body = response.bodyAsText()
+        body shouldContain "node_"  // Node exporter metrics prefix
+        println("      ✓ Node Exporter providing system metrics")
+    }
+
+    test("cAdvisor metrics endpoint") {
+        val response = client.getRawResponse("http://cadvisor:8080/metrics")
+        response.status shouldBe HttpStatusCode.OK
+        val body = response.bodyAsText()
+        body shouldContain "container_"  // cAdvisor metrics prefix
+        println("      ✓ cAdvisor providing container metrics")
+    }
+
+    test("Prometheus scraping node-exporter") {
+        val response = client.postRaw("${env.endpoints.prometheus}/api/v1/query?query=up{job=\"node-exporter\"}")
+        response.status shouldBe HttpStatusCode.OK
+        val body = response.bodyAsText()
+        // Should show node-exporter is being scraped
+        body shouldContain "node-exporter"
+        println("      ✓ Prometheus scraping node-exporter")
+    }
+
+    test("Prometheus scraping cadvisor") {
+        val response = client.postRaw("${env.endpoints.prometheus}/api/v1/query?query=up{job=\"cadvisor\"}")
+        response.status shouldBe HttpStatusCode.OK
+        val body = response.bodyAsText()
+        // Should show cadvisor is being scraped
+        body shouldContain "cadvisor"
+        println("      ✓ Prometheus scraping cadvisor")
+    }
+
+    // DOZZLE LOG VIEWER
+    test("Dozzle web interface accessible") {
+        val response = client.getRawResponse("http://dozzle:8080")
+        response.status shouldBe HttpStatusCode.OK
+        val body = response.bodyAsText()
+        require(body.contains("dozzle") || body.contains("log") || body.contains("<html")) {
+            "Dozzle interface not detected"
+        }
+        println("      ✓ Dozzle log viewer accessible")
+    }
+
+    test("Dozzle healthcheck endpoint") {
+        val response = client.getRawResponse("http://dozzle:8080/healthcheck")
+        // Dozzle may or may not have a dedicated health endpoint
+        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.NotFound)) {
+            "Dozzle not responding: ${response.status}"
+        }
+        println("      ✓ Dozzle server responding")
+    }
+
+    // ALERTMANAGER
+    test("AlertManager status endpoint") {
+        val response = client.getRawResponse("http://alertmanager:9093/api/v1/status")
+        response.status shouldBe HttpStatusCode.OK
+        val body = response.bodyAsText()
+        body shouldContain "versionInfo"
+        println("      ✓ AlertManager status API accessible")
+    }
+
+    test("AlertManager alerts endpoint") {
+        val response = client.getRawResponse("http://alertmanager:9093/api/v1/alerts")
+        response.status shouldBe HttpStatusCode.OK
+        println("      ✓ AlertManager alerts API accessible")
+    }
 }

@@ -86,6 +86,7 @@ class StandardizedRunner<T : Chunkable>(
             var processed = 0
             var failed = 0
             var deduplicated = 0
+            var totalBytes = 0L
             val startTime = System.currentTimeMillis()
 
             try {
@@ -104,6 +105,10 @@ class StandardizedRunner<T : Chunkable>(
                             if (stagedDocs.isEmpty()) {
                                 deduplicated++
                             } else {
+                                // Track bandwidth (text size in bytes)
+                                stagedDocs.forEach { doc ->
+                                    totalBytes += doc.text.toByteArray(Charsets.UTF_8).size
+                                }
                                 batch.addAll(stagedDocs)
                             }
 
@@ -127,7 +132,11 @@ class StandardizedRunner<T : Chunkable>(
                 }
 
                 val durationMs = System.currentTimeMillis() - startTime
+                val bandwidthMB = totalBytes / (1024.0 * 1024.0)
+                val throughputMBps = if (durationMs > 0) (bandwidthMB / (durationMs / 1000.0)) else 0.0
+
                 logger.info { "[$sourceName] === ${metadata.runType} COMPLETE: $processed staged, $failed failed, $deduplicated deduplicated in ${durationMs}ms ===" }
+                logger.info { "[$sourceName] Bandwidth: %.2f MB processed (%.2f MB/s)".format(bandwidthMB, throughputMBps) }
                 logger.info { "[$sourceName] Documents staged in PostgreSQL - EmbeddingScheduler will process them" }
 
                 // Update metadata

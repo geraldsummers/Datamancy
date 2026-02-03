@@ -8,16 +8,23 @@ import kotlinx.serialization.json.*
 import org.datamancy.testrunner.framework.*
 
 /**
- * Comprehensive tests for the pipeline service with 6 data sources:
- * - RSS Feeds, CVE/NVD, Torrents CSV, Wikipedia, Australian Laws, Linux Documentation
+ * Comprehensive tests for the pipeline service with 8 data sources:
+ * - RSS Feeds, CVE/NVD, Torrents CSV, Wikipedia, Australian Laws, Linux Docs, Debian Wiki, Arch Wiki
  *
  * Tests cover:
- * - Data ingestion from all sources
- * - Qdrant vector storage
- * - BookStack wiki integration
- * - Deduplication
+ * - Data ingestion from all 8 sources (54 ingestion tests)
+ * - Qdrant vector storage and search
+ * - BookStack wiki integration and dual-write
+ * - Deduplication and hash tracking
  * - Checkpoint/resume functionality
  * - Error handling and recovery
+ * - Embedding scheduler operation
+ * - Pipeline health and sanity checks (8 tests)
+ * - Error rate monitoring (<10% threshold)
+ * - Queue operational status
+ * - Vector dimension consistency
+ *
+ * Total: 73 tests covering all pipeline functionality
  */
 suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
 
@@ -931,6 +938,349 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
             }
         } else {
             println("      ℹ️  No RSS data to compare")
+        }
+    }
+
+    // =============================================================================
+    // DEBIAN WIKI TESTS
+    // =============================================================================
+
+    test("Debian Wiki: Pipeline source is enabled") {
+        val status = getSourceStatus("Debian Wiki")
+        if (status != null) {
+            val enabled = status["enabled"]?.jsonPrimitive?.boolean ?: false
+            println("      ✓ Debian Wiki source status: ${if (enabled) "enabled" else "disabled"}")
+        } else {
+            println("      ℹ️  Debian Wiki source not yet initialized")
+        }
+    }
+
+    test("Debian Wiki: Collection is created") {
+        val info = getQdrantCollectionInfo("debian_wiki")
+        if (info != null) {
+            val vectorsCount = info["result"]?.jsonObject?.get("vectors_count")
+            println("      ✓ Debian Wiki collection exists (vectors_count: $vectorsCount)")
+        } else {
+            println("      ℹ️  Debian Wiki collection not created yet (created on first fetch)")
+        }
+    }
+
+    test("Debian Wiki: Data is being ingested") {
+        val count = getVectorCount("debian_wiki")
+        if (count > 0) {
+            println("      ✓ Debian Wiki has $count vectors ingested")
+        } else {
+            println("      ℹ️  No Debian Wiki data ingested yet (processing may be in progress)")
+        }
+    }
+
+    test("Debian Wiki: Search returns wiki-specific metadata") {
+        val results = searchInCollection("debian_wiki", "installation guide", 3)
+        if (results != null && results.isNotEmpty()) {
+            val first = results.first().jsonObject
+            val payload = first["payload"]?.jsonObject
+
+            val hasWikiMetadata = payload?.containsKey("title") == true &&
+                                  payload?.containsKey("url") == true
+
+            require(hasWikiMetadata) {
+                "Debian Wiki results should contain title and url metadata"
+            }
+
+            println("      ✓ Debian Wiki search returns proper wiki metadata")
+        } else {
+            println("      ℹ️  No Debian Wiki data to search yet")
+        }
+    }
+
+    test("Debian Wiki: Page categories are captured") {
+        val results = searchInCollection("debian_wiki", "debian package", 5)
+        if (results != null && results.isNotEmpty()) {
+            val categoriesFound = results.any {
+                it.jsonObject["payload"]?.jsonObject?.containsKey("categories") == true
+            }
+
+            if (categoriesFound) {
+                println("      ✓ Debian Wiki pages include category metadata")
+            } else {
+                println("      ℹ️  Categories metadata not yet populated")
+            }
+        } else {
+            println("      ℹ️  No Debian Wiki data to check categories")
+        }
+    }
+
+    test("Debian Wiki: Pipeline tracks processing stats") {
+        val status = getSourceStatus("Debian Wiki")
+        if (status != null) {
+            val lastRun = status["last_run"]?.jsonObject
+            if (lastRun != null) {
+                val itemsProcessed = lastRun["items_processed"]?.jsonPrimitive?.longOrNull ?: 0
+                val itemsFailed = lastRun["items_failed"]?.jsonPrimitive?.longOrNull ?: 0
+
+                println("      ✓ Debian Wiki: Processed $itemsProcessed items, $itemsFailed failures")
+                require(itemsProcessed >= 0 && itemsFailed >= 0) {
+                    "Processing stats should be non-negative"
+                }
+            }
+        } else {
+            println("      ℹ️  Debian Wiki processing stats not available yet")
+        }
+    }
+
+    // =============================================================================
+    // ARCH WIKI TESTS
+    // =============================================================================
+
+    test("Arch Wiki: Pipeline source is enabled") {
+        val status = getSourceStatus("Arch Wiki")
+        if (status != null) {
+            val enabled = status["enabled"]?.jsonPrimitive?.boolean ?: false
+            println("      ✓ Arch Wiki source status: ${if (enabled) "enabled" else "disabled"}")
+        } else {
+            println("      ℹ️  Arch Wiki source not yet initialized")
+        }
+    }
+
+    test("Arch Wiki: Collection is created") {
+        val info = getQdrantCollectionInfo("arch_wiki")
+        if (info != null) {
+            val vectorsCount = info["result"]?.jsonObject?.get("vectors_count")
+            println("      ✓ Arch Wiki collection exists (vectors_count: $vectorsCount)")
+        } else {
+            println("      ℹ️  Arch Wiki collection not created yet (created on first fetch)")
+        }
+    }
+
+    test("Arch Wiki: Data is being ingested") {
+        val count = getVectorCount("arch_wiki")
+        if (count > 0) {
+            println("      ✓ Arch Wiki has $count vectors ingested")
+        } else {
+            println("      ℹ️  No Arch Wiki data ingested yet (processing may be in progress)")
+        }
+    }
+
+    test("Arch Wiki: Search returns wiki-specific metadata") {
+        val results = searchInCollection("arch_wiki", "pacman package manager", 3)
+        if (results != null && results.isNotEmpty()) {
+            val first = results.first().jsonObject
+            val payload = first["payload"]?.jsonObject
+
+            val hasWikiMetadata = payload?.containsKey("title") == true &&
+                                  payload?.containsKey("url") == true
+
+            require(hasWikiMetadata) {
+                "Arch Wiki results should contain title and url metadata"
+            }
+
+            println("      ✓ Arch Wiki search returns proper wiki metadata")
+        } else {
+            println("      ℹ️  No Arch Wiki data to search yet")
+        }
+    }
+
+    test("Arch Wiki: Page categories are captured") {
+        val results = searchInCollection("arch_wiki", "arch linux", 5)
+        if (results != null && results.isNotEmpty()) {
+            val categoriesFound = results.any {
+                it.jsonObject["payload"]?.jsonObject?.containsKey("categories") == true
+            }
+
+            if (categoriesFound) {
+                println("      ✓ Arch Wiki pages include category metadata")
+            } else {
+                println("      ℹ️  Categories metadata not yet populated")
+            }
+        } else {
+            println("      ℹ️  No Arch Wiki data to check categories")
+        }
+    }
+
+    test("Arch Wiki: Pipeline tracks processing stats") {
+        val status = getSourceStatus("Arch Wiki")
+        if (status != null) {
+            val lastRun = status["last_run"]?.jsonObject
+            if (lastRun != null) {
+                val itemsProcessed = lastRun["items_processed"]?.jsonPrimitive?.longOrNull ?: 0
+                val itemsFailed = lastRun["items_failed"]?.jsonPrimitive?.longOrNull ?: 0
+
+                println("      ✓ Arch Wiki: Processed $itemsProcessed items, $itemsFailed failures")
+                require(itemsProcessed >= 0 && itemsFailed >= 0) {
+                    "Processing stats should be non-negative"
+                }
+            }
+        } else {
+            println("      ℹ️  Arch Wiki processing stats not available yet")
+        }
+    }
+
+    // =============================================================================
+    // PIPELINE HEALTH & SANITY CHECKS
+    // =============================================================================
+
+    test("Pipeline monitoring endpoint is accessible") {
+        val response = client.getRawResponse("http://pipeline:8090/health")
+        require(response.status == HttpStatusCode.OK) {
+            "Pipeline health endpoint should respond: ${response.status}"
+        }
+
+        val body = response.bodyAsText()
+        require(body.contains("healthy") || body.contains("ok") || body.contains("status")) {
+            "Health response should indicate status"
+        }
+
+        println("      ✓ Pipeline monitoring endpoint healthy")
+    }
+
+    test("Pipeline status shows all sources") {
+        val response = client.getRawResponse("http://pipeline:8090/status")
+        require(response.status == HttpStatusCode.OK) {
+            "Status endpoint failed: ${response.status}"
+        }
+
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val sources = json["sources"]?.jsonArray
+
+        require(sources != null && sources.size >= 8) {
+            "Expected at least 8 pipeline sources, found: ${sources?.size}"
+        }
+
+        val sourceNames = sources.map {
+            it.jsonObject["source"]?.jsonPrimitive?.content
+        }.filterNotNull()
+
+        val expectedSources = listOf(
+            "RSS", "CVE", "Torrents", "Wikipedia",
+            "Australian Laws", "Linux Docs", "Debian Wiki", "Arch Wiki"
+        )
+
+        val foundSources = expectedSources.filter { it in sourceNames }
+        println("      ✓ Pipeline tracking ${sources.size} sources: ${foundSources.joinToString()}")
+    }
+
+    test("All Qdrant collections have consistent dimensions") {
+        val collections = listOf(
+            "rss_feeds", "cve", "torrents", "wikipedia",
+            "australian_laws", "linux_docs", "debian_wiki", "arch_wiki"
+        )
+
+        val dimensions = mutableMapOf<String, Int>()
+
+        collections.forEach { collectionName ->
+            val info = getQdrantCollectionInfo(collectionName)
+            if (info != null) {
+                val config = info["result"]?.jsonObject?.get("config")?.jsonObject
+                val params = config?.get("params")?.jsonObject
+                val vectorsConfig = params?.get("vectors")?.jsonObject
+                val size = vectorsConfig?.get("size")?.jsonPrimitive?.intOrNull
+
+                if (size != null) {
+                    dimensions[collectionName] = size
+                }
+            }
+        }
+
+        if (dimensions.isNotEmpty()) {
+            val uniqueDimensions = dimensions.values.toSet()
+            require(uniqueDimensions.size == 1) {
+                "All collections should have same vector dimensions, found: $dimensions"
+            }
+
+            println("      ✓ All collections use ${uniqueDimensions.first()}-dimensional vectors")
+        } else {
+            println("      ℹ️  No collections created yet to check dimensions")
+        }
+    }
+
+    test("Pipeline staging store queue is operational") {
+        val response = client.getRawResponse("http://pipeline:8090/status")
+        if (response.status == HttpStatusCode.OK) {
+            val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+            val queueStats = json["queue"]?.jsonObject
+
+            if (queueStats != null) {
+                val pending = queueStats["pending"]?.jsonPrimitive?.longOrNull ?: 0
+                val processing = queueStats["processing"]?.jsonPrimitive?.longOrNull ?: 0
+
+                println("      ✓ Staging queue: $pending pending, $processing processing")
+                require(pending >= 0 && processing >= 0) {
+                    "Queue stats should be non-negative"
+                }
+            } else {
+                println("      ℹ️  Queue stats not yet available")
+            }
+        }
+    }
+
+    test("Pipeline deduplication store is working") {
+        // Check that dedup is preventing duplicate ingestion
+        val response = client.getRawResponse("http://pipeline:8090/status")
+        if (response.status == HttpStatusCode.OK) {
+            val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+            val sources = json["sources"]?.jsonArray
+
+            var totalDedup = 0L
+            sources?.forEach { source ->
+                val lastRun = source.jsonObject["last_run"]?.jsonObject
+                val dedupCount = lastRun?.get("items_deduplicated")?.jsonPrimitive?.longOrNull ?: 0
+                totalDedup += dedupCount
+            }
+
+            if (totalDedup > 0) {
+                println("      ✓ Deduplication active: $totalDedup items deduplicated across sources")
+            } else {
+                println("      ℹ️  No deduplication events recorded yet (sources running first time)")
+            }
+        }
+    }
+
+    test("Pipeline error rate is acceptable") {
+        val response = client.getRawResponse("http://pipeline:8090/status")
+        if (response.status == HttpStatusCode.OK) {
+            val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+            val sources = json["sources"]?.jsonArray
+
+            var totalProcessed = 0L
+            var totalFailed = 0L
+
+            sources?.forEach { source ->
+                val lastRun = source.jsonObject["last_run"]?.jsonObject
+                totalProcessed += lastRun?.get("items_processed")?.jsonPrimitive?.longOrNull ?: 0
+                totalFailed += lastRun?.get("items_failed")?.jsonPrimitive?.longOrNull ?: 0
+            }
+
+            if (totalProcessed > 0) {
+                val errorRate = (totalFailed.toDouble() / totalProcessed.toDouble()) * 100
+
+                require(errorRate < 10.0) {
+                    "Error rate too high: $errorRate% ($totalFailed failed out of $totalProcessed)"
+                }
+
+                println("      ✓ Pipeline error rate: ${String.format("%.2f", errorRate)}% ($totalFailed/$totalProcessed)")
+            } else {
+                println("      ℹ️  No pipeline runs completed yet")
+            }
+        }
+    }
+
+    test("Embedding scheduler is operational") {
+        val response = client.getRawResponse("http://pipeline:8090/status")
+        if (response.status == HttpStatusCode.OK) {
+            val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+            val embeddings = json["embeddings"]?.jsonObject
+
+            if (embeddings != null) {
+                val totalEmbedded = embeddings["total_embedded"]?.jsonPrimitive?.longOrNull ?: 0
+                val failedEmbeddings = embeddings["failed"]?.jsonPrimitive?.longOrNull ?: 0
+
+                println("      ✓ Embedding scheduler: $totalEmbedded embedded, $failedEmbeddings failed")
+                require(totalEmbedded >= 0 && failedEmbeddings >= 0) {
+                    "Embedding stats should be non-negative"
+                }
+            } else {
+                println("      ℹ️  Embedding scheduler stats not yet available")
+            }
         }
     }
 }

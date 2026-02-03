@@ -45,7 +45,14 @@ data class ServiceEndpoints(
     val prometheus: String,
     val grafana: String,
     // Backup
-    val kopia: String
+    val kopia: String,
+    // Utility
+    val homepage: String? = null,
+    val radicale: String? = null,
+    val ntfy: String? = null,
+    val qbittorrent: String? = null,
+    // Smart Home
+    val homeassistant: String? = null
 ) {
     companion object {
         fun fromEnvironment(): ServiceEndpoints = ServiceEndpoints(
@@ -102,7 +109,14 @@ data class ServiceEndpoints(
             prometheus = env("PROMETHEUS_URL") ?: "http://prometheus:9090",
             grafana = env("GRAFANA_URL") ?: "http://grafana:3000",
             // Backup
-            kopia = env("KOPIA_URL") ?: "http://kopia:51515"
+            kopia = env("KOPIA_URL") ?: "http://kopia:51515",
+            // Utility
+            homepage = env("HOMEPAGE_URL") ?: "http://homepage:3000",
+            radicale = env("RADICALE_URL") ?: "http://radicale:5232",
+            ntfy = env("NTFY_URL") ?: "http://ntfy:80",
+            qbittorrent = env("QBITTORRENT_URL") ?: "http://qbittorrent:8080",
+            // Smart Home
+            homeassistant = env("HOMEASSISTANT_URL") ?: "http://homeassistant:8123"
         )
 
         fun forLocalhost(): ServiceEndpoints = ServiceEndpoints(
@@ -147,7 +161,14 @@ data class ServiceEndpoints(
             prometheus = "http://localhost:9090",
             grafana = "http://localhost:3002",
             // Backup
-            kopia = "http://localhost:51515"
+            kopia = "http://localhost:51515",
+            // Utility
+            homepage = "http://localhost:3003",
+            radicale = "http://localhost:5232",
+            ntfy = "http://localhost:8081",
+            qbittorrent = "http://localhost:8082",
+            // Smart Home
+            homeassistant = "http://localhost:8123"
         )
     }
 }

@@ -131,6 +131,14 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "security" -> runner.securityTests()
         "monitoring" -> runner.monitoringTests()
         "backup" -> runner.backupTests()
+        // NEW: Authentication & Directory
+        "authentication" -> runner.authenticationTests()
+        // NEW: Authenticated Operations (requires credentials)
+        "authenticated-ops" -> runner.authenticatedOperationsTests()
+        // NEW: Utility Services
+        "utility" -> runner.utilityServicesTests()
+        // NEW: Home Assistant
+        "homeassistant" -> runner.homeAssistantTests()
         // Stack deployment tests (requires labware)
         "stack-deployment" -> runner.stackDeploymentTests()
         // BookStack integration tests
@@ -155,6 +163,10 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.securityTests()
             runner.monitoringTests()
             runner.backupTests()
+            runner.authenticationTests()
+            runner.authenticatedOperationsTests()
+            runner.utilityServicesTests()
+            runner.homeAssistantTests()
             runner.cicdTests()
             runner.labwareTests()
         }
@@ -163,6 +175,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("Available suites: foundation, llm, knowledge-base, data-pipeline, microservices,")
             println("                  search-service, infrastructure, databases, user-interface, communication,")
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
+            println("                  authentication, authenticated-ops, utility, homeassistant,")
             println("                  stack-deployment, bookstack, cicd, labware, all")
             exitProcess(1)
         }
@@ -236,6 +249,7 @@ private fun printUsage() {
                                      infrastructure, databases, user-interface,
                                      communication, collaboration, productivity,
                                      file-management, security, monitoring, backup,
+                                     authentication, authenticated-ops, utility, homeassistant,
                                      stack-deployment, bookstack, cicd, labware, all
 
       --verbose, -v          Enable verbose logging

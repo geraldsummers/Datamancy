@@ -25,12 +25,37 @@
             sleep 5  # Extra delay to ensure Actions subsystem is ready
 
             # Generate token and save to shared volume
-            if forgejo actions generate-runner-token > "$TOKEN_FILE" 2>/dev/null; then
-                chmod 644 "$TOKEN_FILE"
-                echo "[token-generator] ✓ Runner token saved to $TOKEN_FILE"
-                exit 0
+            # Capture both stdout and stderr for debugging
+            # MUST run as 'git' user (Forgejo refuses to run as root)
+            ERROR_OUTPUT=$(mktemp)
+            if su -s /bin/sh git -c "forgejo actions generate-runner-token" > "$TOKEN_FILE" 2> "$ERROR_OUTPUT"; then
+                # Validate token was actually generated
+                if [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
+                    TOKEN_LENGTH=$(wc -c < "$TOKEN_FILE" | tr -d ' ')
+                    if [ "$TOKEN_LENGTH" -gt 10 ]; then
+                        chmod 644 "$TOKEN_FILE"
+                        echo "[token-generator] ✓ Runner token saved to $TOKEN_FILE (${TOKEN_LENGTH} bytes)"
+                        rm -f "$ERROR_OUTPUT"
+                        exit 0
+                    else
+                        echo "[token-generator] ❌ Token file too short: ${TOKEN_LENGTH} bytes"
+                        rm -f "$TOKEN_FILE"  # Clean up invalid token
+                    fi
+                else
+                    echo "[token-generator] ❌ Token file not created or empty"
+                fi
             else
-                echo "[token-generator] Token generation failed, retrying in 10s..."
+                EXIT_CODE=$?
+                echo "[token-generator] ❌ Token generation failed (exit code: $EXIT_CODE)"
+                if [ -s "$ERROR_OUTPUT" ]; then
+                    echo "[token-generator] Error output: $(cat "$ERROR_OUTPUT")"
+                fi
+                echo "[token-generator] Command: su -s /bin/sh git -c \"forgejo actions generate-runner-token\""
+                echo "[token-generator] Token file exists: $([ -f "$TOKEN_FILE" ] && echo "yes" || echo "no")"
+                echo "[token-generator] Token file size: $([ -f "$TOKEN_FILE" ] && wc -c < "$TOKEN_FILE" | tr -d ' ' || echo "0") bytes"
+                rm -f "$TOKEN_FILE"  # Clean up failed attempt
+                rm -f "$ERROR_OUTPUT"
+                echo "[token-generator] Retrying in 10s..."
             fi
         fi
 
