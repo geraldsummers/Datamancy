@@ -325,10 +325,12 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         }
 
         // Should redirect to Authelia login or return 401/403
+        // Note: 308 Permanent Redirect is also valid (HTTPS upgrade from Caddy)
         val redirected = response.status in listOf(
-            HttpStatusCode.Found,
-            HttpStatusCode.TemporaryRedirect,
-            HttpStatusCode.SeeOther
+            HttpStatusCode.Found,                    // 302
+            HttpStatusCode.TemporaryRedirect,        // 307
+            HttpStatusCode.SeeOther,                 // 303
+            HttpStatusCode.PermanentRedirect         // 308 (HTTPS upgrade)
         )
         val unauthorized = response.status in listOf(
             HttpStatusCode.Unauthorized,

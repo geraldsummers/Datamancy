@@ -20,7 +20,7 @@ private val logger = KotlinLogging.logger {}
 class Embedder(
     private val serviceUrl: String,
     private val model: String = "bge-m3",
-    private val maxTokens: Int = 8192,  // BGE-M3 supports 8192 tokens
+    private val maxTokens: Int = 7782,  // BGE-M3 max is 8192, use 95% safety margin (8192 * 0.95)
     private val maxRetries: Int = 5,
     private val baseDelayMs: Long = 100
 ) : Processor<String, FloatArray> {
@@ -57,8 +57,10 @@ class Embedder(
         // Retry loop with exponential backoff + jitter
         for (attempt in 0..maxRetries) {
             try {
-                val requestBody = gson.toJson(mapOf("inputs" to truncatedText))
-                    .toRequestBody(jsonMediaType)
+                val requestBody = gson.toJson(mapOf(
+                    "inputs" to truncatedText,
+                    "truncate" to true  // Let embedding service auto-truncate as additional safety
+                )).toRequestBody(jsonMediaType)
 
                 val request = Request.Builder()
                     .url("$serviceUrl/embed")
