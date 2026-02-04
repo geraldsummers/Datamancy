@@ -35,8 +35,8 @@ class TokenManager(
     // =============================================================================
 
     /**
-     * Acquire Grafana API key
-     * Uses admin credentials to create an API key
+     * Acquire Grafana API token using service accounts (Grafana v11+)
+     * Uses admin credentials to create a service account and token
      */
     suspend fun acquireGrafanaToken(username: String = "admin", password: String): Result<String> {
         return try {
@@ -52,22 +52,39 @@ class TokenManager(
 
             val sessionCookies = loginResponse.setCookie()
 
-            // Create API key using session
-            val keyResponse = client.post("${endpoints.grafana}/api/auth/keys") {
+            // Grafana v11+ uses service accounts instead of deprecated API keys
+            // Step 1: Create a service account
+            val serviceAccountName = "integration-test-${System.currentTimeMillis()}"
+            val saResponse = client.post("${endpoints.grafana}/api/serviceaccounts") {
                 contentType(ContentType.Application.Json)
                 sessionCookies.forEach { cookie(it.name, it.value) }
-                setBody("""{"name":"integration-test-${System.currentTimeMillis()}","role":"Admin"}""")
+                setBody("""{"name":"$serviceAccountName","role":"Admin"}""")
             }
 
-            if (keyResponse.status == HttpStatusCode.OK) {
-                val body = json.parseToJsonElement(keyResponse.bodyAsText()).jsonObject
-                val key = body["key"]?.jsonPrimitive?.content
-                    ?: return Result.failure(Exception("No API key in response"))
+            if (saResponse.status != HttpStatusCode.Created && saResponse.status != HttpStatusCode.OK) {
+                return Result.failure(Exception("Failed to create service account: ${saResponse.status}"))
+            }
+
+            val saBody = json.parseToJsonElement(saResponse.bodyAsText()).jsonObject
+            val serviceAccountId = saBody["id"]?.jsonPrimitive?.content?.toIntOrNull()
+                ?: return Result.failure(Exception("No service account ID in response"))
+
+            // Step 2: Create a token for the service account
+            val tokenResponse = client.post("${endpoints.grafana}/api/serviceaccounts/$serviceAccountId/tokens") {
+                contentType(ContentType.Application.Json)
+                sessionCookies.forEach { cookie(it.name, it.value) }
+                setBody("""{"name":"integration-test-token"}""")
+            }
+
+            if (tokenResponse.status == HttpStatusCode.OK || tokenResponse.status == HttpStatusCode.Created) {
+                val tokenBody = json.parseToJsonElement(tokenResponse.bodyAsText()).jsonObject
+                val key = tokenBody["key"]?.jsonPrimitive?.content
+                    ?: return Result.failure(Exception("No token in response"))
 
                 tokens["grafana"] = key
                 Result.success(key)
             } else {
-                Result.failure(Exception("Failed to create API key: ${keyResponse.status}"))
+                Result.failure(Exception("Failed to create service account token: ${tokenResponse.status}"))
             }
         } catch (e: Exception) {
             Result.failure(e)

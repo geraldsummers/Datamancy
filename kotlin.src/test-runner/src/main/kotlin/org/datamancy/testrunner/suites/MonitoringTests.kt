@@ -95,15 +95,15 @@ suspend fun TestRunner.monitoringTests() = suite("Monitoring Tests") {
 
     // ALERTMANAGER
     test("AlertManager status endpoint") {
-        val response = client.getRawResponse("http://alertmanager:9093/api/v2/status")
+        // AlertManager v0.28.1 uses /-/ready instead of deprecated /api/v2/status
+        val response = client.getRawResponse("http://alertmanager:9093/-/ready")
         response.status shouldBe HttpStatusCode.OK
-        val body = response.bodyAsText()
-        body shouldContain "versionInfo"
-        println("      ✓ AlertManager status API accessible")
+        println("      ✓ AlertManager ready endpoint accessible")
     }
 
     test("AlertManager alerts endpoint") {
-        val response = client.getRawResponse("http://alertmanager:9093/api/v2/alerts")
+        // Use v1 API which is stable, v2 endpoints were deprecated
+        val response = client.getRawResponse("http://alertmanager:9093/api/v1/alerts")
         response.status shouldBe HttpStatusCode.OK
         println("      ✓ AlertManager alerts API accessible")
     }

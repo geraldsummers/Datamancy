@@ -55,6 +55,10 @@ ntfy access "$NTFY_USERNAME" "datamancy-alerts" write-only || true
 ntfy access "$NTFY_USERNAME" "datamancy-critical" write-only || true
 ntfy access "$NTFY_USERNAME" "datamancy-warnings" write-only || true
 
+# Grant read-write access to test-* topics for integration tests
+echo "[ntfy-init] Granting access to test-* topics for integration tests"
+ntfy access "$NTFY_USERNAME" "test-*" read-write || true
+
 # Mark provisioning as complete
 touch "$USER_PROVISIONED_FLAG"
 

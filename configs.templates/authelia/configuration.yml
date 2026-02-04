@@ -65,7 +65,7 @@ access_control:
     - domain_regex: '^(authelia|authelia:[0-9]+)$'
       policy: bypass
       resources:
-        - "^/api/(health|state|configuration)$"
+        - "^/api/(health|state|configuration|firstfactor)$"
     # Home Assistant webhooks need bypass
     - domain: homeassistant.{{DOMAIN}}
       policy: bypass
