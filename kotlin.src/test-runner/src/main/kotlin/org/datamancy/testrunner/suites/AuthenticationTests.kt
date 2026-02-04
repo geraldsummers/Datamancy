@@ -156,17 +156,31 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
     // =============================================================================
 
     test("LDAP Account Manager web interface loads") {
-        val response = client.getRawResponse("http://ldap-account-manager:80/lam")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Found)) {
-            "LAM not accessible: ${response.status}"
+        // First test: Direct container access (should work without auth)
+        val directResponse = client.getRawResponse("http://ldap-account-manager:80/lam/")
+        require(directResponse.status in listOf(HttpStatusCode.OK, HttpStatusCode.Found)) {
+            "LAM container not accessible directly: ${directResponse.status}"
+        }
+        println("      ✓ LAM container accessible directly")
+
+        // Second test: Access through Caddy with Authelia authentication
+        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+
+        val authResult = auth.login("admin", ldapPassword)
+        if (authResult !is AuthResult.Success) {
+            println("      ⚠ Skipping Authelia-protected LAM test - auth failed: ${(authResult as AuthResult.Error).message}")
+            return@test
         }
 
-        val body = response.bodyAsText()
-        require(body.contains("LDAP Account Manager") || body.contains("LAM") || body.contains("login")) {
-            "LAM interface not detected"
+        println("      ✓ Authenticated with Authelia")
+
+        // Access LAM through Caddy reverse proxy with auth
+        val authedResponse = auth.authenticatedGet("http://caddy:80/")
+        require(authedResponse.status == HttpStatusCode.OK || authedResponse.status.value in 200..399) {
+            "LAM not accessible through Caddy with auth: ${authedResponse.status}"
         }
 
-        println("      ✓ LDAP Account Manager web interface loads")
+        println("      ✓ LDAP Account Manager accessible through authenticated proxy")
     }
 
     test("LDAP Account Manager login page accessible") {

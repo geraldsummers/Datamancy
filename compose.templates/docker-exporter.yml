@@ -14,7 +14,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--timeout=30", "--spider", "http://localhost:9066/metrics"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9066/metrics', timeout=30)"]
       interval: 60s
       timeout: 35s
       retries: 5
