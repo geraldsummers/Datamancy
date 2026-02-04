@@ -10,3 +10,56 @@ docker compose not docker-compose
 dont edit stuff on the server just fix stuff in the local repo and i'll apply changes to the server!
 dont fix anything just make me a comprehensive error report
 this was freshly deployed from the latest repo just for you! NOTE WELL: this stack was deployed COMPLETELY FRESH after very AGGRESSIVE docker cleaning - no state persists from outside of your scope
+
+
+kill system:
+
+gerald@latium ~ $
+#set -euo pipefail
+
+echo "[1/6] SIGKILL all container processes"
+docker ps -q | xargs -r docker kill || true
+
+echo "[2/6] Force remove all containers"
+docker ps -aq | xargs -r docker rm -f || true
+
+echo "[3/6] Force remove all images"
+docker image ls -aq | xargs -r docker rmi -f || true
+
+echo "[4/6] Force remove all volumes"
+docker volume ls -q | xargs -r docker volume rm -f || true
+
+echo "[5/6] Force remove all networks (except built-ins)"
+docker network ls -q | xargs -r docker network rm || true
+
+echo "[6/6] Aggressive prune (builders, cache, dangling)"
+docker builder prune -af || true
+docker system prune -af --volumes || true
+docker buildx prune -af
+echo "[custom] Wipe external data paths"
+
+
+sudo systemctl stop docker
+sudo rm -rvf /mnt/sdc1_ctbx500_0385/*
+sudo rm -rvf ~/datamancy
+sudo rm -rvf /mnt/btrfs_raid_1_01_docker
+sudo systemctl start docker
+
+echo "DONE. Docker objects nuked; daemon left running."
+
+sudo systemctl stop docker
+sudo rm -rvf /mnt/sdc1_ctbx500_0385/*
+sudo rm -rvf ~/datamancy
+sudo rm -rvf /mnt/btrfs_raid_1_01_docker
+sudo systemctl start docker
+
+echo "DONE. Docker objects nuked; daemon left running."
+
+
+
+
+gerald@lab-pc ~ $ cd /home/gerald/IdeaProjects/Datamancy/ && rm -rvf dist/ && ./build-datamancy-v2.main.kts &&  rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && ssh gerald@latium.local "cd ~/datamancy && docker compose build --no-cache && docker compose up -d && docker compose logs -f"
+
+
+
+
