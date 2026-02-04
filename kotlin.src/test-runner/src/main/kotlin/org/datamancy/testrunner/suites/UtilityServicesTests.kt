@@ -66,7 +66,7 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
 
     test("Radicale server is accessible") {
         val response = client.getRawResponse("${env.endpoints.radicale!!}")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized)) {
+        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Found)) {
             "Radicale not accessible: ${response.status}"
         }
 

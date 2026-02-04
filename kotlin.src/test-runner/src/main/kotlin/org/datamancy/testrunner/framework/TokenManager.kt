@@ -317,6 +317,7 @@ class TokenManager(
                 setBody("""{"email":"$email","password":"$password"}""")
             }
 
+            // Handle redirects by treating them as authentication failures
             if (response.status == HttpStatusCode.OK) {
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
                 val token = body["token"]?.jsonPrimitive?.content
@@ -324,6 +325,8 @@ class TokenManager(
 
                 tokens["open-webui"] = token
                 Result.success(token)
+            } else if (response.status == HttpStatusCode.TemporaryRedirect) {
+                Result.failure(Exception("Open-WebUI requires authentication via Authelia - redirect to SSO"))
             } else {
                 Result.failure(Exception("Failed to authenticate: ${response.status}"))
             }
