@@ -20,8 +20,6 @@ services:
     depends_on:
       forgejo:
         condition: service_healthy
-      forgejo-token-generator:
-        condition: service_completed_successfully
       registry:
         condition: service_healthy
     environment:
