@@ -194,12 +194,27 @@ sealed interface TestEnvironment {
     val endpoints: ServiceEndpoints
     val adminPassword: String
     val ldapAdminPassword: String
+    val domain: String
+    val isDevMode: Boolean get() = false
+
+    // OIDC client secrets for testing
+    val openwebuiOAuthSecret: String
+    val grafanaOAuthSecret: String
+    val mastodonOAuthSecret: String
+    val forgejoOAuthSecret: String
+    val bookstackOAuthSecret: String
 
     data object Container : TestEnvironment {
         override val name = "container"
         override val endpoints = ServiceEndpoints.fromEnvironment()
         override val adminPassword = env("STACK_ADMIN_PASSWORD") ?: ""
         override val ldapAdminPassword = env("LDAP_ADMIN_PASSWORD") ?: ""
+        override val domain = env("DOMAIN") ?: "datamancy.local"
+        override val openwebuiOAuthSecret = env("OPENWEBUI_OAUTH_SECRET") ?: ""
+        override val grafanaOAuthSecret = env("GRAFANA_OAUTH_SECRET") ?: ""
+        override val mastodonOAuthSecret = env("MASTODON_OIDC_SECRET") ?: ""
+        override val forgejoOAuthSecret = env("FORGEJO_OAUTH_SECRET") ?: ""
+        override val bookstackOAuthSecret = env("BOOKSTACK_OAUTH_SECRET") ?: ""
     }
 
     data object Localhost : TestEnvironment {
@@ -207,6 +222,13 @@ sealed interface TestEnvironment {
         override val endpoints = ServiceEndpoints.forLocalhost()
         override val adminPassword = env("STACK_ADMIN_PASSWORD") ?: "admin"
         override val ldapAdminPassword = env("LDAP_ADMIN_PASSWORD") ?: "admin"
+        override val domain = env("DOMAIN") ?: "localhost"
+        override val isDevMode = true
+        override val openwebuiOAuthSecret = env("OPENWEBUI_OAUTH_SECRET") ?: "test-secret"
+        override val grafanaOAuthSecret = env("GRAFANA_OAUTH_SECRET") ?: "test-secret"
+        override val mastodonOAuthSecret = env("MASTODON_OIDC_SECRET") ?: "test-secret"
+        override val forgejoOAuthSecret = env("FORGEJO_OAUTH_SECRET") ?: "test-secret"
+        override val bookstackOAuthSecret = env("BOOKSTACK_OAUTH_SECRET") ?: "test-secret"
     }
 
     companion object {

@@ -61,11 +61,9 @@ access_control:
   rules:
     - domain: auth.{{DOMAIN}}
       policy: bypass
-    # Allow internal health checks and API calls
+    # Allow all internal Docker network calls (test runner, service-to-service)
     - domain_regex: '^(authelia|authelia:[0-9]+)$'
       policy: bypass
-      resources:
-        - "^/api/(health|state|configuration|firstfactor)$"
     # Home Assistant webhooks need bypass
     - domain: homeassistant.{{DOMAIN}}
       policy: bypass

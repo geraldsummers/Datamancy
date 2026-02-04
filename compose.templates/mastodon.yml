@@ -91,8 +91,9 @@ services:
       TRUSTED_PROXY_IP: 172.16.0.0/12  # Docker default bridge range (172.16-31.x.x)
       # Allow internal container hostnames for health checks and test runner
       RAILS_DEVELOPMENT_HOSTS: mastodon-web,mastodon-web:3000,mastodon.${DOMAIN},mastodon-sidekiq,localhost,.${DOMAIN}
-      # Allow all hosts for internal Docker network communication
+      # Disable host authorization checks for Docker network communication
       DISABLE_HOST_CHECK: "true"
+      DANGEROUSLY_DISABLE_HOST_FILTERING: "true"
     command: bash -c "bundle exec rails server -b 0.0.0.0"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]

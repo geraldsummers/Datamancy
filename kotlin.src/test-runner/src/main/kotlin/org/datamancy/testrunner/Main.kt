@@ -133,6 +133,8 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "backup" -> runner.backupTests()
         // NEW: Authentication & Directory
         "authentication" -> runner.authenticationTests()
+        // NEW: Enhanced Authentication (comprehensive auth testing)
+        "enhanced-auth" -> runner.enhancedAuthenticationTests()
         // NEW: Authenticated Operations (requires credentials)
         "authenticated-ops" -> runner.authenticatedOperationsTests()
         // NEW: Utility Services
@@ -164,6 +166,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.monitoringTests()
             runner.backupTests()
             runner.authenticationTests()
+            runner.enhancedAuthenticationTests()
             runner.authenticatedOperationsTests()
             runner.utilityServicesTests()
             runner.homeAssistantTests()
@@ -175,7 +178,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("Available suites: foundation, llm, knowledge-base, data-pipeline, microservices,")
             println("                  search-service, infrastructure, databases, user-interface, communication,")
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
-            println("                  authentication, authenticated-ops, utility, homeassistant,")
+            println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
             println("                  stack-deployment, bookstack, cicd, labware, all")
             exitProcess(1)
         }
@@ -249,7 +252,7 @@ private fun printUsage() {
                                      infrastructure, databases, user-interface,
                                      communication, collaboration, productivity,
                                      file-management, security, monitoring, backup,
-                                     authentication, authenticated-ops, utility, homeassistant,
+                                     authentication, enhanced-auth, authenticated-ops, utility, homeassistant,
                                      stack-deployment, bookstack, cicd, labware, all
 
       --verbose, -v          Enable verbose logging

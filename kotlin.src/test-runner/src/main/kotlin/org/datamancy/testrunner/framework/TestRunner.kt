@@ -12,7 +12,7 @@ class TestRunner(
     val endpoints get() = environment.endpoints
 
     // Initialize LDAP helper if LDAP URL and admin password are available
-    private val ldapHelper: LdapHelper? = environment.endpoints.ldap?.let { ldapUrl ->
+    val ldapHelper: LdapHelper? = environment.endpoints.ldap?.let { ldapUrl ->
         if (environment.ldapAdminPassword.isNotEmpty()) {
             LdapHelper(
                 ldapUrl = ldapUrl,
@@ -24,6 +24,7 @@ class TestRunner(
     }
 
     val auth = AuthHelper(environment.endpoints.authelia, httpClient, ldapHelper)
+    val oidc = OIDCHelper(environment.endpoints.authelia, httpClient, auth)
     val tokens = TokenManager(httpClient, environment.endpoints)
 
     private val results = mutableListOf<TestResult>()
@@ -39,7 +40,7 @@ class TestRunner(
         var duration = 0L
         val result = try {
             duration = measureTimeMillis {
-                val ctx = TestContext(client, auth, tokens)
+                val ctx = TestContext(client, auth, oidc, tokens)
                 ctx.block()
             }
             TestResult.Success(name, duration).also {
@@ -94,7 +95,12 @@ class TestSuite(val name: String, private val runner: TestRunner) {
     }
 }
 
-class TestContext(val client: ServiceClient, val auth: AuthHelper, val tokens: TokenManager) {
+class TestContext(
+    val client: ServiceClient,
+    val auth: AuthHelper,
+    val oidc: OIDCHelper,
+    val tokens: TokenManager
+) {
     // Fluent assertions
     infix fun String.shouldContain(substring: String) {
         if (!this.contains(substring)) {
