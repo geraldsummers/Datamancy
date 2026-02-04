@@ -112,5 +112,6 @@ services:
       - /run/labware-docker.sock:/run/labware-docker.sock
 
     # No persistent volumes needed (tests are ephemeral)
+    # Bundled source is accessed via Forgejo, not direct mount
     tmpfs:
       - /tmp

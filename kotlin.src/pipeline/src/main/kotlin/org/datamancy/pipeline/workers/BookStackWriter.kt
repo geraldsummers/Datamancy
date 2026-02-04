@@ -2,6 +2,9 @@ package org.datamancy.pipeline.workers
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.datamancy.pipeline.sinks.BookStackDocument
 import org.datamancy.pipeline.sinks.BookStackSink
 import org.datamancy.pipeline.storage.DocumentStagingStore
@@ -41,7 +44,7 @@ class BookStackWriter(
     private val stagingStore: DocumentStagingStore,
     private val bookStackSink: BookStackSink,
     private val pollIntervalSeconds: Long = 5,
-    private val batchSize: Int = 50
+    private val batchSize: Int = 200  // No rate limits on self-hosted BookStack
 ) {
     /**
      * Start the BookStack writer worker
@@ -61,38 +64,38 @@ class BookStackWriter(
                     continue
                 }
 
-                // Process each document
-                pendingDocs.forEach { doc ->
-                    try {
-                        // Convert staged document to BookStack document
-                        val bookStackDoc = toBookStackDocument(doc)
+                // Process documents concurrently (no rate limits on self-hosted BookStack!)
+                coroutineScope {
+                    pendingDocs.map { doc ->
+                        async {
+                            try {
+                                // Convert staged document to BookStack document
+                                val bookStackDoc = toBookStackDocument(doc)
 
-                        // Write to BookStack
-                        bookStackSink.write(bookStackDoc)
+                                // Write to BookStack
+                                bookStackSink.write(bookStackDoc)
 
-                        // Get the page URL that was just written
-                        val pageUrl = bookStackSink.getLastPageUrl(bookStackDoc.pageTitle)
+                                // Get the page URL that was just written
+                                val pageUrl = bookStackSink.getLastPageUrl(bookStackDoc.pageTitle)
 
-                        // Store the BookStack URL back to staging table
-                        if (pageUrl != null) {
-                            stagingStore.updateBookStackUrl(doc.id, pageUrl)
+                                // Store the BookStack URL back to staging table
+                                if (pageUrl != null) {
+                                    stagingStore.updateBookStackUrl(doc.id, pageUrl)
+                                }
+
+                                // Mark as completed
+                                stagingStore.markBookStackComplete(doc.id)
+
+                                logger.debug { "Wrote document ${doc.id} to BookStack: $pageUrl" }
+
+                            } catch (e: Exception) {
+                                logger.error(e) { "Failed to write document ${doc.id} to BookStack: ${e.message}" }
+
+                                // Mark as failed
+                                stagingStore.markBookStackFailed(doc.id, e.message ?: "Unknown error")
+                            }
                         }
-
-                        // Rate limiting: Wait between API calls to avoid 429 errors
-                        // BookStack API rate limit: ~5-10 req/sec, so 500ms = 2 req/sec is safe
-                        delay(500)
-
-                        // Mark as completed
-                        stagingStore.markBookStackComplete(doc.id)
-
-                        logger.debug { "Wrote document ${doc.id} to BookStack: $pageUrl" }
-
-                    } catch (e: Exception) {
-                        logger.error(e) { "Failed to write document ${doc.id} to BookStack: ${e.message}" }
-
-                        // Mark as failed
-                        stagingStore.markBookStackFailed(doc.id, e.message ?: "Unknown error")
-                    }
+                    }.awaitAll()
                 }
 
             } catch (e: Exception) {

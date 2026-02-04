@@ -15,10 +15,10 @@
 ###############################################
 {
 	# DEVELOPMENT: Self-signed certificates via Caddy's internal CA
-	local_certs
+	# local_certs
 
 	# PRODUCTION: Let's Encrypt certificates
-	# email {$STACK_ADMIN_EMAIL}
+	email {$STACK_ADMIN_EMAIL}
 }
 
 # Snippet for Authelia Forward Auth

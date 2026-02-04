@@ -5,7 +5,8 @@
 set -e
 
 # Start original Forgejo entrypoint in background
-/usr/bin/entrypoint &
+# Suppress chown errors for read-only mounted repositories (stderr filtered)
+/usr/bin/entrypoint 2> >(grep -v "Read-only file system" >&2) &
 FORGEJO_PID=$!
 
 # Run token generation script in background (it has its own wait logic)

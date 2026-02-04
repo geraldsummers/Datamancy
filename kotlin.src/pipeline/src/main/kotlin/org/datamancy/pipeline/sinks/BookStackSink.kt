@@ -32,9 +32,10 @@ class BookStackSink(
     private val gson = Gson()
     private val jsonMediaType = "application/json".toMediaType()
 
-    // Cache book/chapter IDs to avoid repeated lookups
+    // Cache book/chapter/page IDs to avoid repeated lookups
     private val bookCache = mutableMapOf<String, Int>()
     private val chapterCache = mutableMapOf<String, Int>()
+    private val pageCache = mutableMapOf<String, Int>() // Cache: "bookId:chapterId:pageTitle" -> pageId
 
     // Store last written page URL (thread-safe for concurrent writes)
     private val lastPageUrlMap = java.util.concurrent.ConcurrentHashMap<String, String>()
@@ -216,38 +217,44 @@ class BookStackSink(
     }
 
     private fun createOrUpdatePage(bookId: Int, chapterId: Int?, doc: BookStackDocument): String {
-        // Search for existing page by name
-        var existingPageId: Int? = null
-        try {
-            val searchRequest = Request.Builder()
-                .url("$bookstackUrl/api/pages?filter[name]=${doc.pageTitle}")
-                .header("Authorization", "Token $tokenId:$tokenSecret")
-                .get()
-                .build()
+        // Check cache first
+        val cacheKey = "${bookId}:${chapterId ?: "null"}:${doc.pageTitle}"
+        var existingPageId: Int? = pageCache[cacheKey]
 
-            client.newCall(searchRequest).execute().use { response ->
-                if (response.isSuccessful) {
-                    val bodyString = response.body?.string() ?: return@use
-                    val json = JsonParser.parseString(bodyString).asJsonObject
-                    val pages = json.getAsJsonArray("data")
+        // If not in cache, search for existing page
+        if (existingPageId == null) {
+            try {
+                val searchRequest = Request.Builder()
+                    .url("$bookstackUrl/api/pages?filter[name]=${doc.pageTitle}")
+                    .header("Authorization", "Token $tokenId:$tokenSecret")
+                    .get()
+                    .build()
 
-                    for (page in pages) {
-                        val pageObj = page.asJsonObject
-                        // Check if page is in the same book/chapter
-                        val pageBookId = pageObj.get("book_id").asInt
-                        val pageChapterId = pageObj.get("chapter_id")?.let {
-                            if (it.isJsonNull) null else it.asInt
-                        }
+                client.newCall(searchRequest).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val bodyString = response.body?.string() ?: return@use
+                        val json = JsonParser.parseString(bodyString).asJsonObject
+                        val pages = json.getAsJsonArray("data")
 
-                        if (pageBookId == bookId && pageChapterId == chapterId) {
-                            existingPageId = pageObj.get("id").asInt
-                            break
+                        for (page in pages) {
+                            val pageObj = page.asJsonObject
+                            // Check if page is in the same book/chapter
+                            val pageBookId = pageObj.get("book_id").asInt
+                            val pageChapterId = pageObj.get("chapter_id")?.let {
+                                if (it.isJsonNull) null else it.asInt
+                            }
+
+                            if (pageBookId == bookId && pageChapterId == chapterId) {
+                                existingPageId = pageObj.get("id").asInt
+                                pageCache[cacheKey] = existingPageId!!
+                                break
+                            }
                         }
                     }
                 }
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to search for existing page: ${e.message}" }
             }
-        } catch (e: Exception) {
-            logger.warn(e) { "Failed to search for existing page: ${e.message}" }
         }
 
         val payload = mutableMapOf(
@@ -304,6 +311,9 @@ class BookStackSink(
                 val pageId = json.get("id").asInt
                 val slug = json.get("slug")?.asString ?: throw Exception("No slug in response")
                 val pageUrl = "$bookstackUrl/books/${json.get("book_slug")?.asString}/page/$slug"
+
+                // Cache the newly created page ID
+                pageCache[cacheKey] = pageId
 
                 logger.debug { "Created BookStack page: ${doc.pageTitle} (ID: $pageId)" }
                 return pageUrl
