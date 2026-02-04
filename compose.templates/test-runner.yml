@@ -88,6 +88,10 @@ services:
       # Host IP for labware CI/CD tests (labware daemon needs to reach host:5000)
       HOST_IP: "${HOST_IP:-192.168.0.11}"
 
+      # Ntfy credentials for notification tests
+      NTFY_USERNAME: "${NTFY_USERNAME}"
+      NTFY_PASSWORD: "${NTFY_PASSWORD}"
+
     # Only run when explicitly requested
     profiles:
       - testing

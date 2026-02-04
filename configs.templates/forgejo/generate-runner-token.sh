@@ -16,12 +16,12 @@ fi
 
 echo "[forgejo-entrypoint] Waiting for Forgejo to be fully ready..."
 # Wait for Forgejo API to be responsive
-for i in {1..60}; do
+for i in {1..180}; do
     if wget -q --spider http://localhost:3000/api/healthz 2>/dev/null; then
         echo "[forgejo-entrypoint] Forgejo API is ready"
         break
     fi
-    if [ $i -eq 60 ]; then
+    if [ $i -eq 180 ]; then
         echo "[forgejo-entrypoint] ⚠️ Timeout waiting for Forgejo API"
         exit 0  # Don't fail - runner can be registered manually
     fi

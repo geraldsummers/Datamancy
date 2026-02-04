@@ -165,10 +165,12 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
     }
 
     test("Ntfy can create test topic") {
-        // Ntfy allows anonymous access to create topics by default
         val testTopic = "test-topic-${System.currentTimeMillis()}"
+        val ntfyUsername = System.getenv("NTFY_USERNAME") ?: "admin"
+        val ntfyPassword = System.getenv("NTFY_PASSWORD") ?: ""
 
         val response = client.postRaw("${env.endpoints.ntfy!!}/$testTopic") {
+            basicAuth(ntfyUsername, ntfyPassword)
             headers {
                 append(HttpHeaders.ContentType, "text/plain")
             }
@@ -184,8 +186,11 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
 
     test("Ntfy JSON API works") {
         val testTopic = "test-json-${System.currentTimeMillis()}"
+        val ntfyUsername = System.getenv("NTFY_USERNAME") ?: "admin"
+        val ntfyPassword = System.getenv("NTFY_PASSWORD") ?: ""
 
         val response = client.postRaw("${env.endpoints.ntfy!!}/$testTopic") {
+            basicAuth(ntfyUsername, ntfyPassword)
             headers {
                 append(HttpHeaders.ContentType, "application/json")
             }

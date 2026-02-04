@@ -95,7 +95,7 @@ suspend fun TestRunner.monitoringTests() = suite("Monitoring Tests") {
 
     // ALERTMANAGER
     test("AlertManager status endpoint") {
-        val response = client.getRawResponse("http://alertmanager:9093/api/v1/status")
+        val response = client.getRawResponse("http://alertmanager:9093/api/v2/status")
         response.status shouldBe HttpStatusCode.OK
         val body = response.bodyAsText()
         body shouldContain "versionInfo"
@@ -103,7 +103,7 @@ suspend fun TestRunner.monitoringTests() = suite("Monitoring Tests") {
     }
 
     test("AlertManager alerts endpoint") {
-        val response = client.getRawResponse("http://alertmanager:9093/api/v1/alerts")
+        val response = client.getRawResponse("http://alertmanager:9093/api/v2/alerts")
         response.status shouldBe HttpStatusCode.OK
         println("      ✓ AlertManager alerts API accessible")
     }

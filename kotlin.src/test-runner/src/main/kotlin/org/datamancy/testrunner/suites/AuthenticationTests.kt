@@ -124,7 +124,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
         require(response.status == HttpStatusCode.OK) { "Authelia health check failed: ${response.status}" }
 
         val body = response.bodyAsText()
-        require(body.contains("\"status\":\"UP\"") || body.contains("healthy")) {
+        require(body.contains("\"status\":\"UP\"") || body.contains("\"status\":\"OK\"") || body.contains("healthy")) {
             "Authelia not healthy: $body"
         }
 
