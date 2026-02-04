@@ -38,5 +38,5 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 6
-      start_period: 75s
+      retries: 12  # Allow up to 2 minutes for model warmup
+      start_period: 90s  # Don't fail during initial model warmup

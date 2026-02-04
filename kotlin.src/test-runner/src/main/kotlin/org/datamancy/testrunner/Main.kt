@@ -148,6 +148,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         // CI/CD and labware tests
         "cicd" -> runner.cicdTests()
         "labware" -> runner.labwareTests()
+        "stack-replication" -> runner.stackReplicationTests()
         "all" -> {
             runner.foundationTests()
             runner.llmTests()
@@ -172,6 +173,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.homeAssistantTests()
             runner.cicdTests()
             runner.labwareTests()
+            runner.stackReplicationTests()
         }
         else -> {
             println("❌ Unknown suite: $suite")
@@ -179,7 +181,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  search-service, infrastructure, databases, user-interface, communication,")
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
-            println("                  stack-deployment, bookstack, cicd, labware, all")
+            println("                  stack-deployment, bookstack, cicd, labware, stack-replication, all")
             exitProcess(1)
         }
     }

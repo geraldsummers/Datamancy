@@ -94,6 +94,8 @@ services:
       # Disable host authorization checks for Docker network communication
       DISABLE_HOST_CHECK: "true"
       DANGEROUSLY_DISABLE_HOST_FILTERING: "true"
+      # Rails 7.x explicit host check bypass
+      ACTION_DISPATCH_HOSTS_PERMIT_ALL: "true"
     command: bash -c "bundle exec rails server -b 0.0.0.0"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]

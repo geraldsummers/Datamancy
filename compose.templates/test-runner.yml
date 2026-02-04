@@ -68,6 +68,7 @@ services:
       VALKEY_URL: "valkey:6379"
 
       # Auth services
+      AUTHELIA_URL: "https://auth.datamancy.net"  # Use Caddy reverse proxy for real auth flow
       LDAP_URL: "ldap://ldap:389"
       LDAP_BASE_DN: "${LDAP_BASE_DN}"
       LDAP_ADMIN_DN: "cn=admin,${LDAP_BASE_DN}"

@@ -197,7 +197,7 @@ class SearchGateway(
                 text,
                 metadata,
                 ts_rank(to_tsvector('english', text), plainto_tsquery('english', ?)) as rank
-            FROM document_staging
+            FROM public.document_staging
             WHERE
                 collection = ?
                 AND to_tsvector('english', text) @@ plainto_tsquery('english', ?)

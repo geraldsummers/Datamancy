@@ -801,6 +801,249 @@ fun validateCredentialSchema(schema: CredentialsSchema) {
 }
 
 // ============================================================================
+// Forgejo Bundling
+// ============================================================================
+
+fun bundleToForgejo(distDir: File, version: String) {
+    val forgejoUrl = System.getenv("FORGEJO_URL") ?: "https://forgejo.datamancy.net"
+    val forgejoUser = System.getenv("FORGEJO_DEPLOY_USER") ?: "datamancy-bot"
+    val forgejoToken = System.getenv("FORGEJO_DEPLOY_TOKEN")
+
+    if (forgejoToken == null) {
+        info("FORGEJO_DEPLOY_TOKEN not set - skipping Forgejo bundling")
+        info("To enable, set environment variable: export FORGEJO_DEPLOY_TOKEN=...")
+        info("Create token at: $forgejoUrl/user/settings/applications")
+        return
+    }
+
+    step("Bundling deployment to Forgejo")
+
+    val repoOrg = "datamancy"
+    val repoName = "deployment-config"
+    val remoteUrl = "https://$forgejoUser:$forgejoToken@${forgejoUrl.removePrefix("https://").removePrefix("http://")}/$repoOrg/$repoName.git"
+
+    try {
+        // Initialize git repo
+        info("Initializing Git repository in dist/")
+        ProcessBuilder("git", "init")
+            .directory(distDir)
+            .inheritIO()
+            .start()
+            .waitFor()
+
+        ProcessBuilder("git", "config", "user.name", "Datamancy Build Bot")
+            .directory(distDir)
+            .start()
+            .waitFor()
+
+        ProcessBuilder("git", "config", "user.email", "build@datamancy.net")
+            .directory(distDir)
+            .start()
+            .waitFor()
+
+        // Create .gitignore
+        distDir.resolve(".gitignore").writeText("""
+# Secrets (never commit real credentials)
+.env
+
+# Runtime state (volatile data)
+volumes/
+*.log
+*.pid
+
+# Build artifacts (can be regenerated)
+*.jar.tmp
+*.swp
+*~
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+""".trimIndent())
+
+        // Create .env.template
+        info("Creating .env.template with placeholder secrets")
+        val envFile = distDir.resolve(".env")
+        val envTemplate = distDir.resolve(".env.template")
+
+        if (envFile.exists()) {
+            envTemplate.writeText(
+                envFile.readText()
+                    .lines()
+                    .joinToString("\n") { line ->
+                        when {
+                            line.startsWith("#") -> line
+                            line.contains("=") -> {
+                                val key = line.substringBefore("=")
+                                "$key=CHANGEME_$key"
+                            }
+                            else -> line
+                        }
+                    }
+            )
+        }
+
+        // Create README.md
+        distDir.resolve("README.md").writeText("""
+# Datamancy Deployment Configuration
+
+Version: $version
+
+This repository contains the complete deployment configuration for the Datamancy stack.
+
+## Contents
+
+- `docker-compose.yml` - Complete service definitions (50+ services)
+- `.env.template` - Environment variable template (secrets placeholder)
+- `configs/` - Service configuration files
+- `containers.src/` - Custom container build contexts
+- `.build-info` - Build metadata
+
+## Quick Start
+
+```bash
+# Clone the repository
+git clone $forgejoUrl/$repoOrg/$repoName.git
+cd $repoName
+
+# Copy and configure environment
+cp .env.template .env
+# Edit .env and set all CHANGEME_* values
+
+# Deploy the stack
+docker compose up -d
+
+# Run integration tests
+docker compose --profile testing run --rm integration-test-runner all
+```
+
+## CI/CD Usage (Labware Socket)
+
+```bash
+# Clone on labware socket
+git clone $forgejoUrl/$repoOrg/$repoName.git
+cd $repoName
+
+# Load secrets from vault
+# (implementation depends on your secret management)
+
+# Deploy on isolated socket
+docker compose -H unix:///run/labware-docker.sock up -d
+
+# Run full integration test suite
+docker compose -H unix:///run/labware-docker.sock \\
+  --profile testing run --rm integration-test-runner all
+
+# Cleanup
+docker compose -H unix:///run/labware-docker.sock down -v
+```
+
+## Agent-Driven Development
+
+Agents can spawn ephemeral development environments:
+
+```bash
+# Agent clones repo
+git clone $forgejoUrl/$repoOrg/$repoName.git /tmp/agent-dev-env
+
+# Agent loads secrets from agent vault
+# Agent modifies configs for development
+
+# Agent spawns isolated stack
+docker compose -H unix:///run/labware-docker.sock up -d
+
+# Agent tests changes
+docker compose -H unix:///run/labware-docker.sock run --rm integration-test-runner
+
+# Agent tears down
+docker compose -H unix:///run/labware-docker.sock down -v
+```
+
+## Disaster Recovery
+
+In case of complete system failure:
+
+1. Clone this repository on new hardware
+2. Restore `.env` from secure backup
+3. Run `docker compose up -d`
+4. Wait 10-15 minutes for all services to become healthy
+5. Restore volume data from Kopia backups (optional)
+
+---
+
+🤖 Generated by Datamancy Build System v$version
+""".trimIndent())
+
+        // Stage all files
+        ProcessBuilder("git", "add", "-A")
+            .directory(distDir)
+            .start()
+            .waitFor()
+
+        // Check if there are changes
+        val diffProcess = ProcessBuilder("git", "diff", "--cached", "--quiet")
+            .directory(distDir)
+            .start()
+        val hasDiff = diffProcess.waitFor() != 0
+
+        if (!hasDiff) {
+            info("No changes to commit - repository is up to date")
+        } else {
+            // Commit
+            val buildInfo = distDir.resolve(".build-info").readText()
+            val commitMsg = """Deploy: $version
+
+$buildInfo
+
+Generated by build-datamancy-v2.main.kts"""
+
+            ProcessBuilder("git", "commit", "-m", commitMsg)
+                .directory(distDir)
+                .inheritIO()
+                .start()
+                .waitFor()
+
+            // Add remote
+            ProcessBuilder("git", "remote", "add", "origin", remoteUrl)
+                .directory(distDir)
+                .start()
+                .waitFor()
+
+            // Push to Forgejo
+            info("Pushing to $forgejoUrl/$repoOrg/$repoName")
+            val pushProcess = ProcessBuilder("git", "push", "-u", "origin", "main")
+                .directory(distDir)
+                .redirectErrorStream(true)
+                .start()
+
+            val pushOutput = pushProcess.inputStream.bufferedReader().readText()
+            val pushExit = pushProcess.waitFor()
+
+            if (pushExit == 0) {
+                println("${GREEN}✓ Successfully pushed to Forgejo${RESET}")
+                println("${CYAN}View at:${RESET} $forgejoUrl/$repoOrg/$repoName")
+            } else {
+                warn("Failed to push to Forgejo (exit code: $pushExit)")
+                warn("Output: $pushOutput")
+                warn("Repository may not exist - create it at:")
+                warn("  $forgejoUrl/repo/create")
+                warn("  Organization: $repoOrg")
+                warn("  Name: $repoName")
+            }
+        }
+
+    } catch (e: Exception) {
+        warn("Error bundling to Forgejo: ${e.message}")
+        warn("Build continues, but deployment config not pushed to Git")
+    }
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -902,6 +1145,9 @@ built_at: ${Instant.now()}
 built_by: ${System.getProperty("user.name")}
 schema_version: 2.0
 """.trimIndent())
+
+    // Bundle deployment to Forgejo (if configured)
+    bundleToForgejo(distDir, version)
 
     println("""
 ${GREEN}✓ Build complete!${RESET}
