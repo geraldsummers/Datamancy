@@ -438,12 +438,16 @@ private fun execLabwareDockerCompose(
     vararg args: String
 ): Pair<Int, String> {
     // Modern Docker uses "docker compose" plugin instead of standalone "docker-compose" binary
-    // Using -H flag to specify socket, so no need to set DOCKER_HOST environment variable
-    val command = listOf("docker", "-H", "unix://$socketPath", "compose", "-f", "$composePath/docker-compose.yml") + args
+    // Set DOCKER_HOST environment variable for docker compose to use labware socket
+    val env = mapOf("DOCKER_HOST" to "unix://$socketPath")
+    val command = listOf("docker", "compose", "-f", "$composePath/docker-compose.yml") + args
 
     val process = ProcessBuilder(command)
         .directory(File(composePath))
         .redirectErrorStream(true)
+        .apply {
+            environment().putAll(env)
+        }
         .start()
 
     val output = process.inputStream.bufferedReader().readText()

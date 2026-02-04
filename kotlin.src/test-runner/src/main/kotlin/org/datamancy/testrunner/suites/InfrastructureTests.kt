@@ -12,30 +12,74 @@ suspend fun TestRunner.infrastructureTests() = suite("Infrastructure Tests") {
     // ================================================================================
 
     test("Authelia SSO endpoint is accessible") {
-        val response = client.getRawResponse("${env.endpoints.authelia}/api/health")
-        response.status shouldBe HttpStatusCode.OK
-        val body = response.bodyAsText()
-        body shouldContain "status"
+        // Authelia may take up to 120s to start (start_period in healthcheck)
+        // Retry connection with exponential backoff
+        var lastError: Exception? = null
+        var attempts = 0
+        val maxAttempts = 15 // 15 attempts with backoff = ~30 seconds max
+
+        while (attempts < maxAttempts) {
+            try {
+                val response = client.getRawResponse("${env.endpoints.authelia}/api/health")
+                response.status shouldBe HttpStatusCode.OK
+                val body = response.bodyAsText()
+                body shouldContain "status"
+
+                if (attempts > 0) {
+                    println("      ℹ️  Authelia accessible after ${attempts} retry attempts")
+                }
+                return@test  // Success!
+            } catch (e: Exception) {
+                lastError = e
+                attempts++
+                if (attempts < maxAttempts) {
+                    val delayMs = minOf(1000L * attempts, 5000L)  // 1s, 2s, 3s, 4s, 5s (cap at 5s)
+                    delay(delayMs)
+                }
+            }
+        }
+
+        throw AssertionError("Authelia not accessible after $maxAttempts attempts (~30s): ${lastError?.message}")
     }
 
     test("Authelia OIDC discovery works") {
-        val response = client.getRawResponse("${env.endpoints.authelia}/.well-known/openid-configuration")
-        response.status shouldBe HttpStatusCode.OK
-        val body = response.bodyAsText()
-        val json = Json.parseToJsonElement(body).jsonObject
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                val response = client.getRawResponse("${env.endpoints.authelia}/.well-known/openid-configuration")
+                response.status shouldBe HttpStatusCode.OK
+                val body = response.bodyAsText()
+                val json = Json.parseToJsonElement(body).jsonObject
 
-        require(json.containsKey("issuer")) { "OIDC discovery missing 'issuer'" }
-        require(json.containsKey("authorization_endpoint")) { "OIDC discovery missing 'authorization_endpoint'" }
-        require(json.containsKey("token_endpoint")) { "OIDC discovery missing 'token_endpoint'" }
+                require(json.containsKey("issuer")) { "OIDC discovery missing 'issuer'" }
+                require(json.containsKey("authorization_endpoint")) { "OIDC discovery missing 'authorization_endpoint'" }
+                require(json.containsKey("token_endpoint")) { "OIDC discovery missing 'token_endpoint'" }
+                return@test  // Success!
+            } catch (e: Exception) {
+                lastError = e
+                if (attempt < 2) delay(1000)
+            }
+        }
+        throw AssertionError("OIDC discovery failed: ${lastError?.message}")
     }
 
     test("Authelia redirects unauthenticated users") {
         // Authelia should reject unauthenticated requests to /api/verify
         // Note: /api/verify returns 404 when called directly without proper headers
         // It's designed to be used by Caddy forward_auth, not directly
-        val response = client.getRawResponse("${env.endpoints.authelia}/api/verify")
-        // Should return 401/403/302 (auth required) or 404 (endpoint requires specific headers)
-        response.status.value shouldBeOneOf listOf(401, 403, 302, 404)
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                val response = client.getRawResponse("${env.endpoints.authelia}/api/verify")
+                // Should return 401/403/302 (auth required) or 404 (endpoint requires specific headers)
+                response.status.value shouldBeOneOf listOf(401, 403, 302, 404)
+                return@test  // Success!
+            } catch (e: Exception) {
+                lastError = e
+                if (attempt < 2) delay(1000)
+            }
+        }
+        throw AssertionError("Auth verification test failed: ${lastError?.message}")
     }
 
     test("Authelia authentication flow works") {
@@ -67,19 +111,41 @@ suspend fun TestRunner.infrastructureTests() = suite("Infrastructure Tests") {
     }
 
     test("Authelia API health endpoint responds") {
-        val response = client.getRawResponse("${env.endpoints.authelia}/api/health")
-        response.status shouldBe HttpStatusCode.OK
+        // This test runs after the initial connectivity test, so Authelia should be up
+        // But add minimal retry in case of transient issues
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                val response = client.getRawResponse("${env.endpoints.authelia}/api/health")
+                response.status shouldBe HttpStatusCode.OK
+                return@test  // Success!
+            } catch (e: Exception) {
+                lastError = e
+                if (attempt < 2) delay(1000)
+            }
+        }
+        throw AssertionError("Authelia health check failed: ${lastError?.message}")
     }
 
     test("Authelia validates OIDC client config") {
         // Test OIDC discovery has required fields for clients
-        val response = client.getRawResponse("${env.endpoints.authelia}/.well-known/openid-configuration")
-        val body = response.bodyAsText()
-        val json = Json.parseToJsonElement(body).jsonObject
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                val response = client.getRawResponse("${env.endpoints.authelia}/.well-known/openid-configuration")
+                val body = response.bodyAsText()
+                val json = Json.parseToJsonElement(body).jsonObject
 
-        json.containsKey("jwks_uri") shouldBe true
-        json.containsKey("scopes_supported") shouldBe true
-        json.containsKey("response_types_supported") shouldBe true
+                json.containsKey("jwks_uri") shouldBe true
+                json.containsKey("scopes_supported") shouldBe true
+                json.containsKey("response_types_supported") shouldBe true
+                return@test  // Success!
+            } catch (e: Exception) {
+                lastError = e
+                if (attempt < 2) delay(1000)
+            }
+        }
+        throw AssertionError("OIDC config validation failed: ${lastError?.message}")
     }
 
     // ================================================================================

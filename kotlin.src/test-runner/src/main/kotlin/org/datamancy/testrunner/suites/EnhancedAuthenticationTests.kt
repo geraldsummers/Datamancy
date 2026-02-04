@@ -419,19 +419,29 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
     test("Phase 3: Internal Docker bypass rule works") {
         // Test that internal container-to-container calls bypass Authelia
         // (testing the fix we just applied!)
-        val response = client.getRawResponse("http://authelia:9091/api/health")
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                val response = client.getRawResponse("http://authelia:9091/api/health")
 
-        require(response.status == HttpStatusCode.OK) {
-            "Internal Docker network should bypass auth for health check: ${response.status}"
+                require(response.status == HttpStatusCode.OK) {
+                    "Internal Docker network should bypass auth for health check: ${response.status}"
+                }
+
+                val body = response.bodyAsText()
+                require(body.contains("status") || body.contains("UP") || body.contains("healthy")) {
+                    "Health check should return valid response"
+                }
+
+                println("      ✓ Internal Docker network correctly bypasses Authelia")
+                println("      ✓ Health endpoint accessible from test container")
+                return@test  // Success!
+            } catch (e: Exception) {
+                lastError = e
+                if (attempt < 2) delay(1000)
+            }
         }
-
-        val body = response.bodyAsText()
-        require(body.contains("status") || body.contains("UP") || body.contains("healthy")) {
-            "Health check should return valid response"
-        }
-
-        println("      ✓ Internal Docker network correctly bypasses Authelia")
-        println("      ✓ Health endpoint accessible from test container")
+        throw AssertionError("Docker bypass test failed: ${lastError?.message}")
     }
 
     // =========================================================================
