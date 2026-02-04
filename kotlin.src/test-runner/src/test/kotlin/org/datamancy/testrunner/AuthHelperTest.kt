@@ -107,16 +107,30 @@ class AuthHelperTest {
         val mockClient = HttpClient(MockEngine) {
             engine {
                 addHandler { request ->
-                    // Verify cookie is present
+                    val url = request.url.toString()
                     val hasCookie = request.headers[HttpHeaders.Cookie]?.contains("authelia_session") == true
-                    respond(
-                        content = ByteReadChannel(if (hasCookie) """{"authenticated":true}""" else """{"error":"no cookie"}"""),
-                        status = if (hasCookie) HttpStatusCode.OK else HttpStatusCode.Unauthorized,
-                        headers = headersOf(
-                            HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
-                            HttpHeaders.SetCookie to listOf("authelia_session=test-token; Path=/")
+
+                    // Handle login request
+                    if (url.contains("/api/firstfactor")) {
+                        respond(
+                            content = ByteReadChannel("""{"status":"OK"}"""),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(
+                                HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
+                                HttpHeaders.SetCookie to listOf("authelia_session=test-session-token; Path=/; HttpOnly")
+                            )
                         )
-                    )
+                    }
+                    // Handle authenticated request - verify cookie is present
+                    else {
+                        respond(
+                            content = ByteReadChannel(if (hasCookie) """{"authenticated":true}""" else """{"error":"no cookie"}"""),
+                            status = if (hasCookie) HttpStatusCode.OK else HttpStatusCode.Unauthorized,
+                            headers = headersOf(
+                                HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString())
+                            )
+                        )
+                    }
                 }
             }
             install(ContentNegotiation) {

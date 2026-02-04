@@ -96,7 +96,8 @@ class TokenManagerTest {
 
         val mockResponses = mapOf(
             "http://grafana:3000/login" to Pair(HttpStatusCode.OK, """{"status":"ok"}"""),
-            "http://grafana:3000/api/auth/keys" to Pair(HttpStatusCode.OK, """{"key":"test-api-key-12345"}""")
+            "http://grafana:3000/api/serviceaccounts" to Pair(HttpStatusCode.Created, """{"id":"123","name":"test-account"}"""),
+            "http://grafana:3000/api/serviceaccounts/123/tokens" to Pair(HttpStatusCode.OK, """{"key":"test-api-key-12345","name":"test-token"}""")
         )
 
         val client = createMockClient(mockResponses)
@@ -123,7 +124,8 @@ class TokenManagerTest {
 
         val mockResponses = mapOf(
             "http://grafana:3000/login" to Pair(HttpStatusCode.OK, """{"status":"ok"}"""),
-            "http://grafana:3000/api/auth/keys" to Pair(HttpStatusCode.OK, """{"key":"test-key"}""")
+            "http://grafana:3000/api/serviceaccounts" to Pair(HttpStatusCode.Created, """{"id":"123","name":"test-account"}"""),
+            "http://grafana:3000/api/serviceaccounts/123/tokens" to Pair(HttpStatusCode.OK, """{"key":"test-key","name":"test-token"}""")
         )
 
         val client = createMockClient(mockResponses)
@@ -144,7 +146,8 @@ class TokenManagerTest {
 
         val mockResponses = mapOf(
             "http://grafana:3000/login" to Pair(HttpStatusCode.OK, """{"status":"ok"}"""),
-            "http://grafana:3000/api/auth/keys" to Pair(HttpStatusCode.OK, """{"key":"grafana-key"}"""),
+            "http://grafana:3000/api/serviceaccounts" to Pair(HttpStatusCode.Created, """{"id":"123","name":"test-account"}"""),
+            "http://grafana:3000/api/serviceaccounts/123/tokens" to Pair(HttpStatusCode.OK, """{"key":"grafana-key","name":"test-token"}"""),
             "http://seafile:80/api2/auth-token/" to Pair(HttpStatusCode.OK, """{"token":"seafile-token"}""")
         )
 
