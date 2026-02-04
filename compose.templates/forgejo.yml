@@ -48,7 +48,9 @@ services:
       - forgejo_runner_token:/runner-token
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-      - ./configs/forgejo/generate-runner-token.sh:/docker-entrypoint.d/generate-runner-token.sh:ro
+      - ./configs/forgejo/custom-entrypoint.sh:/custom-entrypoint.sh:ro
+      - ./configs/forgejo/generate-runner-token.sh:/generate-runner-token.sh:ro
+    entrypoint: ["/custom-entrypoint.sh"]
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/healthz"]
       interval: 10s

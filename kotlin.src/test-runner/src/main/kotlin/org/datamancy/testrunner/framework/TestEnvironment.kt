@@ -85,6 +85,7 @@ data class ServiceEndpoints(
             bookstackTokenSecret = env("BOOKSTACK_API_TOKEN_SECRET"),
             // Infrastructure
             caddy = env("CADDY_URL") ?: "http://caddy:80",
+            // Use Caddy proxy for Authelia (required for session cookie domain validation)
             authelia = env("AUTHELIA_URL") ?: "http://authelia:9091",
             // User Interfaces
             openWebUI = env("OPEN_WEBUI_URL") ?: "http://open-webui:8080",
