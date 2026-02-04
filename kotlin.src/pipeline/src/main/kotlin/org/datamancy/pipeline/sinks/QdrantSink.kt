@@ -51,11 +51,8 @@ class QdrantSink(
 
     private fun ensureCollection() {
         try {
-            // Check if collection exists first
-            val collections = client.listCollectionsAsync().get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            val exists = collections.collectionsList.any { it.name == collectionName }
-
-            if (!exists) {
+            // Try to create collection (will fail with ALREADY_EXISTS if it exists)
+            try {
                 logger.info { "Creating Qdrant collection: $collectionName" }
                 client.createCollectionAsync(
                     collectionName,
@@ -65,8 +62,15 @@ class QdrantSink(
                         .build()
                 ).get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 logger.info { "Created Qdrant collection: $collectionName" }
-            } else {
-                logger.debug { "Qdrant collection already exists: $collectionName" }
+            } catch (e: Exception) {
+                // Check if it's ALREADY_EXISTS error (which is fine)
+                if (e.message?.contains("ALREADY_EXISTS", ignoreCase = true) == true ||
+                    e.message?.contains("already exists", ignoreCase = true) == true) {
+                    logger.debug { "Qdrant collection already exists: $collectionName" }
+                } else {
+                    // Some other error, rethrow
+                    throw e
+                }
             }
         } catch (e: TimeoutException) {
             logger.error { "Timeout ensuring collection exists after ${QDRANT_TIMEOUT_SECONDS}s" }
