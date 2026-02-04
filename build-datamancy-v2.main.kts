@@ -801,9 +801,127 @@ fun validateCredentialSchema(schema: CredentialsSchema) {
 }
 
 // ============================================================================
-// Forgejo Bundling
+// Source Code Bundling for Forgejo Bind Mount
 // ============================================================================
 
+fun bundleSourceToRepos(distDir: File, workDir: File, version: String) {
+    step("Bundling source code to dist/repos/")
+
+    val reposDir = distDir.resolve("repos/datamancy/datamancy-core")
+    reposDir.mkdirs()
+
+    info("Creating Git repository with full source code")
+
+    // Copy entire project source to repos/
+    val sourceFiles = listOf(
+        "build-datamancy-v2.main.kts",
+        "compose.settings/",
+        "compose.templates/",
+        "configs.templates/",
+        "containers.src/",
+        "kotlin.src/",
+        "scripts/",
+        ".gitignore",
+        "README.md"
+    )
+
+    sourceFiles.forEach { path ->
+        val source = workDir.resolve(path)
+        val dest = reposDir.resolve(path)
+
+        if (source.exists()) {
+            if (source.isDirectory) {
+                source.copyRecursively(dest, overwrite = true)
+            } else {
+                dest.parentFile.mkdirs()
+                source.copyTo(dest, overwrite = true)
+            }
+        }
+    }
+
+    // Initialize Git repo
+    ProcessBuilder("git", "init")
+        .directory(reposDir)
+        .start()
+        .waitFor()
+
+    ProcessBuilder("git", "config", "user.name", "Datamancy Build System")
+        .directory(reposDir)
+        .start()
+        .waitFor()
+
+    ProcessBuilder("git", "config", "user.email", "build@datamancy.net")
+        .directory(reposDir)
+        .start()
+        .waitFor()
+
+    // Create README for the source repo
+    reposDir.resolve("README.md").writeText("""
+# Datamancy Core Source Code
+
+Version: $version
+Bundled: ${java.time.Instant.now()}
+
+This repository contains the complete source code for the Datamancy stack,
+bundled at build time and available as a bind mount for:
+
+- **Forgejo**: Self-hosted source code browser
+- **CI/CD Runners**: Build and test from source
+- **Agents**: Read/modify source code for development
+- **Full Replication**: Complete rebuild capability
+
+## Contents
+
+- `build-datamancy-v2.main.kts` - Main build script
+- `compose.settings/` - Configuration schemas and settings
+- `compose.templates/` - Docker Compose service templates
+- `configs.templates/` - Service configuration templates
+- `containers.src/` - Custom Docker image build contexts
+- `kotlin.src/` - Kotlin microservice source code
+- `scripts/` - Utility scripts
+
+## Building
+
+```bash
+./build-datamancy-v2.main.kts
+```
+
+## Architecture
+
+See the main README.md for architecture documentation.
+
+---
+
+🤖 Bundled by Datamancy Build System v$version
+""".trimIndent())
+
+    // Stage and commit all source
+    ProcessBuilder("git", "add", "-A")
+        .directory(reposDir)
+        .start()
+        .waitFor()
+
+    val commitMsg = """Source snapshot: $version
+
+Built at: ${java.time.Instant.now()}
+Builder: ${System.getProperty("user.name")}
+
+This is the complete Datamancy source code bundled at build time.
+Available for CI/CD, agents, and full stack replication.
+"""
+
+    ProcessBuilder("git", "commit", "-m", commitMsg)
+        .directory(reposDir)
+        .redirectErrorStream(true)
+        .start()
+        .waitFor()
+
+    println("${GREEN}✓ Source bundled to dist/repos/datamancy/datamancy-core${RESET}")
+    info("This will be mounted into Forgejo at startup for self-hosted source browsing")
+}
+
+// Legacy function name - now does bind mount bundling instead of push
+@Deprecated("Renamed to bundleSourceToRepos", ReplaceWith("bundleSourceToRepos(distDir, workDir, version)"))
 fun bundleToForgejo(distDir: File, version: String) {
     val forgejoUrl = System.getenv("FORGEJO_URL") ?: "https://forgejo.datamancy.net"
     val forgejoUser = System.getenv("FORGEJO_DEPLOY_USER") ?: "datamancy-bot"
@@ -1146,8 +1264,8 @@ built_by: ${System.getProperty("user.name")}
 schema_version: 2.0
 """.trimIndent())
 
-    // Bundle deployment to Forgejo (if configured)
-    bundleToForgejo(distDir, version)
+    // Bundle source code into dist/repos/ for bind mount
+    bundleSourceToRepos(distDir, workDir, version)
 
     println("""
 ${GREEN}✓ Build complete!${RESET}
