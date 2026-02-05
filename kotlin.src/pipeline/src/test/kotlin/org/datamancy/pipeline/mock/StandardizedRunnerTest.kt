@@ -15,9 +15,7 @@ import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.BeforeTest
 
-/**
- * Tests for StandardizedRunner - the core orchestration component
- */
+
 class StandardizedRunnerTest {
 
     private lateinit var mockSource: StandardizedSource<TestChunkable>
@@ -29,7 +27,7 @@ class StandardizedRunnerTest {
 
     @BeforeTest
     fun setup() {
-        // Create isolated temp directory for each test
+        
         tempDir = java.nio.file.Files.createTempDirectory("test-").toFile()
 
         mockSource = mockk()
@@ -52,13 +50,13 @@ class StandardizedRunnerTest {
 
     @Test
     fun `should process items without chunking`() = runBlocking {
-        // Given: Source that doesn't need chunking
+        
         val testItem = TestChunkable("test-1", "Hello world")
 
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(testItem)
         coEvery { mockStagingStore.stageBatch(any()) } just Runs
 
-        // Use a test scheduler with runOnce=true
+        
         val testScheduler = SourceScheduler(
             sourceName = "test",
             resyncStrategy = ResyncStrategy.DailyAt(1, 0),
@@ -74,10 +72,10 @@ class StandardizedRunnerTest {
             scheduler = testScheduler
         )
 
-        // When: Runner processes source
+        
         testRunner.run()
 
-        // Then: Item should be staged to PostgreSQL
+        
         coVerify(exactly = 1) {
             mockStagingStore.stageBatch(match { docs ->
                 docs.size == 1 &&
@@ -90,14 +88,14 @@ class StandardizedRunnerTest {
 
     @Test
     fun `should skip duplicate items`() = runBlocking {
-        // Given: Two identical items
+        
         val item1 = TestChunkable("test-1", "Hello")
         val item2 = TestChunkable("test-1", "Hello")
 
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(item1, item2)
         coEvery { mockStagingStore.stageBatch(any()) } just Runs
 
-        // Use a test scheduler with runOnce=true
+        
         val testScheduler = SourceScheduler(
             sourceName = "test",
             resyncStrategy = ResyncStrategy.DailyAt(1, 0),
@@ -113,10 +111,10 @@ class StandardizedRunnerTest {
             scheduler = testScheduler
         )
 
-        // When: Runner processes source
+        
         testRunner.run()
 
-        // Then: Only one item should be staged (duplicate skipped)
+        
         coVerify(exactly = 1) {
             mockStagingStore.stageBatch(match { docs -> docs.size == 1 })
         }
@@ -124,7 +122,7 @@ class StandardizedRunnerTest {
 
     @Test
     fun `should process items with chunking`() = runBlocking {
-        // Given: Source that needs chunking
+        
         every { mockSource.needsChunking() } returns true
         every { mockSource.chunker() } returns mockk {
             coEvery { process(any()) } returns listOf(
@@ -137,7 +135,7 @@ class StandardizedRunnerTest {
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(testItem)
         coEvery { mockStagingStore.stageBatch(any()) } just Runs
 
-        // Use a test scheduler with runOnce=true
+        
         val testScheduler = SourceScheduler(
             sourceName = "test",
             resyncStrategy = ResyncStrategy.DailyAt(1, 0),
@@ -153,10 +151,10 @@ class StandardizedRunnerTest {
             scheduler = testScheduler
         )
 
-        // When: Runner processes source
+        
         testRunner.run()
 
-        // Then: Both chunks should be staged
+        
         coVerify(exactly = 1) {
             mockStagingStore.stageBatch(match { docs ->
                 docs.size == 2 &&
@@ -168,19 +166,19 @@ class StandardizedRunnerTest {
 
     @Test
     fun `should record success metrics`() = runBlocking {
-        // Given: Successful processing
+        
         val testItem = TestChunkable("test-1", "Hello")
         coEvery { mockSource.fetchForRun(any()) } returns flowOf(testItem)
         coEvery { mockStagingStore.stageBatch(any()) } just Runs
 
-        // Mock scheduler
+        
         val mockScheduler = mockk<SourceScheduler>()
         coEvery { mockScheduler.schedule(any()) } coAnswers {
             val onRun = firstArg<suspend (RunMetadata) -> Unit>()
             onRun(RunMetadata(RunType.INITIAL_PULL, 1, true))
         }
 
-        // When: Runner processes source with mocked scheduler
+        
         val testRunner = StandardizedRunner(
             source = mockSource,
             collectionName = "test_collection",
@@ -191,14 +189,14 @@ class StandardizedRunnerTest {
         )
         testRunner.run()
 
-        // Then: Metadata should be recorded
+        
         val metadata = metadataStore.load("test")
         assertEquals(1, metadata.totalItemsProcessed)
         assertEquals(0, metadata.totalItemsFailed)
     }
 }
 
-// Test implementation of Chunkable
+
 data class TestChunkable(
     private val id: String,
     private val text: String

@@ -19,21 +19,21 @@ private val logger = KotlinLogging.logger {}
 fun main() {
     logger.info { "🔥 Pipeline starting" }
 
-    // Load configuration
+    
     val config = PipelineConfig.fromEnv()
 
-    // Initialize shared infrastructure
+    
     val dedupStore = DeduplicationStore()
     val metadataStore = SourceMetadataStore()
 
-    // NEW: Initialize PostgreSQL document staging store
+    
     val stagingStore = DocumentStagingStore(
         jdbcUrl = config.postgres.jdbcUrl,
         user = config.postgres.user,
         dbPassword = config.postgres.password
     )
 
-    // Add shutdown hook for graceful cleanup
+    
     Runtime.getRuntime().addShutdownHook(Thread {
         try {
             dedupStore.flush()
@@ -43,7 +43,7 @@ fun main() {
         }
     })
 
-    // Initialize BookStack sink if enabled
+    
     val bookStackSink = if (config.bookstack.enabled) {
         BookStackSink(
             bookstackUrl = config.bookstack.url,
@@ -54,7 +54,7 @@ fun main() {
         null
     }
 
-    // NEW: Initialize embedder and Qdrant sinks for embedding scheduler
+    
     val embedder = Embedder(
         serviceUrl = config.embedding.serviceUrl,
         maxTokens = config.embedding.maxTokens
@@ -72,20 +72,20 @@ fun main() {
     )
 
 
-    // Start monitoring HTTP server and pipelines
+    
     runBlocking {
-        // Start monitoring HTTP server in background coroutine
+        
         val monitoringServer = MonitoringServer(
             port = 8090,
             metadataStore = metadataStore,
-            stagingStore = stagingStore  // NEW: Pass staging store for queue monitoring
+            stagingStore = stagingStore  
         )
         monitoringServer.start()
 
-        // Give monitoring server time to start
+        
         delay(1000)
 
-        // Start unified progress reporter
+        
         val progressReporter = org.datamancy.pipeline.monitoring.ProgressReporter(
             stagingStore = stagingStore,
             reportIntervalSeconds = 30
@@ -95,13 +95,13 @@ fun main() {
             progressReporter.start()
         }
 
-        // NEW: Start embedding scheduler in background
+        
         val embeddingScheduler = EmbeddingScheduler(
             stagingStore = stagingStore,
             embedder = embedder,
             qdrantSinks = qdrantSinks,
             batchSize = 50,
-            pollInterval = 10,  // Check every 10 seconds
+            pollInterval = 10,  
             maxConcurrentEmbeddings = 10
         )
 
@@ -111,7 +111,7 @@ fun main() {
 
         delay(1000)
 
-        // Launch all standardized sources (now they stage to PostgreSQL instead of direct embedding)
+        
         if (config.rss.enabled) {
             launch { runStandardizedSource("RSS", config.qdrant.rssCollection, config, stagingStore, dedupStore, metadataStore) {
                 RssStandardizedSource(
@@ -154,7 +154,7 @@ fun main() {
                     cacheDir = "/data/australian-legal-corpus",
                     jurisdictions = if (config.australianLaws.jurisdictions.isNotEmpty())
                         config.australianLaws.jurisdictions else null,
-                    maxDocuments = config.australianLaws.maxLawsPerJurisdiction * 100  // Scale up for full corpus
+                    maxDocuments = config.australianLaws.maxLawsPerJurisdiction * 100  
                 )
             } }
         }
@@ -173,7 +173,7 @@ fun main() {
         }
 
         if (config.wiki.enabled) {
-            // Launch Debian Wiki
+            
             if (config.wiki.wikiTypes.any { it.equals("debian", ignoreCase = true) }) {
                 launch { runStandardizedSource("Debian Wiki", config.qdrant.debianWikiCollection, config, stagingStore, dedupStore, metadataStore) {
                     DebianWikiStandardizedSource(
@@ -183,7 +183,7 @@ fun main() {
                 } }
             }
 
-            // Launch Arch Wiki
+            
             if (config.wiki.wikiTypes.any { it.equals("arch", ignoreCase = true) }) {
                 launch { runStandardizedSource("Arch Wiki", config.qdrant.archWikiCollection, config, stagingStore, dedupStore, metadataStore) {
                     ArchWikiStandardizedSource(
@@ -194,7 +194,7 @@ fun main() {
             }
         }
 
-        // Launch BookStack writer if enabled
+        
         if (bookStackSink != null) {
             launch {
                 val bookStackWriter = org.datamancy.pipeline.workers.BookStackWriter(
@@ -207,22 +207,17 @@ fun main() {
             }
         }
 
-        // Keep running
+        
         awaitCancellation()
     }
 }
 
-/**
- * Generic function to run any standardized source
- * All sources go through StandardizedRunner - no more ad-hoc loops!
- *
- * NEW: Uses decoupled architecture - stages to PostgreSQL instead of direct embedding
- */
+
 suspend fun <T : org.datamancy.pipeline.core.Chunkable> runStandardizedSource(
     displayName: String,
-    collectionName: String,              // Explicit collection name
+    collectionName: String,              
     config: PipelineConfig,
-    stagingStore: DocumentStagingStore,  // NEW: PostgreSQL staging
+    stagingStore: DocumentStagingStore,  
     dedupStore: DeduplicationStore,
     metadataStore: SourceMetadataStore,
     sourceFactory: () -> org.datamancy.pipeline.core.StandardizedSource<T>

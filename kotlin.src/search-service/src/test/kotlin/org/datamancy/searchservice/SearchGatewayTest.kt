@@ -3,10 +3,7 @@ package org.datamancy.searchservice
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
-/**
- * Unit tests for SearchGateway data classes and logic
- * No Docker needed - pure unit tests!
- */
+
 class SearchGatewayTest {
 
     @Test

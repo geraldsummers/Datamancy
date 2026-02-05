@@ -13,9 +13,7 @@ import org.datamancy.pipeline.sinks.BookStackDocument
 import org.datamancy.pipeline.sources.WikiPage
 import org.datamancy.pipeline.sources.WikiSource
 
-/**
- * Chunkable wrapper for Wiki pages
- */
+
 data class WikiPageChunkable(val page: WikiPage) : Chunkable {
     override fun toText(): String = page.toText()
     override fun getId(): String = page.id
@@ -74,9 +72,7 @@ data class WikiPageChunkable(val page: WikiPage) : Chunkable {
     }
 }
 
-/**
- * Standardized Debian Wiki source with chunking and scheduling
- */
+
 class DebianWikiStandardizedSource(
     private val maxPages: Int = 500,
     private val categories: List<String> = emptyList()
@@ -95,13 +91,13 @@ class DebianWikiStandardizedSource(
     override fun chunker() = Chunker.forEmbeddingModel(tokenLimit = 8192, overlapPercent = 0.20)
 
     override suspend fun fetchForRun(metadata: RunMetadata): Flow<WikiPageChunkable> {
-        // For Debian Wiki, we fetch from recent changes or categories
-        // Initial pull: fetch first 500 pages
-        // Resync: fetch recent changes only
+        
+        
+        
 
         val pageLimit = when (metadata.runType) {
             RunType.INITIAL_PULL -> maxPages
-            RunType.RESYNC -> 100  // Only recent changes
+            RunType.RESYNC -> 100  
         }
 
         val source = WikiSource(

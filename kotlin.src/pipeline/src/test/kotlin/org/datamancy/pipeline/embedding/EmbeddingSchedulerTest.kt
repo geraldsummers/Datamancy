@@ -8,10 +8,7 @@ import org.datamancy.pipeline.storage.DocumentStagingStore
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
 
-/**
- * Unit tests for EmbeddingScheduler
- * Uses mocks - no Docker needed!
- */
+
 class EmbeddingSchedulerTest {
 
     private lateinit var stagingStore: DocumentStagingStore
@@ -25,7 +22,7 @@ class EmbeddingSchedulerTest {
         embedder = mockk()
         qdrantSink = mockk(relaxed = true)
 
-        // Mock embedder to return FloatArray
+        
         coEvery { embedder.process(any()) } returns floatArrayOf(0.1f, 0.2f, 0.3f)
 
         scheduler = EmbeddingScheduler(
@@ -90,7 +87,7 @@ class EmbeddingSchedulerTest {
 
         val stats = scheduler.getStats()
 
-        // Should still have config values
+        
         assertEquals(10, stats["batch_size"])
     }
 

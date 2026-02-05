@@ -17,9 +17,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
-/**
- * Plugin providing LLM chat completion capabilities via LiteLLM.
- */
+
 class LlmCompletionPlugin : Plugin {
     override fun manifest() = PluginManifest(
         id = "org.example.plugins.llmcompletion",
@@ -30,7 +28,7 @@ class LlmCompletionPlugin : Plugin {
         requires = Requires(host = ">=1.0.0", api = ">=1.0.0")
     )
 
-    override fun init(context: PluginContext) { /* no-op */ }
+    override fun init(context: PluginContext) {  }
 
     override fun tools(): List<Any> = listOf(Tools())
 
@@ -38,7 +36,7 @@ class LlmCompletionPlugin : Plugin {
         val pluginId = manifest().id
         val tools = Tools()
 
-        // llm_chat_completion
+        
         registry.register(
             ToolDefinition(
                 name = "llm_chat_completion",
@@ -69,7 +67,7 @@ class LlmCompletionPlugin : Plugin {
             }
         )
 
-        // llm_embed_text
+        
         registry.register(
             ToolDefinition(
                 name = "llm_embed_text",
@@ -216,8 +214,8 @@ class LlmCompletionPlugin : Plugin {
             text: String,
             model: String = "embed-small"
         ): List<Double> {
-            // Direct call to embedding service (bypass LiteLLM for embeddings)
-            // text-embeddings-inference API format: POST /embed {"inputs": "text"}
+            
+            
             val embeddingServiceUrl = System.getenv("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8080"
 
             val requestBody = mapper.createObjectNode().apply {
@@ -238,7 +236,7 @@ class LlmCompletionPlugin : Plugin {
                     throw Exception("Embedding API returned ${response.statusCode()}: ${response.body()}")
                 }
 
-                // Response format: [[float, float, ...]] - array of embedding arrays
+                
                 val responseJson = mapper.readTree(response.body())
 
                 if (!responseJson.isArray || responseJson.size() == 0) {

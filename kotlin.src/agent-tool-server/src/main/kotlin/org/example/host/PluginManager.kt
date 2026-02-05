@@ -36,7 +36,7 @@ class PluginManager(private val config: HostConfig) {
                 ?: throw IllegalArgumentException("No llm-plugin.json found in ${'$'}jarFile")
             val manifest: PluginManifest = jf.getInputStream(entry).use { Json.mapper.readValue(it) }
 
-            // Version compatibility checks
+            
             val hostV = SemVer.parse(config.hostVersion)
             val apiV = SemVer.parse(config.apiVersion)
             val requiresHost = VersionConstraint.parse(manifest.requires?.host)
@@ -47,15 +47,15 @@ class PluginManager(private val config: HostConfig) {
             if (requiresApi != null && !requiresApi.matches(apiV)) {
                 throw IllegalStateException("Plugin ${'$'}{manifest.id} requires api ${'$'}requiresApi, api=${'$'}apiV")
             }
-            // Strict check: manifest apiVersion must equal host api version
+            
             if (SemVer.parse(manifest.apiVersion) != apiV) {
                 throw IllegalStateException("Plugin ${'$'}{manifest.id} apiVersion ${'$'}{manifest.apiVersion} != host api ${'$'}apiV")
             }
 
-            // Capabilities
+            
             enforceCapabilities(config.capabilityPolicy, manifest.id, manifest.capabilities)
 
-            // Instantiate via factory registry (no dynamic classloading/reflection)
+            
             val factory = PluginFactories.get(manifest.implementation)
                 ?: throw IllegalStateException("No factory registered for implementation: ${manifest.implementation}")
             val instance = factory.invoke()

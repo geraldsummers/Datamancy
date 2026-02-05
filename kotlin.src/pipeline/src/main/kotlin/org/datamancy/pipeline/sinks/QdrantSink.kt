@@ -17,23 +17,19 @@ import java.util.concurrent.TimeoutException
 private val logger = KotlinLogging.logger {}
 private const val QDRANT_TIMEOUT_SECONDS = 30L
 
-/**
- * Generate deterministic UUID from string (prevents collisions from hashCode())
- */
+
 private fun String.toDeterministicUUID(): UUID {
     val md = MessageDigest.getInstance("SHA-256")
     val hash = md.digest(this.toByteArray())
-    // Use first 16 bytes of SHA-256 hash for UUID
+    
     return UUID.nameUUIDFromBytes(hash.copyOf(16))
 }
 
-/**
- * Writes vectors to Qdrant
- */
+
 class QdrantSink(
     qdrantUrl: String,
     private val collectionName: String,
-    private val vectorSize: Int = 1024  // bge-m3 produces 1024-dimensional vectors
+    private val vectorSize: Int = 1024  
 ) : Sink<VectorDocument> {
     override val name = "QdrantSink[$collectionName]"
 
@@ -51,7 +47,7 @@ class QdrantSink(
 
     private fun ensureCollection() {
         try {
-            // Try to create collection (will fail with ALREADY_EXISTS if it exists)
+            
             try {
                 logger.info { "Creating Qdrant collection: $collectionName" }
                 client.createCollectionAsync(
@@ -63,12 +59,12 @@ class QdrantSink(
                 ).get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 logger.info { "Created Qdrant collection: $collectionName" }
             } catch (e: Exception) {
-                // Check if it's ALREADY_EXISTS error (which is fine)
+                
                 if (e.message?.contains("ALREADY_EXISTS", ignoreCase = true) == true ||
                     e.message?.contains("already exists", ignoreCase = true) == true) {
                     logger.debug { "Qdrant collection already exists: $collectionName" }
                 } else {
-                    // Some other error, rethrow
+                    
                     throw e
                 }
             }
@@ -83,7 +79,7 @@ class QdrantSink(
 
     override suspend fun write(item: VectorDocument) {
         try {
-            // Use deterministic UUID instead of hashCode to prevent collisions
+            
             val deterministicId = item.id.toDeterministicUUID()
 
             val point = PointStruct.newBuilder()
@@ -92,7 +88,7 @@ class QdrantSink(
                 .putAllPayload(item.metadata.mapValues { (_, v) -> value(v.toString()) })
                 .build()
 
-            // Add timeout to prevent hanging indefinitely
+            
             client.upsertAsync(collectionName, listOf(point)).get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             logger.debug { "Wrote vector ${item.id} to $collectionName" }
         } catch (e: TimeoutException) {
@@ -107,7 +103,7 @@ class QdrantSink(
     override suspend fun writeBatch(items: List<VectorDocument>) {
         try {
             val points = items.map { item ->
-                // Use deterministic UUID instead of hashCode to prevent collisions
+                
                 val deterministicId = item.id.toDeterministicUUID()
 
                 PointStruct.newBuilder()
@@ -117,7 +113,7 @@ class QdrantSink(
                     .build()
             }
 
-            // Add timeout to prevent hanging indefinitely
+            
             client.upsertAsync(collectionName, points).get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             logger.info { "Wrote ${items.size} vectors to $collectionName" }
         } catch (e: TimeoutException) {

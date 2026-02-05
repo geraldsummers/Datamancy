@@ -1,16 +1,9 @@
-# -*- coding: utf-8 -*-
-# Seafile Seahub Additional Settings
-# This file is appended to seahub_settings.py to provide additional configuration
-# Note: Database configuration is handled by Seafile's built-in SEAFILE_MYSQL_DB_* env vars
-
 SECRET_KEY = "{{SEAFILE_SECRET_KEY}}"
 
 TIME_ZONE = 'UTC'
 
-# File server configuration
 FILE_SERVER_ROOT = "https://seafile.{{DOMAIN}}/seafhttp"
 
-# Email configuration (uses Mailu)
 EMAIL_USE_TLS = True
 EMAIL_HOST = 'smtp.{{DOMAIN}}'
 EMAIL_HOST_USER = 'seafile@{{DOMAIN}}'
@@ -19,13 +12,11 @@ EMAIL_PORT = 587
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 SERVER_EMAIL = EMAIL_HOST_USER
 
-# Enable remote user authentication from Authelia via Caddy forward_auth
 ENABLE_REMOTE_USER_AUTHENTICATION = True
 REMOTE_USER_HEADER = 'HTTP_REMOTE_USER'
 REMOTE_USER_CREATE_UNKNOWN_USER = True
 REMOTE_USER_PROTECTED_PATH = ['/accounts/login/']
 
-# OnlyOffice Document Server Integration
 ENABLE_ONLYOFFICE = True
 VERIFY_ONLYOFFICE_CERTIFICATE = False
 ONLYOFFICE_APIJS_URL = 'https://onlyoffice.{{DOMAIN}}/web-apps/apps/api/documents/api.js'

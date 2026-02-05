@@ -10,12 +10,12 @@ class ConfigTest {
 
     @Test
     fun `fromEnv creates config with default values`() {
-        // Clear any existing env vars by creating config without them
+        
         val config = PipelineConfig.fromEnv()
 
-        // Verify defaults
+        
         assertTrue(config.rss.enabled)
-        assertFalse(config.cve.enabled) // Intentionally disabled by default
+        assertFalse(config.cve.enabled) 
         assertTrue(config.torrents.enabled)
         assertEquals("http://embedding-service:8000", config.embedding.serviceUrl)
         assertEquals("http://qdrant:6333", config.qdrant.url)
@@ -262,7 +262,7 @@ class ConfigTest {
     fun `load returns defaults when file not found`() {
         val config = PipelineConfig.load("/non/existent/path.yaml")
 
-        // Should return default config instead of throwing
+        
         assertNotNull(config)
         assertEquals(PipelineConfig(), config)
     }
@@ -274,7 +274,7 @@ class ConfigTest {
 
         val config = PipelineConfig.load(configFile.absolutePath)
 
-        // Should return default config instead of throwing
+        
         assertNotNull(config)
     }
 
@@ -282,21 +282,21 @@ class ConfigTest {
     fun `default config has sensible values`() {
         val config = PipelineConfig()
 
-        // RSS defaults
+        
         assertTrue(config.rss.enabled)
         assertTrue(config.rss.feedUrls.isNotEmpty())
         assertTrue(config.rss.scheduleMinutes > 0)
 
-        // CVE defaults
-        assertFalse(config.cve.enabled) // Disabled by default
-        assertEquals(1440, config.cve.scheduleMinutes) // Daily
+        
+        assertFalse(config.cve.enabled) 
+        assertEquals(1440, config.cve.scheduleMinutes) 
 
-        // Embedding defaults
+        
         assertEquals(8192, config.embedding.maxTokens)
         assertEquals(1024, config.embedding.vectorSize)
         assertEquals("bge-m3", config.embedding.model)
 
-        // Connection defaults
+        
         assertTrue(config.qdrant.url.contains("qdrant"))
         assertTrue(config.postgres.jdbcUrl.contains("postgres"))
     }
@@ -324,11 +324,11 @@ class ConfigTest {
 
     @Test
     fun `TorrentsConfig supports both URL and file path`() {
-        // URL
+        
         val urlConfig = TorrentsConfig(dataPath = "https://example.com/torrents.csv")
         assertTrue(urlConfig.dataPath.startsWith("http"))
 
-        // File path
+        
         val fileConfig = TorrentsConfig(dataPath = "/local/path/torrents.csv")
         assertTrue(fileConfig.dataPath.startsWith("/"))
     }
@@ -340,7 +340,7 @@ class ConfigTest {
         ) {
             val config = PipelineConfig.fromEnv()
 
-            // Should filter out blank entries
+            
             assertEquals(3, config.wiki.categories.size)
             assertTrue(config.wiki.categories.contains("system"))
             assertTrue(config.wiki.categories.contains("network"))
@@ -380,14 +380,14 @@ class ConfigTest {
         assertEquals(Int.MAX_VALUE, config.linuxDocs.maxDocs)
     }
 
-    // Helper function to temporarily set environment variables for testing
+    
     private fun withEnvironment(vararg env: Pair<String, String>, block: () -> Unit) {
         val originalEnv = env.associate { it.first to System.getProperty(it.first) }
         try {
             env.forEach { (key, value) -> System.setProperty(key, value) }
 
-            // Since we can't actually modify System.getenv(), we test using System properties instead
-            // In real usage, these come from environment variables
+            
+            
             val modifiedFromEnv = fun(): PipelineConfig {
                 return PipelineConfig(
                     rss = RssConfig(
@@ -476,13 +476,13 @@ class ConfigTest {
                 )
             }
 
-            // Use the modified version in tests
+            
             val testConfig = modifiedFromEnv()
-            // Store config in thread-local or similar for test access
-            // For simplicity, we'll call block() which should use fromEnv() internally
+            
+            
             block()
         } finally {
-            // Restore original environment
+            
             originalEnv.forEach { (key, value) ->
                 if (value != null) System.setProperty(key, value)
                 else System.clearProperty(key)

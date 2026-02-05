@@ -5,16 +5,11 @@ import java.io.File
 import java.net.UnixDomainSocketAddress
 import java.nio.channels.SocketChannel
 
-/**
- * Labware Docker Tests
- *
- * Integration tests for the labware Docker host via SSH
- * These tests verify isolated Docker daemon access for CI/CD sandbox deployments.
- */
+
 suspend fun TestRunner.labwareTests() = suite("Labware Docker Tests") {
     val dockerHost = System.getenv("DOCKER_HOST") ?: "ssh://labware"
 
-    // Check if labware Docker host is available - skip suite if not
+    
     if (!isLabwareDockerAvailable(dockerHost)) {
         println("      ⚠️  Labware Docker host not accessible at $dockerHost - skipping labware tests")
         println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-labware-host and configure SSH keys")
@@ -88,9 +83,7 @@ private fun isLabwareDockerAvailable(dockerHost: String): Boolean {
     }
 }
 
-/**
- * Standalone entry point for manual testing
- */
+
 object LabwareDockerTests {
 
     val LABWARE_DOCKER_HOST = System.getenv("DOCKER_HOST") ?: "ssh://labware"
@@ -131,7 +124,7 @@ object LabwareDockerTests {
         var passed = 0
         var failed = 0
 
-        // Test 1: Docker info
+        
         try {
             val (exitCode, _) = execLabwareDocker("info")
             require(exitCode == 0) { "Docker info command should succeed" }
@@ -142,7 +135,7 @@ object LabwareDockerTests {
             failed++
         }
 
-        // Test 3: Docker version
+        
         try {
             val (exitCode, output) = execLabwareDocker("version", "--format", "{{.Server.Version}}")
             require(exitCode == 0) { "Docker version command should succeed" }
@@ -154,7 +147,7 @@ object LabwareDockerTests {
             failed++
         }
 
-        // Test 4: List containers
+        
         try {
             val (exitCode, _) = execLabwareDocker("ps", "--format", "{{.ID}}")
             require(exitCode == 0) { "Docker ps should succeed" }
@@ -165,7 +158,7 @@ object LabwareDockerTests {
             failed++
         }
 
-        // Test 5: Isolation from production
+        
         try {
             val (_, labwareOutput) = execLabwareDocker("ps", "--format", "{{.Names}}")
             val labwareContainers = labwareOutput.lines().filter { it.isNotBlank() }.toSet()
@@ -184,7 +177,7 @@ object LabwareDockerTests {
             failed++
         }
 
-        // Test 6: Image operations
+        
         try {
             val (exitCode, _) = execLabwareDocker("images", "--format", "{{.Repository}}:{{.Tag}}")
             require(exitCode == 0) { "Docker images should succeed" }
@@ -195,7 +188,7 @@ object LabwareDockerTests {
             failed++
         }
 
-        // Test 7: Container creation
+        
         try {
             val containerName = "labware-test-${System.currentTimeMillis()}"
             val (runExitCode, _) = execLabwareDocker(

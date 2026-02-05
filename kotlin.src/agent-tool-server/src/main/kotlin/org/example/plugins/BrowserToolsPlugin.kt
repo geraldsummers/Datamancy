@@ -20,9 +20,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
-/**
- * Minimal Browserless tools: take screenshots and fetch DOM of a URL.
- */
+
 class BrowserToolsPlugin : Plugin {
     override fun manifest() = PluginManifest(
         id = "org.example.plugins.browser",
@@ -38,12 +36,12 @@ class BrowserToolsPlugin : Plugin {
     private var debug: Boolean = false
 
     override fun init(context: PluginContext) {
-        // Prefer new env var, fall back to legacy one, then sane default for our Playwright service
+        
         baseUrl = System.getenv("TOOLSERVER_BROWSER_URL")
             ?: System.getenv("TOOLSERVER_BROWSERLESS_URL")
             ?: "http://playwright:3000"
 
-        // Timeouts configurable via env (milliseconds). Defaults aim to fail-fast to avoid perceived hangs.
+        
         val timeoutMs = (System.getenv("TOOLSERVER_BROWSER_HTTP_TIMEOUT_MS")?.toLongOrNull()) ?: 20000L
         reqTimeout = Duration.ofMillis(timeoutMs.coerceAtLeast(1000L))
 
@@ -61,7 +59,7 @@ class BrowserToolsPlugin : Plugin {
         val pluginId = manifest().id
         val tools = Tools(http, baseUrl, reqTimeout, debug)
 
-        // browser_screenshot
+        
         registry.register(
             ToolDefinition(
                 name = "browser_screenshot",
@@ -84,7 +82,7 @@ class BrowserToolsPlugin : Plugin {
             }
         )
 
-        // browser_dom
+        
         registry.register(
             ToolDefinition(
                 name = "browser_dom",
@@ -103,7 +101,7 @@ class BrowserToolsPlugin : Plugin {
             }
         )
 
-        // browser_login
+        
         registry.register(
             ToolDefinition(
                 name = "browser_login",
@@ -162,7 +160,7 @@ class BrowserToolsPlugin : Plugin {
                 if (debug) println("[BrowserTools] ${'$'}full -> ${'$'}{res.statusCode()} in ${'$'}elapsedMs ms")
                 val b64 = java.util.Base64.getEncoder().encodeToString(res.body())
 
-                // Save to disk if requested
+                
                 var savedPath: String? = null
                 try {
                     val finalPath = savePath ?: generateScreenshotPath(serviceName, url)
@@ -273,7 +271,7 @@ class BrowserToolsPlugin : Plugin {
         fun browser_login(url: String, username: String, password: String, serviceName: String? = null): Map<String, Any?> {
             require(url.startsWith("http")) { "url must start with http/https" }
 
-            // Authelia selectors (hardcoded)
+            
             val usernameSelector = "#username-textfield"
             val passwordSelector = "#password-textfield"
             val submitSelector = "#sign-in-button"
@@ -327,7 +325,7 @@ class BrowserToolsPlugin : Plugin {
                 val elapsedMs = (System.nanoTime() - start) / 1_000_000
                 if (debug) println("[BrowserTools] ${'$'}full -> ${'$'}{res.statusCode()} in ${'$'}elapsedMs ms")
 
-                // Parse response to extract base64 image
+                
                 val bodyText = res.body()
                 val imageBase64Regex = """"imageBase64"\s*:\s*"([^"]+)"""".toRegex()
                 val finalUrlRegex = """"finalUrl"\s*:\s*"([^"]+)"""".toRegex()
@@ -341,7 +339,7 @@ class BrowserToolsPlugin : Plugin {
                 val finalUrl = urlMatch?.groupValues?.get(1) ?: url
                 val loginDetected = loginMatch?.groupValues?.get(1) == "true"
 
-                // Save screenshot if we got one
+                
                 var savedPath: String? = null
                 if (imageBase64.isNotEmpty()) {
                     try {
@@ -397,10 +395,10 @@ class BrowserToolsPlugin : Plugin {
                 .format(Instant.now())
 
             return if (serviceName != null && serviceName.isNotBlank()) {
-                // Structured: /proofs/screenshots/service-name/2025-11-30_09-45-30.png
+                
                 "$baseDir/$serviceName/$timestamp.png"
             } else {
-                // Fallback: /proofs/screenshots/2025-11-30_09-45-30_<url-hash>.png
+                
                 val urlHash = url.hashCode().toString(16).takeLast(8)
                 "$baseDir/$timestamp" + "_$urlHash.png"
             }

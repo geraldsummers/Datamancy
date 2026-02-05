@@ -60,7 +60,7 @@ fun main(args: Array<String>) = runBlocking {
 }
 
 private fun createHttpClient(verbose: Boolean): HttpClient {
-    // Only disable TLS validation if explicitly enabled via environment variable
+    
     val disableTlsValidation = System.getenv("DISABLE_TLS_VALIDATION")?.toBoolean() ?: false
 
     if (disableTlsValidation) {
@@ -85,26 +85,26 @@ private fun createHttpClient(verbose: Boolean): HttpClient {
             }
         }
 
-        // Disable automatic redirect following to avoid TLS issues with Caddy redirects
+        
         followRedirects = false
 
         engine {
-            requestTimeout = 180_000  // 3 minutes for Docker operations (image pulls, SSH setup, container creation)
+            requestTimeout = 180_000  
             endpoint {
                 connectTimeout = 15_000
                 connectAttempts = 3
             }
             https {
                 if (disableTlsValidation) {
-                    // Only disable TLS validation if explicitly requested (for self-signed certs in test environments)
+                    
                     trustManager = object : X509TrustManager {
                         override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
                         override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
                         override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
                     }
                 } else {
-                    // Use default TLS validation (secure)
-                    // The default TrustManager validates certificates against system trust store
+                    
+                    
                 }
             }
         }
@@ -119,11 +119,11 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "data-pipeline" -> runner.dataPipelineTests()
         "microservices" -> runner.microserviceTests()
         "search-service" -> runner.searchServiceTests()
-        // New HIGH priority suites
+        
         "infrastructure" -> runner.infrastructureTests()
         "databases" -> runner.databaseTests()
         "user-interface" -> runner.userInterfaceTests()
-        // New MEDIUM priority suites
+        
         "communication" -> runner.communicationTests()
         "collaboration" -> runner.collaborationTests()
         "productivity" -> runner.productivityTests()
@@ -131,25 +131,25 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "security" -> runner.securityTests()
         "monitoring" -> runner.monitoringTests()
         "backup" -> runner.backupTests()
-        // NEW: Authentication & Directory
+        
         "authentication" -> runner.authenticationTests()
-        // NEW: Enhanced Authentication (comprehensive auth testing)
+        
         "enhanced-auth" -> runner.enhancedAuthenticationTests()
-        // NEW: Authenticated Operations (requires credentials)
+        
         "authenticated-ops" -> runner.authenticatedOperationsTests()
-        // NEW: Utility Services
+        
         "utility" -> runner.utilityServicesTests()
-        // NEW: Home Assistant
+        
         "homeassistant" -> runner.homeAssistantTests()
-        // Stack deployment tests (requires labware)
+        
         "stack-deployment" -> runner.stackDeploymentTests()
-        // BookStack integration tests
+        
         "bookstack" -> runner.bookStackIntegrationTests()
-        // CI/CD and labware tests
+        
         "cicd" -> runner.cicdTests()
         "labware" -> runner.labwareTests()
         "stack-replication" -> runner.stackReplicationTests()
-        // NEW: Agent capability tests (probabilistic)
+        
         "agent-capability" -> runner.agentCapabilityTests()
         "agent-security" -> runner.agentSecurityTests()
         "agent-llm-quality" -> runner.agentLlmQualityTests()

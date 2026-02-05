@@ -1,11 +1,5 @@
 #!/bin/bash
-# Startup configuration script for Jupyter notebooks
-# This script configures LM agent libraries to use litellm/vllm endpoints
-
-# Create .jupyter directory if it doesn't exist
 mkdir -p /home/jovyan/.jupyter
-
-# Create Jupyter AI configuration pointing to LiteLLM
 cat > /home/jovyan/.jupyter/jupyter_jupyter_ai_config.json <<'EOF'
 {
   "AiExtension": {
@@ -18,26 +12,15 @@ cat > /home/jovyan/.jupyter/jupyter_jupyter_ai_config.json <<'EOF'
   }
 }
 EOF
-
-# Create default environment file for notebook sessions
 cat > /home/jovyan/.env <<'EOF'
-# LiteLLM Configuration
 OPENAI_API_BASE=http://litellm:4000/v1
 OPENAI_API_KEY=${LITELLM_API_KEY}
-
-# vLLM Direct Configuration (if needed)
 VLLM_API_BASE=http://vllm:8000/v1
 VLLM_API_KEY=unused
-
-# Default model names
 DEFAULT_LLM_MODEL=qwen2.5-0.5b
 DEFAULT_EMBEDDING_MODEL=embed-small
-
-# LangChain Configuration
 LANGCHAIN_TRACING_V2=false
 EOF
-
-# Create welcome notebook with examples
 cat > /home/jovyan/LM_Agent_Examples.ipynb <<'EOF'
 {
  "cells": [
@@ -351,5 +334,4 @@ cat > /home/jovyan/LM_Agent_Examples.ipynb <<'EOF'
  "nbformat_minor": 4
 }
 EOF
-
 echo "Jupyter notebook environment configured for LM agent programming"

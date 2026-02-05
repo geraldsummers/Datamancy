@@ -5,23 +5,12 @@ import io.ktor.http.*
 import kotlinx.serialization.json.*
 import org.datamancy.testrunner.framework.TestRunner
 
-/**
- * BookStack Integration Tests
- *
- * Tests that the pipeline correctly writes articles to BookStack
- * with proper formatting, metadata, and structure.
- *
- * These tests verify end-to-end BookStack integration:
- * 1. Pipeline fetches articles from sources
- * 2. Articles are transformed to BookStack documents
- * 3. Documents are written to BookStack via API
- * 4. Books, chapters, and pages are created with correct structure
- */
+
 suspend fun TestRunner.bookStackIntegrationTests() {
     suite("BookStack Integration Tests") {
-        // ================================================================================
-        // BOOKSTACK API CONNECTIVITY
-        // ================================================================================
+        
+        
+        
 
         test("BookStack: API is accessible and authenticated") {
             val response = client.getRawResponse("${endpoints.bookstack}/api/books")
@@ -36,9 +25,9 @@ suspend fun TestRunner.bookStackIntegrationTests() {
             println("      ✓ BookStack API is accessible and authenticated")
         }
 
-        // ================================================================================
-        // BOOK STRUCTURE TESTS
-        // ================================================================================
+        
+        
+        
 
         test("BookStack: RSS Feeds book exists") {
             val response = client.getRawResponse("${endpoints.bookstack}/api/books?filter[name]=RSS%20Feeds")
@@ -60,7 +49,7 @@ suspend fun TestRunner.bookStackIntegrationTests() {
                 bookName shouldBe "RSS Feeds"
                 println("      ✓ Found 'RSS Feeds' book in BookStack")
 
-                // Check book description
+                
                 val description = book["description"]?.jsonPrimitive?.content
                 if (description != null) {
                     description shouldContain "Aggregated news"
@@ -91,7 +80,7 @@ suspend fun TestRunner.bookStackIntegrationTests() {
                 bookName shouldBe "CVE Database"
                 println("      ✓ Found 'CVE Database' book in BookStack")
 
-                // Check book description
+                
                 val description = book["description"]?.jsonPrimitive?.content
                 if (description != null) {
                     description shouldContain "Security vulnerabilities"
@@ -142,9 +131,9 @@ suspend fun TestRunner.bookStackIntegrationTests() {
             }
         }
 
-        // ================================================================================
-        // CHAPTER STRUCTURE TESTS
-        // ================================================================================
+        
+        
+        
 
         test("BookStack: RSS book has chapters organized by feed") {
             val booksResponse = client.getRawResponse("${endpoints.bookstack}/api/books?filter[name]=RSS%20Feeds")
@@ -166,7 +155,7 @@ suspend fun TestRunner.bookStackIntegrationTests() {
                     val contents = bookDetail["contents"]?.jsonArray
 
                     if (!contents.isNullOrEmpty()) {
-                        // Check if any chapters exist
+                        
                         val chapters = contents.filter {
                             it.jsonObject["type"]?.jsonPrimitive?.content == "chapter"
                         }
@@ -218,10 +207,10 @@ suspend fun TestRunner.bookStackIntegrationTests() {
                             val chapterNames = chapters.map {
                                 it.jsonObject["name"]?.jsonPrimitive?.content
                             }
-                            // Should have severity-based chapters
+                            
                             println("      ℹ️  Chapters: ${chapterNames.joinToString(", ")}")
 
-                            // Verify severity chapters exist
+                            
                             val hasSeverityChapters = chapterNames.any {
                                 it in listOf("CRITICAL", "HIGH", "MEDIUM", "LOW")
                             }
@@ -234,9 +223,9 @@ suspend fun TestRunner.bookStackIntegrationTests() {
             }
         }
 
-        // ================================================================================
-        // PAGE CONTENT TESTS
-        // ================================================================================
+        
+        
+        
 
         test("BookStack: RSS pages contain proper HTML formatting") {
             val pagesResponse = client.getRawResponse("${endpoints.bookstack}/api/pages?filter[name]:like=")
@@ -258,15 +247,15 @@ suspend fun TestRunner.bookStackIntegrationTests() {
                     val html = pageDetail["html"]?.jsonPrimitive?.content
 
                     if (html != null) {
-                        // Verify HTML structure
+                        
                         html shouldContain "<h1>"
                         html shouldContain "<div"
                         html shouldContain "</div>"
 
-                        // Verify metadata box exists
+                        
                         html shouldContain "style="
 
-                        // Verify footer attribution
+                        
                         html shouldContain "automatically generated"
                         html shouldContain "Datamancy Pipeline"
 
@@ -305,7 +294,7 @@ suspend fun TestRunner.bookStackIntegrationTests() {
                         if (!tags.isNullOrEmpty()) {
                             pagesWithTags++
 
-                            // Check for source tag
+                            
                             val hasSourceTag = tags.any {
                                 it.jsonObject["name"]?.jsonPrimitive?.content == "source"
                             }
@@ -329,9 +318,9 @@ suspend fun TestRunner.bookStackIntegrationTests() {
             }
         }
 
-        // ================================================================================
-        // DATA VALIDATION TESTS
-        // ================================================================================
+        
+        
+        
 
         test("BookStack: RSS pages contain article metadata") {
             val pagesResponse = client.getRawResponse("${endpoints.bookstack}/api/pages?filter[book_id]=1")
@@ -353,7 +342,7 @@ suspend fun TestRunner.bookStackIntegrationTests() {
                     val html = pageDetail["html"]?.jsonPrimitive?.content
 
                     if (html != null && html.contains("Source:")) {
-                        // Check for RSS-specific metadata
+                        
                         val hasMetadata = html.contains("Published:") ||
                                         html.contains("Author:") ||
                                         html.contains("Categories:")
@@ -394,7 +383,7 @@ suspend fun TestRunner.bookStackIntegrationTests() {
                             val html = pageDetail["html"]?.jsonPrimitive?.content
 
                             if (html != null) {
-                                // Check for CVE-specific fields
+                                
                                 html shouldContain "Severity:"
                                 html shouldContain "Published:"
 
@@ -406,9 +395,9 @@ suspend fun TestRunner.bookStackIntegrationTests() {
             }
         }
 
-        // ================================================================================
-        // STATISTICS
-        // ================================================================================
+        
+        
+        
 
         test("BookStack: Count total books created by pipeline") {
             val response = client.getRawResponse("${endpoints.bookstack}/api/books")
@@ -422,7 +411,7 @@ suspend fun TestRunner.bookStackIntegrationTests() {
             val books = json["data"]?.jsonArray
 
             if (books != null) {
-                // Filter for pipeline-generated books
+                
                 val pipelineBooks = listOf(
                     "RSS Feeds",
                     "CVE Database",
@@ -461,7 +450,7 @@ suspend fun TestRunner.bookStackIntegrationTests() {
             if (pages != null) {
                 println("      ✓ Found ${pages.size} total pages in BookStack")
 
-                // Try to get pages with source tags
+                
                 var pipelinePages = 0
                 pages.take(100).forEach { pageElement ->
                     val tags = pageElement.jsonObject["tags"]?.jsonArray

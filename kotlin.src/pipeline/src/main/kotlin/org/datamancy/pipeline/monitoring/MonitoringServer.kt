@@ -18,24 +18,19 @@ import java.util.concurrent.atomic.AtomicReference
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Lightweight HTTP server for monitoring pipeline health and status
- * Supports optional API key authentication via MONITORING_API_KEY environment variable
- */
+
 class MonitoringServer(
     private val port: Int = 8090,
     private val metadataStore: SourceMetadataStore,
     private val stagingStore: DocumentStagingStore? = null,
-    private val apiKey: String? = System.getenv("MONITORING_API_KEY")  // Optional auth token
+    private val apiKey: String? = System.getenv("MONITORING_API_KEY")  
 ) {
     private val server = AtomicReference<NettyApplicationEngine?>()
 
-    /**
-     * Intercept and validate API key if configured
-     */
+    
     private suspend fun ApplicationCall.requireAuth(): Boolean {
         if (apiKey.isNullOrBlank()) {
-            return true  // Auth disabled
+            return true  
         }
 
         val providedKey = request.header("X-API-Key") ?: request.header("Authorization")?.removePrefix("Bearer ")
@@ -71,7 +66,7 @@ class MonitoringServer(
                 get("/status") {
                     if (!call.requireAuth()) return@get
 
-                    // Read enabled status from environment (same logic as PipelineConfig.fromEnv())
+                    
                     val enabledSources = mapOf(
                         "rss" to (System.getenv("RSS_ENABLED")?.toBoolean() ?: true),
                         "cve" to (System.getenv("CVE_ENABLED")?.toBoolean() ?: true),
@@ -98,7 +93,7 @@ class MonitoringServer(
                     }
 
                     call.respond(StatusResponse(
-                        uptime = System.currentTimeMillis() / 1000, // Simple uptime in seconds
+                        uptime = System.currentTimeMillis() / 1000, 
                         sources = statuses
                     ))
                 }
@@ -119,7 +114,7 @@ class MonitoringServer(
                     call.respond(SourcesResponse(sources = sources))
                 }
 
-                // NEW: Embedding queue status endpoint
+                
                 get("/queue") {
                     if (!call.requireAuth()) return@get
                     if (stagingStore == null) {
@@ -142,7 +137,7 @@ class MonitoringServer(
                     ))
                 }
 
-                // NEW: Per-source queue status
+                
                 get("/queue/{source}") {
                     if (!call.requireAuth()) return@get
                     val source = call.parameters["source"] ?: return@get call.respond(

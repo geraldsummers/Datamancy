@@ -18,9 +18,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
-/**
- * VM Provisioning Plugin - Manages virtual machines via libvirt/QEMU
- */
+
 class VmProvisioningPlugin : Plugin {
     private val vmServiceUrl = System.getenv("VM_PROVISIONER_URL") ?: "http://vm-provisioner:8092"
     private val httpClient = HttpClient.newBuilder()
@@ -37,7 +35,7 @@ class VmProvisioningPlugin : Plugin {
         requires = Requires(host = ">=1.0.0", api = ">=1.0.0")
     )
 
-    override fun init(context: PluginContext) { /* no-op */ }
+    override fun init(context: PluginContext) {  }
 
     override fun tools(): List<Any> = listOf(Tools())
 

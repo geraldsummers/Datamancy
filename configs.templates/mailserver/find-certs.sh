@@ -1,30 +1,16 @@
 #!/bin/bash
-# Mailserver cert finder - checks multiple locations for Caddy certs
-# Works with both local_certs (development) and ACME (production)
-
 DOMAIN="${DOMAIN:-example.com}"
 MAIL_DOMAIN="mail.${DOMAIN}"
-
-# Possible cert locations (in priority order)
 CERT_LOCATIONS=(
-    # Let's Encrypt / ZeroSSL (production)
     "/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/${MAIL_DOMAIN}/${MAIL_DOMAIN}.crt"
     "/caddy-certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${MAIL_DOMAIN}/${MAIL_DOMAIN}.crt"
-
-    # Caddy local certs (development/testing)
     "/caddy-certs/caddy/certificates/local/${MAIL_DOMAIN}/${MAIL_DOMAIN}.crt"
 )
-
 KEY_LOCATIONS=(
-    # Let's Encrypt / ZeroSSL (production)
     "/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/${MAIL_DOMAIN}/${MAIL_DOMAIN}.key"
     "/caddy-certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${MAIL_DOMAIN}/${MAIL_DOMAIN}.key"
-
-    # Caddy local certs (development/testing)
     "/caddy-certs/caddy/certificates/local/${MAIL_DOMAIN}/${MAIL_DOMAIN}.key"
 )
-
-# Find first existing cert
 for cert in "${CERT_LOCATIONS[@]}"; do
     if [ -f "$cert" ]; then
         export SSL_CERT_PATH="$cert"
@@ -32,8 +18,6 @@ for cert in "${CERT_LOCATIONS[@]}"; do
         break
     fi
 done
-
-# Find first existing key
 for key in "${KEY_LOCATIONS[@]}"; do
     if [ -f "$key" ]; then
         export SSL_KEY_PATH="$key"
@@ -41,8 +25,6 @@ for key in "${KEY_LOCATIONS[@]}"; do
         break
     fi
 done
-
-# Verify both were found
 if [ -z "$SSL_CERT_PATH" ] || [ -z "$SSL_KEY_PATH" ]; then
     echo "[mailserver] ERROR: Could not find SSL certificate or key!"
     echo "[mailserver] Checked locations:"
@@ -53,21 +35,12 @@ if [ -z "$SSL_CERT_PATH" ] || [ -z "$SSL_KEY_PATH" ]; then
     echo "  3. Verify mail.${DOMAIN} resolves to this server"
     exit 1
 fi
-
 echo "[mailserver] SSL configured: $SSL_CERT_PATH"
-
-# Write cert paths to env file that mailserver will read
 echo "SSL_CERT_PATH=$SSL_CERT_PATH" > /tmp/docker-mailserver/.ssl-env
 echo "SSL_KEY_PATH=$SSL_KEY_PATH" >> /tmp/docker-mailserver/.ssl-env
-
-# Export for this process
 export SSL_CERT_PATH
 export SSL_KEY_PATH
-
-# Start supervisord with SSL env vars (the default CMD for docker-mailserver)
 env SSL_CERT_PATH="$SSL_CERT_PATH" SSL_KEY_PATH="$SSL_KEY_PATH" supervisord -c /etc/supervisor/supervisord.conf &
-
-# Wait for mailserver to start (wait for postfix and dovecot)
 echo "[mailserver] Waiting for services to start..."
 for i in {1..60}; do
     if supervisorctl status postfix | grep -q RUNNING && supervisorctl status dovecot | grep -q RUNNING; then
@@ -81,12 +54,8 @@ for i in {1..60}; do
     fi
     sleep 1
 done
-
-# Run DKIM setup in background so it doesn't block supervisord
 (
-    sleep 5  # Extra buffer to ensure everything is ready
+    sleep 5
     /bin/bash /tmp/docker-mailserver/setup-dkim.sh 2>&1 | sed 's/^/[DKIM-setup] /'
 ) &
-
-# Wait for supervisord (keeps container running)
 wait

@@ -11,7 +11,7 @@ class TokenCounterTest {
         val text = "Hello world"
         val tokens = TokenCounter.countTokens(text)
 
-        // "Hello world" should be 2 tokens
+        
         assertEquals(2, tokens)
     }
 
@@ -20,7 +20,7 @@ class TokenCounterTest {
         val text = "The quick brown fox jumps over the lazy dog"
         val tokens = TokenCounter.countTokens(text)
 
-        // Should be around 9-10 tokens
+        
         assertTrue(tokens in 9..10, "Expected 9-10 tokens, got $tokens")
     }
 
@@ -32,7 +32,7 @@ class TokenCounterTest {
         val englishTokens = TokenCounter.countTokens(englishText)
         val chineseTokens = TokenCounter.countTokens(chineseText)
 
-        // CJK text typically has more tokens per character
+        
         assertTrue(chineseTokens > 8, "Chinese should have multiple tokens, got $chineseTokens")
     }
 
@@ -56,7 +56,7 @@ class TokenCounterTest {
 
     @Test
     fun `truncateToTokens - exactly at limit`() {
-        val text = "word " * 50  // Approximately 50 tokens
+        val text = "word " * 50  
         val truncated = TokenCounter.truncateToTokens(text, 50)
 
         val tokens = TokenCounter.countTokens(truncated)
@@ -74,12 +74,12 @@ class TokenCounterTest {
 
     @Test
     fun `chunkByTokens - long text requires chunking`() {
-        val text = "word " * 200  // ~200 tokens
+        val text = "word " * 200  
         val chunks = TokenCounter.chunkByTokens(text, 50, 0)
 
         assertTrue(chunks.size >= 4, "Should have at least 4 chunks for 200 tokens with 50 max, got ${chunks.size}")
 
-        // Verify each chunk is under limit
+        
         chunks.forEach { chunk ->
             val tokens = TokenCounter.countTokens(chunk)
             assertTrue(tokens <= 50, "Chunk has $tokens tokens, should be ≤50")
@@ -88,12 +88,12 @@ class TokenCounterTest {
 
     @Test
     fun `chunkByTokens - with overlap`() {
-        val text = "word " * 200  // ~200 tokens
+        val text = "word " * 200  
         val chunks = TokenCounter.chunkByTokens(text, 50, 10)
 
         assertTrue(chunks.size >= 4, "Should have multiple chunks")
 
-        // Verify each chunk is under limit
+        
         chunks.forEach { chunk ->
             val tokens = TokenCounter.countTokens(chunk)
             assertTrue(tokens <= 50, "Chunk has $tokens tokens, should be ≤50")
@@ -105,10 +105,10 @@ class TokenCounterTest {
         val text = "The quick brown fox jumps over the lazy dog. " * 50
         val chunks = TokenCounter.chunkByTokens(text, 50, 10)
 
-        // First chunk should contain start of text
+        
         assertTrue(chunks.first().contains("The quick brown fox"))
 
-        // Last chunk should contain end of text
+        
         assertTrue(chunks.last().contains("lazy dog"))
     }
 
@@ -133,7 +133,7 @@ class TokenCounterTest {
 
     @Test
     fun `countTokens - BGE-M3 realistic case`() {
-        // Simulate a real Wikipedia article chunk
+        
         val article = """
             Machine learning is a subset of artificial intelligence that focuses on the
             development of algorithms and statistical models that enable computers to
@@ -145,17 +145,17 @@ class TokenCounterTest {
 
         val tokens = TokenCounter.countTokens(article)
 
-        // Should be around 70-80 tokens
+        
         assertTrue(tokens in 60..90, "Expected 60-90 tokens for article, got $tokens")
     }
 
     @Test
     fun `chunkByTokens - BGE-M3 8192 token limit`() {
-        // Generate text that's ~10000 tokens
+        
         val longText = "word " * 10000
-        val chunks = TokenCounter.chunkByTokens(longText, 8192, 1638)  // 20% overlap
+        val chunks = TokenCounter.chunkByTokens(longText, 8192, 1638)  
 
-        // Should need 2 chunks for 10k tokens with 8192 limit
+        
         assertTrue(chunks.size >= 2, "Should need at least 2 chunks, got ${chunks.size}")
 
         chunks.forEach { chunk ->
@@ -165,5 +165,5 @@ class TokenCounterTest {
     }
 }
 
-// Helper extension for string repetition
+
 private operator fun String.times(n: Int): String = this.repeat(n)

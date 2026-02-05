@@ -49,7 +49,7 @@ class OpenAustralianLegalCorpusStandardizedSourceTest {
         val chunker = source.chunker()
 
         assertNotNull(chunker)
-        // Chunker should be configured for embedding model limits
+        
     }
 
     @Test
@@ -99,7 +99,7 @@ class OpenAustralianLegalCorpusStandardizedSourceTest {
         val chunkable = AustralianLegalDocumentChunkable(doc)
         val metadata = chunkable.getMetadata()
 
-        // Verify all required metadata fields are present
+        
         assertTrue(metadata.containsKey("type"))
         assertTrue(metadata.containsKey("jurisdiction"))
         assertTrue(metadata.containsKey("date"))
@@ -114,7 +114,7 @@ class OpenAustralianLegalCorpusStandardizedSourceTest {
     fun `test fetchForRun with INITIAL_PULL metadata`() = runBlocking {
         val source = OpenAustralianLegalCorpusStandardizedSource(
             cacheDir = "/tmp/test-corpus-initial",
-            maxDocuments = 0  // Don't actually fetch documents in unit test
+            maxDocuments = 0  
         )
 
         val metadata = RunMetadata(
@@ -123,12 +123,12 @@ class OpenAustralianLegalCorpusStandardizedSourceTest {
             isFirstRun = true
         )
 
-        // This will fail to download in test environment, but we're testing the flow structure
+        
         try {
             val flow = source.fetchForRun(metadata)
             assertNotNull(flow)
         } catch (e: Exception) {
-            // Expected in test environment without actual HuggingFace access
+            
             assertTrue(e.message?.contains("Failed to download") == true ||
                       e.message?.contains("Connection") == true ||
                       e is java.net.UnknownHostException ||
@@ -149,12 +149,12 @@ class OpenAustralianLegalCorpusStandardizedSourceTest {
             isFirstRun = false
         )
 
-        // This will fail to download in test environment, but we're testing the flow structure
+        
         try {
             val flow = source.fetchForRun(metadata)
             assertNotNull(flow)
         } catch (e: Exception) {
-            // Expected in test environment without actual HuggingFace access
+            
             assertTrue(e.message?.contains("Failed to download") == true ||
                       e.message?.contains("Connection") == true ||
                       e is java.net.UnknownHostException ||
@@ -168,7 +168,7 @@ class OpenAustralianLegalCorpusStandardizedSourceTest {
             jurisdictions = listOf("commonwealth", "new_south_wales")
         )
 
-        // Source should be created without error
+        
         assertEquals("australian_laws", source.name)
     }
 
@@ -178,7 +178,7 @@ class OpenAustralianLegalCorpusStandardizedSourceTest {
             documentTypes = listOf("primary_legislation")
         )
 
-        // Source should be created without error
+        
         assertEquals("australian_laws", source.name)
     }
 
@@ -188,7 +188,7 @@ class OpenAustralianLegalCorpusStandardizedSourceTest {
             maxDocuments = 1000
         )
 
-        // Source should be created without error
+        
         assertEquals("australian_laws", source.name)
     }
 

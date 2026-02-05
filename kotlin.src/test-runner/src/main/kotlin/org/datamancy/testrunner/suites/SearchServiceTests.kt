@@ -8,26 +8,26 @@ import org.datamancy.testrunner.framework.TestRunner
 
 suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider") {
 
-    // Setup: Seed test data into Qdrant
+    
     suspend fun seedTestData() {
         println("      [SETUP] Seeding test data into Qdrant...")
 
-        // First, delete and recreate test collections to ensure correct dimensions (1024 for BGE-M3)
+        
         val collections = listOf("test-docs", "test-market", "test-bookstack")
         for (collection in collections) {
             try {
-                // Delete existing collection (may fail if doesn't exist)
+                
                 client.deleteRaw("${env.endpoints.qdrant}/collections/$collection")
                 println("      ✓ Deleted existing collection: $collection")
             } catch (e: Exception) {
-                // Collection doesn't exist, that's fine
+                
             }
 
             try {
-                // Create collection with 1024 dimensions (BGE-M3 embedding model)
+                
                 val createRequest = buildJsonObject {
                     putJsonObject("vectors") {
-                        put("size", 1024)  // Must match embedding service output (BGE-M3 = 1024-dim)
+                        put("size", 1024)  
                         put("distance", "Cosine")
                     }
                 }
@@ -72,19 +72,19 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
                 val url = doc["url"] ?: ""
                 val source = doc["source"] ?: "unknown"
 
-                // Generate embedding
+                
                 val embedResult = client.callTool("llm_embed_text", mapOf(
                     "text" to text,
                     "model" to "bge-base-en-v1.5"
                 ))
 
                 if (embedResult is org.datamancy.testrunner.framework.ToolResult.Success) {
-                    // Parse vector from response
+                    
                     val vectorStr = embedResult.output
                         .removePrefix("[").removeSuffix("]")
                     val vector = vectorStr.split(",").map { it.trim().toFloat() }
 
-                    // Insert directly into Qdrant using HTTP API
+                    
                     val pointId = title.hashCode().toLong()
                     val payload = buildJsonObject {
                         put("title", title)
@@ -119,10 +119,10 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         println("      ✓ Test data seeded")
     }
 
-    // Run setup before tests
+    
     test("Setup: Seed test data") {
         seedTestData()
-        kotlinx.coroutines.delay(5000) // Wait for Qdrant indexing to complete (increased from 2s)
+        kotlinx.coroutines.delay(5000) 
     }
 
     test("Search service is healthy") {
@@ -147,7 +147,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         val results = result.results.jsonObject["results"]?.jsonArray
         results?.isNotEmpty() shouldBe true
 
-        // Verify first result has contentType field
+        
         val firstResult = results?.firstOrNull()?.jsonObject
         require(firstResult != null) { "No search results returned - data may not be seeded yet" }
         firstResult.containsKey("contentType") shouldBe true
@@ -160,7 +160,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         val results = result.results.jsonObject["results"]?.jsonArray
         require(!results.isNullOrEmpty()) { "No search results returned - data may not be seeded yet" }
 
-        // Find a result from our test data (prefer market data for this test)
+        
         val testResult = results.firstOrNull {
             it.jsonObject["source"]?.jsonPrimitive?.content?.contains("market") == true ||
             it.jsonObject["contentType"]?.jsonPrimitive?.content == "market"
@@ -168,7 +168,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
 
         require(testResult != null) { "No valid test results found" }
 
-        // Check capabilities object exists with all required fields (keys must exist)
+        
         val capabilities = testResult.get("capabilities")?.jsonObject
         require(capabilities != null) { "Capabilities field missing from search result" }
         require(capabilities.containsKey("humanFriendly")) { "Missing humanFriendly field" }
@@ -194,7 +194,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         val body = Json.parseToJsonElement(response.body<String>())
         val results = body.jsonObject["results"]?.jsonArray
 
-        // All results should be human-friendly
+        
         results?.forEach { result ->
             val capabilities = result.jsonObject["capabilities"]?.jsonObject
             val humanFriendly = capabilities?.get("humanFriendly")?.jsonPrimitive?.boolean
@@ -217,7 +217,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         val body = Json.parseToJsonElement(response.body<String>())
         val results = body.jsonObject["results"]?.jsonArray
 
-        // All results should be agent-friendly
+        
         results?.forEach { result ->
             val capabilities = result.jsonObject["capabilities"]?.jsonObject
             val agentFriendly = capabilities?.get("agentFriendly")?.jsonPrimitive?.boolean
@@ -362,7 +362,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
             setBody(buildJsonObject {
                 put("query", "test")
                 putJsonArray("collections") {
-                    add("test-bookstack")  // Use test collection that was seeded in setup
+                    add("test-bookstack")  
                 }
                 put("limit", 5)
             })
@@ -372,7 +372,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         val body = Json.parseToJsonElement(response.body<String>())
         val results = body.jsonObject["results"]?.jsonArray
 
-        // All results should be from the specified collection
+        
         results?.forEach { result ->
             val source = result.jsonObject["source"]?.jsonPrimitive?.content
             source?.contains("bookstack") shouldBe true
@@ -398,7 +398,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         val firstResult = results.firstOrNull()?.jsonObject
         require(firstResult != null) { "No valid result object found" }
 
-        // Check all required fields exist
+        
         firstResult.containsKey("url") shouldBe true
         firstResult.containsKey("title") shouldBe true
         firstResult.containsKey("snippet") shouldBe true
@@ -417,7 +417,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
             })
         }
 
-        // Either 400 error or empty results is acceptable
+        
         val isValid = response.status == HttpStatusCode.BadRequest ||
                      response.status == HttpStatusCode.OK
         isValid shouldBe true
@@ -433,7 +433,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         }
 
         if (interactiveResult != null) {
-            // Should have rich content for OpenWebUI to process
+            
             val capabilities = interactiveResult.jsonObject["capabilities"]?.jsonObject
             val hasRichContent = capabilities?.get("hasRichContent")?.jsonPrimitive?.boolean
             hasRichContent shouldBe true
@@ -450,19 +450,19 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         }
 
         if (timeSeriesResult != null) {
-            // Should be structured for Grafana to query
+            
             val capabilities = timeSeriesResult.jsonObject["capabilities"]?.jsonObject
             val isStructured = capabilities?.get("isStructured")?.jsonPrimitive?.boolean
             isStructured shouldBe true
         }
     }
 
-    // ================================================================================
-    // PER-SOURCE SEARCH VALIDATION (BM25 + Semantic + Hybrid)
-    // Validates that EVERY data source is searchable and vectorized correctly
-    // ================================================================================
+    
+    
+    
+    
 
-    // RSS FEED SOURCE TESTS
+    
     test("RSS: BM25 search finds feed articles") {
         val response = client.postRaw("${env.endpoints.searchService}/search") {
             contentType(ContentType.Application.Json)
@@ -505,7 +505,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
 
         if (!results.isNullOrEmpty()) {
             println("      ✓ Semantic search found ${results.size} RSS articles")
-            // Verify embeddings exist by checking score
+            
             val firstScore = results.first().jsonObject["score"]?.jsonPrimitive?.double
             require(firstScore != null && firstScore > 0) { "Invalid vector similarity score" }
         } else {
@@ -534,7 +534,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         }
     }
 
-    // CVE SOURCE TESTS
+    
     test("CVE: BM25 search finds vulnerabilities by keyword") {
         val response = client.postRaw("${env.endpoints.searchService}/search") {
             contentType(ContentType.Application.Json)
@@ -600,7 +600,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
     }
 
-    // TORRENTS SOURCE TESTS
+    
     test("Torrents: BM25 search finds torrents by name") {
         val response = client.postRaw("${env.endpoints.searchService}/search") {
             contentType(ContentType.Application.Json)
@@ -666,7 +666,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
     }
 
-    // WIKIPEDIA SOURCE TESTS
+    
     test("Wikipedia: BM25 search finds articles by title/content") {
         val response = client.postRaw("${env.endpoints.searchService}/search") {
             contentType(ContentType.Application.Json)
@@ -732,7 +732,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
     }
 
-    // AUSTRALIAN LAWS SOURCE TESTS
+    
     test("Australian Laws: BM25 search finds legislation") {
         val response = client.postRaw("${env.endpoints.searchService}/search") {
             contentType(ContentType.Application.Json)
@@ -798,7 +798,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
     }
 
-    // LINUX DOCS SOURCE TESTS
+    
     test("Linux Docs: BM25 search finds man pages by command") {
         val response = client.postRaw("${env.endpoints.searchService}/search") {
             contentType(ContentType.Application.Json)
@@ -864,9 +864,9 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
         body.jsonObject["mode"]?.jsonPrimitive?.content shouldBe "hybrid"
     }
 
-    // ================================================================================
-    // CROSS-SOURCE VALIDATION
-    // ================================================================================
+    
+    
+    
 
     test("All sources: Cross-collection search works") {
         val response = client.postRaw("${env.endpoints.searchService}/search") {
@@ -903,7 +903,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
     }
 
     test("All sources: Vectorization quality check") {
-        // Test that vector scores are reasonable (not all 0.0 or 1.0)
+        
         val response = client.postRaw("${env.endpoints.searchService}/search") {
             contentType(ContentType.Application.Json)
             setBody(buildJsonObject {
@@ -929,7 +929,7 @@ suspend fun TestRunner.searchServiceTests() = suite("Search Service RAG Provider
             println("      ✓ Vector scores - Min: ${"%.4f".format(minScore)}, " +
                    "Max: ${"%.4f".format(maxScore)}, Avg: ${"%.4f".format(avgScore)}")
 
-            // Sanity check: scores should be between 0 and 1
+            
             require(minScore >= 0.0 && maxScore <= 1.0) { "Invalid vector scores detected" }
             require(avgScore > 0.0) { "Average score should be > 0" }
         } else {

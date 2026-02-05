@@ -6,21 +6,12 @@ import io.ktor.http.*
 import kotlinx.coroutines.delay
 import org.datamancy.testrunner.framework.*
 
-/**
- * Enhanced Authentication Tests - Comprehensive auth flow validation
- *
- * Phase 1: Core Authentication Flows (5 tests)
- * Phase 2: OIDC Token Flows (4 tests)
- * Phase 3: Forward Auth & Access Control (4 tests)
- * Phase 4: Cross-Service SSO (2 tests)
- *
- * Total: 15 comprehensive authentication tests
- */
+
 suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentication Tests") {
 
-    // =========================================================================
-    // PHASE 1: Core Authentication Flows
-    // =========================================================================
+    
+    
+    
 
     test("Phase 1: Successful login returns valid session cookie") {
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
@@ -31,7 +22,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
                 "Login should succeed for valid LDAP user: ${(authResult as? AuthResult.Error)?.message}"
             }
 
-            // Verify session cookie properties
+            
             val cookie = (authResult as AuthResult.Success).sessionCookie
             require(cookie.name == "authelia_session") {
                 "Cookie name should be 'authelia_session', got: ${cookie.name}"
@@ -39,7 +30,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
             require(cookie.httpOnly) {
                 "Session cookie must be HTTP-only for security"
             }
-            // Secure flag only required in production (not test containers)
+            
             if (!env.isDevMode) {
                 require(cookie.secure) {
                     "Session cookie should have Secure flag in production"
@@ -67,7 +58,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
                 "Login failed: ${(authResult as? AuthResult.Error)?.message}"
             }
 
-            // Make multiple authenticated requests
+            
             repeat(5) { i ->
                 val isValid = auth.verifyAuth()
                 require(isValid) {
@@ -87,7 +78,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
-            // Try login with wrong password
+            
             val result = auth.login(user.username, "wrongpassword123")
             require(result is AuthResult.Error) {
                 "Login should fail with incorrect password"
@@ -101,7 +92,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
     }
 
     test("Phase 1: SQL injection attempts are sanitized") {
-        // Attempt SQL injection in username
+        
         val sqlInjectionUsername = "admin' OR '1'='1"
         val result = auth.login(sqlInjectionUsername, "password")
 
@@ -111,7 +102,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
 
         println("      ✓ SQL injection in username blocked")
 
-        // Attempt SQL injection in password
+        
         val sqlInjectionPassword = "' OR '1'='1' --"
         val result2 = auth.login("admin", sqlInjectionPassword)
 
@@ -126,26 +117,26 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
-            // Step 1: Login
+            
             val authResult = auth.login(user.username, user.password)
             require(authResult is AuthResult.Success) {
                 "Login failed: ${(authResult as? AuthResult.Error)?.message}"
             }
             println("      ✓ Step 1: Login successful")
 
-            // Step 2: Verify authentication
+            
             val isValid = auth.verifyAuth()
             require(isValid) { "Session verification failed" }
             println("      ✓ Step 2: Session verified")
 
-            // Step 3: Access protected endpoint
+            
             val response = auth.authenticatedGet("${env.endpoints.authelia}/api/configuration")
             require(response.status == HttpStatusCode.OK) {
                 "Authenticated access failed: ${response.status}"
             }
             println("      ✓ Step 3: Authenticated access successful")
 
-            // Step 4: Logout
+            
             auth.logout()
             val isValidAfterLogout = auth.isAuthenticated()
             require(!isValidAfterLogout) { "Should not be authenticated after logout" }
@@ -159,14 +150,14 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         }
     }
 
-    // =========================================================================
-    // PHASE 2: OIDC Token Flow Tests
-    // =========================================================================
+    
+    
+    
 
     test("Phase 2: OIDC discovery document contains required endpoints") {
         val discovery = oidc.getDiscoveryDocument()
 
-        // Verify required OIDC endpoints
+        
         require(discovery.containsKey("issuer")) {
             "OIDC discovery must have 'issuer'"
         }
@@ -195,7 +186,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
-            // Perform full OIDC authorization code flow
+            
             val tokens = oidc.performFullFlow(
                 clientId = "open-webui",
                 clientSecret = env.openwebuiOAuthSecret,
@@ -221,7 +212,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
             println("        - Expires In: ${tokens.expiresIn}s")
 
         } catch (e: Exception) {
-            // OIDC flow may fail if Authelia OIDC isn't fully configured for tests
+            
             println("      ℹ️  OIDC flow test: ${e.message}")
             println("      ℹ️  This is expected if OIDC requires additional config")
         } finally {
@@ -243,7 +234,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
 
             require(tokens.idToken != null) { "No ID token received" }
 
-            // Decode and validate ID token claims
+            
             val claims = oidc.decodeIdToken(tokens.idToken!!)
 
             require(claims.containsKey("sub")) { "ID token must have 'sub' (subject) claim" }
@@ -276,7 +267,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
-            // Get initial tokens
+            
             val initialTokens = oidc.performFullFlow(
                 clientId = "open-webui",
                 clientSecret = env.openwebuiOAuthSecret,
@@ -288,7 +279,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
                 "No refresh token received from initial flow"
             }
 
-            // Use refresh token to get new access token
+            
             val newTokens = oidc.refreshAccessToken(
                 clientId = "open-webui",
                 clientSecret = env.openwebuiOAuthSecret,
@@ -315,22 +306,22 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         }
     }
 
-    // =========================================================================
-    // PHASE 3: Forward Auth & Access Control Tests
-    // =========================================================================
+    
+    
+    
 
     test("Phase 3: Caddy forward auth redirects unauthenticated requests") {
-        // Try to access protected service without authentication
+        
         val response = client.getRawResponse("http://caddy/") {
         }
 
-        // Should redirect to Authelia login or return 401/403
-        // Note: 308 Permanent Redirect is also valid (HTTPS upgrade from Caddy)
+        
+        
         val redirected = response.status in listOf(
-            HttpStatusCode.Found,                    // 302
-            HttpStatusCode.TemporaryRedirect,        // 307
-            HttpStatusCode.SeeOther,                 // 303
-            HttpStatusCode.PermanentRedirect         // 308 (HTTPS upgrade)
+            HttpStatusCode.Found,                    
+            HttpStatusCode.TemporaryRedirect,        
+            HttpStatusCode.SeeOther,                 
+            HttpStatusCode.PermanentRedirect         
         )
         val unauthorized = response.status in listOf(
             HttpStatusCode.Unauthorized,
@@ -353,13 +344,13 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
-            // Login to get session
+            
             val authResult = auth.login(user.username, user.password)
             require(authResult is AuthResult.Success) {
                 "Login failed: ${(authResult as? AuthResult.Error)?.message}"
             }
 
-            // Try to access protected endpoint with session cookie
+            
             val response = auth.authenticatedGet("http://caddy/")
 
             require(response.status.value in 200..399) {
@@ -381,7 +372,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         try {
             auth.login(user.username, user.password)
 
-            // Services that users group should access (from authelia config)
+            
             val allowedServices = listOf(
                 env.endpoints.grafana to "Grafana",
                 env.endpoints.bookstack to "BookStack",
@@ -417,8 +408,8 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
     }
 
     test("Phase 3: Internal Docker bypass rule works") {
-        // Test that internal container-to-container calls bypass Authelia
-        // (testing the fix we just applied!)
+        
+        
         var lastError: Exception? = null
         repeat(3) { attempt ->
             try {
@@ -435,7 +426,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
 
                 println("      ✓ Internal Docker network correctly bypasses Authelia")
                 println("      ✓ Health endpoint accessible from test container")
-                return@test  // Success!
+                return@test  
             } catch (e: Exception) {
                 lastError = e
                 if (attempt < 2) delay(1000)
@@ -444,19 +435,19 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         throw AssertionError("Docker bypass test failed: ${lastError?.message}")
     }
 
-    // =========================================================================
-    // PHASE 4: Cross-Service SSO Tests
-    // =========================================================================
+    
+    
+    
 
     test("Phase 4: Single login grants access to multiple services (SSO)") {
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
-            // Login once
+            
             auth.login(user.username, user.password)
             println("      ✓ Logged in once with user: ${user.username}")
 
-            // Try to access multiple different services with same session
+            
             val services = listOf(
                 env.endpoints.grafana to "Grafana",
                 env.endpoints.bookstack to "BookStack",
@@ -492,7 +483,7 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
-            // Step 1: Login and verify access
+            
             auth.login(user.username, user.password)
 
             val beforeLogout = auth.authenticatedGet(env.endpoints.grafana)
@@ -501,11 +492,11 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
             }
             println("      ✓ Access granted before logout")
 
-            // Step 2: Logout
+            
             auth.logout()
             println("      ✓ Logged out")
 
-            // Step 3: Try to access with now-invalid session
+            
             val afterLogout = client.getRawResponse(env.endpoints.grafana) {
             }
 

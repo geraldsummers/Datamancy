@@ -97,7 +97,7 @@ class WikiSourceTest {
 
         assertNotEquals(hash1, hash2, "Different pages should have different hashes")
 
-        // Same page should have same hash
+        
         val hash1Again = page1.contentHash()
         assertEquals(hash1, hash1Again)
     }
@@ -110,13 +110,13 @@ class WikiSourceTest {
             id = "test:long",
             title = "Long Page",
             url = "https://example.com/long",
-            content = longContent,  // WikiSource truncates before creating WikiPage
+            content = longContent,  
             wikiType = "Test Wiki"
         )
 
         val formatted = page.toText()
 
-        // If content is 10000 chars or more, formatted text should show truncation indicator
+        
         if (page.content.length >= 10000) {
             assertTrue(formatted.contains("Content truncated"))
         }
@@ -154,7 +154,7 @@ class WikiSourceTest {
 
         val formatted = page.toText()
 
-        // Should only show first 5
+        
         assertTrue(formatted.contains("Category1"))
         assertTrue(formatted.contains("Category5"))
     }
@@ -177,7 +177,7 @@ class WikiSourceTest {
         val source = WikiSource(
             wikiType = WikiSource.WikiType.ARCH,
             maxPages = 100,
-            categories = emptyList()  // Should fetch from recent changes
+            categories = emptyList()  
         )
 
         assertNotNull(source)
@@ -190,8 +190,8 @@ class WikiSourceTest {
             maxPages = 10
         )
 
-        // Can't easily test fetch() without hitting real servers,
-        // but we can verify the parameter is accepted
+        
+        
         assertNotNull(source)
     }
 

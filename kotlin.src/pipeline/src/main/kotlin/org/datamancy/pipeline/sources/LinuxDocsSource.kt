@@ -9,12 +9,7 @@ import java.io.File
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Fetches Linux documentation from various sources:
- * - Man pages from /usr/share/man
- * - Debian docs from /usr/share/doc
- * - Kernel docs (if available)
- */
+
 class LinuxDocsSource(
     private val sources: List<DocSource> = listOf(DocSource.MAN_PAGES),
     private val maxDocs: Int = Int.MAX_VALUE
@@ -22,9 +17,9 @@ class LinuxDocsSource(
     override val name = "LinuxDocsSource"
 
     enum class DocSource {
-        MAN_PAGES,      // /usr/share/man
-        DEBIAN_DOCS,    // /usr/share/doc
-        KERNEL_DOCS     // /usr/share/doc/linux-doc (if installed)
+        MAN_PAGES,      
+        DEBIAN_DOCS,    
+        KERNEL_DOCS     
     }
 
     override suspend fun fetch(): Flow<LinuxDoc> = flow {
@@ -64,7 +59,7 @@ class LinuxDocsSource(
                 continue
             }
 
-            // Walk through man sections (man1, man2, etc.)
+            
             manRoot.listFiles()?.forEach { sectionDir ->
                 if (count >= max) return@forEach
                 if (!sectionDir.isDirectory) return@forEach
@@ -76,7 +71,7 @@ class LinuxDocsSource(
                     if (count >= max) return@forEach
 
                     try {
-                        // Man pages are often gzipped
+                        
                         val name = manFile.nameWithoutExtension.removeSuffix(".gz")
                         val content = readManPage(manFile)
 
@@ -121,7 +116,7 @@ class LinuxDocsSource(
             if (count >= max) return@forEach
             if (!packageDir.isDirectory) return@forEach
 
-            // Look for README, README.Debian, etc.
+            
             val readmeFiles = packageDir.listFiles()?.filter { file ->
                 file.isFile && (
                     file.name.startsWith("README") ||
@@ -135,7 +130,7 @@ class LinuxDocsSource(
 
                 try {
                     val content = readDebianDoc(readmeFile)
-                    if (content.isNotEmpty() && content.length < 50000) {  // Skip huge files
+                    if (content.isNotEmpty() && content.length < 50000) {  
 
                         emit(LinuxDoc(
                             id = "debian:${packageDir.name}:${readmeFile.name}",
@@ -176,7 +171,7 @@ class LinuxDocsSource(
                 continue
             }
 
-            // Recursively find .txt, .rst, .md files
+            
             docRoot.walkTopDown().forEach { file ->
                 if (count >= max) return@forEach
                 if (!file.isFile) return@forEach
@@ -184,7 +179,7 @@ class LinuxDocsSource(
 
                 try {
                     val content = file.readText(Charsets.UTF_8)
-                    if (content.isNotEmpty() && content.length < 50000) {  // Skip huge files
+                    if (content.isNotEmpty() && content.length < 50000) {  
 
                         val relativePath = file.relativeTo(docRoot).path
 
@@ -211,7 +206,7 @@ class LinuxDocsSource(
     private fun readManPage(file: File): String {
         return try {
             if (file.name.endsWith(".gz")) {
-                // Decompress and read - simplified version
+                
                 val process = ProcessBuilder("zcat", file.absolutePath).start()
                 process.inputStream.bufferedReader().use { it.readText() }
             } else {
@@ -241,8 +236,8 @@ class LinuxDocsSource(
 data class LinuxDoc(
     val id: String,
     val title: String,
-    val section: String,  // man section, package name, or subdirectory
-    val type: String,     // man, debian-doc, kernel-doc
+    val section: String,  
+    val type: String,     
     val content: String,
     val path: String
 ) {
@@ -257,12 +252,12 @@ data class LinuxDoc(
             appendLine("## Content")
             appendLine()
 
-            // Clean up man page formatting
+            
             val cleanedContent = content
-                .replace(Regex("\\.TH[^\n]*\n"), "")  // Remove man page headers
-                .replace(Regex("\\.SH[^\n]*\n"), "\n### ")  // Convert section headers
-                .replace(Regex("\\.[A-Z]{2}[^\n]*\n"), "\n")  // Remove other man macros
-                .take(2000)  // Truncate for embedding
+                .replace(Regex("\\.TH[^\n]*\n"), "")  
+                .replace(Regex("\\.SH[^\n]*\n"), "\n### ")  
+                .replace(Regex("\\.[A-Z]{2}[^\n]*\n"), "\n")  
+                .take(2000)  
 
             appendLine(cleanedContent)
 

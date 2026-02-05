@@ -14,10 +14,7 @@ import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 
-/**
- * OpenAI-compatible proxy that auto-injects agent-tool-server tools into completion requests
- * and handles tool execution.
- */
+
 class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
     private val httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -33,14 +30,14 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
                 return
             }
 
-            // Read request body
+            
             val requestBody = exchange.requestBody.readBytes().toString(StandardCharsets.UTF_8)
             val requestJson = Json.mapper.readTree(requestBody) as ObjectNode
 
-            // Get available tools from registry
+            
             val kfuncTools = tools.listTools()
 
-            // Transform agent-tool-server tools to OpenAI format
+            
             val openaiTools = Json.mapper.createArrayNode()
             kfuncTools.forEach { toolDef ->
                 openaiTools.addObject().apply {
@@ -48,7 +45,7 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
                     putObject("function").apply {
                         put("name", toolDef.name)
                         put("description", toolDef.description ?: toolDef.shortDescription)
-                        // Parse parameters JSON string to JsonNode
+                        
                         val paramsNode = try {
                             Json.mapper.readTree(toolDef.paramsSpec)
                         } catch (e: Exception) {
@@ -62,13 +59,13 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
                 }
             }
 
-            // Inject tools into request if not already present
+            
             val existingTools = requestJson.get("tools")
             if (existingTools == null || existingTools.isEmpty) {
                 requestJson.set<JsonNode>("tools", openaiTools)
             }
 
-            // Forward to LiteLLM
+            
             val llmRequest = HttpRequest.newBuilder()
                 .uri(URI.create("$litellmBaseUrl/v1/chat/completions"))
                 .header("Content-Type", "application/json")
@@ -80,16 +77,16 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
             val llmResponse = httpClient.send(llmRequest, HttpResponse.BodyHandlers.ofString())
             val responseJson = Json.mapper.readTree(llmResponse.body()) as ObjectNode
 
-            // Check if there are tool calls to execute
+            
             val choices = responseJson.get("choices") as? ArrayNode
             val firstChoice = choices?.get(0) as? ObjectNode
             val message = firstChoice?.get("message") as? ObjectNode
             val toolCalls = message?.get("tool_calls") as? ArrayNode
 
             if (toolCalls != null && !toolCalls.isEmpty) {
-                // Execute tool calls
+                
                 val messages = requestJson.get("messages") as ArrayNode
-                messages.add(message)  // Add assistant message with tool calls
+                messages.add(message)  
 
                 toolCalls.forEach { toolCall ->
                     val tcObj = toolCall as ObjectNode
@@ -105,14 +102,14 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
                             Json.mapper.createObjectNode().put("error", "invalid_args")
                         }
 
-                        // Execute via agent-tool-server
+                        
                         val result = try {
                             tools.invoke(functionName, functionArgs)
                         } catch (e: Exception) {
                             Json.mapper.createObjectNode().put("error", e.message ?: "execution_failed")
                         }
 
-                        // Add tool result to messages
+                        
                         messages.addObject().apply {
                             put("role", "tool")
                             put("tool_call_id", toolCallId)
@@ -121,7 +118,7 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
                     }
                 }
 
-                // Make another completion request with tool results
+                
                 requestJson.set<JsonNode>("messages", messages)
 
                 val followupRequest = HttpRequest.newBuilder()
@@ -134,13 +131,13 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
 
                 val followupResponse = httpClient.send(followupRequest, HttpResponse.BodyHandlers.ofString())
 
-                // Return final response
+                
                 val finalResponseBytes = followupResponse.body().toByteArray(StandardCharsets.UTF_8)
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(followupResponse.statusCode(), finalResponseBytes.size.toLong())
                 exchange.responseBody.use { it.write(finalResponseBytes) }
             } else {
-                // No tool calls, return response as-is
+                
                 val responseBytes = llmResponse.body().toByteArray(StandardCharsets.UTF_8)
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(llmResponse.statusCode(), responseBytes.size.toLong())

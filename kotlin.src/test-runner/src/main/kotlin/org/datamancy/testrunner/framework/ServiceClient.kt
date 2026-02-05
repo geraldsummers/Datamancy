@@ -8,9 +8,7 @@ import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
-/**
- * Type-safe service client with automatic error handling
- */
+
 class ServiceClient(
     private val endpoints: ServiceEndpoints,
     private val client: HttpClient
@@ -20,7 +18,7 @@ class ServiceClient(
             "agent-tool-server" -> "${endpoints.agentToolServer}/healthz"
             "pipeline" -> "${endpoints.pipeline}/health"
             "search-service" -> "${endpoints.searchService}/health"
-            // Legacy service names (deprecated - services merged into pipeline)
+            
             "data-fetcher" -> "${endpoints.dataFetcher}/health"
             else -> throw IllegalArgumentException("Unknown service: $service")
         }
@@ -97,7 +95,7 @@ class ServiceClient(
 
     suspend fun getRawResponse(url: String): HttpResponse {
         return client.get(url) {
-            // Automatically add BookStack auth headers if URL is BookStack and credentials available
+            
             if (url.contains("/api/") && endpoints.bookstackTokenId != null && endpoints.bookstackTokenSecret != null) {
                 header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
             }
@@ -106,7 +104,7 @@ class ServiceClient(
 
     suspend fun getRawResponse(url: String, block: HttpRequestBuilder.() -> Unit): HttpResponse {
         return client.get(url) {
-            // Automatically add BookStack auth headers if URL is BookStack and credentials available
+            
             if (url.contains("/api/") && endpoints.bookstackTokenId != null && endpoints.bookstackTokenSecret != null) {
                 header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
             }
@@ -176,7 +174,7 @@ data class IndexResult(val success: Boolean, val message: String)
 data class SearchResult(val success: Boolean, val results: JsonElement)
 data class MariaDbResult(val success: Boolean, val data: String? = null, val error: String? = null)
 
-// Extension to convert Map to JsonObject
+
 private fun Map<String, Any>.toJsonObject(): JsonObject {
     return JsonObject(this.mapValues { (_, v) ->
         when (v) {

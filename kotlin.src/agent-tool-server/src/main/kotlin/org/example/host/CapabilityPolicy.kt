@@ -7,7 +7,7 @@ data class CapabilityPolicy(
 class CapabilityViolation(message: String) : RuntimeException(message)
 
 fun enforceCapabilities(policy: CapabilityPolicy, pluginId: String, requested: List<String>) {
-    if (policy.allowed.isEmpty()) return // no restrictions
+    if (policy.allowed.isEmpty()) return 
     val disallowed = requested.filter { it !in policy.allowed }
     if (disallowed.isNotEmpty()) {
         throw CapabilityViolation("Plugin '$pluginId' requests disallowed capabilities: ${'$'}disallowed")

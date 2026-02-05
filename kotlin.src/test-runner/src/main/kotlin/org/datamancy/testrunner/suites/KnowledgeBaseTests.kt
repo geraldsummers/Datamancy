@@ -17,13 +17,13 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
 
             when (result) {
                 is ToolResult.Success -> {
-                    // Success - but check if table exists
+                    
                     if (result.output.contains("relation") && result.output.contains("does not exist")) {
                         println("\n      Note: Table does not exist yet. This is expected for fresh deployments.")
                         println("      Shadow account may not be provisioned. Run:")
                         println("      scripts/security/create-shadow-agent-account.main.kts $userContext")
                     } else {
-                        // Table exists and query succeeded
+                        
                         result.output shouldNotContain "ERROR"
                     }
                 }
@@ -47,14 +47,14 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
 
             when (result) {
                 is ToolResult.Success -> {
-                    // Should contain error about forbidden operation (may be JSON response)
+                    
                     val output = result.output.lowercase()
                     require(output.contains("error") || output.contains("only select")) {
                         "Expected error response containing 'error' or 'only select' (case-insensitive), got: ${result.output}"
                     }
                 }
                 is ToolResult.Error -> {
-                    // Server-side rejection is also acceptable
+                    
                     val msg = result.message
                     require(msg.contains("Only SELECT") || msg.contains("forbidden")) {
                         "Expected security error, got: $msg"
@@ -72,7 +72,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
         )
 
         result.success shouldBe true
-        // Results may be empty but should return valid JSON structure
+        
         val resultStr = result.results.toString()
         require(resultStr.contains("results") || resultStr.startsWith("[")) {
             "Expected results array, got: $resultStr"
@@ -80,7 +80,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
     }
 
     test("Vectorization pipeline: embed → store → retrieve") {
-        // 1. Generate embedding for test text
+        
         val testText = "Datamancy integration test vector ${System.currentTimeMillis()}"
         println("\n      Generating embedding for: '$testText'")
 
@@ -94,7 +94,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
         }
         val embeddingOutput = (embedResult as ToolResult.Success).output
 
-        // Verify vector structure
+        
         require(embeddingOutput.contains("[") && embeddingOutput.contains("]")) {
             "Expected vector array, got: $embeddingOutput"
         }
@@ -103,8 +103,8 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
         println("      ✓ Generated ${dimensions}d vector")
         require(dimensions > 1000) { "Expected ~1024 dimensions, got $dimensions" }
 
-        // 2. Test semantic search with related query
-        // Search should use embedding service to vectorize the query
+        
+        
         println("      Testing semantic search with query...")
         val searchResult = client.search(
             query = "integration test",
@@ -115,7 +115,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
         searchResult.success shouldBe true
         println("      ✓ Search completed successfully")
 
-        // Verify search used vectorization (returns valid structure)
+        
         val searchResultStr = searchResult.results.toString()
         require(searchResultStr.contains("results") || searchResultStr.startsWith("[")) {
             "Expected results structure, got: $searchResultStr"

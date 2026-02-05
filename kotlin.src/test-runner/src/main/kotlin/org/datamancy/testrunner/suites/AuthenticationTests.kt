@@ -8,27 +8,22 @@ import javax.naming.Context
 import javax.naming.directory.InitialDirContext
 import java.util.Properties
 
-/**
- * Authentication & Authorization Integration Tests
- *
- * Tests LDAP, Authelia SSO, and service-specific authentication flows
- * Validates that all services properly integrate with the auth stack
- */
+
 suspend fun TestRunner.authenticationTests() = suite("Authentication & Authorization Tests") {
 
-    // =============================================================================
-    // LDAP Directory Tests
-    // =============================================================================
+    
+    
+    
 
     test("LDAP server is reachable") {
         val ldapUrl = env.endpoints.ldap ?: "ldap://openldap:389"
         val baseDn = System.getenv("LDAP_BASE_DN") ?: "dc=datamancy,dc=net"
 
-        // Simple anonymous bind to verify LDAP is responding
+        
         val props = Properties().apply {
             put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
             put(Context.PROVIDER_URL, ldapUrl)
-            put(Context.SECURITY_AUTHENTICATION, "none") // Anonymous bind
+            put(Context.SECURITY_AUTHENTICATION, "none") 
         }
 
         val ctx = InitialDirContext(props)
@@ -53,7 +48,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
         val ctx = InitialDirContext(props)
 
-        // Verify we can read the base DN
+        
         val attrs = ctx.getAttributes(baseDn)
         require(attrs.size() > 0) { "Could not read base DN attributes" }
 
@@ -78,7 +73,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
         val ctx = InitialDirContext(props)
 
-        // Search for all organizational units
+        
         val searchControls = javax.naming.directory.SearchControls()
         searchControls.searchScope = javax.naming.directory.SearchControls.SUBTREE_SCOPE
 
@@ -115,9 +110,9 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
         }
     }
 
-    // =============================================================================
-    // Authelia SSO Tests
-    // =============================================================================
+    
+    
+    
 
     test("Authelia health endpoint responds") {
         val response = client.getRawResponse("${env.endpoints.authelia}/api/health")
@@ -133,7 +128,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
     test("Authelia configuration endpoint accessible") {
         val response = client.getRawResponse("${env.endpoints.authelia}/api/configuration")
-        // May require authentication depending on network/domain
+        
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
             "Configuration endpoint failed: ${response.status}"
         }
@@ -143,7 +138,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
     test("Authelia state endpoint responds") {
         val response = client.getRawResponse("${env.endpoints.authelia}/api/state")
-        // May return 401/403 without session (expected for session-based endpoints)
+        
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
             "Unexpected response: ${response.status}"
         }
@@ -151,19 +146,19 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
         println("      ✓ Authelia state endpoint responding")
     }
 
-    // =============================================================================
-    // LDAP Account Manager Tests
-    // =============================================================================
+    
+    
+    
 
     test("LDAP Account Manager web interface loads") {
-        // First test: Direct container access (should work without auth)
+        
         val directResponse = client.getRawResponse("http://ldap-account-manager:80/lam/")
         require(directResponse.status in listOf(HttpStatusCode.OK, HttpStatusCode.Found)) {
             "LAM container not accessible directly: ${directResponse.status}"
         }
         println("      ✓ LAM container accessible directly")
 
-        // Second test: Access through Caddy with Authelia authentication
+        
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
         val authResult = auth.login("admin", ldapPassword)
@@ -174,7 +169,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
         println("      ✓ Authenticated with Authelia")
 
-        // Access LAM through Caddy reverse proxy with auth
+        
         val authedResponse = auth.authenticatedGet("http://caddy:80/")
         require(authedResponse.status == HttpStatusCode.OK || authedResponse.status.value in 200..399) {
             "LAM not accessible through Caddy with auth: ${authedResponse.status}"
@@ -195,9 +190,9 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
         println("      ✓ LAM login page accessible")
     }
 
-    // =============================================================================
-    // Service Authentication Tests
-    // =============================================================================
+    
+    
+    
 
     test("Grafana requires authentication") {
         val response = client.getRawResponse("${env.endpoints.grafana}/api/dashboards/home")
@@ -219,7 +214,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
     test("BookStack requires authentication for content") {
         val response = client.getRawResponse("${env.endpoints.bookstack}/api/books")
-        // BookStack may return 200 with empty list for public instances
+        
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
             "BookStack should require authentication or return empty: ${response.status}"
         }
@@ -247,7 +242,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
     test("Open-WebUI requires authentication") {
         val response = client.getRawResponse("${env.endpoints.openWebUI}/api/v1/auths")
-        // May return 200, 307 redirect, or require auth
+        
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.TemporaryRedirect)) {
             "Unexpected response from Open-WebUI: ${response.status}"
         }
@@ -266,7 +261,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
     test("Seafile requires authentication for API") {
         val response = client.getRawResponse("${env.endpoints.seafile}/api2/auth/ping/")
-        // Seafile may return 200 or 403 depending on configuration
+        
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Forbidden)) {
             "Seafile API not accessible: ${response.status}"
         }
@@ -276,7 +271,7 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
     test("Planka requires authentication for boards") {
         val response = client.getRawResponse("${env.endpoints.planka}/api/boards")
-        // Planka may return 200 with empty list or 401 depending on configuration
+        
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized)) {
             "Planka should require authentication or return empty: ${response.status}"
         }

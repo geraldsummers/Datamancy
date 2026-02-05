@@ -17,23 +17,16 @@ import javax.xml.stream.XMLStreamReader
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Fetches articles from Wikipedia XML dump
- * Dump format: https://dumps.wikimedia.org/enwiki/latest/
- * File: enwiki-latest-pages-articles.xml.bz2 (~20GB compressed)
- *
- * For chunking: Articles are split into chunks of maxChunkSize characters
- * with overlap to maintain context across chunks
- */
+
 class WikipediaSource(
-    private val dumpPath: String,  // Path to XML dump file
+    private val dumpPath: String,  
     private val maxArticles: Int = Int.MAX_VALUE,
-    private val maxChunkSize: Int = 2000,  // ~512 tokens
+    private val maxChunkSize: Int = 2000,  
     private val chunkOverlap: Int = 200
 ) : Source<WikipediaArticle> {
     override val name = "WikipediaSource"
 
-    // Track IO stats (bytes read from disk/network)
+    
     private val bytesRead = AtomicLong(0)
     private val articlesProcessed = AtomicLong(0)
 
@@ -44,7 +37,7 @@ class WikipediaSource(
 
         try {
             val reader: BufferedReader = if (dumpPath.startsWith("http://") || dumpPath.startsWith("https://")) {
-                // Retry logic with exponential backoff for network failures
+                
                 var retries = 3
                 var lastException: Exception? = null
                 var result: BufferedReader? = null
@@ -53,8 +46,8 @@ class WikipediaSource(
                     try {
                         val connection = java.net.URI(dumpPath).toURL().openConnection()
                         connection.setRequestProperty("User-Agent", "Datamancy/1.0 (Educational Research)")
-                        connection.connectTimeout = 60000  // 60 seconds
-                        connection.readTimeout = 1800000   // 30 minutes for large dumps
+                        connection.connectTimeout = 60000  
+                        connection.readTimeout = 1800000   
                         val inputStream = connection.getInputStream()
 
                         val stream: InputStream = when {
@@ -68,7 +61,7 @@ class WikipediaSource(
                         lastException = e
                         retries--
                         if (retries > 0) {
-                            val backoffSeconds = (4 - retries) * 60  // 60s, 120s, 180s
+                            val backoffSeconds = (4 - retries) * 60  
                             logger.warn { "Wikipedia download failed, retrying in ${backoffSeconds}s (${retries} attempts left): ${e.message}" }
                             Thread.sleep(backoffSeconds * 1000L)
                         }
@@ -115,7 +108,7 @@ class WikipediaSource(
                             when (xmlReader.localName) {
                                 "page" -> inPage = true
                                 "title" -> inTitle = true
-                                "id" -> if (inPage && currentId.isEmpty()) inId = true  // Only first ID (page ID, not revision ID)
+                                "id" -> if (inPage && currentId.isEmpty()) inId = true  
                                 "text" -> inText = true
                             }
                         }
@@ -134,17 +127,17 @@ class WikipediaSource(
                             when (xmlReader.localName) {
                                 "page" -> {
                                     if (currentTitle.isNotEmpty() && currentText.isNotEmpty()) {
-                                        // Skip redirects and special pages
+                                        
                                         if (!currentText.startsWith("#REDIRECT") &&
                                             !currentTitle.startsWith("Wikipedia:") &&
                                             !currentTitle.startsWith("Template:") &&
                                             !currentTitle.startsWith("Category:")) {
 
-                                            // Clean and chunk the text
+                                            
                                             val cleanedText = cleanWikitext(currentText)
 
                                             if (cleanedText.length > maxChunkSize) {
-                                                // Split into chunks
+                                                
                                                 var chunkIndex = 0
                                                 var startPos = 0
 
@@ -166,7 +159,7 @@ class WikipediaSource(
                                                     if (startPos < 0) startPos = endPos
                                                 }
                                             } else {
-                                                // Emit as single article
+                                                
                                                 emit(WikipediaArticle(
                                                     id = currentId,
                                                     title = currentTitle,
@@ -186,7 +179,7 @@ class WikipediaSource(
                                         }
                                     }
 
-                                    // Reset for next page
+                                    
                                     currentTitle = ""
                                     currentId = ""
                                     currentText = ""
@@ -210,27 +203,24 @@ class WikipediaSource(
         }
     }
 
-    /**
-     * Clean wikitext markup to plain text
-     * This is a simplified version - full MediaWiki parsing is complex
-     */
+    
     private fun cleanWikitext(text: String): String {
         var cleaned = text
 
-        // Remove common wiki markup
-        cleaned = cleaned.replace(Regex("\\{\\{[^}]+\\}\\}"), "")  // Remove templates
-        cleaned = cleaned.replace(Regex("\\[\\[File:[^]]+\\]\\]"), "")  // Remove file links
-        cleaned = cleaned.replace(Regex("\\[\\[Image:[^]]+\\]\\]"), "")  // Remove image links
-        cleaned = cleaned.replace(Regex("\\[\\[Category:[^]]+\\]\\]"), "")  // Remove categories
-        cleaned = cleaned.replace(Regex("\\[\\[([^]|]+)\\|([^]]+)\\]\\]"), "$2")  // [[link|text]] -> text
-        cleaned = cleaned.replace(Regex("\\[\\[([^]]+)\\]\\]"), "$1")  // [[link]] -> link
-        cleaned = cleaned.replace(Regex("\\[https?://[^\\s]+\\s+([^]]+)\\]"), "$1")  // [url text] -> text
-        cleaned = cleaned.replace(Regex("'{2,5}"), "")  // Remove bold/italic markup
-        cleaned = cleaned.replace(Regex("^[=]+(.+?)[=]+$", RegexOption.MULTILINE), "$1")  // Remove heading markup
-        cleaned = cleaned.replace(Regex("<[^>]+>"), "")  // Remove HTML tags
-        cleaned = cleaned.replace(Regex("&[a-z]+;"), " ")  // Remove HTML entities
+        
+        cleaned = cleaned.replace(Regex("\\{\\{[^}]+\\}\\}"), "")  
+        cleaned = cleaned.replace(Regex("\\[\\[File:[^]]+\\]\\]"), "")  
+        cleaned = cleaned.replace(Regex("\\[\\[Image:[^]]+\\]\\]"), "")  
+        cleaned = cleaned.replace(Regex("\\[\\[Category:[^]]+\\]\\]"), "")  
+        cleaned = cleaned.replace(Regex("\\[\\[([^]|]+)\\|([^]]+)\\]\\]"), "$2")  
+        cleaned = cleaned.replace(Regex("\\[\\[([^]]+)\\]\\]"), "$1")  
+        cleaned = cleaned.replace(Regex("\\[https?://[^\\s]+\\s+([^]]+)\\]"), "$1")  
+        cleaned = cleaned.replace(Regex("'{2,5}"), "")  
+        cleaned = cleaned.replace(Regex("^[=]+(.+?)[=]+$", RegexOption.MULTILINE), "$1")  
+        cleaned = cleaned.replace(Regex("<[^>]+>"), "")  
+        cleaned = cleaned.replace(Regex("&[a-z]+;"), " ")  
 
-        // Clean up whitespace
+        
         cleaned = cleaned.replace(Regex("\\s+"), " ")
         cleaned = cleaned.trim()
 

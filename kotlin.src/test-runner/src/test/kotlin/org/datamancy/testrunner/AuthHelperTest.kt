@@ -110,7 +110,7 @@ class AuthHelperTest {
                     val url = request.url.toString()
                     val hasCookie = request.headers[HttpHeaders.Cookie]?.contains("authelia_session") == true
 
-                    // Handle login request
+                    
                     if (url.contains("/api/firstfactor")) {
                         respond(
                             content = ByteReadChannel("""{"status":"OK"}"""),
@@ -121,7 +121,7 @@ class AuthHelperTest {
                             )
                         )
                     }
-                    // Handle authenticated request - verify cookie is present
+                    
                     else {
                         respond(
                             content = ByteReadChannel(if (hasCookie) """{"authenticated":true}""" else """{"error":"no cookie"}"""),

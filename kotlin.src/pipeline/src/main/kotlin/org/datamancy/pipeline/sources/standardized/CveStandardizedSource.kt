@@ -13,9 +13,7 @@ import org.datamancy.pipeline.sinks.BookStackDocument
 import org.datamancy.pipeline.sources.CveEntry
 import org.datamancy.pipeline.sources.CveSource
 
-/**
- * Chunkable wrapper for CVE entries
- */
+
 data class CveChunkable(val entry: CveEntry) : Chunkable {
     override fun toText(): String = entry.toText()
     override fun getId(): String = entry.cveId
@@ -88,9 +86,7 @@ data class CveChunkable(val entry: CveEntry) : Chunkable {
     }
 }
 
-/**
- * Standardized CVE source with chunking and scheduling
- */
+
 class CveStandardizedSource(
     private val apiKey: String? = null,
     private val maxResults: Int = Int.MAX_VALUE
@@ -106,18 +102,18 @@ class CveStandardizedSource(
     override fun chunker() = Chunker.forEmbeddingModel(tokenLimit = 8192, overlapPercent = 0.20)
 
     override suspend fun fetchForRun(metadata: RunMetadata): Flow<CveChunkable> {
-        // For CVE, we fetch all recently modified CVEs
-        // The API supports filtering by lastModifiedStartDate/lastModifiedEndDate
-        // but CveSource doesn't expose that yet - it would be added as a parameter
+        
+        
+        
 
         val source = when (metadata.runType) {
             RunType.INITIAL_PULL -> {
-                // Initial pull: get first 10,000 CVEs to establish baseline
+                
                 CveSource(apiKey = apiKey, maxResults = 10000)
             }
             RunType.RESYNC -> {
-                // Resync: get recently modified CVEs (last 24 hours)
-                // Would need to add modifiedSince parameter to CveSource
+                
+                
                 CveSource(apiKey = apiKey, maxResults = 1000)
             }
         }

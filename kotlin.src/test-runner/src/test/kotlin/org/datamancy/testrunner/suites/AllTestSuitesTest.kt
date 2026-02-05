@@ -11,9 +11,7 @@ import kotlinx.serialization.json.Json
 import org.datamancy.testrunner.framework.*
 import kotlin.test.*
 
-/**
- * Unit tests for all new test suites (MEDIUM priority)
- */
+
 class AllTestSuitesTest {
 
     private fun createMockClient(defaultResponse: String = "OK"): HttpClient {
@@ -53,9 +51,9 @@ class AllTestSuitesTest {
         }
     }
 
-    // ============================================================================
-    // Communication Tests
-    // ============================================================================
+    
+    
+    
 
     @Test
     fun `test communication suite endpoint configuration`() {
@@ -76,13 +74,13 @@ class AllTestSuitesTest {
         runner.communicationTests()
         val summary = runner.summary()
 
-        // Should run 9 tests (4 Mailserver + 3 Synapse + 2 Element)
+        
         assertEquals(9, summary.total)
     }
 
-    // ============================================================================
-    // Collaboration Tests
-    // ============================================================================
+    
+    
+    
 
     @Test
     fun `test collaboration suite endpoint configuration`() {
@@ -103,13 +101,13 @@ class AllTestSuitesTest {
         runner.collaborationTests()
         val summary = runner.summary()
 
-        // Should run 6 tests (4 Mastodon + 2 Roundcube)
+        
         assertEquals(6, summary.total)
     }
 
-    // ============================================================================
-    // Productivity Tests
-    // ============================================================================
+    
+    
+    
 
     @Test
     fun `test productivity suite endpoint configuration`() {
@@ -130,13 +128,13 @@ class AllTestSuitesTest {
         runner.productivityTests()
         val summary = runner.summary()
 
-        // Should run 8 tests (3 BookStack + 3 Forgejo + 2 Planka)
+        
         assertEquals(8, summary.total)
     }
 
-    // ============================================================================
-    // File Management Tests
-    // ============================================================================
+    
+    
+    
 
     @Test
     fun `test file management suite endpoint configuration`() {
@@ -156,13 +154,13 @@ class AllTestSuitesTest {
         runner.fileManagementTests()
         val summary = runner.summary()
 
-        // Should run 5 tests (3 Seafile + 2 OnlyOffice)
+        
         assertEquals(5, summary.total)
     }
 
-    // ============================================================================
-    // Security Tests
-    // ============================================================================
+    
+    
+    
 
     @Test
     fun `test security suite endpoint configuration`() {
@@ -180,13 +178,13 @@ class AllTestSuitesTest {
         runner.securityTests()
         val summary = runner.summary()
 
-        // Should run 3 tests (Vaultwarden)
+        
         assertEquals(3, summary.total)
     }
 
-    // ============================================================================
-    // Monitoring Tests
-    // ============================================================================
+    
+    
+    
 
     @Test
     fun `test monitoring suite endpoint configuration`() {
@@ -206,13 +204,13 @@ class AllTestSuitesTest {
         runner.monitoringTests()
         val summary = runner.summary()
 
-        // Should run 13 tests (3 Prometheus + 2 Grafana + 4 Metrics Exporters + 2 Dozzle + 2 AlertManager)
+        
         assertEquals(13, summary.total)
     }
 
-    // ============================================================================
-    // Backup Tests
-    // ============================================================================
+    
+    
+    
 
     @Test
     fun `test backup suite endpoint configuration`() {
@@ -230,13 +228,13 @@ class AllTestSuitesTest {
         runner.backupTests()
         val summary = runner.summary()
 
-        // Should run 3 tests (Kopia)
+        
         assertEquals(3, summary.total)
     }
 
-    // ============================================================================
-    // Integration Tests
-    // ============================================================================
+    
+    
+    
 
     @Test
     fun `test all suites have correct test counts`() = runBlocking {
@@ -276,40 +274,40 @@ class AllTestSuitesTest {
     fun `test localhost endpoints are correctly configured`() {
         val endpoints = ServiceEndpoints.forLocalhost()
 
-        // Infrastructure
+        
         assertEquals("http://localhost:80", endpoints.caddy)
         assertEquals("http://localhost:9091", endpoints.authelia)
 
-        // User Interfaces
+        
         assertEquals("http://localhost:8080", endpoints.openWebUI)
         assertEquals("http://localhost:8000", endpoints.jupyterhub)
 
-        // Communication
+        
         assertEquals("localhost:25", endpoints.mailserver)
         assertEquals("http://localhost:8008", endpoints.synapse)
         assertEquals("http://localhost:8009", endpoints.element)
 
-        // Collaboration
+        
         assertEquals("http://localhost:3000", endpoints.mastodon)
         assertEquals("http://localhost:4000", endpoints.mastodonStreaming)
         assertEquals("http://localhost:8010", endpoints.roundcube)
 
-        // Productivity
+        
         assertEquals("http://localhost:3001", endpoints.forgejo)
         assertEquals("http://localhost:1337", endpoints.planka)
 
-        // File Management
+        
         assertEquals("http://localhost:8011", endpoints.seafile)
         assertEquals("http://localhost:8012", endpoints.onlyoffice)
 
-        // Security
+        
         assertEquals("http://localhost:8013", endpoints.vaultwarden)
 
-        // Monitoring
+        
         assertEquals("http://localhost:9090", endpoints.prometheus)
         assertEquals("http://localhost:3002", endpoints.grafana)
 
-        // Backup
+        
         assertEquals("http://localhost:51515", endpoints.kopia)
     }
 }

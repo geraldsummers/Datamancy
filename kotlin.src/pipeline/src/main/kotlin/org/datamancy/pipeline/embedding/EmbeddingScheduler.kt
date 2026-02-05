@@ -12,39 +12,18 @@ import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Embedding scheduler - decoupled from scraping
- *
- * Monitors PostgreSQL for pending documents and processes them through embedding service
- * at a controlled rate. This prevents backpressure from slow embedding blocking scraping.
- *
- * Architecture:
- * 1. Scraper writes raw docs to PostgreSQL document_staging (fast, unlimited capacity)
- * 2. Scheduler periodically checks for pending docs
- * 3. Pulls batches based on embedding service capacity
- * 4. Embeds and inserts to Qdrant
- * 5. Updates status in PostgreSQL document_staging (PENDING → IN_PROGRESS → COMPLETED)
- *
- * Benefits:
- * - Scraping never blocks on embedding
- * - Resumable (restart continues from checkpoint)
- * - Observable (query PostgreSQL for queue depth)
- * - Rate-limited (respects embedding service capacity)
- */
+
 class EmbeddingScheduler(
     private val stagingStore: DocumentStagingStore,
     private val embedder: Embedder,
-    private val qdrantSinks: Map<String, QdrantSink>,  // collection -> sink
-    private val batchSize: Int = 50,                   // Docs per batch
-    private val pollInterval: Int = 10,                // Seconds between checks
-    private val maxConcurrentEmbeddings: Int = 10,     // Parallel embedding requests
-    private val maxRetries: Int = 3                    // Max retry attempts per document
+    private val qdrantSinks: Map<String, QdrantSink>,  
+    private val batchSize: Int = 50,                   
+    private val pollInterval: Int = 10,                
+    private val maxConcurrentEmbeddings: Int = 10,     
+    private val maxRetries: Int = 3                    
 ) {
 
-    /**
-     * Start the scheduler loop
-     * Runs forever, checking for pending docs and processing them
-     */
+    
     suspend fun start() {
         logger.info { "🚀 Embedding scheduler starting..." }
         logger.info { "  Batch size: $batchSize docs" }
@@ -54,7 +33,7 @@ class EmbeddingScheduler(
 
         while (true) {
             try {
-                // Get current stats
+                
                 val stats = stagingStore.getStats()
                 val pending = stats["pending"] ?: 0
 
@@ -73,9 +52,7 @@ class EmbeddingScheduler(
         }
     }
 
-    /**
-     * Process one batch of pending documents
-     */
+    
     private suspend fun processBatch() {
         val pendingDocs = stagingStore.getPendingBatch(batchSize)
 
@@ -85,7 +62,7 @@ class EmbeddingScheduler(
 
         logger.debug { "🔄 Processing batch of ${pendingDocs.size} documents" }
 
-        // Group by collection for efficient sink routing
+        
         val byCollection = pendingDocs.groupBy { it.collection }
 
         byCollection.forEach { (collection, docs) ->
@@ -102,7 +79,7 @@ class EmbeddingScheduler(
                 return@forEach
             }
 
-            // Process docs in parallel (up to maxConcurrentEmbeddings)
+            
             coroutineScope {
                 docs.chunked(maxConcurrentEmbeddings).forEach { chunk ->
                     chunk.map { doc ->
@@ -115,19 +92,17 @@ class EmbeddingScheduler(
         }
     }
 
-    /**
-     * Process a single document: embed → insert → update status
-     */
+    
     private suspend fun processDocument(doc: org.datamancy.pipeline.storage.StagedDocument, sink: QdrantSink) {
         try {
-            // Mark as in-progress
+            
             stagingStore.updateStatus(doc.id, EmbeddingStatus.IN_PROGRESS)
 
-            // Embed the text
+            
             logger.debug { "Embedding document: ${doc.id}" }
             val vector = embedder.process(doc.text)
 
-            // Create vector document with BookStack URL if available
+            
             val enrichedMetadata = if (doc.bookstackUrl != null) {
                 doc.metadata + ("bookstack_url" to doc.bookstackUrl)
             } else {
@@ -140,18 +115,18 @@ class EmbeddingScheduler(
                 metadata = enrichedMetadata
             )
 
-            // Insert to Qdrant
+            
             logger.debug { "Inserting to Qdrant: ${doc.id}" }
             sink.write(vectorDoc)
 
-            // Mark as completed
+            
             stagingStore.updateStatus(doc.id, EmbeddingStatus.COMPLETED)
             logger.debug { "✓ Completed: ${doc.id}" }
 
         } catch (e: Exception) {
             logger.error(e) { "Failed to process ${doc.id}: ${e.message}" }
 
-            // Check retry limit
+            
             if (doc.retryCount >= maxRetries) {
                 logger.error { "Max retries exceeded for ${doc.id}, marking as failed" }
                 stagingStore.updateStatus(
@@ -161,14 +136,14 @@ class EmbeddingScheduler(
                     incrementRetry = false
                 )
             } else {
-                // Exponential backoff: 2^retryCount seconds (1s, 2s, 4s, 8s, etc.)
+                
                 val backoffSeconds = 2.0.pow(doc.retryCount.toDouble()).toLong()
                 logger.warn { "Retry ${doc.retryCount + 1}/$maxRetries for ${doc.id} after ${backoffSeconds}s backoff" }
 
-                // Wait before marking as pending again
+                
                 delay(backoffSeconds * 1000)
 
-                // Mark for retry after backoff
+                
                 stagingStore.updateStatus(
                     id = doc.id,
                     newStatus = EmbeddingStatus.PENDING,
@@ -179,9 +154,7 @@ class EmbeddingScheduler(
         }
     }
 
-    /**
-     * Get queue statistics for monitoring
-     */
+    
     suspend fun getStats(): Map<String, Any> {
         val stats = stagingStore.getStats()
         return mapOf(
@@ -195,9 +168,7 @@ class EmbeddingScheduler(
         )
     }
 
-    /**
-     * Get stats by source for detailed monitoring
-     */
+    
     suspend fun getStatsBySource(source: String): Map<String, Long> {
         return stagingStore.getStatsBySource(source)
     }

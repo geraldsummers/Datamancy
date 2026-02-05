@@ -8,25 +8,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import java.util.*
 
-/**
- * OIDC/OAuth2 Testing Helper
- *
- * Implements OAuth2 Authorization Code Flow for testing OIDC integration
- * with Authelia as the identity provider.
- */
+
 class OIDCHelper(
     private val autheliaUrl: String,
     private val client: HttpClient,
     private val auth: AuthHelper
 ) {
-    /**
-     * Perform complete OIDC authorization code flow
-     *
-     * Steps:
-     * 1. Login to get session
-     * 2. Request authorization code
-     * 3. Exchange code for tokens
-     */
+    
     suspend fun performFullFlow(
         clientId: String,
         clientSecret: String,
@@ -34,18 +22,18 @@ class OIDCHelper(
         scope: String = "openid profile email",
         user: TestUser
     ): OIDCTokens {
-        // Step 1: Login to Authelia
+        
         val authResult = auth.login(user.username, user.password)
         require(authResult is AuthResult.Success) { "Login failed for OIDC flow" }
 
-        // Step 2: Get authorization code
+        
         val authCode = getAuthorizationCode(
             clientId = clientId,
             redirectUri = redirectUri,
             scope = scope
         )
 
-        // Step 3: Exchange code for tokens
+        
         return exchangeCodeForTokens(
             clientId = clientId,
             clientSecret = clientSecret,
@@ -54,10 +42,7 @@ class OIDCHelper(
         )
     }
 
-    /**
-     * Request authorization code from Authelia
-     * Requires active session (must be logged in first)
-     */
+    
     suspend fun getAuthorizationCode(
         clientId: String,
         redirectUri: String,
@@ -74,20 +59,18 @@ class OIDCHelper(
             append("&state=$state")
         }}")
 
-        // Authorization endpoint should redirect to callback with code
+        
         val location = response.headers["Location"]
             ?: throw IllegalStateException("No redirect from authorization endpoint")
 
-        // Extract code from callback URL
+        
         val codeParam = location.substringAfter("code=").substringBefore("&")
         require(codeParam.isNotBlank()) { "No authorization code in redirect: $location" }
 
         return codeParam
     }
 
-    /**
-     * Exchange authorization code for access token, ID token, and refresh token
-     */
+    
     suspend fun exchangeCodeForTokens(
         clientId: String,
         clientSecret: String,
@@ -121,9 +104,7 @@ class OIDCHelper(
         )
     }
 
-    /**
-     * Use refresh token to obtain new access token
-     */
+    
     suspend fun refreshAccessToken(
         clientId: String,
         clientSecret: String,
@@ -155,15 +136,13 @@ class OIDCHelper(
         )
     }
 
-    /**
-     * Decode JWT ID token and extract claims (no signature verification - testing only)
-     */
+    
     fun decodeIdToken(idToken: String): Map<String, Any?> {
-        // JWT format: header.payload.signature
+        
         val parts = idToken.split(".")
         require(parts.size == 3) { "Invalid JWT format" }
 
-        // Decode base64url payload
+        
         val payload = parts[1]
         val decodedBytes = Base64.getUrlDecoder().decode(payload)
         val payloadJson = String(decodedBytes)
@@ -178,9 +157,7 @@ class OIDCHelper(
         }
     }
 
-    /**
-     * Validate token by making userinfo request
-     */
+    
     suspend fun validateToken(accessToken: String): Boolean {
         val userInfoUrl = "$autheliaUrl/api/oidc/userinfo"
 
@@ -194,9 +171,7 @@ class OIDCHelper(
         }
     }
 
-    /**
-     * Get OIDC discovery document
-     */
+    
     suspend fun getDiscoveryDocument(): Map<String, Any?> {
         val discoveryUrl = "$autheliaUrl/.well-known/openid-configuration"
         val response = client.get(discoveryUrl)
@@ -216,12 +191,9 @@ class OIDCHelper(
         }
     }
 
-    /**
-     * Create an expired token for testing (mock - just sets exp claim to past)
-     * Note: This doesn't create a real signed token, just for testing expiry logic
-     */
+    
     fun createExpiredToken(username: String): String {
-        // Create JWT with expired exp claim
+        
         val header = """{"alg":"RS256","typ":"JWT"}"""
         val payload = """{
             "sub":"$username",
@@ -234,7 +206,7 @@ class OIDCHelper(
         val encodedPayload = Base64.getUrlEncoder().withoutPadding()
             .encodeToString(payload.toByteArray())
 
-        // Fake signature (won't validate but good enough for testing expiry)
+        
         return "$encodedHeader.$encodedPayload.fake_signature"
     }
 }

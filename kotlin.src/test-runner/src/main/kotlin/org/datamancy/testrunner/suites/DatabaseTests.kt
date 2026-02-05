@@ -5,9 +5,9 @@ import java.sql.DriverManager
 
 suspend fun TestRunner.databaseTests() = suite("Database Tests") {
 
-    // ================================================================================
-    // POSTGRES - Extended Tests (5 tests)
-    // ================================================================================
+    
+    
+    
 
     test("Postgres transaction commits successfully") {
         val dbConfig = env.endpoints.postgres
@@ -26,7 +26,7 @@ suspend fun TestRunner.databaseTests() = suite("Database Tests") {
     }
 
     test("Postgres connection pool is healthy") {
-        // Test multiple concurrent connections
+        
         val dbConfig = env.endpoints.postgres
         val connections = List(5) {
             DriverManager.getConnection(dbConfig.jdbcUrl, dbConfig.user, dbConfig.password)
@@ -75,7 +75,7 @@ suspend fun TestRunner.databaseTests() = suite("Database Tests") {
                 stmt.executeUpdate("INSERT INTO parent_table VALUES (1, 'parent')")
                 stmt.executeUpdate("INSERT INTO child_table VALUES (1, 1)")
 
-                // Try to insert child with non-existent parent (should fail)
+                
                 try {
                     stmt.executeUpdate("INSERT INTO child_table VALUES (2, 999)")
                     throw AssertionError("Foreign key constraint did not fire")
@@ -108,34 +108,34 @@ suspend fun TestRunner.databaseTests() = suite("Database Tests") {
         }
     }
 
-    // ================================================================================
-    // VALKEY - Redis Cache (3 tests)
-    // ================================================================================
+    
+    
+    
 
     test("Valkey configuration is accessible") {
-        // Verify Valkey is configured
+        
         val valkeyEndpoint = env.endpoints.valkey
         require(valkeyEndpoint != null) { "Valkey endpoint not configured" }
         valkeyEndpoint shouldContain "valkey"
     }
 
     test("Valkey port is standard Redis port") {
-        // Valkey should use standard Redis port 6379
+        
         val valkeyEndpoint = env.endpoints.valkey
         require(valkeyEndpoint != null) { "Valkey not configured" }
         valkeyEndpoint shouldContain ":6379"
     }
 
     test("Valkey endpoint is reachable") {
-        // Verify endpoint configuration looks correct
+        
         val valkeyEndpoint = env.endpoints.valkey
         require(valkeyEndpoint != null) { "Valkey not configured" }
         valkeyEndpoint shouldContain "valkey:6379"
     }
 
-    // ================================================================================
-    // MARIADB - MySQL-compatible Database (2 tests)
-    // ================================================================================
+    
+    
+    
 
     test("MariaDB bookstack schema is accessible") {
         val dbConfig = env.endpoints.mariadb
@@ -159,7 +159,7 @@ suspend fun TestRunner.databaseTests() = suite("Database Tests") {
 
         DriverManager.getConnection(dbConfig.jdbcUrl, dbConfig.user, dbConfig.password).use { conn ->
             conn.createStatement().use { stmt ->
-                // Query system tables to verify database health
+                
                 val rs = stmt.executeQuery("SELECT DATABASE()")
                 rs.next()
                 val dbName = rs.getString(1)

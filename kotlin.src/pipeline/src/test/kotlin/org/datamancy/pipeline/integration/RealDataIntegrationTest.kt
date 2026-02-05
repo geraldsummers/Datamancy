@@ -12,42 +12,28 @@ import org.junit.jupiter.api.Tag
 import java.io.File
 import kotlin.test.assertTrue
 
-/**
- * Real Data Integration Tests - FAST smoke tests with minimal data
- *
- * These tests fetch ACTUAL data from real sources to verify:
- * 1. Sources can connect and fetch data
- * 2. Data format is correct (implements Chunkable)
- * 3. Data is suitable for vector database storage
- *
- * OPTIMIZED FOR SPEED:
- * - Each test fetches only 3-5 items
- * - Uses .take() to limit network transfers
- * - Graceful failures for optional sources
- *
- * Run with: ./gradlew test --tests "*RealDataIntegrationTest*"
- */
+
 @Tag("integration")
 class RealDataIntegrationTest {
 
     companion object {
-        const val ITEMS_TO_FETCH = 3  // Minimal for speed
+        const val ITEMS_TO_FETCH = 3  
     }
 
     @Test
     fun `RSS source should fetch and validate real articles`() = runBlocking {
-        // Given: RSS source with fast feed
+        
         val source = RssStandardizedSource(
             feedUrls = listOf("https://hnrss.org/frontpage"),
             backfillDays = 1
         )
 
-        // When: Fetch minimal items
+        
         val items = source.fetchForRun(
             RunMetadata(RunType.INITIAL_PULL, 1, true)
         ).take(ITEMS_TO_FETCH).toList()
 
-        // Then: Validate format
+        
         assertTrue(items.size >= ITEMS_TO_FETCH, "Expected $ITEMS_TO_FETCH items, got ${items.size}")
         items.forEach { item ->
             assertTrue(item.getId().isNotEmpty(), "ID must not be empty")
@@ -59,15 +45,15 @@ class RealDataIntegrationTest {
 
     @Test
     fun `CVE source should fetch and validate real vulnerabilities`() = runBlocking {
-        // Given: CVE source with limit
+        
         val source = CveStandardizedSource(maxResults = 10)
 
-        // When: Fetch minimal items
+        
         val items = source.fetchForRun(
             RunMetadata(RunType.INITIAL_PULL, 1, true)
         ).take(ITEMS_TO_FETCH).toList()
 
-        // Then: Validate CVE format
+        
         assertTrue(items.size >= ITEMS_TO_FETCH, "Expected $ITEMS_TO_FETCH CVEs, got ${items.size}")
         items.forEach { item ->
             assertTrue(item.getId().startsWith("CVE-"), "ID must be CVE format")
@@ -80,12 +66,12 @@ class RealDataIntegrationTest {
 
     @Test
     fun `Torrents source should be properly formatted`() {
-        // Note: Skipping live test - 199MB CSV (26s download) + parsing hangs with .take()
-        // Issue: Flow doesn't short-circuit properly, needs investigation
-        // The source is validated via mock tests and StandardizedSource contract
+        
+        
+        
         println("⊘ Torrents: Skipped (199MB CSV + flow short-circuit issue)")
 
-        // Just verify the source can be instantiated
+        
         val source = TorrentsStandardizedSource(maxTorrents = 10)
         assertTrue(source.name == "torrents")
         assertTrue(!source.needsChunking())
@@ -93,16 +79,16 @@ class RealDataIntegrationTest {
 
     @Test
     fun `Debian Wiki should fetch and validate pages if available`() = runBlocking {
-        // Given: Debian Wiki source with small limit
+        
         val source = DebianWikiStandardizedSource(maxPages = 5, categories = emptyList())
 
         try {
-            // When: Try to fetch
+            
             val items = source.fetchForRun(
                 RunMetadata(RunType.INITIAL_PULL, 1, true)
             ).take(ITEMS_TO_FETCH).toList()
 
-            // Then: If successful, validate
+            
             if (items.isNotEmpty()) {
                 items.forEach { item ->
                     assertTrue(item.getId().isNotEmpty(), "ID must not be empty")
@@ -120,8 +106,8 @@ class RealDataIntegrationTest {
 
     @Test
     fun `Arch Wiki should fetch and validate from XML dump`() = runBlocking {
-        // Given: Arch Wiki source using XML dump (bypasses bot protection)
-        // Uses cached dump at /tmp/archwiki.7z from previous download
+        
+        
         val dumpPath = "/tmp/archwiki.7z"
         val source = ArchWikiStandardizedSource(
             maxPages = 5,
@@ -129,14 +115,14 @@ class RealDataIntegrationTest {
         )
 
         try {
-            // When: Fetch from XML dump
+            
             val items = withTimeout(60000) {
                 source.fetchForRun(
                     RunMetadata(RunType.INITIAL_PULL, 1, true)
                 ).take(ITEMS_TO_FETCH).toList()
             }
 
-            // Then: Validate pages
+            
             if (items.isNotEmpty()) {
                 items.forEach { item ->
                     assertTrue(item.getId().isNotEmpty(), "ID must not be empty")
@@ -154,12 +140,12 @@ class RealDataIntegrationTest {
 
     @Test
     fun `Australian Laws should fetch and validate if available`() {
-        // Note: Skipping live test - Parquet processing doesn't short-circuit properly with .take()
-        // Issue: emit() blocks waiting for collection, causing timeout with large dataset
-        // The source is validated via mock tests and StandardizedSource contract
+        
+        
+        
         println("⊘ Australian Laws: Skipped (Parquet flow emission issue with .take())")
 
-        // Just verify the source can be instantiated
+        
         val source = OpenAustralianLegalCorpusStandardizedSource(
             cacheDir = "/tmp/test-corpus",
             jurisdictions = null,
@@ -171,21 +157,21 @@ class RealDataIntegrationTest {
 
     @Test
     fun `Linux Docs should scan and validate man pages`() = runBlocking {
-        // Given: Linux Docs source with small limit
+        
         val source = LinuxDocsStandardizedSource(
             sources = listOf(org.datamancy.pipeline.sources.LinuxDocsSource.DocSource.MAN_PAGES),
             maxDocs = 5
         )
 
         try {
-            // When: Scan man pages
+            
             val items = withTimeout(30000) {
                 source.fetchForRun(
                     RunMetadata(RunType.INITIAL_PULL, 1, true)
                 ).take(ITEMS_TO_FETCH).toList()
             }
 
-            // Then: Validate
+            
             if (items.isNotEmpty()) {
                 items.forEach { item ->
                     assertTrue(item.getId().isNotEmpty(), "ID must not be empty")
@@ -203,13 +189,13 @@ class RealDataIntegrationTest {
 
     @Test
     fun `all sources produce vector-storage-ready data`() = runBlocking {
-        // Given: Fast sources only (RSS, CVE) - skip Torrents (large CSV)
+        
         val sources = mapOf(
             "RSS" to RssStandardizedSource(listOf("https://hnrss.org/frontpage"), 1),
             "CVE" to CveStandardizedSource(maxResults = 5)
         )
 
-        // When/Then: Verify each produces valid data
+        
         sources.forEach { (name, source) ->
             try {
                 val items = source.fetchForRun(
@@ -219,7 +205,7 @@ class RealDataIntegrationTest {
                 assertTrue(items.isNotEmpty(), "$name: Must produce items")
 
                 items.forEach { item ->
-                    // Vector storage requirements
+                    
                     assertTrue(item.getId().isNotEmpty(), "$name: ID required")
                     assertTrue(item.getId().length < 256, "$name: ID too long")
                     assertTrue(item.toText().isNotEmpty(), "$name: Text required")

@@ -1,6 +1,6 @@
 package org.example.manifest
 
-/** Simple semantic version representation and matching. */
+
 data class SemVer(val major: Int, val minor: Int, val patch: Int) : Comparable<SemVer> {
     override fun compareTo(other: SemVer): Int {
         return compareValuesBy(this, other, SemVer::major, SemVer::minor, SemVer::patch)
@@ -17,13 +17,7 @@ data class SemVer(val major: Int, val minor: Int, val patch: Int) : Comparable<S
     }
 }
 
-/**
- * Version constraint parser. Supports expressions like:
- *  - ">=1.2.3 <2.0.0"
- *  - "1.2.3"
- *  - "1.2.x" (wildcards)
- * Tokens can be separated by spaces or commas. All tokens must match (logical AND).
- */
+
 class VersionConstraint private constructor(private val tokens: List<Token>) {
     fun matches(version: SemVer): Boolean = tokens.all { it.matches(version) }
 

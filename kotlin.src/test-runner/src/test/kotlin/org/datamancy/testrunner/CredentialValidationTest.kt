@@ -7,7 +7,7 @@ class CredentialValidationTest {
 
     @Test
     fun `validateCredentials should accept valid credentials`() {
-        // Should not throw
+        
         validateCredentials("validuser", "validpass123")
     }
 
@@ -85,25 +85,25 @@ class CredentialValidationTest {
 
     @Test
     fun `validateCredentials should accept minimum length username`() {
-        // Should not throw
+        
         validateCredentials("abc", "validpass123")
     }
 
     @Test
     fun `validateCredentials should accept maximum length username`() {
-        // Should not throw
+        
         validateCredentials("a".repeat(64), "validpass123")
     }
 
     @Test
     fun `validateCredentials should accept minimum length password`() {
-        // Should not throw
+        
         validateCredentials("validuser", "pass1234")
     }
 
     @Test
     fun `validateCredentials should accept strong password`() {
-        // Should not throw
+        
         validateCredentials("validuser", "MyStr0ng!Pass")
     }
 
@@ -117,19 +117,19 @@ class CredentialValidationTest {
 
     @Test
     fun `validateCredentials should accept username with numbers`() {
-        // Should not throw
+        
         validateCredentials("user123", "validpass123")
     }
 
     @Test
     fun `validateCredentials should accept username with underscores`() {
-        // Should not throw
+        
         validateCredentials("valid_user", "validpass123")
     }
 
     @Test
     fun `validateCredentials should accept email as username`() {
-        // Should not throw
+        
         validateCredentials("user@example.com", "validpass123")
     }
 }

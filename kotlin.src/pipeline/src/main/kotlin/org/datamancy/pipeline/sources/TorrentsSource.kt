@@ -12,18 +12,10 @@ import java.util.zip.GZIPInputStream
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Fetches torrent metadata from torrents-csv dataset
- *
- * Current dataset: https://codeberg.org/heretic/torrents-csv-data
- * Direct download: https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv
- * Old dataset: https://gitlab.com/dessalines/torrents.csv (archived)
- *
- * CSV format: infohash,name,size_bytes,created_unix,seeders,leechers,completed,scraped_date
- */
+
 class TorrentsSource(
-    private val dataPath: String,  // Path to torrents.csv or URL
-    private val startLine: Long = 0,  // For resuming from checkpoint
+    private val dataPath: String,  
+    private val startLine: Long = 0,  
     private val maxTorrents: Int = Int.MAX_VALUE
 ) : Source<TorrentEntry> {
     override val name = "TorrentsSource"
@@ -33,8 +25,8 @@ class TorrentsSource(
 
         var currentLine = 0L
         var emittedCount = 0
-        var parseFailureCount = 0  // Permanent failures (bad data)
-        var transientFailureCount = 0  // Transient failures (IO/network)
+        var parseFailureCount = 0  
+        var transientFailureCount = 0  
 
         try {
             val reader: BufferedReader = when {
@@ -43,7 +35,7 @@ class TorrentsSource(
                     val connection = java.net.URI(dataPath).toURL().openConnection()
                     val inputStream = connection.getInputStream()
 
-                    // Check if gzipped
+                    
                     val stream = if (dataPath.endsWith(".gz")) {
                         GZIPInputStream(inputStream)
                     } else {
@@ -72,14 +64,14 @@ class TorrentsSource(
             }
 
             reader.use { br ->
-                // Skip header
+                
                 var line = br.readLine()
                 if (line != null) {
                     currentLine++
                     logger.debug { "Header: $line" }
                 }
 
-                // Skip to start position if resuming
+                
                 while (currentLine < startLine) {
                     line = br.readLine()
                     if (line == null) {
@@ -89,7 +81,7 @@ class TorrentsSource(
                     currentLine++
                 }
 
-                // Process torrents
+                
                 while (emittedCount < maxTorrents) {
                     line = br.readLine()
                     if (line == null) {
@@ -110,22 +102,22 @@ class TorrentsSource(
                             }
                         }
                     } catch (e: java.io.IOException) {
-                        // Transient failures (network, IO) - don't count toward fail-fast
+                        
                         transientFailureCount++
                         logger.warn(e) { "Transient failure at line $currentLine: ${e.message}" }
                     } catch (e: NumberFormatException) {
-                        // Parse failures (bad data) - count toward fail-fast
+                        
                         parseFailureCount++
                         logger.error(e) { "Failed to parse torrent at line $currentLine: ${e.message}" }
 
-                        // Fail fast if PARSE failure rate exceeds 10% after processing at least 100 records
+                        
                         val totalProcessed = emittedCount + parseFailureCount
                         if (totalProcessed >= 100 && parseFailureCount.toDouble() / totalProcessed > 0.10) {
                             val failureRate = "%.2f%%".format(parseFailureCount.toDouble() / totalProcessed * 100)
                             throw IllegalStateException("Torrent parsing failure rate too high: $parseFailureCount/$totalProcessed ($failureRate). Aborting to prevent data corruption.")
                         }
                     } catch (e: Exception) {
-                        // Unknown failures - treat as parse failures for safety
+                        
                         parseFailureCount++
                         logger.error(e) { "Unknown error parsing torrent at line $currentLine: ${e.message}" }
 
@@ -148,7 +140,7 @@ class TorrentsSource(
     private fun parseTorrentLine(line: String, lineNumber: Long): TorrentEntry? {
         if (line.isBlank()) return null
 
-        // CSV parsing with proper escaping
+        
         val parts = parseCSVLine(line)
 
         if (parts.size < 3) {
@@ -174,10 +166,7 @@ class TorrentsSource(
         }
     }
 
-    /**
-     * RFC 4180 compliant CSV parser that handles quoted fields
-     * Properly handles escaped quotes ("") per CSV standard
-     */
+    
     private fun parseCSVLine(line: String): List<String> {
         val result = mutableListOf<String>()
         val current = StringBuilder()
@@ -190,11 +179,11 @@ class TorrentsSource(
             when {
                 char == '"' -> {
                     if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
-                        // Escaped quote ("") - add one quote and skip next
+                        
                         current.append('"')
-                        i++  // Skip the second quote
+                        i++  
                     } else {
-                        // Toggle quote state
+                        
                         inQuotes = !inQuotes
                     }
                 }
@@ -210,7 +199,7 @@ class TorrentsSource(
             i++
         }
 
-        // Add last field
+        
         result.add(current.toString())
 
         return result
@@ -226,7 +215,7 @@ data class TorrentEntry(
     val leechers: Int,
     val completed: Int,
     val scrapedDate: Long?,
-    val lineNumber: Long  // For checkpointing
+    val lineNumber: Long  
 ) {
     fun toText(): String {
         return buildString {
@@ -250,11 +239,9 @@ data class TorrentEntry(
         }
     }
 
-    /**
-     * Content hash for deduplication
-     */
+    
     fun contentHash(): String {
-        return infohash  // Infohash is already a unique identifier
+        return infohash  
     }
 
     private fun formatBytes(bytes: Long): String {

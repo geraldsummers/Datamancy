@@ -13,20 +13,11 @@ import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Fetches documentation from Linux distribution wikis
- *
- * Supported wikis:
- * - Debian Wiki: https://wiki.debian.org/
- * - Arch Wiki: https://wiki.archlinux.org/
- *
- * These wikis contain curated, tutorial-style documentation that complements
- * the raw man pages and package docs.
- */
+
 class WikiSource(
     private val wikiType: WikiType = WikiType.DEBIAN,
     private val maxPages: Int = 500,
-    private val categories: List<String> = emptyList()  // Empty = fetch from recent changes
+    private val categories: List<String> = emptyList()  
 ) : Source<WikiPage> {
     override val name = "WikiSource"
 
@@ -36,7 +27,7 @@ class WikiSource(
         .followRedirects(true)
         .build()
 
-    private val delayMs = 1000L  // Be respectful to wiki servers
+    private val delayMs = 1000L  
 
     enum class WikiType(val baseUrl: String, val displayName: String) {
         DEBIAN("https://wiki.debian.org", "Debian Wiki"),
@@ -49,7 +40,7 @@ class WikiSource(
         var count = 0
 
         try {
-            // Get list of pages to fetch
+            
             val pageUrls = if (categories.isNotEmpty()) {
                 fetchPagesFromCategories(categories)
             } else {
@@ -86,9 +77,7 @@ class WikiSource(
         logger.info { "${wikiType.displayName} fetch complete: $count pages fetched" }
     }
 
-    /**
-     * Fetch list of recent pages from wiki
-     */
+    
     private fun fetchRecentPages(): List<String> {
         val pages = mutableListOf<String>()
 
@@ -114,10 +103,10 @@ class WikiSource(
                 val html = response.body?.string() ?: return emptyList()
                 val doc = Jsoup.parse(html, wikiType.baseUrl)
 
-                // Extract page links based on wiki type
+                
                 val links = when (wikiType) {
                     WikiType.DEBIAN -> {
-                        // Debian wiki uses different link format
+                        
                         doc.select("a[href^='/']")
                             .map { it.attr("abs:href") }
                             .filter { it.startsWith("${wikiType.baseUrl}/") }
@@ -126,14 +115,14 @@ class WikiSource(
                             .distinct()
                     }
                     WikiType.ARCH -> {
-                        // Arch wiki recent changes page
+                        
                         doc.select("a.mw-changeslist-title")
                             .map { it.attr("abs:href") }
                             .distinct()
                     }
                 }
 
-                pages.addAll(links.take(maxPages * 2))  // Get extra in case some fail
+                pages.addAll(links.take(maxPages * 2))  
                 logger.info { "Found ${pages.size} candidate pages" }
             }
 
@@ -144,9 +133,7 @@ class WikiSource(
         return pages
     }
 
-    /**
-     * Fetch pages from specific categories
-     */
+    
     private fun fetchPagesFromCategories(categories: List<String>): List<String> {
         val pages = mutableSetOf<String>()
 
@@ -188,9 +175,7 @@ class WikiSource(
         return pages.toList()
     }
 
-    /**
-     * Fetch and parse a single wiki page
-     */
+    
     private fun fetchWikiPage(url: String): WikiPage? {
         try {
             val request = Request.Builder()
@@ -207,19 +192,19 @@ class WikiSource(
                 val html = response.body?.string() ?: return@use null
                 val doc = Jsoup.parse(html, wikiType.baseUrl)
 
-                // Extract title
+                
                 val title = doc.select("h1#firstHeading, h1.title, h1").firstOrNull()?.text()
                     ?: doc.select("title").firstOrNull()?.text()
                     ?: url.substringAfterLast("/")
 
-                // Extract main content based on wiki type
+                
                 val content = when (wikiType) {
                     WikiType.DEBIAN -> {
-                        // Debian wiki content is in #content div
+                        
                         doc.select("#content, .wiki-content, .page-content").text()
                     }
                     WikiType.ARCH -> {
-                        // Arch wiki content is in #mw-content-text
+                        
                         doc.select("#mw-content-text .mw-parser-output").text()
                     }
                 }
@@ -229,13 +214,13 @@ class WikiSource(
                     return@use null
                 }
 
-                // Extract categories/tags
+                
                 val categories = doc.select("a[href*='Category:']")
                     .map { it.text() }
                     .filter { it.isNotBlank() }
                     .distinct()
 
-                // Limit content size for embeddings
+                
                 val truncatedContent = if (content.length > 10000) {
                     content.substring(0, 10000)
                 } else {
@@ -264,7 +249,7 @@ data class WikiPage(
     val title: String,
     val url: String,
     val content: String,
-    val wikiType: String,  // "Debian Wiki" or "Arch Wiki"
+    val wikiType: String,  
     val categories: List<String> = emptyList()
 ) {
     fun toText(): String {

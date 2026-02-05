@@ -12,9 +12,7 @@ import org.datamancy.pipeline.scheduling.RunType
 import org.datamancy.pipeline.sources.TorrentEntry
 import org.datamancy.pipeline.sources.TorrentsSource
 
-/**
- * Chunkable wrapper for Torrent entries
- */
+
 data class TorrentChunkable(val entry: TorrentEntry) : Chunkable {
     override fun toText(): String = entry.toText()
     override fun getId(): String = entry.infohash
@@ -27,9 +25,7 @@ data class TorrentChunkable(val entry: TorrentEntry) : Chunkable {
     )
 }
 
-/**
- * Standardized Torrents source with chunking and scheduling
- */
+
 class TorrentsStandardizedSource(
     private val dataPath: String = "https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv",
     private val maxTorrents: Int = Int.MAX_VALUE
@@ -40,16 +36,16 @@ class TorrentsStandardizedSource(
 
     override fun backfillStrategy() = BackfillStrategy.FullDatasetDownload(url = dataPath)
 
-    override fun needsChunking() = false  // Torrent metadata is short
+    override fun needsChunking() = false  
 
     override suspend fun fetchForRun(metadata: RunMetadata): Flow<TorrentChunkable> {
-        // For torrents, we always fetch the full CSV
-        // Initial pull: fetch all
-        // Resync: fetch all (dataset is updated weekly, so we just re-download)
+        
+        
+        
 
         val startLine = when (metadata.runType) {
             RunType.INITIAL_PULL -> 0L
-            RunType.RESYNC -> 0L  // Full re-download for simplicity
+            RunType.RESYNC -> 0L  
         }
 
         val source = TorrentsSource(

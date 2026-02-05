@@ -1,16 +1,9 @@
 #!/bin/bash
-# Apply Seafile database configuration after initialization
-# This script should be run as a one-time init container or via entrypoint wrapper
-
 set -e
-
 SETTINGS_FILE="/shared/seafile/conf/seahub_settings.py"
 TEMPLATE_FILE="/tmp/seahub_settings_template.py"
-
 echo "Seafile Database Configuration Script"
 echo "======================================"
-
-# Wait for seahub_settings.py to be created (up to 3 minutes)
 echo "Waiting for Seafile to create seahub_settings.py..."
 for i in {1..180}; do
     if [ -f "$SETTINGS_FILE" ]; then
@@ -23,23 +16,16 @@ for i in {1..180}; do
     fi
     sleep 1
 done
-
-# Check if database config already exists
 if grep -q "^DATABASES" "$SETTINGS_FILE" 2>/dev/null; then
     echo "✓ Database configuration already present in seahub_settings.py"
     exit 0
 fi
-
-# Apply the database configuration
 if [ ! -f "$TEMPLATE_FILE" ]; then
     echo "ERROR: Template file not found: $TEMPLATE_FILE"
     exit 1
 fi
-
 echo "Appending database configuration..."
 cat "$TEMPLATE_FILE" >> "$SETTINGS_FILE"
-
-# Verify it was added
 if grep -q "^DATABASES" "$SETTINGS_FILE"; then
     echo "✓ Database configuration successfully added"
     echo "Seafile will now use MySQL instead of SQLite"
@@ -47,5 +33,4 @@ else
     echo "ERROR: Failed to add database configuration"
     exit 1
 fi
-
 exit 0

@@ -78,7 +78,7 @@ class UserInterfaceTestsTest {
         runner.userInterfaceTests()
         val summary = runner.summary()
 
-        // Should run 5 tests (3 OpenWebUI + 2 JupyterHub)
+        
         assertEquals(5, summary.total, "Should have 5 user interface tests")
     }
 

@@ -1,63 +1,38 @@
-# Data Fetcher Unified Sync Configuration
-# Single sync interval - all enabled fetchers run in each cycle
-#
-# How it works:
-# - The "sync" schedule controls the master sync interval (default: every 15 minutes)
-# - All enabled fetchers run sequentially during each sync cycle
-# - Each fetcher checks for changes since last sync (incremental updates)
-# - Manual triggers available via API endpoint: POST /trigger/{fetcher_name}
-#
-# Cron format: */N * * * * = Every N minutes
-
 schedules:
-  # Master sync interval - controls how often to check all sources for updates
   sync:
-    cron: "*/15 * * * *"  # Every 15 minutes
+    cron: "*/15 * * * *"
     enabled: true
 
-  # Enable/disable individual fetchers
-  # All enabled fetchers run during each sync cycle
 
-  # RSS feeds - fetches from configured feed URLs
   rss_feeds:
     enabled: true
 
-  # Market data - crypto/stocks from CoinGecko, Yahoo Finance
   market_data:
     enabled: true
 
-  # CVE data - vulnerability data from NVD (requires NVD_API_KEY for higher rate limits)
   cve_data:
     enabled: true
 
-  # Wikipedia dumps - large dataset, disabled by default
   wiki_dumps:
     enabled: false
 
-  # Legal documents - Australian legislation (requires BookStack API token)
   legal_docs:
     enabled: false
 
-  # Torrents - search torrents-csv.com
   torrents:
     enabled: false
 
-  # Documentation sources - crawl Linux kernel docs, Debian docs, etc.
   docs:
     enabled: false
 
-  # Agent functions - fetch available agent tool server functions
   agent_functions:
     enabled: false
 
-  # Economic data - IMF, World Bank, OECD, FRED (requires FRED_API_KEY)
   economic_data:
     enabled: false
 
-  # Search queries - web search via SERP API (requires SERP_API_KEY)
   search:
     enabled: false
 
-  # Weather data - OpenWeather API (requires OPENWEATHER_API_KEY)
   weather:
     enabled: false

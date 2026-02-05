@@ -13,9 +13,7 @@ import org.datamancy.pipeline.sinks.BookStackDocument
 import org.datamancy.pipeline.sources.AustralianLegalDocument
 import org.datamancy.pipeline.sources.OpenAustralianLegalCorpusSource
 
-/**
- * Chunkable wrapper for Australian legal documents from the Open Corpus
- */
+
 data class AustralianLegalDocumentChunkable(val doc: AustralianLegalDocument) : Chunkable {
     override fun toText(): String = doc.toText()
     override fun getId(): String = doc.id
@@ -70,26 +68,21 @@ data class AustralianLegalDocumentChunkable(val doc: AustralianLegalDocument) : 
     }
 }
 
-/**
- * Standardized source for Open Australian Legal Corpus
- *
- * Downloads the complete corpus (~5GB, 229K documents) from HuggingFace and caches locally.
- * Subsequent runs use the cached file unless a resync is triggered.
- */
+
 class OpenAustralianLegalCorpusStandardizedSource(
     private val cacheDir: String = "/data/australian-legal-corpus",
-    private val jurisdictions: List<String>? = null,  // null = all jurisdictions
-    private val documentTypes: List<String>? = null,  // null = all types
+    private val jurisdictions: List<String>? = null,  
+    private val documentTypes: List<String>? = null,  
     private val maxDocuments: Int = Int.MAX_VALUE
 ) : StandardizedSource<AustralianLegalDocumentChunkable> {
     override val name = "australian_laws"
 
-    // Resync monthly to get corpus updates (corpus is updated frequently)
+    
     override fun resyncStrategy() = ResyncStrategy.Monthly(dayOfMonth = 1, hour = 2, minute = 0)
 
     override fun backfillStrategy() = BackfillStrategy.LegalDatabase(
         jurisdictions = jurisdictions ?: listOf("all"),
-        startYear = 1900  // Corpus contains historical legislation
+        startYear = 1900  
     )
 
     override fun needsChunking() = true
@@ -97,8 +90,8 @@ class OpenAustralianLegalCorpusStandardizedSource(
     override fun chunker() = Chunker.forEmbeddingModel(tokenLimit = 8192, overlapPercent = 0.20)
 
     override suspend fun fetchForRun(metadata: RunMetadata): Flow<AustralianLegalDocumentChunkable> {
-        // For Open Corpus, initial pull and resyncs are the same:
-        // Download the full corpus (or use cache) and process all documents
+        
+        
 
         val source = OpenAustralianLegalCorpusSource(
             cacheDir = cacheDir,

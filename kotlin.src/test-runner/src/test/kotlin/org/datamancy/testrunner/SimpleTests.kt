@@ -6,9 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-/**
- * Simple unit tests for test-runner components
- */
+
 class SimpleTests {
 
     @Test
@@ -137,7 +135,7 @@ class SimpleTests {
     fun `PostgreSQL uses JDBC URL`() {
         val endpoints = ServiceEndpoints.fromEnvironment()
 
-        // PostgreSQL should use JDBC URL
+        
         assertTrue(endpoints.postgres.jdbcUrl.startsWith("jdbc:postgresql://"))
     }
 
@@ -146,11 +144,11 @@ class SimpleTests {
         val containerEndpoints = ServiceEndpoints.fromEnvironment()
         val localhostEndpoints = ServiceEndpoints.forLocalhost()
 
-        // Container config
+        
         assertTrue(containerEndpoints.pipeline.contains("pipeline"))
         assertTrue(containerEndpoints.pipeline.contains("8090"))
 
-        // Localhost config
+        
         assertTrue(localhostEndpoints.pipeline.contains("localhost"))
         assertTrue(localhostEndpoints.pipeline.contains("18080"))
     }
@@ -167,10 +165,10 @@ class SimpleTests {
             "linux_docs"
         )
 
-        // Verify count
+        
         assertEquals(7, expectedCollections.size)
 
-        // Verify snake_case naming
+        
         expectedCollections.forEach { name ->
             assertTrue(name.matches(Regex("^[a-z_]+$")),
                 "Collection name should be snake_case: $name")

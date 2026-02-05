@@ -8,31 +8,10 @@ import org.example.host.ToolParam
 import org.example.host.ToolRegistry
 import org.example.util.Json
 
-/**
- * Generates Open WebUI-compatible tool schemas from the tool registry.
- *
- * Open WebUI expects tools in OpenAI function calling format:
- * {
- *   "name": "tool_name",
- *   "description": "What this tool does",
- *   "parameters": {
- *     "type": "object",
- *     "required": ["param1"],
- *     "properties": {
- *       "param1": {
- *         "type": "string",
- *         "description": "Parameter description"
- *       }
- *     }
- *   }
- * }
- */
+
 object OpenWebUISchemaGenerator {
 
-    /**
-     * Generate Open WebUI compatible tool schema array.
-     * Returns an array of tool definitions following OpenAI function calling spec.
-     */
+    
     fun generateToolSchemas(registry: ToolRegistry): ArrayNode {
         val tools = ArrayNode(JsonNodeFactory.instance)
 
@@ -43,28 +22,23 @@ object OpenWebUISchemaGenerator {
         return tools
     }
 
-    /**
-     * Convert a single ToolDefinition to Open WebUI format.
-     */
+    
     private fun generateToolSchema(tool: ToolDefinition): ObjectNode {
         val schema = JsonNodeFactory.instance.objectNode()
 
         schema.put("name", tool.name)
         schema.put("description", tool.shortDescription)
 
-        // Build parameters schema
+        
         val parameters = buildParametersSchema(tool.parameters, tool.paramsSpec)
         schema.set<ObjectNode>("parameters", parameters)
 
         return schema
     }
 
-    /**
-     * Build the parameters schema object.
-     * Attempts to parse paramsSpec if available, otherwise constructs from parameter list.
-     */
+    
     private fun buildParametersSchema(params: List<ToolParam>, paramsSpec: String): ObjectNode {
-        // Try parsing paramsSpec first
+        
         if (paramsSpec.isNotBlank()) {
             try {
                 val parsed = Json.mapper.readTree(paramsSpec)
@@ -72,11 +46,11 @@ object OpenWebUISchemaGenerator {
                     return parsed
                 }
             } catch (e: Exception) {
-                // Fall through to manual construction
+                
             }
         }
 
-        // Manually construct from parameter list
+        
         val schema = JsonNodeFactory.instance.objectNode()
         schema.put("type", "object")
 
@@ -104,9 +78,7 @@ object OpenWebUISchemaGenerator {
         return schema
     }
 
-    /**
-     * Map Kotlin/Java type strings to JSON Schema types.
-     */
+    
     private fun mapKotlinTypeToJsonType(kotlinType: String): String {
         return when (kotlinType.lowercase()) {
             "string" -> "string"
@@ -115,13 +87,11 @@ object OpenWebUISchemaGenerator {
             "boolean", "bool" -> "boolean"
             "list", "array" -> "array"
             "map", "object" -> "object"
-            else -> "string" // Default fallback
+            else -> "string" 
         }
     }
 
-    /**
-     * Generate full schema document with metadata.
-     */
+    
     fun generateFullSchema(registry: ToolRegistry): ObjectNode {
         val root = JsonNodeFactory.instance.objectNode()
 

@@ -19,10 +19,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
-/**
- * Host inspection and docker action tools.
- * Read-only tools are safe. Write operations (restart, exec) require caution.
- */
+
 class HostToolsPlugin : Plugin {
     override fun manifest() = PluginManifest(
         id = "org.example.plugins.hosttools",
@@ -34,7 +31,7 @@ class HostToolsPlugin : Plugin {
     )
 
     override fun init(context: PluginContext) {
-        // no-op
+        
     }
 
     override fun tools(): List<Any> = listOf(Tools())
@@ -43,7 +40,7 @@ class HostToolsPlugin : Plugin {
         val pluginId = manifest().id
         val tools = Tools()
 
-        // host_exec_readonly
+        
         registry.register(
             ToolDefinition(
                 name = "host_exec_readonly",
@@ -66,7 +63,7 @@ class HostToolsPlugin : Plugin {
             }
         )
 
-        // docker_logs
+        
         registry.register(
             ToolDefinition(
                 name = "docker_logs",
@@ -87,7 +84,7 @@ class HostToolsPlugin : Plugin {
             }
         )
 
-        // docker_restart
+        
         registry.register(
             ToolDefinition(
                 name = "docker_restart",
@@ -112,7 +109,7 @@ class HostToolsPlugin : Plugin {
             .connectTimeout(Duration.ofSeconds(5))
             .build()
 
-        // Input validation helpers
+        
         private fun sanitizeContainerName(name: String): String {
             require(name.isNotBlank()) { "Container name cannot be blank" }
             require(name.matches(Regex("^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"))) {
@@ -137,7 +134,7 @@ class HostToolsPlugin : Plugin {
             }
         }
 
-        // Helper to run docker commands against host socket with timeout
+        
         private fun runHostDockerCmd(args: List<String>, timeoutSeconds: Long = 30): Pair<Int, String> {
             validateCommandArguments(args)
 
@@ -146,7 +143,7 @@ class HostToolsPlugin : Plugin {
             pb.redirectErrorStream(true)
             val p = pb.start()
 
-            // Start output reader thread
+            
             val output = StringBuilder()
             val readerThread = Thread {
                 BufferedReader(InputStreamReader(p.inputStream)).use { reader ->
@@ -155,14 +152,14 @@ class HostToolsPlugin : Plugin {
             }
             readerThread.start()
 
-            // Wait with timeout
+            
             val completed = p.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
             if (!completed) {
                 p.destroyForcibly()
                 throw RuntimeException("Command timed out after ${timeoutSeconds}s: ${cmd.joinToString(" ")}")
             }
 
-            readerThread.join(1000) // Wait for reader to finish
+            readerThread.join(1000) 
             val code = p.exitValue()
             return code to output.toString()
         }
@@ -182,28 +179,28 @@ class HostToolsPlugin : Plugin {
             require(cmd.isNotEmpty()) { "cmd must not be empty" }
 
             val allowed = setOf(
-                // common read-only commands
+                
                 "cat", "ls", "find", "ps", "uptime", "uname", "id",
                 "whoami", "df", "du", "free", "env", "printenv", "stat",
-                // package/query variants (read-only)
+                
                 "dpkg", "rpm",
-                // network introspection
+                
                 "ip", "ss", "netstat", "curl", "wget",
-                // journal/log reading
+                
                 "journalctl", "dmesg"
             )
 
-            // Validate executable name (must be basename only, no path)
+            
             val exe = cmd[0]
             require(!exe.contains('/') && !exe.contains('\\')) {
                 "Executable must be basename only (no path): $exe"
             }
             require(exe in allowed) { "command '$exe' is not allowed" }
 
-            // Validate all arguments
+            
             validateCommandArguments(cmd.drop(1))
 
-            // Validate and sanitize working directory
+            
             val workingDir = if (cwd != null) {
                 val sanitized = sanitizePath(cwd)
                 val dir = File(sanitized)
@@ -219,7 +216,7 @@ class HostToolsPlugin : Plugin {
 
             val p = pb.start()
 
-            // Wait with timeout (30 seconds for read-only commands)
+            
             val completed = p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)
             if (!completed) {
                 p.destroyForcibly()
@@ -234,7 +231,7 @@ class HostToolsPlugin : Plugin {
 
             return mapOf(
                 "exitCode" to code,
-                "output" to out.take(200_000) // prevent massive outputs
+                "output" to out.take(200_000) 
             )
         }
 
@@ -346,7 +343,7 @@ class HostToolsPlugin : Plugin {
             )
         }
 
-        // ======= DOCKER ACTION TOOLS (Write Operations) =======
+        
 
         @LlmTool(
             name = "docker_restart",
@@ -381,20 +378,20 @@ class HostToolsPlugin : Plugin {
             val sanitized = sanitizeContainerName(container)
             require(cmd.isNotEmpty()) { "cmd must not be empty" }
 
-            // Whitelist safe commands only (exact match, not contains)
+            
             val allowedCommands = setOf(
                 "nginx", "caddy", "systemctl", "kill", "pkill",
                 "reload", "graceful", "touch", "cat", "ls", "sh", "bash"
             )
 
             val exe = cmd[0]
-            // Must match exactly or be a path containing an allowed command
+            
             val exeBasename = File(exe).name
             require(exeBasename in allowedCommands) {
                 "command '$exeBasename' is not in whitelist"
             }
 
-            // Validate command arguments
+            
             validateCommandArguments(cmd.drop(1))
 
             val (code, out) = runHostDockerCmd(listOf("exec", sanitized) + cmd, timeoutSeconds = 45)
@@ -436,7 +433,7 @@ class HostToolsPlugin : Plugin {
                         )
                     }
                     "" -> {
-                        // Container has no healthcheck
+                        
                         return mapOf(
                             "success" to true,
                             "status" to "no_healthcheck",
@@ -446,7 +443,7 @@ class HostToolsPlugin : Plugin {
                     }
                 }
 
-                Thread.sleep(2000) // Poll every 2 seconds
+                Thread.sleep(2000) 
             }
 
             return mapOf(
@@ -468,14 +465,14 @@ class HostToolsPlugin : Plugin {
         fun docker_compose_restart(service: String, composeFile: String? = null): Map<String, Any?> {
             require(service.isNotBlank()) { "service is required" }
 
-            // Validate service name (similar to container name)
+            
             require(service.matches(Regex("^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$"))) {
                 "Invalid service name: $service"
             }
 
             val cmd = mutableListOf("docker", "compose")
             if (composeFile != null) {
-                // Validate and sanitize compose file path
+                
                 val sanitizedPath = sanitizePath(composeFile)
                 val file = File(sanitizedPath)
                 require(file.exists() && file.isFile) {
@@ -490,12 +487,12 @@ class HostToolsPlugin : Plugin {
             cmd.addAll(listOf("restart", service))
 
             val startTime = System.currentTimeMillis()
-            // Note: docker compose commands need to run on host, not through the helper
+            
             val pb = ProcessBuilder(cmd)
             pb.redirectErrorStream(true)
             val p = pb.start()
 
-            // Wait with timeout
+            
             val completed = p.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)
             if (!completed) {
                 p.destroyForcibly()

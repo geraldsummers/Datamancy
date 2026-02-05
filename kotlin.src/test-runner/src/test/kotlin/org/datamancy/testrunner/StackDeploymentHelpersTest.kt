@@ -3,10 +3,7 @@ package org.datamancy.testrunner
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/**
- * Unit tests for StackDeploymentTests helpers
- * These tests verify the test helper logic WITHOUT requiring labware Docker host
- */
+
 class StackDeploymentHelpersTest {
 
     @Test
@@ -97,7 +94,7 @@ class StackDeploymentHelpersTest {
         assertTrue(criticalServices.any { it.first == "caddy" })
         assertTrue(criticalServices.any { it.first == "authelia" })
 
-        // Verify timeouts are reasonable (in seconds)
+        
         criticalServices.forEach { (service, timeout) ->
             assertTrue(timeout > 0, "$service timeout should be positive")
             assertTrue(timeout <= 600, "$service timeout should be <= 10 minutes")
@@ -114,12 +111,12 @@ class StackDeploymentHelpersTest {
 
         assertEquals(3, slowServices.size)
 
-        // Verify forgejo has longest timeout (we observed it needs ~4-5 minutes)
+        
         val forgejoTimeout = slowServices.find { it.first == "forgejo" }?.second
         assertNotNull(forgejoTimeout)
         assertEquals(600, forgejoTimeout, "Forgejo should have 10 minute timeout")
 
-        // All slow services should have at least 5 minutes
+        
         slowServices.forEach { (service, timeout) ->
             assertTrue(timeout >= 300, "$service should have at least 5 minute timeout")
         }
@@ -131,14 +128,14 @@ class StackDeploymentHelpersTest {
         val timeoutMs = timeoutSeconds * 1000L
 
         assertEquals(300_000L, timeoutMs)
-        // Verify it's a Long type to prevent overflow for large timeouts
+        
         val expected: Long = 300_000L
         assertEquals(expected, timeoutMs)
     }
 
     @Test
     fun `health check polling interval is reasonable`() {
-        val pollingIntervalMs = 10_000L // 10 seconds
+        val pollingIntervalMs = 10_000L 
 
         assertTrue(pollingIntervalMs >= 5_000, "Polling should be at least 5 seconds")
         assertTrue(pollingIntervalMs <= 30_000, "Polling should be at most 30 seconds")

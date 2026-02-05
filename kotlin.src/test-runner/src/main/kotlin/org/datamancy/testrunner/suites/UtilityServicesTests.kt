@@ -5,20 +5,12 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import org.datamancy.testrunner.framework.*
 
-/**
- * Utility Services Integration Tests
- *
- * Tests supporting services:
- * - Homepage (dashboard)
- * - Radicale (CalDAV/CardDAV)
- * - Ntfy (notifications)
- * - Qbittorrent (torrent client)
- */
+
 suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") {
 
-    // =============================================================================
-    // Homepage Dashboard Tests
-    // =============================================================================
+    
+    
+    
 
     test("Homepage dashboard loads") {
         val response = client.getRawResponse("${env.endpoints.homepage!!}")
@@ -35,7 +27,7 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
     }
 
     test("Homepage serves static assets") {
-        // Homepage should serve its assets
+        
         val response = client.getRawResponse("${env.endpoints.homepage!!}/") {
             headers {
                 append(HttpHeaders.Accept, "text/html")
@@ -50,9 +42,9 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
     }
 
     test("Homepage API endpoint accessible") {
-        // Try to access the API endpoint
+        
         val response = client.getRawResponse("${env.endpoints.homepage!!}/api/widgets")
-        // May require auth or return empty list
+        
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.NotFound)) {
             "Unexpected response: ${response.status}"
         }
@@ -60,9 +52,9 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
         println("      ✓ Homepage API endpoint responds")
     }
 
-    // =============================================================================
-    // Radicale CalDAV/CardDAV Tests
-    // =============================================================================
+    
+    
+    
 
     test("Radicale server is accessible") {
         val response = client.getRawResponse("${env.endpoints.radicale!!}")
@@ -74,7 +66,7 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
     }
 
     test("Radicale .well-known endpoints configured") {
-        // CalDAV discovery
+        
         val caldavResponse = client.getRawResponse("${env.endpoints.radicale!!}/.well-known/caldav") {
             headers {
                 append(HttpHeaders.Accept, "*/*")
@@ -90,7 +82,7 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
             "CalDAV discovery failed: ${caldavResponse.status}"
         }
 
-        // CardDAV discovery
+        
         val carddavResponse = client.getRawResponse("${env.endpoints.radicale!!}/.well-known/carddav") {
             headers {
                 append(HttpHeaders.Accept, "*/*")
@@ -110,7 +102,7 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
     }
 
     test("Radicale responds to PROPFIND") {
-        // Test WebDAV PROPFIND method (core CalDAV operation)
+        
         val response = client.requestRaw("${env.endpoints.radicale!!}/") {
             method = HttpMethod.parse("PROPFIND")
             headers {
@@ -127,7 +119,7 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
         }
 
         require(response.status in listOf(
-            HttpStatusCode.MultiStatus,  // 207
+            HttpStatusCode.MultiStatus,  
             HttpStatusCode.Unauthorized,
             HttpStatusCode.Forbidden
         )) {
@@ -137,9 +129,9 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
         println("      ✓ Radicale PROPFIND method responds correctly")
     }
 
-    // =============================================================================
-    // Ntfy Notification Server Tests
-    // =============================================================================
+    
+    
+    
 
     test("Ntfy server is accessible") {
         val response = client.getRawResponse("${env.endpoints.ntfy!!}")
@@ -204,9 +196,9 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
         println("      ✓ Ntfy JSON API works")
     }
 
-    // =============================================================================
-    // Qbittorrent Tests
-    // =============================================================================
+    
+    
+    
 
     test("Qbittorrent web UI is accessible") {
         val response = client.getRawResponse("${env.endpoints.qbittorrent!!}")
@@ -218,7 +210,7 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
     }
 
     test("Qbittorrent API version endpoint") {
-        // Try to get API version (may require auth)
+        
         val response = client.getRawResponse("${env.endpoints.qbittorrent!!}/api/v2/app/version")
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
             "API version endpoint failed: ${response.status}"
@@ -249,7 +241,7 @@ suspend fun TestRunner.utilityServicesTests() = suite("Utility Services Tests") 
             setBody("username=test&password=test")
         }
 
-        // Should fail with bad credentials, but endpoint should exist
+        
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Forbidden, HttpStatusCode.Unauthorized)) {
             "Login endpoint not responding: ${response.status}"
         }

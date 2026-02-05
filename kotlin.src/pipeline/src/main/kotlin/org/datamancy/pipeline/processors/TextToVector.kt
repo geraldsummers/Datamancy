@@ -4,9 +4,7 @@ import org.datamancy.pipeline.core.Processor
 import org.datamancy.pipeline.sinks.VectorDocument
 import org.datamancy.pipeline.sources.RssArticle
 
-/**
- * Combines text and embedding into a VectorDocument with metadata
- */
+
 class TextToVector(
     private val articleProvider: () -> RssArticle?
 ) : Processor<Pair<RssArticle, FloatArray>, VectorDocument> {

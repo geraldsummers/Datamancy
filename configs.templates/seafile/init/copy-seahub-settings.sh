@@ -1,10 +1,6 @@
 #!/bin/bash
-# Copy seahub_settings.py template after Seafile initialization
-# This runs on container startup to ensure database config is correct
-
 SETTINGS_FILE="/shared/seafile/conf/seahub_settings.py"
 TEMPLATE_FILE="/tmp/seahub_settings_template.py"
-
 if [ -f "$TEMPLATE_FILE" ]; then
     if ! grep -q "DATABASES" "$SETTINGS_FILE" 2>/dev/null; then
         echo "Appending database configuration to seahub_settings.py..."

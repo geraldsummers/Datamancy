@@ -11,10 +11,7 @@ import kotlinx.serialization.json.*
 import org.datamancy.testrunner.framework.*
 import kotlin.test.*
 
-/**
- * Unit tests for DataPipelineTests
- * Tests the test helpers and logic without requiring live services
- */
+
 class DataPipelineTestsTest {
 
     @Test
@@ -45,9 +42,9 @@ class DataPipelineTestsTest {
         val serviceClient = ServiceClient(endpoints, mockClient)
         val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
-        // The helper should extract 42 from the response
-        // We can't directly call the helper (it's in the suite), but we can verify
-        // the JSON parsing logic works
+        
+        
+        
         val json = Json.parseToJsonElement(mockResponse).jsonObject
         val count = json["result"]?.jsonObject?.get("points_count")?.jsonPrimitive?.longOrNull
         assertEquals(42L, count)
@@ -159,17 +156,17 @@ class DataPipelineTestsTest {
 
     @Test
     fun `test dual-write verification logic`() {
-        // Test case 1: Both have data
+        
         val qdrantCount1 = 100L
         val bookStackCount1 = 5
         assertTrue(qdrantCount1 > 0 && bookStackCount1 > 0, "Should detect dual-write success")
 
-        // Test case 2: Only Qdrant has data
+        
         val qdrantCount2 = 100L
         val bookStackCount2 = 0
         assertTrue(qdrantCount2 > 0 && bookStackCount2 == 0, "Should detect BookStack sink disabled")
 
-        // Test case 3: No data
+        
         val qdrantCount3 = 0L
         val bookStackCount3 = 0
         assertTrue(qdrantCount3 == 0L, "Should detect no data ingested")
@@ -245,12 +242,12 @@ class DataPipelineTestsTest {
 
     @Test
     fun `test vector score validation logic`() {
-        // Valid scores
+        
         assertTrue(0.0 >= 0.0 && 0.0 <= 1.0)
         assertTrue(0.5 >= 0.0 && 0.5 <= 1.0)
         assertTrue(1.0 >= 0.0 && 1.0 <= 1.0)
 
-        // Invalid scores (should fail validation)
+        
         assertFalse(-0.1 >= 0.0 && -0.1 <= 1.0)
         assertFalse(1.1 >= 0.0 && 1.1 <= 1.0)
     }
@@ -308,15 +305,15 @@ class DataPipelineTestsTest {
 
     @Test
     fun `test BookStack content count consistency logic`() {
-        // Scenario: RSS has 23 vectors and 23 pages - perfect match
+        
         val qdrantCount = 23L
         val bookStackPageCount = 23
 
         assertEquals(qdrantCount, bookStackPageCount.toLong())
 
-        // Scenario: Slight mismatch (chapters don't count as pages)
+        
         val qdrantCount2 = 23L
-        val bookStackTotalContents = 25 // includes 2 chapters
+        val bookStackTotalContents = 25 
         val bookStackPages = 23
 
         assertEquals(qdrantCount2, bookStackPages.toLong())
@@ -335,7 +332,7 @@ class DataPipelineTestsTest {
             "australian_laws", "linux_docs"
         )
 
-        // Qdrant uses snake_case, sources use lowercase
+        
         assertTrue(qdrantCollections.contains("rss_feeds"))
         assertTrue(expectedSources.contains("rss"))
     }
@@ -359,7 +356,7 @@ class DataPipelineTestsTest {
         val serviceClient = ServiceClient(endpoints, mockClient)
         val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
-        // Verify we can call the test suite (it will fail gracefully with mocks)
+        
         assertNotNull(runner)
     }
 
@@ -371,7 +368,7 @@ class DataPipelineTestsTest {
         assertNotNull(bookstackUrl)
         assertTrue(bookstackUrl.isNotEmpty())
 
-        // Common API endpoints
+        
         val booksEndpoint = "$bookstackUrl/api/books"
         val pagesEndpoint = "$bookstackUrl/api/pages"
 
@@ -381,16 +378,16 @@ class DataPipelineTestsTest {
 
     @Test
     fun `test expected test count for data pipeline suite`() {
-        // Core tests: 9
-        // Source tests: 6 sources × 6 tests = 36
-        // Dedup tests: 3
-        // Checkpoint tests: 3
-        // BookStack tests: 9
-        // Total: 54 (actual count from grep)
+        
+        
+        
+        
+        
+        
 
         val expectedTotal = 9 + 36 + 3 + 3 + 9
-        // But actual implementation has fewer - let's verify
-        // Actual count is 54 tests
-        assertEquals(54, 54) // Match actual implementation
+        
+        
+        assertEquals(54, 54) 
     }
 }

@@ -2,16 +2,12 @@ package org.datamancy.pipeline.core
 
 import org.datamancy.pipeline.sinks.BookStackDocument
 
-/**
- * Interface for sources that can be transformed into BookStack documents
- */
+
 interface BookStackTransformable {
     fun toBookStackDocument(): BookStackDocument
 }
 
-/**
- * Helper functions for common HTML escaping and formatting
- */
+
 object BookStackHtmlHelper {
     fun escapeHtml(text: String): String {
         return text
@@ -23,7 +19,7 @@ object BookStackHtmlHelper {
     }
 
     fun sanitizeForHtml(text: String): String {
-        // Remove or escape potentially dangerous HTML
+        
         return escapeHtml(text)
     }
 

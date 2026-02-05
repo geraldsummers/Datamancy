@@ -16,7 +16,7 @@ class TorrentsSourceTest {
         val torrent = TorrentEntry(
             infohash = "abc123def456",
             name = "Test Movie 2024",
-            sizeBytes = 1073741824,  // 1 GB
+            sizeBytes = 1073741824,  
             createdUnix = 1704067200,
             seeders = 50,
             leechers = 10,
@@ -61,7 +61,7 @@ class TorrentsSourceTest {
             lineNumber = 100
         )
 
-        // Same infohash should produce same content hash
+        
         assertEquals(torrent1.contentHash(), torrent2.contentHash())
     }
 
@@ -128,10 +128,10 @@ class TorrentsSourceTest {
             line4,Torrent 4,4000,1704067500,40,20,400,1704153900
         """.trimIndent())
 
-        // Start from line 3 (skip header + 2 data lines)
+        
         val source = TorrentsSource(
             dataPath = csvFile.absolutePath,
-            startLine = 3,  // Header is line 1, so this starts at "line3"
+            startLine = 3,  
             maxTorrents = 10
         )
 

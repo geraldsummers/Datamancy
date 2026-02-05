@@ -3,15 +3,7 @@ package org.datamancy.testrunner.framework
 import kotlin.math.sqrt
 import kotlin.system.measureTimeMillis
 
-/**
- * Non-deterministic test runner for probabilistic testing of agent capabilities
- *
- * Unlike traditional deterministic tests, probabilistic tests acknowledge that:
- * - LLM outputs are inherently non-deterministic
- * - Agent tool selection may vary across runs
- * - Some tasks have acceptable failure rates
- * - Performance metrics follow statistical distributions
- */
+
 class ProbabilisticTestRunner(
     val environment: TestEnvironment,
     val client: ServiceClient,
@@ -19,13 +11,7 @@ class ProbabilisticTestRunner(
 ) {
     private val results = mutableListOf<ProbabilisticTestResultBase>()
 
-    /**
-     * Run a probabilistic test that may pass or fail with some probability
-     * @param name Test name
-     * @param trials Number of times to run the test
-     * @param acceptableFailureRate Maximum failure rate (0.0-1.0) to consider test passing
-     * @param block Test logic that returns true on success, false on failure
-     */
+    
     suspend fun probabilisticTest(
         name: String,
         trials: Int = 10,
@@ -83,14 +69,7 @@ class ProbabilisticTestRunner(
         return result
     }
 
-    /**
-     * Run a latency test that measures response time distribution
-     * @param name Test name
-     * @param trials Number of trials
-     * @param maxMedianLatency Maximum acceptable median latency in ms
-     * @param maxP95Latency Maximum acceptable 95th percentile latency in ms
-     * @param block Test logic that returns response time in ms
-     */
+    
     suspend fun latencyTest(
         name: String,
         trials: Int = 50,
@@ -110,7 +89,7 @@ class ProbabilisticTestRunner(
                 val latency = context.block()
                 latencies.add(latency)
             } catch (e: Exception) {
-                // Record failed attempts as max timeout
+                
                 latencies.add(Long.MAX_VALUE)
             }
         }
@@ -148,13 +127,7 @@ class ProbabilisticTestRunner(
         return result
     }
 
-    /**
-     * Run a throughput test that measures operations per second
-     * @param name Test name
-     * @param durationSeconds How long to run the test
-     * @param minOpsPerSecond Minimum acceptable operations per second
-     * @param block Test logic that performs one operation
-     */
+    
     suspend fun throughputTest(
         name: String,
         durationSeconds: Int = 30,

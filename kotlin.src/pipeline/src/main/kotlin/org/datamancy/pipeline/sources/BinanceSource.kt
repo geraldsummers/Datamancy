@@ -14,19 +14,13 @@ import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Fetches historical price data (klines/candlesticks) from Binance API
- * API Docs: https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-data
- * Rate limit: 1200 requests per minute (20/sec)
- *
- * Can automatically fetch top N symbols by 24h volume if symbols list is empty or contains "TOP_N"
- */
+
 class BinanceSource(
-    private val symbols: List<String>,  // e.g., ["BTCUSDT", "ETHUSDT"] or ["TOP_250"] to auto-fetch
-    private val interval: String = "1h",  // 1m, 5m, 15m, 1h, 4h, 1d, 1w
-    private val startTime: Long? = null,  // Unix timestamp in milliseconds
+    private val symbols: List<String>,  
+    private val interval: String = "1h",  
+    private val startTime: Long? = null,  
     private val endTime: Long? = null,
-    private val limit: Int = 1000  // Max 1000 per request
+    private val limit: Int = 1000  
 ) : Source<BinanceKline> {
     override val name = "BinanceSource"
 
@@ -36,7 +30,7 @@ class BinanceSource(
         .build()
 
     private val baseUrl = "https://api.binance.com/api/v3/klines"
-    private val delayMs = 50L  // 20 req/sec = 50ms between requests
+    private val delayMs = 50L  
 
     override suspend fun fetch(): Flow<BinanceKline> = flow {
         logger.info { "Starting Binance fetch for ${symbols.size} symbols with interval $interval" }
@@ -112,18 +106,18 @@ class BinanceSource(
                         }
                     }
 
-                    // Update start time for next batch (last closeTime + 1)
+                    
                     val lastCloseTime = jsonArray.last().asJsonArray[6].asLong
                     currentStartTime = lastCloseTime + 1
 
                     logger.debug { "Fetched ${jsonArray.size()} klines for $symbol (total: $totalFetched)" }
 
-                    // Rate limiting
+                    
                     if (currentStartTime < finalEndTime) {
                         delay(delayMs)
                     }
 
-                    // Break if we got less than limit (end of data)
+                    
                     if (jsonArray.size() < limit) {
                         logger.info { "Received partial batch for $symbol, end of data reached" }
                         break
@@ -140,12 +134,10 @@ class BinanceSource(
         logger.info { "Binance fetch complete for all symbols" }
     }
 
-    /**
-     * Default to fetching last 10 years of data
-     */
+    
     private fun calculateDefaultStartTime(): Long {
         return Instant.now()
-            .minus(3650, ChronoUnit.DAYS)  // 10 years
+            .minus(3650, ChronoUnit.DAYS)  
             .toEpochMilli()
     }
 }
@@ -183,9 +175,7 @@ data class BinanceKline(
         }
     }
 
-    /**
-     * Content hash for deduplication
-     */
+    
     fun contentHash(): String {
         return "$symbol:$interval:$openTime".hashCode().toString()
     }

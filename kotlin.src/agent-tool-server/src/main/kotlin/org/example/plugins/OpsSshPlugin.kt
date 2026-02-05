@@ -12,10 +12,7 @@ import org.example.manifest.Requires
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
-/**
- * SSH operations plugin. Intentionally minimal: delegates all safety/allowlisting
- * to the host's forced-command wrapper configured for the target user.
- */
+
 class OpsSshPlugin : Plugin {
     override fun manifest() = PluginManifest(
         id = "org.example.plugins.ops",
@@ -77,7 +74,7 @@ class OpsSshPlugin : Plugin {
 
     class Tools(private val cfg: Cfg) {
         private fun runSshCommand(cmd: String): Triple<Int, ByteArray, ByteArray> {
-            // Use system ssh client with strict host key checking
+            
             val fullCmd = listOf(
                 "ssh",
                 "-o", "StrictHostKeyChecking=accept-new",
@@ -98,7 +95,7 @@ class OpsSshPlugin : Plugin {
             val err = p.errorStream.readAllBytes()
             val code = p.exitValue()
 
-            // Check for host key verification failure
+            
             if (code == 255 && err.toString(Charsets.UTF_8).contains("Host key verification failed")) {
                 throw HostKeyChangedException(
                     "SSH host key changed for ${cfg.host}. " +

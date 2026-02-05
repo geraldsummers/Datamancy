@@ -46,9 +46,9 @@ fun main() {
 data class SearchRequest(
     val query: String,
     val collections: List<String> = listOf("*"),
-    val mode: String = "hybrid", // "vector", "bm25", "hybrid"
+    val mode: String = "hybrid", 
     val limit: Int = 20,
-    val audience: String = "both" // "human", "agent", "both"
+    val audience: String = "both" 
 )
 
 @Serializable
@@ -70,11 +70,9 @@ sealed class SearchError {
     data object ServiceUnavailable : SearchError()
 }
 
-/**
- * Validates SearchRequest fields to prevent injection attacks and DoS
- */
+
 fun validateSearchRequest(request: SearchRequest): SearchError.ValidationError? {
-    // Validate query: max 1000 chars, no control characters
+    
     if (request.query.length > 1000) {
         return SearchError.ValidationError("query", "Query must not exceed 1000 characters")
     }
@@ -82,7 +80,7 @@ fun validateSearchRequest(request: SearchRequest): SearchError.ValidationError? 
         return SearchError.ValidationError("query", "Query contains invalid control characters")
     }
 
-    // Validate collections: max 50 items, each max 128 chars, alphanumeric/dash/underscore only
+    
     if (request.collections.size > 50) {
         return SearchError.ValidationError("collections", "Cannot specify more than 50 collections")
     }
@@ -95,18 +93,18 @@ fun validateSearchRequest(request: SearchRequest): SearchError.ValidationError? 
         }
     }
 
-    // Validate mode: must be one of the allowed modes
+    
     val validModes = setOf("vector", "bm25", "hybrid")
     if (request.mode !in validModes) {
         return SearchError.ValidationError("mode", "Mode must be one of: ${validModes.joinToString(", ")}")
     }
 
-    // Validate limit: coerce to 1..1000 range (handled in search call)
+    
     if (request.limit < 1 || request.limit > 1000) {
         return SearchError.ValidationError("limit", "Limit must be between 1 and 1000")
     }
 
-    // Validate audience: must be one of the allowed values
+    
     val validAudiences = setOf("human", "agent", "both")
     if (request.audience !in validAudiences) {
         return SearchError.ValidationError("audience", "Audience must be one of: ${validAudiences.joinToString(", ")}")
@@ -127,7 +125,7 @@ fun Application.configureServer(gateway: SearchGateway) {
 
     routing {
         get("/") {
-            // Serve the search UI
+            
             val html = this::class.java.classLoader.getResource("static/index.html")?.readText()
             if (html != null) {
                 call.respondText(html, ContentType.Text.Html)
@@ -143,7 +141,7 @@ fun Application.configureServer(gateway: SearchGateway) {
         post("/search") {
             val request = call.receive<SearchRequest>()
 
-            // Validate query is not empty
+            
             if (request.query.isBlank()) {
                 call.respond(
                     HttpStatusCode.BadRequest,
@@ -152,7 +150,7 @@ fun Application.configureServer(gateway: SearchGateway) {
                 return@post
             }
 
-            // Comprehensive input validation
+            
             validateSearchRequest(request)?.let { validationError ->
                 logger.warn { "Validation failed for search request: ${validationError.field} - ${validationError.reason}" }
                 call.respond(
@@ -174,11 +172,11 @@ fun Application.configureServer(gateway: SearchGateway) {
                     limit = request.limit
                 )
 
-                // Filter results based on audience
+                
                 val filteredResults = when (request.audience) {
                     "human" -> results.filter { it.capabilities["humanFriendly"] == true }
                     "agent" -> results.filter { it.capabilities["agentFriendly"] == true }
-                    else -> results // "both" or unspecified returns all
+                    else -> results 
                 }
 
                 call.respond(SearchResponse(
@@ -187,28 +185,28 @@ fun Application.configureServer(gateway: SearchGateway) {
                     mode = request.mode
                 ))
             } catch (e: java.sql.SQLException) {
-                // Database-specific errors - hide internal details
+                
                 logger.error(e) { "Database error during search - query: '${request.query}', collections: ${request.collections}, mode: ${request.mode}" }
                 call.respond(
                     HttpStatusCode.InternalServerError,
                     mapOf("error" to "Database service error", "service" to "postgresql")
                 )
             } catch (e: java.io.IOException) {
-                // Network/IO errors (qdrant, embedding service)
+                
                 logger.error(e) { "IO error during search - query: '${request.query}', collections: ${request.collections}, mode: ${request.mode}" }
                 call.respond(
                     HttpStatusCode.BadGateway,
                     mapOf("error" to "External service unavailable", "service" to "vector-store")
                 )
             } catch (e: java.net.SocketTimeoutException) {
-                // Timeout errors
+                
                 logger.error(e) { "Timeout during search - query: '${request.query}', collections: ${request.collections}, mode: ${request.mode}" }
                 call.respond(
                     HttpStatusCode.GatewayTimeout,
                     mapOf("error" to "Search operation timed out")
                 )
             } catch (e: Exception) {
-                // Generic fallback - log full details, return sanitized error
+                
                 logger.error(e) { "Unexpected error during search - query: '${request.query}', collections: ${request.collections}, mode: ${request.mode}, error: ${e::class.simpleName}" }
                 call.respond(
                     HttpStatusCode.InternalServerError,

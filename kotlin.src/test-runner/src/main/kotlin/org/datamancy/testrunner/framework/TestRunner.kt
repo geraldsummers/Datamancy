@@ -11,7 +11,7 @@ class TestRunner(
     val env get() = environment
     val endpoints get() = environment.endpoints
 
-    // Initialize LDAP helper if LDAP URL and admin password are available
+    
     val ldapHelper: LdapHelper? = environment.endpoints.ldap?.let { ldapUrl ->
         if (environment.ldapAdminPassword.isNotEmpty()) {
             LdapHelper(
@@ -101,7 +101,7 @@ class TestContext(
     val oidc: OIDCHelper,
     val tokens: TokenManager
 ) {
-    // Fluent assertions
+    
     infix fun String.shouldContain(substring: String) {
         if (!this.contains(substring)) {
             throw AssertionError("Expected string to contain '$substring', but got: ${this.take(200)}")
@@ -151,7 +151,7 @@ class TestContext(
         }
     }
 
-    // Additional assertion helpers
+    
     infix fun Int.shouldBeOneOf(values: List<Int>) {
         if (this !in values) {
             throw AssertionError("Expected $this to be one of $values")

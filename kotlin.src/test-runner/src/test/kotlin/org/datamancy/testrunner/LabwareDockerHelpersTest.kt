@@ -4,10 +4,7 @@ import org.datamancy.testrunner.suites.LabwareDockerTests
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/**
- * Unit tests for LabwareDockerTests helpers
- * These tests verify the test helper logic WITHOUT requiring labware Docker host
- */
+
 class LabwareDockerHelpersTest {
 
     @Test

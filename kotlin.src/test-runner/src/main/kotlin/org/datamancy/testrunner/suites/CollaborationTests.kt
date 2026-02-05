@@ -6,7 +6,7 @@ import org.datamancy.testrunner.framework.*
 
 suspend fun TestRunner.collaborationTests() = suite("Collaboration Tests") {
 
-    // MASTODON (4 tests)
+    
     test("Mastodon web server is healthy") {
         val response = client.getRawResponse("${env.endpoints.mastodon}/health")
         response.status.value shouldBeOneOf listOf(200, 404, 405)
@@ -18,18 +18,18 @@ suspend fun TestRunner.collaborationTests() = suite("Collaboration Tests") {
     }
 
     test("Mastodon can fetch instance info") {
-        // Note: May be protected by Authelia SSO
+        
         val response = client.getRawResponse("${env.endpoints.mastodon}/api/v1/instance")
         response.status.value shouldBeOneOf listOf(200, 403, 401)
     }
 
     test("Mastodon public timeline endpoint exists") {
         val response = client.getRawResponse("${env.endpoints.mastodon}/api/v1/timelines/public")
-        // May require auth or be disabled, but endpoint should exist
+        
         response.status.value shouldBeOneOf listOf(200, 401, 403)
     }
 
-    // ROUNDCUBE (2 tests)
+    
     test("Roundcube webmail loads") {
         val response = client.getRawResponse("${env.endpoints.roundcube}/")
         response.status shouldBe HttpStatusCode.OK

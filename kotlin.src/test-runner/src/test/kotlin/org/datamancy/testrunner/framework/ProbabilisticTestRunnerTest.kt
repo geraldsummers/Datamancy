@@ -57,9 +57,9 @@ class ProbabilisticTestRunnerTest {
             val result = probRunner.probabilisticTest(
                 name = "Test with acceptable failures",
                 trials = 10,
-                acceptableFailureRate = 0.3  // 30% failures acceptable
+                acceptableFailureRate = 0.3  
             ) {
-                // Fail 2 out of 10 times (20% failure rate)
+                
                 (0..9).random() >= 2
             }
 
@@ -73,9 +73,9 @@ class ProbabilisticTestRunnerTest {
             val result = probRunner.probabilisticTest(
                 name = "Test with too many failures",
                 trials = 10,
-                acceptableFailureRate = 0.1  // Only 10% failures acceptable
+                acceptableFailureRate = 0.1  
             ) {
-                // Fail 5 out of 10 times (50% failure rate, exceeds 10% threshold)
+                
                 (count++ % 2) == 0
             }
 
@@ -152,7 +152,7 @@ class ProbabilisticTestRunnerTest {
                 maxMedianLatency = 100,
                 maxP95Latency = 200
             ) {
-                // Return consistent low latency (50ms)
+                
                 50L
             }
 
@@ -169,7 +169,7 @@ class ProbabilisticTestRunnerTest {
                 maxMedianLatency = 50,
                 maxP95Latency = 200
             ) {
-                // Return 100ms (exceeds median threshold)
+                
                 100L
             }
 
@@ -185,7 +185,7 @@ class ProbabilisticTestRunnerTest {
                 maxMedianLatency = 1000,
                 maxP95Latency = 100
             ) {
-                // Occasionally return high latency
+                
                 if ((0..19).random() > 17) 500L else 50L
             }
 
@@ -225,7 +225,7 @@ class ProbabilisticTestRunnerTest {
             }
 
             assertFalse(result.passed)
-            // Failed operations should be recorded as max latency
+            
             assertEquals(Long.MAX_VALUE, result.maxMs)
         }
     }
@@ -241,8 +241,8 @@ class ProbabilisticTestRunnerTest {
                 durationSeconds = 1,
                 minOpsPerSecond = 5.0
             ) {
-                // Fast operation (simulated)
-                // No-op completes quickly
+                
+                
             }
 
             assertTrue(result.passed)
@@ -254,9 +254,9 @@ class ProbabilisticTestRunnerTest {
             val result = probRunner.throughputTest(
                 name = "Low throughput test",
                 durationSeconds = 1,
-                minOpsPerSecond = 1000.0  // Impossibly high
+                minOpsPerSecond = 1000.0  
             ) {
-                Thread.sleep(10)  // Slow operation
+                Thread.sleep(10)  
             }
 
             assertFalse(result.passed)
@@ -278,7 +278,7 @@ class ProbabilisticTestRunnerTest {
             assertTrue(result.totalOperations > 0)
             assertTrue(result.errors > 0)
             assertTrue(result.errorRate > 0.0)
-            assertTrue(result.errorRate < 1.0)  // Not all failed
+            assertTrue(result.errorRate < 1.0)  
         }
 
         @Test
@@ -288,12 +288,12 @@ class ProbabilisticTestRunnerTest {
                 durationSeconds = 2,
                 minOpsPerSecond = 1.0
             ) {
-                Thread.sleep(100)  // ~10 ops per second max
+                Thread.sleep(100)  
             }
 
             assertTrue(result.passed)
             assertTrue(result.durationSeconds >= 2.0)
-            assertTrue(result.durationSeconds < 2.5)  // Small overhead acceptable
+            assertTrue(result.durationSeconds < 2.5)  
         }
 
         @Test
@@ -316,11 +316,11 @@ class ProbabilisticTestRunnerTest {
 
         @Test
         fun `should aggregate results correctly`() = runBlocking {
-            // Run some passing tests
+            
             probRunner.probabilisticTest("pass1", 5, 0.5) { true }
             probRunner.probabilisticTest("pass2", 5, 0.5) { true }
 
-            // Run a failing test (more than 0% failures with 0% threshold)
+            
             var count = 0
             probRunner.probabilisticTest("fail1", 5, 0.0) { (count++ % 2) == 0 }
 

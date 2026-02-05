@@ -1,8 +1,3 @@
-"""LDAP authentication provider for Home Assistant.
-
-This provider allows authentication against an LDAP server,
-enabling command-line tools and apps to use LDAP credentials.
-"""
 import os
 import logging
 from typing import Any, Dict, Optional, cast
@@ -46,7 +41,6 @@ CONFIG_SCHEMA = vol.Schema(
 
 @AUTH_PROVIDERS.register("ldap")
 class LDAPAuthProvider:
-    """LDAP authentication provider."""
 
     DEFAULT_TITLE = "LDAP Authentication"
 
@@ -56,11 +50,10 @@ class LDAPAuthProvider:
         store,
         config: Dict[str, Any],
     ) -> None:
-        """Initialize the LDAP auth provider."""
         self.hass = hass
         self.store = store
         self.config = config
-        
+
         if not LDAP_AVAILABLE:
             _LOGGER.error("ldap3 library not available. Install with: pip install ldap3")
             raise HomeAssistantError("ldap3 library not available")
@@ -80,7 +73,6 @@ class LDAPAuthProvider:
         )
 
     async def async_login_flow(self, context: Optional[Dict[str, Any]]) -> Any:
-        """Return a flow to login."""
         from homeassistant.auth.login_flow import LoginFlow
 
         return LDAPLoginFlow(self)
@@ -88,19 +80,16 @@ class LDAPAuthProvider:
     async def async_get_or_create_credentials(
         self, flow_result: Dict[str, str]
     ) -> Credentials:
-        """Get credentials based on the flow result."""
         username = flow_result["username"]
 
         for credential in await self.async_credentials():
             if credential.data["username"] == username:
                 return credential
 
-        # Create new credentials
         return self.async_create_credentials({"username": username})
 
     @callback
     def async_create_credentials(self, data: Dict[str, str]) -> Credentials:
-        """Create credentials."""
         return Credentials(
             id=data["username"],
             auth_provider_type=self.type,
@@ -112,21 +101,17 @@ class LDAPAuthProvider:
     async def async_user_meta_for_credentials(
         self, credentials: Credentials
     ) -> UserMeta:
-        """Return extra user metadata for credentials."""
         username = credentials.data["username"]
         return UserMeta(name=username, is_active=True)
 
     async def async_validate_login(self, username: str, password: str) -> bool:
-        """Validate a username and password."""
         try:
-            # Create LDAP server connection
             server = Server(
                 f"{self.ldap_host}:{self.ldap_port}",
                 get_info=ALL,
                 connect_timeout=10,
             )
 
-            # First, bind as admin to search for user
             conn = Connection(
                 server,
                 user=self.ldap_bind_dn,
@@ -134,7 +119,6 @@ class LDAPAuthProvider:
                 auto_bind=True,
             )
 
-            # Search for user
             search_filter = self.ldap_user_filter.format(username=username)
             conn.search(
                 search_base=self.ldap_base_dn,
@@ -149,7 +133,6 @@ class LDAPAuthProvider:
             user_dn = conn.entries[0].entry_dn
             conn.unbind()
 
-            # Now try to bind as the user to verify password
             user_conn = Connection(
                 server,
                 user=user_dn,
@@ -171,26 +154,21 @@ class LDAPAuthProvider:
 
     @property
     def type(self) -> str:
-        """Return the type of the auth provider."""
         return "ldap"
 
     @property
     def support_mfa(self) -> bool:
-        """Return whether MFA is supported."""
         return False
 
 
 class LDAPLoginFlow:
-    """Handle LDAP login flow."""
 
     def __init__(self, auth_provider: LDAPAuthProvider) -> None:
-        """Initialize the login flow."""
         self.auth_provider = auth_provider
 
     async def async_step_init(
         self, user_input: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
-        """Handle the step of the form."""
         errors = {}
 
         if user_input is not None:
@@ -214,7 +192,6 @@ class LDAPLoginFlow:
         )
 
     async def async_finish(self, username: str) -> Dict[str, Any]:
-        """Finish the login flow."""
         return {
             "result": "success",
             "username": username,

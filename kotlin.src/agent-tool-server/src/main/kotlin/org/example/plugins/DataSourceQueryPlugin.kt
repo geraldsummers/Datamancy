@@ -23,7 +23,7 @@ import java.sql.DriverManager
 import java.sql.ResultSet
 import java.util.Base64
 
-// SQL Query Validation
+
 sealed class QueryValidationResult {
     data class Approved(val query: String) : QueryValidationResult()
     data class Rejected(val reason: String) : QueryValidationResult()
@@ -31,16 +31,16 @@ sealed class QueryValidationResult {
 
 private fun validateSqlQuery(query: String, requiredSchema: String? = null): QueryValidationResult {
     return try {
-        // Parse SQL to AST (catches malformed queries and comment-based bypasses)
+        
         val statement = CCJSqlParserUtil.parse(query)
 
-        // Only allow SELECT statements
+        
         if (statement !is Select) {
             return QueryValidationResult.Rejected("Only SELECT queries allowed")
         }
 
-        // Validate schema requirement via simple string check
-        // (Parser already validated query structure, this is defense in depth)
+        
+        
         if (requiredSchema != null) {
             if (!query.contains(requiredSchema, ignoreCase = true)) {
                 return QueryValidationResult.Rejected(
@@ -49,7 +49,7 @@ private fun validateSqlQuery(query: String, requiredSchema: String? = null): Que
             }
         }
 
-        // Check for dangerous functions
+        
         val queryLower = query.lowercase()
         val dangerousFunctions = listOf(
             "pg_sleep", "pg_read_file", "pg_ls_dir",
@@ -61,7 +61,7 @@ private fun validateSqlQuery(query: String, requiredSchema: String? = null): Que
             return QueryValidationResult.Rejected("Query contains forbidden functions")
         }
 
-        // Limit complexity (prevent DoS)
+        
         val selectCount = query.split("SELECT", ignoreCase = true).size - 1
         if (selectCount > 3) {
             return QueryValidationResult.Rejected("Too many nested subqueries (max 3)")
@@ -74,7 +74,7 @@ private fun validateSqlQuery(query: String, requiredSchema: String? = null): Que
     }
 }
 
-// Configuration data classes
+
 data class PostgresConfig(
     val host: String,
     val port: Int,
@@ -107,9 +107,7 @@ data class SearchServiceConfig(
     val url: String
 )
 
-/**
- * Data source configuration holder (supports dependency injection)
- */
+
 data class DataSourceConfigs(
     val postgresConfig: PostgresConfig? = null,
     val mariadbConfig: MariaDBConfig? = null,
@@ -118,9 +116,7 @@ data class DataSourceConfigs(
     val searchServiceConfig: SearchServiceConfig? = null
 ) {
     companion object {
-        /**
-         * Create configs from environment variables (production use)
-         */
+        
         fun fromEnvironment(): DataSourceConfigs {
             val env = System.getenv()
 
@@ -185,16 +181,11 @@ data class DataSourceConfigs(
     }
 }
 
-/**
- * DataSourceQueryPlugin - Provides LM-friendly tools to query various data sources
- * with read-only observation accounts.
- *
- * Supports: PostgreSQL, MariaDB, Qdrant, LDAP
- */
+
 class DataSourceQueryPlugin(
     private val configs: DataSourceConfigs = DataSourceConfigs.fromEnvironment()
 ) : Plugin {
-    // Connection pools for database connections (prevents connection exhaustion)
+    
     private var postgresPool: HikariDataSource? = null
     private var mariadbPool: HikariDataSource? = null
 
@@ -208,8 +199,8 @@ class DataSourceQueryPlugin(
     )
 
     override fun init(context: PluginContext) {
-        // Use injected configs (allows testing without environment variables)
-        // Initialize connection pools for configured databases
+        
+        
         configs.postgresConfig?.let { config ->
             val hikariConfig = HikariConfig().apply {
                 jdbcUrl = "jdbc:postgresql://${config.host}:${config.port}/postgres"
@@ -221,7 +212,7 @@ class DataSourceQueryPlugin(
                 idleTimeout = 300000
                 maxLifetime = 600000
                 poolName = "agent-postgres-pool"
-                // Additional safety settings
+                
                 isReadOnly = true
                 transactionIsolation = "TRANSACTION_READ_COMMITTED"
             }
@@ -377,7 +368,7 @@ class DataSourceQueryPlugin(
             )
         }
 
-        // Register semantic search tool if search-service is configured
+        
         if (configs.searchServiceConfig != null) {
             registry.register(
                 ToolDefinition(
@@ -411,7 +402,7 @@ class DataSourceQueryPlugin(
     }
 
     override fun shutdown() {
-        // Close connection pools to release resources
+        
         try {
             postgresPool?.close()
             mariadbPool?.close()
@@ -432,10 +423,7 @@ class DataSourceQueryPlugin(
     ) {
         private val secretsDir = System.getenv("SHADOW_ACCOUNTS_SECRETS_DIR") ?: "/run/secrets/datamancy"
 
-        /**
-         * Load shadow account credentials for a user.
-         * Returns Pair(shadowUsername, password) or null if not found.
-         */
+        
         private fun loadShadowCredentials(username: String): Pair<String, String>? {
             val shadowUsername = "$username-agent"
             val passwordFile = java.io.File("$secretsDir/shadow-agent-$username.pwd")
@@ -456,24 +444,24 @@ class DataSourceQueryPlugin(
         fun query_postgres(database: String, query: String, userContext: String? = null): String {
             val config = postgresConfig ?: return "ERROR: PostgreSQL not configured"
 
-            // Whitelist safe databases only
+            
             val allowedDbs = listOf("grafana", "planka", "mastodon", "forgejo")
             if (database !in allowedDbs) {
                 return "ERROR: Database '$database' not accessible. Allowed: ${allowedDbs.joinToString(", ")}"
             }
 
-            // Validate query with SQL parser (prevents injection via comments, encoding, etc.)
+            
             when (val validation = validateSqlQuery(query, "agent_observer")) {
                 is QueryValidationResult.Rejected -> {
                     println("[AUDIT] user=${userContext ?: "anonymous"} database=$database query_rejected reason=\"${validation.reason}\"")
                     return """{"error": "${validation.reason}"}"""
                 }
                 is QueryValidationResult.Approved -> {
-                    // Query validated, proceed with execution
+                    
                 }
             }
 
-            // Determine credentials (shadow account if userContext provided, otherwise fallback to config)
+            
             val (dbUser, dbPassword) = if (userContext != null) {
                 val shadowCreds = loadShadowCredentials(userContext)
                 if (shadowCreds == null) {
@@ -482,17 +470,17 @@ class DataSourceQueryPlugin(
                 println("[AUDIT] user=$userContext shadow=${shadowCreds.first} tool=query_postgres database=$database")
                 shadowCreds
             } else {
-                // Fallback to global config (deprecated, will be removed)
+                
                 println("[WARN] No user context provided, using global account (deprecated)")
                 Pair(config.user, config.password)
             }
 
             return try {
-                // Use connection pool instead of DriverManager for better performance
+                
                 val pool = postgresPool ?: return "ERROR: PostgreSQL connection pool not initialized"
 
                 pool.connection.use { conn ->
-                    // Switch to the requested database
+                    
                     conn.createStatement().execute("SET search_path TO agent_observer")
                     conn.catalog = database
 
@@ -521,24 +509,24 @@ class DataSourceQueryPlugin(
         fun query_mariadb(database: String, query: String, userContext: String? = null): String {
             val config = mariadbConfig ?: return "ERROR: MariaDB not configured"
 
-            // Whitelist safe databases only - BookStack is safe, Seafile is not
+            
             val allowedDbs = listOf("bookstack")
             if (database !in allowedDbs) {
                 return "ERROR: Database '$database' not accessible. Allowed: ${allowedDbs.joinToString(", ")}"
             }
 
-            // Safety checks
+            
             val queryUpper = query.trim().uppercase()
             if (!queryUpper.startsWith("SELECT")) {
                 return "ERROR: Only SELECT queries are allowed"
             }
 
-            // Prevent access to sensitive data
+            
             if (queryUpper.contains("PASSWORD") || queryUpper.contains("SECRET") || queryUpper.contains("TOKEN")) {
                 return "ERROR: Queries accessing password/secret/token fields are not allowed"
             }
 
-            // Use shadow account if user context provided
+            
             val username = if (userContext != null) {
                 config.user.replace("agent_observer", "${userContext}-agent")
             } else {
@@ -546,11 +534,11 @@ class DataSourceQueryPlugin(
             }
 
             return try {
-                // Use connection pool instead of DriverManager for better performance
+                
                 val pool = mariadbPool ?: return "ERROR: MariaDB connection pool not initialized"
 
                 pool.connection.use { conn ->
-                    // Switch to the requested database
+                    
                     conn.catalog = database
 
                     val startTime = System.currentTimeMillis()
@@ -609,12 +597,12 @@ class DataSourceQueryPlugin(
         fun search_ldap(filter: String, baseDn: String? = null, attributes: List<String>? = null, limit: Int = 100): String {
             val config = ldapConfig ?: return "ERROR: LDAP not configured"
             
-            // Basic safety checks
+            
             if (filter.isBlank()) {
                 return "ERROR: Filter cannot be empty"
             }
             
-            // Prevent potentially dangerous operations
+            
             val forbiddenPatterns = listOf("userPassword", "sambaNTPassword", "sambaLMPassword")
             if (forbiddenPatterns.any { filter.contains(it, ignoreCase = true) }) {
                 return "ERROR: Cannot query password attributes"

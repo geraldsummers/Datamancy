@@ -6,10 +6,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * A Pipeline orchestrates data flow from Source -> Processor(s) -> Sink
- * with backpressure, error handling, and metrics.
- */
+
 class Pipeline<T, R>(
     private val source: Source<T>,
     private val processors: List<Processor<*, *>>,
@@ -20,9 +17,7 @@ class Pipeline<T, R>(
     private val itemsProcessed = AtomicLong(0)
     private val itemsFailed = AtomicLong(0)
 
-    /**
-     * Run the pipeline once - fetch all items, process, and write to sink
-     */
+    
     @Suppress("UNCHECKED_CAST")
     suspend fun run() {
         logger.info { "Starting pipeline: ${source.name} -> ${processors.map { (it as Processor<*, *>).name }} -> ${sink.name}" }
@@ -31,10 +26,10 @@ class Pipeline<T, R>(
 
         try {
             source.fetch()
-                .buffer(bufferSize)  // Backpressure: bounded buffer
+                .buffer(bufferSize)  
                 .map { item ->
                     try {
-                        // Apply all processors in sequence
+                        
                         var result: Any? = item
                         for (processor in processors) {
                             result = (processor as Processor<Any?, Any?>).process(result)

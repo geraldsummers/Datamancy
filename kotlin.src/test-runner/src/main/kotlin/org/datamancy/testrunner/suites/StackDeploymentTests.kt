@@ -3,24 +3,14 @@ package org.datamancy.testrunner.suites
 import org.datamancy.testrunner.framework.TestRunner
 import java.io.File
 
-/**
- * Stack Deployment Tests
- *
- * Tests full stack deployment lifecycle using labware Docker socket:
- * - Deploy isolated test stack
- * - Wait for all services to become healthy
- * - Run integration tests against deployed stack
- * - Clean up test stack
- *
- * This validates that the stack can successfully deploy from scratch.
- */
+
 suspend fun TestRunner.stackDeploymentTests() = suite("Stack Deployment Tests") {
 
     val labwareSocket = "/run/labware-docker.sock"
     val testProjectName = "datamancy-test-${System.currentTimeMillis()}"
-    val distDir = File("/app")  // Assuming test-runner runs with dist mounted
+    val distDir = File("/app")  
 
-    // Check labware socket availability
+    
     val isLabwareAvailable = File(labwareSocket).exists()
 
     if (!isLabwareAvailable) {
@@ -50,7 +40,7 @@ suspend fun TestRunner.stackDeploymentTests() = suite("Stack Deployment Tests") 
         val envFile = distDir.resolve(".env")
         require(envFile.exists()) { ".env file not found at ${envFile.absolutePath}" }
 
-        // Deploy using docker compose with labware socket
+        
         val (exitCode, output) = execLabwareCompose(
             distDir,
             testProjectName,
@@ -67,10 +57,10 @@ suspend fun TestRunner.stackDeploymentTests() = suite("Stack Deployment Tests") 
 
     test("Wait for critical services to become healthy") {
         val criticalServices = listOf(
-            "postgres" to 300,      // 5 minutes
-            "ldap" to 120,          // 2 minutes
-            "caddy" to 120,         // 2 minutes
-            "authelia" to 180       // 3 minutes
+            "postgres" to 300,      
+            "ldap" to 120,          
+            "caddy" to 120,         
+            "authelia" to 180       
         )
 
         criticalServices.forEach { (service, timeout) ->
@@ -82,9 +72,9 @@ suspend fun TestRunner.stackDeploymentTests() = suite("Stack Deployment Tests") 
 
     test("Wait for slow services to become healthy") {
         val slowServices = listOf(
-            "forgejo" to 600,       // 10 minutes
-            "grafana" to 300,       // 5 minutes
-            "open-webui" to 300     // 5 minutes
+            "forgejo" to 600,       
+            "grafana" to 300,       
+            "open-webui" to 300     
         )
 
         slowServices.forEach { (service, timeout) ->
@@ -94,7 +84,7 @@ suspend fun TestRunner.stackDeploymentTests() = suite("Stack Deployment Tests") 
                 println("        ✓ $service is healthy")
             } catch (e: Exception) {
                 println("        ⚠ $service failed to become healthy (non-critical): ${e.message}")
-                // Get logs for debugging
+                
                 val (_, logs) = execLabwareCompose(
                     distDir,
                     testProjectName,
@@ -106,7 +96,7 @@ suspend fun TestRunner.stackDeploymentTests() = suite("Stack Deployment Tests") 
     }
 
     test("Verify stack isolation from production") {
-        // Get containers from test project
+        
         val (_, testOutput) = execLabwareCompose(
             distDir,
             testProjectName,
@@ -117,7 +107,7 @@ suspend fun TestRunner.stackDeploymentTests() = suite("Stack Deployment Tests") 
         require(testContainers.isNotEmpty()) { "Test stack should have running containers" }
         println("      Test stack has ${testContainers.size} containers")
 
-        // Get containers from production Docker
+        
         val prodProcess = ProcessBuilder("docker", "ps", "--format", "{{.Names}}").start()
         val prodOutput = prodProcess.inputStream.bufferedReader().readText()
         prodProcess.waitFor()
@@ -196,7 +186,7 @@ private fun waitForServiceHealthy(projectName: String, service: String, timeoutS
             return
         }
 
-        Thread.sleep(10_000)  // Check every 10 seconds
+        Thread.sleep(10_000)  
     }
 
     throw AssertionError("Service $service did not become healthy within ${timeoutSeconds}s")

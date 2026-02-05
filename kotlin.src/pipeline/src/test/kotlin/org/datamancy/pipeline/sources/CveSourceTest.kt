@@ -8,10 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-/**
- * CVE tests disabled - requires API key from https://nvd.nist.gov/developers/request-an-api-key
- * Enable CVE source by setting CVE_ENABLED=true and CVE_API_KEY env vars
- */
+
 @Disabled("CVE source requires API key - enable with CVE_ENABLED=true and CVE_API_KEY")
 class CveSourceTest {
 
@@ -68,7 +65,7 @@ class CveSourceTest {
             affectedProducts = emptyList()
         )
 
-        // Same CVE ID and lastModifiedDate should produce same hash
+        
         assertEquals(cve1.contentHash(), cve2.contentHash())
     }
 
@@ -88,35 +85,13 @@ class CveSourceTest {
 
         val cve2 = cve1.copy(lastModifiedDate = "2024-01-03T00:00:00.000")
 
-        // Different modification dates should produce different hashes
+        
         assertTrue(cve1.contentHash() != cve2.contentHash())
     }
 
-    // NOTE: This test hits the real NVD API - commented out to avoid rate limits in CI
-    // Uncomment locally to test API integration
-    /*
-    @Test
-    fun `test CveSource with small maxResults limit`() = runBlocking {
-        val source = CveSource(
-            apiKey = null,
-            startIndex = 0,
-            maxResults = 5  // Only fetch 5 CVEs
-        )
-
-        val cves = source.fetch().toList()
-
-        assertTrue(cves.size <= 5, "Should not exceed maxResults limit")
-
-        if (cves.isNotEmpty()) {
-            cves.forEach { cve ->
-                assertNotNull(cve.cveId)
-                assertTrue(cve.cveId.startsWith("CVE-"))
-                assertNotNull(cve.description)
-                assertNotNull(cve.severity)
-            }
-        }
-    }
-    */
+    
+    
+    
 
     @Test
     fun `test CveEntry handles null baseScore`() {
@@ -134,7 +109,7 @@ class CveSourceTest {
 
         val text = cve.toText()
         assertTrue(text.contains("UNKNOWN"))
-        assertTrue(!text.contains("CVSS:"))  // Should not include CVSS line if null
+        assertTrue(!text.contains("CVSS:"))  
     }
 
     @Test
@@ -156,7 +131,7 @@ class CveSourceTest {
         val text = cve.toText()
         assertTrue(text.contains("and 10 more"))
 
-        // Count occurrences of "vendor:product" to ensure only 10 shown
+        
         val count = text.split("vendor:product").size - 1
         assertEquals(10, count)
     }

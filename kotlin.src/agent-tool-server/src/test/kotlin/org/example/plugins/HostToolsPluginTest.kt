@@ -91,7 +91,7 @@ class HostToolsPluginTest {
         @Test
         @EnabledOnOs(OS.LINUX, OS.MAC)
         fun `accepts whitelisted read-only commands`() {
-            // Test that whitelisted commands are allowed ("echo" is NOT in whitelist)
+            
             val result = tools.host_exec_readonly(listOf("ls", "/tmp"))
             assertEquals(0, result["exitCode"])
         }
@@ -142,27 +142,27 @@ class HostToolsPluginTest {
 
         @Test
         fun `returns structured response with logs and exit code`() {
-            // This test requires Docker, will fail if not available
-            // We test the structure rather than actual Docker interaction
+            
+            
             try {
                 val result = tools.docker_logs("nonexistent-container-xyz", 10)
-                // Should have these keys even on failure
+                
                 assertTrue(result.containsKey("exitCode"))
                 assertTrue(result.containsKey("logs"))
             } catch (e: Exception) {
-                // Expected if Docker not available
+                
                 assertTrue(e.message?.contains("docker") ?: false)
             }
         }
 
         @Test
         fun `respects tail parameter`() {
-            // Structure test - ensures parameter is passed correctly
+            
             try {
                 val result = tools.docker_logs("test-container", 50)
                 assertNotNull(result)
             } catch (e: Exception) {
-                // Expected if Docker/container not available
+                
             }
         }
     }
@@ -175,9 +175,9 @@ class HostToolsPluginTest {
         fun `returns list of containers`() {
             try {
                 val result = tools.docker_list_containers()
-                // Result is always a List, but may be empty
+                
                 assertTrue(result.isEmpty() || result.isNotEmpty())
-                // If Docker is available, each item should have id and name
+                
                 if (result.isNotEmpty()) {
                     val first = result[0]
                     assertTrue(first.containsKey("id"))
@@ -185,8 +185,8 @@ class HostToolsPluginTest {
                     assertTrue(first.containsKey("status"))
                 }
             } catch (e: Exception) {
-                // Expected if Docker not available or not accessible
-                // Any exception is acceptable in this case
+                
+                
                 assertTrue(true)
             }
         }
@@ -203,7 +203,7 @@ class HostToolsPluginTest {
                 assertTrue(result.containsKey("success"))
                 assertTrue(result.containsKey("exitCode"))
             } catch (e: Exception) {
-                // Expected if Docker not available
+                
             }
         }
     }
@@ -218,7 +218,7 @@ class HostToolsPluginTest {
                 val result = tools.docker_stats("nonexistent-container")
                 assertTrue(result.containsKey("exitCode"))
             } catch (e: Exception) {
-                // Expected if Docker/container not available
+                
             }
         }
     }
@@ -233,7 +233,7 @@ class HostToolsPluginTest {
                 val result = tools.docker_inspect("nonexistent-container")
                 assertTrue(result.containsKey("exitCode"))
             } catch (e: Exception) {
-                // Expected if Docker/container not available
+                
             }
         }
     }
@@ -255,7 +255,7 @@ class HostToolsPluginTest {
                 val result = tools.docker_exec("container", listOf("echo", "test"))
                 assertTrue(result.containsKey("exitCode"))
             } catch (e: Exception) {
-                // Expected if Docker/container not available
+                
             }
         }
     }
@@ -270,7 +270,7 @@ class HostToolsPluginTest {
                 val result = tools.docker_health_wait("container", 5)
                 assertTrue(result.containsKey("success") || result.containsKey("status"))
             } catch (e: Exception) {
-                // Expected if Docker/container not available
+                
             }
         }
     }
@@ -286,7 +286,7 @@ class HostToolsPluginTest {
                 assertTrue(result.containsKey("success"))
                 assertTrue(result.containsKey("exitCode"))
             } catch (e: Exception) {
-                // Expected if docker-compose not available
+                
             }
         }
     }
@@ -297,14 +297,14 @@ class HostToolsPluginTest {
 
         @Test
         fun `makes HTTP request and returns response`() {
-            // Test with a reliable endpoint
+            
             try {
                 val result = tools.http_get("https://httpbin.org/get")
                 assertTrue(result.containsKey("status"))
                 assertTrue(result.containsKey("body"))
                 assertEquals(200, result["status"])
             } catch (e: Exception) {
-                // Network might not be available in test environment
+                
                 println("Skipping HTTP test: ${e.message}")
             }
         }
@@ -316,7 +316,7 @@ class HostToolsPluginTest {
                 val result = tools.http_get("https://httpbin.org/headers", headers)
                 assertTrue(result.containsKey("status"))
             } catch (e: Exception) {
-                // Network might not be available
+                
             }
         }
 
@@ -324,10 +324,10 @@ class HostToolsPluginTest {
         fun `handles connection errors gracefully`() {
             try {
                 tools.http_get("http://localhost:99999/nonexistent")
-                // If it doesn't throw, the function handled it gracefully
+                
             } catch (e: Exception) {
-                // Expected - connection error throws exception
-                // Any exception is acceptable here (connection refused, timeout, etc.)
+                
+                
                 assertNotNull(e)
             }
         }
@@ -336,9 +336,9 @@ class HostToolsPluginTest {
         fun `handles invalid URLs gracefully`() {
             try {
                 tools.http_get("not-a-valid-url")
-                // If it doesn't throw, test will continue
+                
             } catch (e: Exception) {
-                // Expected - invalid URL throws exception
+                
                 assertTrue(e.message?.contains("URI") ?: e.message?.contains("Illegal") ?: true)
             }
         }

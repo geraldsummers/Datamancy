@@ -7,10 +7,7 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.json.*
 import org.datamancy.testrunner.framework.*
 
-/**
- * Tests for the unified pipeline service (replaces data-fetcher, data-transformer, data-vector-indexer)
- * Pipeline runs on port 8090 with HTTP monitoring endpoints
- */
+
 suspend fun TestRunner.microserviceTests() = suite("Pipeline Tests") {
 
     test("Pipeline: Health check") {
@@ -58,7 +55,7 @@ suspend fun TestRunner.microserviceTests() = suite("Pipeline Tests") {
         require(sources != null) { "sources array missing" }
         require(sources.size == 8) { "Expected 8 sources in status" }
 
-        // Check each source has required fields
+        
         sources.forEach { sourceElement ->
             val source = sourceElement.jsonObject
             require(source["source"]?.jsonPrimitive?.content != null) { "source name missing" }
@@ -69,7 +66,7 @@ suspend fun TestRunner.microserviceTests() = suite("Pipeline Tests") {
 
         println("      ✓ Pipeline uptime: ${uptime}s, ${sources.size} sources monitored")
 
-        // Show status of each source
+        
         sources.forEach { sourceElement ->
             val source = sourceElement.jsonObject
             val name = source["source"]?.jsonPrimitive?.content

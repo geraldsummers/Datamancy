@@ -13,9 +13,7 @@ import org.datamancy.pipeline.sinks.BookStackDocument
 import org.datamancy.pipeline.sources.LinuxDoc
 import org.datamancy.pipeline.sources.LinuxDocsSource
 
-/**
- * Chunkable wrapper for Linux documentation
- */
+
 data class LinuxDocChunkable(val doc: LinuxDoc) : Chunkable {
     override fun toText(): String = doc.toText()
     override fun getId(): String = doc.id
@@ -59,9 +57,7 @@ data class LinuxDocChunkable(val doc: LinuxDoc) : Chunkable {
     }
 }
 
-/**
- * Standardized Linux Docs source with chunking and scheduling
- */
+
 class LinuxDocsStandardizedSource(
     private val sources: List<LinuxDocsSource.DocSource> = listOf(
         LinuxDocsSource.DocSource.MAN_PAGES,
@@ -83,9 +79,9 @@ class LinuxDocsStandardizedSource(
     override fun chunker() = Chunker.forEmbeddingModel(tokenLimit = 8192, overlapPercent = 0.20)
 
     override suspend fun fetchForRun(metadata: RunMetadata): Flow<LinuxDocChunkable> {
-        // For Linux docs, we scan the filesystem
-        // Initial pull: scan all docs
-        // Resync: scan all docs (filesystem changes are infrequent)
+        
+        
+        
 
         val source = LinuxDocsSource(
             sources = sources,

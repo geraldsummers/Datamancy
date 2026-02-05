@@ -8,23 +8,18 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import org.datamancy.testrunner.framework.*
 
-/**
- * Security-focused tests for agent-tool-server
- *
- * Tests security boundaries, input validation, and injection prevention.
- * These tests MUST have 0% acceptable failure rate - security cannot be probabilistic.
- */
+
 suspend fun TestRunner.agentSecurityTests() {
     val probRunner = ProbabilisticTestRunner(environment, client, httpClient)
 
     println("\n▶ Agent Security Tests")
 
-    // ===== DOCKER SECURITY TESTS =====
+    
 
     probRunner.probabilisticTest(
         name = "Docker: Rejects malicious image names with shell injection",
         trials = 20,
-        acceptableFailureRate = 0.0  // MUST block 100%
+        acceptableFailureRate = 0.0  
     ) {
         val maliciousImages = listOf(
             "alpine; rm -rf /",
@@ -41,7 +36,7 @@ suspend fun TestRunner.agentSecurityTests() {
             setBody("""{"tool":"docker_container_create","input":{"image":"$testImage","name":"test"}}""")
         }
 
-        // Should reject (400/404) or error, never succeed (200 with success)
+        
         response.status != HttpStatusCode.OK || response.bodyAsText().contains("error", ignoreCase = true)
     }
 
@@ -69,7 +64,7 @@ suspend fun TestRunner.agentSecurityTests() {
     probRunner.probabilisticTest(
         name = "Docker: Enforces resource limits on container creation",
         trials = 10,
-        acceptableFailureRate = 0.1  // 10% acceptable for legitimate Docker errors
+        acceptableFailureRate = 0.1  
     ) {
         val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
@@ -86,12 +81,12 @@ suspend fun TestRunner.agentSecurityTests() {
             """.trimIndent())
         }
 
-        // If creation succeeds, verify limits were actually applied
+        
         if (response.status == HttpStatusCode.OK) {
             val body = response.bodyAsText()
             !body.contains("unlimited") && !body.contains("no limits")
         } else {
-            // Docker might not be available in test environment
+            
             true
         }
     }
@@ -99,7 +94,7 @@ suspend fun TestRunner.agentSecurityTests() {
     probRunner.probabilisticTest(
         name = "Docker: Blocks privileged container creation",
         trials = 15,
-        acceptableFailureRate = 0.0  // MUST block 100%
+        acceptableFailureRate = 0.0  
     ) {
         val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
@@ -115,7 +110,7 @@ suspend fun TestRunner.agentSecurityTests() {
             """.trimIndent())
         }
 
-        // Should reject privileged containers
+        
         response.status != HttpStatusCode.OK || response.bodyAsText().contains("error", ignoreCase = true)
     }
 
@@ -141,12 +136,12 @@ suspend fun TestRunner.agentSecurityTests() {
         response.status != HttpStatusCode.OK || response.bodyAsText().contains("error", ignoreCase = true)
     }
 
-    // ===== SQL INJECTION TESTS =====
+    
 
     probRunner.probabilisticTest(
         name = "SQL: Blocks classic injection with statement termination",
         trials = 30,
-        acceptableFailureRate = 0.0  // MUST block 100%
+        acceptableFailureRate = 0.0  
     ) {
         val injectionAttempts = listOf(
             "SELECT * FROM users; DROP TABLE users;--",
@@ -169,7 +164,7 @@ suspend fun TestRunner.agentSecurityTests() {
             """.trimIndent())
         }
 
-        // Should reject with validation error
+        
         response.status != HttpStatusCode.OK || response.bodyAsText().contains("error", ignoreCase = true) ||
             response.bodyAsText().contains("invalid", ignoreCase = true)
     }
@@ -227,7 +222,7 @@ suspend fun TestRunner.agentSecurityTests() {
         trials = 20,
         acceptableFailureRate = 0.0
     ) {
-        // Nested subqueries that could cause DoS
+        
         val complexQuery = """
             SELECT * FROM (
                 SELECT * FROM (
@@ -249,12 +244,12 @@ suspend fun TestRunner.agentSecurityTests() {
             response.bodyAsText().contains("nested", ignoreCase = true)
     }
 
-    // ===== SSH COMMAND INJECTION TESTS =====
+    
 
     probRunner.probabilisticTest(
         name = "SSH: Blocks command injection with semicolons",
         trials = 25,
-        acceptableFailureRate = 0.0  // MUST block 100%
+        acceptableFailureRate = 0.0  
     ) {
         val injectionAttempts = listOf(
             "docker logs vllm; rm -rf /",
@@ -269,7 +264,7 @@ suspend fun TestRunner.agentSecurityTests() {
             setBody("""{"tool":"ssh_exec_whitelisted","input":{"cmd":"$injection"}}""")
         }
 
-        // Should be rejected by forced-command wrapper or tool validation
+        
         response.status != HttpStatusCode.OK || response.bodyAsText().contains("error", ignoreCase = true) ||
             response.bodyAsText().contains("not allowed", ignoreCase = true)
     }
@@ -315,12 +310,12 @@ suspend fun TestRunner.agentSecurityTests() {
         response.status != HttpStatusCode.OK || response.bodyAsText().contains("error", ignoreCase = true)
     }
 
-    // ===== HOST COMMAND SECURITY TESTS =====
+    
 
     probRunner.probabilisticTest(
         name = "Host: Blocks non-whitelisted commands",
         trials = 30,
-        acceptableFailureRate = 0.0  // MUST block 100%
+        acceptableFailureRate = 0.0  
     ) {
         val forbiddenCommands = listOf(
             listOf("rm", "-rf", "/"),
@@ -381,12 +376,12 @@ suspend fun TestRunner.agentSecurityTests() {
             setBody("""{"tool":"host_exec_readonly","input":{"cmd":$cmdJson}}""")
         }
 
-        // Should either block or only allow within safe directories
+        
         response.status != HttpStatusCode.OK || response.bodyAsText().contains("error", ignoreCase = true) ||
             !response.bodyAsText().contains("root:", ignoreCase = true)
     }
 
-    // ===== BROWSER SSRF TESTS =====
+    
 
     probRunner.probabilisticTest(
         name = "Browser: Blocks access to internal network ranges",
@@ -396,7 +391,7 @@ suspend fun TestRunner.agentSecurityTests() {
         val internalUrls = listOf(
             "http://localhost:22",
             "http://127.0.0.1:6379",
-            "http://169.254.169.254/latest/meta-data",  // AWS metadata
+            "http://169.254.169.254/latest/meta-data",  
             "http://10.0.0.1",
             "http://192.168.1.1",
             "http://172.16.0.1"
@@ -408,7 +403,7 @@ suspend fun TestRunner.agentSecurityTests() {
             setBody("""{"tool":"browser_screenshot","input":{"url":"$url"}}""")
         }
 
-        // Should reject SSRF attempts
+        
         response.status != HttpStatusCode.OK || response.bodyAsText().contains("error", ignoreCase = true) ||
             response.bodyAsText().contains("not allowed", ignoreCase = true)
     }
@@ -433,7 +428,7 @@ suspend fun TestRunner.agentSecurityTests() {
         response.status != HttpStatusCode.OK || response.bodyAsText().contains("error", ignoreCase = true)
     }
 
-    // Print summary
+    
     val summary = probRunner.summary()
     println("\n" + "=".repeat(80))
     println("SECURITY TEST SUMMARY")
@@ -458,7 +453,7 @@ suspend fun TestRunner.agentSecurityTests() {
 
     println("=".repeat(80))
 
-    // Security tests must have ZERO failures
+    
     if (summary.failed > 0) {
         throw AssertionError("SECURITY TEST FAILURE: ${summary.failed} test(s) did not block attacks as expected")
     }

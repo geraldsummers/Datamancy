@@ -16,7 +16,6 @@ eventually we will fix the errors and then we will deploy again. in fixing the p
 kill system:
 
 gerald@latium ~ $
-#set -euo pipefail
 
 echo "[1/6] SIGKILL all container processes"
 docker ps -q | xargs -r docker kill || true

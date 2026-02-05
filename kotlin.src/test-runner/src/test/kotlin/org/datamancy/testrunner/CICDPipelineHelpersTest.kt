@@ -4,16 +4,13 @@ import org.datamancy.testrunner.suites.CICDPipelineTests
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/**
- * Unit tests for CICDPipelineTests helpers
- * These tests verify the test helper logic WITHOUT requiring labware Docker host or registry
- */
+
 class CICDPipelineHelpersTest {
 
     @Test
     fun `labware Docker host uses environment or default`() {
         val dockerHost = CICDPipelineTests.LABWARE_DOCKER_HOST
-        // Should be either from env or default
+        
         assertTrue(dockerHost.isNotEmpty())
     }
 
@@ -85,16 +82,16 @@ class CICDPipelineHelpersTest {
         val testContainers = mutableListOf<String>()
         val tempDirs = mutableListOf<java.io.File>()
 
-        // All should start empty
+        
         assertTrue(testImages.isEmpty())
         assertTrue(testContainers.isEmpty())
         assertTrue(tempDirs.isEmpty())
 
-        // Can add items
+        
         testImages.add("test:latest")
         assertEquals(1, testImages.size)
 
-        // Can clear
+        
         testImages.clear()
         assertTrue(testImages.isEmpty())
     }

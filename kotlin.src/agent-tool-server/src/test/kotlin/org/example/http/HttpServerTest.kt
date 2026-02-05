@@ -28,7 +28,7 @@ class HttpServerTest {
     fun setup() {
         registry = ToolRegistry()
 
-        // Register a test tool
+        
         val definition = ToolDefinition(
             name = "test_tool",
             description = "A test tool",
@@ -45,7 +45,7 @@ class HttpServerTest {
             "echo: ${args.get("input")?.asText() ?: "none"}"
         })
 
-        // Start server on random port
+        
         server = LlmHttpServer(port = 0, tools = registry)
         server.start()
         port = server.boundPort() ?: 8081

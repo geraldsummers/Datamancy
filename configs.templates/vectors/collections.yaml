@@ -1,10 +1,7 @@
 vector_size: 1024
 distance: Cosine
 
-# Collections to initialize in Qdrant for vectorized knowledge bases
-# NOTE: Only collections with active pipeline sources are included
 collections:
-  # Active pipeline sources
   - name: rss_feeds
     description: RSS/Atom feed articles from various sources
   - name: cve
@@ -21,13 +18,3 @@ collections:
     description: Debian Wiki documentation
   - name: arch_wiki
     description: Arch Linux Wiki documentation
-
-  # REMOVED - No pipeline sources implemented:
-  # - wiki_general (no source code)
-  # - wiki_species (no source code)
-  # - wiki_functions (no source code)
-  # - rss_aggregation (duplicate of rss_feeds)
-  # - macro_series_meta (no source code)
-  # - yahoo_finance (no source code)
-  # - debian_docs (duplicate of debian_wiki)
-  # - torrents_csv (duplicate of torrents)

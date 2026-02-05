@@ -16,7 +16,7 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
         require(result is ToolResult.Success, "LLM completion failed: ${(result as? ToolResult.Error)?.message}")
         val output = (result as ToolResult.Success).output
 
-        // Check for error responses (prevent false positives from "401" containing "4")
+        
         require(!output.contains("\"error\"", ignoreCase = false)) {
             "LLM call returned error response: $output"
         }
@@ -51,7 +51,7 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
         output shouldContain "["
         output shouldContain "]"
 
-        // Vector should have ~1024 dimensions for bge-m3
+        
         val dimensions = output.split(",").size
         dimensions shouldBeGreaterThan 1000
     }

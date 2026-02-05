@@ -59,32 +59,32 @@ class BookStackSinkTest {
 
     @Test
     fun `test write creates new book if not exists`() = runBlocking {
-        // Mock book search (empty results)
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"data": []}"""))
 
-        // Mock book creation
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"id": 1, "name": "Test Book"}"""))
 
-        // Mock book detail for chapter search
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"id": 1, "contents": []}"""))
 
-        // Mock chapter creation
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"id": 1, "name": "Test Chapter"}"""))
 
-        // Mock page search
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"data": []}"""))
 
-        // Mock page creation
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"id": 1, "name": "Test Page", "slug": "test-page", "book_slug": "test-book"}"""))
@@ -101,8 +101,8 @@ class BookStackSinkTest {
 
         sink.write(doc)
 
-        // Verify book creation request
-        mockServer.takeRequest() // book search
+        
+        mockServer.takeRequest() 
         val bookCreateRequest = mockServer.takeRequest()
         assertEquals("/api/books", bookCreateRequest.path)
         assertTrue(bookCreateRequest.body.readUtf8().contains("Test Book"))
@@ -110,27 +110,27 @@ class BookStackSinkTest {
 
     @Test
     fun `test write reuses existing book`() = runBlocking {
-        // Mock book search (book exists)
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"data": [{"id": 5, "name": "Existing Book"}]}"""))
 
-        // Mock book detail for chapter search
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"id": 5, "contents": []}"""))
 
-        // Mock chapter creation
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"id": 2, "name": "Test Chapter"}"""))
 
-        // Mock page search
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"data": []}"""))
 
-        // Mock page creation
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"id": 10, "name": "Test Page", "slug": "test-page", "book_slug": "existing-book"}"""))
@@ -144,7 +144,7 @@ class BookStackSinkTest {
 
         sink.write(doc)
 
-        // Should NOT create a new book, only search
+        
         val bookSearchRequest = mockServer.takeRequest()
         assertEquals("/api/books", bookSearchRequest.path)
         assertEquals("GET", bookSearchRequest.method)
@@ -152,33 +152,33 @@ class BookStackSinkTest {
 
     @Test
     fun `test write creates page without chapter`() = runBlocking {
-        // Mock book search
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"data": [{"id": 3, "name": "Test Book"}]}"""))
 
-        // Mock page search
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"data": []}"""))
 
-        // Mock page creation
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"id": 20, "name": "Test Page", "slug": "test-page", "book_slug": "test-book"}"""))
 
         val doc = BookStackDocument(
             bookName = "Test Book",
-            chapterName = null,  // No chapter
+            chapterName = null,  
             pageTitle = "Test Page",
             pageContent = "<p>Direct page in book</p>"
         )
 
         sink.write(doc)
 
-        // Verify page creation includes book_id but no chapter_id
-        mockServer.takeRequest() // book search
-        mockServer.takeRequest() // page search
+        
+        mockServer.takeRequest() 
+        mockServer.takeRequest() 
         val pageCreateRequest = mockServer.takeRequest()
         val body = pageCreateRequest.body.readUtf8()
         assertTrue(body.contains("book_id"))
@@ -187,17 +187,17 @@ class BookStackSinkTest {
 
     @Test
     fun `test write updates existing page`() = runBlocking {
-        // Mock book search
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"data": [{"id": 4, "name": "Test Book"}]}"""))
 
-        // Mock page search (page exists)
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"data": [{"id": 50, "name": "Test Page", "book_id": 4, "chapter_id": null}]}"""))
 
-        // Mock page update
+        
         mockServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"id": 50, "name": "Test Page", "slug": "test-page", "book_slug": "test-book"}"""))
@@ -210,9 +210,9 @@ class BookStackSinkTest {
 
         sink.write(doc)
 
-        // Verify PUT request for update
-        mockServer.takeRequest() // book search
-        mockServer.takeRequest() // page search
+        
+        mockServer.takeRequest() 
+        mockServer.takeRequest() 
         val pageUpdateRequest = mockServer.takeRequest()
         assertEquals("PUT", pageUpdateRequest.method)
         assertTrue(pageUpdateRequest.path?.contains("/api/pages/50") ?: false)
@@ -220,7 +220,7 @@ class BookStackSinkTest {
 
     @Test
     fun `test write includes tags in page creation`() = runBlocking {
-        // Mock responses
+        
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": [{"id": 1, "name": "Book"}]}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1, "slug": "page", "book_slug": "book"}"""))
@@ -237,8 +237,8 @@ class BookStackSinkTest {
 
         sink.write(doc)
 
-        mockServer.takeRequest() // book search
-        mockServer.takeRequest() // page search
+        mockServer.takeRequest() 
+        mockServer.takeRequest() 
         val pageCreateRequest = mockServer.takeRequest()
         val body = pageCreateRequest.body.readUtf8()
 
@@ -255,7 +255,7 @@ class BookStackSinkTest {
             BookStackDocument("Book2", pageTitle = "Page2", pageContent = "<p>2</p>")
         )
 
-        // Mock responses for both documents
+        
         repeat(2) {
             mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
             mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": $it, "slug": "book$it"}"""))
@@ -265,7 +265,7 @@ class BookStackSinkTest {
 
         sink.writeBatch(docs)
 
-        // Should have made requests for both documents
+        
         val requestCount = mockServer.requestCount
         assertTrue(requestCount >= 6, "Should have made at least 6 requests (book search + create + page search + create for each doc)")
     }
@@ -305,9 +305,9 @@ class BookStackSinkTest {
 
         sink.write(doc)
 
-        mockServer.takeRequest() // book
-        mockServer.takeRequest() // page search
-        val request = mockServer.takeRequest() // page create
+        mockServer.takeRequest() 
+        mockServer.takeRequest() 
+        val request = mockServer.takeRequest() 
         val body = request.body.readUtf8()
 
         assertTrue(body.contains("html"))
@@ -316,13 +316,13 @@ class BookStackSinkTest {
 
     @Test
     fun `test caching reduces API calls for same book`() = runBlocking {
-        // First write - creates book
+        
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 99, "name": "Same Book"}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1, "slug": "page-1", "book_slug": "same-book"}"""))
 
-        // Second write - should use cached book ID
+        
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 2, "slug": "page-2", "book_slug": "same-book"}"""))
 
@@ -335,7 +335,7 @@ class BookStackSinkTest {
         sink.write(doc2)
         val requestsAfterSecond = mockServer.requestCount
 
-        // Second write should make fewer requests (no book creation, uses cache)
+        
         assertTrue(requestsAfterSecond - requestsAfterFirst < requestsAfterFirst,
             "Second write should use cached book and make fewer requests")
     }

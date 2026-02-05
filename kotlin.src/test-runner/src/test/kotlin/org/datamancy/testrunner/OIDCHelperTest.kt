@@ -13,13 +13,13 @@ import kotlin.test.*
 
 class OIDCHelperTest {
 
-    // =========================================================================
-    // JWT Decoding Tests
-    // =========================================================================
+    
+    
+    
 
     @Test
     fun `decodeIdToken should extract claims from valid JWT`() {
-        // Create a valid JWT with known claims
+        
         val header = """{"alg":"RS256","typ":"JWT"}"""
         val payload = """{
             "sub":"user123",
@@ -37,15 +37,15 @@ class OIDCHelperTest {
             .encodeToString(payload.toByteArray())
         val jwt = "$encodedHeader.$encodedPayload.fake_signature"
 
-        // Create mocks
+        
         val mockHttpClient = createMockHttpClient()
         val mockAuthHelper = createMockAuthHelper(mockHttpClient)
         val oidcHelper = OIDCHelper("http://authelia:9091", mockHttpClient, mockAuthHelper)
 
-        // Decode token
+        
         val claims = oidcHelper.decodeIdToken(jwt)
 
-        // Verify claims
+        
         assertEquals("user123", claims["sub"])
         assertEquals("https://auth.example.com", claims["iss"])
         assertEquals("my-client", claims["aud"])
@@ -85,12 +85,12 @@ class OIDCHelperTest {
         val mockAuthHelper = createMockAuthHelper(mockHttpClient)
         val oidcHelper = OIDCHelper("http://authelia:9091", mockHttpClient, mockAuthHelper)
 
-        // Invalid JWT with only 2 parts
+        
         assertFailsWith<IllegalArgumentException> {
             oidcHelper.decodeIdToken("header.payload")
         }
 
-        // Invalid JWT with 4 parts
+        
         assertFailsWith<IllegalArgumentException> {
             oidcHelper.decodeIdToken("header.payload.signature.extra")
         }
@@ -102,15 +102,15 @@ class OIDCHelperTest {
         val mockAuthHelper = createMockAuthHelper(mockHttpClient)
         val oidcHelper = OIDCHelper("http://authelia:9091", mockHttpClient, mockAuthHelper)
 
-        // Invalid base64 in payload
+        
         assertFails {
             oidcHelper.decodeIdToken("valid_header.invalid!!!base64.signature")
         }
     }
 
-    // =========================================================================
-    // Expired Token Creation Tests
-    // =========================================================================
+    
+    
+    
 
     @Test
     fun `createExpiredToken should create JWT with past expiry`() {
@@ -120,11 +120,11 @@ class OIDCHelperTest {
 
         val expiredToken = oidcHelper.createExpiredToken("testuser")
 
-        // Verify it's a valid JWT structure
+        
         val parts = expiredToken.split(".")
         assertEquals(3, parts.size)
 
-        // Decode and verify expiry is in the past
+        
         val claims = oidcHelper.decodeIdToken(expiredToken)
         assertEquals("testuser", claims["sub"])
 
@@ -143,16 +143,16 @@ class OIDCHelperTest {
         val expiredToken = oidcHelper.createExpiredToken("alice")
         val claims = oidcHelper.decodeIdToken(expiredToken)
 
-        // Verify required claims
+        
         assertTrue(claims.containsKey("sub"))
         assertTrue(claims.containsKey("exp"))
         assertTrue(claims.containsKey("iss"))
         assertEquals("alice", claims["sub"])
     }
 
-    // =========================================================================
-    // Discovery Document Tests
-    // =========================================================================
+    
+    
+    
 
     @Test
     fun `getDiscoveryDocument should parse OIDC discovery response`() = runTest {
@@ -185,7 +185,7 @@ class OIDCHelperTest {
 
         val discovery = oidcHelper.getDiscoveryDocument()
 
-        // Verify key endpoints
+        
         assertEquals("https://auth.example.com", discovery["issuer"])
         assertEquals("https://auth.example.com/api/oidc/authorization", discovery["authorization_endpoint"])
         assertEquals("https://auth.example.com/api/oidc/token", discovery["token_endpoint"])
@@ -246,9 +246,9 @@ class OIDCHelperTest {
         }
     }
 
-    // =========================================================================
-    // Token Validation Tests
-    // =========================================================================
+    
+    
+    
 
     @Test
     fun `validateToken should return true for valid token`() = runTest {
@@ -314,9 +314,9 @@ class OIDCHelperTest {
         assertFalse(isValid)
     }
 
-    // =========================================================================
-    // Token Exchange Tests
-    // =========================================================================
+    
+    
+    
 
     @Test
     fun `exchangeCodeForTokens should parse token response`() = runTest {
@@ -331,7 +331,7 @@ class OIDCHelperTest {
         val mockClient = HttpClient(MockEngine) {
             engine {
                 addHandler { request ->
-                    // Verify it's a POST to token endpoint
+                    
                     if (request.method == HttpMethod.Post && request.url.toString().contains("/token")) {
                         respond(
                             content = ByteReadChannel(tokenResponse),
@@ -395,9 +395,9 @@ class OIDCHelperTest {
         }
     }
 
-    // =========================================================================
-    // Refresh Token Tests
-    // =========================================================================
+    
+    
+    
 
     @Test
     fun `refreshAccessToken should get new tokens`() = runTest {
@@ -465,13 +465,13 @@ class OIDCHelperTest {
             refreshToken = originalRefreshToken
         )
 
-        // Should preserve original refresh token
+        
         assertEquals(originalRefreshToken, tokens.refreshToken)
     }
 
-    // =========================================================================
-    // Helper Methods
-    // =========================================================================
+    
+    
+    
 
     private fun createMockHttpClient(): HttpClient {
         return HttpClient(MockEngine) {

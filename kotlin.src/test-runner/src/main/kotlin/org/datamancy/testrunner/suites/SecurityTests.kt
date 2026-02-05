@@ -6,7 +6,7 @@ import org.datamancy.testrunner.framework.*
 
 suspend fun TestRunner.securityTests() = suite("Security Tests") {
 
-    // VAULTWARDEN (3 tests)
+    
     test("Vaultwarden server is healthy") {
         val response = client.getRawResponse("${env.endpoints.vaultwarden}/alive")
         response.status shouldBe HttpStatusCode.OK

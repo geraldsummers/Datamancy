@@ -21,23 +21,11 @@ import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Downloads and processes the Open Australian Legal Corpus from HuggingFace
- *
- * Dataset: https://huggingface.co/datasets/umarbutler/open-australian-legal-corpus
- *
- * Contains 229,122 Australian legal documents including:
- * - Acts (primary legislation)
- * - Regulations (secondary legislation)
- * - Court decisions
- *
- * Jurisdictions: Commonwealth, NSW, QLD, WA, SA, TAS, Norfolk Island
- * Missing: VIC, NT, ACT (copyright restrictions)
- */
+
 class OpenAustralianLegalCorpusSource(
     private val cacheDir: String = "/data/australian-legal-corpus",
-    private val filterJurisdictions: List<String>? = null,  // null = all jurisdictions
-    private val filterTypes: List<String>? = null,  // null = all types, e.g. ["primary_legislation", "secondary_legislation"]
+    private val filterJurisdictions: List<String>? = null,  
+    private val filterTypes: List<String>? = null,  
     private val maxDocuments: Int = Int.MAX_VALUE
 ) : Source<AustralianLegalDocument> {
     override val name = "OpenAustralianLegalCorpusSource"
@@ -49,12 +37,12 @@ class OpenAustralianLegalCorpusSource(
         .followSslRedirects(true)
         .build()
 
-    // HuggingFace dataset files (Parquet format) - 4 files totaling ~900MB
+    
     private val datasetBaseUrl = "https://huggingface.co/datasets/isaacus/open-australian-legal-corpus/resolve/refs%2Fconvert%2Fparquet/corpus/partial-corpus"
     private val parquetFiles = listOf("0000.parquet", "0001.parquet", "0002.parquet", "0003.parquet")
 
     override suspend fun fetch(): Flow<AustralianLegalDocument> = flow {
-        // Ensure cache directory exists
+        
         val cacheDirFile = File(cacheDir)
         if (!cacheDirFile.exists()) {
             val created = cacheDirFile.mkdirs()
@@ -63,7 +51,7 @@ class OpenAustralianLegalCorpusSource(
             }
         }
 
-        // Download all Parquet files if not cached
+        
         val downloadedFiles = mutableListOf<File>()
         for ((index, filename) in parquetFiles.withIndex()) {
             val parquetFile = File(cacheDir, filename)
@@ -72,19 +60,19 @@ class OpenAustralianLegalCorpusSource(
                 try {
                     val fileUrl = "$datasetBaseUrl/$filename"
                     downloadFile(fileUrl, tempFile)
-                    // Atomic rename to prevent partial file issues
+                    
                     if (!tempFile.renameTo(parquetFile)) {
                         throw RuntimeException("Failed to rename downloaded file: $filename")
                     }
                 } catch (e: Exception) {
-                    tempFile.delete()  // Clean up partial download
+                    tempFile.delete()  
                     throw e
                 }
             }
             downloadedFiles.add(parquetFile)
         }
 
-        // Parse all Parquet files
+        
         var totalProcessed = 0
         var totalFiltered = 0
         var totalFailed = 0
@@ -95,7 +83,7 @@ class OpenAustralianLegalCorpusSource(
                 break
             }
 
-            // For small limits, only process first file to avoid reading entire corpus
+            
             if (maxDocuments <= 10 && index > 0) {
                 break
             }
@@ -114,7 +102,7 @@ class OpenAustralianLegalCorpusSource(
                     try {
                         val doc = parseRecord(record)
 
-                        // Apply filters
+                        
                         if (shouldInclude(doc)) {
                             emit(doc)
                             totalProcessed++
@@ -129,7 +117,7 @@ class OpenAustralianLegalCorpusSource(
                     record = withContext(Dispatchers.IO) { reader.read() }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e  // Re-throw to properly cancel the flow
+                throw e  
             } catch (e: Exception) {
                 logger.error(e) { "Error in Parquet parsing: ${e.message}" }
                 throw e
@@ -161,8 +149,8 @@ class OpenAustralianLegalCorpusSource(
     }
 
     private fun parseRecord(record: Group): AustralianLegalDocument {
-        // Parquet schema:
-        // version_id, type, jurisdiction, source, mime, date, citation, url, when_scraped, text
+        
+        
 
         val versionId = record.getString("version_id", 0)
         val type = record.getString("type", 0)
@@ -170,11 +158,11 @@ class OpenAustralianLegalCorpusSource(
         val source = record.getString("source", 0)
         val mime = record.getString("mime", 0)
 
-        // Safe field access for optional fields that may be missing or empty
+        
         val date = try {
             record.getString("date", 0) ?: "unknown"
         } catch (e: Exception) {
-            "unknown"  // Field missing or empty
+            "unknown"  
         }
 
         val citation = try {
@@ -202,17 +190,17 @@ class OpenAustralianLegalCorpusSource(
     }
 
     private fun shouldInclude(doc: AustralianLegalDocument): Boolean {
-        // Apply jurisdiction filter
+        
         if (filterJurisdictions != null && !filterJurisdictions.contains(doc.jurisdiction)) {
             return false
         }
 
-        // Apply type filter
+        
         if (filterTypes != null && !filterTypes.contains(doc.type)) {
             return false
         }
 
-        // Skip documents with very short text (likely metadata-only)
+        
         if (doc.text.length < 100) {
             return false
         }
@@ -221,20 +209,18 @@ class OpenAustralianLegalCorpusSource(
     }
 }
 
-/**
- * Australian legal document from the Open Australian Legal Corpus
- */
+
 data class AustralianLegalDocument(
     val id: String,
-    val type: String,  // e.g., "primary_legislation", "secondary_legislation", "decision"
-    val jurisdiction: String,  // e.g., "commonwealth", "new_south_wales"
-    val source: String,  // Source database/website
-    val mime: String,  // Original MIME type
-    val date: String,  // Date of document (varies by type)
-    val citation: String,  // Legal citation (if available)
-    val url: String,  // Source URL
-    val whenScraped: String,  // When this was scraped
-    val text: String  // Full text content
+    val type: String,  
+    val jurisdiction: String,  
+    val source: String,  
+    val mime: String,  
+    val date: String,  
+    val citation: String,  
+    val url: String,  
+    val whenScraped: String,  
+    val text: String  
 ) {
     fun toText(): String {
         return buildString {
@@ -242,7 +228,7 @@ data class AustralianLegalDocument(
             if (citation.isNotBlank()) {
                 appendLine("**Citation:** $citation")
             }
-            // Replace underscores and capitalize first character only (matching old capitalize() behavior)
+            
             val formattedJurisdiction = jurisdiction.replace("_", " ").replaceFirstChar {
                 if (it.isLowerCase()) it.titlecase() else it.toString()
             }

@@ -15,18 +15,18 @@ class DatabaseTestsTest {
     fun `test database configuration is valid`() {
         val endpoints = ServiceEndpoints.fromEnvironment()
 
-        // Verify Postgres config
+        
         assertEquals("postgres", endpoints.postgres.host)
         assertEquals(5432, endpoints.postgres.port)
         assertEquals("datamancy", endpoints.postgres.database)
 
-        // Verify MariaDB config
+        
         assertNotNull(endpoints.mariadb)
         assertEquals("mariadb", endpoints.mariadb!!.host)
         assertEquals(3306, endpoints.mariadb!!.port)
         assertEquals("bookstack", endpoints.mariadb!!.database)
 
-        // Verify Valkey config
+        
         assertNotNull(endpoints.valkey)
         assertTrue(endpoints.valkey!!.contains("valkey"))
         assertTrue(endpoints.valkey!!.contains("6379"))
@@ -49,7 +49,7 @@ class DatabaseTestsTest {
         val endpoints = ServiceEndpoints.fromEnvironment()
 
         assertNotNull(endpoints.valkey)
-        // Should match Redis/Valkey format: host:port
+        
         val parts = endpoints.valkey!!.split(":")
         assertEquals(2, parts.size, "Valkey endpoint should be in host:port format")
         assertEquals("valkey", parts[0])
@@ -71,16 +71,16 @@ class DatabaseTestsTest {
         val serviceClient = ServiceClient(endpoints, mockClient)
         val runner = TestRunner(TestEnvironment.Container, serviceClient, mockClient)
 
-        // Note: These tests will fail without real DB connections,
-        // but we can verify the test structure exists
+        
+        
         try {
             runner.databaseTests()
         } catch (e: Exception) {
-            // Expected - no real DB available
+            
         }
 
         val summary = runner.summary()
-        // Should attempt 10 tests (5 Postgres + 3 Valkey + 2 MariaDB)
+        
         assertEquals(10, summary.total, "Should have 10 database tests")
     }
 
@@ -104,7 +104,7 @@ class DatabaseTestsTest {
         val config = DatabaseConfig("host", 5432, "db", "user", "secret123")
         assertEquals("secret123", config.password)
 
-        // Password should be in JDBC URL for MariaDB
+        
         assertTrue(config.jdbcUrl.contains("host"))
         assertTrue(config.jdbcUrl.contains("5432"))
     }

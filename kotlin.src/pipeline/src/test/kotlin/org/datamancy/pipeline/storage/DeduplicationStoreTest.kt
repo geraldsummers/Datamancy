@@ -61,7 +61,7 @@ class DeduplicationStoreTest {
 
         store.flush()
 
-        // Create new store instance to load from disk
+        
         val store2 = DeduplicationStore(storePath, maxEntries = 20000)
 
         assertTrue(store2.isSeen("hash1"))
@@ -79,7 +79,7 @@ class DeduplicationStoreTest {
         store.markSeen("hash2", "CVE-2024-5678")
         store.flush()
 
-        // Reload and verify
+        
         val store2 = DeduplicationStore(storePath, maxEntries = 20000)
         assertTrue(store2.isSeen("hash1"))
         assertTrue(store2.isSeen("hash2"))
@@ -136,12 +136,12 @@ class DeduplicationStoreTest {
     fun `test concurrent access to same hash`(@TempDir tempDir: Path) {
         val store = DeduplicationStore(tempDir.resolve("dedup.txt").toString(), maxEntries = 20000)
 
-        // Simulate concurrent checkAndMark calls
+        
         val results = List(10) {
             store.checkAndMark("same-hash", "metadata")
         }
 
-        // Only first call should return false (was not seen)
+        
         assertEquals(1, results.count { !it })
         assertEquals(9, results.count { it })
     }

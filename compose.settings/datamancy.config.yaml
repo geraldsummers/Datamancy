@@ -1,46 +1,17 @@
-# Datamancy Stack Configuration
-# Single source of truth for installation and runtime settings
-#
-# This file consolidates all configuration previously scattered across:
-# - storage.config.yaml
-# - services.registry.yaml (service metadata)
-# - Hardcoded defaults in scripts
-#
-
-# ============================================================================
-# Installation Settings
-# ============================================================================
 installation:
-  # Where Datamancy installs (overrideable via CLI: ./install-datamancy.main.kts /custom/path)
   default_path: "${HOME}/.datamancy"
 
-# ============================================================================
-# Storage Configuration
-# Different storage tiers for performance optimization
-# ============================================================================
 storage:
-  # Vector databases (Qdrant) - fast SSD recommended for embedding search
   vector_dbs: "/mnt/vectors/"
 
-  # Custom storage paths for specific services (SSD + Media Drive only)
-  # Note: seafile_files is a regular named volume (Docker-managed on BTRFS)
   custom:
-    # qBittorrent - large media storage (not backed up)
     qbittorrent_data: "/mnt/media/qbittorrent"
 
-    # Seafile media - large media files (not backed up, no RAID)
     seafile_media: "/mnt/media/seafile-media"
 
-# ============================================================================
-# Runtime Configuration (Non-Sensitive)
-# ============================================================================
 runtime:
-  # Primary domain for the stack (all services will be subdomains of this)
   domain: "datamancy.net"
 
-  # Admin email for notifications and account creation
   admin_email: "admin@datamancy.net"
 
-  # Admin username (non-sensitive, password is auto-generated)
   admin_user: "sysadmin"
-

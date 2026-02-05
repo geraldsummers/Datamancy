@@ -11,15 +11,13 @@ import java.util.concurrent.atomic.AtomicLong
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Fetches articles from RSS/Atom feeds
- */
+
 class RssSource(
     private val feedUrls: List<String>
 ) : Source<RssArticle> {
     override val name = "RssSource"
 
-    // Track internet IO
+    
     private val bytesDownloaded = AtomicLong(0)
     private val feedsFetched = AtomicLong(0)
 
@@ -28,10 +26,10 @@ class RssSource(
             try {
                 logger.info { "Fetching RSS feed: $feedUrl" }
                 val feedInput = SyndFeedInput().apply {
-                    isAllowDoctypes = true  // Allow DOCTYPE declarations (required for ArXiv and some feeds)
+                    isAllowDoctypes = true  
                 }
 
-                // Use XmlReader which properly handles redirects and content encoding
+                
                 val feed = URI(feedUrl).toURL().openStream().use { stream ->
                     XmlReader(stream).use { reader ->
                         feedsFetched.incrementAndGet()

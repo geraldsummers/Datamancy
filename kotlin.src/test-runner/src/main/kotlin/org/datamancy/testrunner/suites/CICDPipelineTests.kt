@@ -4,25 +4,20 @@ import org.datamancy.testrunner.framework.*
 import java.io.File
 import java.util.UUID
 
-/**
- * CI/CD Pipeline Integration Tests
- *
- * Tests for the complete CI/CD pipeline using Docker over SSH to labware host.
- * Tests image building, registry operations, deployments, and isolation.
- */
+
 suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
     val labwareDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://labware"
 
-    // Labware containers run on isolated Docker daemon and need to reach registry via host IP
-    // Registry is exposed on host port 5000
-    // On Linux, host.docker.internal doesn't exist - use HOST_IP from environment
+    
+    
+    
     val registryHost = System.getenv("HOST_IP")?.let { "$it:5000" }
         ?: detectLabwareHostIP(labwareDockerHost)
-        ?: "192.168.0.11:5000"  // Fallback
+        ?: "192.168.0.11:5000"  
 
     val testImagePrefix = "cicd-test"
 
-    // Check if labware Docker host is accessible - skip suite if not
+    
     if (!isLabwareDockerAvailable(labwareDockerHost)) {
         println("      ⚠️  Labware Docker host not accessible at $labwareDockerHost - skipping CI/CD tests")
         println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-labware-host and configure SSH keys")
@@ -55,7 +50,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 throw AssertionError("Image not found after build")
             }
 
-            // Cleanup
+            
             execCICDDocker(labwareDockerHost, "rmi", "-f", imageName)
         } finally {
             tempDir.deleteRecursively()
@@ -91,7 +86,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 throw AssertionError("Push to registry failed: $pushOutput")
             }
 
-            // Cleanup
+            
             execCICDDocker(labwareDockerHost, "rmi", "-f", localImageName, registryImageName)
         } finally {
             tempDir.deleteRecursively()
@@ -110,7 +105,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 throw AssertionError("Container start failed")
             }
 
-            // Check container exists on labware
+            
             val (labwareCheckCode, labwareOutput) = execCICDDocker(
                 labwareDockerHost, "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
             )
@@ -118,7 +113,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 throw AssertionError("Container not found on labware")
             }
 
-            // Check container NOT visible on production
+            
             val prodProcess = ProcessBuilder("docker", "ps", "--filter", "name=$containerName", "--format", "{{.Names}}").start()
             val prodOutput = prodProcess.inputStream.bufferedReader().readText()
             prodProcess.waitFor()
@@ -127,7 +122,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 throw AssertionError("Container visible on production - isolation breach!")
             }
 
-            // Cleanup
+            
             execCICDDocker(labwareDockerHost, "rm", "-f", containerName)
         } catch (e: Exception) {
             execCICDDocker(labwareDockerHost, "rm", "-f", containerName)
@@ -164,7 +159,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 throw AssertionError("Multi-stage container output incorrect")
             }
 
-            // Cleanup
+            
             execCICDDocker(labwareDockerHost, "rmi", "-f", imageName)
         } finally {
             tempDir.deleteRecursively()
@@ -172,10 +167,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
     }
 }
 
-/**
- * Detect host IP from labware container's perspective
- * Runs a test container and gets the default gateway IP
- */
+
 private fun detectLabwareHostIP(dockerHost: String): String? {
     return try {
         val (exitCode, output) = execCICDDocker(
@@ -186,7 +178,7 @@ private fun detectLabwareHostIP(dockerHost: String): String? {
 
         if (exitCode == 0) {
             val gateway = output.trim()
-            // Return gateway or environment override
+            
             System.getenv("HOST_IP") ?: gateway
         } else {
             null
@@ -217,9 +209,7 @@ private fun isLabwareDockerAvailable(dockerHost: String): Boolean {
     }
 }
 
-/**
- * Standalone entry point for manual testing
- */
+
 object CICDPipelineTests {
 
     val LABWARE_DOCKER_HOST = System.getenv("DOCKER_HOST") ?: "ssh://labware"
@@ -285,7 +275,7 @@ object CICDPipelineTests {
         var passed = 0
         var failed = 0
 
-        // Test 1: Build image
+        
         try {
             val testId = UUID.randomUUID().toString().substring(0, 8)
             val imageName = "$TEST_IMAGE_PREFIX-build:$testId"
@@ -313,7 +303,7 @@ object CICDPipelineTests {
             cleanup()
         }
 
-        // Test 2: Push to registry
+        
         try {
             val testId = UUID.randomUUID().toString().substring(0, 8)
             val localImageName = "$TEST_IMAGE_PREFIX-push:$testId"
@@ -345,7 +335,7 @@ object CICDPipelineTests {
             cleanup()
         }
 
-        // Test 3: Deploy from registry
+        
         try {
             val testId = UUID.randomUUID().toString().substring(0, 8)
             val imageName = "$REGISTRY_HOST/$TEST_IMAGE_PREFIX-deploy:$testId"
@@ -378,7 +368,7 @@ object CICDPipelineTests {
             cleanup()
         }
 
-        // Test 4: Isolation
+        
         try {
             val testId = UUID.randomUUID().toString().substring(0, 8)
             val containerName = "$TEST_IMAGE_PREFIX-isolation-$testId"
@@ -411,7 +401,7 @@ object CICDPipelineTests {
             cleanup()
         }
 
-        // Test 5: Multi-stage build
+        
         try {
             val testId = UUID.randomUUID().toString().substring(0, 8)
             val imageName = "$TEST_IMAGE_PREFIX-multistage:$testId"

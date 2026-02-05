@@ -54,7 +54,7 @@ class InfrastructureTestsTest {
         runner.infrastructureTests()
         val summary = runner.summary()
 
-        // At least one Caddy test should pass
+        
         assertTrue(summary.passed > 0, "Expected at least one test to pass")
     }
 
@@ -71,7 +71,7 @@ class InfrastructureTestsTest {
         runner.infrastructureTests()
         val summary = runner.summary()
 
-        // Some tests should pass even with 404 (it's an expected response)
+        
         assertTrue(summary.total > 0, "Should have run infrastructure tests")
     }
 
@@ -107,7 +107,7 @@ class InfrastructureTestsTest {
     fun `test LDAP configuration validation`() = runBlocking {
         val endpoints = ServiceEndpoints.fromEnvironment()
 
-        // Verify LDAP endpoint is configured correctly
+        
         assertNotNull(endpoints.ldap, "LDAP endpoint should be configured")
         assertTrue(endpoints.ldap!!.contains("ldap://"), "LDAP should use ldap:// protocol")
         assertTrue(endpoints.ldap!!.contains(":389"), "LDAP should use port 389")
@@ -130,7 +130,7 @@ class InfrastructureTestsTest {
         runner.infrastructureTests()
         val summary = runner.summary()
 
-        // Should run 9 tests (6 Authelia + 3 LDAP)
+        
         assertEquals(9, summary.total, "Should run exactly 9 infrastructure tests")
     }
 
@@ -147,13 +147,13 @@ class InfrastructureTestsTest {
         runner.infrastructureTests()
         val summary = runner.summary()
 
-        // Authelia health tests should pass
+        
         assertTrue(summary.passed > 0, "Authelia health test should pass")
     }
 
     @Test
     fun `test Caddy accepts various HTTP status codes`() = runBlocking {
-        // Test that Caddy validation accepts 200, 404, 502
+        
         for (statusCode in listOf(HttpStatusCode.OK, HttpStatusCode.NotFound, HttpStatusCode.BadGateway)) {
             val mockClient = createMockClient(mapOf(
                 "caddy" to MockResponse(statusCode, ByteReadChannel("Response"))
@@ -166,7 +166,7 @@ class InfrastructureTestsTest {
             runner.infrastructureTests()
             val summary = runner.summary()
 
-            // Should complete without crashing
+            
             assertTrue(summary.total > 0, "Tests should run for status $statusCode")
         }
     }

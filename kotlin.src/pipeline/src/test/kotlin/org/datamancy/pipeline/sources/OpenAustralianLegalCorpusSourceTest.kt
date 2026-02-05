@@ -57,7 +57,7 @@ class OpenAustralianLegalCorpusSourceTest {
             source = "caselaw.nsw.gov.au",
             mime = "text/html",
             date = "2023-06-15",
-            citation = "",  // Empty citation
+            citation = "",  
             url = "https://example.com/decision",
             whenScraped = "2023-07-01",
             text = "Court decision text."
@@ -85,9 +85,9 @@ class OpenAustralianLegalCorpusSourceTest {
         )
 
         val doc2 = AustralianLegalDocument(
-            id = "act-123",  // Same ID
-            type = "secondary_legislation",  // Different type
-            jurisdiction = "new_south_wales",  // Different jurisdiction
+            id = "act-123",  
+            type = "secondary_legislation",  
+            jurisdiction = "new_south_wales",  
             source = "source2",
             mime = "application/pdf",
             date = "2023-01-01",
@@ -97,13 +97,13 @@ class OpenAustralianLegalCorpusSourceTest {
             text = "Text 2"
         )
 
-        // Same ID should produce same content hash
+        
         assertEquals(doc1.contentHash(), doc2.contentHash())
     }
 
     @Test
     fun `test OpenAustralianLegalCorpusSource parses Parquet file`(@TempDir tempDir: JavaPath) = runBlocking {
-        // Create a test Parquet file
+        
         val parquetFile = tempDir.resolve("test-corpus.parquet").toFile()
         createTestParquetFile(parquetFile.absolutePath, listOf(
             mapOf(
@@ -132,8 +132,8 @@ class OpenAustralianLegalCorpusSourceTest {
             )
         ))
 
-        // Mock download by placing file in expected location
-        // Source expects files named 0000.parquet, 0001.parquet, etc.
+        
+        
         val cacheDir = tempDir.resolve("cache").toFile()
         cacheDir.mkdirs()
         val cachedFile = cacheDir.resolve("0000.parquet")
@@ -294,7 +294,7 @@ class OpenAustralianLegalCorpusSourceTest {
                 "citation" to "Citation 1",
                 "url" to "url1",
                 "when_scraped" to "2024-01-15",
-                "text" to "Short"  // Too short (< 100 chars)
+                "text" to "Short"  
             ),
             mapOf(
                 "version_id" to "doc-002",
@@ -362,7 +362,7 @@ class OpenAustralianLegalCorpusSourceTest {
         assertEquals(10, documents.size)
     }
 
-    // Helper function to create test Parquet files
+    
     private fun createTestParquetFile(path: String, records: List<Map<String, String>>) {
         val schema: MessageType = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.BINARY).named("version_id")

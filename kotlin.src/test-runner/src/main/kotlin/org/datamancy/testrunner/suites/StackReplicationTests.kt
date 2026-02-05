@@ -5,33 +5,11 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-/**
- * Stack Replication Tests
- *
- * Meta-tests that validate the Datamancy stack can be fully replicated from bundled source.
- * This proves:
- * - CI/CD runners can clone and deploy from bundled repos/
- * - Disaster recovery procedures work (rebuild from source)
- * - Agent-driven development can spawn ephemeral environments
- * - Full stack replication works without infinite recursion
- *
- * Test Strategy:
- * 1. Copy bundled source from repos/datamancy/datamancy-core to labware workspace
- * 2. Build dist/ from source (without repos/ to prevent recursion)
- * 3. Deploy minimal stack on labware socket (postgres, valkey, test service)
- * 4. Run smoke tests against labware stack
- * 5. Verify isolation from production stack
- * 6. Complete cleanup
- *
- * Recursion Prevention:
- * - Source is copied to /tmp (not mounted from production)
- * - Build excludes repos/ directory (no nested bundling)
- * - Labware stack runs in isolated network namespace
- */
+
 suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests") {
     val labwareDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://labware"
 
-    // Check if labware Docker host is accessible via SSH - skip suite if not
+    
     if (!isLabwareDockerAvailable(labwareDockerHost)) {
         println("      ⚠️  Labware Docker host not accessible at $labwareDockerHost - skipping replication tests")
         println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-labware-host and configure SSH keys")
@@ -46,8 +24,8 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
         val composeDir = File(composePath)
         composeDir.mkdirs() shouldBe true
 
-        // Copy minimal docker-compose.yml for labware stack
-        // This is a subset of services needed for basic functionality test
+        
+        
         File(composeDir, "docker-compose.yml").writeText(
             """
             version: '3.8'
@@ -123,7 +101,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         println("      ℹ️  Stack deployed, waiting for services to be healthy...")
 
-        // Wait for services to be healthy (max 60 seconds)
+        
         var healthy = false
         repeat(60) { attempt ->
             val (checkExit, checkOutput) = execLabwareDocker(
@@ -146,7 +124,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     }
 
     test("Verify labware stack isolation from production") {
-        // Get labware containers
+        
         val (_, labwareOutput) = execLabwareDocker(
             labwareDockerHost,
             "ps",
@@ -155,17 +133,17 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
         )
         val labwareContainers = labwareOutput.lines().filter { it.isNotBlank() }
 
-        // Verify labware containers exist
+        
         labwareContainers.size shouldBeGreaterThan 0
         println("      ℹ️  Found ${labwareContainers.size} labware containers")
 
-        // Get production containers
+        
         val prodProcess = ProcessBuilder("docker", "ps", "--format", "{{.Names}}").start()
         val prodOutput = prodProcess.inputStream.bufferedReader().readText()
         prodProcess.waitFor()
         val prodContainers = prodOutput.lines().filter { it.isNotBlank() }.toSet()
 
-        // Verify no overlap
+        
         val overlap = labwareContainers.toSet().intersect(prodContainers)
         if (overlap.isNotEmpty()) {
             throw AssertionError("Isolation breach! Containers in both stacks: $overlap")
@@ -213,7 +191,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     }
 
     test("Verify labware stack data persistence") {
-        // Write data to postgres
+        
         val (writeExit, _) = execLabwareDocker(
             labwareDockerHost,
             "exec",
@@ -223,7 +201,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
         )
         writeExit shouldBe 0
 
-        // Read data back
+        
         val (readExit, readOutput) = execLabwareDocker(
             labwareDockerHost,
             "exec",
@@ -274,10 +252,10 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         startExit shouldBe 0
 
-        // Wait for services to be up
+        
         Thread.sleep(10000)
 
-        // Verify data still exists after restart
+        
         val (readExit, readOutput) = execLabwareDocker(
             labwareDockerHost,
             "exec",
@@ -292,7 +270,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     }
 
     test("Cleanup labware stack") {
-        // Stop and remove containers
+        
         val (downExit, downOutput) = execLabwareDockerCompose(
             labwareDockerHost,
             composePath,
@@ -305,10 +283,10 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         downExit shouldBe 0
 
-        // Remove compose directory
+        
         File(composePath).deleteRecursively()
 
-        // Verify containers are gone
+        
         val (checkExit, checkOutput) = execLabwareDocker(
             labwareDockerHost,
             "ps",
@@ -326,11 +304,11 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     }
 
     test("Verify bundled source exists in Forgejo") {
-        // Verify bundled source is accessible through Forgejo (not direct mount)
-        // The source is mounted into Forgejo at /data/git/repositories
+        
+        
         println("      ℹ️  Checking if bundled source is accessible via Forgejo...")
 
-        // Test that we can reach Forgejo and it has repositories
+        
         val forgejoHealthy = try {
             val response = client.getRawResponse("http://forgejo:3000/api/healthz")
             response.status.value == 200
@@ -348,23 +326,23 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     }
 
     test("Test build from bundled source (PREVENTS RECURSION)") {
-        // SKIP THIS TEST: Would create stack-in-stack-in-stack (infinite recursion risk)
-        //
-        // Context:
-        // - We're already running stack-in-stack (tests run on labware socket)
-        // - Building from source here would create a 3rd nested stack
-        // - This would test recursion prevention, but the risk/complexity isn't worth it
-        //
-        // What we've validated instead:
-        // - Bundled source exists in Forgejo ✓
-        // - Forgejo is accessible from test environment ✓
-        // - Build script has recursion prevention (manual code review) ✓
-        //
-        // If you want to test full replication:
-        // 1. Deploy fresh hardware
-        // 2. git clone http://forgejo.datamancy.net/datamancy/datamancy-core
-        // 3. ./build-datamancy-v2.main.kts
-        // 4. Verify no repos/repos/repos/... nesting
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
         println("      ⚠️  Skipping stack-in-stack-in-stack test (recursion prevention)")
         println("      ℹ️  This test would create a 3rd level of nesting")
@@ -373,9 +351,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     }
 }
 
-/**
- * Execute docker command on labware Docker host
- */
+
 private fun execLabwareDocker(dockerHost: String, vararg args: String): Pair<Int, String> {
     val command = listOf("docker", "-H", dockerHost) + args
     val process = ProcessBuilder(command)
@@ -388,9 +364,7 @@ private fun execLabwareDocker(dockerHost: String, vararg args: String): Pair<Int
     return exitCode to output
 }
 
-/**
- * Check if labware Docker host is available
- */
+
 private fun isLabwareDockerAvailable(dockerHost: String): Boolean {
     return try {
         val (exitCode, _) = execLabwareDocker(dockerHost, "info")
@@ -400,16 +374,14 @@ private fun isLabwareDockerAvailable(dockerHost: String): Boolean {
     }
 }
 
-/**
- * Execute docker-compose command on labware Docker host
- */
+
 private fun execLabwareDockerCompose(
     dockerHost: String,
     composePath: String,
     vararg args: String
 ): Pair<Int, String> {
-    // Modern Docker uses "docker compose" plugin instead of standalone "docker-compose" binary
-    // Set DOCKER_HOST environment variable for docker compose to use labware Docker host
+    
+    
     val env = mapOf("DOCKER_HOST" to dockerHost)
     val command = listOf("docker", "compose", "-f", "$composePath/docker-compose.yml") + args
 

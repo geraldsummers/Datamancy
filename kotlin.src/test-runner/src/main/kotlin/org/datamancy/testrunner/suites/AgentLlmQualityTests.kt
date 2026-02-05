@@ -7,22 +7,18 @@ import kotlinx.serialization.json.*
 import org.datamancy.testrunner.framework.*
 import kotlin.system.measureTimeMillis
 
-/**
- * LLM quality and core tool capability tests
- *
- * Tests LLM completion quality, tool selection, and comprehensive CoreTools functionality.
- */
+
 suspend fun TestRunner.agentLlmQualityTests() {
     val probRunner = ProbabilisticTestRunner(environment, client, httpClient)
 
     println("\n▶ Agent LLM Quality & Core Capability Tests")
 
-    // ===== LLM COMPLETION QUALITY TESTS =====
+    
 
     probRunner.probabilisticTest(
         name = "LLM: Generates coherent responses to simple questions",
         trials = 20,
-        acceptableFailureRate = 0.2  // 80% success rate
+        acceptableFailureRate = 0.2  
     ) {
         val questions = listOf(
             "What is 2+2?",
@@ -48,7 +44,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
 
         if (response.status == HttpStatusCode.OK) {
             val body = response.bodyAsText()
-            // Should contain some reasonable response
+            
             body.length > 10 && !body.contains("error", ignoreCase = true)
         } else {
             false
@@ -58,7 +54,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
     probRunner.probabilisticTest(
         name = "LLM: Handles conversation context correctly",
         trials = 15,
-        acceptableFailureRate = 0.3  // 70% success rate
+        acceptableFailureRate = 0.3  
     ) {
         val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
@@ -80,7 +76,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
 
         if (response.status == HttpStatusCode.OK) {
             val body = response.bodyAsText()
-            // Should reference "Alice" in response
+            
             body.contains("Alice", ignoreCase = true)
         } else {
             false
@@ -92,7 +88,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         trials = 10,
         acceptableFailureRate = 0.3
     ) {
-        // With temperature=0, responses should be more consistent
+        
         val prompt = "Say exactly: 'Hello World'"
 
         val responses = mutableSetOf<String>()
@@ -115,15 +111,15 @@ suspend fun TestRunner.agentLlmQualityTests() {
             }
         }
 
-        // Low temperature should produce similar outputs
-        responses.size <= 2  // Allow minor variation
+        
+        responses.size <= 2  
     }
 
     probRunner.latencyTest(
         name = "LLM: Completion latency for short prompts",
         trials = 30,
-        maxMedianLatency = 5000,   // 5 seconds median
-        maxP95Latency = 15000      // 15 seconds p95
+        maxMedianLatency = 5000,   
+        maxP95Latency = 15000      
     ) {
         measureTimeMillis {
             httpClient.post("${endpoints.agentToolServer}/call-tool") {
@@ -161,14 +157,14 @@ suspend fun TestRunner.agentLlmQualityTests() {
 
         if (response.status == HttpStatusCode.OK) {
             val body = response.bodyAsText()
-            // Should be truncated/short due to low token limit
-            body.length < 500  // Rough check
+            
+            body.length < 500  
         } else {
             false
         }
     }
 
-    // ===== CORE TOOLS: TEXT PROCESSING =====
+    
 
     probRunner.probabilisticTest(
         name = "CoreTools: Text processing functions work correctly",
@@ -213,7 +209,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
             response.bodyAsText().contains(expected)
     }
 
-    // ===== CORE TOOLS: MATH & VECTOR OPERATIONS =====
+    
 
     probRunner.probabilisticTest(
         name = "CoreTools: Vector operations compute correctly",
@@ -242,9 +238,9 @@ suspend fun TestRunner.agentLlmQualityTests() {
         acceptableFailureRate = 0.15
     ) {
         val edgeCases = listOf(
-            Triple("mean", """{"values":[]}""", "NaN"),  // Empty list
-            Triple("argmax", """{"values":[]}""", "-1"),  // Empty list
-            Triple("clamp_value", """{"value":100.0,"min":0.0,"max":50.0}""", "50"),  // Clamped
+            Triple("mean", """{"values":[]}""", "NaN"),  
+            Triple("argmax", """{"values":[]}""", "-1"),  
+            Triple("clamp_value", """{"value":100.0,"min":0.0,"max":50.0}""", "50"),  
             Triple("map_range", """{"value":5.0,"fromMin":0.0,"fromMax":10.0,"toMin":0.0,"toMax":100.0}""", "50")
         )
 
@@ -258,7 +254,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
             response.bodyAsText().contains(expected)
     }
 
-    // ===== CORE TOOLS: LIST OPERATIONS =====
+    
 
     probRunner.probabilisticTest(
         name = "CoreTools: List operations work correctly",
@@ -281,7 +277,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
             response.bodyAsText().contains(expected, ignoreCase = true)
     }
 
-    // ===== CORE TOOLS: DATE/TIME OPERATIONS =====
+    
 
     probRunner.probabilisticTest(
         name = "CoreTools: Date/time functions produce valid ISO timestamps",
@@ -295,7 +291,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
 
         if (response.status == HttpStatusCode.OK) {
             val body = response.bodyAsText()
-            // Should match ISO 8601 format
+            
             body.matches(Regex(".*\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z.*"))
         } else {
             false
@@ -322,7 +318,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
             response.bodyAsText().contains(expected)
     }
 
-    // ===== CORE TOOLS: JSON OPERATIONS =====
+    
 
     probRunner.probabilisticTest(
         name = "CoreTools: JSON operations handle nested data correctly",
@@ -339,7 +335,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
             response.bodyAsText().contains("Alice")
     }
 
-    // ===== UTILITY TESTS =====
+    
 
     probRunner.probabilisticTest(
         name = "CoreTools: UUID generation produces valid UUIDs",
@@ -353,7 +349,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
 
         if (response.status == HttpStatusCode.OK) {
             val body = response.bodyAsText()
-            // Check UUID format
+            
             body.matches(Regex(".*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}.*"))
         } else {
             false
@@ -380,7 +376,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
             response.bodyAsText().contains(expected)
     }
 
-    // Print summary
+    
     val summary = probRunner.summary()
     println("\n" + "=".repeat(80))
     println("LLM QUALITY & CORE CAPABILITY TEST SUMMARY")

@@ -11,14 +11,7 @@ import javax.xml.stream.XMLStreamReader
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Parses MediaWiki XML dump files (from Special:Export or WikiTeam dumps)
- *
- * Supports:
- * - Local XML files (uncompressed or .7z archives)
- * - Extracts latest revision of each page
- * - Filters out redirects, talk pages, and special namespaces
- */
+
 class MediaWikiXmlDumpParser(
     private val xmlSource: XmlSource,
     private val wikiBaseUrl: String,
@@ -37,7 +30,7 @@ class MediaWikiXmlDumpParser(
         val inputStream = when (xmlSource) {
             is XmlSource.LocalFile -> File(xmlSource.path).inputStream()
             is XmlSource.SevenZipArchive -> {
-                // Use 7z to extract specific file to stdout
+                
                 val process = ProcessBuilder(
                     "7z", "x", "-so", xmlSource.archivePath, xmlSource.xmlFilename
                 ).start()
@@ -101,12 +94,12 @@ class MediaWikiXmlDumpParser(
                     XMLStreamReader.END_ELEMENT -> {
                         when (reader.localName) {
                             "revision" -> {
-                                // Keep the latest revision (last one in the file for each page)
+                                
                                 currentRevision?.let { currentPage?.latestRevision = it }
                                 currentRevision = null
                             }
                             "page" -> {
-                                // Emit page if valid
+                                
                                 currentPage?.build(wikiBaseUrl)?.let { page ->
                                     if (shouldIncludePage(page)) {
                                         yield(page)
@@ -125,7 +118,7 @@ class MediaWikiXmlDumpParser(
     }
 
     private fun shouldIncludePage(page: WikiPage): Boolean {
-        // Filter out non-article pages
+        
         if (page.id.startsWith("arch:")) {
             val title = page.title
             return when {

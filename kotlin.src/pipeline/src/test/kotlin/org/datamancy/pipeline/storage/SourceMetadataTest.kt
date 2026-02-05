@@ -86,7 +86,7 @@ class SourceMetadataTest {
     fun `test recordSuccess resets consecutive failures`(@TempDir tempDir: Path) {
         val store = SourceMetadataStore(tempDir.toString())
 
-        // Record some failures first
+        
         store.recordFailure("test-source")
         store.recordFailure("test-source")
         store.recordFailure("test-source")
@@ -94,7 +94,7 @@ class SourceMetadataTest {
         var metadata = store.load("test-source")
         assertEquals(3, metadata.consecutiveFailures)
 
-        // Record success
+        
         store.recordSuccess("test-source", 10, 0)
 
         metadata = store.load("test-source")
@@ -168,7 +168,7 @@ class SourceMetadataTest {
 
         val metadata = store.load("test-source")
 
-        // Last checkpoint should be preserved
+        
         assertEquals(mapOf("index" to "200"), metadata.checkpointData)
         assertEquals(20L, metadata.totalItemsProcessed)
     }
@@ -188,11 +188,11 @@ class SourceMetadataTest {
     fun `test metadata persists across store instances`(@TempDir tempDir: Path) {
         val storePath = tempDir.toString()
 
-        // Create first store and save data
+        
         val store1 = SourceMetadataStore(storePath)
         store1.recordSuccess("test-source", 100, 5, mapOf("key" to "value"))
 
-        // Create second store (simulates restart)
+        
         val store2 = SourceMetadataStore(storePath)
         val metadata = store2.load("test-source")
 

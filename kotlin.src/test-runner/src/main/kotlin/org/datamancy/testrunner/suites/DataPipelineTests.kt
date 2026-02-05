@@ -7,28 +7,10 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.json.*
 import org.datamancy.testrunner.framework.*
 
-/**
- * Comprehensive tests for the pipeline service with 8 data sources:
- * - RSS Feeds, CVE/NVD, Torrents CSV, Wikipedia, Australian Laws, Linux Docs, Debian Wiki, Arch Wiki
- *
- * Tests cover:
- * - Data ingestion from all 8 sources (54 ingestion tests)
- * - Qdrant vector storage and search
- * - BookStack wiki integration and dual-write
- * - Deduplication and hash tracking
- * - Checkpoint/resume functionality
- * - Error handling and recovery
- * - Embedding scheduler operation
- * - Pipeline health and sanity checks (8 tests)
- * - Error rate monitoring (<10% threshold)
- * - Queue operational status
- * - Vector dimension consistency
- *
- * Total: 73 tests covering all pipeline functionality
- */
+
 suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
 
-    // Helper to query Qdrant for collection info
+    
     suspend fun getQdrantCollectionInfo(collectionName: String): JsonObject? {
         return try {
             val response = client.getRawResponse("${endpoints.qdrant}/collections/$collectionName")
@@ -41,13 +23,13 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         }
     }
 
-    // Helper to get vector count from collection
+    
     suspend fun getVectorCount(collectionName: String): Long {
         val info = getQdrantCollectionInfo(collectionName)
         return info?.get("result")?.jsonObject?.get("points_count")?.jsonPrimitive?.longOrNull ?: 0L
     }
 
-    // Helper to search within a specific collection
+    
     suspend fun searchInCollection(collectionName: String, query: String, limit: Int = 5): JsonArray? {
         return try {
             val result = client.search(
@@ -63,7 +45,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         }
     }
 
-    // Helper to get pipeline source status
+    
     suspend fun getSourceStatus(sourceName: String): JsonObject? {
         return try {
             val response = client.getRawResponse("http://pipeline:8090/status")
@@ -229,9 +211,9 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         }
     }
 
-    // ================================================================================
-    // CVE PIPELINE TESTS (6 tests)
-    // ================================================================================
+    
+    
+    
 
     test("CVE: Pipeline source is enabled") {
         val status = getSourceStatus("cve")
@@ -249,7 +231,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("CVE: Data is being ingested") {
-        // Wait for initial ingestion (CVE might take a few seconds)
+        
         delay(10000)
 
         val count = getVectorCount("cve")
@@ -266,7 +248,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
             val firstResult = results.first().jsonObject
             val metadata = firstResult["metadata"]?.jsonObject
 
-            // Check for CVE-specific fields
+            
             val hasCveFields = metadata?.containsKey("cveId") == true ||
                              metadata?.containsKey("severity") == true ||
                              metadata?.containsKey("source") == true
@@ -306,9 +288,9 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         println("      ✓ CVE stats: $processed processed, $failed failed")
     }
 
-    // ================================================================================
-    // TORRENTS PIPELINE TESTS (6 tests)
-    // ================================================================================
+    
+    
+    
 
     test("Torrents: Pipeline source is enabled") {
         val status = getSourceStatus("torrents")
@@ -357,7 +339,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         val status = getSourceStatus("torrents")
         require(status != null) { "Torrents source not found" }
 
-        // Torrents pipeline uses checkpoint to track last processed line
+        
         val checkpoint = status["checkpointData"]?.jsonObject
         if (checkpoint != null) {
             println("      ✓ Torrents checkpoint: ${checkpoint}")
@@ -379,9 +361,9 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         println("      ✓ Torrents stats: $processed processed, $failed failed")
     }
 
-    // ================================================================================
-    // WIKIPEDIA PIPELINE TESTS (6 tests)
-    // ================================================================================
+    
+    
+    
 
     test("Wikipedia: Pipeline source is enabled") {
         val status = getSourceStatus("wikipedia")
@@ -456,9 +438,9 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         println("      ✓ Wikipedia stats: $processed processed, $failed failed")
     }
 
-    // ================================================================================
-    // AUSTRALIAN LAWS PIPELINE TESTS (6 tests)
-    // ================================================================================
+    
+    
+    
 
     test("Australian Laws: Pipeline source is enabled") {
         val status = getSourceStatus("australian_laws")
@@ -531,9 +513,9 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         println("      ✓ Australian Laws stats: $processed processed, $failed failed")
     }
 
-    // ================================================================================
-    // LINUX DOCS PIPELINE TESTS (6 tests)
-    // ================================================================================
+    
+    
+    
 
     test("Linux Docs: Pipeline source is enabled") {
         val status = getSourceStatus("linux_docs")
@@ -606,12 +588,12 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         println("      ✓ Linux Docs stats: $processed processed, $failed failed")
     }
 
-    // ================================================================================
-    // DEDUPLICATION TESTS (3 tests)
-    // ================================================================================
+    
+    
+    
 
     test("Deduplication: Pipeline prevents duplicate ingestion") {
-        // Get initial counts for all collections
+        
         val initialCounts = mapOf(
             "rss_feeds" to getVectorCount("rss_feeds"),
             "cve" to getVectorCount("cve"),
@@ -626,12 +608,12 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
                 "Torrents: ${initialCounts["torrents"]}, Wiki: ${initialCounts["wikipedia"]}, " +
                 "AU Laws: ${initialCounts["australian_laws"]}, Linux: ${initialCounts["linux_docs"]}")
 
-        // Deduplication is verified by pipeline logs showing "skipped (duplicates)"
-        // In production, re-running the same data source should not increase counts
+        
+        
     }
 
     test("Deduplication: Hash-based dedup is active") {
-        // Check pipeline status for any source that reports dedup stats
+        
         val status = getSourceStatus("rss")
         if (status != null) {
             println("      ✓ Deduplication is built into pipeline processing")
@@ -641,22 +623,22 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("Deduplication: Dedup store is flushed periodically") {
-        // The pipeline flushes dedup store after each cycle
-        // This test verifies the mechanism exists in the code
+        
+        
         println("      ✓ Deduplication store flush is implemented")
         println("      ℹ️  DeduplicationStore.flush() called after each pipeline cycle")
         println("      ℹ️  File-based storage at /app/data/dedup (PostgreSQL tables unused)")
     }
 
-    // ================================================================================
-    // CHECKPOINT/RESUME TESTS (3 tests)
-    // ================================================================================
+    
+    
+    
 
     test("Checkpoint: CVE pipeline tracks next index") {
         val status = getSourceStatus("cve")
         if (status != null) {
             val checkpoint = status["checkpointData"]?.jsonObject
-            // Note: checkpointData is always present but may be empty map
+            
             if (checkpoint != null && !checkpoint.isEmpty()) {
                 if (checkpoint.containsKey("nextIndex")) {
                     val nextIndex = checkpoint["nextIndex"]?.jsonPrimitive?.content
@@ -674,7 +656,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         val status = getSourceStatus("torrents")
         if (status != null) {
             val checkpoint = status["checkpointData"]?.jsonObject
-            // Note: checkpointData is always present but may be empty map
+            
             if (checkpoint != null && !checkpoint.isEmpty()) {
                 if (checkpoint.containsKey("nextLine")) {
                     val nextLine = checkpoint["nextLine"]?.jsonPrimitive?.content
@@ -689,16 +671,16 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("Checkpoint: Metadata store persists across restarts") {
-        // The SourceMetadataStore uses JSON file-based storage at /tmp/datamancy/metadata/
+        
         println("      ✓ Checkpoint system is implemented in SourceMetadataStore")
         println("      ℹ️  File-based storage: /tmp/datamancy/metadata/*.json")
         println("      ℹ️  PostgreSQL tables (dedupe_records, fetch_history) are unused/legacy")
     }
 
-    // ================================================================================
-    // BOOKSTACK INTEGRATION TESTS (9 tests)
-    // Verifies that pipeline data makes it to BookStack wiki
-    // ================================================================================
+    
+    
+    
+    
 
     test("BookStack: Service is accessible") {
         val response = client.getRawResponse("${endpoints.bookstack}/api/books")
@@ -711,7 +693,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("BookStack: Pipeline creates RSS feed books") {
-        // Check if RSS data was written to BookStack
+        
         val response = client.getRawResponse("${endpoints.bookstack}/api/books?filter[name]=RSS%20Feeds")
         if (response.status == HttpStatusCode.Unauthorized) {
             println("      ℹ️  BookStack authentication required - skipping")
@@ -726,7 +708,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
             println("      ✓ Found RSS Feeds book in BookStack")
             val bookId = books.first().jsonObject["id"]?.jsonPrimitive?.int
             if (bookId != null) {
-                // Check pages in book
+                
                 val pagesResponse = client.getRawResponse("${endpoints.bookstack}/api/books/$bookId")
                 if (pagesResponse.status == HttpStatusCode.OK) {
                     val bookDetail = Json.parseToJsonElement(pagesResponse.bodyAsText()).jsonObject
@@ -818,7 +800,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("BookStack: Pages contain proper HTML formatting") {
-        // Get a sample page from BookStack
+        
         val booksResponse = client.getRawResponse("${endpoints.bookstack}/api/books")
         val booksJson = Json.parseToJsonElement(booksResponse.bodyAsText()).jsonObject
         val books = booksJson["data"]?.jsonArray
@@ -830,7 +812,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
                 val bookJson = Json.parseToJsonElement(bookDetail.bodyAsText()).jsonObject
                 val contents = bookJson["contents"]?.jsonArray
 
-                // Find a page (not chapter)
+                
                 val page = contents?.find {
                     it.jsonObject["type"]?.jsonPrimitive?.content == "page"
                 }
@@ -843,7 +825,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
                         val html = pageJson["html"]?.jsonPrimitive?.content
 
                         if (!html.isNullOrEmpty()) {
-                            // Verify HTML contains expected tags
+                            
                             val hasHtmlTags = html.contains("<") && html.contains(">")
                             hasHtmlTags shouldBe true
                             println("      ✓ BookStack pages contain HTML formatting")
@@ -857,7 +839,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("BookStack: Pages have source tags") {
-        // Verify that pipeline adds source tags to pages
+        
         val pagesResponse = client.getRawResponse("${endpoints.bookstack}/api/pages?count=10")
         if (pagesResponse.status == HttpStatusCode.OK) {
             val json = Json.parseToJsonElement(pagesResponse.bodyAsText()).jsonObject
@@ -888,7 +870,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("BookStack: Dual-write Qdrant and BookStack both have data") {
-        // Verify that data exists in BOTH Qdrant and BookStack
+        
         val qdrantCount = getVectorCount("rss_feeds") + getVectorCount("cve") +
                          getVectorCount("wikipedia") + getVectorCount("linux_docs")
 
@@ -909,7 +891,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("BookStack: Content matches Qdrant vectors") {
-        // Sample test: verify that content in BookStack roughly matches Qdrant
+        
         val rssVectorCount = getVectorCount("rss_feeds")
 
         if (rssVectorCount > 0) {
@@ -928,8 +910,8 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
 
                         println("      ✓ RSS: Qdrant has $rssVectorCount vectors, BookStack has $pageCount pages")
 
-                        // They don't need to match exactly (BookStack might have chapters)
-                        // but both should have data
+                        
+                        
                         if (pageCount > 0) {
                             println("      ✓ Content successfully dual-written to both systems")
                         }
@@ -941,9 +923,9 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         }
     }
 
-    // =============================================================================
-    // DEBIAN WIKI TESTS
-    // =============================================================================
+    
+    
+    
 
     test("Debian Wiki: Pipeline source is enabled") {
         val status = getSourceStatus("Debian Wiki")
@@ -1028,9 +1010,9 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         }
     }
 
-    // =============================================================================
-    // ARCH WIKI TESTS
-    // =============================================================================
+    
+    
+    
 
     test("Arch Wiki: Pipeline source is enabled") {
         val status = getSourceStatus("Arch Wiki")
@@ -1115,9 +1097,9 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         }
     }
 
-    // =============================================================================
-    // PIPELINE HEALTH & SANITY CHECKS
-    // =============================================================================
+    
+    
+    
 
     test("Pipeline monitoring endpoint is accessible") {
         val response = client.getRawResponse("http://pipeline:8090/health")
@@ -1214,7 +1196,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("Pipeline deduplication store is working") {
-        // Check that dedup is preventing duplicate ingestion
+        
         val response = client.getRawResponse("http://pipeline:8090/status")
         if (response.status == HttpStatusCode.OK) {
             val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject

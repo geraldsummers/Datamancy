@@ -12,19 +12,17 @@ data class ToolParam(
 
 data class ToolDefinition(
     val name: String,
-    // Human-readable concise description (typically same as annotation.shortDescription)
+    
     val description: String,
     val shortDescription: String,
     val longDescription: String,
     val parameters: List<ToolParam>,
-    // Parameters technical specification (from annotation.paramsSpec)
+    
     val paramsSpec: String,
     val pluginId: String
 )
 
-/**
- * Non-reflective tool handler: given JSON args and optional user context, produce a result.
- */
+
 fun interface ToolHandler {
     fun call(args: JsonNode, userContext: String?): Any?
 }
@@ -33,15 +31,13 @@ class ToolRegistry {
     private val tools = mutableMapOf<String, ToolHandler>()
     private val defs = mutableListOf<ToolDefinition>()
 
-    /**
-     * Register a tool explicitly without any reflection.
-     */
+    
     fun register(definition: ToolDefinition, handler: ToolHandler) {
         defs += definition
         tools[definition.name] = handler
     }
 
-    // Reflection-based registration removed to eliminate kotlin-reflect dependency.
+    
 
     fun listTools(): List<ToolDefinition> = defs.toList()
 

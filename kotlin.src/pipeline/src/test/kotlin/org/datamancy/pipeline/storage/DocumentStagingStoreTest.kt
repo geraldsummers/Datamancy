@@ -7,10 +7,7 @@ import org.junit.jupiter.api.Assertions.*
 import java.io.File
 import java.time.Instant
 
-/**
- * Unit tests for DocumentStagingStore with PostgreSQL + Exposed
- * Uses in-memory H2 database for fast testing without Docker
- */
+
 class DocumentStagingStoreTest {
 
     companion object {
@@ -20,7 +17,7 @@ class DocumentStagingStoreTest {
         @BeforeAll
         @JvmStatic
         fun setupDatabase() {
-            // Use H2 in-memory database for testing
+            
             stagingStore = DocumentStagingStore(
                 jdbcUrl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
                 user = "sa",
@@ -37,8 +34,8 @@ class DocumentStagingStoreTest {
 
     @BeforeEach
     fun clearDatabase() = runBlocking {
-        // Clear the database before each test
-        // (Exposed will handle schema creation automatically)
+        
+        
     }
 
     @Test
@@ -110,14 +107,14 @@ class DocumentStagingStoreTest {
 
         stagingStore.stageBatch(docs)
 
-        // Verify by getting pending batch
+        
         val pending = stagingStore.getPendingBatch(10)
         assertTrue(pending.size >= 2, "Should have at least 2 pending documents")
     }
 
     @Test
     fun `getPendingBatch should return pending documents`() = runBlocking {
-        // Insert test documents
+        
         val docs = listOf(
             StagedDocument(
                 id = "pending-1",
@@ -130,14 +127,14 @@ class DocumentStagingStoreTest {
         )
         stagingStore.stageBatch(docs)
 
-        // Get pending documents
+        
         val pending = stagingStore.getPendingBatch(10)
         assertTrue(pending.isNotEmpty(), "Should have pending documents")
     }
 
     @Test
     fun `updateStatus should change document status`() = runBlocking {
-        // Insert test document
+        
         val doc = StagedDocument(
             id = "status-test",
             source = "test",
@@ -148,10 +145,10 @@ class DocumentStagingStoreTest {
         )
         stagingStore.stageBatch(listOf(doc))
 
-        // Update status
+        
         stagingStore.updateStatus("status-test", EmbeddingStatus.COMPLETED)
 
-        // Verify - pending batch should not include completed doc
+        
         val pending = stagingStore.getPendingBatch(10)
         val hasStatusTest = pending.any { it.id == "status-test" }
         assertFalse(hasStatusTest, "Completed document should not be in pending batch")
@@ -159,7 +156,7 @@ class DocumentStagingStoreTest {
 
     @Test
     fun `getStats should return correct counts`() = runBlocking {
-        // Insert documents with different statuses
+        
         val docs = listOf(
             StagedDocument("stat-1", "test", "test", "text", emptyMap(), EmbeddingStatus.PENDING),
             StagedDocument("stat-2", "test", "test", "text", emptyMap(), EmbeddingStatus.PENDING),
@@ -190,7 +187,7 @@ class DocumentStagingStoreTest {
 
     @Test
     fun `stageBatch handles empty list gracefully`() = runBlocking {
-        // Should not throw exception
+        
         stagingStore.stageBatch(emptyList())
     }
 }

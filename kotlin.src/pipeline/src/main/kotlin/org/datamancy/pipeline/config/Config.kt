@@ -4,9 +4,7 @@ import com.charleskorn.kaml.Yaml
 import kotlinx.serialization.Serializable
 import java.io.File
 
-/**
- * Main configuration for the pipeline service
- */
+
 @Serializable
 data class PipelineConfig(
     val rss: RssConfig = RssConfig(),
@@ -34,12 +32,12 @@ data class PipelineConfig(
             }
         }
 
-        // Helper to read from environment variable or system property (for testing)
+        
         private fun getEnvOrProperty(key: String): String? {
             return System.getenv(key) ?: System.getProperty(key)
         }
 
-        // Safe integer parsing with validation
+        
         private fun getEnvOrPropertyInt(key: String, default: Int, min: Int = Int.MIN_VALUE, max: Int = Int.MAX_VALUE): Int {
             return try {
                 val value = getEnvOrProperty(key)?.toInt() ?: default
@@ -60,7 +58,7 @@ data class PipelineConfig(
             }
         }
 
-        // Safe long parsing with validation
+        
         private fun getEnvOrPropertyLong(key: String, default: Long, min: Long = 0): Long {
             return try {
                 val value = getEnvOrProperty(key)?.toLong() ?: default
@@ -76,7 +74,7 @@ data class PipelineConfig(
             }
         }
 
-        // Safe boolean parsing
+        
         private fun getEnvOrPropertyBoolean(key: String, default: Boolean): Boolean {
             return try {
                 getEnvOrProperty(key)?.toBoolean() ?: default
@@ -205,25 +203,25 @@ data class MarketConfig(
 data class EmbeddingConfig(
     val serviceUrl: String = "http://embedding-service:8000",
     val model: String = "bge-m3",
-    val vectorSize: Int = 1024,  // BGE-M3 uses 1024 dimensions
-    val maxTokens: Int = 8192  // BGE-M3 supports 8192 tokens (16x larger than base!)
+    val vectorSize: Int = 1024,  
+    val maxTokens: Int = 8192  
 )
 
 @Serializable
 data class CveConfig(
     val enabled: Boolean = false,
     val apiKey: String? = null,
-    val scheduleMinutes: Int = 1440,  // Daily by default
+    val scheduleMinutes: Int = 1440,  
     val maxResults: Int = Int.MAX_VALUE
 )
 
 @Serializable
 data class TorrentsConfig(
     val enabled: Boolean = false,
-    val dataPath: String = "https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv",  // Can also be local file path
-    val scheduleMinutes: Int = 10080,  // Weekly by default
+    val dataPath: String = "https://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv",  
+    val scheduleMinutes: Int = 10080,  
     val maxResults: Int = Int.MAX_VALUE,
-    val startLine: Long = 0  // For resuming from checkpoint
+    val startLine: Long = 0  
 )
 
 @Serializable
@@ -231,8 +229,8 @@ data class BinanceConfig(
     val enabled: Boolean = false,
     val symbols: List<String> = emptyList(),
     val interval: String = "1h",
-    val scheduleMinutes: Int = 60,  // Hourly by default
-    val storeVectors: Boolean = false  // Whether to also store embeddings in Qdrant
+    val scheduleMinutes: Int = 60,  
+    val storeVectors: Boolean = false  
 )
 
 @Serializable
@@ -260,34 +258,34 @@ data class PostgresConfig(
 data class WikipediaConfig(
     val enabled: Boolean = false,
     val dumpPath: String = "/app/data/enwiki-latest-pages-articles.xml.bz2",
-    val scheduleMinutes: Int = 43200,  // Twice daily by default
+    val scheduleMinutes: Int = 43200,  
     val maxArticles: Int = Int.MAX_VALUE
 )
 
 @Serializable
 data class AustralianLawsConfig(
     val enabled: Boolean = false,
-    val jurisdictions: List<String> = listOf("commonwealth", "nsw", "vic", "qld", "wa", "sa", "tas", "act", "nt"),  // All Australian jurisdictions
-    val scheduleMinutes: Int = 1440,  // Daily by default
-    val maxLawsPerJurisdiction: Int = 100,  // Max laws per jurisdiction (to keep it manageable)
-    val startYear: Int = 2020  // Focus on recent legislation
+    val jurisdictions: List<String> = listOf("commonwealth", "nsw", "vic", "qld", "wa", "sa", "tas", "act", "nt"),  
+    val scheduleMinutes: Int = 1440,  
+    val maxLawsPerJurisdiction: Int = 100,  
+    val startYear: Int = 2020  
 )
 
 @Serializable
 data class LinuxDocsConfig(
     val enabled: Boolean = false,
-    val sources: List<String> = listOf("MAN_PAGES"),  // MAN_PAGES, DEBIAN_DOCS, KERNEL_DOCS
-    val scheduleMinutes: Int = 10080,  // Weekly by default
+    val sources: List<String> = listOf("MAN_PAGES"),  
+    val scheduleMinutes: Int = 10080,  
     val maxDocs: Int = Int.MAX_VALUE
 )
 
 @Serializable
 data class WikiConfig(
     val enabled: Boolean = false,
-    val wikiTypes: List<String> = listOf("DEBIAN", "ARCH"),  // DEBIAN, ARCH
+    val wikiTypes: List<String> = listOf("DEBIAN", "ARCH"),  
     val maxPagesPerWiki: Int = 500,
-    val scheduleMinutes: Int = 10080,  // Weekly by default
-    val categories: List<String> = emptyList()  // Empty = fetch recent pages
+    val scheduleMinutes: Int = 10080,  
+    val categories: List<String> = emptyList()  
 )
 
 @Serializable

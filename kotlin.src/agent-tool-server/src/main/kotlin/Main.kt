@@ -29,7 +29,7 @@ fun main() {
 
     val capabilityPolicy = CapabilityPolicy(allowed = allowedCaps)
 
-    // Register factory functions for built-in plugins to avoid any reflection-based instantiation
+    
     PluginFactories.clear()
     PluginFactories.register(CoreToolsPlugin::class.qualifiedName!!) { CoreToolsPlugin() }
     PluginFactories.register(HostToolsPlugin::class.qualifiedName!!) { HostToolsPlugin() }
@@ -39,8 +39,8 @@ fun main() {
     PluginFactories.register(DataSourceQueryPlugin::class.qualifiedName!!) { DataSourceQueryPlugin() }
     PluginFactories.register(DockerContainerPlugin::class.qualifiedName!!) { DockerContainerPlugin() }
 
-    // Instantiate all built-in plugins directly via constructors (no reflection),
-    // while also supporting external plugins loaded via PluginManager using the factory registry.
+    
+    
     val builtinPlugins: List<Plugin> = listOf(
         CoreToolsPlugin(),
         HostToolsPlugin(),
@@ -51,14 +51,14 @@ fun main() {
         DockerContainerPlugin()
     )
 
-    // Initialize plugins and check capabilities
+    
     val ctx = PluginContext(hostVersion = hostVersion, apiVersion = apiVersion)
     val loadedPlugins = mutableListOf<Plugin>()
 
     builtinPlugins.forEach { plugin ->
         val manifest = plugin.manifest()
 
-        // Check capabilities
+        
         val missingCaps = manifest.capabilities.filterNot { capabilityPolicy.allowed.isEmpty() || it in capabilityPolicy.allowed }
         if (missingCaps.isNotEmpty()) {
             println("[WARN] Plugin ${manifest.id} requires capabilities not granted: $missingCaps - skipping")
@@ -69,14 +69,14 @@ fun main() {
         }
     }
 
-    // Register tools from all loaded plugins (non-reflective)
+    
     val registry = ToolRegistry()
     loadedPlugins.forEach { plugin ->
         runCatching { plugin.registerTools(registry) }
             .onFailure { println("[WARN] Plugin ${'$'}{plugin.manifest().id} failed to register tools: ${'$'}it") }
     }
 
-    // Additionally load external plugins from pluginsDir using PluginManager (factory-based, no reflection for instantiation)
+    
     val pluginsDir = System.getenv("TOOLSERVER_PLUGINS_DIR")?.takeIf { it.isNotBlank() } ?: "plugins"
     val hostConfig = HostConfig(
         hostVersion = hostVersion,
@@ -87,10 +87,10 @@ fun main() {
     val pluginManager = PluginManager(hostConfig)
     val external = pluginManager.loadAll()
     external.forEach { loaded ->
-        // Allow external plugin to register tools explicitly (non-reflective)
+        
         runCatching { loaded.instance.registerTools(registry) }
             .onFailure { println("[WARN] External plugin ${'$'}{loaded.manifest.id} failed to register tools: ${'$'}it") }
-        // Keep the plugin instance for clean shutdown
+        
         loadedPlugins.add(loaded.instance)
         println("Loaded external plugin: ${'$'}{loaded.manifest.id} v${'$'}{loaded.manifest.version}")
     }

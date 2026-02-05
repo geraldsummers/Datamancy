@@ -17,10 +17,7 @@ import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.TimeUnit
 
-/**
- * Docker Container Plugin - Spawns Linux containers with SSH access
- * Uses Docker-in-Docker (DinD) to create isolated environments for agents
- */
+
 class DockerContainerPlugin : Plugin {
     private val dockerHost = System.getenv("DOCKER_HOST") ?: "unix:///var/run/docker.sock"
     private val dindNetwork = System.getenv("DIND_NETWORK") ?: "datamancy-stack_docker-proxy"
@@ -37,7 +34,7 @@ class DockerContainerPlugin : Plugin {
     )
 
     override fun init(context: PluginContext) {
-        // Ensure SSH keys directory exists
+        
         if (!sshKeysDir.exists()) {
             sshKeysDir.mkdirs()
         }
@@ -207,20 +204,20 @@ class DockerContainerPlugin : Plugin {
             ports: List<Int> = emptyList(),
             environment: Map<String, String> = emptyMap()
         ): String {
-            // Generate SSH key pair for this container
+            
             val keyPair = generateSshKeyPair(name)
 
-            // Create Dockerfile for SSH-enabled container
+            
             val dockerfile = createSshDockerfile(image, keyPair.publicKey)
 
-            // Build custom image with SSH
+            
             val imageName = "agent-container-$name"
             buildImage(imageName, dockerfile)
 
-            // Run container
+            
             val containerId = runContainer(name, imageName, ports, environment)
 
-            // Get container IP
+            
             val containerIp = getContainerIp(name)
 
             return objectMapper.writeValueAsString(mapOf(
@@ -275,7 +272,7 @@ class DockerContainerPlugin : Plugin {
         fun docker_container_remove(name: String): String {
             executeDockerCommand("rm", "-f", name)
 
-            // Clean up SSH keys
+            
             val privateKey = File(sshKeysDir, "$name")
             val publicKey = File(sshKeysDir, "$name.pub")
             privateKey.delete()
@@ -313,12 +310,12 @@ class DockerContainerPlugin : Plugin {
             ))
         }
 
-        // Helper functions
+        
         private fun generateSshKeyPair(name: String): KeyPair {
             val privateKeyFile = File(sshKeysDir, name)
             val publicKeyFile = File(sshKeysDir, "$name.pub")
 
-            // Generate ED25519 key (faster and more secure than RSA)
+            
             val process = ProcessBuilder(
                 "ssh-keygen", "-t", "ed25519", "-f", privateKeyFile.absolutePath,
                 "-N", "", "-C", "agent-container-$name"
@@ -329,7 +326,7 @@ class DockerContainerPlugin : Plugin {
                 throw RuntimeException("Failed to generate SSH key: ${process.inputStream.bufferedReader().readText()}")
             }
 
-            // Set proper permissions
+            
             Files.setPosixFilePermissions(privateKeyFile.toPath(), PosixFilePermissions.fromString("rw-------"))
 
             return KeyPair(
@@ -368,14 +365,14 @@ class DockerContainerPlugin : Plugin {
         }
 
         private fun buildImage(imageName: String, dockerfile: String): String {
-            // Create temporary directory for build context
+            
             val buildDir = Files.createTempDirectory("docker-build-").toFile()
             try {
                 File(buildDir, "Dockerfile").writeText(dockerfile)
 
                 val command = mutableListOf("docker", "build", "-t", imageName, ".")
 
-                // Add DOCKER_HOST if using TCP (must apply to build as well)
+                
                 if (dockerHost.startsWith("tcp://")) {
                     command.add(1, "-H")
                     command.add(2, dockerHost)
@@ -407,13 +404,13 @@ class DockerContainerPlugin : Plugin {
         ): String {
             val args = mutableListOf("run", "-d", "--name", name, "--network", dindNetwork)
 
-            // Add additional port mappings (SSH is already exposed internally on 22)
+            
             ports.forEach { port ->
                 args.add("-p")
                 args.add("$port:$port")
             }
 
-            // Add environment variables
+            
             environment.forEach { (key, value) ->
                 args.add("-e")
                 args.add("$key=$value")
@@ -433,7 +430,7 @@ class DockerContainerPlugin : Plugin {
         private fun executeDockerCommand(vararg args: String): String {
             val command = mutableListOf("docker")
 
-            // Add DOCKER_HOST if using TCP
+            
             if (dockerHost.startsWith("tcp://")) {
                 command.add("-H")
                 command.add(dockerHost)

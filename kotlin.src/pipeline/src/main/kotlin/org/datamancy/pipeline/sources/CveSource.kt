@@ -13,19 +13,12 @@ import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Fetches CVE (Common Vulnerabilities and Exposures) data from NVD API
- * API Docs: https://nvd.nist.gov/developers/vulnerabilities
- * Rate limit: 5 requests per 30 seconds (without API key), 50 req/30sec with key
- *
- * NOTE: Requires API key from https://nvd.nist.gov/developers/request-an-api-key
- * Set CVE_ENABLED=true and CVE_API_KEY environment variable to enable
- */
+
 class CveSource(
     private val apiKey: String? = null,
     private val startIndex: Int = 0,
     private val maxResults: Int = Int.MAX_VALUE,
-    private val testMode: Boolean = false  // Skip rate limiting in tests
+    private val testMode: Boolean = false  
 ) : Source<CveEntry> {
     override val name = "CveSource"
 
@@ -35,10 +28,10 @@ class CveSource(
         .build()
 
     private val baseUrl = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-    private val resultsPerPage = 2000  // Max allowed by API
+    private val resultsPerPage = 2000  
 
-    // Rate limiting: 5 req/30sec without key, 50 req/30sec with key
-    // In test mode, skip delays to avoid slow CI builds
+    
+    
     private val delayMs = when {
         testMode -> 0L
         apiKey != null -> 600L
@@ -98,7 +91,7 @@ class CveSource(
                     continue
                 }
 
-                // Parse CVE entries outside of try-catch to avoid Flow emission violations
+                
                 val parsedCves = vulnerabilities.mapNotNull { vulnElement ->
                     try {
                         parseCveEntry(vulnElement)
@@ -108,7 +101,7 @@ class CveSource(
                     }
                 }
 
-                // Emit parsed CVEs (no exceptions can occur here)
+                
                 for (cveEntry in parsedCves) {
                     emit(cveEntry)
                     totalFetched++
@@ -122,7 +115,7 @@ class CveSource(
 
                 currentIndex += vulnerabilities.size()
 
-                // Rate limiting
+                
                 if (currentIndex < totalResults && totalFetched < maxResults) {
                     logger.debug { "Waiting ${delayMs}ms before next request (rate limiting)" }
                     delay(delayMs)
@@ -146,7 +139,7 @@ class CveSource(
         val cve = vulnElement.asJsonObject.getAsJsonObject("cve")
         val cveId = cve.get("id")?.asString ?: "UNKNOWN"
 
-        // Extract description
+        
         val descriptions = cve.get("descriptions")
         val description = if (descriptions != null && descriptions.isJsonArray) {
             val descriptionsArray = descriptions.asJsonArray
@@ -159,7 +152,7 @@ class CveSource(
             ""
         }
 
-        // Extract severity/CVSS
+        
         val metricsElement = cve.get("metrics")
         val metricsObj = if (metricsElement != null && metricsElement.isJsonObject) {
             metricsElement.asJsonObject
@@ -202,7 +195,7 @@ class CveSource(
             }
         }
 
-        // Extract references
+        
         val referencesElement = cve.get("references")
         val references = if (referencesElement != null && referencesElement.isJsonArray) {
             referencesElement.asJsonArray.mapNotNull { 
@@ -212,7 +205,7 @@ class CveSource(
             emptyList()
         }
 
-        // Extract affected products/CPE configurations
+        
         val configurationsElement = cve.get("configurations")
         val configurations = if (configurationsElement != null && configurationsElement.isJsonObject) {
             configurationsElement.asJsonObject
@@ -230,7 +223,7 @@ class CveSource(
                                     if (cpeMatch.isJsonObject) {
                                         val cpe = cpeMatch.asJsonObject.get("criteria")?.asString
                                         if (cpe != null) {
-                                            // Parse CPE to extract readable product name
+                                            
                                             val parts = cpe.split(":")
                                             if (parts.size >= 5) {
                                                 val vendor = parts[3]
@@ -247,7 +240,7 @@ class CveSource(
             }
         }
 
-        // Extract dates
+        
         val publishedDate = cve.get("published")?.asString ?: ""
         val lastModifiedDate = cve.get("lastModified")?.asString ?: ""
 
@@ -316,9 +309,7 @@ data class CveEntry(
         }
     }
 
-    /**
-     * Generate a content hash for deduplication
-     */
+    
     fun contentHash(): String {
         return "$cveId:$lastModifiedDate".hashCode().toString()
     }

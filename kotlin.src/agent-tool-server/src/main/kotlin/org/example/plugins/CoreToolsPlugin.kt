@@ -25,9 +25,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 
-/**
- * Core LM-friendly tools plugin. All functions are pure and deterministic.
- */
+
 class CoreToolsPlugin : Plugin {
     override fun manifest() = PluginManifest(
         id = "org.example.plugins.core",
@@ -38,7 +36,7 @@ class CoreToolsPlugin : Plugin {
         requires = Requires(host = ">=1.0.0", api = ">=1.0.0")
     )
 
-    override fun init(context: PluginContext) { /* no-op */ }
+    override fun init(context: PluginContext) {  }
 
     override fun tools(): List<Any> = listOf(Tools())
 
@@ -46,7 +44,7 @@ class CoreToolsPlugin : Plugin {
         val pluginId = manifest().id
         val tools = Tools()
 
-        // Register a representative subset non-reflectively
+        
         registry.register(
             ToolDefinition(
                 name = "normalize_whitespace",
@@ -78,7 +76,7 @@ class CoreToolsPlugin : Plugin {
     }
 
     class Tools {
-        // -------------------- Text / String --------------------
+        
         @LlmTool(
             shortDescription = "Collapse repeated whitespace and trim",
             longDescription = "Collapse runs of any whitespace (spaces, tabs, newlines) into single spaces and trim leading/trailing whitespace.",
@@ -148,7 +146,7 @@ class CoreToolsPlugin : Plugin {
             """
         )
         fun tokenize_words(text: String): List<String> {
-            // Allow alpha-numeric combos like "2x" as a single token
+            
             val regex = "[A-Za-z0-9][A-Za-z0-9'-]*".toRegex()
             return regex.findAll(text).map { it.value }.toList()
         }
@@ -198,9 +196,9 @@ class CoreToolsPlugin : Plugin {
                     val tmp = dp[j]
                     val cost = if (a[i - 1] == b[j - 1]) 0 else 1
                     dp[j] = minOf(
-                        dp[j] + 1,          // deletion
-                        dp[j - 1] + 1,      // insertion
-                        prev + cost         // substitution
+                        dp[j] + 1,          
+                        dp[j - 1] + 1,      
+                        prev + cost         
                     )
                     prev = tmp
                 }
@@ -224,7 +222,7 @@ class CoreToolsPlugin : Plugin {
             return if (union == 0.0) 0.0 else inter / union
         }
 
-        // -------------------- JSON --------------------
+        
         @LlmTool(
             shortDescription = "Select fields from JSON object",
             longDescription = "Create a new JSON object that includes only the specified top-level fields from the input object.",
@@ -311,7 +309,7 @@ class CoreToolsPlugin : Plugin {
             return out
         }
 
-        // -------------------- Math / Vectors / Statistics --------------------
+        
         @LlmTool(
             shortDescription = "Vector dot product",
             longDescription = "Compute the dot product of two equal-length vectors of doubles.",
@@ -401,7 +399,7 @@ class CoreToolsPlugin : Plugin {
             return bestI
         }
 
-        // -------------------- Collections / Helpers --------------------
+        
         @LlmTool(
             shortDescription = "Chunk list",
             longDescription = "Split a list into contiguous chunks each of the given size (last chunk may be smaller).",
@@ -465,7 +463,7 @@ class CoreToolsPlugin : Plugin {
             return out
         }
 
-        // -------------------- Date / Time --------------------
+        
         @LlmTool(
             shortDescription = "Current time (UTC, ISO)",
             longDescription = "Return the current UTC time formatted as an ISO-8601 instant.",
@@ -542,7 +540,7 @@ class CoreToolsPlugin : Plugin {
             return d.toHours()
         }
 
-        // -------------------- Algorithms --------------------
+        
         @LlmTool(
             shortDescription = "Binary search index",
             longDescription = "Perform binary search for target in a sorted list of integers; return index if found else -(insertionPoint+1).",
@@ -561,7 +559,7 @@ class CoreToolsPlugin : Plugin {
             return -(lo + 1)
         }
 
-        // -------------------- General Utilities --------------------
+        
         @LlmTool(
             shortDescription = "Safe parse int",
             longDescription = "Parse an integer from a string; return the provided default if parsing fails.",
@@ -626,7 +624,7 @@ class CoreToolsPlugin : Plugin {
             return sb.toString()
         }
 
-        // -------------------- Reasoning-friendly helpers --------------------
+        
         @LlmTool(
             shortDescription = "Fuzzy string similarity",
             longDescription = "Compare two strings using a weighted combination of normalized Levenshtein distance and Jaccard token similarity; returns a 0..1 score.",

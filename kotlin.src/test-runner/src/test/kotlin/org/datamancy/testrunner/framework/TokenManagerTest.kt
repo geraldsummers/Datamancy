@@ -24,13 +24,13 @@ class TokenManagerTest {
             engine {
                 addHandler { request ->
                     val url = request.url.toString()
-                    // Normalize URL by adding :80 if missing and scheme is http
+                    
                     val normalizedUrl = if (url.startsWith("http://")) {
-                        val afterScheme = url.substring(7) // Remove "http://"
+                        val afterScheme = url.substring(7) 
                         val slashIndex = afterScheme.indexOf('/')
                         val colonIndex = afterScheme.indexOf(':')
 
-                        // Only add :80 if there's no port specified
+                        
                         if (slashIndex > 0 && (colonIndex < 0 || colonIndex > slashIndex)) {
                             "http://" + afterScheme.substring(0, slashIndex) + ":80" + afterScheme.substring(slashIndex)
                         } else {
@@ -103,13 +103,13 @@ class TokenManagerTest {
         val client = createMockClient(mockResponses)
         val tokenManager = TokenManager(client, endpoints)
 
-        // Initially should not have token
+        
         assertFalse(tokenManager.hasToken("grafana"))
 
-        // Acquire token
+        
         val result = tokenManager.acquireGrafanaToken("admin", "testpassword123")
 
-        // Should succeed
+        
         assertTrue(result.isSuccess)
         assertTrue(tokenManager.hasToken("grafana"))
 
@@ -131,11 +131,11 @@ class TokenManagerTest {
         val client = createMockClient(mockResponses)
         val tokenManager = TokenManager(client, endpoints)
 
-        // Acquire token
+        
         tokenManager.acquireGrafanaToken("admin", "testpassword123")
         assertTrue(tokenManager.hasToken("grafana"))
 
-        // Clear token
+        
         tokenManager.clearToken("grafana")
         assertFalse(tokenManager.hasToken("grafana"))
     }
@@ -154,14 +154,14 @@ class TokenManagerTest {
         val client = createMockClient(mockResponses)
         val tokenManager = TokenManager(client, endpoints)
 
-        // Acquire multiple tokens
+        
         tokenManager.acquireGrafanaToken("admin", "testpassword123")
         tokenManager.acquireSeafileToken("user", "testpassword123")
 
         assertTrue(tokenManager.hasToken("grafana"))
         assertTrue(tokenManager.hasToken("seafile"))
 
-        // Clear all
+        
         tokenManager.clearAll()
 
         assertFalse(tokenManager.hasToken("grafana"))

@@ -6,7 +6,7 @@ data class ServiceEndpoints(
     val agentToolServer: String,
     val dataFetcher: String,
     val searchService: String,
-    val pipeline: String,  // New pipeline service
+    val pipeline: String,  
     val liteLLM: String,
     val bookstack: String,
     val postgres: DatabaseConfig,
@@ -16,42 +16,42 @@ data class ServiceEndpoints(
     val ldap: String? = null,
     val userContext: String? = null,
     val apiKey: String? = null,
-    // BookStack API credentials
+    
     val bookstackTokenId: String? = null,
     val bookstackTokenSecret: String? = null,
-    // Infrastructure
+    
     val caddy: String,
     val authelia: String,
-    // User Interfaces
+    
     val openWebUI: String,
     val jupyterhub: String,
-    // Communication
+    
     val mailserver: String,
     val synapse: String,
     val element: String,
-    // Collaboration
+    
     val mastodon: String,
     val mastodonStreaming: String,
     val roundcube: String,
-    // Productivity
+    
     val forgejo: String,
     val planka: String,
-    // File Management
+    
     val seafile: String,
     val onlyoffice: String,
-    // Security
+    
     val vaultwarden: String,
-    // Monitoring
+    
     val prometheus: String,
     val grafana: String,
-    // Backup
+    
     val kopia: String,
-    // Utility
+    
     val homepage: String? = null,
     val radicale: String? = null,
     val ntfy: String? = null,
     val qbittorrent: String? = null,
-    // Smart Home
+    
     val homeassistant: String? = null
 ) {
     companion object {
@@ -80,43 +80,43 @@ data class ServiceEndpoints(
             valkey = env("VALKEY_URL") ?: "valkey:6379",
             ldap = env("LDAP_URL") ?: "ldap://ldap:389",
             userContext = env("TEST_USER_CONTEXT") ?: "test-agent-user",
-            // BookStack API credentials
+            
             bookstackTokenId = env("BOOKSTACK_API_TOKEN_ID"),
             bookstackTokenSecret = env("BOOKSTACK_API_TOKEN_SECRET"),
-            // Infrastructure
+            
             caddy = env("CADDY_URL") ?: "http://caddy:80",
-            // Use Caddy proxy for Authelia (required for session cookie domain validation)
+            
             authelia = env("AUTHELIA_URL") ?: "http://authelia:9091",
-            // User Interfaces
+            
             openWebUI = env("OPEN_WEBUI_URL") ?: "http://open-webui:8080",
             jupyterhub = env("JUPYTERHUB_URL") ?: "http://jupyterhub:8000",
-            // Communication
+            
             mailserver = env("MAILSERVER_URL") ?: "mailserver:25",
             synapse = env("SYNAPSE_URL") ?: "http://synapse:8008",
             element = env("ELEMENT_URL") ?: "http://element:80",
-            // Collaboration
+            
             mastodon = env("MASTODON_URL") ?: "http://mastodon-web:3000",
             mastodonStreaming = env("MASTODON_STREAMING_URL") ?: "http://mastodon-streaming:4000",
             roundcube = env("ROUNDCUBE_URL") ?: "http://roundcube:80",
-            // Productivity
+            
             forgejo = env("FORGEJO_URL") ?: "http://forgejo:3000",
             planka = env("PLANKA_URL") ?: "http://planka:1337",
-            // File Management
+            
             seafile = env("SEAFILE_URL") ?: "http://seafile:80",
             onlyoffice = env("ONLYOFFICE_URL") ?: "http://onlyoffice:80",
-            // Security
+            
             vaultwarden = env("VAULTWARDEN_URL") ?: "http://vaultwarden:80",
-            // Monitoring
+            
             prometheus = env("PROMETHEUS_URL") ?: "http://prometheus:9090",
             grafana = env("GRAFANA_URL") ?: "http://grafana:3000",
-            // Backup
+            
             kopia = env("KOPIA_URL") ?: "http://kopia:51515",
-            // Utility
+            
             homepage = env("HOMEPAGE_URL") ?: "http://homepage:3000",
             radicale = env("RADICALE_URL") ?: "http://radicale:5232",
             ntfy = env("NTFY_URL") ?: "http://ntfy:80",
             qbittorrent = env("QBITTORRENT_URL") ?: "http://qbittorrent:8080",
-            // Smart Home
+            
             homeassistant = env("HOMEASSISTANT_URL") ?: "http://homeassistant:8123"
         )
 
@@ -133,42 +133,42 @@ data class ServiceEndpoints(
             valkey = "localhost:16379",
             ldap = "ldap://localhost:10389",
             userContext = "test-agent-user",
-            // BookStack API credentials
+            
             bookstackTokenId = env("BOOKSTACK_API_TOKEN_ID"),
             bookstackTokenSecret = env("BOOKSTACK_API_TOKEN_SECRET"),
-            // Infrastructure
+            
             caddy = "http://localhost:80",
             authelia = "http://localhost:9091",
-            // User Interfaces
+            
             openWebUI = "http://localhost:8080",
             jupyterhub = "http://localhost:8000",
-            // Communication
+            
             mailserver = "localhost:25",
             synapse = "http://localhost:8008",
             element = "http://localhost:8009",
-            // Collaboration
+            
             mastodon = "http://localhost:3000",
             mastodonStreaming = "http://localhost:4000",
             roundcube = "http://localhost:8010",
-            // Productivity
+            
             forgejo = "http://localhost:3001",
             planka = "http://localhost:1337",
-            // File Management
+            
             seafile = "http://localhost:8011",
             onlyoffice = "http://localhost:8012",
-            // Security
+            
             vaultwarden = "http://localhost:8013",
-            // Monitoring
+            
             prometheus = "http://localhost:9090",
             grafana = "http://localhost:3002",
-            // Backup
+            
             kopia = "http://localhost:51515",
-            // Utility
+            
             homepage = "http://localhost:3003",
             radicale = "http://localhost:5232",
             ntfy = "http://localhost:8081",
             qbittorrent = "http://localhost:8082",
-            // Smart Home
+            
             homeassistant = "http://localhost:8123"
         )
     }
@@ -197,7 +197,7 @@ sealed interface TestEnvironment {
     val domain: String
     val isDevMode: Boolean get() = false
 
-    // OIDC client secrets for testing
+    
     val openwebuiOAuthSecret: String
     val grafanaOAuthSecret: String
     val mastodonOAuthSecret: String

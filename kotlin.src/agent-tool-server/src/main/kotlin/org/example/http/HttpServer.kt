@@ -15,7 +15,7 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
 
     fun start() {
         val srv = HttpServer.create(InetSocketAddress(port), 0)
-        srv.createContext("/tools/", ToolExecutionHandler(tools)) // Must come before /tools
+        srv.createContext("/tools/", ToolExecutionHandler(tools)) 
         srv.createContext("/tools", ToolsHandler(tools))
         srv.createContext("/tools.json", ToolsSchemaHandler(tools))
         srv.createContext("/call-tool", CallToolHandler(tools))
@@ -24,7 +24,7 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
         srv.createContext("/healthz", healthHandler)
         srv.createContext("/admin/refresh-ssh-keys", RefreshSshKeysHandler())
         srv.createContext("/v1/chat/completions", OpenAIProxyHandler(tools))
-        // Use a cached pool but cap thread creation via system property if needed
+        
         srv.executor = Executors.newCachedThreadPool()
         srv.start()
         server = srv
@@ -36,7 +36,7 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
         server = null
     }
 
-    /** Returns the actual bound TCP port once started (useful when starting on port 0). */
+    
     fun boundPort(): Int? = server?.address?.port
 }
 
@@ -74,7 +74,7 @@ private class ToolsSchemaHandler(private val tools: ToolRegistry) : HttpHandler 
 private class ToolExecutionHandler(private val tools: ToolRegistry) : HttpHandler {
     private val bodyMaxBytes: Long = 1_000_000L
     private val bodyReadTimeoutMs: Long = 5_000L
-    private val callTimeoutMs: Long = 300_000L  // 5 minutes for long-running operations like docker build
+    private val callTimeoutMs: Long = 300_000L  
 
     override fun handle(exchange: HttpExchange) {
         try {
@@ -83,7 +83,7 @@ private class ToolExecutionHandler(private val tools: ToolRegistry) : HttpHandle
                 return
             }
 
-            // Extract tool name from path: /tools/{toolName}
+            
             val path = exchange.requestURI.path
             val toolName = path.removePrefix("/tools/")
             
@@ -100,7 +100,7 @@ private class ToolExecutionHandler(private val tools: ToolRegistry) : HttpHandle
                 Json.mapper.readTree(body)
             }
 
-            // Extract user context from X-User-Context header (for per-user shadow accounts)
+            
             val userContext = exchange.requestHeaders.getFirst("X-User-Context")
                 ?.takeIf { it.isNotBlank() }
 
@@ -147,7 +147,7 @@ private class CallToolHandler(private val tools: ToolRegistry) : HttpHandler {
     override fun handle(exchange: HttpExchange) {
         try {
             if (exchange.requestMethod == "OPTIONS") {
-                // CORS preflight support
+                
                 val h = exchange.responseHeaders
                 h.add("Access-Control-Allow-Origin", "*")
                 h.add("Access-Control-Allow-Headers", "content-type")
@@ -190,7 +190,7 @@ private fun respond(exchange: HttpExchange, status: Int, payload: Any) {
     val headers = exchange.responseHeaders
     headers.add("Content-Type", "application/json; charset=utf-8")
     headers.add("Connection", "close")
-    // Basic CORS to allow browser-based callers
+    
     headers.add("Access-Control-Allow-Origin", "*")
     headers.add("Access-Control-Allow-Headers", "content-type")
     headers.add("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
@@ -203,7 +203,7 @@ private fun respondHead(exchange: HttpExchange, status: Int) {
     val headers = exchange.responseHeaders
     headers.add("Content-Type", "application/json; charset=utf-8")
     headers.add("Connection", "close")
-    // Basic CORS to allow browser-based callers
+    
     headers.add("Access-Control-Allow-Origin", "*")
     headers.add("Access-Control-Allow-Headers", "content-type")
     headers.add("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
@@ -212,7 +212,7 @@ private fun respondHead(exchange: HttpExchange, status: Int) {
     exchange.close()
 }
 
-// ---- helpers ----
+
 
 private class BodyTooLargeException: RuntimeException()
 private class BodyReadTimeoutException: RuntimeException()
@@ -257,7 +257,7 @@ private fun <T> invokeWithTimeout(block: () -> T, timeoutMs: Long): T {
         future.cancel(true)
         throw e
     } catch (e: java.util.concurrent.ExecutionException) {
-        // Unwrap the cause to preserve the original exception type
+        
         throw e.cause ?: e
     }
 }
@@ -279,7 +279,7 @@ private class HealthHandler : HttpHandler {
 private class RefreshSshKeysHandler : HttpHandler {
     override fun handle(exchange: HttpExchange) {
         try {
-            // Only allow from internal networks
+            
             val remoteAddr = exchange.remoteAddress.address.hostAddress
             if (!remoteAddr.startsWith("127.") && !remoteAddr.startsWith("172.") && !remoteAddr.startsWith("::1")) {
                 respond(exchange, 403, mapOf("error" to "Admin endpoint - internal access only"))

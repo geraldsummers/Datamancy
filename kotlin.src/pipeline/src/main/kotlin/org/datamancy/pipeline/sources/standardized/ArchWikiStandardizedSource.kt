@@ -20,16 +20,11 @@ import java.nio.file.StandardCopyOption
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Standardized Arch Wiki source with chunking and scheduling
- *
- * Uses MediaWiki XML dumps for initial pull (fast, no bot protection issues)
- * Falls back to WikiSource for resyncs (if needed in future)
- */
+
 class ArchWikiStandardizedSource(
     private val maxPages: Int = 500,
     private val categories: List<String> = emptyList(),
-    private val xmlDumpPath: String? = null  // Optional: provide path to local XML dump
+    private val xmlDumpPath: String? = null  
 ) : StandardizedSource<WikiPageChunkable> {
     override val name = "arch_wiki"
 
@@ -47,12 +42,12 @@ class ArchWikiStandardizedSource(
     override suspend fun fetchForRun(metadata: RunMetadata): Flow<WikiPageChunkable> {
         return when (metadata.runType) {
             RunType.INITIAL_PULL -> {
-                // Use XML dump for initial pull - bypasses bot protection
+                
                 fetchFromXmlDump()
             }
             RunType.RESYNC -> {
-                // For resync, use XML dump as well (since live scraping is blocked)
-                // In production, you could implement incremental updates via MediaWiki API
+                
+                
                 fetchFromXmlDump()
             }
         }

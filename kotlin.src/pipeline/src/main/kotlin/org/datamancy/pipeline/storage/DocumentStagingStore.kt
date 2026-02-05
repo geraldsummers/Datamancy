@@ -14,45 +14,38 @@ import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Status tracking for documents in the embedding pipeline
- */
+
 enum class EmbeddingStatus {
-    PENDING,      // Scraped, waiting for embedding
-    IN_PROGRESS,  // Currently being embedded
-    COMPLETED,    // Successfully embedded and inserted to Qdrant
-    FAILED        // Embedding/insertion failed (will retry)
+    PENDING,      
+    IN_PROGRESS,  
+    COMPLETED,    
+    FAILED        
 }
 
-/**
- * Document staging in PostgreSQL
- * Decouples scraping from embedding - stores raw documents and tracks embedding progress
- */
+
 data class StagedDocument(
-    val id: String,                          // Unique document ID
-    val source: String,                      // Source name (rss, wikipedia, etc)
-    val collection: String,                  // Target Qdrant collection
-    val text: String,                        // Document text (or chunk text)
-    val metadata: Map<String, String>,       // Document metadata
-    val embeddingStatus: EmbeddingStatus,    // Current status
-    val chunkIndex: Int? = null,             // Chunk index (null if not chunked)
-    val totalChunks: Int? = null,            // Total chunks (null if not chunked)
-    val createdAt: Instant = Instant.now(),  // When scraped
-    val updatedAt: Instant = Instant.now(),  // Last status update
-    val retryCount: Int = 0,                 // Number of retry attempts
-    val errorMessage: String? = null,        // Last error (if failed)
-    val bookstackUrl: String? = null         // BookStack page URL (set after write)
+    val id: String,                          
+    val source: String,                      
+    val collection: String,                  
+    val text: String,                        
+    val metadata: Map<String, String>,       
+    val embeddingStatus: EmbeddingStatus,    
+    val chunkIndex: Int? = null,             
+    val totalChunks: Int? = null,            
+    val createdAt: Instant = Instant.now(),  
+    val updatedAt: Instant = Instant.now(),  
+    val retryCount: Int = 0,                 
+    val errorMessage: String? = null,        
+    val bookstackUrl: String? = null         
 )
 
-/**
- * Exposed table definition for document staging
- */
+
 object DocumentStagingTable : Table("document_staging") {
     val id = varchar("id", 500)
     val sourceName = varchar("source", 255)
     val collection = varchar("collection", 255)
     val text = text("text")
-    val metadata = text("metadata")  // JSON-encoded
+    val metadata = text("metadata")  
     val embeddingStatus = varchar("embedding_status", 50)
     val chunkIndex = integer("chunk_index").nullable()
     val totalChunks = integer("total_chunks").nullable()
@@ -65,10 +58,7 @@ object DocumentStagingTable : Table("document_staging") {
     override val primaryKey = PrimaryKey(id)
 }
 
-/**
- * PostgreSQL-backed document staging store using Exposed ORM
- * Handles buffering scraped documents and tracking embedding progress
- */
+
 class DocumentStagingStore(
     private val jdbcUrl: String,
     private val user: String = "datamancer",
@@ -78,37 +68,37 @@ class DocumentStagingStore(
     private val dataSource: HikariDataSource
 
     init {
-        // DEBUG: Log what we're receiving
+        
         logger.info { "DocumentStagingStore init: jdbcUrl=$jdbcUrl, user=$user, password.length=${dbPassword.length}" }
 
-        // Configure HikariCP connection pool
+        
         val config = HikariConfig().apply {
-            // Use explicit setter syntax to avoid shadowing issues
+            
             setJdbcUrl(this@DocumentStagingStore.jdbcUrl)
             setUsername(user)
             setPassword(dbPassword)
 
-            // DEBUG: Verify what was set
+            
             logger.info { "HikariConfig: jdbcUrl=$jdbcUrl, username=$username, password.length=${dbPassword.length}" }
-            // Auto-detect driver based on JDBC URL
+            
             driverClassName = when {
                 this@DocumentStagingStore.jdbcUrl.startsWith("jdbc:postgresql") -> "org.postgresql.Driver"
                 this@DocumentStagingStore.jdbcUrl.startsWith("jdbc:h2") -> "org.h2.Driver"
                 else -> "org.postgresql.Driver"
             }
 
-            // Connection pool settings
+            
             maximumPoolSize = 20
             minimumIdle = 5
-            connectionTimeout = 30000  // 30 seconds
-            idleTimeout = 600000       // 10 minutes
-            maxLifetime = 1800000      // 30 minutes
+            connectionTimeout = 30000  
+            idleTimeout = 600000       
+            maxLifetime = 1800000      
 
-            // Performance
+            
             isAutoCommit = true
             transactionIsolation = "TRANSACTION_READ_COMMITTED"
 
-            // Validation
+            
             connectionTestQuery = "SELECT 1"
             validationTimeout = 5000
         }
@@ -126,10 +116,10 @@ class DocumentStagingStore(
             transaction {
                 SchemaUtils.createMissingTablesAndColumns(DocumentStagingTable)
 
-                // Create indexes for performance (only in production PostgreSQL)
-                // Skip index creation for H2 test database to avoid compatibility issues
+                
+                
                 if (jdbcUrl.startsWith("jdbc:postgresql")) {
-                    // PostgreSQL supports partial indexes with WHERE clause
+                    
                     exec("""
                         CREATE INDEX IF NOT EXISTS idx_staging_status_created
                         ON document_staging(embedding_status, created_at)
@@ -150,16 +140,12 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Stage a document for embedding (single document - prefer stageBatch for performance)
-     */
+    
     suspend fun stage(doc: StagedDocument) {
         stageBatch(listOf(doc))
     }
 
-    /**
-     * Stage multiple documents in batch (much faster than individual inserts)
-     */
+    
     suspend fun stageBatch(docs: List<StagedDocument>) {
         if (docs.isEmpty()) return
 
@@ -189,9 +175,7 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Get pending documents ready for embedding (limited batch)
-     */
+    
     suspend fun getPendingBatch(limit: Int = 100): List<StagedDocument> {
         return try {
             transaction {
@@ -231,9 +215,7 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Update document status (e.g. PENDING → IN_PROGRESS → COMPLETED)
-     */
+    
     suspend fun updateStatus(
         id: String,
         newStatus: EmbeddingStatus,
@@ -262,9 +244,7 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Get stats for monitoring dashboard
-     */
+    
     suspend fun getStats(): Map<String, Long> {
         return try {
             transaction {
@@ -294,9 +274,7 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Update BookStack URL for a document after it's been written
-     */
+    
     suspend fun updateBookStackUrl(id: String, bookstackUrl: String) {
         try {
             transaction {
@@ -311,9 +289,7 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Get stats by source
-     */
+    
     suspend fun getStatsBySource(source: String): Map<String, Long> {
         return try {
             transaction {
@@ -344,17 +320,15 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Get pending documents for BookStack writing
-     */
+    
     suspend fun getPendingForBookStack(limit: Int = 50): List<StagedDocument> {
         return try {
             transaction {
                 DocumentStagingTable
                     .selectAll()
                     .where {
-                        // FIX: Only select documents that have been successfully embedded
-                        // and haven't exceeded retry limit for BookStack writes
+                        
+                        
                         (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name) and
                         (DocumentStagingTable.retryCount less 3)
                     }
@@ -391,15 +365,13 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Mark document as BookStack write complete
-     */
+    
     suspend fun markBookStackComplete(id: String) {
         try {
             transaction {
                 DocumentStagingTable.update({ DocumentStagingTable.id eq id }) {
                     it[updatedAt] = Instant.now()
-                    // We don't change embedding status - that's independent
+                    
                 }
             }
             logger.debug { "Marked BookStack write complete for $id" }
@@ -408,9 +380,7 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Mark document as BookStack write failed
-     */
+    
     suspend fun markBookStackFailed(id: String, error: String) {
         try {
             transaction {
@@ -426,10 +396,7 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Get BookStack write statistics
-     * Returns pending (embeddingCompleted && retryCount < 3) and failed (retryCount >= 3) counts
-     */
+    
     suspend fun getBookStackStats(): Map<String, Long> {
         return try {
             transaction {
@@ -472,9 +439,7 @@ class DocumentStagingStore(
         }
     }
 
-    /**
-     * Close the connection pool and release resources
-     */
+    
     override fun close() {
         dataSource.close()
         logger.info { "DocumentStagingStore closed (connection pool released)" }

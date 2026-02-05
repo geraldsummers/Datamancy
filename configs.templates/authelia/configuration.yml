@@ -1,9 +1,4 @@
 ---
-# ==============================================
-# PRODUCTION DOMAIN: {{DOMAIN}}
-# All domains, session cookies, and redirect URIs
-# use {{DOMAIN}} for production deployment.
-# ==============================================
 theme: dark
 server:
   address: tcp://0.0.0.0:9091/
@@ -61,25 +56,20 @@ access_control:
   rules:
     - domain: auth.{{DOMAIN}}
       policy: bypass
-    # Allow all internal Docker network calls (test runner, service-to-service)
     - domain_regex: '^(authelia|authelia:[0-9]+)$'
       policy: bypass
-    # Home Assistant webhooks need bypass
     - domain: homeassistant.{{DOMAIN}}
       policy: bypass
       resources:
         - "^/api/webhook/.*$"
-    # qBittorrent - one_factor for all authenticated users (admins, operators, users)
     - domain: qbittorrent.{{DOMAIN}}
       policy: one_factor
-    # Apex domain - homepage
     - domain: {{DOMAIN}}
       policy: one_factor
       subject:
         - "group:admins"
         - "group:operators"
         - "group:users"
-    # All other services accessible to admins, operators, and users
     - domain: "*.{{DOMAIN}}"
       policy: one_factor
       subject:
@@ -92,17 +82,9 @@ session:
     - domain: {{DOMAIN}}
       name: authelia_session
       authelia_url: https://auth.{{DOMAIN}}
-#      default_redirection_url: https://homepage.{{DOMAIN}}
       same_site: lax
       expiration: 8h
       inactivity: 1h
-    # Internal Docker network session cookie removed - Authelia v4.39+ validation:
-    # - Cookie domain must contain a period or be an IP (single-label domains like "authelia" are rejected)
-    # - authelia_url must use https:// scheme (http:// is rejected)
-    # For internal service-to-service calls that fail with session errors,
-    # services should route through Caddy proxy (https://auth.{{DOMAIN}}) instead of direct http://authelia:9091
-  # Security: 7 days is safer than 1 month for production
-  # If stolen, "remember me" cookie is only valid for 1 week
   remember_me: 7d
   redis:
     host: valkey
@@ -116,16 +98,14 @@ regulation:
 
 identity_validation:
   reset_password:
-    # jwt_secret is provided via AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET env var
 
 storage:
-  encryption_key: a_very_important_secret # Will be overridden by env var
+  encryption_key: a_very_important_secret
   postgres:
     address: tcp://postgres:5432
     database: authelia
     schema: public
     username: authelia
-    # Password is provided via AUTHELIA_STORAGE_POSTGRES_PASSWORD env var
     timeout: 5s
 
 notifier:
@@ -135,7 +115,7 @@ notifier:
 
 identity_providers:
   oidc:
-    hmac_secret: another_very_important_secret # Will be overridden by env var
+    hmac_secret: another_very_important_secret
     lifespans:
       access_token: 1h
       authorize_code: 1m
@@ -150,7 +130,6 @@ identity_providers:
         - revocation
         - introspection
       allowed_origins_from_client_redirect_uris: true
-    # OIDC signing keys - using file storage for key
     jwks:
       - key_id: main
         algorithm: RS256
@@ -159,7 +138,6 @@ identity_providers:
           {{AUTHELIA_OIDC_PRIVATE_KEY}}
 
     clients:
-      # pgAdmin
       - client_id: pgadmin
         client_name: pgAdmin
         client_secret: '{{PGADMIN_OAUTH_SECRET_HASH}}'
@@ -177,7 +155,6 @@ identity_providers:
           - code
 
 
-      # Open WebUI
       - client_id: open-webui
         client_name: Open WebUI
         client_secret: '{{OPENWEBUI_OAUTH_SECRET_HASH}}'
@@ -195,7 +172,6 @@ identity_providers:
         response_types:
           - code
 
-      # Dim Media Server
       - client_id: dim
         client_name: Dim
         client_secret: '{{DIM_OAUTH_SECRET_HASH}}'
@@ -213,7 +189,6 @@ identity_providers:
         response_types:
           - code
 
-      # Planka
       - client_id: planka
         client_name: Planka
         client_secret: '{{PLANKA_OAUTH_SECRET_HASH}}'
@@ -236,9 +211,6 @@ identity_providers:
           - fragment
           - form_post
 
-      # Vaultwarden (Bitwarden-compatible)
-      # NOTE: Set VAULTWARDEN_OAUTH_SECRET in your .env to a strong value and
-      # update this hash to match (pbkdf2-sha512). Use Authelia's crypto tool to generate.
       - client_id: vaultwarden
         client_name: Vaultwarden
         client_secret: '{{VAULTWARDEN_OAUTH_SECRET_HASH}}'
@@ -256,7 +228,6 @@ identity_providers:
           - code
         token_endpoint_auth_method: client_secret_basic
 
-      # Mastodon
       - client_id: mastodon
         client_name: Mastodon
         client_secret: '{{MASTODON_OAUTH_SECRET_HASH}}'
@@ -273,7 +244,6 @@ identity_providers:
         response_types:
           - code
 
-      # Bookstack (Wiki/Documentation) - Seamless OIDC SSO
       - client_id: bookstack
         client_name: Bookstack
         client_secret: '{{BOOKSTACK_OAUTH_SECRET_HASH}}'
@@ -293,7 +263,6 @@ identity_providers:
           - code
         token_endpoint_auth_method: client_secret_basic
 
-      # Forgejo (Git Forge)
       - client_id: forgejo
         client_name: Forgejo
         client_secret: '{{FORGEJO_OAUTH_SECRET_HASH}}'
@@ -312,7 +281,6 @@ identity_providers:
           - code
         token_endpoint_auth_method: client_secret_basic
 
-      # Matrix Synapse (Element SSO)
       - client_id: matrix
         client_name: Matrix Synapse
         client_secret: '{{MATRIX_OAUTH_SECRET_HASH}}'
@@ -331,4 +299,3 @@ identity_providers:
         response_types:
           - code
         token_endpoint_auth_method: client_secret_post
-

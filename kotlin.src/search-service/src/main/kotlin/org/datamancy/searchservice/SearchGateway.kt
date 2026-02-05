@@ -25,10 +25,7 @@ import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Hybrid search gateway combining vector search (Qdrant) and full-text search (PostgreSQL).
- * Provides close() method for proper resource management.
- */
+
 class SearchGateway(
     private val qdrantUrl: String,
     private val postgresJdbcUrl: String,
@@ -45,12 +42,12 @@ class SearchGateway(
     private val gson = Gson()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    // Qdrant client
+    
     private val qdrantHost = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":")[0]
     private val qdrantPort = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":").getOrNull(1)?.toIntOrNull() ?: 6334
     private val qdrant = QdrantClient(QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, false).build())
 
-    // PostgreSQL connection pool for full-text search
+    
     private val postgresPool: HikariDataSource by lazy {
         HikariConfig().apply {
             jdbcUrl = postgresJdbcUrl
@@ -67,16 +64,14 @@ class SearchGateway(
         }.let { HikariDataSource(it) }
     }
 
-    /**
-     * Performs hybrid search across specified collections.
-     */
+    
     suspend fun search(
         query: String,
         collections: List<String>,
         mode: String = "hybrid",
         limit: Int = 20
     ): List<SearchResult> = coroutineScope {
-        // Resolve collections (handle wildcard)
+        
         val targetCollections = if (collections.contains("*")) {
             listCollections()
         } else {
@@ -89,28 +84,26 @@ class SearchGateway(
             "vector" -> searchVector(query, targetCollections, limit)
             "bm25", "fulltext" -> searchFullText(query, targetCollections, limit)
             "hybrid" -> {
-                // Run both searches in parallel
+                
                 val vectorDeferred = async { searchVector(query, targetCollections, limit / 2) }
                 val fulltextDeferred = async { searchFullText(query, targetCollections, limit / 2) }
 
                 val vectorResults = vectorDeferred.await()
                 val fulltextResults = fulltextDeferred.await()
 
-                // Merge and rerank results
+                
                 rerank(vectorResults, fulltextResults, limit)
             }
             else -> throw IllegalArgumentException("Unknown search mode: $mode (use vector, bm25, or hybrid)")
         }
     }
 
-    /**
-     * Vector search using Qdrant.
-     */
+    
     private suspend fun searchVector(query: String, collections: List<String>, limit: Int): List<SearchResult> = coroutineScope {
-        // Get query embedding
+        
         val embedding = getEmbedding(query)
 
-        // Search each collection in parallel
+        
         val results = collections.map { collection ->
             async {
                 try {
@@ -125,16 +118,12 @@ class SearchGateway(
         results.sortedByDescending { it.score }.take(limit)
     }
 
-    /**
-     * Full-text search using PostgreSQL's tsvector.
-     */
+    
     private suspend fun searchBM25(query: String, collections: List<String>, limit: Int): List<SearchResult> {
         return searchFullText(query, collections, limit)
     }
 
-    /**
-     * Full-text search using PostgreSQL's tsvector (BM25-like ranking).
-     */
+    
     private suspend fun searchFullText(query: String, collections: List<String>, limit: Int): List<SearchResult> = withContext(Dispatchers.IO) {
         val results = collections.flatMap { collection ->
             try {
@@ -148,9 +137,7 @@ class SearchGateway(
         results.sortedByDescending { it.score }.take(limit)
     }
 
-    /**
-     * Searches Qdrant collection by embedding vector.
-     */
+    
     private suspend fun searchQdrant(collection: String, embedding: List<Float>, limit: Int): List<SearchResult> {
         val searchRequest = SearchPoints.newBuilder()
             .setCollectionName(collection)
@@ -183,14 +170,11 @@ class SearchGateway(
         }
     }
 
-    /**
-     * Searches PostgreSQL document_staging table using full-text search (tsvector).
-     * Uses ts_rank for BM25-like scoring.
-     */
+    
     private suspend fun searchPostgres(collection: String, query: String, limit: Int): List<SearchResult> = withContext(Dispatchers.IO) {
         val safeLimit = limit.coerceIn(1, 1000)
 
-        // PostgreSQL full-text search with ranking
+        
         val sql = """
             SELECT
                 id,
@@ -222,7 +206,7 @@ class SearchGateway(
                     val metadataJson = rs.getString("metadata") ?: "{}"
                     val rank = rs.getDouble("rank")
 
-                    // Parse metadata JSON
+                    
                     @Suppress("UNCHECKED_CAST")
                     val metadata = try {
                         gson.fromJson(metadataJson, Map::class.java) as? Map<String, String> ?: emptyMap()
@@ -252,23 +236,20 @@ class SearchGateway(
         results
     }
 
-    /**
-     * Reranks and merges vector and full-text results.
-     * Uses reciprocal rank fusion (RRF).
-     */
+    
     private fun rerank(vectorResults: List<SearchResult>, fulltextResults: List<SearchResult>, limit: Int): List<SearchResult> {
-        val k = 60 // RRF constant
+        val k = 60 
         val scores = mutableMapOf<String, Double>()
         val resultMap = mutableMapOf<String, SearchResult>()
 
-        // Add vector results
+        
         vectorResults.forEachIndexed { index, result ->
             val key = result.url.ifBlank { "${result.source}::${result.title}" }
             scores[key] = scores.getOrDefault(key, 0.0) + (1.0 / (k + index + 1))
             resultMap[key] = result
         }
 
-        // Add full-text results
+        
         fulltextResults.forEachIndexed { index, result ->
             val key = result.url.ifBlank { "${result.source}::${result.title}" }
             scores[key] = scores.getOrDefault(key, 0.0) + (1.0 / (k + index + 1))
@@ -277,19 +258,17 @@ class SearchGateway(
             }
         }
 
-        // Sort by RRF score
+        
         return scores.entries
             .sortedByDescending { it.value }
             .take(limit)
             .mapNotNull { resultMap[it.key]?.copy(score = it.value) }
     }
 
-    /**
-     * Lists all available Qdrant collections.
-     */
+    
     private suspend fun listCollections(): List<String> {
         return try {
-            // listCollectionsAsync() returns List<String> directly in Qdrant client 1.9.0
+            
             qdrant.listCollectionsAsync().get()
         } catch (e: Exception) {
             logger.error(e) { "Failed to list Qdrant collections" }
@@ -297,14 +276,10 @@ class SearchGateway(
         }
     }
 
-    /**
-     * Public method to get collections (used by Main.kt).
-     */
+    
     suspend fun getCollections(): List<String> = listCollections()
 
-    /**
-     * Gets embedding vector for query text from embedding service.
-     */
+    
     private suspend fun getEmbedding(text: String): List<Float> = withContext(Dispatchers.IO) {
         val requestBody = gson.toJson(mapOf("inputs" to text))
         val request = Request.Builder()
@@ -317,7 +292,7 @@ class SearchGateway(
                 throw Exception("Embedding service error: ${response.code}")
             }
 
-            // Response format: [[float, float, ...]] - array of embedding arrays
+            
             val json = gson.fromJson(response.body?.string(), Array<FloatArray>::class.java)
             if (json.isEmpty()) {
                 throw Exception("Empty embedding response")
@@ -326,19 +301,17 @@ class SearchGateway(
         }
     }
 
-    /**
-     * Closes all resources (connection pools, HTTP clients).
-     */
+    
     fun close() {
         try {
-            // Close PostgreSQL connection pool
+            
             postgresPool.close()
         } catch (e: Exception) {
             logger.debug(e) { "PostgreSQL pool close failed" }
         }
 
         try {
-            // Close HTTP client
+            
             httpClient.dispatcher.executorService.shutdown()
             httpClient.connectionPool.evictAll()
         } catch (e: Exception) {
@@ -346,7 +319,7 @@ class SearchGateway(
         }
 
         try {
-            // Close Qdrant client
+            
             qdrant.close()
         } catch (e: Exception) {
             logger.debug(e) { "Qdrant client close failed" }
@@ -356,9 +329,7 @@ class SearchGateway(
     }
 }
 
-/**
- * Search result from hybrid search.
- */
+
 @Serializable
 data class SearchResult(
     val url: String,

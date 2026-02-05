@@ -1,33 +1,24 @@
-# Data Sources Configuration
-
-# Wikipedia and Wikimedia projects
 wiki:
   dumpsUrl: "https://dumps.wikimedia.org/enwiki/latest/"
   apiUrl: "https://en.wikipedia.org/w/api.php"
   wikidataUrl: "https://www.wikidata.org/w/api.php"
 
-# RSS feed sources
 rss:
   feeds:
-    # Technology
     - url: "https://lobste.rs/rss"
       category: "tech"
 
-    # Research
     - url: "https://rss.arxiv.org/rss/cs"
       category: "research"
     - url: "https://rss.arxiv.org/rss/cs.AI"
       category: "research_ai"
 
-    # News
     - url: "https://www.abc.net.au/news/feed/51120/rss.xml"
       category: "news_au"
     - url: "https://feeds.bbci.co.uk/news/world/rss.xml"
       category: "news_world"
 
-# Market data sources
 marketData:
-  # Crypto symbols (lowercase for CoinGecko)
   symbols:
     - "BTC"
     - "ETH"
@@ -37,12 +28,11 @@ marketData:
     - "MSFT"
 
   cryptoSources:
-    - "coingecko"  # Free tier, no API key required
+    - "coingecko"
 
   stockSources:
-    - "yahoo"  # May require API key
+    - "yahoo"
 
-# Weather data sources
 weather:
   locations:
     - "Sydney"
@@ -50,30 +40,24 @@ weather:
     - "Brisbane"
     - "Perth"
     - "Adelaide"
-  # Set OPENWEATHER_API_KEY environment variable
   apiKey: "${OPENWEATHER_API_KEY}"
 
-# Economic data sources
 economic:
   sources:
-    - "imf"         # International Monetary Fund
-    - "worldbank"   # World Bank Open Data
-    - "oecd"        # OECD Data Portal
-    - "fred"        # Federal Reserve Economic Data
+    - "imf"
+    - "worldbank"
+    - "oecd"
+    - "fred"
 
-  # FRED requires API key: https://fred.stlouisfed.org/docs/api/api_key.html
   fredApiKey: "${FRED_API_KEY}"
 
-# Search queries
 search:
-  # Set SERP_API_KEY environment variable for SerpAPI
   apiKey: "${SERP_API_KEY}"
   queries:
     - "latest AI research"
     - "machine learning papers"
     - "Kotlin programming"
 
-# Legal document sources
 legal:
   ausLegislationUrl: "https://www.legislation.gov.au/"
   stateUrls:
@@ -86,13 +70,11 @@ legal:
     act: "https://legislation.act.gov.au/"
     nt: "https://legislation.nt.gov.au/"
 
-# Torrents.csv integration
 torrents:
   torrentsCsvUrl: "https://torrents-csv.com/service/search"
   qbittorrentUrl: "http://qbittorrent:8080"
-  autoDownload: false  # Set true to automatically add torrents to qBittorrent
+  autoDownload: false
 
-# Documentation sources
 docs:
   sources:
     - name: "linux_kernel"

@@ -14,48 +14,20 @@ import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Dedicated worker for writing documents to BookStack
- *
- * Runs independently from the main pipeline, polling the staging store
- * for documents that need to be written to BookStack.
- *
- * Benefits:
- * - Decoupled from StandardizedRunner (cleaner separation of concerns)
- * - Independent retry logic and error handling
- * - Can scale separately (run multiple BookStackWriter instances)
- * - Failed BookStack writes don't block the main pipeline
- *
- * Usage:
- * ```
- * val bookStackWriter = BookStackWriter(
- *     stagingStore = stagingStore,
- *     bookStackSink = bookStackSink,
- *     pollIntervalSeconds = 5,
- *     batchSize = 50
- * )
- *
- * launch {
- *     bookStackWriter.start()
- * }
- * ```
- */
+
 class BookStackWriter(
     private val stagingStore: DocumentStagingStore,
     private val bookStackSink: BookStackSink,
     private val pollIntervalSeconds: Long = 5,
-    private val batchSize: Int = 200  // No rate limits on self-hosted BookStack
+    private val batchSize: Int = 200  
 ) {
-    /**
-     * Start the BookStack writer worker
-     * Continuously polls for pending documents and writes them to BookStack
-     */
+    
     suspend fun start() {
         logger.info { "BookStack writer starting (poll interval: ${pollIntervalSeconds}s, batch size: $batchSize)" }
 
         while (true) {
             try {
-                // Get pending documents from staging store
+                
                 val pendingDocs = stagingStore.getPendingForBookStack(limit = batchSize)
 
                 if (pendingDocs.isEmpty()) {
@@ -64,26 +36,26 @@ class BookStackWriter(
                     continue
                 }
 
-                // Process documents concurrently (no rate limits on self-hosted BookStack!)
+                
                 coroutineScope {
                     pendingDocs.map { doc ->
                         async {
                             try {
-                                // Convert staged document to BookStack document
+                                
                                 val bookStackDoc = toBookStackDocument(doc)
 
-                                // Write to BookStack
+                                
                                 bookStackSink.write(bookStackDoc)
 
-                                // Get the page URL that was just written
+                                
                                 val pageUrl = bookStackSink.getLastPageUrl(bookStackDoc.pageTitle)
 
-                                // Store the BookStack URL back to staging table
+                                
                                 if (pageUrl != null) {
                                     stagingStore.updateBookStackUrl(doc.id, pageUrl)
                                 }
 
-                                // Mark as completed
+                                
                                 stagingStore.markBookStackComplete(doc.id)
 
                                 logger.debug { "Wrote document ${doc.id} to BookStack: $pageUrl" }
@@ -91,7 +63,7 @@ class BookStackWriter(
                             } catch (e: Exception) {
                                 logger.error(e) { "Failed to write document ${doc.id} to BookStack: ${e.message}" }
 
-                                // Mark as failed
+                                
                                 stagingStore.markBookStackFailed(doc.id, e.message ?: "Unknown error")
                             }
                         }
@@ -102,19 +74,17 @@ class BookStackWriter(
                 logger.error(e) { "Error in BookStack writer loop: ${e.message}" }
             }
 
-            // Wait before next poll
+            
             delay(pollIntervalSeconds.seconds)
         }
     }
 
-    /**
-     * Convert a staged document to a BookStack document
-     */
+    
     private fun toBookStackDocument(doc: StagedDocument): BookStackDocument {
-        // Extract title from metadata or use document ID
+        
         val title = doc.metadata["title"] ?: doc.id
 
-        // Determine book name based on source
+        
         val bookName = when (doc.source) {
             "rss" -> "RSS Articles"
             "cve" -> "CVE Database"
@@ -136,27 +106,25 @@ class BookStackWriter(
         )
     }
 
-    /**
-     * Build BookStack tags from document metadata
-     */
+    
     private fun buildTags(doc: StagedDocument): Map<String, String> {
         val tags = mutableMapOf<String, String>()
 
-        // Add source tag
+        
         tags["source"] = doc.source
 
-        // Add collection tag
+        
         tags["collection"] = doc.collection
 
-        // Add chunk info if present
+        
         if (doc.chunkIndex != null && doc.totalChunks != null) {
             tags["chunk"] = "${doc.chunkIndex + 1}/${doc.totalChunks}"
         }
 
-        // Add URL if present in metadata
+        
         doc.metadata["url"]?.let { tags["url"] = it }
 
-        // Add date if present in metadata
+        
         doc.metadata["published_at"]?.let { tags["published"] = it }
 
         return tags

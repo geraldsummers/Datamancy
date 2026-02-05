@@ -11,14 +11,7 @@ import org.datamancy.pipeline.sinks.BookStackDocument
 import org.datamancy.pipeline.sources.WikipediaArticle
 import org.datamancy.pipeline.sources.WikipediaSource
 
-/**
- * STANDARDIZED Wikipedia Source
- *
- * - Daily resync at 1am
- * - Full dump on initial pull
- * - Re-stream dump on resync (Wikipedia doesn't have good incremental API)
- * - Chunking REQUIRED (articles are long)
- */
+
 class WikipediaStandardizedSource(
     private val dumpUrl: String,
     private val maxArticles: Int = Int.MAX_VALUE
@@ -27,7 +20,7 @@ class WikipediaStandardizedSource(
     override val name = "wikipedia"
 
     override fun resyncStrategy(): ResyncStrategy {
-        // Large source - check daily at 1am
+        
         return ResyncStrategy.DailyAt(hour = 1, minute = 0)
     }
 
@@ -39,26 +32,24 @@ class WikipediaStandardizedSource(
     }
 
     override fun needsChunking(): Boolean {
-        // Wikipedia articles are LONG - chunking is REQUIRED
+        
         return true
     }
 
     override suspend fun fetchForRun(metadata: RunMetadata): Flow<WikipediaChunkableArticle> {
-        // Wikipedia doesn't have a good incremental API
-        // Always stream the full dump (but Qdrant dedup will skip unchanged articles)
+        
+        
         return WikipediaSource(
             dumpPath = dumpUrl,
             maxArticles = maxArticles,
-            maxChunkSize = 10000,  // Large size, we'll chunk properly with Chunker
-            chunkOverlap = 0  // No overlap here, Chunker handles it
+            maxChunkSize = 10000,  
+            chunkOverlap = 0  
         ).fetch()
             .map { article -> WikipediaChunkableArticle(article) }
     }
 }
 
-/**
- * Wrapper to make WikipediaArticle implement Chunkable
- */
+
 data class WikipediaChunkableArticle(val article: WikipediaArticle) : Chunkable {
     override fun toText(): String = article.text
 
@@ -71,7 +62,7 @@ data class WikipediaChunkableArticle(val article: WikipediaArticle) : Chunkable 
     )
 
     fun toBookStackDocument(): BookStackDocument {
-        // Extract first paragraph as summary
+        
         val summary = article.text.lines()
             .filter { it.isNotBlank() }
             .firstOrNull() ?: article.text.take(500)
@@ -79,7 +70,7 @@ data class WikipediaChunkableArticle(val article: WikipediaArticle) : Chunkable 
         return BookStackDocument(
             bookName = "Wikipedia",
             bookDescription = "Articles from Wikipedia, the free encyclopedia",
-            chapterName = null,  // No chapter grouping - flat structure
+            chapterName = null,  
             pageTitle = article.title,
             pageContent = """
                 <h1>${article.title}</h1>

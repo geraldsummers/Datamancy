@@ -6,24 +6,10 @@ import java.util.concurrent.ConcurrentHashMap
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Hash-based deduplication store with LRU eviction
- *
- * NOTE: This implementation uses file-based storage, NOT PostgreSQL.
- * The PostgreSQL tables `dedupe_records` and `fetch_history` are legacy/unused.
- *
- * Architecture:
- * - In-memory: ConcurrentHashMap with LRU eviction for fast lookups
- * - Persistence: Flat file at /app/data/dedup with tab-separated hash\tmetadata
- * - Performance: O(1) lookups, periodic flush to disk
- * - Memory: Max 10M entries (configurable) - oldest entries evicted when full
- *
- * If PostgreSQL-backed deduplication is needed for multi-instance deployments,
- * implement a PostgresDeduplicationStore that writes to the existing schema.
- */
+
 class DeduplicationStore(
     private val storePath: String = "/app/data/dedup",
-    private val maxEntries: Int = 10_000_000  // 10M entries ~ 500MB RAM
+    private val maxEntries: Int = 10_000_000  
 ) {
     private val seen = object : LinkedHashMap<String, String>(maxEntries, 0.75f, true) {
         override fun removeEldestEntry(eldest: Map.Entry<String, String>): Boolean {
@@ -35,7 +21,7 @@ class DeduplicationStore(
         }
     }
 
-    // Wrap LinkedHashMap with synchronization for thread safety
+    
     private val seenSync = seen
 
     private val storeFile: File
@@ -46,30 +32,21 @@ class DeduplicationStore(
         loadFromDisk()
     }
 
-    /**
-     * Check if content with this hash has been seen before (thread-safe)
-     */
+    
     fun isSeen(hash: String): Boolean {
         return synchronized(seenSync) {
             seen.containsKey(hash)
         }
     }
 
-    /**
-     * Mark content with this hash as seen (thread-safe)
-     * @param hash Content hash
-     * @param metadata Optional metadata (e.g., ID, timestamp)
-     */
+    
     fun markSeen(hash: String, metadata: String = "") {
         synchronized(seenSync) {
             seen[hash] = metadata
         }
     }
 
-    /**
-     * Check and mark in one atomic operation (thread-safe with LRU)
-     * @return true if was already seen, false if newly marked
-     */
+    
     fun checkAndMark(hash: String, metadata: String = ""): Boolean {
         return synchronized(seenSync) {
             val wasSeen = seen.containsKey(hash)
@@ -80,9 +57,7 @@ class DeduplicationStore(
         }
     }
 
-    /**
-     * Persist to disk (thread-safe)
-     */
+    
     fun flush() {
         try {
             synchronized(seenSync) {
@@ -98,9 +73,7 @@ class DeduplicationStore(
         }
     }
 
-    /**
-     * Load from disk (called during init, before multi-threading)
-     */
+    
     private fun loadFromDisk() {
         try {
             if (!storeFile.exists()) {
@@ -116,7 +89,7 @@ class DeduplicationStore(
                     val hash = parts[0]
                     val metadata = parts.getOrNull(1) ?: ""
 
-                    // Only load up to maxEntries (most recent ones due to file ordering)
+                    
                     if (count < maxEntries) {
                         seen[hash] = metadata
                         count++
@@ -132,14 +105,10 @@ class DeduplicationStore(
         }
     }
 
-    /**
-     * Get current size (thread-safe)
-     */
+    
     fun size(): Int = synchronized(seenSync) { seen.size }
 
-    /**
-     * Clear all entries (use with caution, thread-safe)
-     */
+    
     fun clear() {
         synchronized(seenSync) {
             seen.clear()

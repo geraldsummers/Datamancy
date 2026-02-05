@@ -7,31 +7,21 @@ import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
-/**
- * Validates credentials meet security requirements
- * @throws IllegalArgumentException if validation fails
- */
+
 fun validateCredentials(username: String, password: String) {
     require(username.isNotBlank()) { "Username cannot be blank" }
     require(username.length in 3..64) { "Username must be 3-64 characters" }
     require(password.isNotBlank()) { "Password cannot be blank" }
     require(password.length >= 8) { "Password must be at least 8 characters" }
 
-    // Check for common weak passwords (in test environment)
+    
     val weakPasswords = setOf("password", "12345678", "admin123", "test1234")
     require(password.lowercase() !in weakPasswords) {
         "Password is too weak (common password detected)"
     }
 }
 
-/**
- * Helper for Authelia authentication in tests
- *
- * Authelia auth flow:
- * 1. POST to /api/firstfactor with username/password
- * 2. Get session cookie from response
- * 3. Use cookie for subsequent authenticated requests
- */
+
 class AuthHelper(
     private val autheliaUrl: String,
     private val client: HttpClient,
@@ -40,16 +30,10 @@ class AuthHelper(
     private var sessionCookie: Cookie? = null
     private var ephemeralUser: TestUser? = null
 
-    /**
-     * Login to Authelia and store session cookie
-     *
-     * Default test credentials from LDAP:
-     * - username: "admin"
-     * - password: LDAP_ADMIN_PASSWORD from environment
-     */
+    
     suspend fun login(username: String = "admin", password: String): AuthResult {
         return try {
-            // Validate credentials before attempting login
+            
             try {
                 validateCredentials(username, password)
             } catch (e: IllegalArgumentException) {
@@ -66,7 +50,7 @@ class AuthHelper(
 
             when (response.status) {
                 HttpStatusCode.OK -> {
-                    // Extract session cookie
+                    
                     val cookies = response.setCookie()
                     sessionCookie = cookies.find { it.name == "authelia_session" }
 
@@ -87,18 +71,14 @@ class AuthHelper(
         }
     }
 
-    /**
-     * Make an authenticated request using stored session cookie
-     */
+    
     suspend fun authenticatedGet(url: String): HttpResponse {
         return client.get(url) {
             sessionCookie?.let { cookie(it.name, it.value) }
         }
     }
 
-    /**
-     * Make an authenticated POST request
-     */
+    
     suspend fun authenticatedPost(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
         return client.post(url) {
             sessionCookie?.let { cookie(it.name, it.value) }
@@ -106,21 +86,15 @@ class AuthHelper(
         }
     }
 
-    /**
-     * Clear session (logout)
-     */
+    
     fun logout() {
         sessionCookie = null
     }
 
-    /**
-     * Check if currently authenticated
-     */
+    
     fun isAuthenticated(): Boolean = sessionCookie != null
 
-    /**
-     * Verify authentication is still valid
-     */
+    
     suspend fun verifyAuth(): Boolean {
         val cookie = sessionCookie ?: return false
 
@@ -134,18 +108,13 @@ class AuthHelper(
         }
     }
 
-    /**
-     * Create ephemeral test user and login
-     *
-     * This creates a temporary LDAP user, logs in, and returns the session.
-     * Call cleanupEphemeralUser() when done to delete the user.
-     */
+    
     suspend fun loginWithEphemeralUser(groups: List<String> = listOf("users")): AuthResult {
         if (ldapHelper == null) {
             return AuthResult.Error("LDAP helper not configured - cannot create ephemeral users")
         }
 
-        // Create ephemeral user
+        
         val userResult = ldapHelper.createEphemeralUser(groups)
         if (userResult.isFailure) {
             return AuthResult.Error("Failed to create ephemeral user: ${userResult.exceptionOrNull()?.message}")
@@ -154,13 +123,11 @@ class AuthHelper(
         val user = userResult.getOrNull() ?: return AuthResult.Error("Failed to create ephemeral user")
         ephemeralUser = user
 
-        // Login with ephemeral user
+        
         return login(user.username, user.password)
     }
 
-    /**
-     * Cleanup ephemeral test user
-     */
+    
     fun cleanupEphemeralUser() {
         ephemeralUser?.let { user ->
             ldapHelper?.deleteTestUser(user.username)
@@ -169,9 +136,7 @@ class AuthHelper(
         logout()
     }
 
-    /**
-     * Get current ephemeral user (if any)
-     */
+    
     fun getEphemeralUser(): TestUser? = ephemeralUser
 }
 

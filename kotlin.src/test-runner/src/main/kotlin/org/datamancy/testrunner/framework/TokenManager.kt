@@ -6,22 +6,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.json.*
 
-/**
- * Manages authentication tokens for all services in the Datamancy stack
- *
- * Each service has its own authentication mechanism:
- * - BookStack: API tokens
- * - Grafana: API keys or session cookies
- * - Forgejo: Personal access tokens
- * - Mastodon: OAuth2 application tokens
- * - Open-WebUI: JWT tokens
- * - JupyterHub: API tokens
- * - Seafile: API tokens
- * - Planka: JWT tokens
- * - Vaultwarden: Client tokens
- * - Home Assistant: Long-lived access tokens
- * - Qbittorrent: Cookie-based session
- */
+
 class TokenManager(
     private val client: HttpClient,
     private val endpoints: ServiceEndpoints
@@ -30,17 +15,14 @@ class TokenManager(
     private val cookies = mutableMapOf<String, List<Cookie>>()
     private val json = Json { ignoreUnknownKeys = true }
 
-    // =============================================================================
-    // GRAFANA
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire Grafana API token using service accounts (Grafana v11+)
-     * Uses admin credentials to create a service account and token
-     */
+    
     suspend fun acquireGrafanaToken(username: String = "admin", password: String): Result<String> {
         return try {
-            // Login first to get session
+            
             val loginResponse = client.post("${endpoints.grafana}/login") {
                 contentType(ContentType.Application.Json)
                 setBody("""{"user":"$username","password":"$password"}""")
@@ -52,8 +34,8 @@ class TokenManager(
 
             val sessionCookies = loginResponse.setCookie()
 
-            // Grafana v11+ uses service accounts instead of deprecated API keys
-            // Step 1: Create a service account
+            
+            
             val serviceAccountName = "integration-test-${System.currentTimeMillis()}"
             val saResponse = client.post("${endpoints.grafana}/api/serviceaccounts") {
                 contentType(ContentType.Application.Json)
@@ -69,7 +51,7 @@ class TokenManager(
             val serviceAccountId = saBody["id"]?.jsonPrimitive?.content?.toIntOrNull()
                 ?: return Result.failure(Exception("No service account ID in response"))
 
-            // Step 2: Create a token for the service account
+            
             val tokenResponse = client.post("${endpoints.grafana}/api/serviceaccounts/$serviceAccountId/tokens") {
                 contentType(ContentType.Application.Json)
                 sessionCookies.forEach { cookie(it.name, it.value) }
@@ -91,18 +73,15 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // BOOKSTACK
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire BookStack API token
-     * BookStack uses token_id:token_secret format
-     */
+    
     suspend fun acquireBookStackToken(email: String, password: String): Result<Pair<String, String>> {
         return try {
-            // BookStack requires admin to generate tokens via web UI
-            // For testing, we assume tokens are pre-generated and provided via environment
+            
+            
             val tokenId = System.getenv("BOOKSTACK_TOKEN_ID")
             val tokenSecret = System.getenv("BOOKSTACK_TOKEN_SECRET")
 
@@ -110,7 +89,7 @@ class TokenManager(
                 tokens["bookstack"] = "$tokenId:$tokenSecret"
                 Result.success(Pair(tokenId, tokenSecret))
             } else {
-                // Alternative: Login and scrape token from settings page
+                
                 Result.failure(Exception("BookStack tokens must be pre-generated (set BOOKSTACK_TOKEN_ID and BOOKSTACK_TOKEN_SECRET)"))
             }
         } catch (e: Exception) {
@@ -118,16 +97,14 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // FORGEJO
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire Forgejo personal access token
-     */
+    
     suspend fun acquireForgejoToken(username: String, password: String): Result<String> {
         return try {
-            // Forgejo API token creation
+            
             val response = client.post("${endpoints.forgejo}/api/v1/users/$username/tokens") {
                 basicAuth(username, password)
                 contentType(ContentType.Application.Json)
@@ -149,16 +126,14 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // MASTODON
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire Mastodon OAuth application token
-     */
+    
     suspend fun acquireMastodonToken(email: String, password: String): Result<String> {
         return try {
-            // Step 1: Register OAuth application
+            
             val appResponse = client.post("${endpoints.mastodon}/api/v1/apps") {
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody("client_name=test-client&redirect_uris=urn:ietf:wg:oauth:2.0:oob&scopes=read write")
@@ -174,7 +149,7 @@ class TokenManager(
             val clientSecret = appBody["client_secret"]?.jsonPrimitive?.content
                 ?: return Result.failure(Exception("No client_secret"))
 
-            // Step 2: Get OAuth token
+            
             val tokenResponse = client.post("${endpoints.mastodon}/oauth/token") {
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody("client_id=$clientId&client_secret=$clientSecret&grant_type=password&username=$email&password=$password&scope=read write")
@@ -195,13 +170,11 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // SEAFILE
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire Seafile API token
-     */
+    
     suspend fun acquireSeafileToken(username: String, password: String): Result<String> {
         return try {
             val response = client.post("${endpoints.seafile}/api2/auth-token/") {
@@ -224,13 +197,11 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // PLANKA
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire Planka authentication token
-     */
+    
     suspend fun acquirePlankaToken(email: String, password: String): Result<String> {
         return try {
             val response = client.post("${endpoints.planka}/api/access-tokens") {
@@ -255,14 +226,11 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // HOME ASSISTANT
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire Home Assistant long-lived access token
-     * Note: Must be generated manually via UI or pre-configured
-     */
+    
     suspend fun acquireHomeAssistantToken(): Result<String> {
         return try {
             val token = System.getenv("HOME_ASSISTANT_TOKEN")
@@ -277,13 +245,11 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // QBITTORRENT
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire Qbittorrent session cookie
-     */
+    
     suspend fun acquireQbittorrentSession(username: String = "admin", password: String): Result<List<Cookie>> {
         return try {
             val response = client.post("${endpoints.qbittorrent}/api/v2/auth/login") {
@@ -303,13 +269,11 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // OPEN-WEBUI
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire Open-WebUI JWT token
-     */
+    
     suspend fun acquireOpenWebUIToken(email: String, password: String): Result<String> {
         return try {
             val response = client.post("${endpoints.openWebUI}/api/v1/auths/signin") {
@@ -317,7 +281,7 @@ class TokenManager(
                 setBody("""{"email":"$email","password":"$password"}""")
             }
 
-            // Handle redirects by treating them as authentication failures
+            
             if (response.status == HttpStatusCode.OK) {
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
                 val token = body["token"]?.jsonPrimitive?.content
@@ -335,16 +299,14 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // JUPYTERHUB
-    // =============================================================================
+    
+    
+    
 
-    /**
-     * Acquire JupyterHub API token
-     */
+    
     suspend fun acquireJupyterHubToken(username: String, password: String): Result<String> {
         return try {
-            // JupyterHub uses PAM authentication, need to get token via API
+            
             val response = client.post("${endpoints.jupyterhub}/hub/api/users/$username/tokens") {
                 basicAuth(username, password)
                 contentType(ContentType.Application.Json)
@@ -366,9 +328,9 @@ class TokenManager(
         }
     }
 
-    // =============================================================================
-    // TOKEN RETRIEVAL
-    // =============================================================================
+    
+    
+    
 
     fun getToken(service: String): String? = tokens[service]
 
@@ -386,9 +348,9 @@ class TokenManager(
         cookies.clear()
     }
 
-    // =============================================================================
-    // AUTHENTICATED REQUESTS
-    // =============================================================================
+    
+    
+    
 
     suspend fun authenticatedGet(service: String, url: String): HttpResponse {
         val token = getToken(service)

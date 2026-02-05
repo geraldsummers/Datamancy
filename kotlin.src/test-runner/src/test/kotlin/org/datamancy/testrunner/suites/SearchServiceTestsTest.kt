@@ -11,10 +11,7 @@ import kotlinx.serialization.json.*
 import org.datamancy.testrunner.framework.*
 import kotlin.test.*
 
-/**
- * Unit tests for SearchServiceTests
- * Tests the per-source search validation logic
- */
+
 class SearchServiceTestsTest {
 
     @Test
@@ -24,7 +21,7 @@ class SearchServiceTestsTest {
         val collection = "rss_feeds"
         val limit = 10
 
-        // Verify we can construct proper JSON
+        
         val expectedFields = setOf("query", "mode", "collections", "limit")
         assertTrue(expectedFields.contains("query"))
         assertTrue(expectedFields.contains("mode"))
@@ -134,7 +131,7 @@ class SearchServiceTestsTest {
         assertEquals(0.9, max)
         assertEquals(0.5, avg)
 
-        // Validation
+        
         assertTrue(min!! >= 0.0 && max!! <= 1.0)
         assertTrue(avg > 0.0)
     }
@@ -178,7 +175,7 @@ class SearchServiceTestsTest {
         val bm25Query = "remote code execution critical"
         val semanticQuery = "buffer overflow memory corruption exploit"
 
-        // Semantic queries should be more conceptual
+        
         assertNotEquals(bm25Query, semanticQuery)
         assertTrue(semanticQuery.contains("memory") || semanticQuery.contains("buffer"))
     }
@@ -189,7 +186,7 @@ class SearchServiceTestsTest {
         val bm25Mode = "bm25"
         val vectorMode = "vector"
 
-        // Hybrid is distinct from both
+        
         assertNotEquals(hybridMode, bm25Mode)
         assertNotEquals(hybridMode, vectorMode)
     }
@@ -264,26 +261,26 @@ class SearchServiceTestsTest {
 
     @Test
     fun `test expected test count for search service suite`() {
-        // Original tests: 27
-        // Per-source tests: 6 sources × 3 modes = 18
-        // Cross-source tests: 2
-        // Total: 27 + 18 + 2 = 47... wait, we said 77
+        
+        
+        
+        
 
-        // Let me recount from the actual implementation:
-        // Original: 27 (health, collections, modes, capabilities, RAG)
-        // RSS: 3 (BM25, semantic, hybrid)
-        // CVE: 3
-        // Torrents: 3
-        // Wikipedia: 3
-        // Australian Laws: 3
-        // Linux Docs: 3
-        // Cross-source: 2
-        // Total: 27 + 18 + 2 = 47
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
-        // Hmm, the file says 77. Let me check if original was actually more than 27...
-        // The original SearchServiceTests had more than I counted initially
+        
+        
 
-        val perSourceTests = 6 * 3 // 6 sources × 3 modes
+        val perSourceTests = 6 * 3 
         val crossTests = 2
         val newTests = perSourceTests + crossTests
 
@@ -307,7 +304,7 @@ class SearchServiceTestsTest {
 
     @Test
     fun `test each source has exactly 3 search mode tests`() {
-        val modesPerSource = 3 // BM25, semantic, hybrid
+        val modesPerSource = 3 
         val totalSources = 6
 
         val totalPerSourceTests = modesPerSource * totalSources

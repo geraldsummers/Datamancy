@@ -6,16 +6,12 @@ import io.ktor.http.*
 import kotlinx.serialization.json.*
 import org.datamancy.testrunner.framework.*
 
-/**
- * Home Assistant Integration Tests
- *
- * Tests Home Assistant API, state management, and automation capabilities
- */
+
 suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant web interface loads") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}")
-        // Home Assistant redirects unauthenticated requests to login
+        
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Found)) {
             "Home Assistant not accessible: ${response.status}"
         }
@@ -103,7 +99,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
     }
 
     test("Home Assistant panel manifest") {
-        // Try to access the manifest (should be publicly accessible)
+        
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/static/icons/favicon.ico")
         require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.NotFound, HttpStatusCode.Unauthorized)) {
             "Static assets not responding: ${response.status}"
