@@ -5,16 +5,14 @@ import kotlin.test.*
 
 /**
  * Unit tests for StackDeploymentTests helpers
- * These tests verify the test helper logic WITHOUT requiring labware socket or Docker
+ * These tests verify the test helper logic WITHOUT requiring labware Docker host
  */
 class StackDeploymentHelpersTest {
 
     @Test
-    fun `labware socket path constant is correct`() {
-        val expectedPath = "/run/labware-docker.sock"
-        assertEquals(expectedPath, expectedPath)
-        assertTrue(expectedPath.startsWith("/run/"))
-        assertTrue(expectedPath.endsWith(".sock"))
+    fun `labware Docker host uses environment or default`() {
+        val dockerHost = System.getenv("DOCKER_HOST") ?: "ssh://labware"
+        assertTrue(dockerHost.isNotEmpty())
     }
 
     @Test
@@ -39,7 +37,7 @@ class StackDeploymentHelpersTest {
         val composeFile = "$workDir/docker-compose.yml"
 
         val command = listOf(
-            "docker", "-H", "unix:///run/labware-docker.sock",
+            "docker", "-H", "ssh://labware",
             "compose",
             "-p", projectName,
             "-f", composeFile,
@@ -48,7 +46,7 @@ class StackDeploymentHelpersTest {
 
         assertEquals("docker", command[0])
         assertEquals("-H", command[1])
-        assertEquals("unix:///run/labware-docker.sock", command[2])
+        assertEquals("ssh://labware", command[2])
         assertEquals("compose", command[3])
         assertEquals("-p", command[4])
         assertEquals(projectName, command[5])
@@ -62,7 +60,7 @@ class StackDeploymentHelpersTest {
         val service = "postgres"
 
         val command = listOf(
-            "docker", "-H", "unix:///run/labware-docker.sock",
+            "docker", "-H", "ssh://labware",
             "compose", "-p", projectName, "ps", service, "--format", "{{.Status}}"
         )
 
@@ -76,7 +74,7 @@ class StackDeploymentHelpersTest {
         val projectName = "test-project"
 
         val command = listOf(
-            "docker", "-H", "unix:///run/labware-docker.sock",
+            "docker", "-H", "ssh://labware",
             "compose", "-p", projectName, "down", "-v"
         )
 
@@ -234,7 +232,7 @@ class StackDeploymentHelpersTest {
 
     @Test
     fun `error message format for missing socket`() {
-        val labwareSocket = "/run/labware-docker.sock"
+        val labwareSocket = "ssh://labware"
         val errorMessage = "Labware socket should exist at $labwareSocket"
 
         assertTrue(errorMessage.contains(labwareSocket))
@@ -265,7 +263,7 @@ class StackDeploymentHelpersTest {
     @Test
     fun `docker version command format`() {
         val command = listOf(
-            "docker", "-H", "unix:///run/labware-docker.sock",
+            "docker", "-H", "ssh://labware",
             "version", "--format", "{{.Server.Version}}"
         )
 
@@ -281,7 +279,7 @@ class StackDeploymentHelpersTest {
         val tailLines = 20
 
         val command = listOf(
-            "docker", "-H", "unix:///run/labware-docker.sock",
+            "docker", "-H", "ssh://labware",
             "compose", "-p", projectName,
             "logs", "--tail=$tailLines", service
         )

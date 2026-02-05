@@ -6,7 +6,6 @@
 # - services.registry.yaml (service metadata)
 # - Hardcoded defaults in scripts
 #
-# Edit this file, then run: ./install-datamancy.main.kts && cd ~/.datamancy && ./datamancy-controller.main.kts up
 
 # ============================================================================
 # Installation Settings
@@ -21,7 +20,7 @@ installation:
 # ============================================================================
 storage:
   # Vector databases (Qdrant) - fast SSD recommended for embedding search
-  vector_dbs: "/mnt/sdc1_ctbx500_0385/datamancy/vector-dbs"
+  vector_dbs: "/mnt/vectors/"
 
   # Custom storage paths for specific services (SSD + Media Drive only)
   # Note: seafile_files is a regular named volume (Docker-managed on BTRFS)

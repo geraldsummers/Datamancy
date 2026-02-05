@@ -27,8 +27,8 @@ jobs:
         run: |
           cd dist
 
-          # Use labware socket for isolated testing
-          export DOCKER_HOST=unix:///run/labware-docker.sock
+          # Use Docker over SSH to labware host for isolated testing
+          export DOCKER_HOST=ssh://labware
 
           echo "Starting test stack with isolated project name: $COMPOSE_PROJECT_NAME"
           docker compose up -d
@@ -42,7 +42,7 @@ jobs:
         timeout-minutes: 15
         run: |
           cd dist
-          export DOCKER_HOST=unix:///run/labware-docker.sock
+          export DOCKER_HOST=ssh://labware
 
           echo "Waiting for critical services to become healthy..."
 
@@ -100,7 +100,7 @@ jobs:
         env:
           COMPOSE_PROJECT_NAME: datamancy-test-${{ github.run_id }}
         run: |
-          export DOCKER_HOST=unix:///run/labware-docker.sock
+          export DOCKER_HOST=ssh://labware
 
           echo "Running LabwareDockerTests..."
           cd dist
@@ -115,7 +115,7 @@ jobs:
           COMPOSE_PROJECT_NAME: datamancy-test-${{ github.run_id }}
         run: |
           cd dist
-          export DOCKER_HOST=unix:///run/labware-docker.sock
+          export DOCKER_HOST=ssh://labware
 
           echo "Cleaning up test stack..."
           docker compose down -v || true

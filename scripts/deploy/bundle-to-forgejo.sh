@@ -140,21 +140,22 @@ docker compose --profile testing run --rm integration-test-runner all
 ## CI/CD Usage
 
 ```bash
-# Clone on labware socket
+# Clone on labware host
 git clone https://forgejo.datamancy.net/datamancy/deployment-config.git
 cd deployment-config
 
 # Load secrets from vault
 # (implementation depends on your secret management)
 
-# Deploy on isolated socket
-docker compose -H unix:///run/labware-docker.sock up -d
+# Deploy via Docker over SSH (set DOCKER_HOST=ssh://labware)
+export DOCKER_HOST=ssh://labware
+docker compose up -d
 
 # Run tests
-docker compose -H unix:///run/labware-docker.sock run --rm integration-test-runner all
+docker compose run --rm integration-test-runner all
 
 # Cleanup
-docker compose -H unix:///run/labware-docker.sock down -v
+docker compose down -v
 ```
 
 ## Disaster Recovery

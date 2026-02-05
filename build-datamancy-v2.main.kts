@@ -707,6 +707,9 @@ fun generateEnvFileFromSchema(
     env["DOCKER_GROUP_ID"] = "1000"
     env["DOCKER_SOCKET"] = "/var/run/docker.sock"
 
+    // Labware Docker host for CI/CD
+    env["LABWARE_SSH_HOST"] = "labware.local"
+
     // Add all credentials from schema
     credentials.forEach { (name, credential) ->
         env[name] = credential.plaintext
@@ -723,7 +726,8 @@ fun generateEnvFileFromSchema(
 
         val pathKeys = listOf("VOLUMES_ROOT", "DEPLOYMENT_ROOT", "VECTOR_DB_ROOT",
                              "QBITTORRENT_DATA_ROOT", "SEAFILE_MEDIA_ROOT",
-                             "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET")
+                             "DOCKER_USER_ID", "DOCKER_GROUP_ID", "DOCKER_SOCKET",
+                             "LABWARE_SSH_HOST")
 
         // Group credentials by type from schema
         val configValues = schema.credentials.filter { it.type == "config_value" }.map { it.name }
@@ -1040,25 +1044,25 @@ docker compose up -d
 docker compose --profile testing run --rm integration-test-runner all
 ```
 
-## CI/CD Usage (Labware Socket)
+## CI/CD Usage (Docker over SSH)
 
 ```bash
-# Clone on labware socket
+# Clone on labware host
 git clone $forgejoUrl/$repoOrg/$repoName.git
 cd $repoName
 
 # Load secrets from vault
 # (implementation depends on your secret management)
 
-# Deploy on isolated socket
-docker compose -H unix:///run/labware-docker.sock up -d
+# Deploy via Docker over SSH (set DOCKER_HOST=ssh://labware)
+export DOCKER_HOST=ssh://labware
+docker compose up -d
 
 # Run full integration test suite
-docker compose -H unix:///run/labware-docker.sock \\
-  --profile testing run --rm integration-test-runner all
+docker compose --profile testing run --rm integration-test-runner all
 
 # Cleanup
-docker compose -H unix:///run/labware-docker.sock down -v
+docker compose down -v
 ```
 
 ## Agent-Driven Development
@@ -1072,14 +1076,15 @@ git clone $forgejoUrl/$repoOrg/$repoName.git /tmp/agent-dev-env
 # Agent loads secrets from agent vault
 # Agent modifies configs for development
 
-# Agent spawns isolated stack
-docker compose -H unix:///run/labware-docker.sock up -d
+# Agent spawns isolated stack via Docker over SSH
+export DOCKER_HOST=ssh://labware
+docker compose up -d
 
 # Agent tests changes
-docker compose -H unix:///run/labware-docker.sock run --rm integration-test-runner
+docker compose run --rm integration-test-runner
 
 # Agent tears down
-docker compose -H unix:///run/labware-docker.sock down -v
+docker compose down -v
 ```
 
 ## Disaster Recovery

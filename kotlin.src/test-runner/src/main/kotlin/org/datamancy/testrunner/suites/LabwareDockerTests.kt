@@ -6,47 +6,39 @@ import java.net.UnixDomainSocketAddress
 import java.nio.channels.SocketChannel
 
 /**
- * Labware Docker Socket Tests
+ * Labware Docker Tests
  *
- * Integration tests for the labware virtualized Docker socket at /run/labware-docker.sock
+ * Integration tests for the labware Docker host via SSH
  * These tests verify isolated Docker daemon access for CI/CD sandbox deployments.
  */
-suspend fun TestRunner.labwareTests() = suite("Labware Docker Socket Tests") {
-    val socketPath = "/run/labware-docker.sock"
+suspend fun TestRunner.labwareTests() = suite("Labware Docker Tests") {
+    val dockerHost = System.getenv("DOCKER_HOST") ?: "ssh://labware"
 
-    // Check if labware socket is available - skip suite if not
-    val socketFile = File(socketPath)
-    if (!socketFile.exists()) {
-        println("      ⚠️  Labware socket not found at $socketPath - skipping labware tests")
-        println("      ℹ️  To enable: Set up isolated Docker daemon at $socketPath")
+    // Check if labware Docker host is available - skip suite if not
+    if (!isLabwareDockerAvailable(dockerHost)) {
+        println("      ⚠️  Labware Docker host not accessible at $dockerHost - skipping labware tests")
+        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-labware-host and configure SSH keys")
         return@suite
     }
 
-    test("Labware socket file exists") {
-        socketFile.exists() shouldBe true
-        socketFile.canRead() shouldBe true
-    }
-
-    test("Labware socket is connectable") {
-        val socketAddress = UnixDomainSocketAddress.of(socketPath)
-        SocketChannel.open(socketAddress).use { channel ->
-            channel.isConnected shouldBe true
-        }
+    test("Labware Docker is accessible") {
+        val (exitCode, _) = execLabwareDocker(dockerHost, "info")
+        exitCode shouldBe 0
     }
 
     test("Labware Docker version responds") {
-        val (exitCode, output) = execLabwareDocker(socketPath, "version", "--format", "{{.Server.Version}}")
+        val (exitCode, output) = execLabwareDocker(dockerHost, "version", "--format", "{{.Server.Version}}")
         exitCode shouldBe 0
         output.trim().isNotEmpty() shouldBe true
     }
 
     test("Labware Docker ps command works") {
-        val (exitCode, _) = execLabwareDocker(socketPath, "ps", "--format", "{{.ID}}")
+        val (exitCode, _) = execLabwareDocker(dockerHost, "ps", "--format", "{{.ID}}")
         exitCode shouldBe 0
     }
 
     test("Labware containers isolated from production") {
-        val (_, labwareOutput) = execLabwareDocker(socketPath, "ps", "--format", "{{.Names}}")
+        val (_, labwareOutput) = execLabwareDocker(dockerHost, "ps", "--format", "{{.Names}}")
         val labwareContainers = labwareOutput.lines().filter { it.isNotBlank() }.toSet()
 
         val prodProcess = ProcessBuilder("docker", "ps", "--format", "{{.Names}}").start()
@@ -61,22 +53,22 @@ suspend fun TestRunner.labwareTests() = suite("Labware Docker Socket Tests") {
     }
 
     test("Labware Docker images command works") {
-        val (exitCode, _) = execLabwareDocker(socketPath, "images", "--format", "{{.Repository}}:{{.Tag}}")
+        val (exitCode, _) = execLabwareDocker(dockerHost, "images", "--format", "{{.Repository}}:{{.Tag}}")
         exitCode shouldBe 0
     }
 
     test("Labware can create and run containers") {
         val containerName = "labware-test-${System.currentTimeMillis()}"
         val (runExitCode, output) = execLabwareDocker(
-            socketPath, "run", "--name", containerName, "--rm", "alpine:latest", "echo", "test"
+            dockerHost, "run", "--name", containerName, "--rm", "alpine:latest", "echo", "test"
         )
         runExitCode shouldBe 0
         output shouldContain "test"
     }
 }
 
-private fun execLabwareDocker(socketPath: String, vararg args: String): Pair<Int, String> {
-    val command = listOf("docker", "-H", "unix://$socketPath") + args
+private fun execLabwareDocker(dockerHost: String, vararg args: String): Pair<Int, String> {
+    val command = listOf("docker", "-H", dockerHost) + args
     val process = ProcessBuilder(command)
         .redirectErrorStream(true)
         .start()
@@ -87,19 +79,33 @@ private fun execLabwareDocker(socketPath: String, vararg args: String): Pair<Int
     return exitCode to output
 }
 
+private fun isLabwareDockerAvailable(dockerHost: String): Boolean {
+    return try {
+        val (exitCode, _) = execLabwareDocker(dockerHost, "info")
+        exitCode == 0
+    } catch (e: Exception) {
+        false
+    }
+}
+
 /**
  * Standalone entry point for manual testing
  */
 object LabwareDockerTests {
 
-    const val LABWARE_SOCKET_PATH = "/run/labware-docker.sock"
+    val LABWARE_DOCKER_HOST = System.getenv("DOCKER_HOST") ?: "ssh://labware"
 
-    fun isLabwareSocketAvailable(): Boolean {
-        return File(LABWARE_SOCKET_PATH).exists()
+    fun isLabwareDockerAvailable(): Boolean {
+        return try {
+            val (exitCode, _) = execLabwareDocker("info")
+            exitCode == 0
+        } catch (e: Exception) {
+            false
+        }
     }
 
     fun execLabwareDocker(vararg args: String): Pair<Int, String> {
-        val command = listOf("docker", "-H", "unix://$LABWARE_SOCKET_PATH") + args
+        val command = listOf("docker", "-H", LABWARE_DOCKER_HOST) + args
         val process = ProcessBuilder(command)
             .redirectErrorStream(true)
             .start()
@@ -113,40 +119,26 @@ object LabwareDockerTests {
     @JvmStatic
     fun main(args: Array<String>) {
         println("=".repeat(80))
-        println("Labware Docker Socket Integration Tests")
+        println("Labware Docker Integration Tests")
         println("=".repeat(80))
 
-        if (!isLabwareSocketAvailable()) {
-            println("❌ Labware socket not available at $LABWARE_SOCKET_PATH")
-            println("These tests must be run on a deployed stack with labware VM configured.")
+        if (!isLabwareDockerAvailable()) {
+            println("❌ Labware Docker host not accessible at $LABWARE_DOCKER_HOST")
+            println("These tests must be run with DOCKER_HOST set and SSH keys configured.")
             return
         }
 
         var passed = 0
         var failed = 0
 
-        // Test 1: Socket file exists
+        // Test 1: Docker info
         try {
-            val socketFile = File(LABWARE_SOCKET_PATH)
-            require(socketFile.exists()) { "Socket file should exist" }
-            require(socketFile.canRead()) { "Socket file should be readable" }
-            println("✅ Socket file exists and is readable")
+            val (exitCode, _) = execLabwareDocker("info")
+            require(exitCode == 0) { "Docker info command should succeed" }
+            println("✅ Docker host is accessible")
             passed++
         } catch (e: Exception) {
-            println("❌ Socket file test failed: ${e.message}")
-            failed++
-        }
-
-        // Test 2: Socket is connectable
-        try {
-            val socketAddress = UnixDomainSocketAddress.of(LABWARE_SOCKET_PATH)
-            SocketChannel.open(socketAddress).use { channel ->
-                require(channel.isConnected) { "Should connect to socket" }
-            }
-            println("✅ Socket is connectable")
-            passed++
-        } catch (e: Exception) {
-            println("❌ Socket connection test failed: ${e.message}")
+            println("❌ Docker accessibility test failed: ${e.message}")
             failed++
         }
 

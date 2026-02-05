@@ -6,32 +6,32 @@ import kotlin.test.*
 
 /**
  * Unit tests for LabwareDockerTests helpers
- * These tests verify the test helper logic WITHOUT requiring labware socket
+ * These tests verify the test helper logic WITHOUT requiring labware Docker host
  */
 class LabwareDockerHelpersTest {
 
     @Test
-    fun `isLabwareSocketAvailable returns false when socket missing`() {
-        // This will be false in local dev environment without labware VM
-        val available = LabwareDockerTests.isLabwareSocketAvailable()
+    fun `isLabwareDockerAvailable doesn't crash`() {
+        // This will be false in local dev environment without labware host configured
+        val available = LabwareDockerTests.isLabwareDockerAvailable()
 
         // Test passes whether true or false - we're just testing it doesn't crash
         assertNotNull(available)
     }
 
     @Test
-    fun `labware socket path constant is correct`() {
-        assertEquals("/run/labware-docker.sock", LabwareDockerTests.LABWARE_SOCKET_PATH)
+    fun `labware Docker host uses environment or default`() {
+        val dockerHost = LabwareDockerTests.LABWARE_DOCKER_HOST
+        assertTrue(dockerHost.isNotEmpty())
     }
 
     @Test
     fun `execLabwareDocker helper constructs correct command`() {
         // We can test the command construction logic without actually running it
-        // The helper should build: docker -H unix:///run/labware-docker.sock [args]
+        // The helper should build: docker -H <dockerHost> [args]
 
-        val socketPath = LabwareDockerTests.LABWARE_SOCKET_PATH
-        assertTrue(socketPath.startsWith("/run/"))
-        assertTrue(socketPath.endsWith(".sock"))
+        val dockerHost = LabwareDockerTests.LABWARE_DOCKER_HOST
+        assertTrue(dockerHost.isNotEmpty())
     }
 
     @Test
@@ -98,11 +98,12 @@ class LabwareDockerHelpersTest {
 
     @Test
     fun `test process builder command construction`() {
-        val command = listOf("docker", "-H", "unix:///run/labware-docker.sock", "ps")
+        val dockerHost = "ssh://labware"
+        val command = listOf("docker", "-H", dockerHost, "ps")
 
         assertEquals("docker", command[0])
         assertEquals("-H", command[1])
-        assertTrue(command[2].startsWith("unix://"))
+        assertTrue(command[2].startsWith("ssh://"))
         assertEquals("ps", command[3])
     }
 

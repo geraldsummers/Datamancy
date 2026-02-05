@@ -6,13 +6,15 @@ import kotlin.test.*
 
 /**
  * Unit tests for CICDPipelineTests helpers
- * These tests verify the test helper logic WITHOUT requiring labware socket or registry
+ * These tests verify the test helper logic WITHOUT requiring labware Docker host or registry
  */
 class CICDPipelineHelpersTest {
 
     @Test
-    fun `labware socket constant matches expected path`() {
-        assertEquals("/run/labware-docker.sock", CICDPipelineTests.LABWARE_SOCKET)
+    fun `labware Docker host uses environment or default`() {
+        val dockerHost = CICDPipelineTests.LABWARE_DOCKER_HOST
+        // Should be either from env or default
+        assertTrue(dockerHost.isNotEmpty())
     }
 
     @Test
@@ -30,9 +32,9 @@ class CICDPipelineHelpersTest {
     }
 
     @Test
-    fun `isLabwareSocketAvailable check doesn't crash`() {
+    fun `isLabwareDockerAvailable check doesn't crash`() {
         // Should return boolean without throwing
-        val available = CICDPipelineTests.isLabwareSocketAvailable()
+        val available = CICDPipelineTests.isLabwareDockerAvailable()
 
         assertNotNull(available)
     }
@@ -157,7 +159,8 @@ class CICDPipelineHelpersTest {
     fun `test docker command construction for build`() {
         val imageName = "test:latest"
         val buildDir = "/tmp/build"
-        val command = listOf("docker", "-H", "unix:///run/labware-docker.sock", "build", "-t", imageName, buildDir)
+        val dockerHost = "ssh://labware"
+        val command = listOf("docker", "-H", dockerHost, "build", "-t", imageName, buildDir)
 
         assertEquals("docker", command[0])
         assertTrue(command.contains("build"))
@@ -168,7 +171,8 @@ class CICDPipelineHelpersTest {
     @Test
     fun `test docker command construction for push`() {
         val imageName = "registry:5000/test:latest"
-        val command = listOf("docker", "-H", "unix:///run/labware-docker.sock", "push", imageName)
+        val dockerHost = "ssh://labware"
+        val command = listOf("docker", "-H", dockerHost, "push", imageName)
 
         assertEquals("push", command[3])
         assertEquals(imageName, command[4])
@@ -179,7 +183,8 @@ class CICDPipelineHelpersTest {
     fun `test docker command construction for run`() {
         val containerName = "test-container"
         val imageName = "alpine:latest"
-        val command = listOf("docker", "-H", "unix:///run/labware-docker.sock",
+        val dockerHost = "ssh://labware"
+        val command = listOf("docker", "-H", dockerHost,
             "run", "--name", containerName, "--rm", imageName, "echo", "test")
 
         assertTrue(command.contains("run"))

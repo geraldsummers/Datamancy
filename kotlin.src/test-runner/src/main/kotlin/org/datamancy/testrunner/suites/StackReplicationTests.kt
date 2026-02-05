@@ -29,13 +29,12 @@ import java.util.concurrent.TimeUnit
  * - Labware stack runs in isolated network namespace
  */
 suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests") {
-    val labwareSocket = "/run/labware-docker.sock"
-    val socketFile = File(labwareSocket)
+    val labwareDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://labware"
 
-    // Check if labware socket is available - skip suite if not
-    if (!socketFile.exists()) {
-        println("      ⚠️  Labware socket not found at $labwareSocket - skipping replication tests")
-        println("      ℹ️  To enable: Set up isolated Docker daemon at $labwareSocket")
+    // Check if labware Docker host is accessible via SSH - skip suite if not
+    if (!isLabwareDockerAvailable(labwareDockerHost)) {
+        println("      ⚠️  Labware Docker host not accessible at $labwareDockerHost - skipping replication tests")
+        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-labware-host and configure SSH keys")
         return@suite
     }
 
@@ -112,7 +111,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Deploy minimal stack on labware socket") {
         val (exitCode, output) = execLabwareDockerCompose(
-            labwareSocket,
+            labwareDockerHost,
             composePath,
             "up", "-d"
         )
@@ -128,7 +127,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
         var healthy = false
         repeat(60) { attempt ->
             val (checkExit, checkOutput) = execLabwareDocker(
-                labwareSocket,
+                labwareDockerHost,
                 "ps",
                 "--filter", "name=labware-test-service-$testRunId",
                 "--format", "{{.Status}}"
@@ -149,7 +148,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     test("Verify labware stack isolation from production") {
         // Get labware containers
         val (_, labwareOutput) = execLabwareDocker(
-            labwareSocket,
+            labwareDockerHost,
             "ps",
             "--filter", "name=labware-",
             "--format", "{{.Names}}"
@@ -177,7 +176,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Query labware PostgreSQL service") {
         val (exitCode, output) = execLabwareDocker(
-            labwareSocket,
+            labwareDockerHost,
             "exec",
             "labware-postgres-$testRunId",
             "psql", "-U", "test_admin", "-d", "postgres", "-c", "SELECT version();"
@@ -190,7 +189,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Query labware Valkey service") {
         val (exitCode, output) = execLabwareDocker(
-            labwareSocket,
+            labwareDockerHost,
             "exec",
             "labware-valkey-$testRunId",
             "valkey-cli", "PING"
@@ -203,7 +202,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Verify labware stack network connectivity") {
         val (exitCode, output) = execLabwareDocker(
-            labwareSocket,
+            labwareDockerHost,
             "exec",
             "labware-test-service-$testRunId",
             "sh", "-c", "nc -zv postgres 5432 && nc -zv valkey 6379"
@@ -216,7 +215,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     test("Verify labware stack data persistence") {
         // Write data to postgres
         val (writeExit, _) = execLabwareDocker(
-            labwareSocket,
+            labwareDockerHost,
             "exec",
             "labware-postgres-$testRunId",
             "psql", "-U", "test_admin", "-d", "postgres",
@@ -226,7 +225,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         // Read data back
         val (readExit, readOutput) = execLabwareDocker(
-            labwareSocket,
+            labwareDockerHost,
             "exec",
             "labware-postgres-$testRunId",
             "psql", "-U", "test_admin", "-d", "postgres",
@@ -240,7 +239,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Verify labware stack log collection") {
         val (exitCode, output) = execLabwareDocker(
-            labwareSocket,
+            labwareDockerHost,
             "logs",
             "--tail", "50",
             "labware-test-service-$testRunId"
@@ -253,7 +252,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Verify labware stack can be stopped gracefully") {
         val (exitCode, output) = execLabwareDockerCompose(
-            labwareSocket,
+            labwareDockerHost,
             composePath,
             "stop"
         )
@@ -268,7 +267,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Verify labware stack can be restarted") {
         val (startExit, _) = execLabwareDockerCompose(
-            labwareSocket,
+            labwareDockerHost,
             composePath,
             "start"
         )
@@ -280,7 +279,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         // Verify data still exists after restart
         val (readExit, readOutput) = execLabwareDocker(
-            labwareSocket,
+            labwareDockerHost,
             "exec",
             "labware-postgres-$testRunId",
             "psql", "-U", "test_admin", "-d", "postgres",
@@ -295,7 +294,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     test("Cleanup labware stack") {
         // Stop and remove containers
         val (downExit, downOutput) = execLabwareDockerCompose(
-            labwareSocket,
+            labwareDockerHost,
             composePath,
             "down", "-v", "--remove-orphans"
         )
@@ -311,7 +310,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         // Verify containers are gone
         val (checkExit, checkOutput) = execLabwareDocker(
-            labwareSocket,
+            labwareDockerHost,
             "ps",
             "--filter", "name=labware-$testRunId",
             "--format", "{{.Names}}"
@@ -375,10 +374,10 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 }
 
 /**
- * Execute docker command on labware socket
+ * Execute docker command on labware Docker host
  */
-private fun execLabwareDocker(socketPath: String, vararg args: String): Pair<Int, String> {
-    val command = listOf("docker", "-H", "unix://$socketPath") + args
+private fun execLabwareDocker(dockerHost: String, vararg args: String): Pair<Int, String> {
+    val command = listOf("docker", "-H", dockerHost) + args
     val process = ProcessBuilder(command)
         .redirectErrorStream(true)
         .start()
@@ -390,16 +389,28 @@ private fun execLabwareDocker(socketPath: String, vararg args: String): Pair<Int
 }
 
 /**
- * Execute docker-compose command on labware socket
+ * Check if labware Docker host is available
+ */
+private fun isLabwareDockerAvailable(dockerHost: String): Boolean {
+    return try {
+        val (exitCode, _) = execLabwareDocker(dockerHost, "info")
+        exitCode == 0
+    } catch (e: Exception) {
+        false
+    }
+}
+
+/**
+ * Execute docker-compose command on labware Docker host
  */
 private fun execLabwareDockerCompose(
-    socketPath: String,
+    dockerHost: String,
     composePath: String,
     vararg args: String
 ): Pair<Int, String> {
     // Modern Docker uses "docker compose" plugin instead of standalone "docker-compose" binary
-    // Set DOCKER_HOST environment variable for docker compose to use labware socket
-    val env = mapOf("DOCKER_HOST" to "unix://$socketPath")
+    // Set DOCKER_HOST environment variable for docker compose to use labware Docker host
+    val env = mapOf("DOCKER_HOST" to dockerHost)
     val command = listOf("docker", "compose", "-f", "$composePath/docker-compose.yml") + args
 
     val process = ProcessBuilder(command)

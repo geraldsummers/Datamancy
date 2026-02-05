@@ -93,6 +93,9 @@ services:
       NTFY_USERNAME: "${NTFY_USERNAME}"
       NTFY_PASSWORD: "${NTFY_PASSWORD}"
 
+      # Docker over SSH for labware CI/CD tests
+      DOCKER_HOST: "ssh://${LABWARE_SSH_HOST:-labware.local}"
+
     # Only run when explicitly requested
     profiles:
       - testing
@@ -100,16 +103,17 @@ services:
     # Don't restart automatically (tests are one-shot)
     restart: "no"
 
-    # Labware Docker socket for CI/CD testing
-    # NOTE: Uses isolated labware socket (/run/labware-docker.sock) intentionally
-    #       This socket must be set up separately for labware tests to pass
+    # Labware Docker access via SSH for CI/CD testing
+    # NOTE: Uses Docker over SSH to connect to labware host
+    #       Requires LABWARE_SSH_HOST env var and SSH keys configured
     #       Provides isolation from main Docker daemon for security
 
-    # Run as host user (1000:1000) to access labware socket owned by gerald:gerald
+    # Run as host user (1000:1000) to access SSH keys
     user: "1000:1000"
 
     volumes:
-      - /run/labware-docker.sock:/run/labware-docker.sock
+      # Mount SSH keys for Docker over SSH authentication
+      - ${HOME}/.ssh:/home/appuser/.ssh:ro
 
     # No persistent volumes needed (tests are ephemeral)
     # Bundled source is accessed via Forgejo, not direct mount

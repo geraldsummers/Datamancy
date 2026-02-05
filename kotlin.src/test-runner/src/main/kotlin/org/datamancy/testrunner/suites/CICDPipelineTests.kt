@@ -7,26 +7,25 @@ import java.util.UUID
 /**
  * CI/CD Pipeline Integration Tests
  *
- * Tests for the complete CI/CD pipeline using labware Docker socket.
+ * Tests for the complete CI/CD pipeline using Docker over SSH to labware host.
  * Tests image building, registry operations, deployments, and isolation.
  */
 suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
-    val labwareSocket = "/run/labware-docker.sock"
+    val labwareDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://labware"
 
     // Labware containers run on isolated Docker daemon and need to reach registry via host IP
     // Registry is exposed on host port 5000
     // On Linux, host.docker.internal doesn't exist - use HOST_IP from environment
     val registryHost = System.getenv("HOST_IP")?.let { "$it:5000" }
-        ?: detectLabwareHostIP(labwareSocket)
+        ?: detectLabwareHostIP(labwareDockerHost)
         ?: "192.168.0.11:5000"  // Fallback
 
     val testImagePrefix = "cicd-test"
 
-    // Check if labware socket is available - skip suite if not
-    val socketFile = File(labwareSocket)
-    if (!socketFile.exists()) {
-        println("      ⚠️  Labware socket not found at $labwareSocket - skipping CI/CD tests")
-        println("      ℹ️  To enable: Set up isolated Docker daemon at $labwareSocket")
+    // Check if labware Docker host is accessible - skip suite if not
+    if (!isLabwareDockerAvailable(labwareDockerHost)) {
+        println("      ⚠️  Labware Docker host not accessible at $labwareDockerHost - skipping CI/CD tests")
+        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-labware-host and configure SSH keys")
         return@suite
     }
 
@@ -46,18 +45,18 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 CMD ["echo", "Hello from CI/CD test"]
             """.trimIndent())
 
-            val (exitCode, output) = execCICDDocker(labwareSocket, "build", "-t", imageName, tempDir.absolutePath)
+            val (exitCode, output) = execCICDDocker(labwareDockerHost, "build", "-t", imageName, tempDir.absolutePath)
             if (exitCode != 0) {
                 throw AssertionError("Docker build failed: $output")
             }
 
-            val (listExitCode, listOutput) = execCICDDocker(labwareSocket, "images", imageName, "-q")
+            val (listExitCode, listOutput) = execCICDDocker(labwareDockerHost, "images", imageName, "-q")
             if (listExitCode != 0 || listOutput.trim().isEmpty()) {
                 throw AssertionError("Image not found after build")
             }
 
             // Cleanup
-            execCICDDocker(labwareSocket, "rmi", "-f", imageName)
+            execCICDDocker(labwareDockerHost, "rmi", "-f", imageName)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -80,20 +79,20 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 CMD ["echo", "Registry test"]
             """.trimIndent())
 
-            val (buildExitCode, buildOutput) = execCICDDocker(labwareSocket, "build", "-t", localImageName, tempDir.absolutePath)
+            val (buildExitCode, buildOutput) = execCICDDocker(labwareDockerHost, "build", "-t", localImageName, tempDir.absolutePath)
             if (buildExitCode != 0) {
                 throw AssertionError("Build failed: $buildOutput")
             }
 
-            execCICDDocker(labwareSocket, "tag", localImageName, registryImageName)
+            execCICDDocker(labwareDockerHost, "tag", localImageName, registryImageName)
 
-            val (pushExitCode, pushOutput) = execCICDDocker(labwareSocket, "push", registryImageName)
+            val (pushExitCode, pushOutput) = execCICDDocker(labwareDockerHost, "push", registryImageName)
             if (pushExitCode != 0) {
                 throw AssertionError("Push to registry failed: $pushOutput")
             }
 
             // Cleanup
-            execCICDDocker(labwareSocket, "rmi", "-f", localImageName, registryImageName)
+            execCICDDocker(labwareDockerHost, "rmi", "-f", localImageName, registryImageName)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -105,7 +104,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
         try {
             val (startExitCode, _) = execCICDDocker(
-                labwareSocket, "run", "-d", "--name", containerName, "alpine:latest", "sleep", "30"
+                labwareDockerHost, "run", "-d", "--name", containerName, "alpine:latest", "sleep", "30"
             )
             if (startExitCode != 0) {
                 throw AssertionError("Container start failed")
@@ -113,7 +112,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
             // Check container exists on labware
             val (labwareCheckCode, labwareOutput) = execCICDDocker(
-                labwareSocket, "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
+                labwareDockerHost, "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
             )
             if (labwareCheckCode != 0 || !labwareOutput.contains(containerName)) {
                 throw AssertionError("Container not found on labware")
@@ -129,9 +128,9 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
             }
 
             // Cleanup
-            execCICDDocker(labwareSocket, "rm", "-f", containerName)
+            execCICDDocker(labwareDockerHost, "rm", "-f", containerName)
         } catch (e: Exception) {
-            execCICDDocker(labwareSocket, "rm", "-f", containerName)
+            execCICDDocker(labwareDockerHost, "rm", "-f", containerName)
             throw e
         }
     }
@@ -155,18 +154,18 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 CMD ["cat", "/app/artifact.txt"]
             """.trimIndent())
 
-            val (buildExitCode, buildOutput) = execCICDDocker(labwareSocket, "build", "-t", imageName, tempDir.absolutePath)
+            val (buildExitCode, buildOutput) = execCICDDocker(labwareDockerHost, "build", "-t", imageName, tempDir.absolutePath)
             if (buildExitCode != 0) {
                 throw AssertionError("Multi-stage build failed: $buildOutput")
             }
 
-            val (runExitCode, runOutput) = execCICDDocker(labwareSocket, "run", "--rm", imageName)
+            val (runExitCode, runOutput) = execCICDDocker(labwareDockerHost, "run", "--rm", imageName)
             if (runExitCode != 0 || !runOutput.contains("Building artifact")) {
                 throw AssertionError("Multi-stage container output incorrect")
             }
 
             // Cleanup
-            execCICDDocker(labwareSocket, "rmi", "-f", imageName)
+            execCICDDocker(labwareDockerHost, "rmi", "-f", imageName)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -177,10 +176,10 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
  * Detect host IP from labware container's perspective
  * Runs a test container and gets the default gateway IP
  */
-private fun detectLabwareHostIP(socket: String): String? {
+private fun detectLabwareHostIP(dockerHost: String): String? {
     return try {
         val (exitCode, output) = execCICDDocker(
-            socket,
+            dockerHost,
             "run", "--rm", "alpine:latest",
             "sh", "-c", "ip route show default | awk '{print \$3}'"
         )
@@ -197,8 +196,8 @@ private fun detectLabwareHostIP(socket: String): String? {
     }
 }
 
-private fun execCICDDocker(socketPath: String, vararg args: String): Pair<Int, String> {
-    val command = listOf("docker", "-H", "unix://$socketPath") + args
+private fun execCICDDocker(dockerHost: String, vararg args: String): Pair<Int, String> {
+    val command = listOf("docker", "-H", dockerHost) + args
     val process = ProcessBuilder(command)
         .redirectErrorStream(true)
         .start()
@@ -209,12 +208,21 @@ private fun execCICDDocker(socketPath: String, vararg args: String): Pair<Int, S
     return exitCode to output
 }
 
+private fun isLabwareDockerAvailable(dockerHost: String): Boolean {
+    return try {
+        val (exitCode, _) = execCICDDocker(dockerHost, "info")
+        exitCode == 0
+    } catch (e: Exception) {
+        false
+    }
+}
+
 /**
  * Standalone entry point for manual testing
  */
 object CICDPipelineTests {
 
-    const val LABWARE_SOCKET = "/run/labware-docker.sock"
+    val LABWARE_DOCKER_HOST = System.getenv("DOCKER_HOST") ?: "ssh://labware"
     const val REGISTRY_HOST = "registry:5000"
     const val TEST_IMAGE_PREFIX = "cicd-test"
 
@@ -222,12 +230,17 @@ object CICDPipelineTests {
     private val testImages = mutableListOf<String>()
     private val testContainers = mutableListOf<String>()
 
-    fun isLabwareSocketAvailable(): Boolean {
-        return File(LABWARE_SOCKET).exists()
+    fun isLabwareDockerAvailable(): Boolean {
+        return try {
+            val (exitCode, _) = execLabwareDocker("info")
+            exitCode == 0
+        } catch (e: Exception) {
+            false
+        }
     }
 
     fun execLabwareDocker(vararg args: String): Pair<Int, String> {
-        val command = listOf("docker", "-H", "unix://$LABWARE_SOCKET") + args
+        val command = listOf("docker", "-H", LABWARE_DOCKER_HOST) + args
         val process = ProcessBuilder(command)
             .redirectErrorStream(true)
             .start()
@@ -263,9 +276,9 @@ object CICDPipelineTests {
         println("CI/CD Pipeline Integration Tests")
         println("=".repeat(80))
 
-        if (!isLabwareSocketAvailable()) {
-            println("❌ Labware socket not available at $LABWARE_SOCKET")
-            println("These tests must be run on a deployed stack with labware VM configured.")
+        if (!isLabwareDockerAvailable()) {
+            println("❌ Labware Docker host not accessible at $LABWARE_DOCKER_HOST")
+            println("These tests must be run with DOCKER_HOST set and SSH keys configured.")
             return
         }
 
