@@ -24,7 +24,7 @@ subprojects {
 
     // Configure JVM toolchain for all subprojects
     extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
-        jvmToolchain(21)
+        jvmToolchain(25)
     }
 
     // Enforce warnings as errors for Kotlin compilation (except pipeline)
