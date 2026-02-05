@@ -149,6 +149,10 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "cicd" -> runner.cicdTests()
         "labware" -> runner.labwareTests()
         "stack-replication" -> runner.stackReplicationTests()
+        // NEW: Agent capability tests (probabilistic)
+        "agent-capability" -> runner.agentCapabilityTests()
+        "agent-security" -> runner.agentSecurityTests()
+        "agent-llm-quality" -> runner.agentLlmQualityTests()
         "all" -> {
             runner.foundationTests()
             runner.llmTests()
@@ -181,7 +185,8 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  search-service, infrastructure, databases, user-interface, communication,")
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
-            println("                  stack-deployment, bookstack, cicd, labware, stack-replication, all")
+            println("                  stack-deployment, bookstack, cicd, labware, stack-replication,")
+            println("                  agent-capability, agent-security, agent-llm-quality, all")
             exitProcess(1)
         }
     }
@@ -255,7 +260,8 @@ private fun printUsage() {
                                      communication, collaboration, productivity,
                                      file-management, security, monitoring, backup,
                                      authentication, enhanced-auth, authenticated-ops, utility, homeassistant,
-                                     stack-deployment, bookstack, cicd, labware, all
+                                     stack-deployment, bookstack, cicd, labware,
+                                     agent-capability, agent-security, agent-llm-quality, all
 
       --verbose, -v          Enable verbose logging
       --help, -h             Show this help message

@@ -62,6 +62,14 @@ services:
       - caddy_config:/config
       - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./configs/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        # Clean up any stale/corrupt ACME lock files on startup
+        rm -f /data/caddy/locks/*.lock 2>/dev/null || true
+        # Start Caddy normally
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:2019/config/"]
       interval: 10s
