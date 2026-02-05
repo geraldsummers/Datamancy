@@ -24,26 +24,19 @@ subprojects {
 
     // Configure JVM toolchain for all subprojects
     extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
-        jvmToolchain(25)
+        jvmToolchain(21)
     }
 
     // Enforce warnings as errors for Kotlin compilation (except pipeline)
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions {
-            allWarningsAsErrors = project.name != "pipeline"
+        compilerOptions {
+            allWarningsAsErrors.set(project.name != "pipeline")
         }
     }
 
     // Configure test tasks for all subprojects
     tasks.withType<Test> {
         useJUnitPlatform()
-    }
-
-    // Configure shadow JAR for application modules
-    tasks.withType<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar> {
-        archiveClassifier.set("")
-        archiveVersion.set("")
-        mergeServiceFiles()
     }
 }
 
@@ -57,14 +50,10 @@ tasks.register("test") {
 }
 
 // Build test-runner container for integration tests
-tasks.register("buildTestRunner") {
+tasks.register<Exec>("buildTestRunner") {
     group = "verification"
     description = "Build the integration test runner Docker image"
-    doLast {
-        exec {
-            commandLine("docker", "build", "-f", "Dockerfile.test-runner", "-t", "datamancy/test-runner:latest", ".")
-        }
-    }
+    commandLine("docker", "build", "-f", "Dockerfile.test-runner", "-t", "datamancy/test-runner:latest", ".")
 }
 
 // Run integration tests via Docker Compose

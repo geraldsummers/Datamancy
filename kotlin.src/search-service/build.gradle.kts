@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
     application
-    id("com.github.johnrengelman.shadow")
+    id("com.gradleup.shadow")
 }
 
 dependencies {
@@ -52,7 +52,8 @@ application {
     mainClass.set("org.datamancy.searchservice.MainKt")
 }
 
-tasks.shadowJar {
+// Configure JAR naming via application extension (shadow plugin respects this)
+tasks.withType(Jar::class) {
     archiveBaseName.set("search-service")
 }
 

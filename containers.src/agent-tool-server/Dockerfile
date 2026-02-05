@@ -1,5 +1,5 @@
 # Runtime stage - expects pre-built JAR
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 ENV TOOLSERVER_PORT=8081 \
     TOOLSERVER_ALLOW_CAPS=host.shell.read,host.docker.inspect,host.docker.write

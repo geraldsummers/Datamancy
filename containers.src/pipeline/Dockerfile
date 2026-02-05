@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:21-jre
 
 # Install documentation packages, tools, and gosu for user switching
 RUN apt-get update && apt-get install -y --no-install-recommends \

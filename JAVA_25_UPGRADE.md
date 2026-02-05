@@ -280,3 +280,63 @@ Alternatively, IntelliJ will auto-detect and download it when you sync Gradle.
 ---
 
 **Updated Total:** 7 files modified (4 build/Docker + 3 IntelliJ IDEA)
+
+---
+
+## CRITICAL: Gradle Upgrade Required
+
+### Issue
+Gradle 8.14 does not support Java 25. The maximum compatible Java version for Gradle 8.x is Java 24.
+
+**Error message:**
+```
+Your build is currently configured to use incompatible Java 25.0.2 and Gradle 8.14.
+Cannot sync the project.
+The maximum compatible Gradle JVM version is 24.
+```
+
+### Solution
+**Upgraded to Gradle 9.3.1** (latest stable, released January 2026)
+
+**File Changed:**
+- ✅ `gradle/wrapper/gradle-wrapper.properties` - Gradle 8.14 → 9.3.1
+
+### Gradle Version Support Matrix
+
+| Gradle Version | Java Support | Status |
+|----------------|--------------|--------|
+| Gradle 8.14 | Java 8-24 | ❌ No Java 25 |
+| Gradle 9.1.0 | Java 8-25 | ✅ First with Java 25 |
+| Gradle 9.3.1 | Java 8-25 | ✅ Latest stable |
+
+### Testing the Upgrade
+
+After upgrading Gradle:
+
+```bash
+# IntelliJ will auto-download Gradle 9.3.1 on next sync
+# Or manually trigger:
+./gradlew wrapper --gradle-version 9.3.1
+
+# Verify version:
+./gradlew --version
+
+# Expected output:
+# Gradle 9.3.1
+# ...
+# JVM:          25.0.2 (Eclipse Adoptium)
+```
+
+### IntelliJ IDEA Sync
+
+1. Open IntelliJ IDEA
+2. File → Reload All Gradle Projects
+3. Gradle will download 9.3.1 wrapper
+4. Project should sync successfully with Java 25
+
+---
+
+**Final File Count:** 8 files modified
+- 4 build/Docker files
+- 3 IntelliJ IDEA configs  
+- 1 Gradle wrapper

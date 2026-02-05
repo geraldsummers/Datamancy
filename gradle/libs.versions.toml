@@ -1,6 +1,6 @@
 [versions]
 kotlin = "2.0.21"
-shadow = "8.1.1"
+shadow = "9.3.1"
 kotlinx-coroutines = "1.7.3"
 kotlinx-serialization = "1.6.2"
 kotlinx-datetime = "0.6.0"
@@ -24,7 +24,7 @@ testcontainers = "1.19.7"
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
-shadow = { id = "com.github.johnrengelman.shadow", version.ref = "shadow" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 
 [libraries]
 # Jackson
