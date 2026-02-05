@@ -6,27 +6,26 @@ services:
     networks:
       - postgres
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
-      POSTGRES_USER: ${STACK_ADMIN_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER}
       POSTGRES_DB: postgres
-      POSTGRES_ROOT_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
-      PLANKA_DB_PASSWORD: ${PLANKA_DB_PASSWORD}
-      SYNAPSE_DB_PASSWORD: ${SYNAPSE_DB_PASSWORD}
-      AUTHELIA_DB_PASSWORD: ${AUTHELIA_DB_PASSWORD}
-      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
-      VAULTWARDEN_DB_PASSWORD: ${VAULTWARDEN_DB_PASSWORD}
-      OPENWEBUI_DB_PASSWORD: ${OPENWEBUI_DB_PASSWORD}
-      MASTODON_DB_PASSWORD: ${MASTODON_DB_PASSWORD}
-      FORGEJO_DB_PASSWORD: ${FORGEJO_DB_PASSWORD}
-      HOMEASSISTANT_DB_PASSWORD: ${HOMEASSISTANT_DB_PASSWORD}
-      ROUNDCUBE_DB_PASSWORD: ${ROUNDCUBE_DB_PASSWORD}
-      AGENT_POSTGRES_OBSERVER_PASSWORD: ${AGENT_POSTGRES_OBSERVER_PASSWORD}
-      DATAMANCY_SERVICE_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
+      POSTGRES_AUTHELIA_PASSWORD: ${POSTGRES_AUTHELIA_PASSWORD}
+      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD}
+      POSTGRES_PLANKA_PASSWORD: ${POSTGRES_PLANKA_PASSWORD}
+      POSTGRES_SYNAPSE_PASSWORD: ${POSTGRES_SYNAPSE_PASSWORD}
+      POSTGRES_VAULTWARDEN_PASSWORD: ${POSTGRES_VAULTWARDEN_PASSWORD}
+      POSTGRES_OPENWEBUI_PASSWORD: ${POSTGRES_OPENWEBUI_PASSWORD}
+      POSTGRES_MASTODON_PASSWORD: ${POSTGRES_MASTODON_PASSWORD}
+      POSTGRES_FORGEJO_PASSWORD: ${POSTGRES_FORGEJO_PASSWORD}
+      POSTGRES_HOMEASSISTANT_PASSWORD: ${POSTGRES_HOMEASSISTANT_PASSWORD}
+      POSTGRES_ROUNDCUBE_PASSWORD: ${POSTGRES_ROUNDCUBE_PASSWORD}
+      POSTGRES_DATAMANCY_PASSWORD: ${POSTGRES_DATAMANCY_PASSWORD}
+      POSTGRES_AGENT_PASSWORD: ${POSTGRES_AGENT_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     command: postgres -c 'max_connections=300' -c 'shared_buffers=1GB'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${STACK_ADMIN_USER} && psql -U ${STACK_ADMIN_USER} -d postgres -c 'SELECT 1' > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ADMIN_USER} && psql -U ${POSTGRES_ADMIN_USER} -d postgres -c 'SELECT 1' > /dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -47,26 +46,23 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
-      POSTGRES_USER: ${STACK_ADMIN_USER}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER}
       POSTGRES_DB: postgres
       PGHOST: postgres
       PGPORT: 5432
-      PGPASSWORD: ${POSTGRES_ROOT_PASSWORD}
-      POSTGRES_ROOT_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
-      STACK_ADMIN_USER: ${STACK_ADMIN_USER}
-      PLANKA_DB_PASSWORD: ${PLANKA_DB_PASSWORD}
-      SYNAPSE_DB_PASSWORD: ${SYNAPSE_DB_PASSWORD}
-      AUTHELIA_DB_PASSWORD: ${AUTHELIA_DB_PASSWORD}
-      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
-      VAULTWARDEN_DB_PASSWORD: ${VAULTWARDEN_DB_PASSWORD}
-      OPENWEBUI_DB_PASSWORD: ${OPENWEBUI_DB_PASSWORD}
-      MASTODON_DB_PASSWORD: ${MASTODON_DB_PASSWORD}
-      FORGEJO_DB_PASSWORD: ${FORGEJO_DB_PASSWORD}
-      HOMEASSISTANT_DB_PASSWORD: ${HOMEASSISTANT_DB_PASSWORD}
-      ROUNDCUBE_DB_PASSWORD: ${ROUNDCUBE_DB_PASSWORD}
-      AGENT_POSTGRES_OBSERVER_PASSWORD: ${AGENT_POSTGRES_OBSERVER_PASSWORD}
-      DATAMANCY_SERVICE_PASSWORD: ${DATAMANCY_SERVICE_PASSWORD}
+      PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_AUTHELIA_PASSWORD: ${POSTGRES_AUTHELIA_PASSWORD}
+      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD}
+      POSTGRES_PLANKA_PASSWORD: ${POSTGRES_PLANKA_PASSWORD}
+      POSTGRES_SYNAPSE_PASSWORD: ${POSTGRES_SYNAPSE_PASSWORD}
+      POSTGRES_VAULTWARDEN_PASSWORD: ${POSTGRES_VAULTWARDEN_PASSWORD}
+      POSTGRES_OPENWEBUI_PASSWORD: ${POSTGRES_OPENWEBUI_PASSWORD}
+      POSTGRES_MASTODON_PASSWORD: ${POSTGRES_MASTODON_PASSWORD}
+      POSTGRES_FORGEJO_PASSWORD: ${POSTGRES_FORGEJO_PASSWORD}
+      POSTGRES_HOMEASSISTANT_PASSWORD: ${POSTGRES_HOMEASSISTANT_PASSWORD}
+      POSTGRES_ROUNDCUBE_PASSWORD: ${POSTGRES_ROUNDCUBE_PASSWORD}
+      POSTGRES_DATAMANCY_PASSWORD: ${POSTGRES_DATAMANCY_PASSWORD}
+      POSTGRES_AGENT_PASSWORD: ${POSTGRES_AGENT_PASSWORD}
     volumes:
       - ./configs/postgres/init-db.sh:/init-db.sh:ro
       - ./configs/postgres/roundcube-schema.sql:/docker-entrypoint-initdb.d/roundcube-schema.sql:ro
@@ -77,9 +73,9 @@ services:
         set -e
         set -x
         echo "===== postgres-init starting ====="
-        echo "POSTGRES_USER is set to: ${STACK_ADMIN_USER}"
+        echo "POSTGRES_USER is set to: ${POSTGRES_ADMIN_USER}"
         echo "Waiting for Postgres to be ready..."
-        until pg_isready -h postgres -U "${STACK_ADMIN_USER}"; do
+        until pg_isready -h postgres -U "${POSTGRES_ADMIN_USER}"; do
           echo "Still waiting for postgres..."
           sleep 2
         done
@@ -113,12 +109,10 @@ services:
       forgejo:
         condition: service_healthy
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
-      POSTGRES_USER: ${STACK_ADMIN_USER}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER}
       PGHOST: postgres
       PGPORT: 5432
-      PGPASSWORD: ${POSTGRES_ROOT_PASSWORD}
-      STACK_ADMIN_USER: ${STACK_ADMIN_USER}
+      PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD}
     volumes:
       - ./configs/postgres/create-observer-views.sql:/create-observer-views.sql:ro
     entrypoint:
@@ -127,12 +121,12 @@ services:
       - |
         set -e
         echo "Creating agent_observer views in safe databases..."
-        until pg_isready -h postgres -U "${STACK_ADMIN_USER}"; do
+        until pg_isready -h postgres -U "${POSTGRES_ADMIN_USER}"; do
           echo "Waiting for postgres..."
           sleep 2
         done
         echo "Running observer views script..."
-        psql -U "${STACK_ADMIN_USER}" -f /create-observer-views.sql || true
+        psql -U "${POSTGRES_ADMIN_USER}" -f /create-observer-views.sql || true
         touch /tmp/views_created
         echo "Observer views creation complete"
     healthcheck:
