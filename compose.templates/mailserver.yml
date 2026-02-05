@@ -79,7 +79,7 @@ services:
       - ./configs/mailserver/ldap-domains.cf:/etc/postfix/ldap-domains.cf:ro
     healthcheck:
       test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993|:143' && supervisorctl status | grep -E 'postfix.*RUNNING' && supervisorctl status | grep -E 'dovecot.*RUNNING'"]
-      interval: 60s
+      interval: 15s
       timeout: 10s
-      retries: 5
-      start_period: 180s
+      retries: 20
+      start_period: 240s
