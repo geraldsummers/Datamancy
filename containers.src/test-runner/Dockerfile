@@ -39,7 +39,7 @@ RUN mkdir -p /etc/docker && \
 WORKDIR /app
 
 # Copy pre-built shadow JAR from Gradle
-COPY kotlin.src/test-runner/build/libs/test-runner.jar /app/test-runner.jar
+COPY kotlin.src/test-runner/build/libs/test-runner-1.0-SNAPSHOT-all.jar /app/test-runner.jar
 
 # Set ownership
 RUN chown -R datamancer:datamancer /app

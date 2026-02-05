@@ -16,7 +16,7 @@ RUN groupadd -r datamancer && useradd -r -g datamancer datamancer
 WORKDIR /app
 
 # Copy JAR
-COPY kotlin.src/pipeline/build/libs/pipeline.jar /app/pipeline.jar
+COPY kotlin.src/pipeline/build/libs/pipeline-1.0.0-all.jar /app/pipeline.jar
 
 # Create config directory
 RUN mkdir -p /app/config && chown -R datamancer:datamancer /app
