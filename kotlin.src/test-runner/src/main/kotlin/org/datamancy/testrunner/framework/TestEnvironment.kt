@@ -2,6 +2,64 @@ package org.datamancy.testrunner.framework
 
 import java.io.File
 
+/**
+ * Centralized service endpoint configuration for the entire Datamancy stack.
+ *
+ * This data class provides URLs and connection details for all services in the stack,
+ * enabling tests to discover and interact with the correct service endpoints based on
+ * the runtime environment (Docker container network vs. localhost port-mapped).
+ *
+ * ## Cross-Service Integration Testing
+ * The endpoints represent the full authentication cascade and data flow:
+ * - **LDAP → Authelia → OIDC → Services**: Authentication flows validated end-to-end
+ * - **Pipeline → PostgreSQL → Qdrant → Search-Service**: Document ingestion and retrieval
+ * - **Agent-Tool-Server → All Services**: LLM tool execution across the stack
+ *
+ * ## Design Rationale
+ * - **Environment Agnostic**: Works inside Docker (`service:port`) or via localhost (`localhost:mapped-port`)
+ * - **Service Discovery**: Tests don't hardcode URLs; they adapt to deployment topology
+ * - **Integration Scope**: Includes every service that tests might interact with, from core
+ *   infrastructure (PostgreSQL, LDAP) to end-user applications (Grafana, BookStack, Mastodon)
+ *
+ * @property agentToolServer Agent-Tool-Server endpoint for LLM tool execution
+ * @property dataFetcher Data fetcher service for triggering pipeline ingestion
+ * @property searchService Hybrid search service (vector + BM25) endpoint
+ * @property pipeline Pipeline monitoring and control endpoint
+ * @property liteLLM LiteLLM proxy for LLM routing and function calling
+ * @property bookstack BookStack knowledge base API endpoint
+ * @property postgres PostgreSQL connection config (shared by Pipeline, Search-Service, tests)
+ * @property mariadb MariaDB connection config (used by BookStack)
+ * @property qdrant Qdrant vector database HTTP endpoint
+ * @property valkey Valkey (Redis-compatible) cache endpoint
+ * @property ldap OpenLDAP server endpoint for user management
+ * @property userContext Default user context header for agent-tool-server requests
+ * @property apiKey Optional API key for agent-tool-server authorization
+ * @property bookstackTokenId BookStack API token ID for authenticated requests
+ * @property bookstackTokenSecret BookStack API token secret
+ * @property caddy Caddy reverse proxy endpoint (forward-auth enforcement)
+ * @property authelia Authelia SSO and OIDC provider endpoint
+ * @property openWebUI Open-WebUI chat interface endpoint
+ * @property jupyterhub JupyterHub notebook server endpoint
+ * @property mailserver Mail server SMTP endpoint
+ * @property synapse Synapse Matrix homeserver endpoint
+ * @property element Element Matrix web client endpoint
+ * @property mastodon Mastodon social network web endpoint
+ * @property mastodonStreaming Mastodon streaming API endpoint
+ * @property roundcube Roundcube webmail client endpoint
+ * @property forgejo Forgejo Git hosting endpoint
+ * @property planka Planka project management endpoint
+ * @property seafile Seafile file sync and share endpoint
+ * @property onlyoffice OnlyOffice document server endpoint
+ * @property vaultwarden Vaultwarden password manager endpoint
+ * @property prometheus Prometheus metrics collection endpoint
+ * @property grafana Grafana monitoring dashboard endpoint
+ * @property kopia Kopia backup server endpoint
+ * @property homepage Homepage dashboard endpoint
+ * @property radicale Radicale CalDAV/CardDAV server endpoint
+ * @property ntfy Ntfy notification service endpoint
+ * @property qbittorrent qBittorrent torrent client endpoint
+ * @property homeassistant Home Assistant home automation endpoint
+ */
 data class ServiceEndpoints(
     val agentToolServer: String,
     val dataFetcher: String,
@@ -55,6 +113,18 @@ data class ServiceEndpoints(
     val homeassistant: String? = null
 ) {
     companion object {
+        /**
+         * Creates service endpoints from environment variables (Docker container network mode).
+         *
+         * This factory method reads service URLs from environment variables with fallbacks to
+         * internal Docker network hostnames (e.g., `http://agent-tool-server:8081`). This is
+         * the default configuration when tests run inside the Docker stack.
+         *
+         * Tests running in containers can directly access services via Docker's DNS resolution,
+         * avoiding the need for port mapping to the host machine.
+         *
+         * @return ServiceEndpoints configured for Docker container network access
+         */
         fun fromEnvironment(): ServiceEndpoints = ServiceEndpoints(
             agentToolServer = env("AGENT_TOOL_SERVER_URL") ?: "http://agent-tool-server:8081",
             dataFetcher = env("DATA_FETCHER_URL") ?: "http://data-fetcher:8095",
@@ -120,6 +190,18 @@ data class ServiceEndpoints(
             homeassistant = env("HOMEASSISTANT_URL") ?: "http://homeassistant:8123"
         )
 
+        /**
+         * Creates service endpoints for localhost access (developer machine mode).
+         *
+         * This factory method returns endpoints that connect to services via localhost
+         * port mappings (e.g., `http://localhost:18091`). This is used when tests run
+         * outside the Docker stack, typically during local development.
+         *
+         * Port mappings are defined in docker-compose.yml and allow external access to
+         * containerized services for debugging and development workflows.
+         *
+         * @return ServiceEndpoints configured for localhost port-mapped access
+         */
         fun forLocalhost(): ServiceEndpoints = ServiceEndpoints(
             agentToolServer = "http://localhost:18091",
             dataFetcher = "http://localhost:18095",
@@ -174,6 +256,24 @@ data class ServiceEndpoints(
     }
 }
 
+/**
+ * Database connection configuration for PostgreSQL and MariaDB.
+ *
+ * Used by tests to establish JDBC connections for validating database state,
+ * querying document staging tables, and verifying cross-service data consistency.
+ *
+ * The same PostgreSQL database is shared by:
+ * - **Pipeline**: Writes documents to `document_staging` table
+ * - **Search-Service**: Queries `document_staging` for full-text search
+ * - **Tests**: Validates document processing states and counts
+ *
+ * @property host Database server hostname (e.g., "postgres" or "localhost")
+ * @property port Database server port (5432 for PostgreSQL, 3306 for MariaDB)
+ * @property database Database name to connect to
+ * @property user Database username for authentication
+ * @property password Database password for authentication
+ * @property jdbcUrl Auto-generated JDBC connection string based on port
+ */
 data class DatabaseConfig(
     val host: String,
     val port: Int,
@@ -189,6 +289,43 @@ data class DatabaseConfig(
         }
 }
 
+/**
+ * Runtime environment detection and configuration for test execution.
+ *
+ * TestEnvironment is the entry point for all integration tests, automatically detecting
+ * whether tests are running inside Docker containers or on a localhost developer machine.
+ * This abstraction enables the same test code to run in CI/CD pipelines and local development.
+ *
+ * ## Environment Detection
+ * The framework detects the environment by:
+ * 1. Checking for `/.dockerenv` file (Docker container indicator)
+ * 2. Reading `TEST_ENV` environment variable
+ * 3. Defaulting to localhost mode for developer convenience
+ *
+ * ## Authentication Cascade Configuration
+ * Each environment provides credentials for the full authentication stack:
+ * - **LDAP admin password**: For creating ephemeral test users
+ * - **Stack admin password**: For Authelia first-factor authentication
+ * - **OAuth secrets**: For OIDC flows to Open-WebUI, Grafana, Mastodon, Forgejo, BookStack
+ *
+ * ## Why Environment Abstraction Matters
+ * - **CI/CD**: Tests run inside Docker network without port mapping overhead
+ * - **Local Development**: Tests run on host machine with port-mapped service access
+ * - **Test Isolation**: Each environment has isolated credentials and endpoints
+ * - **No Hardcoding**: Service URLs adapt to deployment topology automatically
+ *
+ * @property name Environment name ("container" or "localhost")
+ * @property endpoints Service endpoint configuration for this environment
+ * @property adminPassword Authelia admin user password for authentication tests
+ * @property ldapAdminPassword OpenLDAP admin password for user lifecycle management
+ * @property domain Domain name for the stack (e.g., "datamancy.local" or "localhost")
+ * @property isDevMode Whether this is a development environment (enables relaxed validation)
+ * @property openwebuiOAuthSecret OAuth client secret for Open-WebUI OIDC integration
+ * @property grafanaOAuthSecret OAuth client secret for Grafana OIDC integration
+ * @property mastodonOAuthSecret OAuth client secret for Mastodon OIDC integration
+ * @property forgejoOAuthSecret OAuth client secret for Forgejo OIDC integration
+ * @property bookstackOAuthSecret OAuth client secret for BookStack OIDC integration
+ */
 sealed interface TestEnvironment {
     val name: String
     val endpoints: ServiceEndpoints
@@ -204,6 +341,12 @@ sealed interface TestEnvironment {
     val forgejoOAuthSecret: String
     val bookstackOAuthSecret: String
 
+    /**
+     * Container environment: Tests run inside Docker network with direct service access.
+     *
+     * Used by CI/CD pipelines and when tests are executed as a containerized workload
+     * within the Datamancy stack. Services are accessed via internal Docker DNS names.
+     */
     data object Container : TestEnvironment {
         override val name = "container"
         override val endpoints = ServiceEndpoints.fromEnvironment()
@@ -217,6 +360,13 @@ sealed interface TestEnvironment {
         override val bookstackOAuthSecret = env("BOOKSTACK_OAUTH_SECRET") ?: ""
     }
 
+    /**
+     * Localhost environment: Tests run on developer machine with port-mapped access.
+     *
+     * Used during local development when tests execute outside Docker but need to
+     * interact with containerized services via localhost port mappings. Enables
+     * debugging with IDE breakpoints and faster iteration cycles.
+     */
     data object Localhost : TestEnvironment {
         override val name = "localhost"
         override val endpoints = ServiceEndpoints.forLocalhost()
@@ -232,6 +382,19 @@ sealed interface TestEnvironment {
     }
 
     companion object {
+        /**
+         * Automatically detects and returns the appropriate test environment.
+         *
+         * Detection logic:
+         * 1. If `/.dockerenv` exists → Container environment
+         * 2. If `TEST_ENV=container` → Container environment
+         * 3. Otherwise → Localhost environment (developer default)
+         *
+         * This allows tests to adapt seamlessly to their execution context without
+         * requiring manual configuration or command-line flags.
+         *
+         * @return The detected TestEnvironment instance (Container or Localhost)
+         */
         fun detect(): TestEnvironment = when {
             File("/.dockerenv").exists() -> Container
             env("TEST_ENV") == "container" -> Container

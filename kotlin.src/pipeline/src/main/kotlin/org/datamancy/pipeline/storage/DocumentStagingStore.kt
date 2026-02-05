@@ -14,32 +14,79 @@ import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
-
+/**
+ * Tracks the lifecycle of document embeddings from ingestion through vector storage.
+ *
+ * The staging pattern decouples data ingestion from embedding generation:
+ * - PENDING: Document staged, waiting for EmbeddingScheduler to process
+ * - IN_PROGRESS: Currently being embedded by the embedding service
+ * - COMPLETED: Vector stored in Qdrant, ready for BookStackWriter
+ * - FAILED: Embedding failed (transient errors retry via retryCount)
+ *
+ * This state machine enables fault-tolerant async processing where ingestion continues
+ * even when the embedding service (BGE-M3 model) is slow or temporarily unavailable.
+ */
 enum class EmbeddingStatus {
-    PENDING,      
-    IN_PROGRESS,  
-    COMPLETED,    
-    FAILED        
+    PENDING,
+    IN_PROGRESS,
+    COMPLETED,
+    FAILED
 }
 
-
+/**
+ * Represents a document in the staging buffer between ingestion and vector storage.
+ *
+ * Documents flow through the pipeline:
+ * 1. Data sources (RSS, CVE, Wikipedia) create documents with status=PENDING
+ * 2. EmbeddingScheduler polls for PENDING docs, generates vectors, marks COMPLETED
+ * 3. BookStackWriter polls for COMPLETED docs, publishes to BookStack knowledge base
+ *
+ * Large documents may be split into chunks (chunkIndex/totalChunks) to fit within
+ * the embedding model's 8192 token limit while maintaining traceability.
+ *
+ * @property id Unique identifier (SHA-256 hash of content for deduplication)
+ * @property source Origin system (e.g., "rss", "cve", "wikipedia")
+ * @property collection Qdrant collection name for vector storage routing
+ * @property text Raw document content (may be a chunk of larger document)
+ * @property metadata Source-specific fields (URL, timestamp, author, etc.)
+ * @property embeddingStatus Current processing state in the staging lifecycle
+ * @property chunkIndex 0-based chunk number if document was split (null if not chunked)
+ * @property totalChunks Total chunks for this document (null if not chunked)
+ * @property createdAt When document first entered staging (for FIFO ordering)
+ * @property updatedAt Last status change (for monitoring stuck documents)
+ * @property retryCount Failed embedding attempts (max 3 before permanent FAILED)
+ * @property errorMessage Last error from embedding service (for debugging)
+ * @property bookstackUrl URL of published BookStack page (set by BookStackWriter)
+ */
 data class StagedDocument(
-    val id: String,                          
-    val source: String,                      
-    val collection: String,                  
-    val text: String,                        
-    val metadata: Map<String, String>,       
-    val embeddingStatus: EmbeddingStatus,    
-    val chunkIndex: Int? = null,             
-    val totalChunks: Int? = null,            
-    val createdAt: Instant = Instant.now(),  
-    val updatedAt: Instant = Instant.now(),  
-    val retryCount: Int = 0,                 
-    val errorMessage: String? = null,        
-    val bookstackUrl: String? = null         
+    val id: String,
+    val source: String,
+    val collection: String,
+    val text: String,
+    val metadata: Map<String, String>,
+    val embeddingStatus: EmbeddingStatus,
+    val chunkIndex: Int? = null,
+    val totalChunks: Int? = null,
+    val createdAt: Instant = Instant.now(),
+    val updatedAt: Instant = Instant.now(),
+    val retryCount: Int = 0,
+    val errorMessage: String? = null,
+    val bookstackUrl: String? = null
 )
 
-
+/**
+ * PostgreSQL schema for the document staging table.
+ *
+ * This table acts as the central buffer in the Datamancy pipeline, enabling:
+ * - Persistent storage across pipeline restarts (unlike in-memory queues)
+ * - Queryable status tracking for monitoring and debugging
+ * - Transactional updates to prevent race conditions during status changes
+ * - Full-text search via PostgreSQL's tsvector (used by search-service)
+ *
+ * Indexes optimize common access patterns:
+ * - idx_staging_status_created: Fast PENDING document polling by EmbeddingScheduler
+ * - idx_staging_source: Per-source stats and debugging queries
+ */
 object DocumentStagingTable : Table("document_staging") {
     val id = varchar("id", 500)
     val sourceName = varchar("source", 255)
@@ -58,7 +105,36 @@ object DocumentStagingTable : Table("document_staging") {
     override val primaryKey = PrimaryKey(id)
 }
 
-
+/**
+ * PostgreSQL-backed staging buffer for fault-tolerant document processing.
+ *
+ * This store implements the staging pattern (ARCHITECTURE.md Flow 1) that decouples
+ * data ingestion from embedding generation. Documents are written to PostgreSQL
+ * immediately upon ingestion (status=PENDING), then processed asynchronously by
+ * downstream components:
+ *
+ * **Integration with Pipeline Components:**
+ * - Data sources (RSS, CVE, Wikipedia) → stageBatch() with status=PENDING
+ * - EmbeddingScheduler → getPendingBatch() → updateStatus(COMPLETED) after Qdrant write
+ * - BookStackWriter → getPendingForBookStack() → updateBookStackUrl() after publishing
+ * - Search-Service → Reads COMPLETED docs for hybrid search (vector + full-text)
+ *
+ * **Why PostgreSQL?**
+ * - Persistence: Survives pipeline crashes/restarts (vs. in-memory queues)
+ * - Queryability: Status tracking, per-source stats, debugging stuck documents
+ * - Transactions: ACID guarantees prevent duplicate processing during status changes
+ * - Full-text: Built-in tsvector enables keyword search (BM25 ranking in search-service)
+ * - Scalability: HikariCP connection pooling supports high-throughput concurrent access
+ *
+ * **Fault Tolerance:**
+ * - Retry logic: Failed embeddings retry up to 3 times via retryCount field
+ * - Idempotency: Documents use content-based IDs (SHA-256) to prevent duplicates
+ * - Graceful degradation: Ingestion continues even when embedding service is down
+ *
+ * @property jdbcUrl PostgreSQL connection string (e.g., jdbc:postgresql://db:5432/datamancy)
+ * @property user Database username (default: datamancer)
+ * @property dbPassword Database password
+ */
 class DocumentStagingStore(
     private val jdbcUrl: String,
     private val user: String = "datamancer",
@@ -111,15 +187,25 @@ class DocumentStagingStore(
         ensureTableExists()
     }
 
+    /**
+     * Creates table schema and performance indexes if not present.
+     *
+     * **Critical indexes for staging pattern:**
+     * - idx_staging_status_created: Partial index on PENDING docs ordered by creation time
+     *   Enables EmbeddingScheduler to efficiently poll oldest unprocessed documents (FIFO)
+     * - idx_staging_source: Per-source filtering for stats and debugging
+     *
+     * These indexes are PostgreSQL-specific optimizations. H2 (used in tests) silently
+     * skips them, allowing the same code to work in both production and test environments.
+     */
     private fun ensureTableExists() {
         try {
             transaction {
                 SchemaUtils.createMissingTablesAndColumns(DocumentStagingTable)
 
-                
-                
                 if (jdbcUrl.startsWith("jdbc:postgresql")) {
-                    
+                    // Partial index dramatically speeds up EmbeddingScheduler's getPendingBatch()
+                    // by only indexing the subset of rows it actually queries
                     exec("""
                         CREATE INDEX IF NOT EXISTS idx_staging_status_created
                         ON document_staging(embedding_status, created_at)
@@ -140,12 +226,27 @@ class DocumentStagingStore(
         }
     }
 
-    
+    /**
+     * Stages a single document for asynchronous embedding processing.
+     * Convenience wrapper around stageBatch() for single-document workflows.
+     */
     suspend fun stage(doc: StagedDocument) {
         stageBatch(listOf(doc))
     }
 
-    
+    /**
+     * Atomically inserts multiple documents into staging buffer.
+     *
+     * Used by data sources (RSS, CVE, Wikipedia) after deduplication to queue documents
+     * for embedding. Batch insertion reduces database round-trips for high-throughput
+     * ingestion (e.g., processing 10,000+ Wikipedia articles).
+     *
+     * Documents are inserted with status=PENDING, making them visible to EmbeddingScheduler's
+     * next polling cycle. Metadata is serialized to JSON for flexible schema evolution.
+     *
+     * @param docs Documents to stage (typically all have embeddingStatus=PENDING)
+     * @throws Exception if database write fails (caller should handle retry logic)
+     */
     suspend fun stageBatch(docs: List<StagedDocument>) {
         if (docs.isEmpty()) return
 
@@ -175,7 +276,20 @@ class DocumentStagingStore(
         }
     }
 
-    
+    /**
+     * Polls for oldest unprocessed documents awaiting embedding.
+     *
+     * Called by EmbeddingScheduler on a fixed interval (e.g., every 5 seconds) to fetch
+     * the next batch of work. Documents are returned in FIFO order (oldest first) to
+     * ensure fair processing across all data sources.
+     *
+     * The partial index idx_staging_status_created makes this query extremely fast even
+     * when the table contains millions of COMPLETED documents, since it only scans the
+     * subset of PENDING rows.
+     *
+     * @param limit Maximum documents to return (default 100 for embedding service rate limiting)
+     * @return List of PENDING documents, oldest first (empty if nothing to process)
+     */
     suspend fun getPendingBatch(limit: Int = 100): List<StagedDocument> {
         return try {
             transaction {
@@ -215,7 +329,22 @@ class DocumentStagingStore(
         }
     }
 
-    
+    /**
+     * Updates document processing status after embedding service interaction.
+     *
+     * Called by EmbeddingScheduler to record state transitions:
+     * - PENDING → IN_PROGRESS: Embedding request sent to BGE-M3 service
+     * - IN_PROGRESS → COMPLETED: Vector successfully stored in Qdrant
+     * - IN_PROGRESS → FAILED: Embedding service error (retry if count < 3)
+     *
+     * The updatedAt timestamp enables monitoring for stuck documents (e.g., if a document
+     * stays IN_PROGRESS for > 5 minutes, the embedding service may have crashed).
+     *
+     * @param id Document ID to update
+     * @param newStatus Target state (typically COMPLETED or FAILED)
+     * @param errorMessage Optional error details from embedding service (for debugging)
+     * @param incrementRetry True to increment retry counter on failure (max 3 attempts)
+     */
     suspend fun updateStatus(
         id: String,
         newStatus: EmbeddingStatus,
@@ -244,7 +373,16 @@ class DocumentStagingStore(
         }
     }
 
-    
+    /**
+     * Aggregates document counts by processing status for monitoring dashboards.
+     *
+     * Used by MonitoringServer to expose Prometheus metrics showing pipeline health:
+     * - High pending count: Embedding service may be bottleneck
+     * - Growing failed count: Investigate error messages for systemic issues
+     * - Low completed count: Pipeline may not be ingesting data
+     *
+     * @return Map of status → count (keys: "pending", "in_progress", "completed", "failed")
+     */
     suspend fun getStats(): Map<String, Long> {
         return try {
             transaction {
@@ -274,7 +412,18 @@ class DocumentStagingStore(
         }
     }
 
-    
+    /**
+     * Records BookStack publication URL after document is published to knowledge base.
+     *
+     * Called by BookStackWriter after successfully creating a page via BookStack API.
+     * The URL enables:
+     * - Users to view published documents in human-readable format
+     * - Monitoring dashboards to link from staging table to BookStack pages
+     * - Deduplication across pipeline restarts (skip if bookstackUrl already set)
+     *
+     * @param id Document ID
+     * @param bookstackUrl Full URL to BookStack page (e.g., https://docs.datamancy.net/books/123/page/456)
+     */
     suspend fun updateBookStackUrl(id: String, bookstackUrl: String) {
         try {
             transaction {
@@ -289,7 +438,17 @@ class DocumentStagingStore(
         }
     }
 
-    
+    /**
+     * Provides per-source status breakdown for debugging and capacity planning.
+     *
+     * Enables operators to identify which data sources are:
+     * - Producing most content (high completed count)
+     * - Experiencing errors (high failed count)
+     * - Bottlenecked (high pending count relative to ingestion rate)
+     *
+     * @param source Source identifier (e.g., "rss", "cve", "wikipedia")
+     * @return Map of status → count for this source only
+     */
     suspend fun getStatsBySource(source: String): Map<String, Long> {
         return try {
             transaction {
@@ -320,15 +479,32 @@ class DocumentStagingStore(
         }
     }
 
-    
+    /**
+     * Polls for embedded documents awaiting BookStack publication.
+     *
+     * Called by BookStackWriter on a fixed interval to fetch the next batch of documents
+     * that have been successfully embedded in Qdrant and are ready for human consumption
+     * in the knowledge base.
+     *
+     * Documents must have:
+     * - embeddingStatus = COMPLETED (vector stored in Qdrant)
+     * - retryCount < 3 (not permanently failed due to BookStack API errors)
+     *
+     * Note: The bookstackUrl field tracks publication separately from embedding status.
+     * This decoupling allows the same document to be searchable (via Qdrant) even if
+     * BookStack publishing fails.
+     *
+     * @param limit Maximum documents to return (default 50 for BookStack API rate limiting)
+     * @return List of COMPLETED documents ready for publication, oldest first
+     */
     suspend fun getPendingForBookStack(limit: Int = 50): List<StagedDocument> {
         return try {
             transaction {
                 DocumentStagingTable
                     .selectAll()
                     .where {
-                        
-                        
+                        // Documents must be embedded AND not exceed retry limit for BookStack writes
+                        // Note: bookstackUrl field tracks publication status independently
                         (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name) and
                         (DocumentStagingTable.retryCount less 3)
                     }

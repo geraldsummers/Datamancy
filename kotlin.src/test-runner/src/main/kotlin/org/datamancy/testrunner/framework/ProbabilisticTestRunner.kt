@@ -3,7 +3,56 @@ package org.datamancy.testrunner.framework
 import kotlin.math.sqrt
 import kotlin.system.measureTimeMillis
 
-
+/**
+ * Probabilistic test runner for performance and reliability testing under real-world conditions.
+ *
+ * ProbabilisticTestRunner handles flaky infrastructure gracefully by accepting that some operations
+ * may fail intermittently due to network latency, external service unavailability, or resource
+ * contention. Instead of binary pass/fail, tests define acceptable failure rates and performance
+ * thresholds.
+ *
+ * ## Why Probabilistic Testing Matters
+ * In distributed systems like Datamancy:
+ * - **External Dependencies**: RSS feeds, CVE databases, Wikipedia may be temporarily unreachable
+ * - **Network Latency**: Docker network, DNS resolution, and HTTP requests have variable latency
+ * - **Resource Contention**: Multiple services competing for CPU, memory, and I/O
+ * - **Eventual Consistency**: Vector databases, full-text indexes may lag behind writes
+ *
+ * Binary pass/fail tests would be too brittle. Probabilistic tests set realistic expectations.
+ *
+ * ## Test Types
+ * 1. **Probabilistic Success/Failure** (`probabilisticTest`):
+ *    - Run operation N times, accept up to X% failures
+ *    - Use case: Validating external data source reliability
+ *    - Example: "RSS feed fetch succeeds 80% of the time"
+ *
+ * 2. **Latency Testing** (`latencyTest`):
+ *    - Measure latency distribution (median, p95, mean, stddev)
+ *    - Use case: Validating search performance doesn't degrade
+ *    - Example: "Hybrid search p95 latency < 5 seconds"
+ *
+ * 3. **Throughput Testing** (`throughputTest`):
+ *    - Measure operations per second over time window
+ *    - Use case: Validating agent tools can handle concurrent requests
+ *    - Example: "Agent-tool-server handles 10+ requests/second"
+ *
+ * ## Integration with Broader Stack
+ * Probabilistic tests validate:
+ * - **Pipeline Reliability**: Can we fetch from RSS feeds consistently?
+ * - **Search Performance**: Is hybrid search fast enough for interactive use?
+ * - **Agent Tool Throughput**: Can tools handle concurrent LLM requests?
+ * - **Database Performance**: Do queries complete within acceptable time limits?
+ *
+ * ## How This Handles Flaky Infrastructure
+ * - **Acceptable Failure Rates**: Some failures are expected and tolerated
+ * - **Statistical Analysis**: Median/p95 more robust than single measurements
+ * - **Long-Running Tests**: Capture performance degradation over time
+ * - **Realistic Expectations**: Tests reflect production behavior, not ideal conditions
+ *
+ * @property environment Test environment configuration
+ * @property client ServiceClient for making HTTP requests
+ * @property httpClient Raw Ktor HTTP client
+ */
 class ProbabilisticTestRunner(
     val environment: TestEnvironment,
     val client: ServiceClient,
@@ -11,7 +60,37 @@ class ProbabilisticTestRunner(
 ) {
     private val results = mutableListOf<ProbabilisticTestResultBase>()
 
-    
+    /**
+     * Runs a probabilistic test that accepts a defined failure rate.
+     *
+     * This is critical for testing operations that interact with unreliable external systems
+     * or depend on eventually-consistent infrastructure. The test runs multiple trials and
+     * passes if the actual failure rate is within acceptable bounds.
+     *
+     * ## Use Cases
+     * - **External Data Sources**: RSS feeds, CVE APIs may be temporarily unavailable
+     * - **Network Operations**: Docker DNS, service discovery may have transient failures
+     * - **Race Conditions**: Multi-service workflows may occasionally timeout
+     * - **Resource Limits**: System under load may throttle some requests
+     *
+     * ## Example
+     * ```kotlin
+     * probabilisticTest(
+     *     name = "RSS feed fetch reliability",
+     *     trials = 20,
+     *     acceptableFailureRate = 0.2  // Accept up to 20% failures
+     * ) {
+     *     val result = client.triggerFetch("rss")
+     *     result.success  // Return true/false for each trial
+     * }
+     * ```
+     *
+     * @param name Test description
+     * @param trials Number of times to run the operation
+     * @param acceptableFailureRate Maximum acceptable failure rate (0.0-1.0)
+     * @param block Test operation that returns Boolean (true = success, false = failure)
+     * @return ProbabilisticTestResultSuccess with success/failure counts and pass/fail status
+     */
     suspend fun probabilisticTest(
         name: String,
         trials: Int = 10,
@@ -69,7 +148,46 @@ class ProbabilisticTestRunner(
         return result
     }
 
-    
+    /**
+     * Measures latency distribution for operations to detect performance degradation.
+     *
+     * Latency tests validate that operations complete within acceptable time bounds under
+     * realistic conditions. By measuring median and p95 (95th percentile) latencies, tests
+     * can detect performance regressions while tolerating occasional slow requests.
+     *
+     * ## Why Latency Distribution Matters
+     * - **Median**: Represents typical performance, resilient to outliers
+     * - **P95**: Captures worst-case (but not extremely rare) latencies
+     * - **Mean**: Overall average, useful for capacity planning
+     * - **StdDev**: Measures consistency/variability of performance
+     *
+     * ## Use Cases
+     * - **Search Performance**: "Hybrid search p95 < 5 seconds"
+     * - **Agent Tools**: "Tool execution median < 2 seconds"
+     * - **Pipeline Operations**: "Document embedding p95 < 10 seconds"
+     * - **Database Queries**: "PostgreSQL full-text search p95 < 1 second"
+     *
+     * ## Example
+     * ```kotlin
+     * latencyTest(
+     *     name = "Search service hybrid search latency",
+     *     trials = 50,
+     *     maxMedianLatency = 2000,  // 2 seconds
+     *     maxP95Latency = 5000      // 5 seconds
+     * ) {
+     *     val start = System.currentTimeMillis()
+     *     client.search("kubernetes documentation")
+     *     System.currentTimeMillis() - start  // Return latency in ms
+     * }
+     * ```
+     *
+     * @param name Test description
+     * @param trials Number of measurements to collect
+     * @param maxMedianLatency Maximum acceptable median latency in milliseconds
+     * @param maxP95Latency Maximum acceptable p95 latency in milliseconds
+     * @param block Operation to measure (returns latency in milliseconds)
+     * @return LatencyTestResult with min, max, mean, median, p95, stddev
+     */
     suspend fun latencyTest(
         name: String,
         trials: Int = 50,
@@ -127,7 +245,37 @@ class ProbabilisticTestRunner(
         return result
     }
 
-    
+    /**
+     * Measures throughput (operations per second) over a time window.
+     *
+     * Throughput tests validate that services can handle sustained load and concurrent
+     * requests. This is critical for services like agent-tool-server that may receive
+     * bursts of concurrent LLM requests or pipeline components processing high volumes.
+     *
+     * ## Use Cases
+     * - **Agent Tools**: "Handle 10+ tool calls per second"
+     * - **Search Service**: "Process 5+ search queries per second"
+     * - **Pipeline**: "Embed 2+ documents per second"
+     * - **API Endpoints**: "Handle 20+ health check requests per second"
+     *
+     * ## Example
+     * ```kotlin
+     * throughputTest(
+     *     name = "Agent-tool-server call-tool throughput",
+     *     durationSeconds = 30,
+     *     minOpsPerSecond = 10.0
+     * ) {
+     *     client.callTool("semantic_search", mapOf("query" to "test"))
+     *     // Method returns void, just executes as many times as possible
+     * }
+     * ```
+     *
+     * @param name Test description
+     * @param durationSeconds How long to run the test
+     * @param minOpsPerSecond Minimum acceptable operations per second
+     * @param block Operation to execute repeatedly (no return value)
+     * @return ThroughputTestResult with ops/second, total operations, error rate
+     */
     suspend fun throughputTest(
         name: String,
         durationSeconds: Int = 30,

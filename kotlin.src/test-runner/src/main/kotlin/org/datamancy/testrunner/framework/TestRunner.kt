@@ -3,6 +3,44 @@ package org.datamancy.testrunner.framework
 import kotlinx.coroutines.*
 import kotlin.system.measureTimeMillis
 
+/**
+ * Core test execution engine and DSL for integration testing.
+ *
+ * TestRunner provides a structured DSL for writing integration tests that validate
+ * cross-service interactions in the Datamancy stack. It orchestrates test execution,
+ * manages authentication helpers, and collects results for reporting.
+ *
+ * ## Test Structure
+ * Tests are organized hierarchically:
+ * - **Suite**: Named group of related tests (e.g., "Authentication Tests")
+ * - **Test**: Individual test case with setup, execution, and assertions
+ * - **Context**: Test execution environment with helper methods and assertions
+ *
+ * ## Cross-Service Integration Testing
+ * TestRunner enables tests that span multiple services:
+ * - **Authentication Flows**: LDAP → Authelia → OIDC → Services
+ * - **Data Pipelines**: Pipeline → PostgreSQL → Qdrant → Search-Service → BookStack
+ * - **Agent Tools**: Agent-Tool-Server → All Services (LLM-driven workflows)
+ * - **SSO Validation**: Single Authelia session accessing multiple applications
+ *
+ * ## Helper Orchestration
+ * TestRunner pre-configures helpers for common operations:
+ * - `ldapHelper`: Create/delete ephemeral users in OpenLDAP
+ * - `auth`: Authenticate with Authelia, manage sessions
+ * - `oidc`: Perform OAuth 2.0 flows, validate tokens
+ * - `tokens`: Acquire service-specific API tokens
+ * - `client`: Make HTTP requests to services
+ *
+ * ## Why This DSL Exists
+ * - **Readability**: Tests read like specifications, not HTTP boilerplate
+ * - **Isolation**: Each test gets fresh context, preventing state leaks
+ * - **Error Handling**: Exceptions converted to test failures with clear messages
+ * - **Timing**: Automatic duration tracking for performance analysis
+ *
+ * @property environment Detected test environment (Container or Localhost)
+ * @property client ServiceClient for HTTP requests to Datamancy services
+ * @property httpClient Raw Ktor HTTP client for lower-level operations
+ */
 class TestRunner(
     val environment: TestEnvironment,
     val client: ServiceClient,
@@ -11,7 +49,13 @@ class TestRunner(
     val env get() = environment
     val endpoints get() = environment.endpoints
 
-    
+    /**
+     * LDAP helper for ephemeral user creation and management.
+     *
+     * Only initialized if LDAP endpoint is configured and admin password is available.
+     * Tests use this to create isolated users for authentication flow validation.
+     * Null if LDAP is not accessible (e.g., testing only HTTP services).
+     */
     val ldapHelper: LdapHelper? = environment.endpoints.ldap?.let { ldapUrl ->
         if (environment.ldapAdminPassword.isNotEmpty()) {
             LdapHelper(

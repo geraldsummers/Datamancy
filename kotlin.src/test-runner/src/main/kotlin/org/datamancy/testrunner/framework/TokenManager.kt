@@ -6,7 +6,35 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.json.*
 
-
+/**
+ * Service-specific token acquisition and management for authenticated API testing.
+ *
+ * TokenManager handles the diverse authentication mechanisms used by different services
+ * in the Datamancy stack. While LDAP/Authelia/OIDC provide SSO, many services also
+ * offer API tokens or service accounts for programmatic access. Tests use these tokens
+ * to validate API functionality and service-to-service communication.
+ *
+ * ## Why Service-Specific Tokens Are Needed
+ * - **API Testing**: REST APIs require bearer tokens, not browser session cookies
+ * - **Service Accounts**: Some services (Grafana, Forgejo) support non-user API tokens
+ * - **Pre-Generated Secrets**: BookStack/Home Assistant require manually created tokens
+ * - **Different Auth Flows**: Mastodon uses OAuth, Seafile uses custom token endpoints
+ *
+ * ## Integration with Broader Stack
+ * Tokens acquired here enable tests to:
+ * - Query Grafana dashboards and data sources
+ * - Create Forgejo repositories and access Git APIs
+ * - Post to Mastodon and test federation features
+ * - Query BookStack API to validate pipeline publishing
+ * - Test service integrations that use API tokens instead of user sessions
+ *
+ * ## Token Storage and Reuse
+ * Tokens are cached in memory to avoid re-authentication for multiple tests.
+ * Each service has its own token/cookie storage to prevent cross-contamination.
+ *
+ * @property client Ktor HTTP client for making authentication requests
+ * @property endpoints Service endpoint configuration (URLs for all services)
+ */
 class TokenManager(
     private val client: HttpClient,
     private val endpoints: ServiceEndpoints
@@ -15,11 +43,22 @@ class TokenManager(
     private val cookies = mutableMapOf<String, List<Cookie>>()
     private val json = Json { ignoreUnknownKeys = true }
 
-    
-    
-    
-
-    
+    /**
+     * Acquires a Grafana service account token for API access.
+     *
+     * Grafana uses service accounts for programmatic API access, separate from user sessions.
+     * This method creates a temporary service account and generates an API token.
+     *
+     * Tests use this to:
+     * - Query Grafana dashboards and validate visualizations
+     * - Verify metrics are being collected from Datamancy services
+     * - Test alerting rules and notification channels
+     * - Validate OIDC integration doesn't break API access
+     *
+     * @param username Grafana admin username for creating service account (default: "admin")
+     * @param password Grafana admin password
+     * @return Result.success with API token, or Result.failure with error
+     */
     suspend fun acquireGrafanaToken(username: String = "admin", password: String): Result<String> {
         return try {
             

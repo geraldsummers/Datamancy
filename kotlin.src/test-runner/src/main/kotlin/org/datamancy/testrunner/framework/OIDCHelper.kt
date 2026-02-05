@@ -8,13 +8,66 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import java.util.*
 
-
+/**
+ * OAuth 2.0 / OpenID Connect flow helper for testing token-based authentication.
+ *
+ * OIDCHelper validates that Authelia correctly implements the OIDC standard for
+ * services that integrate via OAuth instead of session-based SSO. This is critical
+ * for services like Open-WebUI, Grafana, Mastodon, Forgejo, and BookStack that
+ * use OIDC as their authentication mechanism.
+ *
+ * ## Authentication Cascade: OIDC Layer
+ * OIDC sits atop the Authelia session layer:
+ * 1. **LDAP → Authelia Session**: User authenticates with username/password
+ * 2. **Authelia Session → Authorization Code**: User authorizes OIDC client
+ * 3. **Authorization Code → Tokens**: Client exchanges code for access/ID/refresh tokens
+ * 4. **Tokens → Service Access**: Client uses tokens to access protected resources
+ *
+ * ## Why OIDC Integration Matters
+ * - **Standardized Authentication**: Services don't need custom Authelia integration
+ * - **Token-Based Access**: Stateless authentication without session cookies
+ * - **User Info Claims**: Services extract user details (email, groups) from ID token
+ * - **SSO Experience**: Users already logged into Authelia skip re-authentication
+ *
+ * ## Cross-Service Testing
+ * Tests validate:
+ * - Authorization code flow works end-to-end
+ * - Different OIDC clients (Open-WebUI, Grafana, etc.) can obtain tokens
+ * - Token refresh works without re-authentication
+ * - ID token contains correct user claims
+ * - Expired tokens are rejected properly
+ *
+ * @property autheliaUrl Authelia endpoint for OIDC operations
+ * @property client Ktor HTTP client for making requests
+ * @property auth AuthHelper for establishing Authelia sessions (required for OIDC flows)
+ */
 class OIDCHelper(
     private val autheliaUrl: String,
     private val client: HttpClient,
     private val auth: AuthHelper
 ) {
-    
+    /**
+     * Performs the complete OAuth 2.0 authorization code flow in one operation.
+     *
+     * This orchestrates the full OIDC flow that services like Open-WebUI, Grafana, and
+     * Mastodon use for user authentication:
+     * 1. User authenticates with Authelia (establishes session)
+     * 2. Authorization request redirects to Authelia with client_id and redirect_uri
+     * 3. Authelia validates session and returns authorization code
+     * 4. Client exchanges code for tokens (access_token, id_token, refresh_token)
+     *
+     * Tests use this to validate:
+     * - The entire flow works end-to-end without manual browser interaction
+     * - Different OIDC clients can authenticate users
+     * - Tokens contain expected claims and can access protected resources
+     *
+     * @param clientId OIDC client identifier (e.g., "open-webui", "grafana")
+     * @param clientSecret OIDC client secret for token exchange
+     * @param redirectUri OAuth redirect URI (must match registered client config)
+     * @param scope OAuth scopes requested (default: "openid profile email")
+     * @param user TestUser with credentials for authentication
+     * @return OIDCTokens containing access_token, id_token, and refresh_token
+     */
     suspend fun performFullFlow(
         clientId: String,
         clientSecret: String,

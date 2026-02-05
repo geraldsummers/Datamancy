@@ -6,7 +6,38 @@ import javax.naming.directory.*
 import javax.naming.ldap.InitialLdapContext
 import kotlin.random.Random
 
-
+/**
+ * LDAP user lifecycle management for testing authentication flows.
+ *
+ * LdapHelper manages the creation and deletion of test users in OpenLDAP, which is
+ * the authoritative user directory for the entire Datamancy stack. All authentication
+ * flows ultimately validate credentials against LDAP.
+ *
+ * ## Authentication Cascade Foundation
+ * LDAP is the first link in the authentication chain:
+ * - **LDAP**: User accounts and group memberships (authoritative source)
+ * - **Authelia**: Validates credentials via LDAP bind operations
+ * - **OIDC**: Issues tokens based on Authelia sessions (which validated against LDAP)
+ * - **Services**: Trust Authelia sessions or OIDC tokens
+ *
+ * ## Why Ephemeral Users Are Critical
+ * Tests create temporary users to ensure:
+ * - **Isolation**: Each test has its own user(s), no shared state
+ * - **Cleanup**: No accumulation of test accounts in LDAP over time
+ * - **Repeatability**: Tests can run multiple times without conflicts
+ * - **Real Workflows**: Tests use actual LDAP operations, not mocks
+ *
+ * ## Integration with Broader Stack
+ * Users created here can:
+ * - Authenticate with Authelia (via AuthHelper)
+ * - Obtain OIDC tokens (via OIDCHelper)
+ * - Access services requiring specific group memberships
+ * - Test cross-service SSO (one LDAP user, multiple service logins)
+ *
+ * @property ldapUrl OpenLDAP server URL (e.g., "ldap://ldap:389")
+ * @property adminDn LDAP admin distinguished name for management operations
+ * @property adminPassword LDAP admin password for creating/deleting users
+ */
 class LdapHelper(
     private val ldapUrl: String,
     private val adminDn: String = "cn=admin,dc=datamancy,dc=net",
@@ -15,7 +46,23 @@ class LdapHelper(
     private val baseDn = "dc=datamancy,dc=net"
     private val usersDn = "ou=users,$baseDn"
 
-    
+    /**
+     * Creates a test user in LDAP with specified credentials and group memberships.
+     *
+     * The user is created as an `inetOrgPerson` entry under `ou=users,dc=datamancy,dc=net`
+     * with all required attributes for Authelia authentication. Group memberships are
+     * established by adding the user's DN to the specified LDAP groups.
+     *
+     * Tests use this to:
+     * - Create users for authentication flow validation
+     * - Test group-based access control (e.g., "admins" vs "users" groups)
+     * - Validate LDAP bind operations work correctly
+     *
+     * @param username LDAP username (uid attribute)
+     * @param password User password (stored as userPassword attribute)
+     * @param groups LDAP groups to add user to (default: ["users"])
+     * @return Result.success with TestUser, or Result.failure with error
+     */
     fun createTestUser(username: String, password: String, groups: List<String> = listOf("users")): Result<TestUser> {
         return try {
             val ctx = getLdapContext()
@@ -75,7 +122,22 @@ class LdapHelper(
         }
     }
 
-    
+    /**
+     * Creates an ephemeral user with auto-generated username and secure password.
+     *
+     * This is the primary method for test isolation. The username includes a timestamp
+     * and random number to ensure uniqueness even with parallel test execution. The
+     * password is cryptographically secure and immediately discarded after authentication.
+     *
+     * ## Why This Pattern Works
+     * - **No Conflicts**: Timestamp + random ensures uniqueness across parallel tests
+     * - **Traceability**: Username includes timestamp for debugging test failures
+     * - **Security**: Password never reused, generated fresh each time
+     * - **Cleanup**: Caller can identify ephemeral users by "test-" prefix
+     *
+     * @param groups LDAP groups to assign the user to
+     * @return Result.success with TestUser (including generated username and password)
+     */
     fun createEphemeralUser(groups: List<String> = listOf("users")): Result<TestUser> {
         val timestamp = System.currentTimeMillis()
         val random = Random.nextInt(1000, 9999)

@@ -15,6 +15,22 @@ import kotlinx.serialization.json.Json
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * Search Gateway Service - Unified hybrid search entry point for the Datamancy stack.
+ *
+ * This service provides RAG (Retrieval-Augmented Generation) capabilities for LLMs by combining:
+ * - **Vector Search** (Qdrant) - Semantic similarity using cosine distance on BGE-M3 embeddings
+ * - **Full-Text Search** (PostgreSQL) - Keyword precision using PostgreSQL's ts_rank on tsvector
+ * - **Hybrid Search** - Reciprocal Rank Fusion (RRF) algorithm to merge both result sets
+ *
+ * The service integrates with three external dependencies:
+ * 1. Qdrant (gRPC:6334) - Vector database for semantic search
+ * 2. PostgreSQL (JDBC:5432) - document_staging table for full-text search
+ * 3. Embedding Service (HTTP:8000) - BGE-M3 model for query vectorization
+ *
+ * Used by agent-tool-server's semantic_search tool to provide LLMs with contextual knowledge
+ * from the entire Datamancy knowledge base (RSS, CVE, Wikipedia, legal docs, etc.).
+ */
 fun main() {
     logger.info { "Starting Search Gateway Service..." }
 
@@ -42,15 +58,38 @@ fun main() {
     server.start(wait = true)
 }
 
+/**
+ * Request model for hybrid search operations.
+ *
+ * @property query The search query text. Will be vectorized by the Embedding Service for semantic search
+ *                 and used directly for PostgreSQL full-text search.
+ * @property collections Target collections to search (e.g., "rss_feeds", "cve", "wikipedia").
+ *                      Use ["*"] to search all available collections. Each collection maps to both
+ *                      a Qdrant collection and a PostgreSQL collection filter.
+ * @property mode Search mode: "vector" (semantic only), "bm25" (full-text only), or "hybrid" (RRF fusion).
+ *                Hybrid mode provides the best results by combining semantic understanding with keyword precision.
+ * @property limit Maximum number of results to return. In hybrid mode, each backend receives limit/2 to balance
+ *                 representation before RRF fusion.
+ * @property audience Filter results by intended audience: "human" (articles, docs), "agent" (code, APIs),
+ *                    or "both" (no filtering). This enables LLMs to request only agent-friendly content.
+ */
 @Serializable
 data class SearchRequest(
     val query: String,
     val collections: List<String> = listOf("*"),
-    val mode: String = "hybrid", 
+    val mode: String = "hybrid",
     val limit: Int = 20,
-    val audience: String = "both" 
+    val audience: String = "both"
 )
 
+/**
+ * Response model containing ranked search results.
+ *
+ * @property results Ordered list of search results, ranked by relevance score.
+ *                   In hybrid mode, scores are RRF fusion scores combining vector and full-text ranks.
+ * @property total Number of results returned after audience filtering.
+ * @property mode The search mode used ("vector", "bm25", or "hybrid").
+ */
 @Serializable
 data class SearchResponse(
     val results: List<SearchResult>,
@@ -58,6 +97,12 @@ data class SearchResponse(
     val mode: String
 )
 
+/**
+ * Sealed class hierarchy for structured error responses.
+ *
+ * Used to provide detailed error information to clients when search operations fail
+ * due to validation issues, external service failures, or timeouts.
+ */
 @Serializable
 sealed class SearchError {
     @Serializable
@@ -71,8 +116,20 @@ sealed class SearchError {
 }
 
 
+/**
+ * Validates search request parameters to prevent injection attacks and ensure system stability.
+ *
+ * Performs comprehensive validation:
+ * - Query length and character sanitization (prevent control character injection)
+ * - Collection name validation (alphanumeric + wildcards only, max 50 collections)
+ * - Mode validation (vector, bm25, or hybrid only)
+ * - Limit bounds checking (1-1000 to prevent resource exhaustion)
+ * - Audience validation (human, agent, or both)
+ *
+ * @return ValidationError if any parameter is invalid, null if validation passes
+ */
 fun validateSearchRequest(request: SearchRequest): SearchError.ValidationError? {
-    
+    // Query validation - prevent excessively long queries and control character injection
     if (request.query.length > 1000) {
         return SearchError.ValidationError("query", "Query must not exceed 1000 characters")
     }
@@ -80,7 +137,7 @@ fun validateSearchRequest(request: SearchRequest): SearchError.ValidationError? 
         return SearchError.ValidationError("query", "Query contains invalid control characters")
     }
 
-    
+    // Collection validation - prevent excessive parallel searches and name injection
     if (request.collections.size > 50) {
         return SearchError.ValidationError("collections", "Cannot specify more than 50 collections")
     }
@@ -93,18 +150,18 @@ fun validateSearchRequest(request: SearchRequest): SearchError.ValidationError? 
         }
     }
 
-    
+    // Mode validation - only allow supported search strategies
     val validModes = setOf("vector", "bm25", "hybrid")
     if (request.mode !in validModes) {
         return SearchError.ValidationError("mode", "Mode must be one of: ${validModes.joinToString(", ")}")
     }
 
-    
+    // Limit validation - prevent resource exhaustion from excessive result sets
     if (request.limit < 1 || request.limit > 1000) {
         return SearchError.ValidationError("limit", "Limit must be between 1 and 1000")
     }
 
-    
+    // Audience validation - ensure only supported content filters are used
     val validAudiences = setOf("human", "agent", "both")
     if (request.audience !in validAudiences) {
         return SearchError.ValidationError("audience", "Audience must be one of: ${validAudiences.joinToString(", ")}")
@@ -113,6 +170,20 @@ fun validateSearchRequest(request: SearchRequest): SearchError.ValidationError? 
     return null
 }
 
+/**
+ * Configures the Ktor HTTP server with REST API endpoints for search operations.
+ *
+ * Provides three endpoints:
+ * - GET / - Service information and optional HTML UI
+ * - GET /health - Health check for monitoring (Prometheus, load balancers)
+ * - POST /search - Main search endpoint with request validation, error handling, and audience filtering
+ * - GET /collections - List available collections from Qdrant
+ *
+ * The /search endpoint integrates with SearchGateway to perform hybrid search and applies
+ * audience-based filtering to results based on inferred content capabilities.
+ *
+ * @param gateway The SearchGateway instance that handles Qdrant, PostgreSQL, and Embedding Service integration
+ */
 fun Application.configureServer(gateway: SearchGateway) {
     install(ContentNegotiation) {
         json(Json {
@@ -141,7 +212,7 @@ fun Application.configureServer(gateway: SearchGateway) {
         post("/search") {
             val request = call.receive<SearchRequest>()
 
-            
+            // Basic empty query check before validation
             if (request.query.isBlank()) {
                 call.respond(
                     HttpStatusCode.BadRequest,
@@ -150,7 +221,7 @@ fun Application.configureServer(gateway: SearchGateway) {
                 return@post
             }
 
-            
+            // Comprehensive validation to prevent injection attacks and resource exhaustion
             validateSearchRequest(request)?.let { validationError ->
                 logger.warn { "Validation failed for search request: ${validationError.field} - ${validationError.reason}" }
                 call.respond(
@@ -165,6 +236,12 @@ fun Application.configureServer(gateway: SearchGateway) {
             }
 
             try {
+                // Delegate to SearchGateway for hybrid search execution
+                // This will:
+                // 1. Vectorize query via Embedding Service (BGE-M3)
+                // 2. Search Qdrant (semantic similarity via cosine distance)
+                // 3. Search PostgreSQL (full-text ranking via ts_rank)
+                // 4. Merge results with Reciprocal Rank Fusion (RRF) algorithm
                 val results = gateway.search(
                     query = request.query,
                     collections = request.collections,
@@ -172,11 +249,13 @@ fun Application.configureServer(gateway: SearchGateway) {
                     limit = request.limit
                 )
 
-                
+                // Apply audience filtering based on inferred content capabilities
+                // This enables LLMs to request only agent-friendly content (code, APIs, structured data)
+                // while human users can filter for articles, documentation, and readable content
                 val filteredResults = when (request.audience) {
                     "human" -> results.filter { it.capabilities["humanFriendly"] == true }
                     "agent" -> results.filter { it.capabilities["agentFriendly"] == true }
-                    else -> results 
+                    else -> results // "both" returns all results without filtering
                 }
 
                 call.respond(SearchResponse(
@@ -185,28 +264,28 @@ fun Application.configureServer(gateway: SearchGateway) {
                     mode = request.mode
                 ))
             } catch (e: java.sql.SQLException) {
-                
+                // PostgreSQL connection failure - full-text search unavailable
                 logger.error(e) { "Database error during search - query: '${request.query}', collections: ${request.collections}, mode: ${request.mode}" }
                 call.respond(
                     HttpStatusCode.InternalServerError,
                     mapOf("error" to "Database service error", "service" to "postgresql")
                 )
             } catch (e: java.io.IOException) {
-                
+                // Qdrant or Embedding Service connection failure - vector search unavailable
                 logger.error(e) { "IO error during search - query: '${request.query}', collections: ${request.collections}, mode: ${request.mode}" }
                 call.respond(
                     HttpStatusCode.BadGateway,
                     mapOf("error" to "External service unavailable", "service" to "vector-store")
                 )
             } catch (e: java.net.SocketTimeoutException) {
-                
+                // Timeout from Qdrant, PostgreSQL, or Embedding Service (30s read timeout)
                 logger.error(e) { "Timeout during search - query: '${request.query}', collections: ${request.collections}, mode: ${request.mode}" }
                 call.respond(
                     HttpStatusCode.GatewayTimeout,
                     mapOf("error" to "Search operation timed out")
                 )
             } catch (e: Exception) {
-                
+                // Catch-all for unexpected errors (should never happen with proper validation)
                 logger.error(e) { "Unexpected error during search - query: '${request.query}', collections: ${request.collections}, mode: ${request.mode}, error: ${e::class.simpleName}" }
                 call.respond(
                     HttpStatusCode.InternalServerError,

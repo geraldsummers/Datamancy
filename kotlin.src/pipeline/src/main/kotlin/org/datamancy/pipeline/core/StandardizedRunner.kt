@@ -12,26 +12,67 @@ import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
-
+/**
+ * Production runner for StandardizedSource implementations with scheduling and staging integration.
+ *
+ * StandardizedRunner orchestrates the complete ingestion workflow:
+ * 1. SourceScheduler triggers runs based on resync/backfill strategy
+ * 2. Source fetches items with run metadata
+ * 3. DeduplicationStore filters out previously seen content
+ * 4. Chunker splits large documents (if needsChunking() is true)
+ * 5. DocumentStagingStore persists to PostgreSQL with status=PENDING
+ * 6. EmbeddingScheduler (separate process) polls for PENDING docs
+ * 7. Embedder generates vectors via Embedding Service
+ * 8. QdrantSink stores vectors and updates status=COMPLETED
+ * 9. BookStackWriter (separate process) polls for COMPLETED docs
+ *
+ * Integration points:
+ * - PostgreSQL (document_staging table): Staging buffer between ingestion and embedding
+ * - DeduplicationStore: Content hash check prevents re-ingesting unchanged documents
+ * - SourceScheduler: Cron-like scheduling with metadata tracking for idempotent reruns
+ * - Embedding Service: Async processing decouples ingestion speed from embedding latency
+ * - Qdrant: Collection name maps to source type (rss_feeds, cve, wikipedia, etc.)
+ *
+ * Design rationale:
+ * - Batch size of 100 balances PostgreSQL insert performance vs memory usage
+ * - status=PENDING enables fault-tolerant async processing (EmbeddingScheduler can restart)
+ * - Chunking happens before staging to preserve chunk metadata for search results
+ * - Bandwidth metrics track ingestion throughput for monitoring dashboards (Grafana)
+ */
 class StandardizedRunner<T : Chunkable>(
     private val source: StandardizedSource<T>,
-    private val collectionName: String,              
-    private val stagingStore: DocumentStagingStore,  
+    private val collectionName: String,
+    private val stagingStore: DocumentStagingStore,
     private val dedupStore: DeduplicationStore,
     private val metadataStore: SourceMetadataStore,
-    private val scheduler: SourceScheduler? = null     
+    private val scheduler: SourceScheduler? = null
 ) {
     private val sourceName = source.name
 
-    
+    /**
+     * Executes the source with scheduling, deduplication, chunking, and staging.
+     *
+     * Run phases:
+     * 1. Scheduler determines run type (INITIAL_PULL, RESYNC, BACKFILL)
+     * 2. Source.fetchForRun() called with run metadata
+     * 3. Items buffered (100) for efficient batch processing
+     * 4. Each item checked for duplicates (DeduplicationStore)
+     * 5. Non-duplicate items chunked if needed (Chunker)
+     * 6. Chunks converted to StagedDocument (status=PENDING)
+     * 7. Batches written to PostgreSQL (stagingStore.stageBatch)
+     * 8. Metrics recorded (items processed, failed, bandwidth)
+     *
+     * Failure handling:
+     * - Individual item failures logged, don't stop run
+     * - Run-level failures recorded in SourceMetadataStore for alerting
+     * - Scheduler automatically retries failed runs (exponential backoff)
+     */
     suspend fun run() {
-        
         val actualScheduler = scheduler ?: SourceScheduler(
             sourceName = sourceName,
             resyncStrategy = source.resyncStrategy()
         )
 
-        
         actualScheduler.schedule { metadata ->
 
             var processed = 0
@@ -103,9 +144,22 @@ class StandardizedRunner<T : Chunkable>(
         }
     }
 
-    
+    /**
+     * Converts a Chunkable item to StagedDocument(s) after deduplication check.
+     *
+     * Deduplication logic:
+     * - Uses item.getId() to generate content hash
+     * - DeduplicationStore checks PostgreSQL for existing hash
+     * - If duplicate found, returns empty list (item skipped)
+     * - If new, marks hash in DeduplicationStore to prevent future duplicates
+     *
+     * Chunking decision:
+     * - If source.needsChunking() is false: Single StagedDocument created
+     * - If source.needsChunking() is true: Multiple StagedDocuments (one per chunk)
+     *
+     * @return List of StagedDocument (empty if duplicate, 1+ if new)
+     */
     private suspend fun processItemToStaging(item: T, dedupStore: DeduplicationStore): List<StagedDocument> {
-        
         val itemId = item.getId()
         val hash = itemId.hashCode().toString()
 
@@ -114,7 +168,6 @@ class StandardizedRunner<T : Chunkable>(
             return emptyList()
         }
 
-        
         if (source.needsChunking()) {
             return processWithChunkingToStaging(item)
         } else {
@@ -122,7 +175,18 @@ class StandardizedRunner<T : Chunkable>(
         }
     }
 
-    
+    /**
+     * Converts a non-chunked item to a StagedDocument ready for PostgreSQL.
+     *
+     * Field mappings:
+     * - id: From item.getId() (must be globally unique)
+     * - source: Source name for filtering in Search-Service
+     * - collection: Qdrant collection name (e.g., "rss_feeds", "cve")
+     * - text: Plain text for embedding generation
+     * - metadata: Preserved for search result enrichment
+     * - embeddingStatus: PENDING signals EmbeddingScheduler to process
+     * - chunkIndex/totalChunks: null for non-chunked items
+     */
     private suspend fun processSingleToStaging(item: T): StagedDocument {
         val text = item.toText()
 
@@ -142,13 +206,31 @@ class StandardizedRunner<T : Chunkable>(
         )
     }
 
-    
+    /**
+     * Splits a large item into multiple StagedDocuments using the source's Chunker.
+     *
+     * Chunking process:
+     * 1. Extract full text via item.toText()
+     * 2. Pass to Chunker (default: 8192 tokens with 20% overlap)
+     * 3. Create ChunkedItem wrapper for each chunk
+     * 4. Convert to StagedDocument with chunk metadata
+     *
+     * Chunk metadata:
+     * - id: "{originalId}-chunk-{index}" for unique identification
+     * - chunkIndex/totalChunks: Enables reassembly in Search-Service
+     * - startPos/endPos: Character positions in original text
+     * - is_chunked=true: Signals to downstream processors
+     *
+     * Integration with Embedding Service:
+     * - Each chunk embedded independently (respects 8192 token limit)
+     * - 20% overlap ensures semantic continuity across boundaries
+     * - Metadata preserved so LLM knows chunk context
+     */
     private suspend fun processWithChunkingToStaging(item: T): List<StagedDocument> {
         val text = item.toText()
         val chunker = source.chunker()
         val chunks = chunker.process(text)
 
-        
         return chunks.map { chunk ->
             val chunkText = chunk.text
 

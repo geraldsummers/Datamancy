@@ -2,12 +2,41 @@ package org.datamancy.pipeline.core
 
 import org.datamancy.pipeline.sinks.BookStackDocument
 
-
+/**
+ * Interface for items that can be published to BookStack knowledge base.
+ *
+ * Integration points:
+ * - BookStackWriter: Polls for COMPLETED documents and publishes via BookStack API
+ * - BookStack API: Creates pages with HTML content in book/chapter hierarchy
+ * - Search-Service: BookStack pages indexed alongside raw documents for hybrid search
+ *
+ * Design rationale:
+ * - Separate interface from Chunkable because BookStack needs formatted HTML, not plain text
+ * - Allows sources to define custom HTML rendering (metadata boxes, lists, formatting)
+ * - BookStackDocument contains book/chapter/page structure for organizational hierarchy
+ */
 interface BookStackTransformable {
+    /**
+     * Converts item to BookStack page structure with HTML content.
+     *
+     * @return BookStackDocument with book/chapter/page hierarchy and HTML-formatted content
+     */
     fun toBookStackDocument(): BookStackDocument
 }
 
-
+/**
+ * Utility functions for generating consistent HTML content for BookStack pages.
+ *
+ * Integration points:
+ * - BookStack API: Accepts HTML content (not Markdown)
+ * - XSS prevention: All user content must be HTML-escaped before rendering
+ * - Consistent styling: Shared CSS classes across all pipeline-generated pages
+ *
+ * Design rationale:
+ * - Centralized HTML generation prevents XSS vulnerabilities
+ * - Consistent formatting makes BookStack pages easily identifiable as pipeline-generated
+ * - Reusable components (metadata boxes, lists) reduce duplication across sources
+ */
 object BookStackHtmlHelper {
     fun escapeHtml(text: String): String {
         return text
