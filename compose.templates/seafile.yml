@@ -51,6 +51,7 @@ services:
       CACHE_PROVIDER: redis
       REDIS_HOST: valkey
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
     volumes:
       - seafile_files:/shared
       - seafile_media:/shared/seafile/library-template
