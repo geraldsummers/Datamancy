@@ -39,7 +39,7 @@ services:
       NODE_EXTRA_CA_CERTS: /usr/local/share/ca-certificates/caddy-ca.crt
     volumes:
       - planka_data:/app/public/user-avatars
-      - ./configs/planka/caddy-ca.crt:/usr/local/share/ca-certificates/caddy-ca.crt:ro
+      - planka_caddy_ca:/usr/local/share/ca-certificates:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:1337/"]
       interval: 60s
