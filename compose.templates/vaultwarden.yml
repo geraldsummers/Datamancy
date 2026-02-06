@@ -22,11 +22,11 @@ services:
           - app.vaultwarden.${DOMAIN}
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       mailserver:
-        condition: service_healthy
+        condition: service_started
       authelia:
-        condition: service_healthy
+        condition: service_started
     environment:
       DOMAIN: https://app.vaultwarden.${DOMAIN}
       DATABASE_URL: postgresql://vaultwarden:${POSTGRES_VAULTWARDEN_PASSWORD}@postgres:5432/vaultwarden

@@ -44,7 +44,7 @@ services:
       - postgres
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
     environment:
       POSTGRES_USER: ${POSTGRES_ADMIN_USER}
       POSTGRES_DB: postgres
@@ -101,13 +101,13 @@ services:
       postgres-init:
         condition: service_completed_successfully
       grafana:
-        condition: service_healthy
+        condition: service_started
       planka:
-        condition: service_healthy
+        condition: service_started
       mastodon-init:
         condition: service_completed_successfully
       forgejo:
-        condition: service_healthy
+        condition: service_started
     environment:
       POSTGRES_USER: ${POSTGRES_ADMIN_USER}
       PGHOST: postgres

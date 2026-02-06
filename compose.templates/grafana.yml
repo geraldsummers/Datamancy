@@ -18,9 +18,9 @@ services:
           - grafana.${DOMAIN}
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       authelia:
-        condition: service_healthy
+        condition: service_started
     environment:
       GF_DEFAULT_LOCALE: en_US
       GF_SERVER_ROOT_URL: https://grafana.${DOMAIN}

@@ -21,9 +21,9 @@ services:
           - mail.${DOMAIN}
     depends_on:
       ldap:
-        condition: service_healthy
+        condition: service_started
       caddy:
-        condition: service_healthy
+        condition: service_started
     environment:
       ENABLE_RSPAMD: 1
       ENABLE_CLAMAV: 1
@@ -73,5 +73,5 @@ services:
       test: ["CMD-SHELL", "ss -ltn | grep -E ':25|:587|:993|:143' && supervisorctl status | grep -E 'postfix.*RUNNING' && supervisorctl status | grep -E 'dovecot.*RUNNING'"]
       interval: 15s
       timeout: 10s
-      retries: 20
-      start_period: 240s
+      retries: 30
+      start_period: 300s

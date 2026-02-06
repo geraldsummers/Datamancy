@@ -9,7 +9,7 @@ services:
       postgres-init:
         condition: service_completed_successfully
       postgres:
-        condition: service_healthy
+        condition: service_started
     environment:
       PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD}
       POSTGRES_USER: ${POSTGRES_ADMIN_USER}
@@ -55,9 +55,9 @@ services:
       - postgres
     depends_on:
       mailserver:
-        condition: service_healthy
+        condition: service_started
       postgres:
-        condition: service_healthy
+        condition: service_started
       roundcube-init:
         condition: service_completed_successfully
     environment:

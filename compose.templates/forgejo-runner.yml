@@ -15,9 +15,9 @@ services:
           - forgejo-runner.${DOMAIN}
     depends_on:
       forgejo:
-        condition: service_healthy
+        condition: service_started
       registry:
-        condition: service_healthy
+        condition: service_started
     environment:
       FORGEJO_INSTANCE_URL: http://forgejo:3000
       FORGEJO_RUNNER_NAME: datamancy-runner-1

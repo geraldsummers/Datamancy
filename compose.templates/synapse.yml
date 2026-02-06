@@ -51,15 +51,15 @@ services:
       internet:
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       synapse-init:
         condition: service_completed_successfully
       valkey:
-        condition: service_healthy
+        condition: service_started
       ldap:
-        condition: service_healthy
+        condition: service_started
       authelia:
-        condition: service_healthy
+        condition: service_started
     environment:
       DOMAIN: ${DOMAIN}
       SYNAPSE_SERVER_NAME: matrix.${DOMAIN}

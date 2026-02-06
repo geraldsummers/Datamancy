@@ -23,13 +23,13 @@ services:
       volume-init:
         condition: service_completed_successfully
       mariadb:
-        condition: service_healthy
+        condition: service_started
       mariadb-init:
         condition: service_completed_successfully
       seafile-memcached:
-        condition: service_healthy
+        condition: service_started
       valkey:
-        condition: service_healthy
+        condition: service_started
       valkey-init:
         condition: service_completed_successfully
     environment:

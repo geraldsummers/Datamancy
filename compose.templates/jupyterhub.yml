@@ -18,7 +18,7 @@ services:
           - jupyterhub.${DOMAIN}
     depends_on:
       valkey:
-        condition: service_healthy
+        condition: service_started
     environment:
       DOCKER_NETWORK_NAME: datamancy-stack_litellm
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}

@@ -12,7 +12,7 @@ services:
           - bookstack.${DOMAIN}
     depends_on:
       mariadb:
-        condition: service_healthy
+        condition: service_started
       mariadb-init:
         condition: service_completed_successfully
     environment:

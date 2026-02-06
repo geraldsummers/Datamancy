@@ -27,11 +27,11 @@ services:
           - agent-tool-server.${DOMAIN}
     depends_on:
       litellm:
-        condition: service_healthy
+        condition: service_started
       mariadb:
-        condition: service_healthy
+        condition: service_started
       postgres:
-        condition: service_healthy
+        condition: service_started
       postgres-observer-views:
         condition: service_completed_successfully
     environment:

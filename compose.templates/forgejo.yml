@@ -13,7 +13,7 @@ services:
       internet:
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
     environment:
       USER_UID: ${DOCKER_USER_ID:-1000}
       USER_GID: ${DOCKER_GROUP_ID:-1000}

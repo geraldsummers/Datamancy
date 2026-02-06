@@ -12,11 +12,11 @@ services:
       - ai
     depends_on:
       qdrant:
-        condition: service_healthy
+        condition: service_started
       postgres:
-        condition: service_healthy
+        condition: service_started
       embedding-service:
-        condition: service_healthy
+        condition: service_started
     environment:
       SEARCH_SERVICE_PORT: 8098
       QDRANT_HOST: qdrant

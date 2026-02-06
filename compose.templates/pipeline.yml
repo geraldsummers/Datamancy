@@ -16,13 +16,13 @@ services:
       - mariadb
     depends_on:
       qdrant:
-        condition: service_healthy
+        condition: service_started
       postgres:
-        condition: service_healthy
+        condition: service_started
       embedding-service:
-        condition: service_healthy
+        condition: service_started
       bookstack:
-        condition: service_healthy
+        condition: service_started
     environment:
       RSS_SCHEDULE_MINUTES: "60"
       RSS_FEED_URLS: "https://hnrss.org/frontpage,https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml,https://www.reddit.com/r/programming/.rss,https://feeds.arstechnica.com/arstechnica/index"

@@ -14,7 +14,7 @@ services:
       postgres-init:
         condition: service_completed_successfully
       valkey:
-        condition: service_healthy
+        condition: service_started
       valkey-init:
         condition: service_completed_successfully
     environment:
@@ -59,9 +59,9 @@ services:
       mastodon-init:
         condition: service_completed_successfully
       postgres:
-        condition: service_healthy
+        condition: service_started
       valkey:
-        condition: service_healthy
+        condition: service_started
       valkey-init:
         condition: service_completed_successfully
     environment:
@@ -122,9 +122,9 @@ services:
       - mastodon-internal
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       valkey:
-        condition: service_healthy
+        condition: service_started
       valkey-init:
         condition: service_completed_successfully
     environment:
@@ -157,9 +157,9 @@ services:
       mastodon-init:
         condition: service_completed_successfully
       postgres:
-        condition: service_healthy
+        condition: service_started
       valkey:
-        condition: service_healthy
+        condition: service_started
       valkey-init:
         condition: service_completed_successfully
     environment:

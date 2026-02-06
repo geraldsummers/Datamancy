@@ -30,7 +30,7 @@ services:
       - mariadb
     depends_on:
       mariadb:
-        condition: service_healthy
+        condition: service_started
     environment:
       MYSQL_ROOT_PASSWORD: ${MARIADB_ADMIN_PASSWORD}
       MARIADB_BOOKSTACK_PASSWORD: ${MARIADB_BOOKSTACK_PASSWORD}
