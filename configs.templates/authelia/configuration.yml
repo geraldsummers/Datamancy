@@ -89,6 +89,7 @@ session:
   redis:
     host: valkey
     port: 6379
+    username: authelia
     database_index: 0
 
 regulation:

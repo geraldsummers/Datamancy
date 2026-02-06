@@ -9,10 +9,42 @@ services:
       VALKEY_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
     volumes:
       - redis_data:/data
-    command: valkey-server --appendonly yes --dir /data --databases 16 --requirepass ${VALKEY_ADMIN_PASSWORD}
+    command: valkey-server --appendonly yes --dir /data --databases 16 --requirepass ${VALKEY_ADMIN_PASSWORD} --aclfile /data/users.acl
     healthcheck:
       test: ["CMD", "sh", "-c", "valkey-cli -a $$VALKEY_PASSWORD ping"]
       interval: 5s
       timeout: 3s
       retries: 5
       start_period: 5s
+
+  valkey-init:
+    image: valkey/valkey:8.1.5
+    container_name: valkey-init
+    restart: no
+    networks:
+      - valkey
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      VALKEY_ADMIN_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
+      VALKEY_AUTHELIA_PASSWORD: ${VALKEY_AUTHELIA_PASSWORD}
+      VALKEY_SEAFILE_PASSWORD: ${VALKEY_SEAFILE_PASSWORD}
+      VALKEY_MASTODON_PASSWORD: ${VALKEY_MASTODON_PASSWORD}
+    volumes:
+      - ./configs/valkey/init-acl.sh:/init-acl.sh:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        echo "===== valkey-init starting ====="
+        sh /init-acl.sh
+        touch /tmp/init_complete
+        echo "===== Valkey ACL initialization complete ====="
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/init_complete"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

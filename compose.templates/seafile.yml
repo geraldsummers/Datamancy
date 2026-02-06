@@ -30,6 +30,8 @@ services:
         condition: service_healthy
       valkey:
         condition: service_healthy
+      valkey-init:
+        condition: service_completed_successfully
     environment:
       TZ: UTC
       DB_HOST: mariadb
@@ -47,6 +49,7 @@ services:
       CACHE_PROVIDER: redis
       REDIS_HOST: valkey
       REDIS_PORT: 6379
+      REDIS_USER: seafile
       REDIS_PASSWORD: ${VALKEY_SEAFILE_PASSWORD}
     volumes:
       - seafile_files:/shared
