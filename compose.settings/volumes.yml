@@ -21,6 +21,7 @@ volumes:
   authelia_data:
   jupyterhub_data:
   homeassistant_config:
+  homeassistant_data:
   synapse_data:
   ntfy_data:
   couchdb_data:
