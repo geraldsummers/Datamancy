@@ -105,7 +105,6 @@ services:
       # Rails 7.x explicit host check bypass
       ACTION_DISPATCH_HOSTS_PERMIT_ALL: "true"
       # Additional Rails host authorization overrides
-      RAILS_ENV: production
       SKIP_POST_DEPLOYMENT_MIGRATIONS: "false"
     command: bash -c "bundle exec rails server -b 0.0.0.0"
     healthcheck:
