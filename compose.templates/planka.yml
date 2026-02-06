@@ -20,7 +20,7 @@ services:
         condition: service_healthy
     environment:
       BASE_URL: https://planka.${DOMAIN}
-      DATABASE_URL: postgresql://planka:${PLANKA_DB_PASSWORD_ENCODED:-${PLANKA_DB_PASSWORD}}@postgres:5432/planka
+      DATABASE_URL: postgresql://planka:${POSTGRES_PLANKA_PASSWORD_ENCODED:-${POSTGRES_PLANKA_PASSWORD}}@postgres:5432/planka
       SECRET_KEY: ${PLANKA_SECRET_KEY}
       OIDC_ISSUER: https://auth.${DOMAIN}
       OIDC_CLIENT_ID: planka

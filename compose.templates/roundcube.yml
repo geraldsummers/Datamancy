@@ -11,9 +11,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      PGPASSWORD: ${POSTGRES_ROOT_PASSWORD}
-      POSTGRES_USER: ${STACK_ADMIN_USER}
-      ROUNDCUBE_DB_PASSWORD: ${ROUNDCUBE_DB_PASSWORD}
+      PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER}
+      POSTGRES_ROUNDCUBE_PASSWORD: ${POSTGRES_ROUNDCUBE_PASSWORD}
     volumes:
       - ./configs/postgres/roundcube-schema.sql:/tmp/roundcube-schema.sql:ro
     command:
@@ -22,7 +22,7 @@ services:
       - |
         echo "Initializing Roundcube database schema..."
 
-        until pg_isready -h postgres -U ${STACK_ADMIN_USER}; do
+        until pg_isready -h postgres -U ${POSTGRES_ADMIN_USER}; do
           echo "Waiting for postgres..."
           sleep 2
         done
@@ -65,7 +65,7 @@ services:
       ROUNDCUBEMAIL_DB_HOST: postgres
       ROUNDCUBEMAIL_DB_PORT: 5432
       ROUNDCUBEMAIL_DB_USER: roundcube
-      ROUNDCUBEMAIL_DB_PASSWORD: ${ROUNDCUBE_DB_PASSWORD}
+      ROUNDCUBEMAIL_DB_PASSWORD: ${POSTGRES_ROUNDCUBE_PASSWORD}
       ROUNDCUBEMAIL_DB_NAME: roundcube
       ROUNDCUBEMAIL_DEFAULT_HOST: mailserver
       ROUNDCUBEMAIL_DEFAULT_PORT: 143

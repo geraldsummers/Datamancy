@@ -28,12 +28,12 @@ services:
       TZ: UTC
       PUID: ${DOCKER_USER_ID:-1000}
       PGID: ${DOCKER_GROUP_ID:-1000}
-      HOMEASSISTANT_DB_URL: postgresql://homeassistant:${HOMEASSISTANT_DB_PASSWORD}@postgres:5432/homeassistant
+      HOMEASSISTANT_DB_URL: postgresql://homeassistant:${POSTGRES_HOMEASSISTANT_PASSWORD}@postgres:5432/homeassistant
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: homeassistant
       POSTGRES_USER: homeassistant
-      POSTGRES_PASSWORD: ${HOMEASSISTANT_DB_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_HOMEASSISTANT_PASSWORD}
       LDAP_URL: ldap://ldap:389
       STACK_ADMIN_USER: ${STACK_ADMIN_USER}
       STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}

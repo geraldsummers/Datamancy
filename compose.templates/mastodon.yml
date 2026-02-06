@@ -22,7 +22,7 @@ services:
       DB_PORT: 5432
       DB_NAME: mastodon
       DB_USER: mastodon
-      DB_PASS: ${MASTODON_DB_PASSWORD}
+      DB_PASS: ${POSTGRES_MASTODON_PASSWORD}
       REDIS_HOST: valkey
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
@@ -67,7 +67,7 @@ services:
       DB_PORT: 5432
       DB_NAME: mastodon
       DB_USER: mastodon
-      DB_PASS: ${MASTODON_DB_PASSWORD}
+      DB_PASS: ${POSTGRES_MASTODON_PASSWORD}
       REDIS_HOST: valkey
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
@@ -124,7 +124,7 @@ services:
       DB_PORT: 5432
       DB_NAME: mastodon
       DB_USER: mastodon
-      DB_PASS: ${MASTODON_DB_PASSWORD}
+      DB_PASS: ${POSTGRES_MASTODON_PASSWORD}
       REDIS_HOST: valkey
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
@@ -159,7 +159,7 @@ services:
       DB_PORT: 5432
       DB_NAME: mastodon
       DB_USER: mastodon
-      DB_PASS: ${MASTODON_DB_PASSWORD}
+      DB_PASS: ${POSTGRES_MASTODON_PASSWORD}
       REDIS_HOST: valkey
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${VALKEY_ADMIN_PASSWORD}

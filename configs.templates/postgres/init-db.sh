@@ -1,89 +1,90 @@
 #!/bin/bash
 set -e
-PLANKA_DB_PASSWORD="${PLANKA_DB_PASSWORD:?ERROR: PLANKA_DB_PASSWORD not set}"
-SYNAPSE_DB_PASSWORD="${SYNAPSE_DB_PASSWORD:?ERROR: SYNAPSE_DB_PASSWORD not set}"
-AUTHELIA_DB_PASSWORD="${AUTHELIA_DB_PASSWORD:?ERROR: AUTHELIA_DB_PASSWORD not set}"
-GRAFANA_DB_PASSWORD="${GRAFANA_DB_PASSWORD:?ERROR: GRAFANA_DB_PASSWORD not set}"
-VAULTWARDEN_DB_PASSWORD="${VAULTWARDEN_DB_PASSWORD:?ERROR: VAULTWARDEN_DB_PASSWORD not set}"
-OPENWEBUI_DB_PASSWORD="${OPENWEBUI_DB_PASSWORD:?ERROR: OPENWEBUI_DB_PASSWORD not set}"
-MASTODON_DB_PASSWORD="${MASTODON_DB_PASSWORD:?ERROR: MASTODON_DB_PASSWORD not set}"
-FORGEJO_DB_PASSWORD="${FORGEJO_DB_PASSWORD:?ERROR: FORGEJO_DB_PASSWORD not set}"
-HOMEASSISTANT_DB_PASSWORD="${HOMEASSISTANT_DB_PASSWORD:-}"
-ROUNDCUBE_DB_PASSWORD="${ROUNDCUBE_DB_PASSWORD:?ERROR: ROUNDCUBE_DB_PASSWORD not set}"
-AGENT_POSTGRES_OBSERVER_PASSWORD="${AGENT_POSTGRES_OBSERVER_PASSWORD:?ERROR: AGENT_POSTGRES_OBSERVER_PASSWORD not set}"
-DATAMANCY_SERVICE_PASSWORD="${DATAMANCY_SERVICE_PASSWORD:?ERROR: DATAMANCY_SERVICE_PASSWORD not set}"
-export PGPASSWORD="${POSTGRES_ROOT_PASSWORD}"
+# Validate required environment variables using new naming convention
+POSTGRES_AUTHELIA_PASSWORD="${POSTGRES_AUTHELIA_PASSWORD:?ERROR: POSTGRES_AUTHELIA_PASSWORD not set}"
+POSTGRES_GRAFANA_PASSWORD="${POSTGRES_GRAFANA_PASSWORD:?ERROR: POSTGRES_GRAFANA_PASSWORD not set}"
+POSTGRES_PLANKA_PASSWORD="${POSTGRES_PLANKA_PASSWORD:?ERROR: POSTGRES_PLANKA_PASSWORD not set}"
+POSTGRES_SYNAPSE_PASSWORD="${POSTGRES_SYNAPSE_PASSWORD:?ERROR: POSTGRES_SYNAPSE_PASSWORD not set}"
+POSTGRES_VAULTWARDEN_PASSWORD="${POSTGRES_VAULTWARDEN_PASSWORD:?ERROR: POSTGRES_VAULTWARDEN_PASSWORD not set}"
+POSTGRES_OPENWEBUI_PASSWORD="${POSTGRES_OPENWEBUI_PASSWORD:?ERROR: POSTGRES_OPENWEBUI_PASSWORD not set}"
+POSTGRES_MASTODON_PASSWORD="${POSTGRES_MASTODON_PASSWORD:?ERROR: POSTGRES_MASTODON_PASSWORD not set}"
+POSTGRES_FORGEJO_PASSWORD="${POSTGRES_FORGEJO_PASSWORD:?ERROR: POSTGRES_FORGEJO_PASSWORD not set}"
+POSTGRES_HOMEASSISTANT_PASSWORD="${POSTGRES_HOMEASSISTANT_PASSWORD:-}"
+POSTGRES_ROUNDCUBE_PASSWORD="${POSTGRES_ROUNDCUBE_PASSWORD:?ERROR: POSTGRES_ROUNDCUBE_PASSWORD not set}"
+POSTGRES_AGENT_PASSWORD="${POSTGRES_AGENT_PASSWORD:?ERROR: POSTGRES_AGENT_PASSWORD not set}"
+POSTGRES_DATAMANCY_PASSWORD="${POSTGRES_DATAMANCY_PASSWORD:?ERROR: POSTGRES_DATAMANCY_PASSWORD not set}"
+# PGPASSWORD already set by docker-compose environment
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create users with passwords from environment (must be created before databases for ownership)
     -- Use DO block to check if user exists before creating
     DO \$\$
     BEGIN
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'planka') THEN
-            CREATE USER planka WITH PASSWORD \$pwd\$$PLANKA_DB_PASSWORD\$pwd\$;
+            CREATE USER planka WITH PASSWORD \$pwd\$$POSTGRES_PLANKA_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER planka WITH PASSWORD \$pwd\$$PLANKA_DB_PASSWORD\$pwd\$;
+            ALTER USER planka WITH PASSWORD \$pwd\$$POSTGRES_PLANKA_PASSWORD\$pwd\$;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'synapse') THEN
-            CREATE USER synapse WITH PASSWORD \$pwd\$$SYNAPSE_DB_PASSWORD\$pwd\$;
+            CREATE USER synapse WITH PASSWORD \$pwd\$$POSTGRES_SYNAPSE_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER synapse WITH PASSWORD \$pwd\$$SYNAPSE_DB_PASSWORD\$pwd\$;
+            ALTER USER synapse WITH PASSWORD \$pwd\$$POSTGRES_SYNAPSE_PASSWORD\$pwd\$;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authelia') THEN
-            CREATE USER authelia WITH PASSWORD \$pwd\$$AUTHELIA_DB_PASSWORD\$pwd\$;
+            CREATE USER authelia WITH PASSWORD \$pwd\$$POSTGRES_AUTHELIA_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER authelia WITH PASSWORD \$pwd\$$AUTHELIA_DB_PASSWORD\$pwd\$;
+            ALTER USER authelia WITH PASSWORD \$pwd\$$POSTGRES_AUTHELIA_PASSWORD\$pwd\$;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'grafana') THEN
-            CREATE USER grafana WITH PASSWORD \$pwd\$$GRAFANA_DB_PASSWORD\$pwd\$;
+            CREATE USER grafana WITH PASSWORD \$pwd\$$POSTGRES_GRAFANA_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER grafana WITH PASSWORD \$pwd\$$GRAFANA_DB_PASSWORD\$pwd\$;
+            ALTER USER grafana WITH PASSWORD \$pwd\$$POSTGRES_GRAFANA_PASSWORD\$pwd\$;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'vaultwarden') THEN
-            CREATE USER vaultwarden WITH PASSWORD \$pwd\$$VAULTWARDEN_DB_PASSWORD\$pwd\$;
+            CREATE USER vaultwarden WITH PASSWORD \$pwd\$$POSTGRES_VAULTWARDEN_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER vaultwarden WITH PASSWORD \$pwd\$$VAULTWARDEN_DB_PASSWORD\$pwd\$;
+            ALTER USER vaultwarden WITH PASSWORD \$pwd\$$POSTGRES_VAULTWARDEN_PASSWORD\$pwd\$;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'openwebui') THEN
-            CREATE USER openwebui WITH PASSWORD \$pwd\$$OPENWEBUI_DB_PASSWORD\$pwd\$;
+            CREATE USER openwebui WITH PASSWORD \$pwd\$$POSTGRES_OPENWEBUI_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER openwebui WITH PASSWORD \$pwd\$$OPENWEBUI_DB_PASSWORD\$pwd\$;
+            ALTER USER openwebui WITH PASSWORD \$pwd\$$POSTGRES_OPENWEBUI_PASSWORD\$pwd\$;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mastodon') THEN
-            CREATE USER mastodon WITH PASSWORD \$pwd\$$MASTODON_DB_PASSWORD\$pwd\$;
+            CREATE USER mastodon WITH PASSWORD \$pwd\$$POSTGRES_MASTODON_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER mastodon WITH PASSWORD \$pwd\$$MASTODON_DB_PASSWORD\$pwd\$;
+            ALTER USER mastodon WITH PASSWORD \$pwd\$$POSTGRES_MASTODON_PASSWORD\$pwd\$;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'forgejo') THEN
-            CREATE USER forgejo WITH PASSWORD \$pwd\$$FORGEJO_DB_PASSWORD\$pwd\$;
+            CREATE USER forgejo WITH PASSWORD \$pwd\$$POSTGRES_FORGEJO_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER forgejo WITH PASSWORD \$pwd\$$FORGEJO_DB_PASSWORD\$pwd\$;
+            ALTER USER forgejo WITH PASSWORD \$pwd\$$POSTGRES_FORGEJO_PASSWORD\$pwd\$;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'roundcube') THEN
-            CREATE USER roundcube WITH PASSWORD \$pwd\$$ROUNDCUBE_DB_PASSWORD\$pwd\$;
+            CREATE USER roundcube WITH PASSWORD \$pwd\$$POSTGRES_ROUNDCUBE_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER roundcube WITH PASSWORD \$pwd\$$ROUNDCUBE_DB_PASSWORD\$pwd\$;
+            ALTER USER roundcube WITH PASSWORD \$pwd\$$POSTGRES_ROUNDCUBE_PASSWORD\$pwd\$;
         END IF;
         -- Create homeassistant user if password is set (HA may use SQLite instead)
-        IF LENGTH('$HOMEASSISTANT_DB_PASSWORD') > 0 THEN
+        IF LENGTH('$POSTGRES_HOMEASSISTANT_PASSWORD') > 0 THEN
             IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'homeassistant') THEN
-                CREATE USER homeassistant WITH PASSWORD \$pwd\$$HOMEASSISTANT_DB_PASSWORD\$pwd\$;
+                CREATE USER homeassistant WITH PASSWORD \$pwd\$$POSTGRES_HOMEASSISTANT_PASSWORD\$pwd\$;
             ELSE
-                ALTER USER homeassistant WITH PASSWORD \$pwd\$$HOMEASSISTANT_DB_PASSWORD\$pwd\$;
+                ALTER USER homeassistant WITH PASSWORD \$pwd\$$POSTGRES_HOMEASSISTANT_PASSWORD\$pwd\$;
             END IF;
         END IF;
         -- Shadow agent accounts are created per-user via scripts/security/create-shadow-agent-account.main.kts
         -- Each user gets: {username}-agent role with read-only access to agent_observer schema
         -- Create global agent_observer account for tests and anonymous access (fallback only)
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'agent_observer') THEN
-            CREATE USER agent_observer WITH PASSWORD \$pwd\$$AGENT_POSTGRES_OBSERVER_PASSWORD\$pwd\$;
+            CREATE USER agent_observer WITH PASSWORD \$pwd\$$POSTGRES_AGENT_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER agent_observer WITH PASSWORD \$pwd\$$AGENT_POSTGRES_OBSERVER_PASSWORD\$pwd\$;
+            ALTER USER agent_observer WITH PASSWORD \$pwd\$$POSTGRES_AGENT_PASSWORD\$pwd\$;
         END IF;
         -- Create datamancy service user (for integration tests and data-fetcher services)
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'datamancer') THEN
-            CREATE USER datamancer WITH PASSWORD \$pwd\$$DATAMANCY_SERVICE_PASSWORD\$pwd\$;
+            CREATE USER datamancer WITH PASSWORD \$pwd\$$POSTGRES_DATAMANCY_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER datamancer WITH PASSWORD \$pwd\$$DATAMANCY_SERVICE_PASSWORD\$pwd\$;
+            ALTER USER datamancer WITH PASSWORD \$pwd\$$POSTGRES_DATAMANCY_PASSWORD\$pwd\$;
         END IF;
     END
     \$\$;
@@ -117,7 +118,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sysadmin')\gexec
     -- Create homeassistant database with correct owner
     SELECT CASE
-        WHEN LENGTH('$HOMEASSISTANT_DB_PASSWORD') > 0 THEN
+        WHEN LENGTH('$POSTGRES_HOMEASSISTANT_PASSWORD') > 0 THEN
             'CREATE DATABASE homeassistant OWNER homeassistant'
         ELSE
             'CREATE DATABASE homeassistant OWNER $POSTGRES_USER'
@@ -146,7 +147,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     -- synapse: private messages
     -- openwebui: conversation history
 EOSQL
-if [ -n "$HOMEASSISTANT_DB_PASSWORD" ]; then
+if [ -n "$POSTGRES_HOMEASSISTANT_PASSWORD" ]; then
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO homeassistant;"
 else
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "homeassistant" -c "GRANT ALL ON SCHEMA public TO $POSTGRES_USER;"

@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 echo "Starting MariaDB database initialization..."
-BOOKSTACK_DB_PASSWORD="${BOOKSTACK_DB_PASSWORD:?ERROR: BOOKSTACK_DB_PASSWORD not set}"
+MARIADB_BOOKSTACK_PASSWORD="${MARIADB_BOOKSTACK_PASSWORD:?ERROR: MARIADB_BOOKSTACK_PASSWORD not set}"
 MARIADB_SEAFILE_PASSWORD="${MARIADB_SEAFILE_PASSWORD:?ERROR: MARIADB_SEAFILE_PASSWORD not set}"
 STACK_ADMIN_PASSWORD="${STACK_ADMIN_PASSWORD:?ERROR: STACK_ADMIN_PASSWORD not set}"
-AGENT_MARIADB_OBSERVER_PASSWORD="${AGENT_MARIADB_OBSERVER_PASSWORD:?ERROR: AGENT_MARIADB_OBSERVER_PASSWORD not set}"
+MARIADB_AGENT_PASSWORD="${MARIADB_AGENT_PASSWORD:?ERROR: MARIADB_AGENT_PASSWORD not set}"
 echo "Waiting for MariaDB to be ready..."
 until mariadb -h mariadb -u root -p"$MYSQL_ROOT_PASSWORD" --ssl=0 -e "SELECT 1" >/dev/null 2>&1; do
   echo "MariaDB is unavailable - sleeping"
@@ -13,7 +13,7 @@ done
 echo "MariaDB is up - executing initialization SQL"
 mariadb -h mariadb -u root -p"$MYSQL_ROOT_PASSWORD" --ssl=0 <<-EOSQL
     -- Create users if not exist (idempotent)
-    CREATE USER IF NOT EXISTS 'bookstack'@'%' IDENTIFIED BY '$BOOKSTACK_DB_PASSWORD';
+    CREATE USER IF NOT EXISTS 'bookstack'@'%' IDENTIFIED BY '$MARIADB_BOOKSTACK_PASSWORD';
     CREATE USER IF NOT EXISTS 'seafile'@'%' IDENTIFIED BY '$MARIADB_SEAFILE_PASSWORD';
     -- Create databases if not exist
     CREATE DATABASE IF NOT EXISTS bookstack
@@ -35,7 +35,7 @@ mariadb -h mariadb -u root -p"$MYSQL_ROOT_PASSWORD" --ssl=0 <<-EOSQL
     GRANT ALL PRIVILEGES ON seahub.* TO 'seafile'@'%';
     -- Agent Tool Server Observer Account
     -- Global read-only account for agent-tool-server to query application databases
-    CREATE USER IF NOT EXISTS 'agent_observer'@'%' IDENTIFIED BY '$AGENT_MARIADB_OBSERVER_PASSWORD';
+    CREATE USER IF NOT EXISTS 'agent_observer'@'%' IDENTIFIED BY '$MARIADB_AGENT_PASSWORD';
     GRANT SELECT ON bookstack.* TO 'agent_observer'@'%';
     GRANT SELECT ON seafile.* TO 'agent_observer'@'%';
     GRANT SELECT ON ccnet.* TO 'agent_observer'@'%';

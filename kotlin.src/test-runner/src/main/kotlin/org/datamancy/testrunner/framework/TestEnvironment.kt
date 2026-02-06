@@ -137,7 +137,7 @@ data class ServiceEndpoints(
                 port = env("POSTGRES_PORT")?.toInt() ?: 5432,
                 database = env("POSTGRES_DB") ?: "datamancy",
                 user = env("POSTGRES_USER") ?: "datamancer",
-                password = env("POSTGRES_PASSWORD") ?: env("DATAMANCY_SERVICE_PASSWORD") ?: ""
+                password = env("POSTGRES_PASSWORD") ?: env("POSTGRES_DATAMANCY_PASSWORD") ?: ""
             ),
             mariadb = DatabaseConfig(
                 host = env("MARIADB_HOST") ?: "mariadb",

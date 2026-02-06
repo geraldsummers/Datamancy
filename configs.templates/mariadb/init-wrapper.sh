@@ -8,25 +8,25 @@ if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
     echo "ERROR: MYSQL_ROOT_PASSWORD not set"
     exit 1
 fi
-if [ -z "$BOOKSTACK_DB_PASSWORD" ]; then
-    echo "ERROR: BOOKSTACK_DB_PASSWORD not set"
+if [ -z "$MARIADB_BOOKSTACK_PASSWORD" ]; then
+    echo "ERROR: MARIADB_BOOKSTACK_PASSWORD not set"
     exit 1
 fi
 if [ -z "$MARIADB_SEAFILE_PASSWORD" ]; then
     echo "ERROR: MARIADB_SEAFILE_PASSWORD not set"
     exit 1
 fi
-if [ -z "$AGENT_MARIADB_OBSERVER_PASSWORD" ]; then
-    echo "ERROR: AGENT_MARIADB_OBSERVER_PASSWORD not set"
+if [ -z "$MARIADB_AGENT_PASSWORD" ]; then
+    echo "ERROR: MARIADB_AGENT_PASSWORD not set"
     exit 1
 fi
 echo "✓ All required environment variables present"
 echo ""
 echo "Environment variables available for substitution:"
 echo "  MYSQL_ROOT_PASSWORD: [SET]"
-echo "  BOOKSTACK_DB_PASSWORD: [SET]"
+echo "  MARIADB_BOOKSTACK_PASSWORD: [SET]"
 echo "  MARIADB_SEAFILE_PASSWORD: [SET]"
-echo "  AGENT_MARIADB_OBSERVER_PASSWORD: [SET]"
+echo "  MARIADB_AGENT_PASSWORD: [SET]"
 echo ""
 if [ ! -f "/docker-entrypoint-initdb.d/init-template.sql" ]; then
     echo "ERROR: init-template.sql not found"
@@ -34,9 +34,9 @@ if [ ! -f "/docker-entrypoint-initdb.d/init-template.sql" ]; then
 fi
 echo "Substituting environment variables in template..."
 SUBSTITUTED_SQL=$(cat /docker-entrypoint-initdb.d/init-template.sql | \
-  sed "s/\$BOOKSTACK_DB_PASSWORD/$BOOKSTACK_DB_PASSWORD/g" | \
+  sed "s/\$MARIADB_BOOKSTACK_PASSWORD/$MARIADB_BOOKSTACK_PASSWORD/g" | \
   sed "s/\$MARIADB_SEAFILE_PASSWORD/$MARIADB_SEAFILE_PASSWORD/g" | \
-  sed "s/\$AGENT_MARIADB_OBSERVER_PASSWORD/$AGENT_MARIADB_OBSERVER_PASSWORD/g")
+  sed "s/\$MARIADB_AGENT_PASSWORD/$MARIADB_AGENT_PASSWORD/g")
 echo "Generated SQL (first 10 lines, passwords hidden):"
 echo "$SUBSTITUTED_SQL" | head -10 | sed 's/IDENTIFIED BY.*$/IDENTIFIED BY [HIDDEN]/'
 echo ""

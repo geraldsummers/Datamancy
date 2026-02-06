@@ -25,7 +25,7 @@ services:
         condition: service_healthy
     environment:
       WEBUI_URL: ${OPENWEBUI_WEBUI_URL:-https://open-webui.${DOMAIN}}
-      DATABASE_URL: postgresql://openwebui:${OPENWEBUI_DB_PASSWORD}@postgres:5432/openwebui
+      DATABASE_URL: postgresql://openwebui:${POSTGRES_OPENWEBUI_PASSWORD}@postgres:5432/openwebui
       ENABLE_OAUTH_SIGNUP: ${OPENWEBUI_ENABLE_OAUTH_SIGNUP:-true}
       DEFAULT_USER_ROLE: ${OPENWEBUI_DEFAULT_USER_ROLE:-admin}
       ENABLE_OPENAI_API: true

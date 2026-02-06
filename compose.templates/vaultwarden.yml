@@ -29,7 +29,7 @@ services:
         condition: service_healthy
     environment:
       DOMAIN: https://app.vaultwarden.${DOMAIN}
-      DATABASE_URL: postgresql://vaultwarden:${VAULTWARDEN_DB_PASSWORD}@postgres:5432/vaultwarden
+      DATABASE_URL: postgresql://vaultwarden:${POSTGRES_VAULTWARDEN_PASSWORD}@postgres:5432/vaultwarden
       SIGNUPS_ALLOWED: false
       SIGNUPS_VERIFY: true
       SIGNUPS_DOMAINS_WHITELIST: ${MAIL_DOMAIN}
