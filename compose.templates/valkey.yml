@@ -9,7 +9,7 @@ services:
       VALKEY_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
     volumes:
       - redis_data:/data
-    command: valkey-server --appendonly yes --dir /data --databases 16 --requirepass ${VALKEY_ADMIN_PASSWORD} --aclfile /data/users.acl
+    command: valkey-server --appendonly yes --dir /data --databases 16 --requirepass ${VALKEY_ADMIN_PASSWORD}
     healthcheck:
       test: ["CMD", "sh", "-c", "valkey-cli -a $$VALKEY_PASSWORD ping"]
       interval: 5s
