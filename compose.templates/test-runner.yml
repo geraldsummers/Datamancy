@@ -43,7 +43,7 @@ services:
       MARIADB_ADMIN_PASSWORD: "${MARIADB_ADMIN_PASSWORD}"
 
       QDRANT_URL: "http://qdrant:6333"
-      QDRANT_API_KEY: "${AGENT_QDRANT_API_KEY}"
+      QDRANT_API_KEY: "${QDRANT_AGENT_API_KEY}"
       VALKEY_URL: "valkey:6379"
 
       AUTHELIA_URL: "https://auth.datamancy.net"

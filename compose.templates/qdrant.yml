@@ -10,6 +10,7 @@ services:
         condition: service_completed_successfully
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__SERVICE__API_KEY: ${QDRANT_ADMIN_API_KEY}
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
@@ -36,7 +37,7 @@ services:
     environment:
       QDRANT_URL: http://qdrant:6333
       VECTOR_SIZE: ${VECTOR_EMBED_SIZE:-1024}
-      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      QDRANT_API_KEY: ${QDRANT_ADMIN_API_KEY}
     volumes:
       - ./configs/vectors/collections.yaml:/configs/collections.yaml:ro
       - ./configs/vectors/bootstrap_vectors.main.kts:/scripts/bootstrap_vectors.main.kts:ro

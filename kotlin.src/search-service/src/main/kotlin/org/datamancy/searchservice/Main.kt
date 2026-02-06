@@ -35,11 +35,13 @@ fun main() {
     logger.info { "Starting Search Gateway Service..." }
 
     val qdrantUrl = System.getenv("QDRANT_URL") ?: "http://qdrant:6334"
+    val qdrantApiKey = System.getenv("QDRANT_API_KEY") ?: ""
     val postgresJdbcUrl = System.getenv("POSTGRES_JDBC_URL") ?: "jdbc:postgresql://postgres:5432/datamancy"
     val embeddingUrl = System.getenv("EMBEDDING_SERVICE_URL") ?: "http://embedding-service:8000"
 
     val gateway = SearchGateway(
         qdrantUrl = qdrantUrl,
+        qdrantApiKey = qdrantApiKey,
         postgresJdbcUrl = postgresJdbcUrl,
         embeddingServiceUrl = embeddingUrl
     )

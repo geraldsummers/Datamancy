@@ -12,6 +12,7 @@ volumes:
   onlyoffice_data:
   open_webui_data:
   planka_data:
+  planka_caddy_ca:
   postgres_data:
   prometheus_data:
   radicale_data:
@@ -62,3 +63,5 @@ volumes:
       device: ${SEAFILE_MEDIA_ROOT}
 
   datafetcher_data:
+  agent_tool_server_known_hosts:
+  agent_tool_server_scripts:

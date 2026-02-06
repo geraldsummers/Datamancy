@@ -66,6 +66,7 @@ private val logger = KotlinLogging.logger {}
  */
 class SearchGateway(
     private val qdrantUrl: String,
+    private val qdrantApiKey: String = "",
     private val postgresJdbcUrl: String,
     private val embeddingServiceUrl: String
 ) {
@@ -84,7 +85,15 @@ class SearchGateway(
     // Uses cosine distance to find semantically similar documents
     private val qdrantHost = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":")[0]
     private val qdrantPort = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":").getOrNull(1)?.toIntOrNull() ?: 6334
-    private val qdrant = QdrantClient(QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, false).build())
+    private val qdrant = QdrantClient(
+        QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, false)
+            .apply {
+                if (qdrantApiKey.isNotBlank()) {
+                    withApiKey(qdrantApiKey)
+                }
+            }
+            .build()
+    )
 
     // PostgreSQL connection pool for full-text search
     // Read-only pool to prevent accidental data modification

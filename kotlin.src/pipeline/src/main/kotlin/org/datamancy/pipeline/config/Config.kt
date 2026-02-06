@@ -150,6 +150,7 @@ data class PipelineConfig(
                 ),
                 qdrant = QdrantConfig(
                     url = getEnvOrProperty("QDRANT_URL") ?: "http://qdrant:6333",
+                    apiKey = getEnvOrProperty("QDRANT_API_KEY") ?: "",
                     rssCollection = getEnvOrProperty("QDRANT_RSS_COLLECTION") ?: "rss_feeds",
                     cveCollection = getEnvOrProperty("QDRANT_CVE_COLLECTION") ?: "cve",
                     torrentsCollection = getEnvOrProperty("QDRANT_TORRENTS_COLLECTION") ?: "torrents",
@@ -236,6 +237,7 @@ data class BinanceConfig(
 @Serializable
 data class QdrantConfig(
     val url: String = "http://qdrant:6333",
+    val apiKey: String = "",
     val rssCollection: String = "rss_feeds",
     val cveCollection: String = "cve",
     val torrentsCollection: String = "torrents",

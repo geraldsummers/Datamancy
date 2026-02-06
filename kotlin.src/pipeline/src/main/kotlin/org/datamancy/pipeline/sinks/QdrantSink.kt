@@ -76,7 +76,8 @@ private fun String.toDeterministicUUID(): UUID {
 class QdrantSink(
     qdrantUrl: String,
     private val collectionName: String,
-    private val vectorSize: Int = 1024
+    private val vectorSize: Int = 1024,
+    private val apiKey: String? = null
 ) : Sink<VectorDocument> {
     override val name = "QdrantSink[$collectionName]"
 
@@ -86,7 +87,13 @@ class QdrantSink(
 
     /** gRPC client for high-performance binary communication with Qdrant */
     private val client = QdrantClient(
-        QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, true).build()
+        QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, true)
+            .apply {
+                if (!apiKey.isNullOrBlank()) {
+                    withApiKey(apiKey)
+                }
+            }
+            .build()
     )
 
     init {
