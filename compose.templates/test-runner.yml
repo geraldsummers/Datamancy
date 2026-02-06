@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: ./containers.src/test-runner/Dockerfile
     image: datamancy/test-runner:local-build
+    pull_policy: build
     container_name: integration-test-runner
 
     networks:

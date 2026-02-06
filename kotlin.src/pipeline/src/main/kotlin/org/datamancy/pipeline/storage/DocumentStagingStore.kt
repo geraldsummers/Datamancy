@@ -103,6 +103,11 @@ object DocumentStagingTable : Table("document_staging") {
     val bookstackUrl = text("bookstack_url").nullable()
 
     override val primaryKey = PrimaryKey(id)
+
+    init {
+        index("idx_staging_source", false, sourceName)
+        index("idx_staging_status_created", false, embeddingStatus, createdAt)
+    }
 }
 
 /**
