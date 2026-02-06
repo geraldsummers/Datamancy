@@ -24,7 +24,7 @@ services:
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY}
     volumes:
-      - ./volumes/data/jupyterhub:/srv/jupyterhub
+      - jupyterhub_data:/srv/jupyterhub
       - ./configs/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/hub/health || exit 1"]

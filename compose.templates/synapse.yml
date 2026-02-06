@@ -6,7 +6,7 @@ services:
     networks:
       - postgres
     volumes:
-      - ./volumes/data/synapse:/data
+      - synapse_data:/data
       - ./configs/synapse/entrypoint.sh:/tmp/entrypoint.sh:ro
     command:
       - sh
@@ -83,7 +83,7 @@ services:
       GID: 991
     entrypoint: ["/data/entrypoint.sh"]
     volumes:
-      - ./volumes/data/synapse:/data
+      - synapse_data:/data
       - ./configs/synapse/homeserver.yaml:/data/homeserver.yaml:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8008/health || exit 1"]
