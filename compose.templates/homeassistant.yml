@@ -44,7 +44,7 @@ services:
       LDAP_BIND_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LDAP_USER_FILTER: (uid={username})
     volumes:
-      - ./volumes/data/homeassistant:/config
+      - homeassistant_data:/config
       - /etc/localtime:/etc/localtime:ro
       - ./configs/homeassistant/configuration.yaml:/config/configuration.yaml:ro
       - ./configs/homeassistant/automations.yaml:/config/automations.yaml:rw
