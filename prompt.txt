@@ -15,45 +15,27 @@ eventually we will fix the errors and then we will deploy again. in fixing the p
 
 kill system:
 
-gerald@latium ~ $
+gerald@latium ~ $ # 0) Stop everything (best-effort)
+docker ps -q | xargs -r docker stop -t 0 || true
 
-echo "[1/6] SIGKILL all container processes"
-docker ps -q | xargs -r docker kill || true
-
-echo "[2/6] Force remove all containers"
+# 1) Force-remove all containers (handles stuck ones)
 docker ps -aq | xargs -r docker rm -f || true
 
-echo "[3/6] Force remove all images"
-docker image ls -aq | xargs -r docker rmi -f || true
+# 2) Prune builder cache (buildx)
+docker buildx prune -af || true
 
-echo "[4/6] Force remove all volumes"
+# 3) Prune everything else, including volumes
+docker system prune -af --volumes || true
 docker volume ls -q | xargs -r docker volume rm -f || true
 
-echo "[5/6] Force remove all networks (except built-ins)"
-docker network ls -q | xargs -r docker network rm || true
+# 4) Redundant-but-explicit cleanup passes (belt + suspenders)
+docker volume prune -af || true
+docker image prune -af || true
+docker network prune -f || true
 
-echo "[6/6] Aggressive prune (builders, cache, dangling)"
-docker builder prune -af || true
-docker system prune -af --volumes || true
-docker buildx prune -af
-echo "[custom] Wipe external data paths"
+rm -rvf ~/datamancy | grep denied
 
 
-sudo systemctl stop docker
-sudo rm -rvf /mnt/sdc1_ctbx500_0385/*
-sudo rm -rvf ~/datamancy
-sudo rm -rvf /mnt/btrfs_raid_1_01_docker
-sudo systemctl start docker
-
-echo "DONE. Docker objects nuked; daemon left running."
-
-sudo systemctl stop docker
-sudo rm -rvf /mnt/sdc1_ctbx500_0385/*
-sudo rm -rvf ~/datamancy
-sudo rm -rvf /mnt/btrfs_raid_1_01_docker
-sudo systemctl start docker
-
-echo "DONE. Docker objects nuked; daemon left running."
 
 
 

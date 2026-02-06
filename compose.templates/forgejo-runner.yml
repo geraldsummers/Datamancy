@@ -22,7 +22,7 @@ services:
       FORGEJO_INSTANCE_URL: http://forgejo:3000
       FORGEJO_RUNNER_NAME: datamancy-runner-1
       FORGEJO_RUNNER_LABELS: ubuntu-latest,ubuntu-22.04,linux
-      DOCKER_HOST: ssh://${LABWARE_SSH_HOST:-labware.local}
+      DOCKER_HOST: tcp://docker-proxy:2375
     volumes:
       - forgejo_runner_data:/data
       - forgejo_runner_token:/runner-token:ro

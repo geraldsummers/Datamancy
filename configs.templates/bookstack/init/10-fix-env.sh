@@ -35,11 +35,11 @@ fi
 if [ -n "$DB_HOST" ]; then
     sed -i "s|^DB_HOST=.*|DB_HOST=$DB_HOST|" "$ENV_FILE"
 fi
-if [ -n "$DB_USER" ]; then
-    sed -i "s|^DB_USERNAME=.*|DB_USERNAME=$DB_USER|" "$ENV_FILE"
+if [ -n "$DB_USERNAME" ]; then
+    sed -i "s|^DB_USERNAME=.*|DB_USERNAME=$DB_USERNAME|" "$ENV_FILE"
 fi
-if [ -n "$DB_PASS" ]; then
-    sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=$DB_PASS|" "$ENV_FILE"
+if [ -n "$DB_PASSWORD" ]; then
+    sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|" "$ENV_FILE"
 fi
 if [ -n "$DB_DATABASE" ]; then
     sed -i "s|^DB_DATABASE=.*|DB_DATABASE=$DB_DATABASE|" "$ENV_FILE"

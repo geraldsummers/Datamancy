@@ -66,7 +66,7 @@ services:
       NTFY_USERNAME: "${NTFY_USERNAME}"
       NTFY_PASSWORD: "${NTFY_PASSWORD}"
 
-      DOCKER_HOST: "ssh://${LABWARE_SSH_HOST:-labware.local}"
+      DOCKER_HOST: "tcp://docker-proxy:2375"
 
     profiles:
       - testing

@@ -36,7 +36,11 @@ dependencies {
 }
 
 tasks.test {
-    
+
+}
+
+tasks.shadowJar {
+    mergeServiceFiles()
 }
 
 application {

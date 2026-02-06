@@ -29,6 +29,10 @@ dependencies {
     testImplementation("io.ktor:ktor-client-mock:3.0.2")
 }
 
+tasks.shadowJar {
+    mergeServiceFiles()
+}
+
 application {
     mainClass.set("org.datamancy.testrunner.MainKt")
 }

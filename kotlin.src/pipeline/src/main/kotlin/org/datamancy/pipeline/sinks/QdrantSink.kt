@@ -86,7 +86,7 @@ class QdrantSink(
 
     /** gRPC client for high-performance binary communication with Qdrant */
     private val client = QdrantClient(
-        QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, false).build()
+        QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, true).build()
     )
 
     init {
