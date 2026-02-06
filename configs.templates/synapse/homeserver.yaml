@@ -26,10 +26,7 @@ database:
     cp_max: 10
 
 redis:
-  enabled: true
-  host: valkey
-  port: 6379
-  password: "{{VALKEY_SYNAPSE_PASSWORD}}"
+  enabled: false
 
 
 media_store_path: /data/media_store

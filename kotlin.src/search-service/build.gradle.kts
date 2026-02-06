@@ -53,12 +53,16 @@ application {
 }
 
 
+tasks.shadowJar {
+    mergeServiceFiles()
+}
+
 tasks.withType(Jar::class) {
     archiveBaseName.set("search-service")
 }
 
 tasks.test {
-    
+
 }
 
 

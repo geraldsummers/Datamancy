@@ -105,6 +105,10 @@ tasks.test {
     }
 }
 
+tasks.shadowJar {
+    mergeServiceFiles()
+}
+
 application {
     mainClass.set("org.datamancy.pipeline.MainKt")
 }
