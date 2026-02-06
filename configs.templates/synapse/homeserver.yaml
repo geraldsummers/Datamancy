@@ -29,6 +29,7 @@ redis:
   enabled: true
   host: valkey
   port: 6379
+  password: "{{VALKEY_SYNAPSE_PASSWORD}}"
 
 
 media_store_path: /data/media_store

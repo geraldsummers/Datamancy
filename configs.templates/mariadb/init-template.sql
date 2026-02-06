@@ -14,7 +14,7 @@ CREATE DATABASE IF NOT EXISTS seahub_db CHARACTER SET utf8mb4 COLLATE utf8mb4_un
 -- Note: Using environment variable substitution via MariaDB's password() function won't work
 -- We need to use a shell script wrapper to do envsubst before MariaDB processes this
 -- For now, create users with passwords from MYSQL environment
-CREATE USER IF NOT EXISTS 'bookstack'@'%' IDENTIFIED BY '$BOOKSTACK_DB_PASSWORD';
+CREATE USER IF NOT EXISTS 'bookstack'@'%' IDENTIFIED BY '$MARIADB_BOOKSTACK_PASSWORD';
 CREATE USER IF NOT EXISTS 'seafile'@'%' IDENTIFIED BY '$MARIADB_SEAFILE_PASSWORD';
 
 GRANT ALL PRIVILEGES ON bookstack.* TO 'bookstack'@'%';
@@ -24,7 +24,7 @@ GRANT ALL PRIVILEGES ON seahub_db.* TO 'seafile'@'%';
 
 -- Agent Tool Server Observer Account
 -- Global read-only account for agent-tool-server to query application databases
-CREATE USER IF NOT EXISTS 'agent_observer'@'%' IDENTIFIED BY '$AGENT_MARIADB_OBSERVER_PASSWORD';
+CREATE USER IF NOT EXISTS 'agent_observer'@'%' IDENTIFIED BY '$MARIADB_AGENT_PASSWORD';
 GRANT SELECT ON bookstack.* TO 'agent_observer'@'%';
 GRANT SELECT ON ccnet_db.* TO 'agent_observer'@'%';
 GRANT SELECT ON seafile_db.* TO 'agent_observer'@'%';
