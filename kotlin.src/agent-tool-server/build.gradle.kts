@@ -1,3 +1,5 @@
+import com.github.jengelman.gradle.plugins.shadow.transformers.ServiceFileTransformer
+
 plugins {
     kotlin("jvm")
     application
@@ -40,7 +42,7 @@ tasks.test {
 }
 
 tasks.shadowJar {
-    mergeServiceFiles()
+    transform(ServiceFileTransformer::class.java)
 }
 
 application {

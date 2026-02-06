@@ -1,3 +1,5 @@
+import com.github.jengelman.gradle.plugins.shadow.transformers.ServiceFileTransformer
+
 plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
@@ -30,7 +32,7 @@ dependencies {
 }
 
 tasks.shadowJar {
-    mergeServiceFiles()
+    transform(ServiceFileTransformer::class.java)
 }
 
 application {
