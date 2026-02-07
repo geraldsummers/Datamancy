@@ -20,11 +20,6 @@ import java.util.concurrent.TimeoutException
 private val logger = KotlinLogging.logger {}
 private const val QDRANT_TIMEOUT_SECONDS = 30L
 
-// Register DNS name resolver explicitly to fix fat JAR issue where Unix socket resolver takes precedence
-init {
-    NameResolverRegistry.getDefaultRegistry().register(DnsNameResolverProvider())
-}
-
 /**
  * Converts a string to a deterministic UUID using SHA-256 hashing.
  *
@@ -89,6 +84,14 @@ class QdrantSink(
     private val vectorSize: Int = 1024,
     private val apiKey: String? = null
 ) : Sink<VectorDocument> {
+
+    companion object {
+        init {
+            // Register DNS name resolver explicitly to fix fat JAR issue where Unix socket resolver takes precedence
+            NameResolverRegistry.getDefaultRegistry().register(DnsNameResolverProvider())
+        }
+    }
+
     override val name = "QdrantSink[$collectionName]"
 
     /** gRPC client for high-performance binary communication with Qdrant */
