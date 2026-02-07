@@ -78,7 +78,12 @@ class TokenManagerTest {
         vaultwarden = "http://vaultwarden:80",
         prometheus = "http://prometheus:9090",
         grafana = "http://grafana:3000",
-        kopia = "http://kopia:51515"
+        kopia = "http://kopia:51515",
+        vault = "http://vault:8200",
+        web3signer = "http://web3signer:9000",
+        txGateway = "http://tx-gateway:8080",
+        evmBroadcaster = "http://evm-broadcaster:8081",
+        hyperliquidWorker = "http://hyperliquid-worker:8082"
     )
 
     @Test

@@ -59,12 +59,17 @@ import java.io.File
  * @property ntfy Ntfy notification service endpoint
  * @property qbittorrent qBittorrent torrent client endpoint
  * @property homeassistant Home Assistant home automation endpoint
+ * @property vault HashiCorp Vault endpoint for credential storage
+ * @property web3signer ConsenSys Web3Signer endpoint for transaction signing
+ * @property txGateway TX Gateway endpoint for trading request routing
+ * @property evmBroadcaster EVM Broadcaster worker for L2 transfers
+ * @property hyperliquidWorker Hyperliquid worker for perpetual futures trading
  */
 data class ServiceEndpoints(
     val agentToolServer: String,
     val dataFetcher: String,
     val searchService: String,
-    val pipeline: String,  
+    val pipeline: String,
     val liteLLM: String,
     val bookstack: String,
     val postgres: DatabaseConfig,
@@ -75,43 +80,49 @@ data class ServiceEndpoints(
     val ldap: String? = null,
     val userContext: String? = null,
     val apiKey: String? = null,
-    
+
     val bookstackTokenId: String? = null,
     val bookstackTokenSecret: String? = null,
-    
+
     val caddy: String,
     val authelia: String,
-    
+
     val openWebUI: String,
     val jupyterhub: String,
-    
+
     val mailserver: String,
     val synapse: String,
     val element: String,
-    
+
     val mastodon: String,
     val mastodonStreaming: String,
     val roundcube: String,
-    
+
     val forgejo: String,
     val planka: String,
-    
+
     val seafile: String,
     val onlyoffice: String,
-    
+
     val vaultwarden: String,
-    
+
     val prometheus: String,
     val grafana: String,
-    
+
     val kopia: String,
-    
+
     val homepage: String? = null,
     val radicale: String? = null,
     val ntfy: String? = null,
     val qbittorrent: String? = null,
-    
-    val homeassistant: String? = null
+
+    val homeassistant: String? = null,
+
+    val vault: String,
+    val web3signer: String,
+    val txGateway: String,
+    val evmBroadcaster: String,
+    val hyperliquidWorker: String
 ) {
     companion object {
         /**
@@ -188,8 +199,14 @@ data class ServiceEndpoints(
             radicale = env("RADICALE_URL") ?: "http://radicale:5232",
             ntfy = env("NTFY_URL") ?: "http://ntfy:80",
             qbittorrent = env("QBITTORRENT_URL") ?: "http://qbittorrent:8080",
-            
-            homeassistant = env("HOMEASSISTANT_URL") ?: "http://homeassistant:8123"
+
+            homeassistant = env("HOMEASSISTANT_URL") ?: "http://homeassistant:8123",
+
+            vault = env("VAULT_URL") ?: "http://vault:8200",
+            web3signer = env("WEB3SIGNER_URL") ?: "http://web3signer:9000",
+            txGateway = env("TX_GATEWAY_URL") ?: "http://tx-gateway:8080",
+            evmBroadcaster = env("EVM_BROADCASTER_URL") ?: "http://evm-broadcaster:8081",
+            hyperliquidWorker = env("HYPERLIQUID_WORKER_URL") ?: "http://hyperliquid-worker:8082"
         )
 
         /**
@@ -253,8 +270,14 @@ data class ServiceEndpoints(
             radicale = "http://localhost:5232",
             ntfy = "http://localhost:8081",
             qbittorrent = "http://localhost:8082",
-            
-            homeassistant = "http://localhost:8123"
+
+            homeassistant = "http://localhost:8123",
+
+            vault = "http://localhost:18200",
+            web3signer = "http://localhost:19000",
+            txGateway = "http://localhost:18083",
+            evmBroadcaster = "http://localhost:18084",
+            hyperliquidWorker = "http://localhost:18085"
         )
     }
 }

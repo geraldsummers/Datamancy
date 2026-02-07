@@ -181,6 +181,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "agent-capability" -> runner.agentCapabilityTests()
         "agent-security" -> runner.agentSecurityTests()
         "agent-llm-quality" -> runner.agentLlmQualityTests()
+        "trading" -> runner.tradingTests()
         "all" -> {
             runner.foundationTests()
             runner.llmTests()
@@ -206,6 +207,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.cicdTests()
             runner.labwareTests()
             runner.stackReplicationTests()
+            runner.tradingTests()
         }
         else -> {
             println("❌ Unknown suite: $suite")
@@ -214,7 +216,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
             println("                  stack-deployment, bookstack, cicd, labware, stack-replication,")
-            println("                  agent-capability, agent-security, agent-llm-quality, all")
+            println("                  agent-capability, agent-security, agent-llm-quality, trading, all")
             exitProcess(1)
         }
     }
@@ -367,7 +369,7 @@ private fun printUsage() {
                                      file-management, security, monitoring, backup,
                                      authentication, enhanced-auth, authenticated-ops, utility, homeassistant,
                                      stack-deployment, bookstack, cicd, labware,
-                                     agent-capability, agent-security, agent-llm-quality, all
+                                     agent-capability, agent-security, agent-llm-quality, trading, all
 
       --verbose, -v          Enable verbose logging
       --help, -h             Show this help message
