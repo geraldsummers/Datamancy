@@ -86,10 +86,10 @@ class SearchGateway(
     private val qdrantHost = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":")[0]
     private val qdrantPort = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":").getOrNull(1)?.toIntOrNull() ?: 6334
     private val qdrant = QdrantClient(
-        QdrantGrpcClient.newBuilder("$qdrantHost:$qdrantPort", false)
-            .apply {
+        QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort)
+            .also {
                 if (qdrantApiKey.isNotBlank()) {
-                    withApiKey(qdrantApiKey)
+                    it.withApiKey(qdrantApiKey)
                 }
             }
             .build()
