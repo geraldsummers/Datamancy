@@ -22,38 +22,3 @@ services:
       timeout: 5s
       retries: 10
 
-  mariadb-init:
-    image: mariadb:11.8.5
-    container_name: mariadb-init
-    restart: no
-    networks:
-      - mariadb
-    depends_on:
-      mariadb:
-        condition: service_started
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MARIADB_ADMIN_PASSWORD}
-      MARIADB_BOOKSTACK_PASSWORD: ${MARIADB_BOOKSTACK_PASSWORD}
-      MARIADB_SEAFILE_PASSWORD: ${MARIADB_SEAFILE_PASSWORD}
-      STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
-      MARIADB_AGENT_PASSWORD: ${MARIADB_AGENT_PASSWORD}
-    volumes:
-      - ./configs/mariadb/init-db.sh:/init-db.sh:ro
-    entrypoint:
-      - /bin/bash
-      - -c
-      - |
-        echo "Waiting for MariaDB to be ready..."
-        until mariadb -h mariadb -u root -p$$MYSQL_ROOT_PASSWORD --ssl=0 -e "SELECT 1" >/dev/null 2>&1; do
-          sleep 2
-        done
-        echo "Running idempotent database initialization..."
-        /init-db.sh
-        touch /tmp/init_complete
-        echo "Database initialization complete"
-    healthcheck:
-      test: ["CMD-SHELL", "test -f /tmp/init_complete"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s

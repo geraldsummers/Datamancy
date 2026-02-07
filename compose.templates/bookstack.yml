@@ -12,9 +12,7 @@ services:
           - bookstack.${DOMAIN}
     depends_on:
       mariadb:
-        condition: service_started
-      mariadb-init:
-        condition: service_completed_successfully
+        condition: service_healthy
     environment:
       PUID: ${DOCKER_USER_ID:-1000}
       PGID: ${DOCKER_GROUP_ID:-1000}
