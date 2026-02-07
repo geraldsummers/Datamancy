@@ -4,6 +4,8 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.grpc.LoadBalancerRegistry
 import io.grpc.ManagedChannelBuilder
 import io.grpc.NameResolverRegistry
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import io.grpc.internal.DnsNameResolverProvider
 import io.grpc.internal.PickFirstLoadBalancerProvider
 import io.qdrant.client.QdrantClient
@@ -13,11 +15,13 @@ import io.qdrant.client.grpc.Points.*
 import io.qdrant.client.PointIdFactory.id
 import io.qdrant.client.VectorsFactory.vectors
 import io.qdrant.client.ValueFactory.value
+import kotlinx.coroutines.delay
 import org.datamancy.pipeline.core.Sink
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import kotlin.random.Random
 
 private val logger = KotlinLogging.logger {}
 private const val QDRANT_TIMEOUT_SECONDS = 30L
@@ -84,7 +88,9 @@ class QdrantSink(
     qdrantPort: Int,
     private val collectionName: String,
     private val vectorSize: Int = 1024,
-    private val apiKey: String? = null
+    private val apiKey: String? = null,
+    private val maxRetries: Int = 5,
+    private val baseDelayMs: Long = 1000
 ) : Sink<VectorDocument> {
 
     companion object {
@@ -168,6 +174,72 @@ class QdrantSink(
     }
 
     /**
+     * Executes a Qdrant operation with exponential backoff retry logic for transient gRPC failures.
+     *
+     * **Retryable gRPC Status Codes:**
+     * - UNAVAILABLE: Service temporarily unreachable
+     * - DEADLINE_EXCEEDED: Request timeout
+     * - RESOURCE_EXHAUSTED: Rate limiting or overload
+     * - ABORTED: Transient conflict
+     *
+     * **Retry Strategy:**
+     * - Exponential backoff: delay = baseDelayMs * 2^attempt (1s, 2s, 4s, 8s, 16s)
+     * - Jitter: 0-50% added to prevent thundering herd
+     * - Max retries: 5 attempts
+     *
+     * @param operation The Qdrant operation to execute
+     * @return The result of the operation
+     * @throws Exception if all retries exhausted or non-retryable error
+     */
+    private suspend fun <T> executeWithRetry(operation: suspend () -> T): T {
+        var lastException: Exception? = null
+
+        for (attempt in 0..maxRetries) {
+            try {
+                return operation()
+            } catch (e: StatusRuntimeException) {
+                val isRetryable = when (e.status.code) {
+                    Status.Code.UNAVAILABLE,
+                    Status.Code.DEADLINE_EXCEEDED,
+                    Status.Code.RESOURCE_EXHAUSTED,
+                    Status.Code.ABORTED -> true
+                    else -> false
+                }
+
+                if (isRetryable && attempt < maxRetries) {
+                    lastException = e
+                    val backoffMs = baseDelayMs * (1L shl attempt)
+                    val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
+                    val totalDelay = backoffMs + jitterMs
+                    logger.warn { "Qdrant gRPC error (${e.status.code}, attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms: ${e.message}" }
+                    delay(totalDelay)
+                } else {
+                    logger.error(e) { "Qdrant gRPC error (non-retryable or max retries): ${e.status.code} - ${e.message}" }
+                    throw e
+                }
+            } catch (e: TimeoutException) {
+                lastException = e
+                if (attempt < maxRetries) {
+                    val backoffMs = baseDelayMs * (1L shl attempt)
+                    val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
+                    val totalDelay = backoffMs + jitterMs
+                    logger.warn { "Qdrant timeout (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms" }
+                    delay(totalDelay)
+                } else {
+                    logger.error(e) { "Qdrant timeout after $maxRetries retries" }
+                    throw RuntimeException("Qdrant timeout after $maxRetries retries", e)
+                }
+            } catch (e: Exception) {
+                // Non-retryable errors
+                logger.error(e) { "Qdrant error (non-retryable): ${e.message}" }
+                throw e
+            }
+        }
+
+        throw lastException ?: Exception("Qdrant operation failed after $maxRetries retries")
+    }
+
+    /**
      * Writes a single vector document to Qdrant using deterministic ID and upsert semantics.
      *
      * **ID Generation:**
@@ -189,12 +261,15 @@ class QdrantSink(
      * method to persist the vector to Qdrant. On success, the document status in PostgreSQL is
      * updated from IN_PROGRESS to COMPLETED.
      *
+     * **Retry Logic:**
+     * Uses exponential backoff for transient gRPC failures (UNAVAILABLE, DEADLINE_EXCEEDED, etc.).
+     *
      * @param item The vector document containing ID, embedding vector, and metadata
-     * @throws RuntimeException if write operation times out (30s)
-     * @throws Exception for other Qdrant API errors
+     * @throws RuntimeException if write operation times out after retries
+     * @throws Exception for non-retryable Qdrant API errors
      */
     override suspend fun write(item: VectorDocument) {
-        try {
+        executeWithRetry {
             // Generate deterministic UUID from document ID (enables idempotent writes)
             val deterministicId = item.id.toDeterministicUUID()
 
@@ -207,12 +282,6 @@ class QdrantSink(
             // Upsert: Create if new, update if exists (idempotent operation)
             client.upsertAsync(collectionName, listOf(point)).get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             logger.debug { "Wrote vector ${item.id} to $collectionName" }
-        } catch (e: TimeoutException) {
-            logger.error { "Timeout writing to Qdrant after ${QDRANT_TIMEOUT_SECONDS}s: ${item.id}" }
-            throw RuntimeException("Qdrant write timeout", e)
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to write to Qdrant: ${e.message}" }
-            throw e
         }
     }
 
@@ -233,12 +302,15 @@ class QdrantSink(
      * Like single writes, batch writes use deterministic UUIDs and upsert semantics, ensuring safe
      * retry behavior even if the batch is processed multiple times.
      *
+     * **Retry Logic:**
+     * Uses exponential backoff for transient gRPC failures.
+     *
      * @param items List of vector documents to write
-     * @throws RuntimeException if batch write times out (30s)
-     * @throws Exception for other Qdrant API errors
+     * @throws RuntimeException if batch write times out after retries
+     * @throws Exception for non-retryable Qdrant API errors
      */
     override suspend fun writeBatch(items: List<VectorDocument>) {
-        try {
+        executeWithRetry {
             val points = items.map { item ->
                 // Generate deterministic UUID for each document (enables idempotent batch writes)
                 val deterministicId = item.id.toDeterministicUUID()
@@ -253,12 +325,6 @@ class QdrantSink(
             // Batch upsert: More efficient than individual writes for bulk operations
             client.upsertAsync(collectionName, points).get(QDRANT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             logger.info { "Wrote ${items.size} vectors to $collectionName" }
-        } catch (e: TimeoutException) {
-            logger.error { "Timeout writing batch to Qdrant after ${QDRANT_TIMEOUT_SECONDS}s: ${items.size} items" }
-            throw RuntimeException("Qdrant batch write timeout", e)
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to write batch to Qdrant: ${e.message}" }
-            throw e
         }
     }
 

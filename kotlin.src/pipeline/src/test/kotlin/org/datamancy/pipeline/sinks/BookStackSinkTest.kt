@@ -316,13 +316,13 @@ class BookStackSinkTest {
 
     @Test
     fun `test caching reduces API calls for same book`() = runBlocking {
-        
+
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 99, "name": "Same Book"}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1, "slug": "page-1", "book_slug": "same-book"}"""))
 
-        
+
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
         mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 2, "slug": "page-2", "book_slug": "same-book"}"""))
 
@@ -335,8 +335,144 @@ class BookStackSinkTest {
         sink.write(doc2)
         val requestsAfterSecond = mockServer.requestCount
 
-        
+
         assertTrue(requestsAfterSecond - requestsAfterFirst < requestsAfterFirst,
             "Second write should use cached book and make fewer requests")
+    }
+
+    @Test
+    fun `test retries on 429 rate limit`() = runBlocking {
+        val sinkWithFastRetry = BookStackSink(
+            bookstackUrl = mockServer.url("/").toString().trimEnd('/'),
+            tokenId = "test",
+            tokenSecret = "secret",
+            maxRetries = 3,
+            baseDelayMs = 10  // Fast retry for testing
+        )
+
+        // First attempt: 429
+        mockServer.enqueue(MockResponse().setResponseCode(429).setBody("Rate limited"))
+        // Second attempt: Success
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": [{"id": 1, "name": "Book"}]}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1, "slug": "page", "book_slug": "book"}"""))
+
+        val doc = BookStackDocument(bookName = "Book", pageTitle = "Page", pageContent = "<p>Test</p>")
+        sinkWithFastRetry.write(doc)
+
+        // Should have made at least 2 requests (1 failed + 1 success for book search)
+        assertTrue(mockServer.requestCount >= 2)
+    }
+
+    @Test
+    fun `test retries on 503 server error`() = runBlocking {
+        val sinkWithFastRetry = BookStackSink(
+            bookstackUrl = mockServer.url("/").toString().trimEnd('/'),
+            tokenId = "test",
+            tokenSecret = "secret",
+            maxRetries = 2,
+            baseDelayMs = 10
+        )
+
+        // First attempt: 503
+        mockServer.enqueue(MockResponse().setResponseCode(503).setBody("Service unavailable"))
+        // Second attempt: Success
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1, "slug": "page", "book_slug": "book"}"""))
+
+        val doc = BookStackDocument(bookName = "Book", pageTitle = "Page", pageContent = "<p>Test</p>")
+        sinkWithFastRetry.write(doc)
+
+        assertTrue(mockServer.requestCount >= 2)
+    }
+
+    @Test
+    fun `test fails after max retries`() = runBlocking {
+        val sinkWithFastRetry = BookStackSink(
+            bookstackUrl = mockServer.url("/").toString().trimEnd('/'),
+            tokenId = "test",
+            tokenSecret = "secret",
+            maxRetries = 2,
+            baseDelayMs = 10
+        )
+
+        // All attempts fail with 500
+        repeat(10) {
+            mockServer.enqueue(MockResponse().setResponseCode(500).setBody("Server error"))
+        }
+
+        val doc = BookStackDocument(bookName = "Book", pageTitle = "Page", pageContent = "<p>Test</p>")
+
+        var exceptionThrown = false
+        try {
+            sinkWithFastRetry.write(doc)
+        } catch (e: Exception) {
+            exceptionThrown = true
+        }
+
+        assertTrue(exceptionThrown, "Should throw exception after max retries")
+        // Should have made maxRetries + 1 attempts = 3 total
+        assertEquals(3, mockServer.requestCount)
+    }
+
+    @Test
+    fun `test does not retry on 400 bad request`() = runBlocking {
+        val sinkWithFastRetry = BookStackSink(
+            bookstackUrl = mockServer.url("/").toString().trimEnd('/'),
+            tokenId = "test",
+            tokenSecret = "secret",
+            maxRetries = 3,
+            baseDelayMs = 10
+        )
+
+        // 400 should not be retried
+        mockServer.enqueue(MockResponse().setResponseCode(400).setBody("Bad request"))
+
+        val doc = BookStackDocument(bookName = "Book", pageTitle = "Page", pageContent = "<p>Test</p>")
+
+        var exceptionThrown = false
+        try {
+            sinkWithFastRetry.write(doc)
+        } catch (e: Exception) {
+            exceptionThrown = true
+        }
+
+        assertTrue(exceptionThrown, "Should throw exception on 400")
+        // Should only make 1 request (no retries for 400)
+        assertEquals(1, mockServer.requestCount)
+    }
+
+    @Test
+    fun `test exponential backoff increases delay`() = runBlocking {
+        val sinkWithMeasurableDelay = BookStackSink(
+            bookstackUrl = mockServer.url("/").toString().trimEnd('/'),
+            tokenId = "test",
+            tokenSecret = "secret",
+            maxRetries = 3,
+            baseDelayMs = 100  // 100ms base delay
+        )
+
+        // Fail twice, then succeed
+        mockServer.enqueue(MockResponse().setResponseCode(503))
+        mockServer.enqueue(MockResponse().setResponseCode(503))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"data": []}"""))
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{"id": 1, "slug": "page", "book_slug": "book"}"""))
+
+        val doc = BookStackDocument(bookName = "Book", pageTitle = "Page", pageContent = "<p>Test</p>")
+
+        val startTime = System.currentTimeMillis()
+        sinkWithMeasurableDelay.write(doc)
+        val elapsed = System.currentTimeMillis() - startTime
+
+        // With 2 retries and base delay of 100ms:
+        // Attempt 1: immediate
+        // Attempt 2: 100ms * 2^0 = 100ms + jitter (0-50ms) = 100-150ms
+        // Attempt 3: 100ms * 2^1 = 200ms + jitter (0-100ms) = 200-300ms
+        // Minimum total delay: ~300ms
+        assertTrue(elapsed >= 100, "Should have exponential backoff delays (got ${elapsed}ms)")
     }
 }

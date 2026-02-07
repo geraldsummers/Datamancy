@@ -3,12 +3,14 @@ package org.datamancy.pipeline.sinks
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.datamancy.pipeline.core.Sink
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 private val logger = KotlinLogging.logger {}
 
@@ -57,7 +59,9 @@ private val logger = KotlinLogging.logger {}
 class BookStackSink(
     private val bookstackUrl: String,
     private val tokenId: String,
-    private val tokenSecret: String
+    private val tokenSecret: String,
+    private val maxRetries: Int = 5,
+    private val baseDelayMs: Long = 500
 ) : Sink<BookStackDocument> {
     override val name = "BookStackSink"
 
@@ -187,6 +191,97 @@ class BookStackSink(
     }
 
     /**
+     * Executes an HTTP request with exponential backoff retry logic for transient failures.
+     *
+     * **Retryable Errors:**
+     * - HTTP 429 (Too Many Requests): Rate limiting
+     * - HTTP 500-504: Server errors or proxy issues
+     * - ConnectException: Service unreachable
+     * - SocketTimeoutException: Request timeout
+     * - IOException: Network instability
+     *
+     * **Retry Strategy:**
+     * - Exponential backoff: delay = baseDelayMs * 2^attempt (500ms, 1s, 2s, 4s, 8s)
+     * - Jitter: 0-50% added to prevent thundering herd
+     * - Max retries: 5 attempts
+     *
+     * @param request The HTTP request to execute
+     * @return The successful HTTP response body as string
+     * @throws Exception if all retries exhausted or non-retryable error
+     */
+    private suspend fun executeWithRetry(request: Request): String {
+        var lastException: Exception? = null
+
+        for (attempt in 0..maxRetries) {
+            try {
+                client.newCall(request).execute().use { response ->
+                    val bodyString = response.body?.string() ?: ""
+
+                    // Retryable HTTP errors
+                    if (response.code in listOf(429, 500, 502, 503, 504)) {
+                        throw RetryableBookStackException("BookStack returned retryable error ${response.code}")
+                    }
+
+                    // Non-retryable errors (4xx except 429)
+                    if (!response.isSuccessful) {
+                        throw Exception("BookStack returned ${response.code}: $bodyString")
+                    }
+
+                    return bodyString
+                }
+            } catch (e: RetryableBookStackException) {
+                lastException = e
+                if (attempt < maxRetries) {
+                    val backoffMs = baseDelayMs * (1L shl attempt)
+                    val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
+                    val totalDelay = backoffMs + jitterMs
+                    logger.warn { "BookStack API attempt ${attempt + 1}/$maxRetries failed (${e.message}), retrying in ${totalDelay}ms" }
+                    delay(totalDelay)
+                }
+            } catch (e: java.net.ConnectException) {
+                lastException = e
+                if (attempt < maxRetries) {
+                    val backoffMs = 1000L * (1L shl attempt)
+                    val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
+                    val totalDelay = backoffMs + jitterMs
+                    logger.warn { "BookStack unreachable (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms" }
+                    delay(totalDelay)
+                } else {
+                    throw Exception("BookStack unreachable after $maxRetries retries", e)
+                }
+            } catch (e: java.net.SocketTimeoutException) {
+                lastException = e
+                if (attempt < maxRetries) {
+                    val backoffMs = 1000L * (1L shl attempt)
+                    val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
+                    val totalDelay = backoffMs + jitterMs
+                    logger.warn { "BookStack timeout (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms" }
+                    delay(totalDelay)
+                } else {
+                    throw Exception("BookStack timeout after $maxRetries retries", e)
+                }
+            } catch (e: java.io.IOException) {
+                lastException = e
+                if (attempt < maxRetries) {
+                    val backoffMs = 1000L * (1L shl attempt)
+                    val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
+                    val totalDelay = backoffMs + jitterMs
+                    logger.warn { "Network error (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms: ${e.message}" }
+                    delay(totalDelay)
+                } else {
+                    throw Exception("Network error after $maxRetries retries: ${e.message}", e)
+                }
+            } catch (e: Exception) {
+                // Non-retryable errors
+                logger.error(e) { "BookStack API error (non-retryable): ${e.message}" }
+                throw e
+            }
+        }
+
+        throw lastException ?: Exception("BookStack API failed after $maxRetries retries")
+    }
+
+    /**
      * Gets or creates a BookStack book by name.
      *
      * **Caching Strategy:**
@@ -202,12 +297,16 @@ class BookStackSink(
      * **Auto-generated Description:**
      * If no description is provided, defaults to "Auto-generated by Datamancy Pipeline".
      *
+     * **Retry Logic:**
+     * All HTTP calls use exponential backoff retry logic for transient failures (rate limits,
+     * network issues, server errors).
+     *
      * @param name The book name (e.g., "RSS Articles", "CVE Database")
      * @param description Optional book description
      * @return BookStack book ID
-     * @throws Exception if API call fails
+     * @throws Exception if API call fails after retries
      */
-    private fun getOrCreateBook(name: String, description: String?): Int {
+    private suspend fun getOrCreateBook(name: String, description: String?): Int {
         // Check cache first (fast path)
         bookCache[name]?.let { return it }
 
@@ -219,20 +318,16 @@ class BookStackSink(
                 .get()
                 .build()
 
-            client.newCall(searchRequest).execute().use { response ->
-                if (response.isSuccessful) {
-                    val bodyString = response.body?.string() ?: return@use
-                    val json = JsonParser.parseString(bodyString).asJsonObject
-                    val books = json.getAsJsonArray("data")
+            val bodyString = executeWithRetry(searchRequest)
+            val json = JsonParser.parseString(bodyString).asJsonObject
+            val books = json.getAsJsonArray("data")
 
-                    for (book in books) {
-                        val bookObj = book.asJsonObject
-                        if (bookObj.get("name").asString == name) {
-                            val id = bookObj.get("id").asInt
-                            bookCache[name] = id
-                            return id
-                        }
-                    }
+            for (book in books) {
+                val bookObj = book.asJsonObject
+                if (bookObj.get("name").asString == name) {
+                    val id = bookObj.get("id").asInt
+                    bookCache[name] = id
+                    return id
                 }
             }
         } catch (e: Exception) {
@@ -251,19 +346,12 @@ class BookStackSink(
             .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 
-        client.newCall(request).execute().use { response ->
-            val bodyString = response.body?.string() ?: throw Exception("Empty response body")
-
-            if (!response.isSuccessful) {
-                throw Exception("Failed to create book: ${response.code} $bodyString")
-            }
-
-            val json = JsonParser.parseString(bodyString).asJsonObject
-            val id = json.get("id").asInt
-            bookCache[name] = id
-            logger.info { "Created BookStack book: $name (ID: $id)" }
-            return id
-        }
+        val bodyString = executeWithRetry(request)
+        val json = JsonParser.parseString(bodyString).asJsonObject
+        val id = json.get("id").asInt
+        bookCache[name] = id
+        logger.info { "Created BookStack book: $name (ID: $id)" }
+        return id
     }
 
     /**
@@ -282,13 +370,16 @@ class BookStackSink(
      * Chapters provide organizational structure within books (e.g., grouping RSS articles by source,
      * or CVEs by severity). Pages can exist directly in books (chapterId=null) or within chapters.
      *
+     * **Retry Logic:**
+     * All HTTP calls use exponential backoff retry logic for transient failures.
+     *
      * @param bookId The parent book ID
      * @param name The chapter name (e.g., "Hacker News", "High Severity CVEs")
      * @param description Optional chapter description
      * @return BookStack chapter ID
-     * @throws Exception if API call fails
+     * @throws Exception if API call fails after retries
      */
-    private fun getOrCreateChapter(bookId: Int, name: String, description: String?): Int {
+    private suspend fun getOrCreateChapter(bookId: Int, name: String, description: String?): Int {
         val cacheKey = "$bookId:$name"
         chapterCache[cacheKey]?.let { return it }
 
@@ -300,21 +391,17 @@ class BookStackSink(
                 .get()
                 .build()
 
-            client.newCall(searchRequest).execute().use { response ->
-                if (response.isSuccessful) {
-                    val bodyString = response.body?.string() ?: return@use
-                    val json = JsonParser.parseString(bodyString).asJsonObject
-                    val contents = json.getAsJsonArray("contents")
+            val bodyString = executeWithRetry(searchRequest)
+            val json = JsonParser.parseString(bodyString).asJsonObject
+            val contents = json.getAsJsonArray("contents")
 
-                    for (content in contents) {
-                        val contentObj = content.asJsonObject
-                        if (contentObj.get("type").asString == "chapter" &&
-                            contentObj.get("name").asString == name) {
-                            val id = contentObj.get("id").asInt
-                            chapterCache[cacheKey] = id
-                            return id
-                        }
-                    }
+            for (content in contents) {
+                val contentObj = content.asJsonObject
+                if (contentObj.get("type").asString == "chapter" &&
+                    contentObj.get("name").asString == name) {
+                    val id = contentObj.get("id").asInt
+                    chapterCache[cacheKey] = id
+                    return id
                 }
             }
         } catch (e: Exception) {
@@ -334,19 +421,12 @@ class BookStackSink(
             .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 
-        client.newCall(request).execute().use { response ->
-            val bodyString = response.body?.string() ?: throw Exception("Empty response body")
-
-            if (!response.isSuccessful) {
-                throw Exception("Failed to create chapter: ${response.code} $bodyString")
-            }
-
-            val json = JsonParser.parseString(bodyString).asJsonObject
-            val id = json.get("id").asInt
-            chapterCache[cacheKey] = id
-            logger.info { "Created BookStack chapter: $name (ID: $id)" }
-            return id
-        }
+        val bodyString = executeWithRetry(request)
+        val json = JsonParser.parseString(bodyString).asJsonObject
+        val id = json.get("id").asInt
+        chapterCache[cacheKey] = id
+        logger.info { "Created BookStack chapter: $name (ID: $id)" }
+        return id
     }
 
     /**
@@ -374,13 +454,16 @@ class BookStackSink(
      * Tags are stored as name-value pairs (e.g., "source: rss", "url: https://..."). These appear
      * in BookStack's UI and are searchable within the knowledge base.
      *
+     * **Retry Logic:**
+     * All HTTP calls use exponential backoff retry logic for transient failures.
+     *
      * @param bookId The parent book ID
      * @param chapterId The parent chapter ID, or null for pages directly in the book
      * @param doc The BookStack document containing page title, content, and tags
      * @return The full BookStack page URL (e.g., "https://bookstack.example.com/books/rss-articles/page/my-article")
-     * @throws Exception if API call fails
+     * @throws Exception if API call fails after retries
      */
-    private fun createOrUpdatePage(bookId: Int, chapterId: Int?, doc: BookStackDocument): String {
+    private suspend fun createOrUpdatePage(bookId: Int, chapterId: Int?, doc: BookStackDocument): String {
         // Generate composite cache key (includes book, chapter, and title for uniqueness)
         val cacheKey = "${bookId}:${chapterId ?: "null"}:${doc.pageTitle}"
         var existingPageId: Int? = pageCache[cacheKey]
@@ -394,26 +477,22 @@ class BookStackSink(
                     .get()
                     .build()
 
-                client.newCall(searchRequest).execute().use { response ->
-                    if (response.isSuccessful) {
-                        val bodyString = response.body?.string() ?: return@use
-                        val json = JsonParser.parseString(bodyString).asJsonObject
-                        val pages = json.getAsJsonArray("data")
+                val bodyString = executeWithRetry(searchRequest)
+                val json = JsonParser.parseString(bodyString).asJsonObject
+                val pages = json.getAsJsonArray("data")
 
-                        for (page in pages) {
-                            val pageObj = page.asJsonObject
-                            // Match on book ID and chapter ID to find correct page (title alone may not be unique)
-                            val pageBookId = pageObj.get("book_id").asInt
-                            val pageChapterId = pageObj.get("chapter_id")?.let {
-                                if (it.isJsonNull) null else it.asInt
-                            }
+                for (page in pages) {
+                    val pageObj = page.asJsonObject
+                    // Match on book ID and chapter ID to find correct page (title alone may not be unique)
+                    val pageBookId = pageObj.get("book_id").asInt
+                    val pageChapterId = pageObj.get("chapter_id")?.let {
+                        if (it.isJsonNull) null else it.asInt
+                    }
 
-                            if (pageBookId == bookId && pageChapterId == chapterId) {
-                                existingPageId = pageObj.get("id").asInt
-                                pageCache[cacheKey] = existingPageId!!
-                                break
-                            }
-                        }
+                    if (pageBookId == bookId && pageChapterId == chapterId) {
+                        existingPageId = pageObj.get("id").asInt
+                        pageCache[cacheKey] = existingPageId!!
+                        break
                     }
                 }
             } catch (e: Exception) {
@@ -443,20 +522,13 @@ class BookStackSink(
                 .put(gson.toJson(payload).toRequestBody(jsonMediaType))
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                val bodyString = response.body?.string() ?: throw Exception("Empty response body")
+            val bodyString = executeWithRetry(request)
+            val json = JsonParser.parseString(bodyString).asJsonObject
+            val slug = json.get("slug")?.asString ?: throw Exception("No slug in response")
+            val pageUrl = "$bookstackUrl/books/${json.get("book_slug")?.asString}/page/$slug"
 
-                if (!response.isSuccessful) {
-                    throw Exception("Failed to update page: ${response.code} $bodyString")
-                }
-
-                val json = JsonParser.parseString(bodyString).asJsonObject
-                val slug = json.get("slug")?.asString ?: throw Exception("No slug in response")
-                val pageUrl = "$bookstackUrl/books/${json.get("book_slug")?.asString}/page/$slug"
-
-                logger.debug { "Updated BookStack page: ${doc.pageTitle} (ID: $existingPageId)" }
-                return pageUrl
-            }
+            logger.debug { "Updated BookStack page: ${doc.pageTitle} (ID: $existingPageId)" }
+            return pageUrl
         } else {
             // Page doesn't exist - create it via POST
             val request = Request.Builder()
@@ -465,27 +537,25 @@ class BookStackSink(
                 .post(gson.toJson(payload).toRequestBody(jsonMediaType))
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                val bodyString = response.body?.string() ?: throw Exception("Empty response body")
+            val bodyString = executeWithRetry(request)
+            val json = JsonParser.parseString(bodyString).asJsonObject
+            val pageId = json.get("id").asInt
+            val slug = json.get("slug")?.asString ?: throw Exception("No slug in response")
+            val pageUrl = "$bookstackUrl/books/${json.get("book_slug")?.asString}/page/$slug"
 
-                if (!response.isSuccessful) {
-                    throw Exception("Failed to create page: ${response.code} $bodyString")
-                }
+            // Cache the new page ID for future updates
+            pageCache[cacheKey] = pageId
 
-                val json = JsonParser.parseString(bodyString).asJsonObject
-                val pageId = json.get("id").asInt
-                val slug = json.get("slug")?.asString ?: throw Exception("No slug in response")
-                val pageUrl = "$bookstackUrl/books/${json.get("book_slug")?.asString}/page/$slug"
-
-                // Cache the new page ID for future updates
-                pageCache[cacheKey] = pageId
-
-                logger.debug { "Created BookStack page: ${doc.pageTitle} (ID: $pageId)" }
-                return pageUrl
-            }
+            logger.debug { "Created BookStack page: ${doc.pageTitle} (ID: $pageId)" }
+            return pageUrl
         }
     }
 }
+
+/**
+ * Custom exception for retryable BookStack API errors.
+ */
+class RetryableBookStackException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
  * Represents a document to be written to BookStack knowledge base.
