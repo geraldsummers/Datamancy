@@ -2,6 +2,8 @@ package org.datamancy.pipeline.sinks
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.grpc.ManagedChannelBuilder
+import io.grpc.NameResolverRegistry
+import io.grpc.internal.DnsNameResolverProvider
 import io.qdrant.client.QdrantClient
 import io.qdrant.client.QdrantGrpcClient
 import io.qdrant.client.grpc.Collections.*
@@ -17,6 +19,11 @@ import java.util.concurrent.TimeoutException
 
 private val logger = KotlinLogging.logger {}
 private const val QDRANT_TIMEOUT_SECONDS = 30L
+
+// Register DNS name resolver explicitly to fix fat JAR issue where Unix socket resolver takes precedence
+init {
+    NameResolverRegistry.getDefaultRegistry().register(DnsNameResolverProvider())
+}
 
 /**
  * Converts a string to a deterministic UUID using SHA-256 hashing.
