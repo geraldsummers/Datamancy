@@ -338,10 +338,9 @@ private fun saveResults(
         Endpoints:
           Authelia: ${env.endpoints.authelia}
           LDAP: ${env.endpoints.ldap ?: "N/A"}
-          Ollama: ${env.endpoints.ollama}
+          LiteLLM: ${env.endpoints.liteLLM}
           PostgreSQL: ${env.endpoints.postgres}
-          Qdrant gRPC: ${env.endpoints.qdrantGrpc}
-          Qdrant HTTP: ${env.endpoints.qdrantHttp}
+          Qdrant: ${env.endpoints.qdrant}
           Pipeline: ${env.endpoints.pipeline}
           Search Service: ${env.endpoints.searchService}
           BookStack: ${env.endpoints.bookstack}
