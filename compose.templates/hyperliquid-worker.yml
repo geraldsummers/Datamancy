@@ -2,8 +2,8 @@ services:
   hyperliquid-worker:
     image: datamancy/hyperliquid-worker:local-build
     build:
-      context: .
-      dockerfile: ./containers.src/hyperliquid-worker/Dockerfile
+      context: ./containers.src/hyperliquid-worker
+      dockerfile: Dockerfile
     container_name: hyperliquid-worker
     restart: unless-stopped
     networks:

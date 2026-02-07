@@ -2,8 +2,8 @@ services:
   evm-broadcaster:
     image: datamancy/evm-broadcaster:local-build
     build:
-      context: .
-      dockerfile: ./containers.src/evm-broadcaster/Dockerfile
+      context: ./containers.src/evm-broadcaster
+      dockerfile: Dockerfile
     container_name: evm-broadcaster
     restart: unless-stopped
     networks:
