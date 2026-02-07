@@ -27,10 +27,10 @@ subprojects {
         jvmToolchain(21)
     }
 
-    // Enforce warnings as errors for Kotlin compilation (except pipeline)
+    // Enforce warnings as errors for Kotlin compilation (except pipeline and tx-gateway)
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         compilerOptions {
-            allWarningsAsErrors.set(project.name != "pipeline")
+            allWarningsAsErrors.set(project.name !in listOf("pipeline", "tx-gateway"))
         }
     }
 

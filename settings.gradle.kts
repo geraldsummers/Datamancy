@@ -30,6 +30,13 @@ project(":search-service").projectDir = file("kotlin.src/search-service")
 
 include(":test-runner")
 project(":test-runner").projectDir = file("kotlin.src/test-runner")
+
+// Trading system
+include(":trading-sdk")
+include(":tx-gateway")
+project(":trading-sdk").projectDir = file("kotlin.src/trading-sdk")
+project(":tx-gateway").projectDir = file("kotlin.src/tx-gateway")
+
 // Deprecated: stack-tests (replaced by test-runner)
 // include(":stack-tests")
 // project(":stack-tests").projectDir = file("src/stack-tests")

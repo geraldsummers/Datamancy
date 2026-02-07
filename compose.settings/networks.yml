@@ -60,3 +60,7 @@ networks:
   matrix-internal:
     driver: bridge
     internal: true
+
+  trading:
+    driver: bridge
+    internal: true

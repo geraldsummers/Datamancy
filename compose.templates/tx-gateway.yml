@@ -1,0 +1,41 @@
+services:
+  tx-gateway:
+    image: datamancy/tx-gateway:local-build
+    build:
+      context: .
+      dockerfile: ./containers.src/tx-gateway/Dockerfile
+    container_name: tx-gateway
+    restart: unless-stopped
+    networks:
+      - trading
+      - postgres
+      - ldap
+      - caddy
+    depends_on:
+      postgres:
+        condition: service_started
+      ldap:
+        condition: service_started
+      authelia:
+        condition: service_started
+    environment:
+      PORT: 8080
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: txgateway
+      POSTGRES_USER: txgateway
+      POSTGRES_PASSWORD: ${POSTGRES_TXGATEWAY_PASSWORD}
+      LDAP_HOST: ldap
+      LDAP_PORT: 389
+      LDAP_BASE_DN: ${LDAP_BASE_DN}
+      LDAP_BIND_DN: cn=admin,${LDAP_BASE_DN}
+      LDAP_BIND_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      AUTHELIA_JWKS_URL: http://authelia:9091/.well-known/jwks.json
+      EVM_BROADCASTER_URL: http://evm-broadcaster:8081
+      HYPERLIQUID_WORKER_URL: http://hyperliquid-worker:8082
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

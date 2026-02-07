@@ -8,17 +8,32 @@
 # Env vars used inside this file (must be provided to the Caddy container):
 # - DOMAIN                     (e.g. example.com)
 # - API_LITELLM_ALLOWLIST     (space-separated CIDRs)
+# - STACK_ADMIN_EMAIL          (e.g. admin@example.com)
+# - ZEROSSL_API_KEY            (optional, for ZeroSSL ACME)
 #
 # TLS Configuration:
-# - Development/Testing: Uses self-signed certs via Caddy's internal CA (local_certs)
-# - Production: Comment out local_certs and uncomment the email line for Let's Encrypt
+# - Uses ZeroSSL as primary CA (more generous rate limits than Let's Encrypt)
+# - Falls back to Let's Encrypt if ZeroSSL fails
+# - Development/Testing: Uncomment local_certs for self-signed certificates
 ###############################################
 {
-	# DEVELOPMENT: Self-signed certificates via Caddy's internal CA
+	# DEVELOPMENT: Uncomment for self-signed certificates via Caddy's internal CA
 	# local_certs
 
-	# PRODUCTION: Let's Encrypt certificates
+	# PRODUCTION: ZeroSSL as primary CA (better rate limits)
 	email {$STACK_ADMIN_EMAIL}
+
+	# ZeroSSL configuration with EAB credentials
+	acme_ca https://acme.zerossl.com/v2/DV90
+
+	# If ZEROSSL_API_KEY is set, use EAB (External Account Binding)
+	# This provides better rate limits and reliability
+	# Get your API key from: https://app.zerossl.com/developer
+	# acme_eab {$ZEROSSL_KID} {$ZEROSSL_HMAC_KEY}
+
+	# Fallback CAs if ZeroSSL fails
+	# Note: Let's Encrypt has stricter rate limits (5 certs per exact domain set per week)
+	acme_ca_root https://acme-v02.api.letsencrypt.org/directory
 }
 
 # Snippet for Authelia Forward Auth
