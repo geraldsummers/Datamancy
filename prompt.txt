@@ -1,7 +1,7 @@
 ssh in via ssh gerald@latium.local "command"
 Drop a docker ps
 Drop a ls ~/datamancy
-Run the test runner container and collect results (integration-test-runner in compose file)
+Run the test runner container and collect results (integration-test-runner in compose file) - this takes AGES  to run so maybe 5 min blocks and check periodically?
 Grep all logs for exception,error,fail
 GET HYPED WE'RE BUILDING FIRE
 Once you have found errors precisely identify what you would have to change in the local repo to fix them - but do not change yet.

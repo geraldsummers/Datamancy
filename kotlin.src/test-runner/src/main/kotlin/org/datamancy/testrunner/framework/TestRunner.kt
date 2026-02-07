@@ -1,6 +1,7 @@
 package org.datamancy.testrunner.framework
 
 import kotlinx.coroutines.*
+import java.io.File
 import kotlin.system.measureTimeMillis
 
 /**
@@ -44,10 +45,12 @@ import kotlin.system.measureTimeMillis
 class TestRunner(
     val environment: TestEnvironment,
     val client: ServiceClient,
-    val httpClient: io.ktor.client.HttpClient
+    val httpClient: io.ktor.client.HttpClient,
+    val resultsDir: File? = null
 ) {
     val env get() = environment
     val endpoints get() = environment.endpoints
+    private val testOutputLog = StringBuilder()
 
     /**
      * LDAP helper for ephemeral user creation and management.
@@ -74,13 +77,16 @@ class TestRunner(
     private val results = mutableListOf<TestResult>()
 
     suspend fun suite(name: String, block: suspend TestSuite.() -> Unit) {
-        println("\n▶ $name")
+        val message = "\n▶ $name"
+        println(message)
+        log(message)
         val suite = TestSuite(name, this)
         suite.block()
     }
 
     suspend fun test(name: String, block: suspend TestContext.() -> Unit): TestResult {
         print("  [TEST] $name ... ")
+        log("  [TEST] $name ... ")
         var duration = 0L
         val result = try {
             duration = measureTimeMillis {
@@ -88,19 +94,31 @@ class TestRunner(
                 ctx.block()
             }
             TestResult.Success(name, duration).also {
-                println("✓ OK (${duration}ms)")
+                val message = "✓ OK (${duration}ms)"
+                println(message)
+                log(message)
             }
         } catch (e: AssertionError) {
             TestResult.Failure(name, e.message ?: "Assertion failed", duration).also {
-                println("✗ FAIL (${duration}ms)")
-                println("      ${e.message}")
+                val message1 = "✗ FAIL (${duration}ms)"
+                val message2 = "      ${e.message}"
+                println(message1)
+                println(message2)
+                log(message1)
+                log(message2)
             }
         } catch (e: Exception) {
             TestResult.Failure(name, e.message ?: "Unknown error", duration).also {
-                println("✗ ERROR (${duration}ms)")
-                println("      ${e.message}")
+                val message1 = "✗ ERROR (${duration}ms)"
+                val message2 = "      ${e.message}"
+                println(message1)
+                println(message2)
+                log(message1)
+                log(message2)
                 if (e.stackTrace.isNotEmpty()) {
-                    println("      at ${e.stackTrace[0]}")
+                    val message3 = "      at ${e.stackTrace[0]}"
+                    println(message3)
+                    log(message3)
                 }
             }
         }
@@ -110,13 +128,20 @@ class TestRunner(
 
     fun skip(name: String, reason: String) {
         results.add(TestResult.Skipped(name, reason))
-        println("  [SKIP] $name - $reason")
+        val message = "  [SKIP] $name - $reason"
+        println(message)
+        log(message)
     }
 
     fun summary(): TestSummary {
         val passed = results.filterIsInstance<TestResult.Success>()
         val failed = results.filterIsInstance<TestResult.Failure>()
         val skipped = results.filterIsInstance<TestResult.Skipped>()
+
+        // Save detailed log if results directory exists
+        resultsDir?.let {
+            File(it, "detailed.log").writeText(testOutputLog.toString())
+        }
 
         return TestSummary(
             total = results.size,
@@ -126,6 +151,10 @@ class TestRunner(
             duration = passed.sumOf { it.durationMs } + failed.sumOf { it.durationMs },
             failures = failed
         )
+    }
+
+    private fun log(message: String) {
+        testOutputLog.appendLine(message)
     }
 }
 

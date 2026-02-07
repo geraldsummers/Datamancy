@@ -9,7 +9,11 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.datamancy.testrunner.framework.*
 import org.datamancy.testrunner.suites.*
+import java.io.File
 import java.security.cert.X509Certificate
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.net.ssl.X509TrustManager
 import kotlin.system.exitProcess
 
@@ -23,6 +27,13 @@ fun main(args: Array<String>) = runBlocking {
         exitProcess(0)
     }
 
+    // Create results directory with timestamp
+    val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+        .withZone(ZoneId.systemDefault())
+        .format(Instant.now())
+    val resultsDir = File("test-results/$timestamp-$suite")
+    resultsDir.mkdirs()
+
     println("""
         ╔═══════════════════════════════════════════════════════════════════════════╗
         ║  Datamancy Integration Test Runner (Kotlin ${KotlinVersion.CURRENT})                 ║
@@ -31,18 +42,26 @@ fun main(args: Array<String>) = runBlocking {
         Environment: ${env.name}
         Suite: $suite
         Verbose: $verbose
+        Results: ${resultsDir.absolutePath}
 
     """.trimIndent())
 
     val httpClient = createHttpClient(verbose)
     val serviceClient = ServiceClient(env.endpoints, httpClient)
-    val runner = TestRunner(env, serviceClient, httpClient)
+    val runner = TestRunner(env, serviceClient, httpClient, resultsDir)
 
+    val startTime = System.currentTimeMillis()
     try {
         runTestSuite(runner, suite)
 
         val summary = runner.summary()
-        printSummary(summary)
+        val duration = System.currentTimeMillis() - startTime
+
+        // Print minimal telemetry to stdout
+        printTelemetry(summary, duration, resultsDir)
+
+        // Save detailed results to files
+        saveResults(summary, resultsDir, env, suite, duration)
 
         if (summary.failed > 0) {
             exitProcess(1)
@@ -53,6 +72,15 @@ fun main(args: Array<String>) = runBlocking {
         if (verbose) {
             e.printStackTrace()
         }
+
+        // Save error log
+        File(resultsDir, "error.log").writeText("""
+            Fatal Error: ${e.message}
+
+            Stack Trace:
+            ${e.stackTraceToString()}
+        """.trimIndent())
+
         exitProcess(2)
     } finally {
         httpClient.close()
@@ -216,31 +244,110 @@ private fun parseSuite(args: Array<String>): String {
         ?: "all"
 }
 
-private fun printSummary(summary: TestSummary) {
+private fun printTelemetry(summary: TestSummary, duration: Long, resultsDir: File) {
     println("\n" + "=".repeat(80))
-    println("TEST SUMMARY")
+    println("TEST RESULTS")
     println("=".repeat(80))
     println("Total Tests: ${summary.total}")
     println("  ✓ Passed:  ${summary.passed}")
     println("  ✗ Failed:  ${summary.failed}")
     println("  ⊘ Skipped: ${summary.skipped}")
-    println("  Duration:  ${summary.duration}ms (${summary.duration / 1000.0}s)")
-
-    if (summary.failures.isNotEmpty()) {
-        println("\n❌ Failed Tests:")
-        summary.failures.forEach {
-            println("  • ${it.name}")
-            println("    ${it.error}")
-        }
-    }
-
+    println("  Duration:  ${duration}ms (${duration / 1000.0}s)")
+    println()
+    println("Results saved to: ${resultsDir.absolutePath}")
+    println("  - summary.txt     : Test summary")
+    println("  - detailed.log    : Full test output")
+    println("  - failures.log    : Failed test details (if any)")
+    println("  - metadata.txt    : Run metadata")
     println("=".repeat(80))
 
     if (summary.failed > 0) {
-        println("\n❌ Some tests failed!")
+        println("\n❌ Some tests failed! See failures.log for details.")
     } else {
         println("\n✅ All tests passed!")
     }
+}
+
+private fun saveResults(
+    summary: TestSummary,
+    resultsDir: File,
+    env: TestEnvironment,
+    suite: String,
+    duration: Long
+) {
+    // Save summary
+    File(resultsDir, "summary.txt").writeText("""
+        ╔═══════════════════════════════════════════════════════════════════════════╗
+        ║  TEST SUMMARY                                                             ║
+        ╚═══════════════════════════════════════════════════════════════════════════╝
+
+        Total Tests: ${summary.total}
+          ✓ Passed:  ${summary.passed}
+          ✗ Failed:  ${summary.failed}
+          ⊘ Skipped: ${summary.skipped}
+          Duration:  ${duration}ms (${duration / 1000.0}s)
+
+        Status: ${if (summary.failed > 0) "FAILED ❌" else "PASSED ✅"}
+    """.trimIndent())
+
+    // Save detailed log
+    val detailedLog = StringBuilder()
+    detailedLog.appendLine("Datamancy Integration Test Runner - Detailed Results")
+    detailedLog.appendLine("=" .repeat(80))
+    detailedLog.appendLine()
+    detailedLog.appendLine("Test Statistics:")
+    detailedLog.appendLine("  Total:   ${summary.total}")
+    detailedLog.appendLine("  Passed:  ${summary.passed}")
+    detailedLog.appendLine("  Failed:  ${summary.failed}")
+    detailedLog.appendLine("  Skipped: ${summary.skipped}")
+    detailedLog.appendLine("  Duration: ${duration}ms (${duration / 1000.0}s)")
+    detailedLog.appendLine()
+
+    File(resultsDir, "detailed.log").writeText(detailedLog.toString())
+
+    // Save failures if any
+    if (summary.failures.isNotEmpty()) {
+        val failuresLog = StringBuilder()
+        failuresLog.appendLine("Failed Tests Report")
+        failuresLog.appendLine("=" .repeat(80))
+        failuresLog.appendLine()
+        summary.failures.forEach {
+            failuresLog.appendLine("Test: ${it.name}")
+            failuresLog.appendLine("Duration: ${it.durationMs}ms")
+            failuresLog.appendLine("Error:")
+            failuresLog.appendLine("  ${it.error}")
+            failuresLog.appendLine()
+            failuresLog.appendLine("-".repeat(80))
+            failuresLog.appendLine()
+        }
+        File(resultsDir, "failures.log").writeText(failuresLog.toString())
+    }
+
+    // Save metadata
+    File(resultsDir, "metadata.txt").writeText("""
+        Test Run Metadata
+        ================
+
+        Timestamp: ${DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+            .withZone(ZoneId.systemDefault())
+            .format(Instant.now())}
+        Environment: ${env.name}
+        Suite: $suite
+        Kotlin Version: ${KotlinVersion.CURRENT}
+
+        Endpoints:
+          Authelia: ${env.endpoints.authelia}
+          LDAP: ${env.endpoints.ldap ?: "N/A"}
+          Ollama: ${env.endpoints.ollama}
+          PostgreSQL: ${env.endpoints.postgres}
+          Qdrant gRPC: ${env.endpoints.qdrantGrpc}
+          Qdrant HTTP: ${env.endpoints.qdrantHttp}
+          Pipeline: ${env.endpoints.pipeline}
+          Search Service: ${env.endpoints.searchService}
+          BookStack: ${env.endpoints.bookstack}
+
+        Results Directory: ${resultsDir.absolutePath}
+    """.trimIndent())
 }
 
 private fun printUsage() {
