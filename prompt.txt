@@ -45,7 +45,7 @@ rm -rvf ~/datamancy | grep denied
 
 
 
-gerald@lab-pc ~ $ cd /home/gerald/IdeaProjects/Datamancy/ && rm -rvf dist/ && ./build-datamancy-v2.main.kts &&  rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && ssh gerald@latium.local "cd ~/datamancy && docker compose build --no-cache && docker compose up -d && docker compose logs -f"
+gerald@lab-pc ~ $ cd /home/gerald/IdeaProjects/Datamancy/ && rm -rvf dist/ && ./build-datamancy-v2.main.kts &&  rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && ssh gerald@latium.local "cd ~/datamancy && docker compose --profile='*' build && docker compose up -d && docker compose logs -f"
 
 
 

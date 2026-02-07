@@ -87,10 +87,10 @@ class QdrantSink(
 
     /** gRPC client for high-performance binary communication with Qdrant */
     private val client = QdrantClient(
-        QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort)
-            .also {
+        QdrantGrpcClient.newBuilder("$qdrantHost:$qdrantPort", false)
+            .apply {
                 if (!apiKey.isNullOrBlank()) {
-                    it.withApiKey(apiKey)
+                    withApiKey(apiKey)
                 }
             }
             .build()
