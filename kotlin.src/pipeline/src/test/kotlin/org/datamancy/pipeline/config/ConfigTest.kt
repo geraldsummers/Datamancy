@@ -15,10 +15,11 @@ class ConfigTest {
 
         
         assertTrue(config.rss.enabled)
-        assertFalse(config.cve.enabled) 
+        assertFalse(config.cve.enabled)
         assertTrue(config.torrents.enabled)
         assertEquals("http://embedding-service:8000", config.embedding.serviceUrl)
-        assertEquals("http://qdrant:6333", config.qdrant.url)
+        assertEquals("qdrant", config.qdrant.host)
+        assertEquals(6334, config.qdrant.port)
         assertEquals("jdbc:postgresql://postgres:5432/datamancy", config.postgres.jdbcUrl)
     }
 
@@ -180,14 +181,16 @@ class ConfigTest {
     @Test
     fun `fromEnv parses Qdrant configuration from environment`() {
         withEnvironment(
-            "QDRANT_URL" to "http://custom-qdrant:7333",
+            "QDRANT_HOST" to "custom-qdrant",
+            "QDRANT_PORT" to "7333",
             "QDRANT_RSS_COLLECTION" to "custom_rss",
             "QDRANT_CVE_COLLECTION" to "custom_cve",
             "QDRANT_TORRENTS_COLLECTION" to "custom_torrents"
         ) {
             val config = PipelineConfig.fromEnv()
 
-            assertEquals("http://custom-qdrant:7333", config.qdrant.url)
+            assertEquals("custom-qdrant", config.qdrant.host)
+            assertEquals(7333, config.qdrant.port)
             assertEquals("custom_rss", config.qdrant.rssCollection)
             assertEquals("custom_cve", config.qdrant.cveCollection)
             assertEquals("custom_torrents", config.qdrant.torrentsCollection)
@@ -296,8 +299,8 @@ class ConfigTest {
         assertEquals(1024, config.embedding.vectorSize)
         assertEquals("bge-m3", config.embedding.model)
 
-        
-        assertTrue(config.qdrant.url.contains("qdrant"))
+
+        assertTrue(config.qdrant.host.contains("qdrant"))
         assertTrue(config.postgres.jdbcUrl.contains("postgres"))
     }
 
@@ -451,7 +454,8 @@ class ConfigTest {
                         maxTokens = System.getProperty("EMBEDDING_MAX_TOKENS")?.toInt() ?: 8192
                     ),
                     qdrant = QdrantConfig(
-                        url = System.getProperty("QDRANT_URL") ?: "http://qdrant:6333",
+                        host = System.getProperty("QDRANT_HOST") ?: "qdrant",
+                        port = System.getProperty("QDRANT_PORT")?.toInt() ?: 6334,
                         rssCollection = System.getProperty("QDRANT_RSS_COLLECTION") ?: "rss_feeds",
                         cveCollection = System.getProperty("QDRANT_CVE_COLLECTION") ?: "cve",
                         torrentsCollection = System.getProperty("QDRANT_TORRENTS_COLLECTION") ?: "torrents",

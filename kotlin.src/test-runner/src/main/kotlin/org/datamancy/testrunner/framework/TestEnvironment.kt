@@ -70,6 +70,7 @@ data class ServiceEndpoints(
     val postgres: DatabaseConfig,
     val mariadb: DatabaseConfig? = null,
     val qdrant: String,
+    val qdrantApiKey: String? = null,
     val valkey: String? = null,
     val ldap: String? = null,
     val userContext: String? = null,
@@ -147,6 +148,7 @@ data class ServiceEndpoints(
                 password = env("MARIADB_PASSWORD") ?: ""
             ),
             qdrant = env("QDRANT_URL") ?: "http://qdrant:6333",
+            qdrantApiKey = env("QDRANT_API_KEY"),
             valkey = env("VALKEY_URL") ?: "valkey:6379",
             ldap = env("LDAP_URL") ?: "ldap://ldap:389",
             userContext = env("TEST_USER_CONTEXT") ?: "test-agent-user",
@@ -212,6 +214,7 @@ data class ServiceEndpoints(
             postgres = DatabaseConfig("localhost", 15432, "datamancy", "datamancer", ""),
             mariadb = DatabaseConfig("localhost", 13306, "bookstack", "bookstack", ""),
             qdrant = "http://localhost:16333",
+            qdrantApiKey = env("QDRANT_API_KEY"),
             valkey = "localhost:16379",
             ldap = "ldap://localhost:10389",
             userContext = "test-agent-user",

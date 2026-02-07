@@ -201,18 +201,26 @@ class ServiceClient(
      */
     suspend fun getRawResponse(url: String): HttpResponse {
         return client.get(url) {
-            
+            // Add BookStack authentication
             if (url.contains("/api/") && endpoints.bookstackTokenId != null && endpoints.bookstackTokenSecret != null) {
                 header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
+            }
+            // Add Qdrant authentication
+            if (url.contains(endpoints.qdrant) && endpoints.qdrantApiKey != null) {
+                header("api-key", endpoints.qdrantApiKey)
             }
         }
     }
 
     suspend fun getRawResponse(url: String, block: HttpRequestBuilder.() -> Unit): HttpResponse {
         return client.get(url) {
-            
+            // Add BookStack authentication
             if (url.contains("/api/") && endpoints.bookstackTokenId != null && endpoints.bookstackTokenSecret != null) {
                 header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
+            }
+            // Add Qdrant authentication
+            if (url.contains(endpoints.qdrant) && endpoints.qdrantApiKey != null) {
+                header("api-key", endpoints.qdrantApiKey)
             }
             block()
         }

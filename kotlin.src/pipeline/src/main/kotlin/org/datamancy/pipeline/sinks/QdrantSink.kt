@@ -66,7 +66,8 @@ private fun String.toDeterministicUUID(): UUID {
  * - search-service module queries these vectors for semantic search (via cosine similarity)
  * - agent-tool-server provides search_qdrant tool for LLM agents to query vectors
  *
- * @param qdrantUrl The Qdrant gRPC endpoint URL (e.g., "http://qdrant:6334")
+ * @param qdrantHost The Qdrant hostname (e.g., "qdrant")
+ * @param qdrantPort The Qdrant gRPC port (default: 6334)
  * @param collectionName The Qdrant collection to write to (maps to document source/type)
  * @param vectorSize The dimensionality of embedding vectors (default: 1024 for BGE-M3)
  *
@@ -74,16 +75,13 @@ private fun String.toDeterministicUUID(): UUID {
  * @see VectorDocument
  */
 class QdrantSink(
-    qdrantUrl: String,
+    qdrantHost: String,
+    qdrantPort: Int,
     private val collectionName: String,
     private val vectorSize: Int = 1024,
     private val apiKey: String? = null
 ) : Sink<VectorDocument> {
     override val name = "QdrantSink[$collectionName]"
-
-    private val qdrantHost = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":")[0]
-    private val qdrantPort = qdrantUrl.removePrefix("http://").removePrefix("https://")
-        .split(":").getOrNull(1)?.toIntOrNull() ?: 6334
 
     /** gRPC client for high-performance binary communication with Qdrant */
     private val client = QdrantClient(

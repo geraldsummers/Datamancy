@@ -149,7 +149,8 @@ data class PipelineConfig(
                     maxTokens = getEnvOrPropertyInt("EMBEDDING_MAX_TOKENS", 8192, min = 1, max = 100000)
                 ),
                 qdrant = QdrantConfig(
-                    url = getEnvOrProperty("QDRANT_URL") ?: "http://qdrant:6333",
+                    host = getEnvOrProperty("QDRANT_HOST") ?: "qdrant",
+                    port = getEnvOrPropertyInt("QDRANT_PORT", 6334, min = 1, max = 65535),
                     apiKey = getEnvOrProperty("QDRANT_API_KEY") ?: "",
                     rssCollection = getEnvOrProperty("QDRANT_RSS_COLLECTION") ?: "rss_feeds",
                     cveCollection = getEnvOrProperty("QDRANT_CVE_COLLECTION") ?: "cve",
@@ -236,7 +237,8 @@ data class BinanceConfig(
 
 @Serializable
 data class QdrantConfig(
-    val url: String = "http://qdrant:6333",
+    val host: String = "qdrant",
+    val port: Int = 6334,
     val apiKey: String = "",
     val rssCollection: String = "rss_feeds",
     val cveCollection: String = "cve",
