@@ -14,8 +14,13 @@ services:
         chmod 755 ${VECTOR_DB_ROOT}/qdrant
         chmod 755 ${QBITTORRENT_DATA_ROOT}
         chmod 755 ${SEAFILE_MEDIA_ROOT}
+        echo "Setting Vault permissions (runs as uid 100)..."
+        chown -R 100:100 /vault/data /vault/logs || true
+        chmod 755 /vault/data /vault/logs
         echo "✓ Volume directories initialized successfully"
     volumes:
       - ${VECTOR_DB_ROOT}:${VECTOR_DB_ROOT}:rw
       - ${QBITTORRENT_DATA_ROOT}:${QBITTORRENT_DATA_ROOT}:rw
       - ${SEAFILE_MEDIA_ROOT}:${SEAFILE_MEDIA_ROOT}:rw
+      - vault_data:/vault/data:rw
+      - vault_logs:/vault/logs:rw

@@ -13,6 +13,7 @@ POSTGRES_HOMEASSISTANT_PASSWORD="${POSTGRES_HOMEASSISTANT_PASSWORD:-}"
 POSTGRES_ROUNDCUBE_PASSWORD="${POSTGRES_ROUNDCUBE_PASSWORD:?ERROR: POSTGRES_ROUNDCUBE_PASSWORD not set}"
 POSTGRES_AGENT_PASSWORD="${POSTGRES_AGENT_PASSWORD:?ERROR: POSTGRES_AGENT_PASSWORD not set}"
 POSTGRES_DATAMANCY_PASSWORD="${POSTGRES_DATAMANCY_PASSWORD:?ERROR: POSTGRES_DATAMANCY_PASSWORD not set}"
+POSTGRES_TXGATEWAY_PASSWORD="${POSTGRES_TXGATEWAY_PASSWORD:?ERROR: POSTGRES_TXGATEWAY_PASSWORD not set}"
 # PGPASSWORD already set by docker-compose environment
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create users with passwords from environment (must be created before databases for ownership)
@@ -86,6 +87,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         ELSE
             ALTER USER datamancer WITH PASSWORD \$pwd\$$POSTGRES_DATAMANCY_PASSWORD\$pwd\$;
         END IF;
+        -- Create txgateway service user (for tx-gateway and evm-broadcaster services)
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'txgateway') THEN
+            CREATE USER txgateway WITH PASSWORD \$pwd\$$POSTGRES_TXGATEWAY_PASSWORD\$pwd\$;
+        ELSE
+            ALTER USER txgateway WITH PASSWORD \$pwd\$$POSTGRES_TXGATEWAY_PASSWORD\$pwd\$;
+        END IF;
     END
     \$\$;
     -- Create databases with correct owners (IF NOT EXISTS requires PostgreSQL 9.1+)
@@ -113,6 +120,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'roundcube')\gexec
     SELECT 'CREATE DATABASE datamancy OWNER datamancer'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'datamancy')\gexec
+    SELECT 'CREATE DATABASE txgateway OWNER txgateway'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'txgateway')\gexec
     -- Create sysadmin database for monitoring/admin tools
     SELECT 'CREATE DATABASE sysadmin OWNER $POSTGRES_USER'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sysadmin')\gexec
@@ -137,6 +146,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
     GRANT ALL PRIVILEGES ON DATABASE roundcube TO roundcube;
     GRANT ALL PRIVILEGES ON DATABASE datamancy TO datamancer;
+    GRANT ALL PRIVILEGES ON DATABASE txgateway TO txgateway;
     -- Shadow agent accounts are granted CONNECT via scripts/security/provision-shadow-database-access.sh
     -- Each {username}-agent gets CONNECT on safe databases only (grafana, planka, mastodon, forgejo)
     -- SECURITY: Per-user shadow accounts enable audit traceability and limited blast radius
@@ -162,6 +172,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRAN
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT ALL ON SCHEMA public TO forgejo;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "roundcube" -c "GRANT ALL ON SCHEMA public TO roundcube;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT ALL ON SCHEMA public TO datamancer;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "txgateway" -c "GRANT ALL ON SCHEMA public TO txgateway;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQL
     -- Data-fetcher tables for deduplication and fetch tracking
     CREATE TABLE IF NOT EXISTS dedupe_records (

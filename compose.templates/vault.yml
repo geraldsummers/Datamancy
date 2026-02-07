@@ -8,6 +8,9 @@ services:
     networks:
       - trading
       - caddy
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     environment:
       VAULT_ADDR: http://0.0.0.0:8200
       VAULT_API_ADDR: http://vault:8200
