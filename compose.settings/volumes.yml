@@ -66,3 +66,5 @@ volumes:
   agent_tool_server_known_hosts:
   agent_tool_server_scripts:
   web3signer_data:
+  vault_data:
+  vault_logs:

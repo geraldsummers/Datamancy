@@ -39,7 +39,3 @@ services:
       - vault_data:/vault/data
       - ./configs/vault/init-vault.sh:/init-vault.sh:ro
     entrypoint: ["/init-vault.sh"]
-
-volumes:
-  vault_data:
-  vault_logs:
