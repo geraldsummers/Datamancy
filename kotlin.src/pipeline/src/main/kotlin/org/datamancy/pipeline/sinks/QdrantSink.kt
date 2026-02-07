@@ -1,6 +1,7 @@
 package org.datamancy.pipeline.sinks
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.grpc.ManagedChannelBuilder
 import io.qdrant.client.QdrantClient
 import io.qdrant.client.QdrantGrpcClient
 import io.qdrant.client.grpc.Collections.*
@@ -85,14 +86,15 @@ class QdrantSink(
 
     /** gRPC client for high-performance binary communication with Qdrant */
     private val client = QdrantClient(
-        QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, false)
-            .apply {
-                if (!apiKey.isNullOrBlank()) {
-                    withApiKey(apiKey)
-                }
+        QdrantGrpcClient.newBuilder(
+            ManagedChannelBuilder.forAddress(qdrantHost, qdrantPort)
+                .usePlaintext()
+                .build()
+        ).apply {
+            if (!apiKey.isNullOrBlank()) {
+                withApiKey(apiKey)
             }
-            .usePlaintext()
-            .build()
+        }.build()
     )
 
     init {
