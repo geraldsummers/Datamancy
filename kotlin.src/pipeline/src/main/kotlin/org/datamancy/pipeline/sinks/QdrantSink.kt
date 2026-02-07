@@ -1,9 +1,11 @@
 package org.datamancy.pipeline.sinks
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.grpc.LoadBalancerRegistry
 import io.grpc.ManagedChannelBuilder
 import io.grpc.NameResolverRegistry
 import io.grpc.internal.DnsNameResolverProvider
+import io.grpc.internal.PickFirstLoadBalancerProvider
 import io.qdrant.client.QdrantClient
 import io.qdrant.client.QdrantGrpcClient
 import io.qdrant.client.grpc.Collections.*
@@ -87,8 +89,9 @@ class QdrantSink(
 
     companion object {
         init {
-            // Register DNS name resolver explicitly to fix fat JAR issue where Unix socket resolver takes precedence
+            // Register DNS name resolver and load balancer explicitly to fix fat JAR service provider issues
             NameResolverRegistry.getDefaultRegistry().register(DnsNameResolverProvider())
+            LoadBalancerRegistry.getDefaultRegistry().register(PickFirstLoadBalancerProvider())
         }
     }
 
