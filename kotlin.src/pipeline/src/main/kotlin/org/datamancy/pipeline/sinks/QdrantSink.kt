@@ -91,6 +91,7 @@ class QdrantSink(
                     withApiKey(apiKey)
                 }
             }
+            .usePlaintext()
             .build()
     )
 
