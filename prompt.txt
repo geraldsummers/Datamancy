@@ -15,6 +15,7 @@ eventually we will fix the errors and then we will deploy again. in fixing the p
 
 kill system:
 
+gerald@latium
 # 0) Stop everything (best-effort)
 docker ps -q | xargs -r docker stop -t 0 || true
 

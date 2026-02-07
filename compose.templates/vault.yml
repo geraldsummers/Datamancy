@@ -9,12 +9,37 @@ services:
       - trading
       - caddy
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_ROOT_TOKEN}
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-    command: server -dev
+      VAULT_ADDR: http://0.0.0.0:8200
+      VAULT_API_ADDR: http://vault:8200
+    volumes:
+      - vault_data:/vault/data
+      - vault_logs:/vault/logs
+      - ./configs/vault/config.hcl:/vault/config/config.hcl:ro
+      - ./configs/vault/init-vault.sh:/vault/init-vault.sh:ro
+    command: server
     healthcheck:
-      test: ["CMD", "vault", "status"]
+      test: ["CMD", "wget", "--spider", "--proxy", "off", "http://127.0.0.1:8200/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
+  vault-init:
+    image: hashicorp/vault:1.15
+    container_name: vault-init
+    restart: "no"
+    networks:
+      - trading
+      - caddy
+    depends_on:
+      vault:
+        condition: service_started
+    environment:
+      VAULT_ADDR: http://vault:8200
+    volumes:
+      - vault_data:/vault/data
+      - ./configs/vault/init-vault.sh:/init-vault.sh:ro
+    entrypoint: ["/init-vault.sh"]
+
+volumes:
+  vault_data:
+  vault_logs:
