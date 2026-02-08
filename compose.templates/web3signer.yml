@@ -9,10 +9,10 @@ services:
       vault:
         condition: service_healthy
     command:
-      - eth2
-      - --keystores-path=/data
       - --http-host-allowlist=*
       - --http-port=9000
+      - eth2
+      - --keystores-path=/data
       - --slashing-protection-enabled=false
       - --network=mainnet
     volumes:

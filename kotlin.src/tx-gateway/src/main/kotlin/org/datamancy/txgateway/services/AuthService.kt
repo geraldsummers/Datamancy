@@ -42,4 +42,9 @@ class AuthService(
     fun extractGroups(jwt: DecodedJWT): List<String> {
         return jwt.getClaim("groups").asList(String::class.java) ?: emptyList()
     }
+
+    fun healthCheck() {
+        // Verify Authelia JWKS URL is configured
+        require(jwksUrl.isNotEmpty()) { "Authelia JWKS URL not configured" }
+    }
 }

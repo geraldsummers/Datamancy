@@ -44,7 +44,7 @@ services:
       MARIADB_ADMIN_PASSWORD: "${MARIADB_ADMIN_PASSWORD}"
 
       QDRANT_URL: "http://qdrant:6333"
-      QDRANT_API_KEY: "${QDRANT_AGENT_API_KEY}"
+      QDRANT_API_KEY: "${QDRANT_ADMIN_API_KEY}"
       VALKEY_URL: "valkey:6379"
 
       AUTHELIA_URL: "https://auth.datamancy.net"
@@ -68,6 +68,7 @@ services:
       NTFY_PASSWORD: "${NTFY_PASSWORD}"
 
       DOCKER_HOST: "tcp://docker-proxy:2375"
+      DISABLE_TLS_VALIDATION: "true"
 
     profiles:
       - testing

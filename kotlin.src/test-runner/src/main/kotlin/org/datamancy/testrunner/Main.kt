@@ -73,6 +73,9 @@ fun main(args: Array<String>) = runBlocking {
             e.printStackTrace()
         }
 
+        // Ensure results directory exists before writing error log
+        resultsDir.mkdirs()
+
         // Save error log
         File(resultsDir, "error.log").writeText("""
             Fatal Error: ${e.message}

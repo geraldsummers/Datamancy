@@ -182,6 +182,12 @@ class DatabaseService(
         }
     }
 
+    fun healthCheck() {
+        transaction {
+            exec("SELECT 1") {}
+        }
+    }
+
     fun close() {
         if (::dataSource.isInitialized) {
             dataSource.close()

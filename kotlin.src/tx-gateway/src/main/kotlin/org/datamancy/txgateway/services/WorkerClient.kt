@@ -117,4 +117,28 @@ class WorkerClient(
             return gson.fromJson(responseBody, Map::class.java) as Map<String, Any>
         }
     }
+
+    fun healthCheck(): Pair<Boolean, Boolean> {
+        val evmHealthy = try {
+            val request = Request.Builder()
+                .url("$evmBroadcasterUrl/health")
+                .get()
+                .build()
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+
+        val hlHealthy = try {
+            val request = Request.Builder()
+                .url("$hyperliquidWorkerUrl/health")
+                .get()
+                .build()
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+
+        return Pair(evmHealthy, hlHealthy)
+    }
 }

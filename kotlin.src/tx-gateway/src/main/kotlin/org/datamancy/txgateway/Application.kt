@@ -68,6 +68,57 @@ fun Application.configureApp(
             call.respond(HttpStatusCode.OK, mapOf("status" to "healthy", "service" to "tx-gateway"))
         }
 
+        get("/health/db") {
+            val dbHealthy = try {
+                dbService.healthCheck()
+                true
+            } catch (e: Exception) {
+                false
+            }
+            call.respond(HttpStatusCode.OK, mapOf("database" to if (dbHealthy) "healthy" else "unhealthy"))
+        }
+
+        get("/health/ldap") {
+            val ldapHealthy = try {
+                ldapService.healthCheck()
+                true
+            } catch (e: Exception) {
+                false
+            }
+            call.respond(HttpStatusCode.OK, mapOf("ldap" to if (ldapHealthy) "healthy" else "unhealthy"))
+        }
+
+        get("/health/authelia") {
+            val autheliaHealthy = try {
+                authService.healthCheck()
+                true
+            } catch (e: Exception) {
+                false
+            }
+            call.respond(HttpStatusCode.OK, mapOf("authelia" to if (autheliaHealthy) "healthy" else "unhealthy"))
+        }
+
+        get("/health/workers") {
+            val (evmHealthy, hlHealthy) = try {
+                workerClient.healthCheck()
+            } catch (e: Exception) {
+                Pair(false, false)
+            }
+            call.respond(HttpStatusCode.OK, mapOf(
+                "evm_broadcaster" to if (evmHealthy) "healthy" else "unhealthy",
+                "hyperliquid_worker" to if (hlHealthy) "healthy" else "unhealthy"
+            ))
+        }
+
+        get("/rate-limits") {
+            call.respond(HttpStatusCode.OK, mapOf(
+                "limits" to mapOf(
+                    "evm_transfer" to mapOf("per_hour" to 100, "per_day" to 1000),
+                    "hyperliquid_order" to mapOf("per_minute" to 20, "per_hour" to 200)
+                )
+            ))
+        }
+
         get("/") {
             call.respond(HttpStatusCode.OK, mapOf(
                 "service" to "tx-gateway",

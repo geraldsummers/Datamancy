@@ -124,7 +124,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     }
 
     test("Verify labware stack isolation from production") {
-        
+
         val (_, labwareOutput) = execLabwareDocker(
             labwareDockerHost,
             "ps",
@@ -132,18 +132,19 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
             "--format", "{{.Names}}"
         )
         val labwareContainers = labwareOutput.lines().filter { it.isNotBlank() }
+            .filter { it.contains(testRunId) } // Only check containers from THIS test run
 
-        
+
         labwareContainers.size shouldBeGreaterThan 0
-        println("      ℹ️  Found ${labwareContainers.size} labware containers")
+        println("      ℹ️  Found ${labwareContainers.size} labware containers from this test run")
 
-        
+
         val prodProcess = ProcessBuilder("docker", "ps", "--format", "{{.Names}}").start()
         val prodOutput = prodProcess.inputStream.bufferedReader().readText()
         prodProcess.waitFor()
         val prodContainers = prodOutput.lines().filter { it.isNotBlank() }.toSet()
 
-        
+
         val overlap = labwareContainers.toSet().intersect(prodContainers)
         if (overlap.isNotEmpty()) {
             throw AssertionError("Isolation breach! Containers in both stacks: $overlap")

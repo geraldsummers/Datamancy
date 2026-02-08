@@ -70,6 +70,11 @@ class LdapService(
         return getUserInfo(username)?.evmAddress
     }
 
+    fun healthCheck() {
+        val rootDSE = connection.getRootDSE()
+        require(rootDSE != null) { "LDAP connection not healthy" }
+    }
+
     fun close() {
         if (::connection.isInitialized) {
             connection.close()

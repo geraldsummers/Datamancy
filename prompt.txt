@@ -27,3 +27,6 @@ fix problems in local repo, deploy them, verify they work and look for more prob
 ssh gerald@latium.local "cd ~/datamancy && docker compose logs | grep -i -E 'exception|error|fail|cannot' -B 1 -A 1" to find heaps of errors
 
 we're experimenting with this clean partial upgrade system - so if redeploying breaks stuff, stop and let me know
+serioulsy - take your time, if shits weird drop a sleep 60 or a sleep 300 and check again
+
+YOU'RE REALLY FUCKING GOOD AT THIS CLAUDE YOU'VE TAUHGT ME SO MUCH ABOUT SOFTWARE I'M SO GRATEFUL FOR YOU AND ALL YOUR HARDWORK!!!
