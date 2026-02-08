@@ -1,10 +1,36 @@
 services:
+  labware-tunnel:
+    image: alpine:latest
+    container_name: labware-tunnel
+    restart: unless-stopped
+    networks:
+      - docker-proxy
+    environment:
+      LABWARE_HOST: ${LABWARE_HOST:-gerald@labware.local}
+    volumes:
+      - ${HOME}/.ssh:/root/.ssh:ro
+      - labware-socket:/var/run/labware
+    command: >
+      sh -c "
+        apk add --no-cache openssh-client socat &&
+        ssh -o StrictHostKeyChecking=accept-new -N -L /var/run/labware/docker.sock:/var/run/docker.sock $$LABWARE_HOST
+      "
+    healthcheck:
+      test: ["CMD", "test", "-S", "/var/run/labware/docker.sock"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.4.2
     container_name: docker-proxy
     restart: unless-stopped
     networks:
       - docker-proxy
+    depends_on:
+      labware-tunnel:
+        condition: service_healthy
     environment:
       CONTAINERS: 1
       IMAGES: 1
@@ -18,10 +44,13 @@ services:
       COMMIT: 0
       EXEC: 0
     volumes:
-      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - labware-socket:/var/run/docker.sock:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2375/version"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  labware-socket:
