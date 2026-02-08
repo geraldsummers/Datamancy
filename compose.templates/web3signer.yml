@@ -10,7 +10,7 @@ services:
         condition: service_healthy
     command:
       - --http-host-allowlist=*
-      - --http-port=9000
+      - --http-listen-port=9000
       - eth2
       - --keystores-path=/data
       - --slashing-protection-enabled=false
