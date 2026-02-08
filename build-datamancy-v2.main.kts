@@ -266,6 +266,12 @@ fun writeAutheliaRSAKey(outputDir: File, rsaKey: String) {
     val autheliaDir = outputDir.resolve("configs/authelia")
     autheliaDir.mkdirs()
     val rsaKeyFile = autheliaDir.resolve("oidc_rsa.pem")
+
+    // Make writable if it exists (for idempotent rebuilds)
+    if (rsaKeyFile.exists()) {
+        rsaKeyFile.setWritable(true)
+    }
+
     rsaKeyFile.writeText(rsaKey)
     rsaKeyFile.setReadable(true, true)  // Owner read-only
     rsaKeyFile.setWritable(false)
