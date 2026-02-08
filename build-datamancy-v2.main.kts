@@ -518,12 +518,17 @@ fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetad
         val lastCommit = getLastCommitForFile(volumeInitFile)
         val secrets = extractSecretsFromTemplate(volumeInitFile)
 
+        // Adjust build context paths since components are in subdirectory
+        val fileContent = volumeInitFile.readText()
+            .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
+            .replace(Regex("""(\s+context:\s+)\."""), "$1..")
+
         val content = buildString {
             appendLine("# component: volume-init")
             appendLine("# last_changed: $lastCommit")
             appendLine("# secrets_required: ${secrets.joinToString(", ")}")
             appendLine()
-            append(volumeInitFile.readText())
+            append(fileContent)
         }
 
         destFile.writeText(content)
@@ -553,6 +558,11 @@ fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetad
                 .toList()
         } else emptyList()
 
+        // Adjust build context paths since components are in subdirectory
+        val fileContent = file.readText()
+            .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
+            .replace(Regex("""(\s+context:\s+)\."""), "$1..")
+
         val content = buildString {
             appendLine("# component: $componentName")
             appendLine("# last_changed: $lastCommit")
@@ -561,7 +571,7 @@ fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetad
                 appendLine("# config_files: ${relatedConfigs.joinToString(", ")}")
             }
             appendLine()
-            append(file.readText())
+            append(fileContent)
         }
 
         destFile.writeText(content)
