@@ -3,6 +3,7 @@ package org.datamancy.testrunner
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.plugins.cookies.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.runBlocking
@@ -33,10 +34,23 @@ fun main(args: Array<String>) = runBlocking {
         .format(Instant.now())
     val resultsBaseDir = File("/app/test-results")
     if (!resultsBaseDir.exists()) {
-        resultsBaseDir.mkdirs()
+        val created = resultsBaseDir.mkdirs()
+        if (!created && !resultsBaseDir.exists()) {
+            System.err.println("⚠️  Failed to create base results directory: ${resultsBaseDir.absolutePath}")
+        }
     }
     val resultsDir = File(resultsBaseDir, "$timestamp-$suite")
-    resultsDir.mkdirs()
+    val dirCreated = resultsDir.mkdirs()
+    if (!dirCreated && !resultsDir.exists()) {
+        System.err.println("⚠️  Failed to create results directory: ${resultsDir.absolutePath}")
+        System.err.println("⚠️  Parent exists: ${resultsDir.parentFile?.exists()}, writable: ${resultsDir.parentFile?.canWrite()}")
+        // Try to create it anyway and continue
+        try {
+            resultsDir.mkdirs()
+        } catch (e: Exception) {
+            System.err.println("⚠️  Exception creating directory: ${e.message}")
+        }
+    }
 
     println("""
         ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -121,6 +135,11 @@ private fun createHttpClient(verbose: Boolean): HttpClient {
             })
         }
 
+        // Enable cookie storage for session management across requests
+        install(HttpCookies) {
+            storage = AcceptAllCookiesStorage()
+        }
+
         if (verbose) {
             install(Logging) {
                 level = LogLevel.INFO
@@ -128,7 +147,7 @@ private fun createHttpClient(verbose: Boolean): HttpClient {
             }
         }
 
-        
+
         followRedirects = false
 
         engine {
