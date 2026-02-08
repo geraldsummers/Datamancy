@@ -1,6 +1,3 @@
-installation:
-  default_path: "${HOME}/.datamancy"
-
 storage:
   vector_dbs: "/mnt/vectors/"
 
