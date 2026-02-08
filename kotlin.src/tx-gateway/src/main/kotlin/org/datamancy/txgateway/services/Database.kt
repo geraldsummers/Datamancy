@@ -61,7 +61,7 @@ class DatabaseService(
     private val port: Int = System.getenv("POSTGRES_PORT")?.toInt() ?: 5432,
     private val database: String = System.getenv("POSTGRES_DB") ?: "txgateway",
     private val user: String = System.getenv("POSTGRES_USER") ?: "txgateway",
-    private val password: String = System.getenv("POSTGRES_PASSWORD")?.also {
+    private val dbPassword: String = System.getenv("POSTGRES_PASSWORD")?.also {
         require(it.isNotBlank()) { "POSTGRES_PASSWORD environment variable is empty" }
     } ?: error("POSTGRES_PASSWORD environment variable not set")
 ) {
@@ -69,13 +69,11 @@ class DatabaseService(
     private lateinit var dataSource: HikariDataSource
 
     fun init() {
-        logger.info("Initializing database connection to $host:$port/$database as user $user (password: ${password.length} chars)")
+        logger.info("Initializing database connection to $host:$port/$database as user $user (password: ${dbPassword.length} chars)")
         val config = HikariConfig().apply {
             jdbcUrl = "jdbc:postgresql://$host:$port/$database"
             username = user
-            this.password = password
-            // Explicitly add password to dataSourceProperties as workaround for JDBC driver issue
-            addDataSourceProperty("password", password)
+            password = dbPassword
             maximumPoolSize = 10
             minimumIdle = 2
             connectionTimeout = 30000

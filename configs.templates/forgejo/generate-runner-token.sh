@@ -19,6 +19,13 @@ for i in {1..180}; do
     sleep 2
 done
 sleep 5
+echo "[forgejo-entrypoint] Checking Forgejo admin user status..."
+if su git -c 'forgejo admin user list' 2>/tmp/user-list.err; then
+    echo "[forgejo-entrypoint] ✓ Admin user accessible"
+else
+    echo "[forgejo-entrypoint] ⚠️ Cannot list users (may still be initializing)"
+    cat /tmp/user-list.err 2>/dev/null || true
+fi
 echo "[forgejo-entrypoint] Generating runner registration token..."
 if su git -c 'forgejo actions generate-runner-token' > "$TOKEN_FILE" 2>/tmp/token-gen.err; then
     if [ -s "$TOKEN_FILE" ]; then
@@ -31,8 +38,16 @@ if su git -c 'forgejo actions generate-runner-token' > "$TOKEN_FILE" 2>/tmp/toke
         rm -f "$TOKEN_FILE"
     fi
 else
-    echo "[forgejo-entrypoint] ⚠️ Failed to generate token via CLI"
-    cat /tmp/token-gen.err 2>/dev/null || true
+    EXIT_CODE=$?
+    echo "[forgejo-entrypoint] ⚠️ Failed to generate token via CLI (exit code: $EXIT_CODE)"
+    echo "[forgejo-entrypoint] Error output:"
+    cat /tmp/token-gen.err 2>/dev/null || echo "  (no error output captured)"
+    echo "[forgejo-entrypoint] Checking if actions are enabled in configuration..."
+    if su git -c 'forgejo admin config list' | grep -i "actions.enabled" 2>/dev/null; then
+        echo "[forgejo-entrypoint] Actions configuration found"
+    else
+        echo "[forgejo-entrypoint] ⚠️ Actions may not be properly configured"
+    fi
     echo "[forgejo-entrypoint] Manual fix: docker exec forgejo forgejo actions generate-runner-token > /runner-token/token"
 fi
 exit 0

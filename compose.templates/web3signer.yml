@@ -13,6 +13,8 @@ services:
       - --keystores-path=/data
       - --http-listen-host=0.0.0.0
       - --http-listen-port=9000
+      - --slashing-protection-enabled=false
+      - --network=mainnet
     volumes:
       - web3signer_data:/data
     healthcheck:
@@ -20,4 +22,4 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
