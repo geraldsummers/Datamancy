@@ -19,7 +19,7 @@ services:
       - vault_logs:/vault/logs
       - ./configs/vault/config.hcl:/vault/config/config.hcl:ro
       - ./configs/vault/init-vault.sh:/vault/init-vault.sh:ro
-    command: server
+    command: server -config=/vault/config/config.hcl
     healthcheck:
       test: ["CMD", "wget", "--spider", "--proxy", "off", "http://127.0.0.1:8200/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"]
       interval: 30s

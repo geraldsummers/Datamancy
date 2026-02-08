@@ -30,7 +30,11 @@ WORKDIR /app
 
 COPY kotlin.src/test-runner/build/libs/test-runner-1.0-SNAPSHOT-all.jar /app/test-runner.jar
 
-RUN chown -R datamancer:datamancer /app
+RUN chown -R datamancer:datamancer /app && \
+    mkdir -p /home/datamancer/.docker && \
+    chown -R datamancer:datamancer /home/datamancer/.docker
+
+ENV DOCKER_CONFIG=/home/datamancer/.docker
 
 USER datamancer
 

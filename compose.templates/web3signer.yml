@@ -10,7 +10,7 @@ services:
         condition: service_healthy
     command:
       - eth2
-      - --key-store-path=/data
+      - --keystores-path=/data
       - --http-listen-host=0.0.0.0
       - --http-listen-port=9000
     volumes:

@@ -61,12 +61,15 @@ class DatabaseService(
     private val port: Int = System.getenv("POSTGRES_PORT")?.toInt() ?: 5432,
     private val database: String = System.getenv("POSTGRES_DB") ?: "txgateway",
     private val user: String = System.getenv("POSTGRES_USER") ?: "txgateway",
-    private val password: String = System.getenv("POSTGRES_PASSWORD") ?: ""
+    private val password: String = System.getenv("POSTGRES_PASSWORD")?.also {
+        require(it.isNotBlank()) { "POSTGRES_PASSWORD environment variable is empty" }
+    } ?: error("POSTGRES_PASSWORD environment variable not set")
 ) {
     private val logger = LoggerFactory.getLogger(DatabaseService::class.java)
     private lateinit var dataSource: HikariDataSource
 
     fun init() {
+        logger.info("Initializing database connection to $host:$port/$database as user $user (password: ${password.length} chars)")
         val config = HikariConfig().apply {
             jdbcUrl = "jdbc:postgresql://$host:$port/$database"
             username = user
