@@ -1140,12 +1140,10 @@ ${CYAN}╔═══════════════════════�
     info("Domain: ${sanitized.domain}")
     info("Admin: ${sanitized.adminUser} <${sanitized.adminEmail}>")
 
-    // Fail if dist/ already exists
-    if (distDir.exists()) {
-        error("dist/ directory already exists. Delete it first to ensure clean build.")
-        exitProcess(1)
+    // Create dist/ or preserve existing .env for upgrades
+    if (!distDir.exists()) {
+        distDir.mkdirs()
     }
-    distDir.mkdirs()
 
     // Generate all credentials from schema (fresh every build)
     val credentials = generateCredentialsFromSchema(schema, sanitized)
