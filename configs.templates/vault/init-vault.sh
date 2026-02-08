@@ -2,9 +2,12 @@
 set -e
 
 echo "Waiting for Vault to be ready..."
-until wget -q -O /dev/null "http://localhost:8200/v1/sys/health?uninitcode=200&sealedcode=200" 2>/dev/null; do
+until wget -q -O /dev/null "http://vault:8200/v1/sys/health?uninitcode=200&sealedcode=200" 2>/dev/null; do
     sleep 1
 done
+
+# Set Vault address for all vault commands
+export VAULT_ADDR="http://vault:8200"
 
 # Check if Vault is already initialized
 if vault status 2>/dev/null | grep -q "Initialized.*true"; then
