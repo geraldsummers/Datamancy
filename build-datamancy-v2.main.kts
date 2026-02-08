@@ -351,7 +351,8 @@ fun applyHashAlgorithm(algorithm: String, plaintext: String): String {
 
 fun generateCredentialsFromSchema(
     schema: CredentialsSchema,
-    sanitized: SanitizedConfig
+    sanitized: SanitizedConfig,
+    existingEnv: Map<String, String> = emptyMap()
 ): Map<String, GeneratedCredential> {
     step("Generating credentials from schema")
 
@@ -371,29 +372,39 @@ fun generateCredentialsFromSchema(
             return@forEach
         }
 
-        val plaintext = when (spec.type.uppercase()) {
-            "HEX_SECRET" -> generateHexSecret()
-            "LARAVEL_KEY" -> generateLaravelKey()
-            "RSA_KEY" -> generateRSAKey()
-            "OAUTH_SECRET" -> generateHexSecret()
-            "USER_PROVIDED" -> spec.default ?: ""
-            "CONFIG_VALUE" -> spec.default ?: ""
-            else -> {
-                warn("Unknown credential type: ${spec.type} for ${spec.name}")
-                ""
+        // Use existing secret if available, otherwise generate new
+        val plaintext = if (existingEnv.containsKey(spec.name)) {
+            existingEnv[spec.name]!!
+        } else {
+            when (spec.type.uppercase()) {
+                "HEX_SECRET" -> generateHexSecret()
+                "LARAVEL_KEY" -> generateLaravelKey()
+                "RSA_KEY" -> generateRSAKey()
+                "OAUTH_SECRET" -> generateHexSecret()
+                "USER_PROVIDED" -> spec.default ?: ""
+                "CONFIG_VALUE" -> spec.default ?: ""
+                else -> {
+                    warn("Unknown credential type: ${spec.type} for ${spec.name}")
+                    ""
+                }
             }
         }
 
         // Generate hash variants if specified
         val hashes = mutableMapOf<String, String>()
         spec.hash_variants?.forEach { variant ->
-            try {
-                val hash = applyHashAlgorithm(variant.algorithm, plaintext)
-                hashes[variant.variable] = hash
-                info("Generated ${variant.algorithm} hash for ${spec.name} -> ${variant.variable}")
-            } catch (e: Exception) {
-                error("Failed to generate hash for ${spec.name}: ${e.message}")
-                throw e
+            // Use existing hash if available, otherwise generate new
+            if (existingEnv.containsKey(variant.variable)) {
+                hashes[variant.variable] = existingEnv[variant.variable]!!
+            } else {
+                try {
+                    val hash = applyHashAlgorithm(variant.algorithm, plaintext)
+                    hashes[variant.variable] = hash
+                    info("Generated ${variant.algorithm} hash for ${spec.name} -> ${variant.variable}")
+                } catch (e: Exception) {
+                    error("Failed to generate hash for ${spec.name}: ${e.message}")
+                    throw e
+                }
             }
         }
 
@@ -1169,8 +1180,11 @@ ${CYAN}╔═══════════════════════�
         distDir.mkdirs()
     }
 
-    // Generate all credentials from schema (fresh every build)
-    val credentials = generateCredentialsFromSchema(schema, sanitized)
+    // Load existing .env if it exists (for preserving secrets and hashes)
+    val existingEnv = parseEnvFile(distDir.resolve(".env"))
+
+    // Generate credentials from schema (preserving existing secrets and hashes)
+    val credentials = generateCredentialsFromSchema(schema, sanitized, existingEnv)
 
     // Build steps
     buildGradleServices()
