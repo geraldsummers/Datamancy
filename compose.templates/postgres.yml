@@ -63,6 +63,7 @@ services:
       POSTGRES_ROUNDCUBE_PASSWORD: ${POSTGRES_ROUNDCUBE_PASSWORD}
       POSTGRES_DATAMANCY_PASSWORD: ${POSTGRES_DATAMANCY_PASSWORD}
       POSTGRES_AGENT_PASSWORD: ${POSTGRES_AGENT_PASSWORD}
+      POSTGRES_TXGATEWAY_PASSWORD: ${POSTGRES_TXGATEWAY_PASSWORD}
     volumes:
       - ./configs/postgres/init-db.sh:/init-db.sh:ro
       - ./configs/postgres/roundcube-schema.sql:/docker-entrypoint-initdb.d/roundcube-schema.sql:ro
