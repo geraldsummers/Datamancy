@@ -31,6 +31,8 @@ WORKDIR /app
 COPY kotlin.src/test-runner/build/libs/test-runner-1.0-SNAPSHOT-all.jar /app/test-runner.jar
 
 RUN chown -R datamancer:datamancer /app && \
+    mkdir -p /app/test-results && \
+    chown -R datamancer:datamancer /app/test-results && \
     mkdir -p /home/datamancer/.docker/buildx && \
     chown -R datamancer:datamancer /home/datamancer/.docker
 

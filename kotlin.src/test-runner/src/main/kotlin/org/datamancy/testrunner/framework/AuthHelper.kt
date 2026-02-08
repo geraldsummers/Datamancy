@@ -157,7 +157,7 @@ class AuthHelper(
 
         return try {
             val response = client.get("$autheliaUrl/api/verify") {
-                cookie(cookie.name, cookie.value)
+                cookie(cookie.name, cookie.value, domain = cookie.domain ?: "datamancy.net", path = cookie.path ?: "/")
             }
             response.status == HttpStatusCode.OK
         } catch (e: Exception) {
