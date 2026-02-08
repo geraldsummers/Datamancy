@@ -12,7 +12,7 @@ suspend fun TestRunner.microserviceTests() = suite("Pipeline Tests") {
 
     fun isPipelineAvailable(): Boolean {
         val pipelineUrl = endpoints.pipeline
-        return pipelineUrl != null && !pipelineUrl.contains("pipeline:")
+        return !pipelineUrl.contains("pipeline:")
     }
 
     test("Pipeline: Health check") {

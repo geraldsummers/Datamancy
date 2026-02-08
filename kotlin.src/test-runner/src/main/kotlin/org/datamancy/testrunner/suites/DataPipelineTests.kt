@@ -13,7 +13,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
 
     fun isPipelineAvailable(): Boolean {
         val pipelineUrl = endpoints.pipeline
-        return pipelineUrl != null && !pipelineUrl.contains("pipeline:")
+        return !pipelineUrl.contains("pipeline:")
     }
 
 
@@ -55,7 +55,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     suspend fun getSourceStatus(sourceName: String): JsonObject? {
         return try {
             val pipelineUrl = endpoints.pipeline
-            if (pipelineUrl == null || pipelineUrl.contains("pipeline:")) {
+            if (pipelineUrl.contains("pipeline:")) {
 
                 return null
             }

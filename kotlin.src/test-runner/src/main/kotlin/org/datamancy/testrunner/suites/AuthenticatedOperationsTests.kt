@@ -472,7 +472,7 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
 
     test("Pipeline: Authenticate and access management API") {
-        if (endpoints.pipeline == null || endpoints.pipeline.contains("pipeline:")) {
+        if (endpoints.pipeline.contains("pipeline:")) {
             println("      ℹ️  Pipeline service not available")
             return@test
         }
