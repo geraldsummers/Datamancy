@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     networks:
       - docker-proxy
+      - caddy
     environment:
       LABWARE_HOST: ${LABWARE_HOST:-gerald@labware.local}
     volumes:
