@@ -68,3 +68,4 @@ volumes:
   web3signer_data:
   vault_data:
   vault_logs:
+  vault_config:

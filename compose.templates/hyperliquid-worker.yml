@@ -11,9 +11,13 @@ services:
     depends_on:
       vault:
         condition: service_started
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault_config:/vault/config:ro
     environment:
       VAULT_ADDR: http://vault:8200
-      VAULT_TOKEN: ${VAULT_ROOT_TOKEN}
+      VAULT_TOKEN_FILE: /vault/config/token
       HYPERLIQUID_API_URL: https://api.hyperliquid.xyz
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8082/health"]

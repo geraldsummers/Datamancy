@@ -71,13 +71,20 @@ else
     
     echo "Vault unsealed successfully"
     
-    # Display root token for .env update
+    # Copy token to shared config volume for services to read
+    cp /vault/data/root-token.txt /vault/config/token
+    chmod 644 /vault/config/token
+
     ROOT_TOKEN=$(cat /vault/data/root-token.txt)
     echo ""
-    echo "🔑 Root Token: $ROOT_TOKEN"
+    echo "════════════════════════════════════════════════════════════════"
+    echo "🔑 VAULT ROOT TOKEN (SAVE THIS FOR BACKUP!)"
+    echo "════════════════════════════════════════════════════════════════"
     echo ""
-    echo "Update your .env file with:"
-    echo "VAULT_ROOT_TOKEN=$ROOT_TOKEN"
+    echo "$ROOT_TOKEN"
+    echo ""
+    echo "✓ Token automatically distributed to services via shared volume"
+    echo "════════════════════════════════════════════════════════════════"
 fi
 
 echo "Vault is ready"

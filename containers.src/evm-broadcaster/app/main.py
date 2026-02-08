@@ -19,7 +19,19 @@ app = Flask(__name__)
 
 # Configuration
 VAULT_ADDR = os.getenv('VAULT_ADDR', 'http://vault:8200')
-VAULT_TOKEN = os.getenv('VAULT_TOKEN')
+VAULT_TOKEN_FILE = os.getenv('VAULT_TOKEN_FILE')
+VAULT_TOKEN = os.getenv('VAULT_TOKEN')  # Fallback for backward compatibility
+
+# Read token from file if specified
+if VAULT_TOKEN_FILE and os.path.exists(VAULT_TOKEN_FILE):
+    with open(VAULT_TOKEN_FILE, 'r') as f:
+        VAULT_TOKEN = f.read().strip()
+    logger.info(f"Loaded Vault token from {VAULT_TOKEN_FILE}")
+elif VAULT_TOKEN:
+    logger.info("Using Vault token from environment variable")
+else:
+    logger.warning("No Vault token configured")
+
 WEB3SIGNER_URL = os.getenv('WEB3SIGNER_URL', 'http://web3signer:9000')
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'postgres')
 POSTGRES_PORT = int(os.getenv('POSTGRES_PORT', 5432))

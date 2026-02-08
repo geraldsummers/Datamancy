@@ -40,5 +40,6 @@ services:
       VAULT_ADDR: http://vault:8200
     volumes:
       - vault_data:/vault/data
+      - vault_config:/vault/config
       - ./configs/vault/init-vault.sh:/init-vault.sh:ro
     entrypoint: ["/init-vault.sh"]
