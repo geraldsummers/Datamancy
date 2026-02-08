@@ -31,7 +31,11 @@ fun main(args: Array<String>) = runBlocking {
     val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
         .withZone(ZoneId.systemDefault())
         .format(Instant.now())
-    val resultsDir = File("test-results/$timestamp-$suite")
+    val resultsBaseDir = File("/app/test-results")
+    if (!resultsBaseDir.exists()) {
+        resultsBaseDir.mkdirs()
+    }
+    val resultsDir = File(resultsBaseDir, "$timestamp-$suite")
     resultsDir.mkdirs()
 
     println("""
