@@ -2,7 +2,7 @@
 set -e
 
 echo "Waiting for Vault to be ready..."
-until wget -q -O /dev/null http://localhost:8200/v1/sys/health 2>/dev/null; do
+until wget -q -O /dev/null "http://localhost:8200/v1/sys/health?uninitcode=200&sealedcode=200" 2>/dev/null; do
     sleep 1
 done
 

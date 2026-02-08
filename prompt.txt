@@ -15,8 +15,7 @@ eventually we will fix the errors and then we will deploy again. in fixing the p
 
 kill system:
 
-gerald@latium
-# 0) Stop everything (best-effort)
+ssh gerald@latium.local "# 0) Stop everything (best-effort)
 docker ps -q | xargs -r docker stop -t 0 || true
 
 # 1) Force-remove all containers (handles stuck ones)
@@ -38,15 +37,8 @@ docker network prune -f || true
 # (no -a, no --all, and no image prune)
 docker system prune -f --volumes || true
 
-rm -rvf ~/datamancy | grep denied
-
-
-
-
-
-
-
-gerald@lab-pc ~ $ cd /home/gerald/IdeaProjects/Datamancy/ && rm -rvf dist/ && ./build-datamancy-v2.main.kts &&  rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && ssh gerald@latium.local "cd ~/datamancy && docker compose --profile='*' build && docker compose up -d && docker compose logs -f"
+rm -rvf ~/datamancy | grep denied"
+cd /home/gerald/IdeaProjects/Datamancy/ && rm -rvf dist/ && ./build-datamancy-v2.main.kts &&  rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && ssh gerald@latium.local "cd ~/datamancy && docker compose --profile='*' build && docker compose up -d && docker compose logs -f"
 
 
 
