@@ -518,11 +518,14 @@ fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetad
         val lastCommit = getLastCommitForFile(volumeInitFile)
         val secrets = extractSecretsFromTemplate(volumeInitFile)
 
-        // Adjust build context paths since components are in subdirectory
-        // Replace specific paths first, then general "./"
+        // Adjust relative paths since components are in subdirectory
+        // Fix build context and volume bind mount paths
         val fileContent = volumeInitFile.readText()
             .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
             .replace(Regex("""(\s+context:\s+)\.(?!\./)"""), "$1..")
+            .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
+            .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
+            .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
 
         val content = buildString {
             appendLine("# component: volume-init")
@@ -559,11 +562,14 @@ fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetad
                 .toList()
         } else emptyList()
 
-        // Adjust build context paths since components are in subdirectory
-        // Replace specific paths first, then general "./"
+        // Adjust relative paths since components are in subdirectory
+        // Fix build context and volume bind mount paths
         val fileContent = file.readText()
             .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
             .replace(Regex("""(\s+context:\s+)\.(?!\./)"""), "$1..")
+            .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
+            .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
+            .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
 
         val content = buildString {
             appendLine("# component: $componentName")
