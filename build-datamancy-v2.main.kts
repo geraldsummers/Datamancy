@@ -507,11 +507,12 @@ data class ComponentMetadata(
 fun substituteEnvironmentVariables(
     content: String,
     credentials: Map<String, GeneratedCredential>,
-    sanitized: SanitizedConfig
+    sanitized: SanitizedConfig,
+    config: DatamancyConfig
 ): String {
     var result = content
 
-    // Substitute config values
+    // Substitute config values from datamancy.config.yaml
     result = result
         .replace("\${DOMAIN}", sanitized.domain)
         .replace("\${MAIL_DOMAIN}", sanitized.mailDomain)
@@ -519,6 +520,12 @@ fun substituteEnvironmentVariables(
         .replace("\${LDAP_BASE_DN}", sanitized.ldapBaseDn)
         .replace("\${STACK_ADMIN_EMAIL}", sanitized.adminEmail)
         .replace("\${STACK_ADMIN_USER}", sanitized.adminUser)
+        .replace("\${VECTOR_DB_ROOT}", config.storage.vector_dbs)
+        .replace("\${QBITTORRENT_DATA_ROOT}", config.storage.custom?.qbittorrent_data ?: "/mnt/media/qbittorrent")
+        .replace("\${SEAFILE_MEDIA_ROOT}", config.storage.custom?.seafile_media ?: "/mnt/media/seafile-media")
+        .replace("\${DOCKER_USER_ID}", "1000")
+        .replace("\${DOCKER_GROUP_ID}", "1000")
+        .replace("\${DOCKER_SOCKET}", "/var/run/docker.sock")
 
     // Substitute all credentials (plaintext and hashes)
     credentials.forEach { (name, credential) ->
@@ -537,7 +544,8 @@ fun copyComposeFiles(
     outputDir: File,
     workDir: File,
     credentials: Map<String, GeneratedCredential>,
-    sanitized: SanitizedConfig
+    sanitized: SanitizedConfig,
+    config: DatamancyConfig
 ): Map<String, ComponentMetadata> {
     step("Creating separate component compose files")
     val templatesDir = File("compose.templates")
@@ -570,7 +578,7 @@ fun copyComposeFiles(
             .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
             .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
             .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
-            .let { substituteEnvironmentVariables(it, credentials, sanitized) }
+            .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
 
         val content = buildString {
             appendLine("# component: volume-init")
@@ -614,7 +622,7 @@ fun copyComposeFiles(
             .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
             .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
             .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
-            .let { substituteEnvironmentVariables(it, credentials, sanitized) }
+            .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
 
         val content = buildString {
             appendLine("# component: $componentName")
@@ -1126,7 +1134,7 @@ ${CYAN}╔═══════════════════════�
     val version = getGitVersion(workDir)
 
     // Copy compose files and generate component metadata (with secrets baked in)
-    val componentMetadata = copyComposeFiles(distDir, workDir, credentials, sanitized)
+    val componentMetadata = copyComposeFiles(distDir, workDir, credentials, sanitized, config)
 
     // Write Authelia RSA key to file
     val autheliaRSAKey = credentials["AUTHELIA_OIDC_PRIVATE_KEY"]?.plaintext
