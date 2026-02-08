@@ -22,7 +22,7 @@ ssh gerald@latium.local "cd ~/datamancy && \
 the build script wont build if you have uncommitted changes
 check out the build script
 
-fix problems in local repo, deploy them, verify they work and look for more problems once verified - deployment takes a while so make sure you use a long timeout, at leat like 10 minutes for shit to stabilize
+fix problems in local repo, deploy them, verify they work and look for more problems once verified - deployment takes a while so do sleep 600 while it goes
 
 ssh gerald@latium.local "cd ~/datamancy && docker compose logs | grep -i -E 'exception|error|fail|cannot' -B 1 -A 1" to find heaps of errors
 
