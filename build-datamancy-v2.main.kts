@@ -831,10 +831,13 @@ fun parseEnvFile(file: File): Map<String, String> {
             val key = parts[0].trim()
             var value = parts[1].trim()
 
-            // Remove quotes if present
-            if (value.startsWith("\"") && value.endsWith("\"")) {
+            // Remove quotes and unescape if present
+            if ((value.startsWith("\"") && value.endsWith("\"")) ||
+                (value.startsWith("'") && value.endsWith("'"))) {
                 value = value.substring(1, value.length - 1)
                     .replace("\\\"", "\"")
+                    .replace("\$\$", "$")  // Unescape $$ back to $
+                    .replace("'\\''", "'")  // Unescape single quotes
             }
 
             env[key] = value
