@@ -672,6 +672,7 @@ fun copyComposeFiles(
                     .lines()
                     .dropWhile { it.trim().startsWith("#") || it.isBlank() }
                     .joinToString("\n")
+                    .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
                 appendLine(content)
                 appendLine()
             }
