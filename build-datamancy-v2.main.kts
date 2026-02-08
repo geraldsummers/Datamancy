@@ -504,7 +504,41 @@ data class ComponentMetadata(
     val configFiles: List<String>
 )
 
-fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetadata> {
+fun substituteEnvironmentVariables(
+    content: String,
+    credentials: Map<String, GeneratedCredential>,
+    sanitized: SanitizedConfig
+): String {
+    var result = content
+
+    // Substitute config values
+    result = result
+        .replace("\${DOMAIN}", sanitized.domain)
+        .replace("\${MAIL_DOMAIN}", sanitized.mailDomain)
+        .replace("\${LDAP_DOMAIN}", sanitized.ldapDomain)
+        .replace("\${LDAP_BASE_DN}", sanitized.ldapBaseDn)
+        .replace("\${STACK_ADMIN_EMAIL}", sanitized.adminEmail)
+        .replace("\${STACK_ADMIN_USER}", sanitized.adminUser)
+
+    // Substitute all credentials (plaintext and hashes)
+    credentials.forEach { (name, credential) ->
+        result = result.replace("\${$name}", credential.plaintext)
+
+        // Substitute hash variants
+        credential.hashes.forEach { (hashName, hashValue) ->
+            result = result.replace("\${$hashName}", hashValue)
+        }
+    }
+
+    return result
+}
+
+fun copyComposeFiles(
+    outputDir: File,
+    workDir: File,
+    credentials: Map<String, GeneratedCredential>,
+    sanitized: SanitizedConfig
+): Map<String, ComponentMetadata> {
     step("Creating separate component compose files")
     val templatesDir = File("compose.templates")
     if (!templatesDir.exists()) {
@@ -529,14 +563,14 @@ fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetad
         val lastCommit = getLastCommitForFile(volumeInitFile)
         val secrets = extractSecretsFromTemplate(volumeInitFile)
 
-        // Adjust relative paths since components are in subdirectory
-        // Fix build context and volume bind mount paths
+        // Adjust relative paths and substitute environment variables
         val fileContent = volumeInitFile.readText()
             .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
             .replace(Regex("""(\s+context:\s+)\.(?!\./)"""), "$1..")
             .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
             .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
             .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
+            .let { substituteEnvironmentVariables(it, credentials, sanitized) }
 
         val content = buildString {
             appendLine("# component: volume-init")
@@ -573,14 +607,14 @@ fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetad
                 .toList()
         } else emptyList()
 
-        // Adjust relative paths since components are in subdirectory
-        // Fix build context and volume bind mount paths
+        // Adjust relative paths and substitute environment variables
         val fileContent = file.readText()
             .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
             .replace(Regex("""(\s+context:\s+)\.(?!\./)"""), "$1..")
             .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
             .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
             .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
+            .let { substituteEnvironmentVariables(it, credentials, sanitized) }
 
         val content = buildString {
             appendLine("# component: $componentName")
@@ -818,32 +852,43 @@ fun generateUpgradeManifest(
 // Schema-Driven .env Generation
 // ============================================================================
 
-fun parseEnvFile(file: File): Map<String, String> {
-    if (!file.exists()) return emptyMap()
+fun extractSecretsFromExistingComposeFiles(distDir: File): Map<String, String> {
+    val componentsDir = distDir.resolve("compose.components")
+    if (!componentsDir.exists()) return emptyMap()
 
-    val env = mutableMapOf<String, String>()
-    file.readLines().forEach { line ->
-        val trimmed = line.trim()
-        if (trimmed.isEmpty() || trimmed.startsWith("#")) return@forEach
+    val secrets = mutableMapOf<String, String>()
 
-        val parts = trimmed.split("=", limit = 2)
-        if (parts.size == 2) {
-            val key = parts[0].trim()
-            var value = parts[1].trim()
+    componentsDir.listFiles()?.forEach { file ->
+        if (file.extension == "yml") {
+            val content = file.readText()
 
-            // Remove quotes and unescape if present
-            if ((value.startsWith("\"") && value.endsWith("\"")) ||
-                (value.startsWith("'") && value.endsWith("'"))) {
-                value = value.substring(1, value.length - 1)
-                    .replace("\\\"", "\"")
-                    .replace("$$", "$")  // Unescape $$ back to $
-                    .replace("'\\''", "'")  // Unescape single quotes
+            // Extract environment variables using regex
+            // Match: KEY: value or KEY: "value" or KEY: 'value' or KEY: |
+            val envPattern = Regex("""^\s{6,}([A-Z_][A-Z0-9_]*): (.+)$""", RegexOption.MULTILINE)
+
+            envPattern.findAll(content).forEach { match ->
+                val key = match.groupValues[1]
+                var value = match.groupValues[2].trim()
+
+                // Remove quotes if present
+                if ((value.startsWith("\"") && value.endsWith("\"")) ||
+                    (value.startsWith("'") && value.endsWith("'"))) {
+                    value = value.substring(1, value.length - 1)
+                }
+
+                // Skip if it's a variable reference like ${SOMETHING}
+                if (!value.startsWith("\${")) {
+                    secrets[key] = value
+                }
             }
-
-            env[key] = value
         }
     }
-    return env
+
+    if (secrets.isNotEmpty()) {
+        info("Extracted ${secrets.size} existing secrets from compose files for preservation")
+    }
+
+    return secrets
 }
 
 fun generateEnvFileFromSchema(
@@ -1195,16 +1240,16 @@ ${CYAN}╔═══════════════════════�
     info("Domain: ${sanitized.domain}")
     info("Admin: ${sanitized.adminUser} <${sanitized.adminEmail}>")
 
-    // Create dist/ or preserve existing .env for upgrades
+    // Create dist/ or preserve existing compose files for upgrades
     if (!distDir.exists()) {
         distDir.mkdirs()
     }
 
-    // Load existing .env if it exists (for preserving secrets and hashes)
-    val existingEnv = parseEnvFile(distDir.resolve(".env"))
+    // Extract existing secrets from compose files if they exist (for preserving on rebuild)
+    val existingSecrets = extractSecretsFromExistingComposeFiles(distDir)
 
     // Generate credentials from schema (preserving existing secrets and hashes)
-    val credentials = generateCredentialsFromSchema(schema, sanitized, existingEnv)
+    val credentials = generateCredentialsFromSchema(schema, sanitized, existingSecrets)
 
     // Build steps
     buildGradleServices()
@@ -1213,8 +1258,8 @@ ${CYAN}╔═══════════════════════�
     // Get version early for component tracking
     val version = getGitVersion(workDir)
 
-    // Copy compose files and generate component metadata
-    val componentMetadata = copyComposeFiles(distDir, workDir)
+    // Copy compose files and generate component metadata (with secrets baked in)
+    val componentMetadata = copyComposeFiles(distDir, workDir, credentials, sanitized)
 
     // Write Authelia RSA key to file
     val autheliaRSAKey = credentials["AUTHELIA_OIDC_PRIVATE_KEY"]?.plaintext
@@ -1225,7 +1270,7 @@ ${CYAN}╔═══════════════════════�
     }
 
     processConfigsWithSchema(distDir, schema, credentials, sanitized)
-    generateEnvFileFromSchema(distDir.resolve(".env"), schema, credentials, config, version)
+    // No longer generating .env file - secrets are baked into compose files!
 
     // Generate upgrade manifest
     generateUpgradeManifest(distDir, componentMetadata, version)
