@@ -15,12 +15,13 @@ dependencies {
     
     implementation(libs.bundles.ktor.server)
 
-    
+
     implementation(libs.qdrant.client)
     implementation(libs.protobuf.java)
     implementation(libs.grpc.stub)
     implementation(libs.grpc.protobuf)
-    
+    runtimeOnly("io.grpc:grpc-core:1.58.0")
+
     implementation(libs.guava)
 
     
