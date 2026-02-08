@@ -74,6 +74,8 @@ class DatabaseService(
             jdbcUrl = "jdbc:postgresql://$host:$port/$database"
             username = user
             this.password = password
+            // Explicitly add password to dataSourceProperties as workaround for JDBC driver issue
+            addDataSourceProperty("password", password)
             maximumPoolSize = 10
             minimumIdle = 2
             connectionTimeout = 30000
