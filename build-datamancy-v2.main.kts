@@ -883,6 +883,17 @@ fun generateEnvFileFromSchema(
             env[name] = credential.plaintext
             newSecrets.add(name)
         }
+
+        // Add hash variants
+        credential.hashes.forEach { (hashName, hashValue) ->
+            if (existingEnv.containsKey(hashName)) {
+                env[hashName] = existingEnv[hashName]!!
+                preservedSecrets.add(hashName)
+            } else {
+                env[hashName] = hashValue
+                newSecrets.add(hashName)
+            }
+        }
     }
 
     // Backup existing .env if we're doing an upgrade
