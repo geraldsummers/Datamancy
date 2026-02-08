@@ -949,17 +949,15 @@ fun generateEnvFileFromSchema(
                         if (value.isEmpty()) {
                             appendLine("$key=")
                         } else {
-                            // Use single quotes for values with $ to prevent expansion
-                            // Use double quotes for other special chars
+                            // Escape special characters for .env file
                             when {
-                                value.contains("$") -> {
-                                    // Single quotes prevent all expansions
-                                    val escaped = value.replace("'", "'\\''")
-                                    appendLine("$key='$escaped'")
-                                }
-                                value.contains(Regex("[/\\s\"'`\\\\]")) -> {
-                                    // Double quotes for other special chars
-                                    val escaped = value.replace("\"", "\\\"")
+                                value.contains("$") || value.contains(Regex("[/\\s\"'`\\\\]")) -> {
+                                    // Escape $ as $$ for docker-compose .env files
+                                    // Escape quotes and backslashes
+                                    val escaped = value
+                                        .replace("\\", "\\\\")
+                                        .replace("\"", "\\\"")
+                                        .replace("$", "$$")
                                     appendLine("$key=\"$escaped\"")
                                 }
                                 else -> {
