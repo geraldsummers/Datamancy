@@ -17,14 +17,14 @@
 # - Development/Testing: Uncomment local_certs for self-signed certificates
 ###############################################
 {
-	# DEVELOPMENT: Uncomment for self-signed certificates via Caddy's internal CA
-	# local_certs
+	# DEVELOPMENT: Use self-signed certificates via Caddy's internal CA
+	local_certs
 
 	# PRODUCTION: ZeroSSL as primary CA (better rate limits)
-	email {$STACK_ADMIN_EMAIL}
+	# email {$STACK_ADMIN_EMAIL}
 
 	# ZeroSSL configuration with EAB credentials
-	acme_ca https://acme.zerossl.com/v2/DV90
+	# acme_ca https://acme.zerossl.com/v2/DV90
 
 	# If ZEROSSL_API_KEY is set, use EAB (External Account Binding)
 	# This provides better rate limits and reliability
@@ -33,7 +33,7 @@
 
 	# Fallback CAs if ZeroSSL fails
 	# Note: Let's Encrypt has stricter rate limits (5 certs per exact domain set per week)
-	acme_ca_root https://acme-v02.api.letsencrypt.org/directory
+	# acme_ca_root https://acme-v02.api.letsencrypt.org/directory
 }
 
 # Snippet for Authelia Forward Auth
