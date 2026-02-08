@@ -11,8 +11,8 @@ services:
     command:
       - eth2
       - --keystores-path=/data
-      - --http-listen-host=0.0.0.0
-      - --http-listen-port=9000
+      - --http-host-allowlist=*
+      - --http-port=9000
       - --slashing-protection-enabled=false
       - --network=mainnet
     volumes:
