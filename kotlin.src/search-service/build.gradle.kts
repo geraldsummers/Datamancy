@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.grpc.stub)
     implementation(libs.grpc.protobuf)
     runtimeOnly("io.grpc:grpc-core:1.58.0")
+    runtimeOnly("io.grpc:grpc-netty-shaded:1.58.0")
 
     implementation(libs.guava)
 
