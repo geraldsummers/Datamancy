@@ -74,15 +74,23 @@ fun main(args: Array<String>) = runBlocking {
         }
 
         // Ensure results directory exists before writing error log
-        resultsDir.mkdirs()
+        if (!resultsDir.exists()) {
+            resultsDir.mkdirs()
+        }
 
-        // Save error log
-        File(resultsDir, "error.log").writeText("""
-            Fatal Error: ${e.message}
+        // Save error log with fallback
+        try {
+            File(resultsDir, "error.log").writeText("""
+                Fatal Error: ${e.message}
 
-            Stack Trace:
-            ${e.stackTraceToString()}
-        """.trimIndent())
+                Stack Trace:
+                ${e.stackTraceToString()}
+            """.trimIndent())
+        } catch (writeError: Exception) {
+            System.err.println("Failed to write error log to ${resultsDir.absolutePath}/error.log: ${writeError.message}")
+            System.err.println("Original error: ${e.message}")
+            System.err.println(e.stackTraceToString())
+        }
 
         exitProcess(2)
     } finally {

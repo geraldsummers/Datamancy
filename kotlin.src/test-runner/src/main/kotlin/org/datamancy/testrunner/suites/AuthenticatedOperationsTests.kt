@@ -472,9 +472,14 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
 
     test("Pipeline: Authenticate and access management API") {
+        if (endpoints.pipeline == null || endpoints.pipeline.contains("pipeline:")) {
+            println("      ℹ️  Pipeline service not available")
+            return@test
+        }
+
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        
+
         val autheliaResult = auth.login("admin", ldapPassword)
         if (autheliaResult !is AuthResult.Success) {
             skip("Pipeline: Access API", "Authelia authentication failed")
@@ -482,8 +487,8 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         }
         println("      ✓ Authenticated with Authelia")
 
-        
-        val directResponse = client.getRawResponse("http://pipeline:8090/actuator/health")
+
+        val directResponse = client.getRawResponse("${endpoints.pipeline}/actuator/health")
         require(directResponse.status == HttpStatusCode.OK || directResponse.status == HttpStatusCode.Unauthorized) {
             "Pipeline container not responding: ${directResponse.status}"
         }

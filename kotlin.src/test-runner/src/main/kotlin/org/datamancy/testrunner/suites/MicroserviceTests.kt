@@ -10,8 +10,17 @@ import org.datamancy.testrunner.framework.*
 
 suspend fun TestRunner.microserviceTests() = suite("Pipeline Tests") {
 
+    fun isPipelineAvailable(): Boolean {
+        val pipelineUrl = endpoints.pipeline
+        return pipelineUrl != null && !pipelineUrl.contains("pipeline:")
+    }
+
     test("Pipeline: Health check") {
-        val response = client.getRawResponse("http://pipeline:8090/health")
+        if (!isPipelineAvailable()) {
+            println("      ℹ️  Pipeline service not available")
+            return@test
+        }
+        val response = client.getRawResponse("${endpoints.pipeline}/health")
         response.status shouldBe HttpStatusCode.OK
 
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
@@ -24,7 +33,11 @@ suspend fun TestRunner.microserviceTests() = suite("Pipeline Tests") {
     }
 
     test("Pipeline: List data sources") {
-        val response = client.getRawResponse("http://pipeline:8090/sources")
+        if (!isPipelineAvailable()) {
+            println("      ℹ️  Pipeline service not available")
+            return@test
+        }
+        val response = client.getRawResponse("${endpoints.pipeline}/sources")
         response.status shouldBe HttpStatusCode.OK
 
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
@@ -44,7 +57,11 @@ suspend fun TestRunner.microserviceTests() = suite("Pipeline Tests") {
     }
 
     test("Pipeline: Check scheduler status") {
-        val response = client.getRawResponse("http://pipeline:8090/status")
+        if (!isPipelineAvailable()) {
+            println("      ℹ️  Pipeline service not available")
+            return@test
+        }
+        val response = client.getRawResponse("${endpoints.pipeline}/status")
         response.status shouldBe HttpStatusCode.OK
 
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject

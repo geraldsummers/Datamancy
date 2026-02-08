@@ -206,8 +206,12 @@ class ServiceClient(
                 header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
             }
             // Add Qdrant authentication
-            if (url.contains(endpoints.qdrant) && endpoints.qdrantApiKey != null) {
-                header("api-key", endpoints.qdrantApiKey)
+            if (url.contains(endpoints.qdrant)) {
+                if (endpoints.qdrantApiKey != null) {
+                    header("api-key", endpoints.qdrantApiKey)
+                } else {
+                    println("      ⚠️  WARNING: Qdrant URL detected but qdrantApiKey is null!")
+                }
             }
         }
     }
@@ -219,8 +223,12 @@ class ServiceClient(
                 header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
             }
             // Add Qdrant authentication
-            if (url.contains(endpoints.qdrant) && endpoints.qdrantApiKey != null) {
-                header("api-key", endpoints.qdrantApiKey)
+            if (url.contains(endpoints.qdrant)) {
+                if (endpoints.qdrantApiKey != null) {
+                    header("api-key", endpoints.qdrantApiKey)
+                } else {
+                    println("      ⚠️  WARNING: Qdrant URL detected but qdrantApiKey is null!")
+                }
             }
             block()
         }
