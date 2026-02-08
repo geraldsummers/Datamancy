@@ -836,7 +836,7 @@ fun parseEnvFile(file: File): Map<String, String> {
                 (value.startsWith("'") && value.endsWith("'"))) {
                 value = value.substring(1, value.length - 1)
                     .replace("\\\"", "\"")
-                    .replace("\$\$", "$")  // Unescape $$ back to $
+                    .replace("$$", "$")  // Unescape $$ back to $
                     .replace("'\\''", "'")  // Unescape single quotes
             }
 
