@@ -7,7 +7,7 @@ services:
       - docker-proxy
       - caddy
     environment:
-      LABWARE_HOST: ${LABWARE_HOST:-gerald@labware.local}
+      LABWARE_HOST: ${LABWARE_HOST:-gerald@192.168.0.61}
     volumes:
       - ${HOME}/.ssh:/root/.ssh:ro
       - labware-socket:/var/run/labware
