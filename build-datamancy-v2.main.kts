@@ -519,9 +519,10 @@ fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetad
         val secrets = extractSecretsFromTemplate(volumeInitFile)
 
         // Adjust build context paths since components are in subdirectory
+        // Replace specific paths first, then general "./"
         val fileContent = volumeInitFile.readText()
             .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
-            .replace(Regex("""(\s+context:\s+)\."""), "$1..")
+            .replace(Regex("""(\s+context:\s+)\.(?!\./)"""), "$1..")
 
         val content = buildString {
             appendLine("# component: volume-init")
@@ -559,9 +560,10 @@ fun copyComposeFiles(outputDir: File, workDir: File): Map<String, ComponentMetad
         } else emptyList()
 
         // Adjust build context paths since components are in subdirectory
+        // Replace specific paths first, then general "./"
         val fileContent = file.readText()
             .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
-            .replace(Regex("""(\s+context:\s+)\."""), "$1..")
+            .replace(Regex("""(\s+context:\s+)\.(?!\./)"""), "$1..")
 
         val content = buildString {
             appendLine("# component: $componentName")
