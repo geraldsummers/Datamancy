@@ -554,8 +554,8 @@ fun copyComposeFiles(
         exitProcess(1)
     }
 
-    val componentsDir = outputDir.resolve("compose.components")
-    componentsDir.mkdirs()
+    // Flat structure - no subdirectory
+    // Component files will be named docker-compose.{service}.yml
 
     val serviceFiles = templatesDir.listFiles { file ->
         file.isFile && file.extension == "yml"
@@ -567,17 +567,12 @@ fun copyComposeFiles(
     val settingsDir = File("compose.settings")
     val volumeInitFile = settingsDir.resolve("volume-init.yml")
     if (volumeInitFile.exists()) {
-        val destFile = componentsDir.resolve("volume-init.yml")
+        val destFile = outputDir.resolve("docker-compose.volume-init.yml")
         val lastCommit = getLastCommitForFile(volumeInitFile)
         val secrets = extractSecretsFromTemplate(volumeInitFile)
 
-        // Adjust volume mount paths and substitute environment variables
-        // Note: Build context paths are relative to main compose file, but volume mounts
-        // are relative to the included file's location. We need to adjust volume mounts only.
+        // No path transformations needed - flat structure means all paths work as-is
         val fileContent = volumeInitFile.readText()
-            .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
-            .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
-            .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
             .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
 
         val content = buildString {
@@ -592,7 +587,7 @@ fun copyComposeFiles(
 
         componentMetadata["volume-init"] = ComponentMetadata(
             name = "volume-init",
-            file = "compose.components/volume-init.yml",
+            file = "docker-compose.volume-init.yml",
             lastCommit = lastCommit,
             secrets = secrets,
             configFiles = emptyList()
@@ -602,7 +597,7 @@ fun copyComposeFiles(
     // Process each service template
     serviceFiles.forEach { file ->
         val componentName = file.nameWithoutExtension
-        val destFile = componentsDir.resolve(file.name)
+        val destFile = outputDir.resolve("docker-compose.${componentName}.yml")
         val lastCommit = getLastCommitForFile(file)
         val secrets = extractSecretsFromTemplate(file)
 
@@ -615,13 +610,8 @@ fun copyComposeFiles(
                 .toList()
         } else emptyList()
 
-        // Adjust volume mount paths and substitute environment variables
-        // Note: Build context paths are relative to main compose file, but volume mounts
-        // are relative to the included file's location. We need to adjust volume mounts only.
+        // No path transformations needed - flat structure means all paths work as-is
         val fileContent = file.readText()
-            .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
-            .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
-            .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
             .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
 
         val content = buildString {
@@ -639,7 +629,7 @@ fun copyComposeFiles(
 
         componentMetadata[componentName] = ComponentMetadata(
             name = componentName,
-            file = "compose.components/${file.name}",
+            file = "docker-compose.${componentName}.yml",
             lastCommit = lastCommit,
             secrets = secrets,
             configFiles = relatedConfigs
@@ -656,11 +646,11 @@ fun copyComposeFiles(
 
         // Add volume-init first if it exists
         if (volumeInitFile.exists()) {
-            appendLine("  - compose.components/volume-init.yml")
+            appendLine("  - docker-compose.volume-init.yml")
         }
 
         serviceFiles.forEach { file ->
-            appendLine("  - compose.components/${file.name}")
+            appendLine("  - docker-compose.${file.nameWithoutExtension}.yml")
         }
         appendLine()
 
