@@ -32,23 +32,22 @@ fun main(args: Array<String>) = runBlocking {
     val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
         .withZone(ZoneId.systemDefault())
         .format(Instant.now())
+
+    // Try /app/test-results first, fall back to /tmp if that fails
     val resultsBaseDir = File("/app/test-results")
-    if (!resultsBaseDir.exists()) {
-        val created = resultsBaseDir.mkdirs()
-        if (!created && !resultsBaseDir.exists()) {
-            System.err.println("⚠️  Failed to create base results directory: ${resultsBaseDir.absolutePath}")
-        }
-    }
-    val resultsDir = File(resultsBaseDir, "$timestamp-$suite")
-    val dirCreated = resultsDir.mkdirs()
-    if (!dirCreated && !resultsDir.exists()) {
+    var resultsDir = File(resultsBaseDir, "$timestamp-$suite")
+
+    if (!resultsDir.mkdirs() && !resultsDir.exists()) {
         System.err.println("⚠️  Failed to create results directory: ${resultsDir.absolutePath}")
-        System.err.println("⚠️  Parent exists: ${resultsDir.parentFile?.exists()}, writable: ${resultsDir.parentFile?.canWrite()}")
-        // Try to create it anyway and continue
-        try {
-            resultsDir.mkdirs()
-        } catch (e: Exception) {
-            System.err.println("⚠️  Exception creating directory: ${e.message}")
+        System.err.println("⚠️  Parent exists: ${resultsBaseDir.exists()}, writable: ${resultsBaseDir.canWrite()}")
+        System.err.println("⚠️  Falling back to /tmp/test-results")
+
+        // Fallback to /tmp which is always writable
+        val fallbackBaseDir = File("/tmp/test-results")
+        resultsDir = File(fallbackBaseDir, "$timestamp-$suite")
+        if (!resultsDir.mkdirs() && !resultsDir.exists()) {
+            System.err.println("⚠️  CRITICAL: Cannot create results directory anywhere!")
+            exitProcess(3)
         }
     }
 
