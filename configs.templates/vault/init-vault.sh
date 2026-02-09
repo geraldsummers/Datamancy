@@ -2,8 +2,16 @@
 set -e
 
 echo "Waiting for Vault to be ready..."
+TIMEOUT=300
+ELAPSED=0
 until wget -q -O /dev/null "http://vault:8200/v1/sys/health?uninitcode=200&sealedcode=200" 2>/dev/null; do
-    sleep 1
+    if [ $ELAPSED -ge $TIMEOUT ]; then
+        echo "ERROR: Timed out waiting for Vault to be ready after ${TIMEOUT}s"
+        exit 1
+    fi
+    sleep 5
+    ELAPSED=$((ELAPSED + 5))
+    echo "Waiting... ${ELAPSED}s/${TIMEOUT}s"
 done
 
 # Set Vault address for all vault commands
