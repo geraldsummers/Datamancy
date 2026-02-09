@@ -69,8 +69,12 @@ services:
     group_add:
       - "988"
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --timeout=15 --spider http://localhost:8081/tools"]
-      interval: 60s
-      timeout: 20s
-      retries: 3
-      start_period: 180s
+      test:
+        - CMD-SHELL
+        - |
+          wget --quiet --tries=1 --timeout=3 --spider http://localhost:8081/tools && \
+          wget --quiet --tries=1 --timeout=3 -O- http://localhost:8081/tools | grep -q tools
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

@@ -108,11 +108,14 @@ services:
       SKIP_POST_DEPLOYMENT_MIGRATIONS: "false"
     command: bash -c "bundle exec rails server -b 0.0.0.0"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
+      test:
+        - CMD-SHELL
+        - |
+          wget --quiet --tries=1 --timeout=3 --spider http://localhost:3000/health
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
 
   mastodon-streaming:
     image: ghcr.io/mastodon/mastodon-streaming:v4.5.4
@@ -191,8 +194,12 @@ services:
       SMTP_OPENSSL_VERIFY_MODE: none
     command: bundle exec sidekiq
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep -v grep | grep 'sidekiq'"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      test:
+        - CMD-SHELL
+        - |
+          ps aux | grep -v grep | grep -q 'sidekiq' && \
+          test -f /tmp/sidekiq_process_has_started_and_will_never_exit || echo 1 > /tmp/sidekiq_process_has_started_and_will_never_exit
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
