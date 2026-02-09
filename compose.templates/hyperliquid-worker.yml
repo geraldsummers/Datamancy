@@ -20,7 +20,7 @@ services:
       VAULT_TOKEN_FILE: /vault/config/token
       HYPERLIQUID_API_URL: https://api.hyperliquid.xyz
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/health')"]
       interval: 30s
       timeout: 10s
       retries: 3

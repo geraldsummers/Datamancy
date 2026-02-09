@@ -269,6 +269,22 @@ def health():
     })
 
 
+@app.route('/chains', methods=['GET'])
+def list_chains():
+    """List supported chains"""
+    return jsonify({"chains": list(CHAINS.keys())})
+
+
+@app.route('/tokens', methods=['GET'])
+def list_tokens():
+    """List supported tokens across all chains"""
+    tokens = set()
+    for chain_config in CHAINS.values():
+        tokens.add('ETH')  # All chains support ETH
+        tokens.update([k.upper() for k in chain_config.keys() if k in ['usdc', 'usdt']])
+    return jsonify({"tokens": sorted(list(tokens))})
+
+
 if __name__ == '__main__':
     logger.info(f"Starting EVM Broadcaster - Chains: {list(CHAINS.keys())}")
     app.run(host='0.0.0.0', port=8081)

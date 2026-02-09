@@ -33,7 +33,7 @@ services:
       ARBITRUM_RPC_URL: ${ARBITRUM_RPC_URL:-https://arb1.arbitrum.io/rpc}
       OPTIMISM_RPC_URL: ${OPTIMISM_RPC_URL:-https://mainnet.optimism.io}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
