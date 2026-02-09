@@ -34,6 +34,7 @@ RUN chown -R datamancer:datamancer /app && \
     mkdir -p /app/test-results && \
     chown -R datamancer:datamancer /app/test-results && \
     mkdir -p /home/datamancer/.docker/buildx && \
+    touch /home/datamancer/.docker/config.json && \
     chown -R datamancer:datamancer /home/datamancer/.docker && \
     chmod -R 755 /home/datamancer/.docker
 
