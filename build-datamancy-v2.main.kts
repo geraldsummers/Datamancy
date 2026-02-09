@@ -572,10 +572,10 @@ fun copyComposeFiles(
         val secrets = extractSecretsFromTemplate(volumeInitFile)
 
         // Adjust relative paths and substitute environment variables
+        // Note: dockerfile paths are relative to context, not to compose file location
         val fileContent = volumeInitFile.readText()
             .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
             .replace(Regex("""(\s+context:\s+)\.(?!\./)"""), "$1..")
-            .replace(Regex("""(\s+dockerfile:\s+)\./containers\.src/"""), "$1../containers.src/")
             .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
             .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
             .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
@@ -617,10 +617,10 @@ fun copyComposeFiles(
         } else emptyList()
 
         // Adjust relative paths and substitute environment variables
+        // Note: dockerfile paths are relative to context, not to compose file location
         val fileContent = file.readText()
             .replace(Regex("""(\s+context:\s+)\./containers\.src/"""), "$1../containers.src/")
             .replace(Regex("""(\s+context:\s+)\.(?!\./)"""), "$1..")
-            .replace(Regex("""(\s+dockerfile:\s+)\./containers\.src/"""), "$1../containers.src/")
             .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
             .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
             .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
