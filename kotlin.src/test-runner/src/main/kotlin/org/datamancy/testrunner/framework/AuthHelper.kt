@@ -153,11 +153,14 @@ class AuthHelper(
 
     
     suspend fun verifyAuth(): Boolean {
-        if (sessionCookie == null) return false
+        val cookie = sessionCookie ?: return false
 
         return try {
-            // HttpCookies plugin automatically sends stored cookies for matching domains
-            val response = client.get("$autheliaUrl/api/verify")
+            // Manually add cookie to ensure it's sent to /api/verify endpoint
+            // Don't override domain/path - let HttpCookies plugin handle it
+            val response = client.get("$autheliaUrl/api/verify") {
+                cookie(cookie.name, cookie.value)
+            }
             response.status == HttpStatusCode.OK
         } catch (e: Exception) {
             false
