@@ -130,14 +130,17 @@ class AuthHelper(
 
 
     suspend fun authenticatedGet(url: String): HttpResponse {
-        // HttpCookies plugin automatically sends stored cookies for matching domains
-        return client.get(url)
+        return client.get(url) {
+            sessionCookie?.let { cookie(it.name, it.value) }
+        }
     }
 
 
     suspend fun authenticatedPost(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
-        // HttpCookies plugin automatically sends stored cookies for matching domains
-        return client.post(url, block)
+        return client.post(url) {
+            sessionCookie?.let { cookie(it.name, it.value) }
+            block()
+        }
     }
 
     
