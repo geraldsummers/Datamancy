@@ -52,7 +52,7 @@ services:
         - CMD-SHELL
         - |
           wget --quiet --tries=1 --timeout=3 --spider http://localhost:3000/api/healthz && \
-          wget --quiet --tries=1 --timeout=3 -O- http://localhost:3000/api/healthz | grep -q '{}'
+          wget --quiet --tries=1 --timeout=3 -O- http://localhost:3000/api/healthz | grep -q 'status'
       interval: 10s
       timeout: 5s
       retries: 5

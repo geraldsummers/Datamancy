@@ -51,8 +51,8 @@ services:
       test:
         - CMD-SHELL
         - |
-          wget --quiet --tries=1 --timeout=5 --spider http://localhost:8000/health && \
-          wget --quiet --tries=1 --timeout=5 -O- http://localhost:8000/v1/models | grep -q qwen
+          curl -sf -m 5 http://localhost:8000/health >/dev/null && \
+          curl -sf -m 5 http://localhost:8000/v1/models | grep -q qwen
       interval: 15s
       timeout: 10s
       retries: 5

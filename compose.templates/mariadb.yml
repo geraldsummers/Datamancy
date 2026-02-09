@@ -21,7 +21,7 @@ services:
         - CMD-SHELL
         - |
           healthcheck.sh --connect --innodb_initialized && \
-          mariadb -u root -p"$$MYSQL_ROOT_PASSWORD" -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME IN ('bookstack', 'seafile')" | grep -q 2 && \
+          mariadb -u root -p"$$MYSQL_ROOT_PASSWORD" -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME IN ('bookstack', 'seafile_db')" | grep -q 2 && \
           mariadb -u root -p"$$MYSQL_ROOT_PASSWORD" -e "SELECT COUNT(*) FROM information_schema.PROCESSLIST" >/dev/null
       interval: 5s
       timeout: 4s
