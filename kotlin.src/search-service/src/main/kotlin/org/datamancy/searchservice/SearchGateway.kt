@@ -83,8 +83,14 @@ class SearchGateway(
 
     // Qdrant gRPC client for vector similarity search
     // Uses cosine distance to find semantically similar documents
-    private val qdrantHost = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":")[0]
-    private val qdrantPort = qdrantUrl.removePrefix("http://").removePrefix("https://").split(":").getOrNull(1)?.toIntOrNull() ?: 6334
+    // Parse the Qdrant URL - supports formats like "http://qdrant:6334", "qdrant:6334", or just "qdrant"
+    private val qdrantCleanUrl = qdrantUrl
+        .removePrefix("http://")
+        .removePrefix("https://")
+        .removePrefix("grpc://")
+        .trimStart('/') // Remove leading slashes that might cause Unix socket interpretation
+    private val qdrantHost = qdrantCleanUrl.split(":")[0]
+    private val qdrantPort = qdrantCleanUrl.split(":").getOrNull(1)?.toIntOrNull() ?: 6334
     private val qdrant = QdrantClient(
         QdrantGrpcClient.newBuilder(qdrantHost, qdrantPort, false)
             .apply {
