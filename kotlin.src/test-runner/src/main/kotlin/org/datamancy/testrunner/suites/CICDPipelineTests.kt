@@ -6,21 +6,21 @@ import java.util.UUID
 
 
 suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
-    val isolated-docker-vmDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
+    val isolatedDockerVmDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
 
     
     
     
     val registryHost = System.getenv("HOST_IP")?.let { "$it:5000" }
-        ?: detectIsolatedDockerVmHostIP(isolated-docker-vmDockerHost)
+        ?: detectIsolatedDockerVmHostIP(isolatedDockerVmDockerHost)
         ?: "192.168.0.11:5000"  
 
     val testImagePrefix = "cicd-test"
 
     
-    if (!isIsolatedDockerVmDockerAvailable(isolated-docker-vmDockerHost)) {
-        println("      ⚠️  IsolatedDockerVm Docker host not accessible at $isolated-docker-vmDockerHost - skipping CI/CD tests")
-        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-isolated-docker-vm-host and configure SSH keys")
+    if (!isIsolatedDockerVmDockerAvailable(isolatedDockerVmDockerHost)) {
+        println("      ⚠️  IsolatedDockerVm Docker host not accessible at $isolatedDockerVmDockerHost - skipping CI/CD tests")
+        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-isolatedDockerVmhost and configure SSH keys")
         return@suite
     }
 
@@ -40,18 +40,18 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 CMD ["echo", "Hello from CI/CD test"]
             """.trimIndent())
 
-            val (exitCode, output) = execCICDDocker(isolated-docker-vmDockerHost, "build", "-t", imageName, tempDir.absolutePath)
+            val (exitCode, output) = execCICDDocker(isolatedDockerVmDockerHost, "build", "-t", imageName, tempDir.absolutePath)
             if (exitCode != 0) {
                 throw AssertionError("Docker build failed: $output")
             }
 
-            val (listExitCode, listOutput) = execCICDDocker(isolated-docker-vmDockerHost, "images", imageName, "-q")
+            val (listExitCode, listOutput) = execCICDDocker(isolatedDockerVmDockerHost, "images", imageName, "-q")
             if (listExitCode != 0 || listOutput.trim().isEmpty()) {
                 throw AssertionError("Image not found after build")
             }
 
             
-            execCICDDocker(isolated-docker-vmDockerHost, "rmi", "-f", imageName)
+            execCICDDocker(isolatedDockerVmDockerHost, "rmi", "-f", imageName)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -74,20 +74,20 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 CMD ["echo", "Registry test"]
             """.trimIndent())
 
-            val (buildExitCode, buildOutput) = execCICDDocker(isolated-docker-vmDockerHost, "build", "-t", localImageName, tempDir.absolutePath)
+            val (buildExitCode, buildOutput) = execCICDDocker(isolatedDockerVmDockerHost, "build", "-t", localImageName, tempDir.absolutePath)
             if (buildExitCode != 0) {
                 throw AssertionError("Build failed: $buildOutput")
             }
 
-            execCICDDocker(isolated-docker-vmDockerHost, "tag", localImageName, registryImageName)
+            execCICDDocker(isolatedDockerVmDockerHost, "tag", localImageName, registryImageName)
 
-            val (pushExitCode, pushOutput) = execCICDDocker(isolated-docker-vmDockerHost, "push", registryImageName)
+            val (pushExitCode, pushOutput) = execCICDDocker(isolatedDockerVmDockerHost, "push", registryImageName)
             if (pushExitCode != 0) {
                 throw AssertionError("Push to registry failed: $pushOutput")
             }
 
             
-            execCICDDocker(isolated-docker-vmDockerHost, "rmi", "-f", localImageName, registryImageName)
+            execCICDDocker(isolatedDockerVmDockerHost, "rmi", "-f", localImageName, registryImageName)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -99,17 +99,17 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
         try {
             val (startExitCode, _) = execCICDDocker(
-                isolated-docker-vmDockerHost, "run", "-d", "--name", containerName, "alpine:latest", "sleep", "30"
+                isolatedDockerVmDockerHost, "run", "-d", "--name", containerName, "alpine:latest", "sleep", "30"
             )
             if (startExitCode != 0) {
                 throw AssertionError("Container start failed")
             }
 
-            
-            val (isolated-docker-vmCheckCode, isolated-docker-vmOutput) = execCICDDocker(
-                isolated-docker-vmDockerHost, "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
+
+            val (isolatedDockerVmCheckCode, isolatedDockerVmOutput) = execCICDDocker(
+                isolatedDockerVmDockerHost, "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
             )
-            if (isolated-docker-vmCheckCode != 0 || !isolated-docker-vmOutput.contains(containerName)) {
+            if (isolatedDockerVmCheckCode != 0 || !isolatedDockerVmOutput.contains(containerName)) {
                 throw AssertionError("Container not found on isolated-docker-vm")
             }
 
@@ -123,9 +123,9 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
             }
 
             
-            execCICDDocker(isolated-docker-vmDockerHost, "rm", "-f", containerName)
+            execCICDDocker(isolatedDockerVmDockerHost, "rm", "-f", containerName)
         } catch (e: Exception) {
-            execCICDDocker(isolated-docker-vmDockerHost, "rm", "-f", containerName)
+            execCICDDocker(isolatedDockerVmDockerHost, "rm", "-f", containerName)
             throw e
         }
     }
@@ -149,18 +149,18 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 CMD ["cat", "/app/artifact.txt"]
             """.trimIndent())
 
-            val (buildExitCode, buildOutput) = execCICDDocker(isolated-docker-vmDockerHost, "build", "-t", imageName, tempDir.absolutePath)
+            val (buildExitCode, buildOutput) = execCICDDocker(isolatedDockerVmDockerHost, "build", "-t", imageName, tempDir.absolutePath)
             if (buildExitCode != 0) {
                 throw AssertionError("Multi-stage build failed: $buildOutput")
             }
 
-            val (runExitCode, runOutput) = execCICDDocker(isolated-docker-vmDockerHost, "run", "--rm", imageName)
+            val (runExitCode, runOutput) = execCICDDocker(isolatedDockerVmDockerHost, "run", "--rm", imageName)
             if (runExitCode != 0 || !runOutput.contains("Building artifact")) {
                 throw AssertionError("Multi-stage container output incorrect")
             }
 
             
-            execCICDDocker(isolated-docker-vmDockerHost, "rmi", "-f", imageName)
+            execCICDDocker(isolatedDockerVmDockerHost, "rmi", "-f", imageName)
         } finally {
             tempDir.deleteRecursively()
         }

@@ -7,11 +7,11 @@ import java.util.concurrent.TimeUnit
 
 
 suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests") {
-    val isolated-docker-vmDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
+    val isolatedDockerVmDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
 
     
-    if (!isIsolatedDockerVmDockerAvailable(isolated-docker-vmDockerHost)) {
-        println("      ⚠️  IsolatedDockerVm Docker host not accessible at $isolated-docker-vmDockerHost - skipping replication tests")
+    if (!isIsolatedDockerVmDockerAvailable(isolatedDockerVmDockerHost)) {
+        println("      ⚠️  IsolatedDockerVm Docker host not accessible at $isolatedDockerVmDockerHost - skipping replication tests")
         println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-isolated-docker-vm-host and configure SSH keys")
         return@suite
     }
@@ -89,7 +89,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Deploy minimal stack on isolated-docker-vm socket") {
         val (exitCode, output) = execIsolatedDockerVmDockerCompose(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             composePath,
             "up", "-d"
         )
@@ -105,7 +105,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
         var healthy = false
         repeat(60) { attempt ->
             val (checkExit, checkOutput) = execIsolatedDockerVmDocker(
-                isolated-docker-vmDockerHost,
+                isolatedDockerVmDockerHost,
                 "ps",
                 "--filter", "name=isolated-docker-vm-test-service-$testRunId",
                 "--format", "{{.Status}}"
@@ -125,18 +125,18 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Verify isolated-docker-vm stack isolation from production") {
 
-        val (_, isolated-docker-vmOutput) = execIsolatedDockerVmDocker(
-            isolated-docker-vmDockerHost,
+        val (_, isolatedDockerVmOutput) = execIsolatedDockerVmDocker(
+            isolatedDockerVmDockerHost,
             "ps",
             "--filter", "name=isolated-docker-vm-",
             "--format", "{{.Names}}"
         )
-        val isolated-docker-vmContainers = isolated-docker-vmOutput.lines().filter { it.isNotBlank() }
+        val isolatedDockerVmContainers = isolatedDockerVmOutput.lines().filter { it.isNotBlank() }
             .filter { it.contains(testRunId) } // Only check containers from THIS test run
 
 
-        isolated-docker-vmContainers.size shouldBeGreaterThan 0
-        println("      ℹ️  Found ${isolated-docker-vmContainers.size} isolated-docker-vm containers from this test run")
+        isolatedDockerVmContainers.size shouldBeGreaterThan 0
+        println("      ℹ️  Found ${isolatedDockerVmContainers.size} isolated-docker-vm containers from this test run")
 
 
         val prodProcess = ProcessBuilder("docker", "ps", "--format", "{{.Names}}").start()
@@ -145,7 +145,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
         val prodContainers = prodOutput.lines().filter { it.isNotBlank() }.toSet()
 
 
-        val overlap = isolated-docker-vmContainers.toSet().intersect(prodContainers)
+        val overlap = isolatedDockerVmContainers.toSet().intersect(prodContainers)
         if (overlap.isNotEmpty()) {
             throw AssertionError("Isolation breach! Containers in both stacks: $overlap")
         }
@@ -155,7 +155,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Query isolated-docker-vm PostgreSQL service") {
         val (exitCode, output) = execIsolatedDockerVmDocker(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             "exec",
             "isolated-docker-vm-postgres-$testRunId",
             "psql", "-U", "test_admin", "-d", "postgres", "-c", "SELECT version();"
@@ -168,7 +168,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Query isolated-docker-vm Valkey service") {
         val (exitCode, output) = execIsolatedDockerVmDocker(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             "exec",
             "isolated-docker-vm-valkey-$testRunId",
             "valkey-cli", "PING"
@@ -181,7 +181,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Verify isolated-docker-vm stack network connectivity") {
         val (exitCode, output) = execIsolatedDockerVmDocker(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             "exec",
             "isolated-docker-vm-test-service-$testRunId",
             "sh", "-c", "nc -zv postgres 5432 && nc -zv valkey 6379"
@@ -194,7 +194,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     test("Verify isolated-docker-vm stack data persistence") {
         
         val (writeExit, _) = execIsolatedDockerVmDocker(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             "exec",
             "isolated-docker-vm-postgres-$testRunId",
             "psql", "-U", "test_admin", "-d", "postgres",
@@ -204,7 +204,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         
         val (readExit, readOutput) = execIsolatedDockerVmDocker(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             "exec",
             "isolated-docker-vm-postgres-$testRunId",
             "psql", "-U", "test_admin", "-d", "postgres",
@@ -218,7 +218,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Verify isolated-docker-vm stack log collection") {
         val (exitCode, output) = execIsolatedDockerVmDocker(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             "logs",
             "--tail", "50",
             "isolated-docker-vm-test-service-$testRunId"
@@ -231,7 +231,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Verify isolated-docker-vm stack can be stopped gracefully") {
         val (exitCode, output) = execIsolatedDockerVmDockerCompose(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             composePath,
             "stop"
         )
@@ -246,7 +246,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
     test("Verify isolated-docker-vm stack can be restarted") {
         val (startExit, _) = execIsolatedDockerVmDockerCompose(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             composePath,
             "start"
         )
@@ -258,7 +258,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         
         val (readExit, readOutput) = execIsolatedDockerVmDocker(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             "exec",
             "isolated-docker-vm-postgres-$testRunId",
             "psql", "-U", "test_admin", "-d", "postgres",
@@ -273,7 +273,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     test("Cleanup isolated-docker-vm stack") {
         
         val (downExit, downOutput) = execIsolatedDockerVmDockerCompose(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             composePath,
             "down", "-v", "--remove-orphans"
         )
@@ -289,7 +289,7 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         
         val (checkExit, checkOutput) = execIsolatedDockerVmDocker(
-            isolated-docker-vmDockerHost,
+            isolatedDockerVmDockerHost,
             "ps",
             "--filter", "name=isolated-docker-vm-$testRunId",
             "--format", "{{.Names}}"
