@@ -35,19 +35,47 @@ fun main(args: Array<String>) = runBlocking {
 
     // Try /app/test-results first, fall back to /tmp if that fails
     val resultsBaseDir = File("/app/test-results")
-    var resultsDir = File(resultsBaseDir, "$timestamp-$suite")
+    val resultsDir: File = run {
+        val primaryDir = File(resultsBaseDir, "$timestamp-$suite")
 
-    if (!resultsDir.mkdirs() && !resultsDir.exists()) {
-        System.err.println("⚠️  Failed to create results directory: ${resultsDir.absolutePath}")
-        System.err.println("⚠️  Parent exists: ${resultsBaseDir.exists()}, writable: ${resultsBaseDir.canWrite()}")
-        System.err.println("⚠️  Falling back to /tmp/test-results")
+        // Try to create primary directory
+        try {
+            primaryDir.mkdirs()
+            if (primaryDir.exists() && primaryDir.canWrite()) {
+                // Success - use primary directory
+                primaryDir
+            } else {
+                // Primary failed - try fallback
+                System.err.println("⚠️  Failed to create results directory: ${primaryDir.absolutePath}")
+                System.err.println("⚠️  Parent exists: ${resultsBaseDir.exists()}, writable: ${resultsBaseDir.canWrite()}")
+                System.err.println("⚠️  Falling back to /tmp/test-results")
 
-        // Fallback to /tmp which is always writable
-        val fallbackBaseDir = File("/tmp/test-results")
-        resultsDir = File(fallbackBaseDir, "$timestamp-$suite")
-        if (!resultsDir.mkdirs() && !resultsDir.exists()) {
-            System.err.println("⚠️  CRITICAL: Cannot create results directory anywhere!")
-            exitProcess(3)
+                val fallbackBaseDir = File("/tmp/test-results")
+                val fallbackDir = File(fallbackBaseDir, "$timestamp-$suite")
+                fallbackDir.mkdirs()
+
+                if (!fallbackDir.exists() || !fallbackDir.canWrite()) {
+                    System.err.println("⚠️  CRITICAL: Cannot create results directory anywhere!")
+                    exitProcess(3)
+                }
+
+                fallbackDir
+            }
+        } catch (e: Exception) {
+            // Exception during creation - try fallback
+            System.err.println("⚠️  Exception creating results directory: ${e.message}")
+            System.err.println("⚠️  Falling back to /tmp/test-results")
+
+            val fallbackBaseDir = File("/tmp/test-results")
+            val fallbackDir = File(fallbackBaseDir, "$timestamp-$suite")
+            fallbackDir.mkdirs()
+
+            if (!fallbackDir.exists() || !fallbackDir.canWrite()) {
+                System.err.println("⚠️  CRITICAL: Cannot create results directory anywhere!")
+                exitProcess(3)
+            }
+
+            fallbackDir
         }
     }
 
