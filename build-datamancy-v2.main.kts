@@ -852,33 +852,35 @@ fun generateUpgradeManifest(
 // ============================================================================
 
 fun extractSecretsFromExistingComposeFiles(distDir: File): Map<String, String> {
-    val componentsDir = distDir.resolve("compose.components")
-    if (!componentsDir.exists()) return emptyMap()
+    if (!distDir.exists()) return emptyMap()
 
     val secrets = mutableMapOf<String, String>()
 
-    componentsDir.listFiles()?.forEach { file ->
-        if (file.extension == "yml") {
-            val content = file.readText()
+    // Look for docker-compose.*.yml files in distDir (not in a subdirectory)
+    distDir.listFiles { file ->
+        file.name.startsWith("docker-compose.") && file.extension == "yml"
+    }?.forEach { file ->
+        val content = file.readText()
 
-            // Extract environment variables using regex
-            // Match: KEY: value or KEY: "value" or KEY: 'value' or KEY: |
-            val envPattern = Regex("""^\s{6,}([A-Z_][A-Z0-9_]*): (.+)$""", RegexOption.MULTILINE)
+        // Extract environment variables using regex
+        // Match: KEY: value or KEY: "value" or KEY: 'value'
+        // Look for environment: section with indented variables
+        val envPattern = Regex("""^\s{6,}([A-Z_][A-Z0-9_]*): (.+)$""", RegexOption.MULTILINE)
 
-            envPattern.findAll(content).forEach { match ->
-                val key = match.groupValues[1]
-                var value = match.groupValues[2].trim()
+        envPattern.findAll(content).forEach { match ->
+            val key = match.groupValues[1]
+            var value = match.groupValues[2].trim()
 
-                // Remove quotes if present
-                if ((value.startsWith("\"") && value.endsWith("\"")) ||
-                    (value.startsWith("'") && value.endsWith("'"))) {
-                    value = value.substring(1, value.length - 1)
-                }
+            // Remove quotes if present
+            if ((value.startsWith("\"") && value.endsWith("\"")) ||
+                (value.startsWith("'") && value.endsWith("'"))) {
+                value = value.substring(1, value.length - 1)
+            }
 
-                // Skip if it's a variable reference like ${SOMETHING}
-                if (!value.startsWith("\${")) {
-                    secrets[key] = value
-                }
+            // Skip if it's a variable reference like ${SOMETHING}
+            // Only preserve actual credential values
+            if (!value.startsWith("\${") && value.isNotEmpty()) {
+                secrets[key] = value
             }
         }
     }
