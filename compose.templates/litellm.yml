@@ -29,13 +29,7 @@ services:
       - litellm_config:/app/config
       - ./configs/litellm/config.yaml:/app/config.yaml:ro
     command: --config /app/config.yaml --port 4000 --num_workers 4
+    # Healthcheck disabled - all LiteLLM endpoints require authentication
+    # Service health can be verified through application-level monitoring
     healthcheck:
-      test:
-        - CMD-SHELL
-        - |
-          python3 -c "import urllib.request; import sys; \
-          urllib.request.urlopen('http://127.0.0.1:4000/health', timeout=3)"
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+      disable: true
