@@ -33,8 +33,11 @@ services:
       test:
         - CMD-SHELL
         - |
-          curl -sf -m 3 http://127.0.0.1:4000/health >/dev/null && \
-          curl -sf -m 3 http://127.0.0.1:4000/models | grep -q models
+          python3 -c "import urllib.request; import sys; import json; \
+          urllib.request.urlopen('http://127.0.0.1:4000/health', timeout=3); \
+          resp = urllib.request.urlopen('http://127.0.0.1:4000/models', timeout=3); \
+          data = json.load(resp); \
+          sys.exit(0 if 'data' in data else 1)"
       interval: 10s
       timeout: 5s
       retries: 5
