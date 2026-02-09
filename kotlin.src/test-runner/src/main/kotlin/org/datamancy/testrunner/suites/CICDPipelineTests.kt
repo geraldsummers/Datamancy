@@ -379,10 +379,10 @@ object CICDPipelineTests {
             )
             require(startExitCode == 0) { "Container start failed" }
 
-            val (isolated-docker-vmCheckCode, isolated-docker-vmOutput) = execIsolatedDockerVmDocker(
+            val (isolatedDockerVmCheckCode, isolatedDockerVmOutput) = execIsolatedDockerVmDocker(
                 "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
             )
-            require(isolated-docker-vmCheckCode == 0 && isolated-docker-vmOutput.contains(containerName)) {
+            require(isolatedDockerVmCheckCode == 0 && isolatedDockerVmOutput.contains(containerName)) {
                 "Container not found on isolated-docker-vm"
             }
 
