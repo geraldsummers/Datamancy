@@ -1,5 +1,5 @@
 ssh in via ssh gerald@latium.local "command"
-Drop a docker ps
+Drop a docker ps | grep unhealthy
 Drop a ls ~/datamancy
 Run the test runner container and collect results (integration-test-runner in the file "test-runner.yml" ) - this takes AGES to run so maybe 5 min blocks (sleep 300) and check periodically?
 
@@ -10,12 +10,12 @@ dont edit stuff on the server only fix stuff in the local repo
 
 deployment blob:
 
-cd /home/gerald/IdeaProjects/Datamancy/ && \
+ cd /home/gerald/IdeaProjects/Datamancy/ && \
 ./build-datamancy-v2.main.kts && \
 rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
 ssh gerald@latium.local "cd ~/datamancy && \
   docker compose --profile='*' build --pull=false && \
-  docker compose up -d --force-recreate; \
+  docker compose up -d --force-recreate && \
   sleep 300 && \
     docker compose --profile ingestion up -d --force-recreate && \
   docker compose ps | grep unhealthy"
