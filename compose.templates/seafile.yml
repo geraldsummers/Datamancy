@@ -57,4 +57,4 @@ services:
       interval: 60s
       timeout: 20s
       retries: 3
-      start_period: 180s
+      start_period: 300s  # Increased: Seafile needs time for MariaDB + Valkey initialization

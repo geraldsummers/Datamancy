@@ -9,9 +9,10 @@ services:
       VALKEY_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
     volumes:
       - redis_data:/data
-    command: valkey-server --appendonly yes --dir /data --databases 16 --requirepass ${VALKEY_ADMIN_PASSWORD}
+      - valkey_acl:/etc/valkey
+    command: valkey-server --appendonly yes --dir /data --databases 16 --aclfile /etc/valkey/users.acl
     healthcheck:
-      test: ["CMD", "sh", "-c", "valkey-cli -a $$VALKEY_PASSWORD ping"]
+      test: ["CMD", "sh", "-c", "valkey-cli --user default -a $$VALKEY_PASSWORD ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -33,12 +34,20 @@ services:
       VALKEY_MASTODON_PASSWORD: ${VALKEY_MASTODON_PASSWORD}
     volumes:
       - ./configs/valkey/init-acl.sh:/init-acl.sh:ro
+      - valkey_acl:/etc/valkey
     entrypoint:
       - /bin/sh
       - -c
       - |
         set -e
         echo "===== valkey-init starting ====="
+
+        # Create initial ACL file if it doesn't exist
+        if [ ! -f /etc/valkey/users.acl ]; then
+          echo "Creating initial ACL file with default user..."
+          echo "user default on >${VALKEY_ADMIN_PASSWORD} ~* &* +@all" > /etc/valkey/users.acl
+        fi
+
         sh /init-acl.sh
         touch /tmp/init_complete
         echo "===== Valkey ACL initialization complete ====="
@@ -48,3 +57,6 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+volumes:
+  valkey_acl:

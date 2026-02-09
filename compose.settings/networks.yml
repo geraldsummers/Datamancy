@@ -63,4 +63,5 @@ networks:
 
   trading:
     driver: bridge
-    internal: true
+    # NOTE: Not internal - trading workers need external API access
+    # (Hyperliquid, Base/Arbitrum/Optimism RPC endpoints)
