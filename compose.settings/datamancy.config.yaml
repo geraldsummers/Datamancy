@@ -1,5 +1,6 @@
 storage:
   vector_dbs: "/mnt/vectors/"
+  nocow_db_dir: "/mnt/raid/docker/nocow"
 
   custom:
     qbittorrent_data: "/mnt/media/qbittorrent"

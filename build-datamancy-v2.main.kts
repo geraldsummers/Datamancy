@@ -107,6 +107,7 @@ data class CustomStorageConfig(
 
 data class StorageConfig(
     val vector_dbs: String,
+    val nocow_db_dir: String? = null,
     val custom: CustomStorageConfig? = null
 )
 
@@ -521,6 +522,7 @@ fun substituteEnvironmentVariables(
         .replace("\${STACK_ADMIN_EMAIL}", sanitized.adminEmail)
         .replace("\${STACK_ADMIN_USER}", sanitized.adminUser)
         .replace("\${VECTOR_DB_ROOT}", config.storage.vector_dbs)
+        .replace("\${NOCOW_DB_DIR}", config.storage.nocow_db_dir ?: "/mnt/raid/docker/nocow")
         .replace("\${QBITTORRENT_DATA_ROOT}", config.storage.custom?.qbittorrent_data ?: "/mnt/media/qbittorrent")
         .replace("\${SEAFILE_MEDIA_ROOT}", config.storage.custom?.seafile_media ?: "/mnt/media/seafile-media")
         .replace("\${DOCKER_USER_ID}", "1000")

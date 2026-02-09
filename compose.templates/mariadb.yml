@@ -12,7 +12,7 @@ services:
       MARIADB_SEAFILE_PASSWORD: ${MARIADB_SEAFILE_PASSWORD}
       MARIADB_AGENT_PASSWORD: ${MARIADB_AGENT_PASSWORD}
     volumes:
-      - mariadb_data:/var/lib/mysql
+      - ${NOCOW_DB_DIR}/mariadb:/var/lib/mysql
       - ./configs/mariadb/init-template.sql:/docker-entrypoint-initdb.d/init-template.sql:ro
       - ./configs/mariadb/init-wrapper.sh:/docker-entrypoint-initdb.d/01-init-wrapper.sh:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
