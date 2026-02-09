@@ -571,11 +571,13 @@ fun copyComposeFiles(
         val lastCommit = getLastCommitForFile(volumeInitFile)
         val secrets = extractSecretsFromTemplate(volumeInitFile)
 
-        // Substitute environment variables
-        // Note: Paths in component files are relative to the main compose file location (project root)
-        // since docker-compose resolves included file paths from the main file's directory.
-        // No path adjustments needed!
+        // Adjust volume mount paths and substitute environment variables
+        // Note: Build context paths are relative to main compose file, but volume mounts
+        // are relative to the included file's location. We need to adjust volume mounts only.
         val fileContent = volumeInitFile.readText()
+            .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
+            .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
+            .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
             .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
 
         val content = buildString {
@@ -613,11 +615,13 @@ fun copyComposeFiles(
                 .toList()
         } else emptyList()
 
-        // Substitute environment variables
-        // Note: Paths in component files are relative to the main compose file location (project root)
-        // since docker-compose resolves included file paths from the main file's directory.
-        // No path adjustments needed!
+        // Adjust volume mount paths and substitute environment variables
+        // Note: Build context paths are relative to main compose file, but volume mounts
+        // are relative to the included file's location. We need to adjust volume mounts only.
         val fileContent = file.readText()
+            .replace(Regex("""(\s+-\s+)\./configs/"""), "$1../configs/")
+            .replace(Regex("""(\s+-\s+)\./kotlin\.src/"""), "$1../kotlin.src/")
+            .replace(Regex("""(\s+-\s+)\./containers\.src/"""), "$1../containers.src/")
             .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
 
         val content = buildString {
