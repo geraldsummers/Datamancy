@@ -28,9 +28,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - |
-          wget --quiet --tries=1 --timeout=3 --spider http://127.0.0.1:8098/ && \
-          wget --quiet --tries=1 --timeout=3 -O- http://127.0.0.1:8098/health | grep -q ok
+        - wget --quiet --tries=1 --timeout=3 -O- http://127.0.0.1:8098/health | grep -q ok
       interval: 10s
       timeout: 5s
       retries: 5
