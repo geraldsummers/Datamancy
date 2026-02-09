@@ -18,6 +18,7 @@ services:
       - caddy
       - docker-proxy
       - authelia
+      - trading
 
     environment:
       AGENT_TOOL_SERVER_URL: "http://agent-tool-server:8081"

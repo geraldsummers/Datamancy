@@ -18,8 +18,8 @@ services:
         - CMD-SHELL
         - |
           test -d /qdrant/storage && \
-          nc -z localhost 6333 && \
-          nc -z localhost 6334
+          timeout 2 bash -c '</dev/tcp/localhost/6333' && \
+          timeout 2 bash -c '</dev/tcp/localhost/6334'
       interval: 5s
       timeout: 4s
       retries: 5

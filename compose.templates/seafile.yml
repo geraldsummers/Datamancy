@@ -53,8 +53,8 @@ services:
       - seafile_files:/shared
       - seafile_media:/shared/seafile/library-template
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:80/api2/ping/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
       interval: 60s
       timeout: 20s
-      retries: 3
-      start_period: 300s  # Increased: Seafile needs time for MariaDB + Valkey initialization
+      retries: 5
+      start_period: 360s  # Increased: Seafile needs time for MariaDB + Valkey initialization

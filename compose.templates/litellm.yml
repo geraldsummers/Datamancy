@@ -33,8 +33,8 @@ services:
       test:
         - CMD-SHELL
         - |
-          wget --quiet --tries=1 --timeout=3 --spider http://127.0.0.1:4000/health && \
-          wget --quiet --tries=1 --timeout=3 -O- http://127.0.0.1:4000/models | grep -q models
+          curl -sf -m 3 http://127.0.0.1:4000/health >/dev/null && \
+          curl -sf -m 3 http://127.0.0.1:4000/models | grep -q models
       interval: 10s
       timeout: 5s
       retries: 5

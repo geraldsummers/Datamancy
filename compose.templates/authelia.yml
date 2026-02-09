@@ -61,10 +61,10 @@ services:
       test:
         - CMD-SHELL
         - |
-          wget --quiet --tries=1 --spider --timeout=2 http://localhost:9091/api/health && \
-          wget --quiet --tries=1 --spider --timeout=2 http://localhost:9091/.well-known/openid-configuration && \
-          wget --quiet --tries=1 --spider --timeout=2 http://localhost:9091/api/configuration && \
-          wget --quiet --tries=1 --spider --timeout=2 http://localhost:9091/jwks.json
+          wget --quiet --tries=1 --timeout=2 -O- http://localhost:9091/api/health >/dev/null && \
+          wget --quiet --tries=1 --timeout=2 -O- http://localhost:9091/.well-known/openid-configuration | grep -q issuer && \
+          wget --quiet --tries=1 --timeout=2 -O- http://localhost:9091/api/configuration >/dev/null && \
+          wget --quiet --tries=1 --timeout=2 -O- http://localhost:9091/jwks.json | grep -q keys
       interval: 5s
       timeout: 4s
       retries: 3
