@@ -128,19 +128,16 @@ class AuthHelper(
         }
     }
 
-    
+
     suspend fun authenticatedGet(url: String): HttpResponse {
-        return client.get(url) {
-            sessionCookie?.let { cookie(it.name, it.value) }
-        }
+        // HttpCookies plugin automatically sends stored cookies for matching domains
+        return client.get(url)
     }
 
-    
+
     suspend fun authenticatedPost(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
-        return client.post(url) {
-            sessionCookie?.let { cookie(it.name, it.value) }
-            block()
-        }
+        // HttpCookies plugin automatically sends stored cookies for matching domains
+        return client.post(url, block)
     }
 
     
@@ -153,12 +150,11 @@ class AuthHelper(
 
     
     suspend fun verifyAuth(): Boolean {
-        val cookie = sessionCookie ?: return false
+        if (sessionCookie == null) return false
 
         return try {
-            val response = client.get("$autheliaUrl/api/verify") {
-                cookie(cookie.name, cookie.value, domain = cookie.domain ?: "datamancy.net", path = cookie.path ?: "/")
-            }
+            // HttpCookies plugin automatically sends stored cookies for matching domains
+            val response = client.get("$autheliaUrl/api/verify")
             response.status == HttpStatusCode.OK
         } catch (e: Exception) {
             false
