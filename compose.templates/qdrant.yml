@@ -14,11 +14,16 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "test -d /qdrant/storage || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      test:
+        - CMD-SHELL
+        - |
+          wget --quiet --tries=1 --spider --timeout=2 --header="api-key: ${QDRANT_ADMIN_API_KEY}" http://localhost:6333/healthz && \
+          wget --quiet --tries=1 --timeout=2 --header="api-key: ${QDRANT_ADMIN_API_KEY}" -O- http://localhost:6333/collections | grep -q collections && \
+          test -d /qdrant/storage
+      interval: 5s
+      timeout: 4s
+      retries: 5
+      start_period: 20s
     deploy:
       resources:
         limits:

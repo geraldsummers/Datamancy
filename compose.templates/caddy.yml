@@ -65,8 +65,13 @@ services:
         rm -f /data/caddy/locks/*.lock 2>/dev/null || true
         exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:2019/config/"]
-      interval: 10s
-      timeout: 5s
+      test:
+        - CMD-SHELL
+        - |
+          wget --quiet --tries=1 --spider --timeout=2 http://127.0.0.1:2019/config/ && \
+          wget --quiet --tries=1 --spider --timeout=2 http://127.0.0.1:2019/reverse_proxy/upstreams && \
+          caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | grep -q "Valid configuration"
+      interval: 5s
+      timeout: 4s
       retries: 3
-      start_period: 10s
+      start_period: 15s

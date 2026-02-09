@@ -15,9 +15,9 @@ cd /home/gerald/IdeaProjects/Datamancy/ && \
 rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
 ssh gerald@latium.local "cd ~/datamancy && \
   docker compose --profile='*' build --pull=false && \
-  docker compose up -d --force-recreate && \
+  docker compose up -d --force-recreate; \
   sleep 300 && \
-  docker compose up -d --force-recreate --profile=pipeline && \
+    docker compose --profile ingestion up -d --force-recreate && \
   docker compose ps | grep unhealthy"
 
 the build script wont build if you have uncommitted changes

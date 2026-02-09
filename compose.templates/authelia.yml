@@ -58,8 +58,14 @@ services:
     entrypoint:
       - /entrypoint.sh
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9091/api/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
+      test:
+        - CMD-SHELL
+        - |
+          wget --quiet --tries=1 --spider --timeout=2 http://localhost:9091/api/health && \
+          wget --quiet --tries=1 --spider --timeout=2 http://localhost:9091/.well-known/openid-configuration && \
+          wget --quiet --tries=1 --spider --timeout=2 http://localhost:9091/api/configuration && \
+          wget --quiet --tries=1 --spider --timeout=2 http://localhost:9091/jwks.json
+      interval: 5s
+      timeout: 4s
+      retries: 3
+      start_period: 30s
