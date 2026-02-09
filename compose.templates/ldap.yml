@@ -25,8 +25,8 @@ services:
         - CMD-SHELL
         - |
           ldapsearch -x -H ldap://localhost:389 -b '' -s base '(objectclass=*)' namingContexts >/dev/null 2>&1 && \
-          ldapsearch -x -H ldap://localhost:389 -D "cn=admin,${LDAP_BASE_DN}" -w "${LDAP_ADMIN_PASSWORD}" -b "${LDAP_BASE_DN}" -s base >/dev/null 2>&1 && \
-          ldapsearch -x -H ldap://localhost:389 -b "${LDAP_BASE_DN}" -s one '(objectClass=organizationalUnit)' dn >/dev/null 2>&1
+          ldapsearch -x -H ldap://localhost:389 -D "cn=admin,$$LDAP_BASE_DN" -w "$$LDAP_ADMIN_PASSWORD" -b "$$LDAP_BASE_DN" -s base >/dev/null 2>&1 && \
+          ldapsearch -x -H ldap://localhost:389 -b "$$LDAP_BASE_DN" -s one '(objectClass=organizationalUnit)' dn >/dev/null 2>&1
       interval: 5s
       timeout: 4s
       retries: 5

@@ -15,10 +15,10 @@ services:
       test:
         - CMD-SHELL
         - |
-          valkey-cli --user default -a "${VALKEY_PASSWORD}" ping >/dev/null && \
-          valkey-cli --user default -a "${VALKEY_PASSWORD}" SET healthcheck:test "$$RANDOM" EX 5 >/dev/null && \
-          valkey-cli --user default -a "${VALKEY_PASSWORD}" GET healthcheck:test >/dev/null && \
-          valkey-cli --user default -a "${VALKEY_PASSWORD}" INFO replication | grep -q role:master
+          valkey-cli --user default -a "$$VALKEY_PASSWORD" ping >/dev/null && \
+          valkey-cli --user default -a "$$VALKEY_PASSWORD" SET healthcheck:test "$$RANDOM" EX 5 >/dev/null && \
+          valkey-cli --user default -a "$$VALKEY_PASSWORD" GET healthcheck:test >/dev/null && \
+          valkey-cli --user default -a "$$VALKEY_PASSWORD" INFO replication | grep -q role:master
       interval: 5s
       timeout: 3s
       retries: 5
@@ -48,10 +48,15 @@ services:
         set -e
         echo "===== valkey-init starting ====="
 
+        # Ensure /etc/valkey directory exists and has correct permissions
+        mkdir -p /etc/valkey
+        chmod 777 /etc/valkey
+
         # Create initial ACL file if it doesn't exist
         if [ ! -f /etc/valkey/users.acl ]; then
           echo "Creating initial ACL file with default user..."
           echo "user default on >${VALKEY_ADMIN_PASSWORD} ~* &* +@all" > /etc/valkey/users.acl
+          chmod 666 /etc/valkey/users.acl
         fi
 
         sh /init-acl.sh
