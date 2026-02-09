@@ -236,7 +236,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "bookstack" -> runner.bookStackIntegrationTests()
         
         "cicd" -> runner.cicdTests()
-        "labware" -> runner.labwareTests()
+        "isolated-docker-vm" -> runner.isolatedDockerVmTests()
         "stack-replication" -> runner.stackReplicationTests()
         
         "agent-capability" -> runner.agentCapabilityTests()
@@ -266,7 +266,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.utilityServicesTests()
             runner.homeAssistantTests()
             runner.cicdTests()
-            runner.labwareTests()
+            runner.isolatedDockerVmTests()
             runner.stackReplicationTests()
             runner.tradingTests()
         }
@@ -276,7 +276,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  search-service, infrastructure, databases, user-interface, communication,")
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
-            println("                  stack-deployment, bookstack, cicd, labware, stack-replication,")
+            println("                  stack-deployment, bookstack, cicd, isolated-docker-vm, stack-replication,")
             println("                  agent-capability, agent-security, agent-llm-quality, trading, all")
             exitProcess(1)
         }
@@ -429,7 +429,7 @@ private fun printUsage() {
                                      communication, collaboration, productivity,
                                      file-management, security, monitoring, backup,
                                      authentication, enhanced-auth, authenticated-ops, utility, homeassistant,
-                                     stack-deployment, bookstack, cicd, labware,
+                                     stack-deployment, bookstack, cicd, isolated-docker-vm,
                                      agent-capability, agent-security, agent-llm-quality, trading, all
 
       --verbose, -v          Enable verbose logging

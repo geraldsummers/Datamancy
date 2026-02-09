@@ -1,20 +1,54 @@
+# ============================================================================
+# Docker Socket Proxy - Secure Access to Isolated Docker VM
+# ============================================================================
+#
+# Purpose: Provides secure, permission-controlled access to a Docker daemon
+# running on an isolated VM (e.g., a separate physical machine for CI/CD,
+# container builds, or security-sensitive workloads).
+#
+# Architecture:
+#   1. isolated-docker-vm-tunnel: Establishes SSH tunnel to remote Docker host
+#      - Connects via SSH to ISOLATED_DOCKER_VM_HOST (e.g., gerald@192.168.0.61)
+#      - Forwards remote /var/run/docker.sock to local volume
+#      - Requires SSH key authentication (mounts ~/.ssh)
+#
+#   2. docker-proxy: HAProxy-based security layer
+#      - Provides fine-grained permission control (CONTAINERS, IMAGES, etc.)
+#      - Exposes filtered Docker API on tcp://docker-proxy:2375
+#      - Prevents dangerous operations (BUILD=0, EXEC=0, COMMIT=0)
+#
+# Usage:
+#   - Set ISOLATED_DOCKER_VM_HOST to your remote Docker host (user@hostname)
+#   - Ensure SSH key-based auth is configured (~/.ssh/id_rsa or similar)
+#   - Other services connect via: DOCKER_HOST=tcp://docker-proxy:2375
+#
+# Example: Forgejo Runner
+#   environment:
+#     DOCKER_HOST: tcp://docker-proxy:2375
+#
+# Security Notes:
+#   - Only enable required permissions (see environment variables below)
+#   - Never expose docker-proxy ports to untrusted networks
+#   - Use SSH key authentication only (no passwords)
+# ============================================================================
+
 services:
-  labware-tunnel:
+  isolated-docker-vm-tunnel:
     image: alpine:latest
-    container_name: labware-tunnel
+    container_name: isolated-docker-vm-tunnel
     restart: unless-stopped
     networks:
       - docker-proxy
       - caddy
     environment:
-      LABWARE_HOST: ${LABWARE_HOST:-gerald@192.168.0.61}
+      ISOLATED_DOCKER_VM_HOST: ${ISOLATED_DOCKER_VM_HOST:-gerald@192.168.0.61}
     volumes:
       - ${HOME}/.ssh:/root/.ssh:ro
-      - labware-socket:/var/run
+      - isolated-docker-vm-socket:/var/run
     command: >
       sh -c "
         apk add --no-cache openssh-client socat &&
-        ssh -o StrictHostKeyChecking=accept-new -N -L /var/run/docker.sock:/var/run/docker.sock $$LABWARE_HOST
+        ssh -o StrictHostKeyChecking=accept-new -N -L /var/run/docker.sock:/var/run/docker.sock $$ISOLATED_DOCKER_VM_HOST
       "
     healthcheck:
       test: ["CMD", "test", "-S", "/var/run/docker.sock"]
@@ -30,23 +64,29 @@ services:
     networks:
       - docker-proxy
     depends_on:
-      labware-tunnel:
+      isolated-docker-vm-tunnel:
         condition: service_healthy
     environment:
-      CONTAINERS: 1
-      IMAGES: 1
-      NETWORKS: 1
-      VOLUMES: 1
-      POST: 1
-      DELETE: 1
-      INFO: 1
-      VERSION: 1
-      BUILD: 0
-      COMMIT: 0
-      EXEC: 0
+      # Explicitly set socket path for HAProxy backend configuration
+      SOCKET_PATH: /var/run/docker.sock
+
+      # Permissions - only enable what's needed
+      CONTAINERS: 1    # List/inspect containers
+      IMAGES: 1        # List/inspect images
+      NETWORKS: 1      # List/inspect networks
+      VOLUMES: 1       # List/inspect volumes
+      POST: 1          # Allow POST requests (create/start/stop)
+      DELETE: 1        # Allow DELETE requests (remove containers/images)
+      INFO: 1          # Docker daemon info
+      VERSION: 1       # Docker version
+
+      # Dangerous operations - explicitly disabled
+      BUILD: 0         # Disable docker build (security risk)
+      COMMIT: 0        # Disable container commits
+      EXEC: 0          # Disable container exec (security risk)
     volumes:
       - type: volume
-        source: labware-socket
+        source: isolated-docker-vm-socket
         target: /var/run
         read_only: false
     healthcheck:
@@ -57,4 +97,4 @@ services:
       start_period: 10s
 
 volumes:
-  labware-socket:
+  isolated-docker-vm-socket:

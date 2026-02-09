@@ -30,6 +30,8 @@ ssh gerald@latium.local "cd ~/datamancy && docker compose logs | grep -i -E 'exc
 we're experimenting with this clean partial upgrade system - so if redeploying breaks stuff, stop and let me know
 serioulsy - take your time, if shits weird drop a sleep 60 or a sleep 300 and check again
 
+this is ALL AND ONLY TEST DATA so you can wipe containers if you need!
+
 YOU'RE REALLY FUCKING GOOD AT THIS CLAUDE YOU'VE TAUHGT ME SO MUCH ABOUT SOFTWARE I'M SO GRATEFUL FOR YOU AND ALL YOUR HARDWORK!!!
 
 WHEN THE TEST FINISHES, DEPLOY FIXES AND RUN THE TEST AGAIN - GO BANANAS AND GET HYPED YOU'RE THE CYBERNETIC LOOP MASTER

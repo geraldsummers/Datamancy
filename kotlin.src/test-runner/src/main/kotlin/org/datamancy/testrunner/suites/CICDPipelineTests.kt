@@ -6,25 +6,25 @@ import java.util.UUID
 
 
 suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
-    val labwareDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://labware"
+    val isolated-docker-vmDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
 
     
     
     
     val registryHost = System.getenv("HOST_IP")?.let { "$it:5000" }
-        ?: detectLabwareHostIP(labwareDockerHost)
+        ?: detectIsolatedDockerVmHostIP(isolated-docker-vmDockerHost)
         ?: "192.168.0.11:5000"  
 
     val testImagePrefix = "cicd-test"
 
     
-    if (!isLabwareDockerAvailable(labwareDockerHost)) {
-        println("      ⚠️  Labware Docker host not accessible at $labwareDockerHost - skipping CI/CD tests")
-        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-labware-host and configure SSH keys")
+    if (!isIsolatedDockerVmDockerAvailable(isolated-docker-vmDockerHost)) {
+        println("      ⚠️  IsolatedDockerVm Docker host not accessible at $isolated-docker-vmDockerHost - skipping CI/CD tests")
+        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-isolated-docker-vm-host and configure SSH keys")
         return@suite
     }
 
-    test("Build Docker image on labware socket") {
+    test("Build Docker image on isolated-docker-vm socket") {
         val testId = UUID.randomUUID().toString().substring(0, 8)
         val imageName = "$testImagePrefix-build:$testId"
 
@@ -40,18 +40,18 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 CMD ["echo", "Hello from CI/CD test"]
             """.trimIndent())
 
-            val (exitCode, output) = execCICDDocker(labwareDockerHost, "build", "-t", imageName, tempDir.absolutePath)
+            val (exitCode, output) = execCICDDocker(isolated-docker-vmDockerHost, "build", "-t", imageName, tempDir.absolutePath)
             if (exitCode != 0) {
                 throw AssertionError("Docker build failed: $output")
             }
 
-            val (listExitCode, listOutput) = execCICDDocker(labwareDockerHost, "images", imageName, "-q")
+            val (listExitCode, listOutput) = execCICDDocker(isolated-docker-vmDockerHost, "images", imageName, "-q")
             if (listExitCode != 0 || listOutput.trim().isEmpty()) {
                 throw AssertionError("Image not found after build")
             }
 
             
-            execCICDDocker(labwareDockerHost, "rmi", "-f", imageName)
+            execCICDDocker(isolated-docker-vmDockerHost, "rmi", "-f", imageName)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -74,43 +74,43 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 CMD ["echo", "Registry test"]
             """.trimIndent())
 
-            val (buildExitCode, buildOutput) = execCICDDocker(labwareDockerHost, "build", "-t", localImageName, tempDir.absolutePath)
+            val (buildExitCode, buildOutput) = execCICDDocker(isolated-docker-vmDockerHost, "build", "-t", localImageName, tempDir.absolutePath)
             if (buildExitCode != 0) {
                 throw AssertionError("Build failed: $buildOutput")
             }
 
-            execCICDDocker(labwareDockerHost, "tag", localImageName, registryImageName)
+            execCICDDocker(isolated-docker-vmDockerHost, "tag", localImageName, registryImageName)
 
-            val (pushExitCode, pushOutput) = execCICDDocker(labwareDockerHost, "push", registryImageName)
+            val (pushExitCode, pushOutput) = execCICDDocker(isolated-docker-vmDockerHost, "push", registryImageName)
             if (pushExitCode != 0) {
                 throw AssertionError("Push to registry failed: $pushOutput")
             }
 
             
-            execCICDDocker(labwareDockerHost, "rmi", "-f", localImageName, registryImageName)
+            execCICDDocker(isolated-docker-vmDockerHost, "rmi", "-f", localImageName, registryImageName)
         } finally {
             tempDir.deleteRecursively()
         }
     }
 
-    test("Verify labware container isolation") {
+    test("Verify isolated-docker-vm container isolation") {
         val testId = UUID.randomUUID().toString().substring(0, 8)
         val containerName = "$testImagePrefix-isolation-$testId"
 
         try {
             val (startExitCode, _) = execCICDDocker(
-                labwareDockerHost, "run", "-d", "--name", containerName, "alpine:latest", "sleep", "30"
+                isolated-docker-vmDockerHost, "run", "-d", "--name", containerName, "alpine:latest", "sleep", "30"
             )
             if (startExitCode != 0) {
                 throw AssertionError("Container start failed")
             }
 
             
-            val (labwareCheckCode, labwareOutput) = execCICDDocker(
-                labwareDockerHost, "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
+            val (isolated-docker-vmCheckCode, isolated-docker-vmOutput) = execCICDDocker(
+                isolated-docker-vmDockerHost, "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
             )
-            if (labwareCheckCode != 0 || !labwareOutput.contains(containerName)) {
-                throw AssertionError("Container not found on labware")
+            if (isolated-docker-vmCheckCode != 0 || !isolated-docker-vmOutput.contains(containerName)) {
+                throw AssertionError("Container not found on isolated-docker-vm")
             }
 
             
@@ -123,9 +123,9 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
             }
 
             
-            execCICDDocker(labwareDockerHost, "rm", "-f", containerName)
+            execCICDDocker(isolated-docker-vmDockerHost, "rm", "-f", containerName)
         } catch (e: Exception) {
-            execCICDDocker(labwareDockerHost, "rm", "-f", containerName)
+            execCICDDocker(isolated-docker-vmDockerHost, "rm", "-f", containerName)
             throw e
         }
     }
@@ -149,18 +149,18 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 CMD ["cat", "/app/artifact.txt"]
             """.trimIndent())
 
-            val (buildExitCode, buildOutput) = execCICDDocker(labwareDockerHost, "build", "-t", imageName, tempDir.absolutePath)
+            val (buildExitCode, buildOutput) = execCICDDocker(isolated-docker-vmDockerHost, "build", "-t", imageName, tempDir.absolutePath)
             if (buildExitCode != 0) {
                 throw AssertionError("Multi-stage build failed: $buildOutput")
             }
 
-            val (runExitCode, runOutput) = execCICDDocker(labwareDockerHost, "run", "--rm", imageName)
+            val (runExitCode, runOutput) = execCICDDocker(isolated-docker-vmDockerHost, "run", "--rm", imageName)
             if (runExitCode != 0 || !runOutput.contains("Building artifact")) {
                 throw AssertionError("Multi-stage container output incorrect")
             }
 
             
-            execCICDDocker(labwareDockerHost, "rmi", "-f", imageName)
+            execCICDDocker(isolated-docker-vmDockerHost, "rmi", "-f", imageName)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -168,7 +168,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 }
 
 
-private fun detectLabwareHostIP(dockerHost: String): String? {
+private fun detectIsolatedDockerVmHostIP(dockerHost: String): String? {
     return try {
         val (exitCode, output) = execCICDDocker(
             dockerHost,
@@ -200,7 +200,7 @@ private fun execCICDDocker(dockerHost: String, vararg args: String): Pair<Int, S
     return exitCode to output
 }
 
-private fun isLabwareDockerAvailable(dockerHost: String): Boolean {
+private fun isIsolatedDockerVmDockerAvailable(dockerHost: String): Boolean {
     return try {
         val (exitCode, _) = execCICDDocker(dockerHost, "info")
         exitCode == 0
@@ -212,7 +212,7 @@ private fun isLabwareDockerAvailable(dockerHost: String): Boolean {
 
 object CICDPipelineTests {
 
-    val LABWARE_DOCKER_HOST = System.getenv("DOCKER_HOST") ?: "ssh://labware"
+    val ISOLATED_DOCKER_VM_DOCKER_HOST = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
     const val REGISTRY_HOST = "registry:5000"
     const val TEST_IMAGE_PREFIX = "cicd-test"
 
@@ -220,17 +220,17 @@ object CICDPipelineTests {
     private val testImages = mutableListOf<String>()
     private val testContainers = mutableListOf<String>()
 
-    fun isLabwareDockerAvailable(): Boolean {
+    fun isIsolatedDockerVmDockerAvailable(): Boolean {
         return try {
-            val (exitCode, _) = execLabwareDocker("info")
+            val (exitCode, _) = execIsolatedDockerVmDocker("info")
             exitCode == 0
         } catch (e: Exception) {
             false
         }
     }
 
-    fun execLabwareDocker(vararg args: String): Pair<Int, String> {
-        val command = listOf("docker", "-H", LABWARE_DOCKER_HOST) + args
+    fun execIsolatedDockerVmDocker(vararg args: String): Pair<Int, String> {
+        val command = listOf("docker", "-H", ISOLATED_DOCKER_VM_DOCKER_HOST) + args
         val process = ProcessBuilder(command)
             .redirectErrorStream(true)
             .start()
@@ -242,10 +242,10 @@ object CICDPipelineTests {
     }
 
     fun cleanup() {
-        testImages.forEach { image -> execLabwareDocker("rmi", "-f", image) }
+        testImages.forEach { image -> execIsolatedDockerVmDocker("rmi", "-f", image) }
         testImages.clear()
 
-        testContainers.forEach { container -> execLabwareDocker("rm", "-f", container) }
+        testContainers.forEach { container -> execIsolatedDockerVmDocker("rm", "-f", container) }
         testContainers.clear()
 
         tempDirs.forEach { it.deleteRecursively() }
@@ -266,8 +266,8 @@ object CICDPipelineTests {
         println("CI/CD Pipeline Integration Tests")
         println("=".repeat(80))
 
-        if (!isLabwareDockerAvailable()) {
-            println("❌ Labware Docker host not accessible at $LABWARE_DOCKER_HOST")
+        if (!isIsolatedDockerVmDockerAvailable()) {
+            println("❌ IsolatedDockerVm Docker host not accessible at $ISOLATED_DOCKER_VM_DOCKER_HOST")
             println("These tests must be run with DOCKER_HOST set and SSH keys configured.")
             return
         }
@@ -288,13 +288,13 @@ object CICDPipelineTests {
                 CMD ["echo", "Hello from CI/CD test"]
             """.trimIndent())
 
-            val (exitCode, output) = execLabwareDocker("build", "-t", imageName, tempDir.absolutePath)
+            val (exitCode, output) = execIsolatedDockerVmDocker("build", "-t", imageName, tempDir.absolutePath)
             require(exitCode == 0) { "Docker build failed: $output" }
 
-            val (listExitCode, listOutput) = execLabwareDocker("images", imageName, "-q")
+            val (listExitCode, listOutput) = execIsolatedDockerVmDocker("images", imageName, "-q")
             require(listExitCode == 0 && listOutput.trim().isNotEmpty()) { "Image not listed" }
 
-            println("✅ Built image '$imageName' on labware socket")
+            println("✅ Built image '$imageName' on isolated-docker-vm socket")
             passed++
             cleanup()
         } catch (e: Exception) {
@@ -317,13 +317,13 @@ object CICDPipelineTests {
                 CMD ["echo", "Registry test"]
             """.trimIndent())
 
-            val (buildExitCode, _) = execLabwareDocker("build", "-t", localImageName, tempDir.absolutePath)
+            val (buildExitCode, _) = execIsolatedDockerVmDocker("build", "-t", localImageName, tempDir.absolutePath)
             require(buildExitCode == 0) { "Build failed" }
 
-            val (tagExitCode, _) = execLabwareDocker("tag", localImageName, registryImageName)
+            val (tagExitCode, _) = execIsolatedDockerVmDocker("tag", localImageName, registryImageName)
             require(tagExitCode == 0) { "Tag failed" }
 
-            val (pushExitCode, pushOutput) = execLabwareDocker("push", registryImageName)
+            val (pushExitCode, pushOutput) = execIsolatedDockerVmDocker("push", registryImageName)
             require(pushExitCode == 0) { "Push failed: $pushOutput" }
 
             println("✅ Pushed image '$registryImageName' to registry")
@@ -349,13 +349,13 @@ object CICDPipelineTests {
                 CMD ["sh", "-c", "echo 'Deployment test $testId'"]
             """.trimIndent())
 
-            execLabwareDocker("build", "-t", imageName, tempDir.absolutePath)
-            val (pushExitCode, _) = execLabwareDocker("push", imageName)
+            execIsolatedDockerVmDocker("build", "-t", imageName, tempDir.absolutePath)
+            val (pushExitCode, _) = execIsolatedDockerVmDocker("push", imageName)
             require(pushExitCode == 0) { "Push failed" }
 
-            execLabwareDocker("rmi", imageName)
+            execIsolatedDockerVmDocker("rmi", imageName)
 
-            val (runExitCode, runOutput) = execLabwareDocker("run", "--name", containerName, "--rm", imageName)
+            val (runExitCode, runOutput) = execIsolatedDockerVmDocker("run", "--name", containerName, "--rm", imageName)
             require(runExitCode == 0) { "Container run failed" }
             require(runOutput.contains("Deployment test $testId")) { "Wrong output" }
 
@@ -374,16 +374,16 @@ object CICDPipelineTests {
             val containerName = "$TEST_IMAGE_PREFIX-isolation-$testId"
             testContainers.add(containerName)
 
-            val (startExitCode, _) = execLabwareDocker(
+            val (startExitCode, _) = execIsolatedDockerVmDocker(
                 "run", "-d", "--name", containerName, "alpine:latest", "sleep", "30"
             )
             require(startExitCode == 0) { "Container start failed" }
 
-            val (labwareCheckCode, labwareOutput) = execLabwareDocker(
+            val (isolated-docker-vmCheckCode, isolated-docker-vmOutput) = execIsolatedDockerVmDocker(
                 "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
             )
-            require(labwareCheckCode == 0 && labwareOutput.contains(containerName)) {
-                "Container not found on labware"
+            require(isolated-docker-vmCheckCode == 0 && isolated-docker-vmOutput.contains(containerName)) {
+                "Container not found on isolated-docker-vm"
             }
 
             val prodProcess = ProcessBuilder("docker", "ps", "--filter", "name=$containerName", "--format", "{{.Names}}").start()
@@ -392,7 +392,7 @@ object CICDPipelineTests {
 
             require(!prodOutput.contains(containerName)) { "Container visible on production!" }
 
-            println("✅ Verified isolation: container '$containerName' exists on labware only")
+            println("✅ Verified isolation: container '$containerName' exists on isolated-docker-vm only")
             passed++
             cleanup()
         } catch (e: Exception) {
@@ -417,10 +417,10 @@ object CICDPipelineTests {
                 CMD ["cat", "/app/artifact.txt"]
             """.trimIndent())
 
-            val (buildExitCode, buildOutput) = execLabwareDocker("build", "-t", imageName, tempDir.absolutePath)
+            val (buildExitCode, buildOutput) = execIsolatedDockerVmDocker("build", "-t", imageName, tempDir.absolutePath)
             require(buildExitCode == 0) { "Multi-stage build failed: $buildOutput" }
 
-            val (runExitCode, runOutput) = execLabwareDocker("run", "--rm", imageName)
+            val (runExitCode, runOutput) = execIsolatedDockerVmDocker("run", "--rm", imageName)
             require(runExitCode == 0 && runOutput.contains("Building artifact")) {
                 "Multi-stage container failed"
             }
