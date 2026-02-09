@@ -48,6 +48,7 @@ services:
     command: >
       sh -c "
         apk add --no-cache openssh-client socat &&
+        rm -f /var/run/docker.sock &&
         ssh -o StrictHostKeyChecking=accept-new -N -L /var/run/docker.sock:/var/run/docker.sock $$ISOLATED_DOCKER_VM_HOST
       "
     healthcheck:
