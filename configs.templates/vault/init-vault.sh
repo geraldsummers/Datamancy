@@ -25,20 +25,54 @@ if vault status 2>/dev/null | grep -q "Initialized.*true"; then
     if vault status 2>/dev/null | grep -q "Sealed.*true"; then
         echo ""
         echo "════════════════════════════════════════════════════════════════"
-        echo "⚠️  VAULT IS SEALED - MANUAL UNSEAL REQUIRED"
+        echo "⚠️  VAULT IS SEALED - ATTEMPTING AUTO-UNSEAL"
         echo "════════════════════════════════════════════════════════════════"
         echo ""
-        echo "Vault must be manually unsealed after each restart."
-        echo "This is a security feature - unseal keys are NOT stored on disk."
-        echo ""
-        echo "To unseal Vault, run:"
-        echo "  docker exec vault vault operator unseal"
-        echo ""
-        echo "You will need to run this command 3 times with 3 different unseal keys."
-        echo "Retrieve your unseal keys from Vaultwarden or your secure backup location."
-        echo ""
-        echo "════════════════════════════════════════════════════════════════"
-        exit 0
+
+        # Check if unseal keys are stored (development/testing only!)
+        if [ -f /vault/data/.unseal_keys ]; then
+            echo "Found stored unseal keys - auto-unsealing..."
+            echo "⚠️  This is for development/testing only - NOT production-safe!"
+
+            # Read unseal keys and unseal
+            UNSEAL_KEY_1=$(sed -n '1p' /vault/data/.unseal_keys)
+            UNSEAL_KEY_2=$(sed -n '2p' /vault/data/.unseal_keys)
+            UNSEAL_KEY_3=$(sed -n '3p' /vault/data/.unseal_keys)
+
+            vault operator unseal "$UNSEAL_KEY_1" > /dev/null
+            vault operator unseal "$UNSEAL_KEY_2" > /dev/null
+            vault operator unseal "$UNSEAL_KEY_3" > /dev/null
+
+            echo "✓ Vault auto-unsealed successfully"
+            echo ""
+
+            # Re-run LDAP configuration check after unsealing
+            if [ -f /vault/config/setup-ldap.sh ] && [ -f /vault/data/.root_token ]; then
+                export VAULT_TOKEN=$(cat /vault/data/.root_token)
+
+                # Check if LDAP is enabled
+                if ! vault auth list 2>/dev/null | grep -q "ldap/"; then
+                    echo "⚠️  LDAP not configured. Running setup now..."
+                    /bin/sh /vault/config/setup-ldap.sh
+                    echo "✓ LDAP authentication configured"
+                else
+                    echo "✓ LDAP authentication is already configured"
+                fi
+            fi
+        else
+            echo "No stored unseal keys found."
+            echo "Vault must be manually unsealed after each restart."
+            echo "This is a security feature - unseal keys are NOT stored on disk."
+            echo ""
+            echo "To unseal Vault, run:"
+            echo "  docker exec vault vault operator unseal"
+            echo ""
+            echo "You will need to run this command 3 times with 3 different unseal keys."
+            echo "Retrieve your unseal keys from Vaultwarden or your secure backup location."
+            echo ""
+            echo "════════════════════════════════════════════════════════════════"
+            exit 0
+        fi
     else
         echo "✓ Vault is already unsealed"
     fi
@@ -143,6 +177,14 @@ else
     echo "$ROOT_TOKEN" > /vault/data/.root_token
     chmod 600 /vault/data/.root_token
     echo "✓ Root token saved to persistent storage for automated configuration"
+
+    # Save unseal keys for auto-unseal on restart (DEVELOPMENT/TESTING ONLY!)
+    # In production, use auto-unseal with cloud KMS or store keys securely in Vaultwarden
+    echo "$UNSEAL_KEY_1" > /vault/data/.unseal_keys
+    echo "$UNSEAL_KEY_2" >> /vault/data/.unseal_keys
+    echo "$UNSEAL_KEY_3" >> /vault/data/.unseal_keys
+    chmod 600 /vault/data/.unseal_keys
+    echo "⚠️  Unseal keys saved to /vault/data/.unseal_keys (TESTING ONLY!)"
 
     # Run LDAP setup script
     if [ -f /vault/config/setup-ldap.sh ]; then
