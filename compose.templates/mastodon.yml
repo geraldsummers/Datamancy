@@ -6,7 +6,7 @@ services:
   mastodon-init:
     image: ghcr.io/mastodon/mastodon:v4.5.4
     container_name: mastodon-init
-    restart: no
+    restart: "no"
     networks:
       - postgres
       - valkey

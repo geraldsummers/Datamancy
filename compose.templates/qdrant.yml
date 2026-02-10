@@ -33,7 +33,7 @@ services:
   vector-bootstrap:
     image: zenika/kotlin:latest
     container_name: vector-bootstrap
-    restart: no
+    restart: "no"
     networks:
       - qdrant
     depends_on:

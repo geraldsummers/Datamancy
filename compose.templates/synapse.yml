@@ -2,7 +2,7 @@ services:
   synapse-init:
     image: alpine:latest
     container_name: synapse-init
-    restart: no
+    restart: "no"
     networks:
       - postgres
     volumes:

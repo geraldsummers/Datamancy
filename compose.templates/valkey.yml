@@ -27,7 +27,7 @@ services:
   valkey-init:
     image: valkey/valkey:8.1.5
     container_name: valkey-init
-    restart: no
+    restart: "no"
     networks:
       - valkey
     depends_on:

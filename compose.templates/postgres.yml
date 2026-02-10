@@ -45,7 +45,7 @@ services:
   postgres-init:
     image: postgres:16.11
     container_name: postgres-init
-    restart: no
+    restart: "no"
     networks:
       - postgres
     depends_on:
@@ -101,7 +101,7 @@ services:
   postgres-observer-views:
     image: postgres:16.11
     container_name: postgres-observer-views
-    restart: no
+    restart: "no"
     networks:
       - postgres
     depends_on:
