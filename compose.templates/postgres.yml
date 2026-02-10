@@ -21,8 +21,11 @@ services:
       POSTGRES_ROUNDCUBE_PASSWORD: ${POSTGRES_ROUNDCUBE_PASSWORD}
       POSTGRES_DATAMANCY_PASSWORD: ${POSTGRES_DATAMANCY_PASSWORD}
       POSTGRES_AGENT_PASSWORD: ${POSTGRES_AGENT_PASSWORD}
+      POSTGRES_TXGATEWAY_PASSWORD: ${POSTGRES_TXGATEWAY_PASSWORD}
     volumes:
       - ${NOCOW_DB_DIR}/postgres:/var/lib/postgresql/data
+      - ./configs/postgres/init-db.sh:/docker-entrypoint-initdb.d/01-init-db.sh:ro
+      - ./configs/postgres/roundcube-schema.sql:/docker-entrypoint-initdb.d/02-roundcube-schema.sql:ro
     command: postgres -c 'max_connections=300' -c 'shared_buffers=1GB'
     healthcheck:
       test:
@@ -40,62 +43,6 @@ services:
           memory: 4G
           cpus: '2.0'
 
-  postgres-init:
-    image: postgres:16.11
-    container_name: postgres-init
-    restart: "no"
-    networks:
-      - postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      POSTGRES_USER: ${POSTGRES_ADMIN_USER}
-      POSTGRES_DB: postgres
-      PGHOST: postgres
-      PGPORT: 5432
-      PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD}
-      POSTGRES_AUTHELIA_PASSWORD: ${POSTGRES_AUTHELIA_PASSWORD}
-      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD}
-      POSTGRES_PLANKA_PASSWORD: ${POSTGRES_PLANKA_PASSWORD}
-      POSTGRES_SYNAPSE_PASSWORD: ${POSTGRES_SYNAPSE_PASSWORD}
-      POSTGRES_VAULTWARDEN_PASSWORD: ${POSTGRES_VAULTWARDEN_PASSWORD}
-      POSTGRES_OPENWEBUI_PASSWORD: ${POSTGRES_OPENWEBUI_PASSWORD}
-      POSTGRES_MASTODON_PASSWORD: ${POSTGRES_MASTODON_PASSWORD}
-      POSTGRES_FORGEJO_PASSWORD: ${POSTGRES_FORGEJO_PASSWORD}
-      POSTGRES_HOMEASSISTANT_PASSWORD: ${POSTGRES_HOMEASSISTANT_PASSWORD}
-      POSTGRES_ROUNDCUBE_PASSWORD: ${POSTGRES_ROUNDCUBE_PASSWORD}
-      POSTGRES_DATAMANCY_PASSWORD: ${POSTGRES_DATAMANCY_PASSWORD}
-      POSTGRES_AGENT_PASSWORD: ${POSTGRES_AGENT_PASSWORD}
-      POSTGRES_TXGATEWAY_PASSWORD: ${POSTGRES_TXGATEWAY_PASSWORD}
-    volumes:
-      - ./configs/postgres/init-db.sh:/init-db.sh:ro
-      - ./configs/postgres/roundcube-schema.sql:/docker-entrypoint-initdb.d/roundcube-schema.sql:ro
-    entrypoint:
-      - /bin/bash
-      - -c
-      - |
-        set -e
-        set -x
-        echo "===== postgres-init starting ====="
-        echo "POSTGRES_USER is set to: ${POSTGRES_ADMIN_USER}"
-        echo "Waiting for Postgres to be ready..."
-        until pg_isready -h postgres -U "${POSTGRES_ADMIN_USER}"; do
-          echo "Still waiting for postgres..."
-          sleep 2
-        done
-        echo "Postgres is ready!"
-        echo "Running idempotent database initialization script..."
-        bash -x /init-db.sh
-        touch /tmp/init_complete
-        echo "===== Database initialization complete ====="
-    healthcheck:
-      test: ["CMD-SHELL", "test -f /tmp/init_complete"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
   postgres-observer-views:
     image: postgres:16.11
     container_name: postgres-observer-views
@@ -103,8 +50,8 @@ services:
     networks:
       - postgres
     depends_on:
-      postgres-init:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       grafana:
         condition: service_started
       planka:

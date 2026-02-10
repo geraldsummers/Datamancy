@@ -6,10 +6,8 @@ services:
     networks:
       - postgres
     depends_on:
-      postgres-init:
-        condition: service_completed_successfully
       postgres:
-        condition: service_started
+        condition: service_healthy
     environment:
       PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD}
       POSTGRES_USER: ${POSTGRES_ADMIN_USER}

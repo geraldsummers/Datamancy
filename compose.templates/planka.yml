@@ -14,8 +14,8 @@ services:
         aliases:
           - planka.${DOMAIN}
     depends_on:
-      postgres-init:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       authelia:
         condition: service_started
     environment:

@@ -5,9 +5,7 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
-        condition: service_started
-      postgres-init:
-        condition: service_completed_successfully
+        condition: service_healthy
       ldap:
         condition: service_started
     networks:

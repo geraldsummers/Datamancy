@@ -11,8 +11,8 @@ services:
       - postgres
       - valkey
     depends_on:
-      postgres-init:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       valkey:
         condition: service_started
       valkey-init:
