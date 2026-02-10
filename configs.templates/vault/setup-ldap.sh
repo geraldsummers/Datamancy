@@ -30,14 +30,21 @@ export VAULT_ADDR="http://vault:8200"
 echo "Waiting for Vault to become fully active..."
 TIMEOUT=60
 ELAPSED=0
-until vault secrets list 2>&1 | grep -qv "local node not active"; do
-    if [ $ELAPSED -ge $TIMEOUT ]; then
-        echo "❌ ERROR: Timed out waiting for Vault to become active after ${TIMEOUT}s"
-        exit 1
+while true; do
+    OUTPUT=$(vault secrets list 2>&1)
+    if echo "$OUTPUT" | grep -q "local node not active"; then
+        # Still waiting for leader election
+        if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "❌ ERROR: Timed out waiting for Vault to become active after ${TIMEOUT}s"
+            exit 1
+        fi
+        sleep 2
+        ELAPSED=$((ELAPSED + 2))
+        echo "Waiting for Raft leader election... ${ELAPSED}s/${TIMEOUT}s"
+    else
+        # No "local node not active" error - Vault is ready!
+        break
     fi
-    sleep 2
-    ELAPSED=$((ELAPSED + 2))
-    echo "Waiting for Raft leader election... ${ELAPSED}s/${TIMEOUT}s"
 done
 echo "✓ Vault is now active"
 echo ""
