@@ -107,7 +107,18 @@ else
     echo ""
     echo "════════════════════════════════════════════════════════════════"
     echo ""
-    read -p "Press ENTER once you have saved the keys..." CONFIRM
+
+    # In automated/container environments, skip the interactive prompt
+    # Keys are saved to persistent storage for backup
+    if [ -t 0 ]; then
+        # Interactive terminal detected - wait for user confirmation
+        read -p "Press ENTER once you have saved the keys..." CONFIRM
+    else
+        # Non-interactive - proceed automatically
+        echo "⚠️  Running in non-interactive mode - proceeding automatically"
+        echo "Keys are saved to /vault/data/ for backup"
+        sleep 3
+    fi
 
     # Extract unseal keys and root token for initial setup
     UNSEAL_KEY_1=$(grep 'Unseal Key 1:' /tmp/vault-init-output.txt | awk '{print $NF}')
