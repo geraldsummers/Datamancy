@@ -61,6 +61,7 @@ networks:
     driver: bridge
     internal: true
 
+
   trading:
     driver: bridge
     # NOTE: Not internal - trading workers need external API access
