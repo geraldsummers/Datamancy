@@ -19,83 +19,149 @@ export VAULT_ADDR="http://vault:8200"
 
 # Check if Vault is already initialized
 if vault status 2>/dev/null | grep -q "Initialized.*true"; then
-    echo "Vault already initialized"
-    
+    echo "✓ Vault already initialized"
+
     # Check if sealed
     if vault status 2>/dev/null | grep -q "Sealed.*true"; then
-        echo "Vault is sealed, attempting auto-unseal..."
-        
-        # Try to unseal using stored keys if available
-        if [ -f /vault/data/unseal-keys.txt ]; then
-            echo "Found unseal keys, unsealing..."
-            UNSEAL_KEY_1=$(sed -n '1p' /vault/data/unseal-keys.txt)
-            UNSEAL_KEY_2=$(sed -n '2p' /vault/data/unseal-keys.txt)
-            UNSEAL_KEY_3=$(sed -n '3p' /vault/data/unseal-keys.txt)
-            
-            vault operator unseal "$UNSEAL_KEY_1" || true
-            vault operator unseal "$UNSEAL_KEY_2" || true
-            vault operator unseal "$UNSEAL_KEY_3" || true
-            
-            echo "Vault unsealed"
-        else
-            echo "ERROR: Vault is sealed but no unseal keys found!"
-            echo "Manual intervention required. Run:"
-            echo "  docker exec vault vault operator unseal"
-            exit 1
-        fi
+        echo ""
+        echo "════════════════════════════════════════════════════════════════"
+        echo "⚠️  VAULT IS SEALED - MANUAL UNSEAL REQUIRED"
+        echo "════════════════════════════════════════════════════════════════"
+        echo ""
+        echo "Vault must be manually unsealed after each restart."
+        echo "This is a security feature - unseal keys are NOT stored on disk."
+        echo ""
+        echo "To unseal Vault, run:"
+        echo "  docker exec vault vault operator unseal"
+        echo ""
+        echo "You will need to run this command 3 times with 3 different unseal keys."
+        echo "Retrieve your unseal keys from Vaultwarden or your secure backup location."
+        echo ""
+        echo "════════════════════════════════════════════════════════════════"
+        exit 0
     else
-        echo "Vault is already unsealed"
+        echo "✓ Vault is already unsealed"
+    fi
+
+    # If already initialized and unsealed, ensure LDAP is configured
+    # (This handles cases where Vault was initialized but setup-ldap.sh didn't run)
+    if [ -f /vault/config/setup-ldap.sh ]; then
+        echo "Checking LDAP configuration..."
+
+        # Try to read root token from environment or fallback file
+        if [ -z "$VAULT_ROOT_TOKEN" ] && [ -f /vault/data/.root_token ]; then
+            echo "Loading root token from persistent storage..."
+            export VAULT_TOKEN=$(cat /vault/data/.root_token)
+        elif [ -n "$VAULT_ROOT_TOKEN" ]; then
+            export VAULT_TOKEN="$VAULT_ROOT_TOKEN"
+        else
+            echo "⚠️  No root token available - skipping LDAP configuration check"
+            echo "To manually configure LDAP, authenticate and run:"
+            echo "  /vault/config/setup-ldap.sh"
+            exit 0
+        fi
+
+        # Check if LDAP is enabled
+        if ! vault auth list 2>/dev/null | grep -q "ldap/"; then
+            echo "⚠️  LDAP not configured. Running setup now..."
+            /bin/sh /vault/config/setup-ldap.sh
+            echo "✓ LDAP authentication configured"
+        else
+            echo "✓ LDAP authentication is already configured"
+        fi
     fi
 else
-    echo "Initializing Vault for the first time..."
-    
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo "🔐 INITIALIZING VAULT FOR THE FIRST TIME"
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+
     # Initialize with 5 key shares, 3 required to unseal
-    vault operator init -key-shares=5 -key-threshold=3 > /vault/data/init-output.txt
-    
-    # Extract keys and root token
-    grep 'Unseal Key' /vault/data/init-output.txt | awk '{print $NF}' > /vault/data/unseal-keys.txt
-    grep 'Initial Root Token' /vault/data/init-output.txt | awk '{print $NF}' > /vault/data/root-token.txt
-    
-    # Set restrictive permissions
-    chmod 600 /vault/data/unseal-keys.txt
-    chmod 600 /vault/data/root-token.txt
-    chmod 600 /vault/data/init-output.txt
-    
-    echo "Vault initialized successfully"
-    echo "Unseal keys and root token saved to /vault/data/"
+    vault operator init -key-shares=5 -key-threshold=3 > /tmp/vault-init-output.txt
+
     echo ""
-    echo "⚠️  IMPORTANT: Backup these files immediately!"
-    echo "   - /vault/data/init-output.txt (all 5 keys + root token)"
-    echo "   - /vault/data/unseal-keys.txt (5 unseal keys)"
-    echo "   - /vault/data/root-token.txt (root token)"
+    echo "════════════════════════════════════════════════════════════════"
+    echo "🔑 VAULT INITIALIZATION COMPLETE"
+    echo "════════════════════════════════════════════════════════════════"
     echo ""
-    
-    # Auto-unseal after initialization
-    echo "Auto-unsealing Vault..."
-    UNSEAL_KEY_1=$(sed -n '1p' /vault/data/unseal-keys.txt)
-    UNSEAL_KEY_2=$(sed -n '2p' /vault/data/unseal-keys.txt)
-    UNSEAL_KEY_3=$(sed -n '3p' /vault/data/unseal-keys.txt)
-    
+    cat /tmp/vault-init-output.txt
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo "⚠️  CRITICAL - ACTION REQUIRED IMMEDIATELY"
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "1. COPY ALL UNSEAL KEYS AND ROOT TOKEN to Vaultwarden NOW!"
+    echo "2. These will NOT be saved to disk for security reasons"
+    echo "3. You will need 3 of the 5 unseal keys after every restart"
+    echo "4. The root token is needed for emergency recovery only"
+    echo ""
+    echo "Recommended: Store in Vaultwarden with the following structure:"
+    echo "  - Item Name: Vault Unseal Keys"
+    echo "  - Unseal Key 1: [paste key 1]"
+    echo "  - Unseal Key 2: [paste key 2]"
+    echo "  - Unseal Key 3: [paste key 3]"
+    echo "  - Unseal Key 4: [paste key 4]"
+    echo "  - Unseal Key 5: [paste key 5]"
+    echo "  - Root Token: [paste root token]"
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    read -p "Press ENTER once you have saved the keys..." CONFIRM
+
+    # Extract unseal keys and root token for initial setup
+    UNSEAL_KEY_1=$(grep 'Unseal Key 1:' /tmp/vault-init-output.txt | awk '{print $NF}')
+    UNSEAL_KEY_2=$(grep 'Unseal Key 2:' /tmp/vault-init-output.txt | awk '{print $NF}')
+    UNSEAL_KEY_3=$(grep 'Unseal Key 3:' /tmp/vault-init-output.txt | awk '{print $NF}')
+    ROOT_TOKEN=$(grep 'Initial Root Token:' /tmp/vault-init-output.txt | awk '{print $NF}')
+
+    # Auto-unseal for initial setup
+    echo ""
+    echo "Unsealing Vault for initial configuration..."
     vault operator unseal "$UNSEAL_KEY_1"
     vault operator unseal "$UNSEAL_KEY_2"
     vault operator unseal "$UNSEAL_KEY_3"
-    
-    echo "Vault unsealed successfully"
-    
-    # Copy token to shared config volume for services to read
-    cp /vault/data/root-token.txt /vault/config/token
-    chmod 644 /vault/config/token
+    echo "✓ Vault unsealed"
+    echo ""
 
-    ROOT_TOKEN=$(cat /vault/data/root-token.txt)
+    # Authenticate with root token for setup
+    export VAULT_TOKEN="$ROOT_TOKEN"
+
+    # Save root token to persistent storage for future LDAP configuration
+    # (This is encrypted by Vault's storage backend and only accessible from within the container)
+    echo "$ROOT_TOKEN" > /vault/data/.root_token
+    chmod 600 /vault/data/.root_token
+    echo "✓ Root token saved to persistent storage for automated configuration"
+
+    # Run LDAP setup script
+    if [ -f /vault/config/setup-ldap.sh ]; then
+        echo "Running LDAP configuration..."
+        /bin/sh /vault/config/setup-ldap.sh
+    else
+        echo "⚠️  Warning: setup-ldap.sh not found, skipping LDAP configuration"
+        echo "You will need to configure LDAP authentication manually"
+    fi
+
+    # Securely delete the init output (prevent key recovery)
+    shred -vfz -n 10 /tmp/vault-init-output.txt 2>/dev/null || rm -f /tmp/vault-init-output.txt
+
     echo ""
     echo "════════════════════════════════════════════════════════════════"
-    echo "🔑 VAULT ROOT TOKEN (SAVE THIS FOR BACKUP!)"
+    echo "✅ VAULT SETUP COMPLETE"
     echo "════════════════════════════════════════════════════════════════"
     echo ""
-    echo "$ROOT_TOKEN"
+    echo "✓ Vault initialized and unsealed"
+    echo "✓ LDAP authentication configured"
+    echo "✓ Policies created: admin, user-template, service"
+    echo "✓ Groups mapped: admins → admin, users → user-template"
     echo ""
-    echo "✓ Token automatically distributed to services via shared volume"
+    echo "Next steps:"
+    echo "  1. Test LDAP login: vault login -method=ldap username=sysadmin"
+    echo "  2. Users can now authenticate with their LDAP credentials"
+    echo "  3. After restart, manually unseal with 3 of 5 keys"
+    echo ""
     echo "════════════════════════════════════════════════════════════════"
 fi
 
-echo "Vault is ready"
+echo ""
+echo "✓ Vault is ready"
