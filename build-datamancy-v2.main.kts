@@ -609,15 +609,31 @@ fun copyComposeFiles(
         appendLine()
         appendLine("services:")
 
+        // Helper function to extract only services section from YAML
+        fun extractServices(content: String): String {
+            val lines = content.lines()
+            val servicesIdx = lines.indexOfFirst { it.trim() == "services:" }
+            if (servicesIdx == -1) return ""
+
+            val result = mutableListOf<String>()
+            for (i in (servicesIdx + 1) until lines.size) {
+                val line = lines[i]
+                // Stop when we hit a top-level key (networks, volumes, etc)
+                if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
+                    break
+                }
+                result.add(line)
+            }
+            return result.joinToString("\n")
+        }
+
         // Add volume-init first if it exists
         if (volumeInitFile.exists()) {
             val volumeInitContent = volumeInitFile.readText()
                 .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
-            // Extract just the services section (content after "services:\n")
-            val servicesMarker = "services:"
-            if (servicesMarker in volumeInitContent) {
-                val afterServices = volumeInitContent.substringAfter("$servicesMarker\n")
-                append(afterServices)
+            val services = extractServices(volumeInitContent)
+            if (services.isNotEmpty()) {
+                appendLine(services)
                 appendLine()
             }
         }
@@ -626,11 +642,9 @@ fun copyComposeFiles(
         serviceFiles.forEach { file ->
             val fileContent = file.readText()
                 .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
-            // Extract just the services section (content after "services:\n")
-            val servicesMarker = "services:"
-            if (servicesMarker in fileContent) {
-                val afterServices = fileContent.substringAfter("$servicesMarker\n")
-                append(afterServices)
+            val services = extractServices(fileContent)
+            if (services.isNotEmpty()) {
+                appendLine(services)
                 appendLine()
             }
         }
