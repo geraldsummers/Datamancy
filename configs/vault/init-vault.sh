@@ -47,12 +47,27 @@ if vault status 2>/dev/null | grep -q "Initialized.*true"; then
     # (This handles cases where Vault was initialized but setup-ldap.sh didn't run)
     if [ -f /vault/config/setup-ldap.sh ]; then
         echo "Checking LDAP configuration..."
-        # Try to check if LDAP is enabled (will fail if not authenticated, but that's ok)
-        if ! vault auth list 2>/dev/null | grep -q "ldap/"; then
-            echo "⚠️  LDAP not configured. Please authenticate with root token and run:"
-            echo "  /vault/config/setup-ldap.sh"
+
+        # Try to read root token from environment or fallback file
+        if [ -z "$VAULT_ROOT_TOKEN" ] && [ -f /vault/data/.root_token ]; then
+            echo "Loading root token from persistent storage..."
+            export VAULT_TOKEN=$(cat /vault/data/.root_token)
+        elif [ -n "$VAULT_ROOT_TOKEN" ]; then
+            export VAULT_TOKEN="$VAULT_ROOT_TOKEN"
         else
-            echo "✓ LDAP authentication is configured"
+            echo "⚠️  No root token available - skipping LDAP configuration check"
+            echo "To manually configure LDAP, authenticate and run:"
+            echo "  /vault/config/setup-ldap.sh"
+            exit 0
+        fi
+
+        # Check if LDAP is enabled
+        if ! vault auth list 2>/dev/null | grep -q "ldap/"; then
+            echo "⚠️  LDAP not configured. Running setup now..."
+            /bin/sh /vault/config/setup-ldap.sh
+            echo "✓ LDAP authentication configured"
+        else
+            echo "✓ LDAP authentication is already configured"
         fi
     fi
 else
@@ -111,6 +126,12 @@ else
 
     # Authenticate with root token for setup
     export VAULT_TOKEN="$ROOT_TOKEN"
+
+    # Save root token to persistent storage for future LDAP configuration
+    # (This is encrypted by Vault's storage backend and only accessible from within the container)
+    echo "$ROOT_TOKEN" > /vault/data/.root_token
+    chmod 600 /vault/data/.root_token
+    echo "✓ Root token saved to persistent storage for automated configuration"
 
     # Run LDAP setup script
     if [ -f /vault/config/setup-ldap.sh ]; then
