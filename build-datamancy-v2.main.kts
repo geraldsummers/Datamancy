@@ -613,10 +613,11 @@ fun copyComposeFiles(
         if (volumeInitFile.exists()) {
             val volumeInitContent = volumeInitFile.readText()
                 .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
-            // Extract just the services section
-            val servicesContent = volumeInitContent.substringAfter("services:", "").trim()
-            if (servicesContent.isNotEmpty()) {
-                appendLine(servicesContent.prependIndent("  "))
+            // Extract just the services section (content after "services:\n")
+            val servicesMarker = "services:"
+            if (servicesMarker in volumeInitContent) {
+                val afterServices = volumeInitContent.substringAfter("$servicesMarker\n")
+                append(afterServices)
                 appendLine()
             }
         }
@@ -625,10 +626,11 @@ fun copyComposeFiles(
         serviceFiles.forEach { file ->
             val fileContent = file.readText()
                 .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
-            // Extract just the services section
-            val servicesContent = fileContent.substringAfter("services:", "").trim()
-            if (servicesContent.isNotEmpty()) {
-                appendLine(servicesContent.prependIndent("  "))
+            // Extract just the services section (content after "services:\n")
+            val servicesMarker = "services:"
+            if (servicesMarker in fileContent) {
+                val afterServices = fileContent.substringAfter("$servicesMarker\n")
+                append(afterServices)
                 appendLine()
             }
         }
