@@ -8,6 +8,7 @@ services:
     networks:
       - trading
       - caddy
+      - ldap
     depends_on:
       volume-init:
         condition: service_completed_successfully
@@ -35,6 +36,7 @@ services:
     networks:
       - trading
       - caddy
+      - ldap
     depends_on:
       vault:
         condition: service_healthy
