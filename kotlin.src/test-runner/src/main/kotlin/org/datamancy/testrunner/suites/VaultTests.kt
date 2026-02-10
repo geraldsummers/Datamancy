@@ -19,8 +19,8 @@ import java.util.UUID
  *
  * Architecture:
  * - Users authenticate with LDAP credentials → get Vault token
- * - Each user gets isolated path: secret/users/{username}/*
- * - Shared secrets at: secret/services/* (read-only for users)
+ * - Each user gets isolated path: secret/users/{username}/ *
+ * - Shared secrets at: secret/services/ * (read-only for users)
  * - Admins get full access via admin policy
  */
 suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
@@ -57,7 +57,7 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
 
         // Verify token has admin policy
         val tokenInfo = vaultHelper.lookupSelf(token)
-        tokenInfo.policies shouldContain "admin"
+        require("admin" in tokenInfo.policies) { "Expected admin policy in ${tokenInfo.policies}" }
     }
 
     test("Regular user can authenticate with LDAP credentials") {
@@ -75,7 +75,7 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
 
             // Verify token has user-template policy
             val tokenInfo = vaultHelper.lookupSelf(token)
-            tokenInfo.policies shouldContain "user-template"
+            require("user-template" in tokenInfo.policies) { "Expected user-template policy in ${tokenInfo.policies}" }
         } finally {
             ldapHelper.deleteTestUser(testUser.username)
         }
@@ -86,8 +86,8 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
             vaultHelper.loginWithLdap("nonexistent-user-${UUID.randomUUID()}", "wrongpassword")
         }.exceptionOrNull()
 
-        exception shouldNotBe null
-        exception!!.message shouldContain "LDAP login failed"
+        require(exception != null) { "Expected exception for invalid credentials" }
+        require(exception.message?.contains("LDAP login failed") == true) { "Expected 'LDAP login failed' in ${exception.message}" }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -117,8 +117,8 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
 
             // Read back to verify
             val data = vaultHelper.readSecret(token, "users/${testUser.username}/api-keys/test-exchange")
-            data shouldNotBe null
-            data!!["api_key"] shouldBe "test-key-123"
+            require(data != null) { "Expected data to be non-null" }
+            data["api_key"] shouldBe "test-key-123"
             data["api_secret"] shouldBe "test-secret-456"
         } finally {
             ldapHelper.deleteTestUser(testUser.username)
@@ -213,8 +213,8 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
                 vaultHelper.readSecret(bobToken, "users/${alice.username}/private")
             }.exceptionOrNull()
 
-            exception shouldNotBe null
-            exception!!.message shouldContain "Forbidden"
+            require(exception != null) { "Expected exception when Bob tries to read Alice's secret" }
+            require(exception.message?.contains("Forbidden") == true) { "Expected 'Forbidden' in ${exception.message}" }
         } finally {
             ldapHelper.deleteTestUser(alice.username)
             ldapHelper.deleteTestUser(bob.username)
@@ -242,8 +242,8 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
                 )
             }.exceptionOrNull()
 
-            exception shouldNotBe null
-            exception!!.message shouldContain "permission denied"
+            require(exception != null) { "Expected exception when Bob tries to write to Alice's path" }
+            require(exception.message?.contains("permission denied") == true) { "Expected 'permission denied' in ${exception.message}" }
         } finally {
             ldapHelper.deleteTestUser(alice.username)
             ldapHelper.deleteTestUser(bob.username)
@@ -267,8 +267,8 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
 
             // User should be able to read example service secret
             val data = vaultHelper.readSecret(token, "services/example")
-            data shouldNotBe null
-            data!!["key"] shouldBe "example-value"
+            require(data != null) { "Expected to read service secret" }
+            data["key"] shouldBe "example-value"
         } finally {
             ldapHelper.deleteTestUser(testUser.username)
         }
@@ -294,8 +294,8 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
                 )
             }.exceptionOrNull()
 
-            exception shouldNotBe null
-            exception!!.message shouldContain "permission denied"
+            require(exception != null) { "Expected exception when user tries to write service secret" }
+            require(exception.message?.contains("permission denied") == true) { "Expected 'permission denied' in ${exception.message}" }
         } finally {
             ldapHelper.deleteTestUser(testUser.username)
         }
@@ -326,8 +326,8 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
 
             // Admin reads user's secret (should succeed)
             val data = vaultHelper.readSecret(adminToken, "users/${testUser.username}/data")
-            data shouldNotBe null
-            data!!["info"] shouldBe "user-data"
+            require(data != null) { "Expected admin to read user's secret" }
+            data["info"] shouldBe "user-data"
         } finally {
             ldapHelper.deleteTestUser(testUser.username)
         }
@@ -345,8 +345,8 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
 
         // Verify it was written
         val data = vaultHelper.readSecret(adminToken, "services/test-service")
-        data shouldNotBe null
-        data!!["key"] shouldBe "test-value"
+        require(data != null) { "Expected to read test service secret" }
+        data["key"] shouldBe "test-value"
 
         // Clean up
         vaultHelper.deleteSecret(adminToken, "services/test-service")
@@ -410,7 +410,7 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
             vaultHelper.readSecret("invalid-token-12345", "users/test/secret")
         }.exceptionOrNull()
 
-        exception shouldNotBe null
+        require(exception != null) { "Expected exception for invalid token" }
     }
 
     test("Token lookup-self works for authenticated users") {
@@ -425,8 +425,8 @@ suspend fun TestRunner.vaultTests() = suite("Vault Multi-User Tests") {
             val token = vaultHelper.loginWithLdap(testUser.username, testUser.password)
             val tokenInfo = vaultHelper.lookupSelf(token)
 
-            tokenInfo.displayName shouldContain testUser.username
-            tokenInfo.policies shouldContain "user-template"
+            require(tokenInfo.displayName.contains(testUser.username)) { "Expected displayName to contain ${testUser.username}, got ${tokenInfo.displayName}" }
+            require("user-template" in tokenInfo.policies) { "Expected user-template policy in ${tokenInfo.policies}" }
         } finally {
             ldapHelper.deleteTestUser(testUser.username)
         }
