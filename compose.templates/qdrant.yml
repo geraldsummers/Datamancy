@@ -38,7 +38,7 @@ services:
       - qdrant
     depends_on:
       qdrant:
-        condition: service_started
+        condition: service_healthy
     environment:
       QDRANT_URL: http://qdrant:6333
       VECTOR_SIZE: ${VECTOR_EMBED_SIZE:-1024}

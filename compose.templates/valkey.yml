@@ -32,7 +32,7 @@ services:
       - valkey
     depends_on:
       valkey:
-        condition: service_started
+        condition: service_healthy
     environment:
       VALKEY_ADMIN_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
       VALKEY_AUTHELIA_PASSWORD: ${VALKEY_AUTHELIA_PASSWORD}
