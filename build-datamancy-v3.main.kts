@@ -513,10 +513,11 @@ fun mergeComposeFiles(
             val lines = processed.lines()
             val servicesStart = lines.indexOfFirst { it.trim() == "services:" }
             if (servicesStart >= 0) {
-                lines.drop(servicesStart + 1).forEach { line ->
+                for (i in (servicesStart + 1) until lines.size) {
+                    val line = lines[i]
                     // Stop at top-level keys
                     if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
-                        return@forEach
+                        break
                     }
                     if (line.isNotEmpty() || line.trim().isEmpty()) appendLine(line)
                 }
@@ -531,10 +532,11 @@ fun mergeComposeFiles(
             val lines = processed.lines()
             val servicesStart = lines.indexOfFirst { it.trim() == "services:" }
             if (servicesStart >= 0) {
-                lines.drop(servicesStart + 1).forEach { line ->
+                for (i in (servicesStart + 1) until lines.size) {
+                    val line = lines[i]
                     // Stop at top-level keys (no leading spaces)
                     if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
-                        return@forEach
+                        break
                     }
                     if (line.isNotEmpty() || line.trim().isEmpty()) {
                         appendLine(line)
@@ -556,10 +558,10 @@ fun mergeComposeFiles(
                 line.trim() == "volumes:" && !line.startsWith(" ") && !line.startsWith("\t")
             }
             if (volumesStart >= 0) {
-                lines.drop(volumesStart + 1).forEach { line ->
-                    // Stop at top-level keys
+                for (i in (volumesStart + 1) until lines.size) {
+                    val line = lines[i]
                     if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
-                        return@forEach
+                        break
                     }
                     if (line.isNotEmpty() || line.trim().isEmpty()) appendLine(line)
                 }
@@ -574,7 +576,11 @@ fun mergeComposeFiles(
             val lines = processed.lines()
             val volumesStart = lines.indexOfFirst { it.trim() == "volumes:" }
             if (volumesStart >= 0) {
-                lines.drop(volumesStart + 1).forEach { line ->
+                for (i in (volumesStart + 1) until lines.size) {
+                    val line = lines[i]
+                    if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
+                        break
+                    }
                     if (line.isNotEmpty() || line.trim().isEmpty()) appendLine(line)
                 }
             }
@@ -589,10 +595,10 @@ fun mergeComposeFiles(
                 line.trim() == "volumes:" && !line.startsWith(" ") && !line.startsWith("\t")
             }
             if (volumesStart >= 0) {
-                lines.drop(volumesStart + 1).forEach { line ->
-                    // Stop at top-level keys
+                for (i in (volumesStart + 1) until lines.size) {
+                    val line = lines[i]
                     if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
-                        return@forEach
+                        break
                     }
                     if (line.isNotEmpty() || line.trim().isEmpty()) {
                         appendLine(line)
@@ -611,7 +617,11 @@ fun mergeComposeFiles(
             val lines = processed.lines()
             val networksStart = lines.indexOfFirst { it.trim() == "networks:" }
             if (networksStart >= 0) {
-                lines.drop(networksStart + 1).forEach { line ->
+                for (i in (networksStart + 1) until lines.size) {
+                    val line = lines[i]
+                    if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
+                        break
+                    }
                     if (line.isNotEmpty() || line.trim().isEmpty()) appendLine(line)
                 }
             }
