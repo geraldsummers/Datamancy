@@ -234,7 +234,7 @@ fun generateRSAKey(): String {
     val exitCode = process.waitFor()
 
     if (exitCode != 0 || output.isBlank()) {
-        error("Failed to generate RSA key")
+        error("Failed to generate RSA key: exit code $exitCode, output: $output")
         throw RuntimeException("RSA key generation failed")
     }
     return output
@@ -307,14 +307,37 @@ fun loadCredentialsFile(file: File): MutableMap<String, String> {
     if (!file.exists()) return mutableMapOf()
 
     val credentials = mutableMapOf<String, String>()
-    file.readLines().forEach { line ->
+    val lines = file.readLines()
+    var i = 0
+    while (i < lines.size) {
+        val line = lines[i]
         val trimmed = line.trim()
-        if (trimmed.isEmpty() || trimmed.startsWith("#")) return@forEach
+
+        if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+            i++
+            continue
+        }
 
         val parts = trimmed.split("=", limit = 2)
         if (parts.size == 2) {
-            credentials[parts[0].trim()] = parts[1].trim()
+            val key = parts[0].trim()
+            val value = parts[1].trim()
+
+            // Check for heredoc format
+            if (value == "<<EOF") {
+                // Read multiline value until EOF
+                val multilineValue = mutableListOf<String>()
+                i++
+                while (i < lines.size && lines[i].trim() != "EOF") {
+                    multilineValue.add(lines[i])
+                    i++
+                }
+                credentials[key] = multilineValue.joinToString("\n")
+            } else {
+                credentials[key] = value
+            }
         }
+        i++
     }
     info("Loaded ${credentials.size} existing credentials from ${file.name}")
     return credentials
