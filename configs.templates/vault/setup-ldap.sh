@@ -26,6 +26,22 @@ fi
 
 export VAULT_ADDR="http://vault:8200"
 
+# Wait for Vault to become fully active after unseal (Raft leader election)
+echo "Waiting for Vault to become fully active..."
+TIMEOUT=60
+ELAPSED=0
+until vault secrets list 2>&1 | grep -qv "local node not active"; do
+    if [ $ELAPSED -ge $TIMEOUT ]; then
+        echo "❌ ERROR: Timed out waiting for Vault to become active after ${TIMEOUT}s"
+        exit 1
+    fi
+    sleep 2
+    ELAPSED=$((ELAPSED + 2))
+    echo "Waiting for Raft leader election... ${ELAPSED}s/${TIMEOUT}s"
+done
+echo "✓ Vault is now active"
+echo ""
+
 echo "Step 1: Enabling KV v2 secrets engine..."
 if vault secrets list | grep -q "^secret/"; then
     echo "  ✓ KV secrets engine already enabled at secret/"
