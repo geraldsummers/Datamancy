@@ -10,7 +10,16 @@ services:
     volumes:
       - redis_data:/data
       - valkey_acl:/etc/valkey
-    command: valkey-server --appendonly yes --dir /data --databases 16 --aclfile /etc/valkey/users.acl
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mkdir -p /etc/valkey
+        if [ ! -f /etc/valkey/users.acl ]; then
+          echo "user default on >${VALKEY_PASSWORD} ~* &* +@all" > /etc/valkey/users.acl
+        fi
+        exec valkey-server --appendonly yes --dir /data --databases 16 --aclfile /etc/valkey/users.acl
     healthcheck:
       test:
         - CMD-SHELL
