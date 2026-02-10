@@ -611,16 +611,16 @@ fun copyComposeFiles(
     if (volumeInitFile.exists()) {
         val content = volumeInitFile.readText().let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
         val parsed = yamlMapper.readValue(content, Map::class.java) as Map<*, *>
-        (parsed["services"] as? Map<*, *>)?.forEach { (k, v) -> mergedServices[k as String] = v!! }
-        (parsed["volumes"] as? Map<*, *>)?.forEach { (k, v) -> mergedVolumes[k as String] = v!! }
+        (parsed["services"] as? Map<*, *>)?.forEach { (k, v) -> if (v != null) mergedServices[k as String] = v }
+        (parsed["volumes"] as? Map<*, *>)?.forEach { (k, v) -> mergedVolumes[k as String] = v ?: mapOf<String, Any>() }
     }
 
     // Parse and merge all service templates
     serviceFiles.forEach { file ->
         val content = file.readText().let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
         val parsed = yamlMapper.readValue(content, Map::class.java) as Map<*, *>
-        (parsed["services"] as? Map<*, *>)?.forEach { (k, v) -> mergedServices[k as String] = v!! }
-        (parsed["volumes"] as? Map<*, *>)?.forEach { (k, v) -> mergedVolumes[k as String] = v!! }
+        (parsed["services"] as? Map<*, *>)?.forEach { (k, v) -> if (v != null) mergedServices[k as String] = v }
+        (parsed["volumes"] as? Map<*, *>)?.forEach { (k, v) -> mergedVolumes[k as String] = v ?: mapOf<String, Any>() }
     }
 
     // Parse networks
@@ -636,7 +636,7 @@ fun copyComposeFiles(
         if (file.exists()) {
             val content = file.readText().let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
             (yamlMapper.readValue(content, Map::class.java) as Map<*, *>)["volumes"]?.let { vols ->
-                (vols as? Map<*, *>)?.forEach { (k, v) -> mergedVolumes[k as String] = v!! }
+                (vols as? Map<*, *>)?.forEach { (k, v) -> mergedVolumes[k as String] = v ?: mapOf<String, Any>() }
             }
         }
     }
