@@ -514,7 +514,10 @@ fun mergeComposeFiles(
             val servicesStart = lines.indexOfFirst { it.trim() == "services:" }
             if (servicesStart >= 0) {
                 lines.drop(servicesStart + 1).forEach { line ->
-                    if (line.trim() == "volumes:" || line.trim() == "networks:") return@forEach
+                    // Stop at top-level keys
+                    if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
+                        return@forEach
+                    }
                     if (line.isNotEmpty() || line.trim().isEmpty()) appendLine(line)
                 }
             }
@@ -528,14 +531,12 @@ fun mergeComposeFiles(
             val lines = processed.lines()
             val servicesStart = lines.indexOfFirst { it.trim() == "services:" }
             if (servicesStart >= 0) {
-                var inServices = true
                 lines.drop(servicesStart + 1).forEach { line ->
-                    // Stop at top-level volumes/networks
-                    if (line.trim() == "volumes:" || line.trim() == "networks:") {
-                        inServices = false
+                    // Stop at top-level keys (no leading spaces)
+                    if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
                         return@forEach
                     }
-                    if (inServices && (line.isNotEmpty() || line.trim().isEmpty())) {
+                    if (line.isNotEmpty() || line.trim().isEmpty()) {
                         appendLine(line)
                     }
                 }
@@ -554,7 +555,10 @@ fun mergeComposeFiles(
             val volumesStart = lines.indexOfFirst { it.trim() == "volumes:" }
             if (volumesStart >= 0) {
                 lines.drop(volumesStart + 1).forEach { line ->
-                    if (line.trim() == "networks:") return@forEach
+                    // Stop at top-level keys
+                    if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
+                        return@forEach
+                    }
                     if (line.isNotEmpty() || line.trim().isEmpty()) appendLine(line)
                 }
             }
@@ -581,13 +585,12 @@ fun mergeComposeFiles(
             val lines = processed.lines()
             val volumesStart = lines.indexOfFirst { it.trim() == "volumes:" }
             if (volumesStart >= 0) {
-                var inVolumes = true
                 lines.drop(volumesStart + 1).forEach { line ->
-                    if (line.trim() == "networks:") {
-                        inVolumes = false
+                    // Stop at top-level keys
+                    if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")) {
                         return@forEach
                     }
-                    if (inVolumes && (line.isNotEmpty() || line.trim().isEmpty())) {
+                    if (line.isNotEmpty() || line.trim().isEmpty()) {
                         appendLine(line)
                     }
                 }
