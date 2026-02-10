@@ -17,7 +17,7 @@ services:
         set -e
         mkdir -p /etc/valkey
         if [ ! -f /etc/valkey/users.acl ]; then
-          echo "user default on >${VALKEY_PASSWORD} ~* &* +@all" > /etc/valkey/users.acl
+          echo "user default on >$$VALKEY_PASSWORD ~* &* +@all" > /etc/valkey/users.acl
         fi
         exec valkey-server --appendonly yes --dir /data --databases 16 --aclfile /etc/valkey/users.acl
     healthcheck:
@@ -64,7 +64,7 @@ services:
         # Create initial ACL file if it doesn't exist
         if [ ! -f /etc/valkey/users.acl ]; then
           echo "Creating initial ACL file with default user..."
-          echo "user default on >${VALKEY_ADMIN_PASSWORD} ~* &* +@all" > /etc/valkey/users.acl
+          echo "user default on >$$VALKEY_ADMIN_PASSWORD ~* &* +@all" > /etc/valkey/users.acl
           chmod 666 /etc/valkey/users.acl
         fi
 
