@@ -648,8 +648,29 @@ fun copyComposeFiles(
         }
     }
 
-    outputDir.resolve("docker-compose.yml").writeText(mainCompose)
+    val composeFile = outputDir.resolve("docker-compose.yml")
+    composeFile.writeText(mainCompose)
     info("Created merged docker-compose.yml with ${serviceFiles.size} services")
+
+    // Validate docker-compose.yml syntax
+    step("Validating docker-compose.yml syntax")
+    try {
+        val validateProcess = ProcessBuilder("docker", "compose", "-f", composeFile.absolutePath, "config")
+            .redirectOutput(ProcessBuilder.Redirect.PIPE)
+            .redirectError(ProcessBuilder.Redirect.PIPE)
+            .start()
+
+        val exitCode = validateProcess.waitFor()
+        if (exitCode != 0) {
+            val errorOutput = validateProcess.errorStream.bufferedReader().readText()
+            error("docker-compose.yml validation failed:")
+            System.err.println(errorOutput)
+            exitProcess(1)
+        }
+        info("✓ docker-compose.yml is valid")
+    } catch (e: Exception) {
+        warn("Could not validate docker-compose.yml (docker compose not available): ${e.message}")
+    }
 
     return componentMetadata
 }
