@@ -31,22 +31,24 @@ echo "Waiting for Vault to become fully active..."
 TIMEOUT=120
 ELAPSED=0
 while true; do
-    OUTPUT=$(vault secrets list 2>&1)
-    if echo "$OUTPUT" | grep -q "local node not active"; then
-        # Still waiting for leader election
-        if [ $ELAPSED -ge $TIMEOUT ]; then
-            echo "❌ ERROR: Timed out waiting for Vault to become active after ${TIMEOUT}s"
-            exit 1
-        fi
-        sleep 2
-        ELAPSED=$((ELAPSED + 2))
-        echo "Waiting for Raft leader election... ${ELAPSED}s/${TIMEOUT}s"
-    else
-        # No "local node not active" error - Vault is ready!
+    # Check vault status - HA Mode should be "active" not "standby"
+    if vault status 2>&1 | grep -q "HA Mode.*active"; then
+        # Vault is now the active Raft leader!
         break
     fi
+
+    if [ $ELAPSED -ge $TIMEOUT ]; then
+        echo "❌ ERROR: Timed out waiting for Vault to become active after ${TIMEOUT}s"
+        vault status
+        exit 1
+    fi
+    sleep 2
+    ELAPSED=$((ELAPSED + 2))
+    if [ $((ELAPSED % 10)) -eq 0 ]; then
+        echo "Waiting for Raft leader election... ${ELAPSED}s/${TIMEOUT}s"
+    fi
 done
-echo "✓ Vault is now active"
+echo "✓ Vault is now active (Raft leader elected)"
 echo ""
 
 echo "Step 1: Enabling KV v2 secrets engine..."
