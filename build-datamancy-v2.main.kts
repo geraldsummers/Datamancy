@@ -1147,9 +1147,6 @@ ${CYAN}Output:${RESET} ${distDir.absolutePath}
 ${CYAN}Version:${RESET} $version
 ${CYAN}Credentials:${RESET} ${credentials.size} from schema
 
-${YELLOW}⚠️  Post-deployment:${RESET}
-   After deploying to server with Forgejo running, generate runner token:
-   ${CYAN}./generate-forgejo-token.sh${RESET}
 
 
 """)
