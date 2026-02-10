@@ -547,12 +547,14 @@ fun mergeComposeFiles(
         appendLine()
         appendLine("volumes:")
 
-        // Volume init volumes
+        // Volume init volumes (only extract top-level volumes: section, not service-level)
         if (volumeInitFile.exists()) {
             val content = volumeInitFile.readText()
             val processed = substituteVariables(content, credentials, config)
             val lines = processed.lines()
-            val volumesStart = lines.indexOfFirst { it.trim() == "volumes:" }
+            val volumesStart = lines.indexOfFirst { line ->
+                line.trim() == "volumes:" && !line.startsWith(" ") && !line.startsWith("\t")
+            }
             if (volumesStart >= 0) {
                 lines.drop(volumesStart + 1).forEach { line ->
                     // Stop at top-level keys
@@ -578,12 +580,14 @@ fun mergeComposeFiles(
             }
         }
 
-        // Service file volumes
+        // Service file volumes (only extract top-level volumes: section, not service-level)
         serviceFiles.forEach { file ->
             val content = file.readText()
             val processed = substituteVariables(content, credentials, config)
             val lines = processed.lines()
-            val volumesStart = lines.indexOfFirst { it.trim() == "volumes:" }
+            val volumesStart = lines.indexOfFirst { line ->
+                line.trim() == "volumes:" && !line.startsWith(" ") && !line.startsWith("\t")
+            }
             if (volumesStart >= 0) {
                 lines.drop(volumesStart + 1).forEach { line ->
                     // Stop at top-level keys
