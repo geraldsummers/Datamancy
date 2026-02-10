@@ -37,11 +37,16 @@ services:
       - caddy
     depends_on:
       vault:
-        condition: service_started
+        condition: service_healthy
     environment:
       VAULT_ADDR: http://vault:8200
+      LDAP_BASE_DN: ${LDAP_BASE_DN}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
     volumes:
       - vault_data:/vault/data
       - vault_config:/vault/config
+      - vault_logs:/vault/logs
       - ./configs/vault/init-vault.sh:/init-vault.sh:ro
+      - ./configs/vault/setup-ldap.sh:/vault/config/setup-ldap.sh:ro
+      - ./configs/vault/policies:/vault/config/policies:ro
     entrypoint: ["/init-vault.sh"]

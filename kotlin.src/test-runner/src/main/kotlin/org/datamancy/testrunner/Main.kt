@@ -243,6 +243,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "agent-security" -> runner.agentSecurityTests()
         "agent-llm-quality" -> runner.agentLlmQualityTests()
         "trading" -> runner.tradingTests()
+        "vault" -> runner.vaultTests()
         "all" -> {
             runner.foundationTests()
             runner.llmTests()
@@ -269,6 +270,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.isolatedDockerVmTests()
             runner.stackReplicationTests()
             runner.tradingTests()
+            runner.vaultTests()
         }
         else -> {
             println("❌ Unknown suite: $suite")
@@ -277,7 +279,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
             println("                  stack-deployment, bookstack, cicd, isolated-docker-vm, stack-replication,")
-            println("                  agent-capability, agent-security, agent-llm-quality, trading, all")
+            println("                  agent-capability, agent-security, agent-llm-quality, trading, vault, all")
             exitProcess(1)
         }
     }
@@ -430,7 +432,7 @@ private fun printUsage() {
                                      file-management, security, monitoring, backup,
                                      authentication, enhanced-auth, authenticated-ops, utility, homeassistant,
                                      stack-deployment, bookstack, cicd, isolated-docker-vm,
-                                     agent-capability, agent-security, agent-llm-quality, trading, all
+                                     agent-capability, agent-security, agent-llm-quality, trading, vault, all
 
       --verbose, -v          Enable verbose logging
       --help, -h             Show this help message

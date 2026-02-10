@@ -74,6 +74,17 @@ class TestRunner(
     val oidc = OIDCHelper(environment.endpoints.authelia, httpClient, auth)
     val tokens = TokenManager(httpClient, environment.endpoints)
 
+    /**
+     * Vault helper for multi-user secret management testing.
+     *
+     * Provides LDAP authentication and KV v2 secret operations.
+     * Used to validate per-user secret isolation and policy enforcement.
+     */
+    val vaultHelper = VaultHelper(
+        vaultUrl = environment.endpoints.vault,
+        httpClient = httpClient
+    )
+
     private val results = mutableListOf<TestResult>()
 
     suspend fun suite(name: String, block: suspend TestSuite.() -> Unit) {

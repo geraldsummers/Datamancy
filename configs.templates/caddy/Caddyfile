@@ -87,6 +87,14 @@ calendar.{$DOMAIN} {
 	}
 }
 
+# Vault Web UI (official HashiCorp UI - protected with forward_auth - admin only)
+vault.{$DOMAIN} {
+	route {
+		import authelia_auth
+		reverse_proxy vault:8200
+	}
+}
+
 # Kopia UI (protected with forward_auth)
 kopia.{$DOMAIN} {
 	route {

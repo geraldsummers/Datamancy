@@ -62,6 +62,11 @@ access_control:
       policy: bypass
       resources:
         - "^/api/webhook/.*$"
+    # Vault UI - Admin only (sensitive operations)
+    - domain: vault.{{DOMAIN}}
+      policy: one_factor
+      subject:
+        - "group:admins"
     - domain: qbittorrent.{{DOMAIN}}
       policy: one_factor
     - domain: {{DOMAIN}}
