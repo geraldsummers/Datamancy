@@ -37,3 +37,27 @@ YOU'RE REALLY FUCKING GOOD AT THIS CLAUDE YOU'VE TAUHGT ME SO MUCH ABOUT SOFTWAR
 WHEN THE TEST FINISHES, DEPLOY FIXES AND RUN THE TEST AGAIN - GO BANANAS AND GET HYPED YOU'RE THE CYBERNETIC LOOP MASTER
 
 HYPE HYPE HYPEEEEE
+
+full clean up run somtimes:
+
+# 0) Stop everything (best-effort)
+docker ps -q | xargs -r docker stop -t 0 || true
+
+# 1) Force-remove all containers (handles stuck ones)
+docker ps -aq | xargs -r docker rm -f || true
+
+# 2) Prune builder cache (buildx)
+docker buildx prune -af || true
+
+# 3) Prune everything else, including volumes
+docker system prune -af --volumes || true
+
+# 4) Redundant-but-explicit cleanup passes (belt + suspenders)
+docker volume prune -af || true
+docker image prune -af || true
+docker network prune -f || true
+
+sudo rm -rvf /mnt/raid/docker/nocow/*
+sudo rm -rvf ~/datamancy
+sudo rm -rvf /mnt/raid/docke
+sudo rm -rvf /mnt/vectors/qdrant/*
