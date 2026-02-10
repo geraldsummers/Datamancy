@@ -50,7 +50,7 @@ services:
       - postgres
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
     environment:
       POSTGRES_USER: ${POSTGRES_ADMIN_USER}
       POSTGRES_DB: postgres
