@@ -28,7 +28,7 @@ export VAULT_ADDR="http://vault:8200"
 
 # Wait for Vault to become fully active after unseal (Raft leader election)
 echo "Waiting for Vault to become fully active..."
-TIMEOUT=60
+TIMEOUT=120
 ELAPSED=0
 while true; do
     OUTPUT=$(vault secrets list 2>&1)
