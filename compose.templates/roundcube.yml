@@ -2,7 +2,7 @@ services:
   roundcube-init:
     image: postgres:16.11
     container_name: roundcube-init
-    restart: no
+    restart: "no"
     networks:
       - postgres
     depends_on:
