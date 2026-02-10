@@ -564,46 +564,27 @@ fun copyComposeFiles(
     }?.sortedBy { it.name } ?: emptyList()
 
     val componentMetadata = mutableMapOf<String, ComponentMetadata>()
-
-    // Copy volume-init if it exists
     val settingsDir = File("compose.settings")
     val volumeInitFile = settingsDir.resolve("volume-init.yml")
+
+    // Build metadata for tracking but don't write individual files
     if (volumeInitFile.exists()) {
-        val destFile = outputDir.resolve("docker-compose.volume-init.yml")
         val lastCommit = getLastCommitForFile(volumeInitFile)
         val secrets = extractSecretsFromTemplate(volumeInitFile)
-
-        // No path transformations needed - flat structure means all paths work as-is
-        val fileContent = volumeInitFile.readText()
-            .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
-
-        val content = buildString {
-            appendLine("# component: volume-init")
-            appendLine("# last_changed: $lastCommit")
-            appendLine("# secrets_required: ${secrets.joinToString(", ")}")
-            appendLine()
-            append(fileContent)
-        }
-
-        destFile.writeText(content)
-
         componentMetadata["volume-init"] = ComponentMetadata(
             name = "volume-init",
-            file = "docker-compose.volume-init.yml",
+            file = "docker-compose.yml",
             lastCommit = lastCommit,
             secrets = secrets,
             configFiles = emptyList()
         )
     }
 
-    // Process each service template
     serviceFiles.forEach { file ->
         val componentName = file.nameWithoutExtension
-        val destFile = outputDir.resolve("docker-compose.${componentName}.yml")
         val lastCommit = getLastCommitForFile(file)
         val secrets = extractSecretsFromTemplate(file)
 
-        // Find related config files
         val configsDir = File("configs.templates")
         val relatedConfigs = if (configsDir.exists()) {
             configsDir.walkTopDown()
@@ -612,26 +593,9 @@ fun copyComposeFiles(
                 .toList()
         } else emptyList()
 
-        // No path transformations needed - flat structure means all paths work as-is
-        val fileContent = file.readText()
-            .let { substituteEnvironmentVariables(it, credentials, sanitized, config) }
-
-        val content = buildString {
-            appendLine("# component: $componentName")
-            appendLine("# last_changed: $lastCommit")
-            appendLine("# secrets_required: ${secrets.joinToString(", ")}")
-            if (relatedConfigs.isNotEmpty()) {
-                appendLine("# config_files: ${relatedConfigs.joinToString(", ")}")
-            }
-            appendLine()
-            append(fileContent)
-        }
-
-        destFile.writeText(content)
-
         componentMetadata[componentName] = ComponentMetadata(
             name = componentName,
-            file = "docker-compose.${componentName}.yml",
+            file = "docker-compose.yml",
             lastCommit = lastCommit,
             secrets = secrets,
             configFiles = relatedConfigs
