@@ -6,7 +6,8 @@ storage "raft" {
 
   # Performance tuning for high-concurrency test scenarios
   # Increase apply timeout to handle bursts of token creation
-  apply_timeout = "30s"
+  # Set to 60s for test environments with high parallel load
+  apply_timeout = "60s"
 
   # Increase max append entries for better batch processing
   max_append_entries = 128
