@@ -84,3 +84,38 @@ services:
 
     tmpfs:
       - /tmp
+
+networks:
+  ai:
+    external: true
+    name: datamancy_ai
+  postgres:
+    external: true
+    name: datamancy_postgres
+  mariadb:
+    external: true
+    name: datamancy_mariadb
+  qdrant:
+    external: true
+    name: datamancy_qdrant
+  ldap:
+    external: true
+    name: datamancy_ldap
+  valkey:
+    external: true
+    name: datamancy_valkey
+  monitoring:
+    external: true
+    name: datamancy_monitoring
+  caddy:
+    external: true
+    name: datamancy_caddy
+  docker-proxy:
+    external: true
+    name: datamancy_docker-proxy
+  authelia:
+    external: true
+    name: datamancy_authelia
+  trading:
+    external: true
+    name: datamancy_trading

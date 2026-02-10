@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN docker compose version
 
-RUN groupadd -r datamancer && useradd -r -g datamancer datamancer -m && \
+RUN groupadd -g 1000 datamancer && useradd -u 1000 -g datamancer datamancer -m && \
     groupadd -f docker && usermod -aG docker datamancer
 
 RUN mkdir -p /etc/docker && \
