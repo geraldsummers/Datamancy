@@ -119,7 +119,7 @@ class TestSignTransaction:
         # The from address must match the private key's address
         tx = {
             'from': '0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb',
-            'to': '0xRecipient',
+            'to': '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',  # Valid checksummed address
             'value': 1000000000000000000,
             'gas': 21000,
             'gasPrice': 1000000000,
@@ -135,7 +135,7 @@ class TestSignTransaction:
         # The from address must match the private key's address
         tx = {
             'from': '0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb',
-            'to': '0xRecipient',
+            'to': '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',  # Valid checksummed address
             'value': 1000000000000000000,
             'gas': 21000,
             'gasPrice': 1000000000,
