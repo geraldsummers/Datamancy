@@ -30,7 +30,7 @@ services:
           valkey-cli --user default -a "$$VALKEY_PASSWORD" INFO replication | grep -q role:master
       interval: 5s
       timeout: 3s
-      retries: 5
+      retries: 50
       start_period: 10s
 
   valkey-init:

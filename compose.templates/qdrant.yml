@@ -23,7 +23,7 @@ services:
           timeout 2 bash -c '</dev/tcp/localhost/6334'
       interval: 5s
       timeout: 4s
-      retries: 5
+      retries: 50
       start_period: 20s
     deploy:
       resources:
