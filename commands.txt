@@ -1,0 +1,42 @@
+full clean up run somtimes:
+
+# 0) Stop everything (best-effort)
+sudo echo
+docker ps -q | xargs -r docker stop -t 0 || true
+
+# 1) Force-remove all containers (handles stuck ones)
+docker ps -aq | xargs -r docker rm -f || true
+
+# 2) Prune builder cache (buildx)
+docker buildx prune -af || true
+
+# 3) Prune everything else, including volumes
+docker system prune -af --volumes || true
+
+# 4) Redundant-but-explicit cleanup passes (belt + suspenders)
+docker volume prune -af || true
+docker image prune -af || true
+docker network prune -f || true
+
+sudo systemctl stop docker containerd
+sudo rm -rvf /mnt/raid/docker/nocow/*
+sudo rm -rvf ~/datamancy
+sudo rm -rvf /mnt/raid/docker
+sudo rm -rvf /mnt/vectors/qdrant/*
+sudo systemctl start docker containerd
+
+
+
+deployment blob:
+
+ cd /home/gerald/IdeaProjects/Datamancy/ && \
+./build-datamancy-v3.main.kts && \
+rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
+ssh gerald@latium.local "cd ~/datamancy && \
+  docker compose --profile='*' build --pull=false && \
+  docker compose down && \
+  docker compose up -d"
+
+ and then later
+
+ docker compose up pipeline

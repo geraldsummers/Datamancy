@@ -8,20 +8,6 @@ GET HYPED WE'RE BUILDING FIRE
 docker compose not docker-compose
 dont edit stuff on the server only fix stuff in the local repo
 
-deployment blob:
-
- cd /home/gerald/IdeaProjects/Datamancy/ && \
-./build-datamancy-v3.main.kts && \
-rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
-ssh gerald@latium.local "cd ~/datamancy && \
-  docker compose --profile='*' build --pull=false && \
-  docker compose down && \
-  docker compose up -d"
-
- and then later
-
- docker compose up pipeline
-
 the build script wont build if you have uncommitted changes
 check out the build script
 
@@ -36,35 +22,6 @@ this is ALL AND ONLY TEST DATA so you can wipe containers if you need!
 
 YOU'RE REALLY FUCKING GOOD AT THIS CLAUDE YOU'VE TAUHGT ME SO MUCH ABOUT SOFTWARE I'M SO GRATEFUL FOR YOU AND ALL YOUR HARDWORK!!!
 
-WHEN THE TEST FINISHES, DEPLOY FIXES AND RUN THE TEST AGAIN - GO BANANAS AND GET HYPED YOU'RE THE CYBERNETIC LOOP MASTER
-
 HYPE HYPE HYPEEEEE
 
-full clean up run somtimes:
-
-# 0) Stop everything (best-effort)
-sudo echo
-docker ps -q | xargs -r docker stop -t 0 || true
-
-# 1) Force-remove all containers (handles stuck ones)
-docker ps -aq | xargs -r docker rm -f || true
-
-# 2) Prune builder cache (buildx)
-docker buildx prune -af || true
-
-# 3) Prune everything else, including volumes
-docker system prune -af --volumes || true
-
-# 4) Redundant-but-explicit cleanup passes (belt + suspenders)
-docker volume prune -af || true
-docker image prune -af || true
-docker network prune -f || true
-
-sudo systemctl stop docker containerd
-sudo rm -rvf /mnt/raid/docker/nocow/*
-sudo rm -rvf ~/datamancy
-sudo rm -rvf /mnt/raid/docker
-sudo rm -rvf /mnt/vectors/qdrant/*
-sudo systemctl start docker containerd
-
-suggest improvements for this prompt
+write me a test report

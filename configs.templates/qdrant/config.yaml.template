@@ -1,0 +1,42 @@
+log_level: INFO
+
+service:
+  max_request_size_mb: 32
+  max_workers: 0
+  host: 0.0.0.0
+  http_port: 6333
+  grpc_port: 6334
+  enable_cors: true
+  enable_tls: false
+
+  # API key authentication
+  # Set via environment variable QDRANT__SERVICE__API_KEY or template substitution
+  api_key: {{QDRANT_ADMIN_API_KEY}}
+
+storage:
+  storage_path: ./storage
+  snapshots_path: ./snapshots
+  on_disk_payload: true
+
+  optimizers:
+    deleted_threshold: 0.2
+    vacuum_min_vector_number: 1000
+    default_segment_number: 0
+    indexing_threshold_kb: 10000
+    flush_interval_sec: 5
+
+  hnsw_index:
+    m: 16
+    ef_construct: 100
+    full_scan_threshold_kb: 10000
+    max_indexing_threads: 0
+    on_disk: false
+
+  collection:
+    replication_factor: 1
+    write_consistency_factor: 1
+
+telemetry_disabled: false
+
+cluster:
+  enabled: false
