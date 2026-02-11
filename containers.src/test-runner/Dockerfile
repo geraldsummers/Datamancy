@@ -1,6 +1,6 @@
 FROM eclipse-temurin:21-jre-jammy
 
-# Install base utilities and Docker in a single layer to reduce build time
+# Install base utilities, Docker, and Node.js in a single layer to reduce build time
 RUN apt-get update && apt-get install -y \
     bash \
     curl \
@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y \
     tee /etc/apt/sources.list.d/docker.list > /dev/null \
     && apt-get update \
     && apt-get install -y docker-ce-cli docker-compose-plugin \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 RUN docker compose version
@@ -29,6 +31,7 @@ RUN mkdir -p /etc/docker && \
 WORKDIR /app
 
 COPY kotlin.src/test-runner/build/libs/test-runner-1.0-SNAPSHOT-all.jar /app/test-runner.jar
+COPY containers.src/test-runner/playwright-tests /app/playwright-tests
 
 RUN chown -R datamancer:datamancer /app && \
     mkdir -p /app/test-results && \
@@ -37,6 +40,12 @@ RUN chown -R datamancer:datamancer /app && \
     touch /home/datamancer/.docker/config.json && \
     chown -R datamancer:datamancer /home/datamancer/.docker && \
     chmod -R 755 /home/datamancer/.docker
+
+# Install Playwright dependencies and browsers
+WORKDIR /app/playwright-tests
+RUN npm ci && npx playwright install --with-deps chromium firefox
+
+WORKDIR /app
 
 ENV DOCKER_CONFIG=/home/datamancer/.docker
 

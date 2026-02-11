@@ -483,6 +483,64 @@ fun runPythonTests() {
     }
 }
 
+fun runTypeScriptTests() {
+    step("Running TypeScript unit tests")
+
+    val tsTestDirs = listOf(
+        "containers.src/test-runner/playwright-tests"
+    )
+
+    tsTestDirs.forEach { testPath ->
+        val testDir = File(testPath)
+        if (testDir.exists() && testDir.resolve("package.json").exists()) {
+            info("Testing $testPath")
+
+            // Check if node_modules exists, install if not
+            val nodeModules = testDir.resolve("node_modules")
+            if (!nodeModules.exists()) {
+                info("Installing npm dependencies")
+                val npmInstallExitCode = ProcessBuilder("npm", "ci")
+                    .directory(testDir)
+                    .inheritIO()
+                    .start()
+                    .waitFor()
+
+                if (npmInstallExitCode != 0) {
+                    error("Failed to install npm dependencies. Ensure Node.js and npm are installed:")
+                    error("  sudo apt install nodejs npm")
+                    exitProcess(1)
+                }
+            }
+
+            // Run TypeScript compilation check
+            info("Running TypeScript compilation check")
+            val tscExitCode = ProcessBuilder("npm", "run", "build")
+                .directory(testDir)
+                .inheritIO()
+                .start()
+                .waitFor()
+
+            if (tscExitCode != 0) {
+                error("TypeScript compilation failed")
+                exitProcess(1)
+            }
+
+            // Run unit tests
+            info("Running Jest unit tests")
+            val jestExitCode = ProcessBuilder("npm", "run", "test:unit")
+                .directory(testDir)
+                .inheritIO()
+                .start()
+                .waitFor()
+
+            if (jestExitCode != 0) {
+                error("TypeScript unit tests failed")
+                exitProcess(1)
+            }
+        }
+    }
+}
+
 fun buildGradleServices() {
     if (!File("gradlew").exists()) {
         warn("gradlew not found, skipping")
@@ -987,6 +1045,7 @@ ${CYAN}╔═══════════════════════�
     // Run tests first
     runKotlinTests()
     runPythonTests()
+    runTypeScriptTests()
 
     // Build steps
     buildGradleServices()
