@@ -1,6 +1,6 @@
 package org.datamancy.testrunner
 
-import org.datamancy.testrunner.suites.LabwareDockerTests
+import org.datamancy.testrunner.suites.CICDPipelineTests
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -10,7 +10,7 @@ class LabwareDockerHelpersTest {
     @Test
     fun `isLabwareDockerAvailable doesn't crash`() {
         // This will be false in local dev environment without labware host configured
-        val available = LabwareDockerTests.isLabwareDockerAvailable()
+        val available = CICDPipelineTests.isIsolatedDockerVmDockerAvailable()
 
         // Test passes whether true or false - we're just testing it doesn't crash
         assertNotNull(available)
@@ -18,7 +18,7 @@ class LabwareDockerHelpersTest {
 
     @Test
     fun `labware Docker host uses environment or default`() {
-        val dockerHost = LabwareDockerTests.LABWARE_DOCKER_HOST
+        val dockerHost = CICDPipelineTests.ISOLATED_DOCKER_VM_DOCKER_HOST
         assertTrue(dockerHost.isNotEmpty())
     }
 
@@ -27,7 +27,7 @@ class LabwareDockerHelpersTest {
         // We can test the command construction logic without actually running it
         // The helper should build: docker -H <dockerHost> [args]
 
-        val dockerHost = LabwareDockerTests.LABWARE_DOCKER_HOST
+        val dockerHost = CICDPipelineTests.ISOLATED_DOCKER_VM_DOCKER_HOST
         assertTrue(dockerHost.isNotEmpty())
     }
 

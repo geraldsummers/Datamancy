@@ -9,8 +9,8 @@ class CICDPipelineHelpersTest {
 
     @Test
     fun `labware Docker host uses environment or default`() {
-        val dockerHost = CICDPipelineTests.LABWARE_DOCKER_HOST
-        
+        val dockerHost = CICDPipelineTests.ISOLATED_DOCKER_VM_DOCKER_HOST
+
         assertTrue(dockerHost.isNotEmpty())
     }
 
@@ -31,7 +31,7 @@ class CICDPipelineHelpersTest {
     @Test
     fun `isLabwareDockerAvailable check doesn't crash`() {
         // Should return boolean without throwing
-        val available = CICDPipelineTests.isLabwareDockerAvailable()
+        val available = CICDPipelineTests.isIsolatedDockerVmDockerAvailable()
 
         assertNotNull(available)
     }
