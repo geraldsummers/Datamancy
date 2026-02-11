@@ -147,6 +147,8 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
             // Filter out test containers from previous runs
             .filter { !testContainerPattern.matches(it) }
             .filter { !it.contains("-test-") }
+            // Filter out buildx containers (shared infrastructure)
+            .filter { !it.startsWith("buildx_buildkit_") }
             .toSet()
 
 

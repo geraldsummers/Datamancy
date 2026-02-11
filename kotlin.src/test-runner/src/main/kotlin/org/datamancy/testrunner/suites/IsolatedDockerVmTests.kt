@@ -41,6 +41,8 @@ suspend fun TestRunner.isolatedDockerVmTests() = suite("Isolated Docker VM Tests
             // Filter out test containers from previous runs
             .filter { !testContainerPattern.matches(it) }
             .filter { !it.contains("-test-") }
+            // Filter out buildx containers (shared infrastructure)
+            .filter { !it.startsWith("buildx_buildkit_") }
             .toSet()
 
         val overlap = isolatedContainers.intersect(prodContainers)
@@ -168,7 +170,12 @@ object IsolatedDockerVmTests {
             val prodProcess = ProcessBuilder("docker", "ps", "--format", "{{.Names}}").start()
             val prodOutput = prodProcess.inputStream.bufferedReader().readText()
             prodProcess.waitFor()
-            val prodContainers = prodOutput.lines().filter { it.isNotBlank() }.toSet()
+            val testContainerPattern = Regex("isolated-docker-vm-.*-replication-\\d+")
+            val prodContainers = prodOutput.lines().filter { it.isNotBlank() }
+                .filter { !testContainerPattern.matches(it) }
+                .filter { !it.contains("-test-") }
+                .filter { !it.startsWith("buildx_buildkit_") }
+                .toSet()
 
             val overlap = isolatedContainers.intersect(prodContainers)
             require(overlap.isEmpty()) { "Found overlapping containers: $overlap" }

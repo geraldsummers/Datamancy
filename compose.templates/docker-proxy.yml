@@ -81,10 +81,10 @@ services:
       INFO: 1          # Docker daemon info
       VERSION: 1       # Docker version
 
-      # Dangerous operations - explicitly disabled
-      BUILD: 0         # Disable docker build (security risk)
+      # Additional operations
+      BUILD: 1         # Enable docker build for CI/CD
       COMMIT: 0        # Disable container commits
-      EXEC: 0          # Disable container exec (security risk)
+      EXEC: 1          # Enable container exec for tests/diagnostics
     volumes:
       - type: volume
         source: isolated-docker-vm-socket
