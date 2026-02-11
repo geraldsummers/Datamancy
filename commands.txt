@@ -30,7 +30,7 @@ deployment blob:
  cd /home/gerald/IdeaProjects/Datamancy/ && \
 ./build-datamancy-v3.main.kts && \
 rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
-ssh gerald@latium.local "cd ~/datamancy && \
+ssh -t gerald@latium.local "cd ~/datamancy && \
   docker compose --profile='*' build --pull=false && \
   docker compose down && \
   docker compose up -d && \
