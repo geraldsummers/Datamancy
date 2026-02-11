@@ -427,6 +427,40 @@ fun generateCredentials(
 // Build Steps
 // ============================================================================
 
+fun runKotlinTests() {
+    if (!File("gradlew").exists()) {
+        warn("gradlew not found, skipping Kotlin tests")
+        return
+    }
+    step("Running Kotlin unit tests")
+    exec("./gradlew", "test")
+}
+
+fun runPythonTests() {
+    step("Running Python unit tests")
+
+    val pythonServices = listOf(
+        "containers.src/evm-broadcaster",
+        "containers.src/hyperliquid-worker"
+    )
+
+    pythonServices.forEach { servicePath ->
+        val serviceDir = File(servicePath)
+        if (serviceDir.exists() && serviceDir.resolve("tests").exists()) {
+            info("Testing $servicePath")
+
+            // Install test dependencies
+            val reqFile = serviceDir.resolve("requirements.txt")
+            if (reqFile.exists()) {
+                exec("pip", "install", "-q", "-r", reqFile.absolutePath)
+            }
+
+            // Run pytest
+            exec("python", "-m", "pytest", serviceDir.resolve("tests").absolutePath, "-v", "--tb=short")
+        }
+    }
+}
+
 fun buildGradleServices() {
     if (!File("gradlew").exists()) {
         warn("gradlew not found, skipping")
@@ -927,6 +961,10 @@ ${CYAN}╔═══════════════════════�
     val existingCredentials = loadCredentialsFile(credentialsFile)
     val credentials = generateCredentials(schema, sanitized, existingCredentials)
     saveCredentialsFile(credentialsFile, credentials)
+
+    // Run tests first
+    runKotlinTests()
+    runPythonTests()
 
     // Build steps
     buildGradleServices()
