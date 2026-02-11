@@ -213,7 +213,7 @@ suspend fun TestRunner.web3WalletTests() = suite("JupyterLab Web3 Wallet Tests")
             val provider = constructor.newInstance("http://invalid-jupyter-url:9999")
 
             // Call isWalletConnected() - should return false for invalid URL
-            val isConnectedMethod = providerClass.getMethod("isWalletConnected", io.kotlin.coroutines.Continuation::class.java)
+            val isConnectedMethod = providerClass.getMethod("isWalletConnected", kotlin.coroutines.Continuation::class.java)
 
             println("      ✓ Web3WalletProvider handles disconnected state")
         } catch (e: Exception) {
