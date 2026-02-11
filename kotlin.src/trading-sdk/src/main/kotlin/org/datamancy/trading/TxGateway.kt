@@ -10,10 +10,25 @@ import org.slf4j.LoggerFactory
 /**
  * Main entry point for the Datamancy Trading SDK
  *
- * Example usage:
+ * Example usage with ephemeral credentials:
  * ```
- * val tx = TxGateway.fromEnv()
- * val order = tx.hyperliquid.market("ETH-PERP", Side.BUY, 1.0.toBigDecimal())
+ * fun promptSecret(prompt: String): String {
+ *     print(prompt)
+ *     return System.console()?.readPassword()?.let { String(it) } ?: readLine()!!
+ * }
+ *
+ * val hlKey = promptSecret("Hyperliquid API Key: ")
+ * val evmKey = promptSecret("EVM Private Key: ")
+ *
+ * val tx = TxGateway.create(
+ *     url = "http://tx-gateway:8080",
+ *     token = authToken,
+ *     credentials = mapOf(
+ *         "hyperliquid" to hlKey,
+ *         "evm" to evmKey
+ *     )
+ * )
+ * tx.hyperliquid.market("ETH-PERP", Side.BUY, 1.0.toBigDecimal())
  * tx.evm.transfer("alice", 1000.toBigDecimal(), Token.USDC, Chain.BASE)
  * ```
  */
@@ -70,15 +85,21 @@ class TxGateway private constructor(
         }
 
         /**
-         * Create gateway with explicit configuration
+         * Create gateway with explicit configuration and ephemeral credentials
+         *
+         * @param url Gateway URL
+         * @param token JWT auth token for rate limiting
+         * @param credentials Ephemeral user keys (e.g., "hyperliquid" to API key, "evm" to private key)
+         * @param timeoutSeconds Request timeout
          */
         fun create(
             url: String,
             token: String,
+            credentials: Map<String, String> = emptyMap(),
             timeoutSeconds: Long = 30
         ): TxGateway {
             return TxGateway(
-                TradingHttpClient(url, token, timeoutSeconds)
+                TradingHttpClient(url, token, timeoutSeconds, credentials)
             )
         }
     }

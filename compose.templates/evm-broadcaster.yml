@@ -12,23 +12,12 @@ services:
     depends_on:
       postgres:
         condition: service_started
-      vault:
-        condition: service_started
-      vault-init:
-        condition: service_completed_successfully
-      web3signer:
-        condition: service_started
-    volumes:
-      - vault_config:/vault/config:ro
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: txgateway
       POSTGRES_USER: txgateway
       POSTGRES_PASSWORD: ${POSTGRES_TXGATEWAY_PASSWORD}
-      VAULT_ADDR: http://vault:8200
-      VAULT_TOKEN_FILE: /vault/config/token
-      WEB3SIGNER_URL: http://web3signer:9000
       BASE_RPC_URL: ${BASE_RPC_URL:-https://mainnet.base.org}
       ARBITRUM_RPC_URL: ${ARBITRUM_RPC_URL:-https://arb1.arbitrum.io/rpc}
       OPTIMISM_RPC_URL: ${OPTIMISM_RPC_URL:-https://mainnet.optimism.io}

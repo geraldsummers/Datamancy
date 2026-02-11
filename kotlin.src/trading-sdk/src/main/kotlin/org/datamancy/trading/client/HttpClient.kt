@@ -27,7 +27,8 @@ class InstantTypeAdapter : JsonSerializer<Instant>, JsonDeserializer<Instant> {
 internal class TradingHttpClient(
     val baseUrl: String,
     val token: String,
-    private val timeoutSeconds: Long = 30
+    private val timeoutSeconds: Long = 30,
+    private val credentials: Map<String, String> = emptyMap()
 ) {
     val logger = LoggerFactory.getLogger(TradingHttpClient::class.java)
     val gson = GsonBuilder()
@@ -43,11 +44,16 @@ internal class TradingHttpClient(
 
     suspend inline fun <reified T> get(path: String): ApiResult<T> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
+            val requestBuilder = Request.Builder()
                 .url("$baseUrl$path")
                 .header("Authorization", "Bearer $token")
-                .get()
-                .build()
+
+            // Add ephemeral credentials as headers
+            credentials.forEach { (key, value) ->
+                requestBuilder.header("X-Credential-$key", value)
+            }
+
+            val request = requestBuilder.get().build()
 
             logger.debug("GET $baseUrl$path")
 
@@ -79,11 +85,16 @@ internal class TradingHttpClient(
             val jsonBody = gson.toJson(body)
             val requestBody = jsonBody.toRequestBody(jsonMediaType)
 
-            val request = Request.Builder()
+            val requestBuilder = Request.Builder()
                 .url("$baseUrl$path")
                 .header("Authorization", "Bearer $token")
-                .post(requestBody)
-                .build()
+
+            // Add ephemeral credentials as headers
+            credentials.forEach { (key, value) ->
+                requestBuilder.header("X-Credential-$key", value)
+            }
+
+            val request = requestBuilder.post(requestBody).build()
 
             logger.debug("POST $baseUrl$path: $jsonBody")
 

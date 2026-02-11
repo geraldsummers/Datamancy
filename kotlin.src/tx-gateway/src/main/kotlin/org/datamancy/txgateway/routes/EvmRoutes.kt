@@ -75,13 +75,21 @@ fun Route.evmRoutes(
                     }
             }
 
+            // Extract ephemeral EVM private key from headers
+            val evmKey = call.request.headers["X-Credential-evm"]
+            if (evmKey == null) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing EVM credentials"))
+                return@post
+            }
+
             try {
                 val payload: Map<String, Any> = mapOf(
                     "username" to username,
                     "toAddress" to toAddress,
                     "amount" to transferRequest.amount,
                     "token" to transferRequest.token,
-                    "chain" to transferRequest.chain
+                    "chain" to transferRequest.chain,
+                    "evmPrivateKey" to evmKey
                 )
 
                 val result = workerClient.submitEvmTransfer(payload)

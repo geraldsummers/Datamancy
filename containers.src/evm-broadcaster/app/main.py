@@ -18,21 +18,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Configuration
-VAULT_ADDR = os.getenv('VAULT_ADDR', 'http://vault:8200')
-VAULT_TOKEN_FILE = os.getenv('VAULT_TOKEN_FILE')
-VAULT_TOKEN = os.getenv('VAULT_TOKEN')  # Fallback for backward compatibility
-
-# Read token from file if specified
-if VAULT_TOKEN_FILE and os.path.exists(VAULT_TOKEN_FILE):
-    with open(VAULT_TOKEN_FILE, 'r') as f:
-        VAULT_TOKEN = f.read().strip()
-    logger.info(f"Loaded Vault token from {VAULT_TOKEN_FILE}")
-elif VAULT_TOKEN:
-    logger.info("Using Vault token from environment variable")
-else:
-    logger.warning("No Vault token configured")
-
-WEB3SIGNER_URL = os.getenv('WEB3SIGNER_URL', 'http://web3signer:9000')
+# Note: Vault/Web3Signer removed - using ephemeral user credentials
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'postgres')
 POSTGRES_PORT = int(os.getenv('POSTGRES_PORT', 5432))
 POSTGRES_DB = os.getenv('POSTGRES_DB', 'txgateway')
@@ -79,12 +65,14 @@ def get_db_connection():
     )
 
 
-def get_user_evm_address(username: str) -> str:
-    """Get user's EVM address from Vault"""
-    logger.info(f"Getting EVM address for {username}")
-    # TODO: Implement Vault lookup: vault kv get secret/evm/{username}
-    # For now, derive deterministically
-    return f"0x{username.lower()[:40].ljust(40, '0')}"
+def derive_evm_address(private_key: str) -> str:
+    """Derive EVM address from private key"""
+    from eth_account import Account
+    # Ensure private key has 0x prefix
+    if not private_key.startswith('0x'):
+        private_key = '0x' + private_key
+    account = Account.from_key(private_key)
+    return account.address
 
 
 def allocate_nonce(chain_id: int, from_address: str) -> int:
@@ -147,15 +135,18 @@ def build_transaction(chain: str, from_addr: str, to_addr: str, amount: str, tok
         }
 
 
-def sign_via_web3signer(tx: dict) -> str:
-    """Sign transaction via Web3Signer"""
-    payload = {"jsonrpc": "2.0", "method": "eth_signTransaction", "params": [tx], "id": 1}
-    resp = requests.post(WEB3SIGNER_URL, json=payload, headers={"Content-Type": "application/json"}, timeout=30)
-    resp.raise_for_status()
-    result = resp.json()
-    if 'error' in result:
-        raise Exception(f"Web3Signer error: {result['error']}")
-    return result['result']
+def sign_transaction(tx: dict, private_key: str) -> str:
+    """Sign transaction with ephemeral private key"""
+    from eth_account import Account
+    from web3 import Web3
+
+    # Ensure private key has 0x prefix
+    if not private_key.startswith('0x'):
+        private_key = '0x' + private_key
+
+    account = Account.from_key(private_key)
+    signed_tx = account.sign_transaction(tx)
+    return signed_tx.rawTransaction.hex()
 
 
 def broadcast_tx(chain: str, signed_tx: str) -> str:
@@ -193,7 +184,7 @@ def track_pending(user: str, chain_id: int, nonce: int, from_addr: str, tx_hash:
 
 @app.route('/submit', methods=['POST'])
 def submit_transfer():
-    """Submit EVM transfer - FULL IMPLEMENTATION"""
+    """Submit EVM transfer - uses ephemeral credentials"""
     try:
         data = request.json
         username = data.get('username')
@@ -201,13 +192,17 @@ def submit_transfer():
         amount = data.get('amount')
         token = data.get('token', 'ETH')
         chain = data.get('chain', 'base')
+        evm_private_key = data.get('evmPrivateKey')
+
+        if not evm_private_key:
+            return jsonify({"error": "Missing evmPrivateKey in request"}), 400
 
         logger.info(f"Transfer: {username} -> {to_address}, {amount} {token} on {chain}")
 
         if chain.lower() not in CHAINS:
             return jsonify({"error": f"Unsupported chain: {chain}"}), 400
 
-        from_address = get_user_evm_address(username)
+        from_address = derive_evm_address(evm_private_key)
         cfg = CHAINS[chain.lower()]
 
         # Allocate nonce (implicit cancellation)
@@ -216,7 +211,7 @@ def submit_transfer():
 
         # Build, sign, broadcast
         tx = build_transaction(chain, from_address, to_address, amount, token, nonce)
-        signed_tx = sign_via_web3signer(tx)
+        signed_tx = sign_transaction(tx, evm_private_key)
         tx_hash = broadcast_tx(chain, signed_tx)
         logger.info(f"Broadcast: {tx_hash}")
 

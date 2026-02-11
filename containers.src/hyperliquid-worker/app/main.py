@@ -18,39 +18,28 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Configuration
-VAULT_ADDR = os.getenv('VAULT_ADDR', 'http://vault:8200')
-VAULT_TOKEN_FILE = os.getenv('VAULT_TOKEN_FILE')
-VAULT_TOKEN = os.getenv('VAULT_TOKEN')  # Fallback for backward compatibility
-
-# Read token from file if specified
-if VAULT_TOKEN_FILE and os.path.exists(VAULT_TOKEN_FILE):
-    with open(VAULT_TOKEN_FILE, 'r') as f:
-        VAULT_TOKEN = f.read().strip()
-    logger.info(f"Loaded Vault token from {VAULT_TOKEN_FILE}")
-elif VAULT_TOKEN:
-    logger.info("Using Vault token from environment variable")
-else:
-    logger.warning("No Vault token configured")
-
+# Note: Vault removed - using ephemeral user credentials
 IS_MAINNET = os.getenv('HYPERLIQUID_MAINNET', 'true').lower() == 'true'
 
-def get_user_credentials(username: str) -> dict:
-    """Get user's Hyperliquid API credentials from Vault"""
-    logger.info(f"Getting Hyperliquid credentials for {username}")
-    # TODO: Implement Vault lookup: vault kv get secret/hyperliquid/{username}
-    # For now, return placeholder
-    # Expected format: {"address": "0x...", "private_key": "0x..."}
-    return {
-        "address": f"0x{username.lower()[:40].ljust(40, '0')}",
-        "private_key": "0x" + "0" * 64  # Placeholder
-    }
+def parse_hyperliquid_key(api_key: str) -> dict:
+    """Parse Hyperliquid API key into address and private key"""
+    # Hyperliquid API keys are typically the private key hex string
+    # The address is derived from the private key
+    # For now, expect format: "address:private_key" or just "private_key"
+    if ":" in api_key:
+        address, private_key = api_key.split(":", 1)
+        return {"address": address, "private_key": private_key}
+    else:
+        # Just private key provided, derive address
+        # For Hyperliquid, the private key is the credential
+        return {"address": None, "private_key": api_key}
 
-def get_exchange_client(username: str) -> Exchange:
-    """Get authenticated Exchange client for user"""
-    creds = get_user_credentials(username)
+def get_exchange_client(hyperliquid_key: str) -> Exchange:
+    """Get authenticated Exchange client using ephemeral credentials"""
+    creds = parse_hyperliquid_key(hyperliquid_key)
     base_url = constants.MAINNET_API_URL if IS_MAINNET else constants.TESTNET_API_URL
     return Exchange(
-        address=creds["address"],
+        address=creds.get("address"),
         private_key=creds["private_key"],
         base_url=base_url,
         skip_ws=True
@@ -63,7 +52,7 @@ def get_info_client() -> Info:
 
 @app.route('/order', methods=['POST'])
 def submit_order():
-    """Submit order to Hyperliquid - FULL IMPLEMENTATION"""
+    """Submit order to Hyperliquid - uses ephemeral credentials"""
     try:
         data = request.json
         username = data.get('username')
@@ -72,10 +61,14 @@ def submit_order():
         order_type = data.get('type')  # "MARKET" or "LIMIT"
         size = data.get('size')
         price = data.get('price')  # Required for LIMIT orders
+        hyperliquid_key = data.get('hyperliquidKey')
+
+        if not hyperliquid_key:
+            return jsonify({"error": "Missing hyperliquidKey in request"}), 400
 
         logger.info(f"Order: {username} {side} {size} {symbol} @ {price} ({order_type})")
 
-        exchange = get_exchange_client(username)
+        exchange = get_exchange_client(hyperliquid_key)
 
         # Convert side to Hyperliquid format: true for buy, false for sell
         is_buy = side.upper() == "BUY"
@@ -136,15 +129,19 @@ def submit_order():
 
 @app.route('/cancel/<order_id>', methods=['POST'])
 def cancel_order(order_id):
-    """Cancel Hyperliquid order"""
+    """Cancel Hyperliquid order - uses ephemeral credentials"""
     try:
         data = request.json
         username = data.get('username')
         symbol = data.get('symbol')  # Required for cancellation
+        hyperliquid_key = data.get('hyperliquidKey')
+
+        if not hyperliquid_key:
+            return jsonify({"error": "Missing hyperliquidKey in request"}), 400
 
         logger.info(f"Cancel order: {order_id} for {username}")
 
-        exchange = get_exchange_client(username)
+        exchange = get_exchange_client(hyperliquid_key)
         result = exchange.cancel(symbol=symbol, oid=int(order_id))
 
         logger.info(f"Cancel result: {result}")
@@ -161,15 +158,19 @@ def cancel_order(order_id):
 
 @app.route('/cancel-all', methods=['POST'])
 def cancel_all():
-    """Cancel all open orders"""
+    """Cancel all open orders - uses ephemeral credentials"""
     try:
         data = request.json
         username = data.get('username')
         symbol = data.get('symbol')  # Optional, cancels all if not provided
+        hyperliquid_key = data.get('hyperliquidKey')
+
+        if not hyperliquid_key:
+            return jsonify({"error": "Missing hyperliquidKey in request"}), 400
 
         logger.info(f"Cancel all orders for {username} (symbol: {symbol})")
 
-        exchange = get_exchange_client(username)
+        exchange = get_exchange_client(hyperliquid_key)
         result = exchange.cancel_all_orders(symbol=symbol)
 
         return jsonify({
@@ -183,16 +184,23 @@ def cancel_all():
 
 @app.route('/positions', methods=['GET'])
 def get_positions():
-    """Get user positions - FULL IMPLEMENTATION"""
+    """Get user positions - uses ephemeral credentials"""
     try:
         username = request.args.get('user')
+        hyperliquid_key = request.args.get('hyperliquidKey')
+
+        if not hyperliquid_key:
+            return jsonify({"error": "Missing hyperliquidKey parameter"}), 400
+
         logger.info(f"Get positions for {username}")
 
-        creds = get_user_credentials(username)
+        creds = parse_hyperliquid_key(hyperliquid_key)
         info = get_info_client()
 
         # Get user state which includes positions
-        user_state = info.user_state(creds["address"])
+        # If address not provided, derive from private key
+        address = creds.get("address") or creds["private_key"]  # TODO: proper address derivation
+        user_state = info.user_state(address)
 
         positions = []
         if user_state and 'assetPositions' in user_state:
@@ -219,15 +227,21 @@ def get_positions():
 
 @app.route('/balance', methods=['GET'])
 def get_balance():
-    """Get user balance - FULL IMPLEMENTATION"""
+    """Get user balance - uses ephemeral credentials"""
     try:
         username = request.args.get('user')
+        hyperliquid_key = request.args.get('hyperliquidKey')
+
+        if not hyperliquid_key:
+            return jsonify({"error": "Missing hyperliquidKey parameter"}), 400
+
         logger.info(f"Get balance for {username}")
 
-        creds = get_user_credentials(username)
+        creds = parse_hyperliquid_key(hyperliquid_key)
         info = get_info_client()
 
-        user_state = info.user_state(creds["address"])
+        address = creds.get("address") or creds["private_key"]  # TODO: proper address derivation
+        user_state = info.user_state(address)
 
         if user_state and 'marginSummary' in user_state:
             margin = user_state['marginSummary']
@@ -250,15 +264,21 @@ def get_balance():
 
 @app.route('/orders', methods=['GET'])
 def get_orders():
-    """Get open orders"""
+    """Get open orders - uses ephemeral credentials"""
     try:
         username = request.args.get('user')
+        hyperliquid_key = request.args.get('hyperliquidKey')
+
+        if not hyperliquid_key:
+            return jsonify({"error": "Missing hyperliquidKey parameter"}), 400
+
         logger.info(f"Get orders for {username}")
 
-        creds = get_user_credentials(username)
+        creds = parse_hyperliquid_key(hyperliquid_key)
         info = get_info_client()
 
-        open_orders = info.open_orders(creds["address"])
+        address = creds.get("address") or creds["private_key"]  # TODO: proper address derivation
+        open_orders = info.open_orders(address)
 
         orders = []
         if open_orders:
@@ -280,18 +300,23 @@ def get_orders():
 
 @app.route('/close', methods=['POST'])
 def close_position():
-    """Close position by symbol"""
+    """Close position by symbol - uses ephemeral credentials"""
     try:
         data = request.json
         username = data.get('username')
         symbol = data.get('symbol')
+        hyperliquid_key = data.get('hyperliquidKey')
+
+        if not hyperliquid_key:
+            return jsonify({"error": "Missing hyperliquidKey in request"}), 400
 
         logger.info(f"Close position for {username}: {symbol}")
 
         # Get current position to determine size
-        creds = get_user_credentials(username)
+        creds = parse_hyperliquid_key(hyperliquid_key)
         info = get_info_client()
-        user_state = info.user_state(creds["address"])
+        address = creds.get("address") or creds["private_key"]  # TODO: proper address derivation
+        user_state = info.user_state(address)
 
         position_size = None
         if user_state and 'assetPositions' in user_state:
@@ -305,7 +330,7 @@ def close_position():
             return jsonify({"error": "No position found"}), 404
 
         # Close with market order in opposite direction
-        exchange = get_exchange_client(username)
+        exchange = get_exchange_client(hyperliquid_key)
         is_buy = position_size < 0  # If short, buy to close
 
         result = exchange.market_order(

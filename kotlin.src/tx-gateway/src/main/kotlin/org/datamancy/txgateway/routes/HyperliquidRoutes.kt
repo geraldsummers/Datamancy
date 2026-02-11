@@ -59,6 +59,13 @@ fun Route.hyperliquidRoutes(
             val orderRequest = call.receive<OrderRequest>()
             val requestJson = Json.encodeToString(orderRequest)
 
+            // Extract ephemeral credentials from headers
+            val hyperliquidKey = call.request.headers["X-Credential-hyperliquid"]
+            if (hyperliquidKey == null) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
+                return@post
+            }
+
             try {
                 val payload: Map<String, Any> = mapOf(
                     "username" to username,
@@ -68,7 +75,8 @@ fun Route.hyperliquidRoutes(
                     "size" to orderRequest.size,
                     "price" to (orderRequest.price ?: ""),
                     "reduceOnly" to orderRequest.reduceOnly,
-                    "postOnly" to orderRequest.postOnly
+                    "postOnly" to orderRequest.postOnly,
+                    "hyperliquidKey" to hyperliquidKey
                 )
 
                 val result = workerClient.submitHyperliquidOrder(payload)

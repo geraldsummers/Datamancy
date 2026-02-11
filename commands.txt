@@ -33,7 +33,8 @@ rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
 ssh gerald@latium.local "cd ~/datamancy && \
   docker compose --profile='*' build --pull=false && \
   docker compose down && \
-  docker compose up -d"
+  docker compose up -d && \
+  docker compose "
 
  and then later
 
