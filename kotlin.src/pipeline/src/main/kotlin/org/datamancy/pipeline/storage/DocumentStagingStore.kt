@@ -249,6 +249,9 @@ class DocumentStagingStore(
      * Documents are inserted with status=PENDING, making them visible to EmbeddingScheduler's
      * next polling cycle. Metadata is serialized to JSON for flexible schema evolution.
      *
+     * Uses INSERT ... ON CONFLICT DO NOTHING to gracefully handle re-runs and avoid
+     * duplicate key violations when the same document is ingested multiple times.
+     *
      * @param docs Documents to stage (typically all have embeddingStatus=PENDING)
      * @throws Exception if database write fails (caller should handle retry logic)
      */
@@ -257,7 +260,7 @@ class DocumentStagingStore(
 
         try {
             transaction {
-                DocumentStagingTable.batchInsert(docs) { doc ->
+                DocumentStagingTable.batchInsert(docs, ignore = true) { doc ->
                     this[DocumentStagingTable.id] = doc.id
                     this[DocumentStagingTable.sourceName] = doc.source
                     this[DocumentStagingTable.collection] = doc.collection
@@ -274,7 +277,7 @@ class DocumentStagingStore(
                 }
             }
 
-            logger.debug { "Staged ${docs.size} documents" }
+            logger.debug { "Staged ${docs.size} documents (duplicates ignored)" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to stage batch: ${e.message}" }
             throw e
