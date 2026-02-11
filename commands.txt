@@ -34,8 +34,5 @@ ssh gerald@latium.local "cd ~/datamancy && \
   docker compose --profile='*' build --pull=false && \
   docker compose down && \
   docker compose up -d && \
-  docker compose "
-
- and then later
-
- docker compose up pipeline
+  docker compose up pipeline -d && \
+  docker compose up test-runner"
