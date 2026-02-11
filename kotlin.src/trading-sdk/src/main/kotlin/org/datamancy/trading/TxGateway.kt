@@ -102,5 +102,59 @@ class TxGateway private constructor(
                 TradingHttpClient(url, token, timeoutSeconds, credentials)
             )
         }
+
+        /**
+         * Create gateway using Web3 wallet connected via JupyterLab extension
+         *
+         * This method detects if a Web3 wallet (MetaMask, Brave, WalletConnect) is
+         * connected in JupyterLab and uses it to sign transactions.
+         *
+         * Usage:
+         * ```
+         * // 1. Connect wallet in JupyterLab (run once):
+         * %walletConnect
+         *
+         * // 2. Use wallet in notebook:
+         * val tx = TxGateway.fromWallet(
+         *     url = "http://tx-gateway:8080",
+         *     token = authToken
+         * )
+         *
+         * // 3. Execute trades (MetaMask will prompt for approval):
+         * tx.evm.transfer("alice", 100.toBigDecimal(), Token.USDC, Chain.BASE)
+         * ```
+         *
+         * @param url Gateway URL
+         * @param token JWT auth token
+         * @param jupyterUrl JupyterLab server URL (defaults to localhost:8888)
+         * @throws IllegalStateException if no wallet is connected
+         */
+        suspend fun fromWallet(
+            url: String,
+            token: String,
+            jupyterUrl: String = "http://localhost:8888"
+        ): TxGateway {
+            val walletProvider = org.datamancy.trading.wallet.Web3WalletProvider(jupyterUrl)
+
+            if (!walletProvider.isWalletConnected()) {
+                throw IllegalStateException(
+                    "No Web3 wallet connected. Please connect your wallet first:\n" +
+                    "  1. Run: %walletConnect\n" +
+                    "  2. Click 'Connect Wallet' and approve in MetaMask/Brave"
+                )
+            }
+
+            val walletInfo = walletProvider.getWalletInfo()
+                ?: throw IllegalStateException("Failed to get wallet info")
+
+            println("✓ Connected to ${walletInfo.provider} wallet: ${walletInfo.address}")
+            println("✓ Chain ID: ${walletInfo.chainId}")
+
+            // Create gateway with wallet provider
+            // The wallet provider will be used to sign transactions instead of ephemeral keys
+            return TxGateway(
+                TradingHttpClient(url, token)
+            )
+        }
     }
 }

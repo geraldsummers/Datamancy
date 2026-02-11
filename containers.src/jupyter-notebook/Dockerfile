@@ -59,6 +59,18 @@ RUN pip install --no-cache-dir \
 
 RUN pip install --no-cache-dir 'jupyter-ai>=2.0.0'
 
+# Install Web3 wallet extension
+COPY --chown=${NB_UID}:${NB_GID} containers.src/jupyterlab-web3-wallet /tmp/jupyterlab-web3-wallet
+WORKDIR /tmp/jupyterlab-web3-wallet
+RUN pip install -e . && \
+    jlpm install && \
+    jlpm build && \
+    jupyter labextension develop . --overwrite && \
+    cd / && \
+    rm -rf /tmp/jupyterlab-web3-wallet
+
+WORKDIR /home/jovyan
+
 COPY --chown=${NB_UID}:${NB_GID} src/jupyter-notebook/startup-config.sh /usr/local/bin/startup-config.sh
 RUN chmod +x /usr/local/bin/startup-config.sh
 

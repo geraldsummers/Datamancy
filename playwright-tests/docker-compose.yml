@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  playwright-tests:
+    build: .
+    environment:
+      # LDAP Configuration
+      LDAP_URL: ${LDAP_URL:-ldap://ldap:389}
+      LDAP_ADMIN_DN: ${LDAP_ADMIN_DN:-cn=admin,dc=datamancy,dc=net}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-admin}
+
+      # Service URLs
+      BASE_URL: ${BASE_URL:-http://caddy}
+      AUTHELIA_URL: ${AUTHELIA_URL:-http://authelia:9091}
+
+      # CI mode
+      CI: ${CI:-false}
+
+    volumes:
+      # Mount test results out
+      - ./test-results:/app/test-results
+      - ./playwright-report:/app/playwright-report
+      - ./coverage:/app/coverage
+
+    networks:
+      - datamancy_default
+
+    # Don't run by default - only when explicitly called
+    profiles:
+      - testing
+
+networks:
+  datamancy_default:
+    external: true
