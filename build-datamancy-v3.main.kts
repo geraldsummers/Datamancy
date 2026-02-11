@@ -451,21 +451,28 @@ fun runPythonTests() {
 
             // Create venv for this service
             val venvDir = serviceDir.resolve(".venv")
-            if (!venvDir.exists()) {
+            val pipPath = venvDir.resolve("bin/pip")
+            val pytestPath = venvDir.resolve("bin/pytest")
+
+            if (!pipPath.exists()) {
                 info("Creating virtual environment in ${venvDir.absolutePath}")
-                exec("python3", "-m", "venv", venvDir.absolutePath)
+                val venvExitCode = exec("python3", "-m", "venv", venvDir.absolutePath, ignoreError = true)
+
+                if (venvExitCode != 0 || !pipPath.exists()) {
+                    error("Failed to create virtual environment. Please install python3-venv:")
+                    error("  sudo apt install python3-venv")
+                    exitProcess(1)
+                }
             }
 
             // Install test dependencies in venv
             val reqFile = serviceDir.resolve("requirements.txt")
             if (reqFile.exists()) {
-                val pipPath = venvDir.resolve("bin/pip").absolutePath
-                exec(pipPath, "install", "-q", "-r", reqFile.absolutePath)
+                exec(pipPath.absolutePath, "install", "-q", "-r", reqFile.absolutePath)
             }
 
             // Run pytest in venv
-            val pytestPath = venvDir.resolve("bin/pytest").absolutePath
-            exec(pytestPath, serviceDir.resolve("tests").absolutePath, "-v", "--tb=short")
+            exec(pytestPath.absolutePath, serviceDir.resolve("tests").absolutePath, "-v", "--tb=short")
         }
     }
 }
