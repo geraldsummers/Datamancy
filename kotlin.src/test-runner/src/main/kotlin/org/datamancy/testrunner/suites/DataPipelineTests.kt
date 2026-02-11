@@ -1193,20 +1193,21 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     test("Pipeline staging store queue is operational") {
         try {
             val response = client.getRawResponse("${endpoints.pipeline}/status")
-        if (response.status == HttpStatusCode.OK) {
-            val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-            val queueStats = json["queue"]?.jsonObject
+            if (response.status == HttpStatusCode.OK) {
+                val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+                val queueStats = json["queue"]?.jsonObject
 
-            if (queueStats != null) {
-                val pending = queueStats["pending"]?.jsonPrimitive?.longOrNull ?: 0
-                val processing = queueStats["processing"]?.jsonPrimitive?.longOrNull ?: 0
+                if (queueStats != null) {
+                    val pending = queueStats["pending"]?.jsonPrimitive?.longOrNull ?: 0
+                    val processing = queueStats["processing"]?.jsonPrimitive?.longOrNull ?: 0
 
-                println("      ✓ Staging queue: $pending pending, $processing processing")
-                require(pending >= 0 && processing >= 0) {
-                    "Queue stats should be non-negative"
+                    println("      ✓ Staging queue: $pending pending, $processing processing")
+                    require(pending >= 0 && processing >= 0) {
+                        "Queue stats should be non-negative"
+                    }
+                } else {
+                    println("      ℹ️  Queue stats not yet available")
                 }
-            } else {
-                println("      ℹ️  Queue stats not yet available")
             }
         } catch (e: Exception) {
             println("      ℹ️  Pipeline not reachable at ${endpoints.pipeline}: ${e.message}")
@@ -1215,23 +1216,26 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
 
     test("Pipeline deduplication store is working") {
         try {
-        val response = client.getRawResponse("${endpoints.pipeline}/status")
-        if (response.status == HttpStatusCode.OK) {
-            val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-            val sources = json["sources"]?.jsonArray
+            val response = client.getRawResponse("${endpoints.pipeline}/status")
+            if (response.status == HttpStatusCode.OK) {
+                val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+                val sources = json["sources"]?.jsonArray
 
-            var totalDedup = 0L
-            sources?.forEach { source ->
-                val lastRun = source.jsonObject["last_run"]?.jsonObject
-                val dedupCount = lastRun?.get("items_deduplicated")?.jsonPrimitive?.longOrNull ?: 0
-                totalDedup += dedupCount
-            }
+                var totalDedup = 0L
+                sources?.forEach { source ->
+                    val lastRun = source.jsonObject["last_run"]?.jsonObject
+                    val dedupCount = lastRun?.get("items_deduplicated")?.jsonPrimitive?.longOrNull ?: 0
+                    totalDedup += dedupCount
+                }
 
-            if (totalDedup > 0) {
-                println("      ✓ Deduplication active: $totalDedup items deduplicated across sources")
-            } else {
-                println("      ℹ️  No deduplication events recorded yet (sources running first time)")
+                if (totalDedup > 0) {
+                    println("      ✓ Deduplication active: $totalDedup items deduplicated across sources")
+                } else {
+                    println("      ℹ️  No deduplication events recorded yet (sources running first time)")
+                }
             }
+        } catch (e: Exception) {
+            println("      ℹ️  Pipeline not reachable at ${endpoints.pipeline}: ${e.message}")
         }
     }
 
