@@ -181,7 +181,7 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
     }
 
     test("TX Gateway: Unauthenticated request rejected") {
-        val response = client.post("${endpoints.txGateway}/api/v1/evm/transfer") {
+        val response = client.postRaw("${endpoints.txGateway}/api/v1/evm/transfer") {
             headers {
                 append("Content-Type", "application/json")
             }
