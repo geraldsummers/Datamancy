@@ -449,14 +449,23 @@ fun runPythonTests() {
         if (serviceDir.exists() && serviceDir.resolve("tests").exists()) {
             info("Testing $servicePath")
 
-            // Install test dependencies
-            val reqFile = serviceDir.resolve("requirements.txt")
-            if (reqFile.exists()) {
-                exec("pip", "install", "-q", "-r", reqFile.absolutePath)
+            // Create venv for this service
+            val venvDir = serviceDir.resolve(".venv")
+            if (!venvDir.exists()) {
+                info("Creating virtual environment in ${venvDir.absolutePath}")
+                exec("python3", "-m", "venv", venvDir.absolutePath)
             }
 
-            // Run pytest
-            exec("python3", "-m", "pytest", serviceDir.resolve("tests").absolutePath, "-v", "--tb=short")
+            // Install test dependencies in venv
+            val reqFile = serviceDir.resolve("requirements.txt")
+            if (reqFile.exists()) {
+                val pipPath = venvDir.resolve("bin/pip").absolutePath
+                exec(pipPath, "install", "-q", "-r", reqFile.absolutePath)
+            }
+
+            // Run pytest in venv
+            val pytestPath = venvDir.resolve("bin/pytest").absolutePath
+            exec(pytestPath, serviceDir.resolve("tests").absolutePath, "-v", "--tb=short")
         }
     }
 }
