@@ -115,8 +115,10 @@ class TestSignTransaction:
 
     def test_sign_transaction_with_prefix(self):
         """Test signing with 0x prefix"""
+        private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        # The from address must match the private key's address
         tx = {
-            'from': '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+            'from': '0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb',
             'to': '0xRecipient',
             'value': 1000000000000000000,
             'gas': 21000,
@@ -124,14 +126,15 @@ class TestSignTransaction:
             'nonce': 0,
             'chainId': 8453
         }
-        private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
         signed = main.sign_transaction(tx, private_key)
         assert signed.startswith("0x")
 
     def test_sign_transaction_without_prefix(self):
         """Test signing without 0x prefix"""
+        private_key = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        # The from address must match the private key's address
         tx = {
-            'from': '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+            'from': '0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb',
             'to': '0xRecipient',
             'value': 1000000000000000000,
             'gas': 21000,
@@ -139,7 +142,6 @@ class TestSignTransaction:
             'nonce': 0,
             'chainId': 8453
         }
-        private_key = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
         signed = main.sign_transaction(tx, private_key)
         assert signed.startswith("0x")
 
@@ -292,7 +294,11 @@ class TestAllocateNonce:
             None,  # No stuck transactions
             {'nonce': 0}  # Fresh nonce
         ]
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        # Set up context manager for cursor
+        mock_cursor_ctx = MagicMock()
+        mock_cursor_ctx.__enter__.return_value = mock_cursor
+        mock_cursor_ctx.__exit__.return_value = False
+        mock_conn.cursor.return_value = mock_cursor_ctx
         mock_get_conn.return_value = mock_conn
 
         nonce = main.allocate_nonce(8453, '0xFrom')
@@ -307,7 +313,11 @@ class TestAllocateNonce:
             'nonce': 5,
             'tx_hash': '0xstuck'
         }
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        # Set up context manager for cursor
+        mock_cursor_ctx = MagicMock()
+        mock_cursor_ctx.__enter__.return_value = mock_cursor
+        mock_cursor_ctx.__exit__.return_value = False
+        mock_conn.cursor.return_value = mock_cursor_ctx
         mock_get_conn.return_value = mock_conn
 
         nonce = main.allocate_nonce(8453, '0xFrom')
