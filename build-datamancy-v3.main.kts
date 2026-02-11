@@ -452,7 +452,7 @@ fun runPythonTests() {
             // Install test dependencies
             val reqFile = serviceDir.resolve("requirements.txt")
             if (reqFile.exists()) {
-                exec("pip3", "install", "-q", "-r", reqFile.absolutePath)
+                exec("pip", "install", "-q", "-r", reqFile.absolutePath)
             }
 
             // Run pytest
