@@ -12,7 +12,7 @@ import java.io.File
  * - UI validation across all web services
  */
 suspend fun TestRunner.playwrightE2ETests() {
-    testGroup("Playwright E2E Tests") {
+    suite("Playwright E2E Tests") {
         test("Run Playwright E2E Test Suite") {
             val playwrightDir = File("/app/playwright-tests")
 
@@ -21,8 +21,8 @@ suspend fun TestRunner.playwrightE2ETests() {
             }
 
             // Set environment variables for Playwright tests
-            val ldapUrl = env.endpoints.ldap ?: "ldap://openldap:389"
-            val autheliaUrl = env.endpoints.authelia.replace("https://", "http://").replace(":9091", "")
+            val ldapUrl = this@playwrightE2ETests.env.endpoints.ldap ?: "ldap://openldap:389"
+            val autheliaUrl = this@playwrightE2ETests.env.endpoints.authelia.replace("https://", "http://").replace(":9091", "")
             val baseUrl = "http://localhost" // Adjust based on environment
 
             val processBuilder = ProcessBuilder(
@@ -40,40 +40,43 @@ suspend fun TestRunner.playwrightE2ETests() {
                 redirectErrorStream(true)
             }
 
-            log("Starting Playwright E2E tests...")
-            log("  Playwright dir: ${playwrightDir.absolutePath}")
-            log("  LDAP URL: $ldapUrl")
-            log("  Authelia URL: $autheliaUrl")
-            log("  Base URL: $baseUrl")
+            println("Starting Playwright E2E tests...")
+            println("  Playwright dir: ${playwrightDir.absolutePath}")
+            println("  LDAP URL: $ldapUrl")
+            println("  Authelia URL: $autheliaUrl")
+            println("  Base URL: $baseUrl")
 
             val process = processBuilder.start()
             val output = process.inputStream.bufferedReader().use { it.readText() }
             val exitCode = process.waitFor()
 
             // Log output
-            log("Playwright output:\n$output")
+            println("Playwright output:\n$output")
 
             // Copy Playwright reports to test-results
-            val playwrightReportDir = File(playwrightDir, "playwright-report")
-            val playwrightResultsDir = File(playwrightDir, "test-results")
-            val targetDir = File(resultsDir, "playwright")
-            targetDir.mkdirs()
+            val resultsDir = this@playwrightE2ETests.resultsDir
+            if (resultsDir != null) {
+                val playwrightReportDir = File(playwrightDir, "playwright-report")
+                val playwrightResultsDir = File(playwrightDir, "test-results")
+                val targetDir = File(resultsDir, "playwright")
+                targetDir.mkdirs()
 
-            if (playwrightReportDir.exists()) {
-                playwrightReportDir.copyRecursively(File(targetDir, "report"), overwrite = true)
-                log("Copied Playwright HTML report to ${targetDir.absolutePath}/report")
-            }
+                if (playwrightReportDir.exists()) {
+                    playwrightReportDir.copyRecursively(File(targetDir, "report"), overwrite = true)
+                    println("Copied Playwright HTML report to ${targetDir.absolutePath}/report")
+                }
 
-            if (playwrightResultsDir.exists()) {
-                playwrightResultsDir.copyRecursively(File(targetDir, "test-results"), overwrite = true)
-                log("Copied Playwright test results to ${targetDir.absolutePath}/test-results")
+                if (playwrightResultsDir.exists()) {
+                    playwrightResultsDir.copyRecursively(File(targetDir, "test-results"), overwrite = true)
+                    println("Copied Playwright test results to ${targetDir.absolutePath}/test-results")
+                }
             }
 
             if (exitCode != 0) {
                 throw Exception("Playwright E2E tests failed with exit code $exitCode. See output above.")
             }
 
-            log("✓ Playwright E2E tests passed")
+            println("✓ Playwright E2E tests passed")
         }
     }
 }
