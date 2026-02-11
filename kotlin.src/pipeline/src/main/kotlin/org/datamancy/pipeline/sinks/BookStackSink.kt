@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.datamancy.pipeline.core.Sink
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
@@ -471,8 +472,9 @@ class BookStackSink(
         // If not in cache, search via API to check if page already exists
         if (existingPageId == null) {
             try {
+                val encodedTitle = URLEncoder.encode(doc.pageTitle, "UTF-8")
                 val searchRequest = Request.Builder()
-                    .url("$bookstackUrl/api/pages?filter[name]=${doc.pageTitle}")
+                    .url("$bookstackUrl/api/pages?filter[name]=$encodedTitle")
                     .header("Authorization", "Token $tokenId:$tokenSecret")
                     .get()
                     .build()
