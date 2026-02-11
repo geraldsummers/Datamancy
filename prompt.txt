@@ -66,3 +66,5 @@ sudo rm -rvf ~/datamancy
 sudo rm -rvf /mnt/raid/docker
 sudo rm -rvf /mnt/vectors/qdrant/*
 sudo systemctl start docker containerd
+
+suggest improvements for this prompt
