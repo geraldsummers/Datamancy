@@ -24,6 +24,7 @@ services:
       AGENT_TOOL_SERVER_URL: "http://agent-tool-server:8081"
       SEARCH_SERVICE_URL: "http://search-service:8098"
       EMBEDDING_SERVICE_URL: "http://embedding-service:8080"
+      PIPELINE_URL: "http://pipeline:8090"
 
       LITELLM_URL: "http://litellm:4000"
       LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY}"
