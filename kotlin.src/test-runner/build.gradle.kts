@@ -24,6 +24,9 @@ dependencies {
     implementation(libs.postgres.jdbc)
     implementation(libs.mariadb.jdbc)
 
+    // Redis/Valkey client
+    implementation("redis.clients:jedis:5.1.0")
+
     
 
     

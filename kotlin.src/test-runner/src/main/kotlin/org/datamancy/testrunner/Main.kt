@@ -208,11 +208,11 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "data-pipeline" -> runner.dataPipelineTests()
         "microservices" -> runner.microserviceTests()
         "search-service" -> runner.searchServiceTests()
-        
+
         "infrastructure" -> runner.infrastructureTests()
         "databases" -> runner.databaseTests()
         "user-interface" -> runner.userInterfaceTests()
-        
+
         "communication" -> runner.communicationTests()
         "collaboration" -> runner.collaborationTests()
         "productivity" -> runner.productivityTests()
@@ -220,29 +220,36 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "security" -> runner.securityTests()
         "monitoring" -> runner.monitoringTests()
         "backup" -> runner.backupTests()
-        
+
         "authentication" -> runner.authenticationTests()
-        
+
         "enhanced-auth" -> runner.enhancedAuthenticationTests()
-        
+
         "authenticated-ops" -> runner.authenticatedOperationsTests()
-        
+
         "utility" -> runner.utilityServicesTests()
-        
+
         "homeassistant" -> runner.homeAssistantTests()
-        
+
         "stack-deployment" -> runner.stackDeploymentTests()
-        
+
         "bookstack" -> runner.bookStackIntegrationTests()
-        
+
         "cicd" -> runner.cicdTests()
         "isolated-docker-vm" -> runner.isolatedDockerVmTests()
         "stack-replication" -> runner.stackReplicationTests()
-        
+
         "agent-capability" -> runner.agentCapabilityTests()
         "agent-security" -> runner.agentSecurityTests()
         "agent-llm-quality" -> runner.agentLlmQualityTests()
         "trading" -> runner.tradingTests()
+
+        // New extended test suites
+        "email-stack" -> runner.emailStackTests()
+        "caching-layer" -> runner.cachingLayerTests()
+        "extended-communication" -> runner.extendedCommunicationTests()
+        "extended-productivity" -> runner.extendedProductivityTests()
+
         // "vault" -> runner.vaultTests()  // Vault removed from deployment
         "all" -> {
             runner.foundationTests()
@@ -270,6 +277,13 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.isolatedDockerVmTests()
             runner.stackReplicationTests()
             runner.tradingTests()
+
+            // New extended test suites
+            runner.emailStackTests()
+            runner.cachingLayerTests()
+            runner.extendedCommunicationTests()
+            runner.extendedProductivityTests()
+
             // runner.vaultTests()  // Vault removed from deployment
         }
         else -> {
@@ -279,7 +293,9 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
             println("                  stack-deployment, bookstack, cicd, isolated-docker-vm, stack-replication,")
-            println("                  agent-capability, agent-security, agent-llm-quality, trading, vault, all")
+            println("                  agent-capability, agent-security, agent-llm-quality, trading,")
+            println("                  email-stack, caching-layer, extended-communication, extended-productivity,")
+            println("                  vault, all")
             exitProcess(1)
         }
     }
