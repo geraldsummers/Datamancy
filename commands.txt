@@ -19,12 +19,10 @@ docker image prune -af || true
 docker network prune -f || true
 
 sudo systemctl stop docker containerd
-sudo rm -rvf /mnt/raid/docker/nocow/*
 sudo rm -rvf ~/datamancy
 sudo rm -rvf /mnt/raid/docker
 sudo rm -rvf /mnt/vectors/qdrant/*
 sudo systemctl start docker containerd
-
 
 
 deployment blob:

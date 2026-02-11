@@ -9,21 +9,11 @@ volumes:
   ldap_data:
   mailserver_data:
   mariadb_data:
-    driver: local
-    driver_opts:
-      type: bind
-      o: bind
-      device: ${NOCOW_DB_DIR}/mariadb
   onlyoffice_data:
   open_webui_data:
   planka_data:
   planka_caddy_ca:
   postgres_data:
-    driver: local
-    driver_opts:
-      type: bind
-      o: bind
-      device: ${NOCOW_DB_DIR}/postgres
   prometheus_data:
   radicale_data:
   redis_data:

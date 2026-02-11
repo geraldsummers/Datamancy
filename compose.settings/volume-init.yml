@@ -10,17 +10,10 @@ services:
         mkdir -p ${VECTOR_DB_ROOT}/qdrant
         mkdir -p ${QBITTORRENT_DATA_ROOT}
         mkdir -p ${SEAFILE_MEDIA_ROOT}
-        mkdir -p ${NOCOW_DB_DIR}/mariadb
-        mkdir -p ${NOCOW_DB_DIR}/postgres
         echo "Setting permissions..."
         chmod 755 ${VECTOR_DB_ROOT}/qdrant
         chmod 755 ${QBITTORRENT_DATA_ROOT}
         chmod 755 ${SEAFILE_MEDIA_ROOT}
-        echo "Setting database permissions (MariaDB: uid 999, PostgreSQL: uid 999)..."
-        chown -R 999:999 ${NOCOW_DB_DIR}/mariadb
-        chown -R 999:999 ${NOCOW_DB_DIR}/postgres
-        chmod 755 ${NOCOW_DB_DIR}/mariadb
-        chmod 755 ${NOCOW_DB_DIR}/postgres
         echo "Setting Vault permissions (runs as uid 100)..."
         chown -R 100:100 /vault/data /vault/logs || true
         chmod 755 /vault/data /vault/logs
