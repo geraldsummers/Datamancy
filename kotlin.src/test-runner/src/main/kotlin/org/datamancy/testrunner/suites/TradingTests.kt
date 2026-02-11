@@ -9,77 +9,18 @@ import org.datamancy.testrunner.framework.*
 /**
  * Integration tests for trading infrastructure services.
  *
- * Validates the complete trading stack:
+ * Validates the trading stack:
  * - tx-gateway: Ktor REST API with JWT auth, LDAP authorization, rate limiting
  * - evm-broadcaster: Python Flask worker for EVM L2 transfers (Base, Arbitrum, Optimism)
  * - hyperliquid-worker: Python Flask worker for Hyperliquid perpetual futures
- * - vault: HashiCorp Vault for credential storage
- * - web3signer: ConsenSys Web3Signer for remote transaction signing
  *
  * Tests cover:
  * - Health checks across all services
- * - Service dependency validation (vault, web3signer, postgres, ldap)
+ * - Service dependency validation (postgres, ldap)
  * - Basic API endpoint availability
  * - Integration readiness (not actual trading operations)
  */
 suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
-
-    // ============================================================================
-    // Vault Tests - Key/Secret Storage
-    // ============================================================================
-
-    test("Vault: Health check") {
-        val response = client.getRawResponse("${endpoints.vault}/v1/sys/health")
-
-        // Vault returns 200 when initialized and unsealed (dev mode)
-        // Returns 429, 472, 473, 501, or 503 for various unhealthy states
-        require(
-            response.status == HttpStatusCode.OK || response.status == HttpStatusCode.TooManyRequests
-        ) { "Vault health check failed with status: ${response.status}" }
-
-        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-        val initialized = json["initialized"]?.jsonPrimitive?.booleanOrNull
-        val sealed = json["sealed"]?.jsonPrimitive?.booleanOrNull
-
-        initialized shouldBe true
-        sealed shouldBe false
-
-        println("      ✓ Vault initialized and unsealed")
-    }
-
-    test("Vault: Version info") {
-        val response = client.getRawResponse("${endpoints.vault}/v1/sys/seal-status")
-        response.status shouldBe HttpStatusCode.OK
-
-        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-        val version = json["version"]?.jsonPrimitive?.content
-        val clusterName = json["cluster_name"]?.jsonPrimitive?.content
-
-        require(version != null) { "Vault version missing" }
-        println("      ✓ Vault version: $version, cluster: $clusterName")
-    }
-
-    // ============================================================================
-    // Web3Signer Tests - Remote Transaction Signing
-    // ============================================================================
-
-    test("Web3Signer: Health check") {
-        val response = client.getRawResponse("${endpoints.web3signer}/upcheck")
-        response.status shouldBe HttpStatusCode.OK
-
-        val body = response.bodyAsText()
-        body shouldContain "OK"
-
-        println("      ✓ Web3Signer service healthy")
-    }
-
-    test("Web3Signer: List public keys (empty on fresh install)") {
-        val response = client.getRawResponse("${endpoints.web3signer}/api/v1/eth2/publicKeys")
-        response.status shouldBe HttpStatusCode.OK
-
-        val json = Json.parseToJsonElement(response.bodyAsText()).jsonArray
-        println("      ✓ Web3Signer has ${json.size} keys loaded")
-    }
 
     // ============================================================================
     // EVM Broadcaster Tests - L2 Transfer Worker
@@ -240,7 +181,12 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
     }
 
     test("TX Gateway: Unauthenticated request rejected") {
-        val response = client.getRawResponse("${endpoints.txGateway}/api/v1/evm/transfer")
+        val response = client.post("${endpoints.txGateway}/api/v1/evm/transfer") {
+            headers {
+                append("Content-Type", "application/json")
+            }
+            setBody("{}")
+        }
 
         // Should return 401 Unauthorized without JWT token
         response.status shouldBe HttpStatusCode.Unauthorized
@@ -276,45 +222,6 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
     // ============================================================================
     // Cross-Service Integration Tests
     // ============================================================================
-
-    test("Integration: Vault → EVM Broadcaster credential flow") {
-        // Test that EVM Broadcaster can communicate with Vault
-        val response = client.getRawResponse("${endpoints.evmBroadcaster}/health/vault")
-        response.status shouldBe HttpStatusCode.OK
-
-        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-        val vaultStatus = json["vault"]?.jsonPrimitive?.content
-
-        vaultStatus shouldBe "connected"
-
-        println("      ✓ EVM Broadcaster → Vault connectivity verified")
-    }
-
-    test("Integration: Vault → Hyperliquid Worker credential flow") {
-        // Test that Hyperliquid Worker can communicate with Vault
-        val response = client.getRawResponse("${endpoints.hyperliquidWorker}/health/vault")
-        response.status shouldBe HttpStatusCode.OK
-
-        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-        val vaultStatus = json["vault"]?.jsonPrimitive?.content
-
-        vaultStatus shouldBe "connected"
-
-        println("      ✓ Hyperliquid Worker → Vault connectivity verified")
-    }
-
-    test("Integration: EVM Broadcaster → Web3Signer signing flow") {
-        // Test that EVM Broadcaster can communicate with Web3Signer
-        val response = client.getRawResponse("${endpoints.evmBroadcaster}/health/web3signer")
-        response.status shouldBe HttpStatusCode.OK
-
-        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-        val signerStatus = json["web3signer"]?.jsonPrimitive?.content
-
-        signerStatus shouldBe "reachable"
-
-        println("      ✓ EVM Broadcaster → Web3Signer connectivity verified")
-    }
 
     test("Integration: TX Gateway → PostgreSQL nonce management") {
         // Verify TX Gateway has proper database schema

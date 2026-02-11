@@ -243,7 +243,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "agent-security" -> runner.agentSecurityTests()
         "agent-llm-quality" -> runner.agentLlmQualityTests()
         "trading" -> runner.tradingTests()
-        "vault" -> runner.vaultTests()
+        // "vault" -> runner.vaultTests()  // Vault removed from deployment
         "all" -> {
             runner.foundationTests()
             runner.llmTests()
@@ -270,7 +270,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.isolatedDockerVmTests()
             runner.stackReplicationTests()
             runner.tradingTests()
-            runner.vaultTests()
+            // runner.vaultTests()  // Vault removed from deployment
         }
         else -> {
             println("❌ Unknown suite: $suite")

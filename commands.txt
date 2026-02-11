@@ -35,4 +35,4 @@ ssh -t gerald@latium.local "cd ~/datamancy && \
   docker compose down && \
   docker compose up -d && \
   docker compose up pipeline -d && \
-  docker compose up test-runner"
+  docker compose up integration-test-runner"

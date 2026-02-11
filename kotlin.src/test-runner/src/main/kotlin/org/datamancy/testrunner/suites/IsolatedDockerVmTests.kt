@@ -36,7 +36,12 @@ suspend fun TestRunner.isolatedDockerVmTests() = suite("Isolated Docker VM Tests
         val prodProcess = ProcessBuilder("docker", "ps", "--format", "{{.Names}}").start()
         val prodOutput = prodProcess.inputStream.bufferedReader().readText()
         prodProcess.waitFor()
-        val prodContainers = prodOutput.lines().filter { it.isNotBlank() }.toSet()
+        val testContainerPattern = Regex("isolated-docker-vm-.*-replication-\\d+")
+        val prodContainers = prodOutput.lines().filter { it.isNotBlank() }
+            // Filter out test containers from previous runs
+            .filter { !testContainerPattern.matches(it) }
+            .filter { !it.contains("-test-") }
+            .toSet()
 
         val overlap = isolatedContainers.intersect(prodContainers)
         if (overlap.isNotEmpty()) {
