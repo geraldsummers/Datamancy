@@ -117,7 +117,7 @@ class DatabaseService(
 
     fun allocateNonce(chainId: Long, fromAddress: String): Long {
         return transaction {
-            val existing = EvmNonces.select {
+            val existing = EvmNonces.selectAll().where {
                 (EvmNonces.chainId eq chainId) and (EvmNonces.fromAddress eq fromAddress)
             }.singleOrNull()
 
@@ -148,7 +148,7 @@ class DatabaseService(
 
         return transaction {
             // Count transactions in the last hour
-            val count = RateLimitWindows.select {
+            val count = RateLimitWindows.selectAll().where {
                 (RateLimitWindows.username eq username) and
                         (RateLimitWindows.windowStart greater oneHourAgo)
             }.sumOf { it[RateLimitWindows.txCount] }
@@ -158,7 +158,7 @@ class DatabaseService(
             } else {
                 // Increment counter
                 val windowStart = Instant.ofEpochSecond(now.epochSecond / 3600 * 3600)
-                val existing = RateLimitWindows.select {
+                val existing = RateLimitWindows.selectAll().where {
                     (RateLimitWindows.username eq username) and
                             (RateLimitWindows.windowStart eq windowStart)
                 }.singleOrNull()

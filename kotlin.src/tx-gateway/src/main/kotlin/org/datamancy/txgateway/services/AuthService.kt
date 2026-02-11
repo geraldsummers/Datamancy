@@ -5,7 +5,7 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.interfaces.DecodedJWT
 import org.slf4j.LoggerFactory
-import java.net.URL
+import java.net.URI
 import java.security.interfaces.RSAPublicKey
 import java.util.concurrent.TimeUnit
 
@@ -14,7 +14,7 @@ class AuthService(
         ?: "http://authelia:9091/.well-known/jwks.json"
 ) {
     private val logger = LoggerFactory.getLogger(AuthService::class.java)
-    private val jwkProvider = JwkProviderBuilder(URL(jwksUrl))
+    private val jwkProvider = JwkProviderBuilder(URI(jwksUrl).toURL())
         .cached(10, 24, TimeUnit.HOURS)
         .build()
 
