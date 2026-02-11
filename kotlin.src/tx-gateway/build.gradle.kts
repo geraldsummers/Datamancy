@@ -15,7 +15,7 @@ dependencies {
 
     // Ktor Server
     implementation(libs.bundles.ktor.server)
-    implementation("io.ktor:ktor-server-cors:2.3.8")
+    implementation("io.ktor:ktor-server-cors:3.0.2")
 
     // Database
     implementation("org.postgresql:postgresql:42.7.1")
@@ -43,7 +43,7 @@ dependencies {
 
     // Testing
     testImplementation(libs.bundles.testing)
-    testImplementation("io.ktor:ktor-server-test-host:2.3.8")
+    testImplementation("io.ktor:ktor-server-test-host:3.0.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
 

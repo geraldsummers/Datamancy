@@ -312,27 +312,23 @@ class BookStackSink(
         bookCache[name]?.let { return it }
 
         // Search for existing book via API (slow path)
-        try {
-            val searchRequest = Request.Builder()
-                .url("$bookstackUrl/api/books")
-                .header("Authorization", "Token $tokenId:$tokenSecret")
-                .get()
-                .build()
+        val searchRequest = Request.Builder()
+            .url("$bookstackUrl/api/books")
+            .header("Authorization", "Token $tokenId:$tokenSecret")
+            .get()
+            .build()
 
-            val bodyString = executeWithRetry(searchRequest)
-            val json = JsonParser.parseString(bodyString).asJsonObject
-            val books = json.getAsJsonArray("data")
+        val bodyString = executeWithRetry(searchRequest)
+        val json = JsonParser.parseString(bodyString).asJsonObject
+        val books = json.getAsJsonArray("data")
 
-            for (book in books) {
-                val bookObj = book.asJsonObject
-                if (bookObj.get("name").asString == name) {
-                    val id = bookObj.get("id").asInt
-                    bookCache[name] = id
-                    return id
-                }
+        for (book in books) {
+            val bookObj = book.asJsonObject
+            if (bookObj.get("name").asString == name) {
+                val id = bookObj.get("id").asInt
+                bookCache[name] = id
+                return id
             }
-        } catch (e: Exception) {
-            logger.warn(e) { "Failed to search for book: ${e.message}" }
         }
 
         // Book doesn't exist - create it
@@ -347,9 +343,9 @@ class BookStackSink(
             .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 
-        val bodyString = executeWithRetry(request)
-        val json = JsonParser.parseString(bodyString).asJsonObject
-        val id = json.get("id").asInt
+        val createResponse = executeWithRetry(request)
+        val createJson = JsonParser.parseString(createResponse).asJsonObject
+        val id = createJson.get("id").asInt
         bookCache[name] = id
         logger.info { "Created BookStack book: $name (ID: $id)" }
         return id
@@ -385,28 +381,24 @@ class BookStackSink(
         chapterCache[cacheKey]?.let { return it }
 
         // Search for existing chapter within book (via book contents API)
-        try {
-            val searchRequest = Request.Builder()
-                .url("$bookstackUrl/api/books/$bookId")
-                .header("Authorization", "Token $tokenId:$tokenSecret")
-                .get()
-                .build()
+        val searchRequest = Request.Builder()
+            .url("$bookstackUrl/api/books/$bookId")
+            .header("Authorization", "Token $tokenId:$tokenSecret")
+            .get()
+            .build()
 
-            val bodyString = executeWithRetry(searchRequest)
-            val json = JsonParser.parseString(bodyString).asJsonObject
-            val contents = json.getAsJsonArray("contents")
+        val bodyString = executeWithRetry(searchRequest)
+        val json = JsonParser.parseString(bodyString).asJsonObject
+        val contents = json.getAsJsonArray("contents")
 
-            for (content in contents) {
-                val contentObj = content.asJsonObject
-                if (contentObj.get("type").asString == "chapter" &&
-                    contentObj.get("name").asString == name) {
-                    val id = contentObj.get("id").asInt
-                    chapterCache[cacheKey] = id
-                    return id
-                }
+        for (content in contents) {
+            val contentObj = content.asJsonObject
+            if (contentObj.get("type").asString == "chapter" &&
+                contentObj.get("name").asString == name) {
+                val id = contentObj.get("id").asInt
+                chapterCache[cacheKey] = id
+                return id
             }
-        } catch (e: Exception) {
-            logger.warn(e) { "Failed to search for chapter: ${e.message}" }
         }
 
         // Chapter doesn't exist - create it
@@ -422,9 +414,9 @@ class BookStackSink(
             .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 
-        val bodyString = executeWithRetry(request)
-        val json = JsonParser.parseString(bodyString).asJsonObject
-        val id = json.get("id").asInt
+        val createResponse = executeWithRetry(request)
+        val createJson = JsonParser.parseString(createResponse).asJsonObject
+        val id = createJson.get("id").asInt
         chapterCache[cacheKey] = id
         logger.info { "Created BookStack chapter: $name (ID: $id)" }
         return id
@@ -471,34 +463,30 @@ class BookStackSink(
 
         // If not in cache, search via API to check if page already exists
         if (existingPageId == null) {
-            try {
-                val encodedTitle = URLEncoder.encode(doc.pageTitle, "UTF-8")
-                val searchRequest = Request.Builder()
-                    .url("$bookstackUrl/api/pages?filter[name]=$encodedTitle")
-                    .header("Authorization", "Token $tokenId:$tokenSecret")
-                    .get()
-                    .build()
+            val encodedTitle = URLEncoder.encode(doc.pageTitle, "UTF-8")
+            val searchRequest = Request.Builder()
+                .url("$bookstackUrl/api/pages?filter[name]=$encodedTitle")
+                .header("Authorization", "Token $tokenId:$tokenSecret")
+                .get()
+                .build()
 
-                val bodyString = executeWithRetry(searchRequest)
-                val json = JsonParser.parseString(bodyString).asJsonObject
-                val pages = json.getAsJsonArray("data")
+            val bodyString = executeWithRetry(searchRequest)
+            val json = JsonParser.parseString(bodyString).asJsonObject
+            val pages = json.getAsJsonArray("data")
 
-                for (page in pages) {
-                    val pageObj = page.asJsonObject
-                    // Match on book ID and chapter ID to find correct page (title alone may not be unique)
-                    val pageBookId = pageObj.get("book_id").asInt
-                    val pageChapterId = pageObj.get("chapter_id")?.let {
-                        if (it.isJsonNull) null else it.asInt
-                    }
-
-                    if (pageBookId == bookId && pageChapterId == chapterId) {
-                        existingPageId = pageObj.get("id").asInt
-                        pageCache[cacheKey] = existingPageId!!
-                        break
-                    }
+            for (page in pages) {
+                val pageObj = page.asJsonObject
+                // Match on book ID and chapter ID to find correct page (title alone may not be unique)
+                val pageBookId = pageObj.get("book_id").asInt
+                val pageChapterId = pageObj.get("chapter_id")?.let {
+                    if (it.isJsonNull) null else it.asInt
                 }
-            } catch (e: Exception) {
-                logger.warn(e) { "Failed to search for existing page: ${e.message}" }
+
+                if (pageBookId == bookId && pageChapterId == chapterId) {
+                    existingPageId = pageObj.get("id").asInt
+                    pageCache[cacheKey] = existingPageId!!
+                    break
+                }
             }
         }
 

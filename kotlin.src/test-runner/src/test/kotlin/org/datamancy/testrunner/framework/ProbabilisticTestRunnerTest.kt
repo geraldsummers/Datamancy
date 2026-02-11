@@ -179,14 +179,16 @@ class ProbabilisticTestRunnerTest {
 
         @Test
         fun `should fail when p95 exceeds threshold`() = runBlocking {
+            var count = 0
             val result = probRunner.latencyTest(
                 name = "High p95 test",
                 trials = 20,
                 maxMedianLatency = 1000,
                 maxP95Latency = 100
             ) {
-                
-                if ((0..19).random() > 17) 500L else 50L
+                // Deterministic: 18 fast responses (50ms) + 2 slow responses (500ms)
+                // This ensures p95 (19th value when sorted) will be 500ms
+                if (count++ >= 18) 500L else 50L
             }
 
             assertFalse(result.passed)

@@ -120,18 +120,20 @@ fun Application.configureApp(
         }
 
         get("/") {
-            call.respond(HttpStatusCode.OK, mapOf(
-                "service" to "tx-gateway",
-                "version" to "1.0.0",
-                "endpoints" to listOf(
+            call.respondText("""
+                {
+                  "service": "tx-gateway",
+                  "version": "1.0.0",
+                  "endpoints": [
                     "/api/v1/hyperliquid/order",
                     "/api/v1/hyperliquid/cancel/{orderId}",
                     "/api/v1/hyperliquid/positions",
                     "/api/v1/hyperliquid/balance",
                     "/api/v1/evm/transfer",
                     "/api/v1/evm/addressbook/{user}"
-                )
-            ))
+                  ]
+                }
+            """.trimIndent(), ContentType.Application.Json)
         }
 
         hyperliquidRoutes(authService, ldapService, workerClient, dbService)

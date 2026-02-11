@@ -109,10 +109,11 @@ class ProbabilisticTestRunner(
         repeat(trials) { trial ->
             var duration = 0L
             val success = try {
+                var result = false
                 duration = measureTimeMillis {
-                    context.block()
+                    result = context.block()
                 }
-                true
+                result
             } catch (e: Exception) {
                 false
             }
@@ -236,6 +237,8 @@ class ProbabilisticTestRunner(
             passed = passed
         )
 
+        results.add(result)
+
         if (passed) {
             println("✓ OK (median=${median}ms, p95=${p95}ms, mean=${mean}ms±${stdDev}ms)")
         } else {
@@ -316,6 +319,8 @@ class ProbabilisticTestRunner(
             minOpsPerSecond = minOpsPerSecond,
             passed = passed
         )
+
+        results.add(result)
 
         if (passed) {
             println("✓ OK (${String.format("%.2f", opsPerSecond)}ops/s, $operations ops, ${(errorRate * 100).toInt()}% errors)")
