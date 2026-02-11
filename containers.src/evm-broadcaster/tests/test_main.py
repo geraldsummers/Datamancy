@@ -116,10 +116,9 @@ class TestSignTransaction:
     def test_sign_transaction_with_prefix(self):
         """Test signing with 0x prefix"""
         private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-        # The from address must match the private key's address
+        # In eth-account 0.13+, 'from' field should not be included
         tx = {
-            'from': '0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb',
-            'to': '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',  # Valid checksummed address
+            'to': '0x0000000000000000000000000000000000000001',
             'value': 1000000000000000000,
             'gas': 21000,
             'gasPrice': 1000000000,
@@ -132,10 +131,9 @@ class TestSignTransaction:
     def test_sign_transaction_without_prefix(self):
         """Test signing without 0x prefix"""
         private_key = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-        # The from address must match the private key's address
+        # In eth-account 0.13+, 'from' field should not be included
         tx = {
-            'from': '0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb',
-            'to': '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',  # Valid checksummed address
+            'to': '0x0000000000000000000000000000000000000001',
             'value': 1000000000000000000,
             'gas': 21000,
             'gasPrice': 1000000000,

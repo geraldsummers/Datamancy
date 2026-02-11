@@ -146,7 +146,8 @@ def sign_transaction(tx: dict, private_key: str) -> str:
 
     account = Account.from_key(private_key)
     signed_tx = account.sign_transaction(tx)
-    return signed_tx.rawTransaction.hex()
+    # In eth-account 0.13+, rawTransaction is renamed to raw_transaction
+    return signed_tx.raw_transaction.hex()
 
 
 def broadcast_tx(chain: str, signed_tx: str) -> str:
