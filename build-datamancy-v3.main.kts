@@ -468,7 +468,13 @@ fun runPythonTests() {
             // Install test dependencies in venv
             val reqFile = serviceDir.resolve("requirements.txt")
             if (reqFile.exists()) {
-                exec(pipPath.absolutePath, "install", "-q", "-r", reqFile.absolutePath)
+                val installExitCode = exec(pipPath.absolutePath, "install", "-q", "-r", reqFile.absolutePath, ignoreError = true)
+
+                if (installExitCode != 0) {
+                    error("Failed to install Python dependencies. You may need to install system packages:")
+                    error("  sudo apt install libpq-dev python3-dev")
+                    exitProcess(1)
+                }
             }
 
             // Run pytest in venv
