@@ -60,7 +60,7 @@ private val logger = KotlinLogging.logger {}
  * - Full-text search alone misses semantic variations (e.g., "container orchestration" vs "k8s")
  * - Hybrid search combines strengths of both approaches for maximum relevance
  *
- * @property qdrantUrl Qdrant gRPC endpoint (default: http://qdrant:6334)
+ * @property qdrantUrl Qdrant gRPC endpoint (default: qdrant:6334)
  * @property postgresJdbcUrl PostgreSQL JDBC URL (default: jdbc:postgresql://postgres:5432/datamancy)
  * @property embeddingServiceUrl Embedding Service HTTP endpoint (default: http://embedding-service:8000)
  */
@@ -83,7 +83,7 @@ class SearchGateway(
 
     // Qdrant gRPC client for vector similarity search
     // Uses cosine distance to find semantically similar documents
-    // Parse the Qdrant URL - supports formats like "http://qdrant:6334", "qdrant:6334", or just "qdrant"
+    // Parse the Qdrant URL - supports formats like "qdrant:6334", "grpc://qdrant:6334", or just "qdrant"
     private val qdrantCleanUrl = qdrantUrl
         .removePrefix("http://")
         .removePrefix("https://")

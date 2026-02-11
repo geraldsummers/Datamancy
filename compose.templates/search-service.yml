@@ -19,7 +19,7 @@ services:
         condition: service_started
     environment:
       SEARCH_SERVICE_PORT: 8098
-      QDRANT_URL: http://qdrant:6334
+      QDRANT_URL: qdrant:6334
       QDRANT_API_KEY: ${QDRANT_ADMIN_API_KEY}
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
       POSTGRES_USER: datamancer
