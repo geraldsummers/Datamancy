@@ -75,7 +75,7 @@ fun Application.configureApp(
             } catch (e: Exception) {
                 false
             }
-            call.respond(HttpStatusCode.OK, mapOf("database" to if (dbHealthy) "healthy" else "unhealthy"))
+            call.respond(HttpStatusCode.OK, mapOf("database" to if (dbHealthy) "connected" else "disconnected"))
         }
 
         get("/health/ldap") {
@@ -85,7 +85,7 @@ fun Application.configureApp(
             } catch (e: Exception) {
                 false
             }
-            call.respond(HttpStatusCode.OK, mapOf("ldap" to if (ldapHealthy) "healthy" else "unhealthy"))
+            call.respond(HttpStatusCode.OK, mapOf("ldap" to if (ldapHealthy) "connected" else "disconnected"))
         }
 
         get("/health/authelia") {
@@ -95,7 +95,7 @@ fun Application.configureApp(
             } catch (e: Exception) {
                 false
             }
-            call.respond(HttpStatusCode.OK, mapOf("authelia" to if (autheliaHealthy) "healthy" else "unhealthy"))
+            call.respond(HttpStatusCode.OK, mapOf("authelia" to if (autheliaHealthy) "reachable" else "unreachable"))
         }
 
         get("/health/workers") {
@@ -105,8 +105,8 @@ fun Application.configureApp(
                 Pair(false, false)
             }
             call.respond(HttpStatusCode.OK, mapOf(
-                "evm_broadcaster" to if (evmHealthy) "healthy" else "unhealthy",
-                "hyperliquid_worker" to if (hlHealthy) "healthy" else "unhealthy"
+                "evm_broadcaster" to if (evmHealthy) "reachable" else "unreachable",
+                "hyperliquid_worker" to if (hlHealthy) "reachable" else "unreachable"
             ))
         }
 
