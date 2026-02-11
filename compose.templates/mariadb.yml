@@ -23,7 +23,7 @@ services:
           healthcheck.sh --connect --innodb_initialized && \
           mariadb -u root -p"$$MYSQL_ROOT_PASSWORD" -e "SELECT 1" >/dev/null
       interval: 10s
-      timeout: 4s
+      timeout: 10s
       retries: 30
       start_period: 30s
 
