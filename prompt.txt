@@ -41,6 +41,7 @@ HYPE HYPE HYPEEEEE
 full clean up run somtimes:
 
 # 0) Stop everything (best-effort)
+sudo echo
 docker ps -q | xargs -r docker stop -t 0 || true
 
 # 1) Force-remove all containers (handles stuck ones)
@@ -57,7 +58,9 @@ docker volume prune -af || true
 docker image prune -af || true
 docker network prune -f || true
 
+sudo systemctl stop docker containerd
 sudo rm -rvf /mnt/raid/docker/nocow/*
 sudo rm -rvf ~/datamancy
-sudo rm -rvf /mnt/raid/docker/*
+sudo rm -rvf /mnt/raid/docker
 sudo rm -rvf /mnt/vectors/qdrant/*
+sudo systemctl start docker containerd
