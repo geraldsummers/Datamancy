@@ -77,9 +77,12 @@ async function globalSetup(config: FullConfig) {
   // Perform initial authentication with Authelia to get session
   console.log('🔐 Authenticating with Authelia...\n');
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    args: ['--ignore-certificate-errors']
+  });
   const context = await browser.newContext({
-    ignoreHTTPSErrors: true  // Trust self-signed certificates
+    ignoreHTTPSErrors: true,  // Trust self-signed certificates
+    bypassCSP: true  // Bypass Content Security Policy
   });
   const page = await context.newPage();
 
@@ -87,9 +90,11 @@ async function globalSetup(config: FullConfig) {
     // Navigate to a protected page to trigger auth
     // Use subdomain route (grafana.domain) but connect to Caddy internally to avoid NAT hairpin
     const domain = process.env.DOMAIN || 'datamancy.net';
-    // Use HTTPS if baseUrl includes caddy (internal routing), otherwise use as-is
-    const protocol = baseUrl.includes('caddy') ? 'https' : 'http';
-    const caddyBase = baseUrl.includes('caddy') ? baseUrl.replace('http://', 'https://').replace('http:', 'https:') : baseUrl;
+    // Use HTTP for internal Docker routing to Caddy (SSL termination happens at Caddy)
+    // Only use HTTPS if explicitly connecting via public domain
+    const useHttps = !baseUrl.includes('caddy') && !baseUrl.includes('localhost');
+    const protocol = useHttps ? 'https' : 'http';
+    const caddyBase = baseUrl.startsWith('http') ? baseUrl : `${protocol}://${baseUrl}`;
     const grafanaUrl = `${caddyBase}/grafana`;
 
     console.log(`   🔍 Grafana URL: ${grafanaUrl}`);
