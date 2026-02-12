@@ -31,8 +31,6 @@ deployment blob:
 ./build-datamancy-v3.main.kts && \
 rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
 ssh -t gerald@latium.local "cd ~/datamancy && \
-  docker compose --profile='*' build --pull=false && \
-  docker compose down && \
-  docker compose up -d && \
+  docker compose up -d --build && \
   docker compose up pipeline -d && \
   docker compose up integration-test-runner"
