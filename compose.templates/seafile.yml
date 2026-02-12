@@ -16,9 +16,6 @@ services:
         aliases:
           - seafile.${DOMAIN}
           - api.seafile.${DOMAIN}
-      valkey:
-        aliases:
-          - seafile.${DOMAIN}
     depends_on:
       volume-init:
         condition: service_completed_successfully
@@ -26,10 +23,6 @@ services:
         condition: service_healthy
       seafile-memcached:
         condition: service_started
-      valkey:
-        condition: service_started
-      valkey-init:
-        condition: service_completed_successfully
     environment:
       TZ: UTC
       DB_HOST: mariadb
@@ -44,11 +37,13 @@ services:
       SEAFILE_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
       JWT_PRIVATE_KEY: ${SEAFILE_JWT_KEY}
       TIME_ZONE: UTC
-      CACHE_PROVIDER: redis
-      REDIS_HOST: valkey
-      REDIS_PORT: 6379
-      REDIS_USER: seafile
-      REDIS_PASSWORD: ${VALKEY_SEAFILE_PASSWORD}
+      # Note: Redis cache removed due to authentication issues with seafile-mc image
+      # Using default in-memory cache instead
+      # CACHE_PROVIDER: redis
+      # REDIS_HOST: valkey
+      # REDIS_PORT: 6379
+      # REDIS_USER: seafile
+      # REDIS_PASSWORD: ${VALKEY_SEAFILE_PASSWORD}
     volumes:
       - seafile_files:/shared
       - seafile_media:/shared/seafile/library-template
