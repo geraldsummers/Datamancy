@@ -17,6 +17,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
         return host to port
     }
 
+    // Get Valkey password from environment
+    val valkeyPassword = System.getenv("VALKEY_ADMIN_PASSWORD") ?: ""
+
     // Valkey (Redis-compatible) tests
     test("Valkey: Service is reachable") {
         val (host, port) = parseRedisUrl(endpoints.valkey)
@@ -36,6 +39,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val response = jedis.ping()
                 response shouldBe "PONG"
                 println("      ✓ Valkey PING successful")
@@ -50,6 +56,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val key = "test:integration:${System.currentTimeMillis()}"
                 val value = "test-value-${System.currentTimeMillis()}"
 
@@ -71,6 +80,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val key = "test:ttl:${System.currentTimeMillis()}"
                 val value = "expires-soon"
 
@@ -95,8 +107,14 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
             config.maxTotal = 10
             config.maxIdle = 5
 
-            JedisPool(config, host, port).use { pool ->
-                pool.resource.use { jedis ->
+            val pool = if (valkeyPassword.isNotEmpty()) {
+                JedisPool(config, host, port, 2000, "default", valkeyPassword)
+            } else {
+                JedisPool(config, host, port)
+            }
+
+            pool.use { p ->
+                p.resource.use { jedis ->
                     jedis.ping() shouldBe "PONG"
                 }
                 println("      ✓ Connection pooling successful")
@@ -113,6 +131,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
             val connections = (1..5).map {
                 Thread {
                     Jedis(host, port).use { jedis ->
+                        if (valkeyPassword.isNotEmpty()) {
+                            jedis.auth("default", valkeyPassword)
+                        }
                         jedis.set("concurrent:$it", "value-$it")
                         jedis.get("concurrent:$it")
                         jedis.del("concurrent:$it")
@@ -134,6 +155,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val hashKey = "test:hash:${System.currentTimeMillis()}"
                 val fields = mapOf(
                     "field1" to "value1",
@@ -159,6 +183,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val listKey = "test:list:${System.currentTimeMillis()}"
                 val items = listOf("item1", "item2", "item3")
 
@@ -180,6 +207,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val setKey = "test:set:${System.currentTimeMillis()}"
                 val members = setOf("member1", "member2", "member3")
 
@@ -201,6 +231,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val counterKey = "test:counter:${System.currentTimeMillis()}"
 
                 val count1 = jedis.incr(counterKey)
@@ -224,6 +257,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val key = "test:exists:${System.currentTimeMillis()}"
 
                 jedis.set(key, "test-value")
@@ -244,6 +280,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val info = jedis.info()
 
                 info shouldContain "redis_version"
@@ -259,6 +298,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
         try {
             Jedis(host, port).use { jedis ->
+                if (valkeyPassword.isNotEmpty()) {
+                    jedis.auth("default", valkeyPassword)
+                }
                 val dbSize = jedis.dbSize()
 
                 require(dbSize >= 0) { "Database size should be non-negative" }

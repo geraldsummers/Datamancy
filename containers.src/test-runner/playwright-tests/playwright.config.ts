@@ -39,8 +39,8 @@ export default defineConfig({
 
   /* Shared settings for all projects */
   use: {
-    /* Base URL for tests */
-    baseURL: process.env.BASE_URL || 'http://localhost',
+    /* Base URL for tests - use Caddy reverse proxy in container environment */
+    baseURL: process.env.BASE_URL || (process.env.TEST_ENV === 'container' ? 'http://caddy' : 'http://localhost'),
 
     /* Collect trace when retrying the failed test */
     trace: 'on-first-retry',
