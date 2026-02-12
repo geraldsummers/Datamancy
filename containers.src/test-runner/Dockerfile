@@ -43,12 +43,18 @@ RUN chown -R testing_container_user:testing_container_user /app && \
 
 ENV DOCKER_CONFIG=/home/testing_container_user/.docker
 
-# Switch to testing_container_user BEFORE installing Playwright
+# Install npm dependencies as testing_container_user
 USER testing_container_user
-
-# Install Playwright dependencies and browsers as testing_container_user
 WORKDIR /app/playwright-tests
-RUN npm ci && npx playwright install --with-deps chromium firefox
+RUN npm ci
+
+# Switch back to root to install Playwright system dependencies
+USER root
+RUN npx playwright install --with-deps chromium firefox
+
+# Install browsers as testing_container_user so they're in the correct home directory
+USER testing_container_user
+RUN npx playwright install chromium firefox
 
 WORKDIR /app
 
