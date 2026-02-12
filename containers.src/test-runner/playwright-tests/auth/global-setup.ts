@@ -90,9 +90,9 @@ async function globalSetup(config: FullConfig) {
     // Navigate to a protected page to trigger auth
     // Use subdomain route (grafana.domain) but connect to Caddy internally to avoid NAT hairpin
     const domain = process.env.DOMAIN || 'datamancy.net';
-    // Caddy redirects HTTP to HTTPS, so we must use HTTPS for internal Docker routing
-    // We trust self-signed certs via ignoreHTTPSErrors above
-    const protocol = 'https';
+    // Use HTTP for internal Docker network communication - Caddy serves HTTP internally
+    // External HTTPS is handled by Caddy for public access
+    const protocol = 'http';
     const caddyBase = baseUrl.startsWith('http') ? baseUrl : `${protocol}://${baseUrl}`;
     const grafanaUrl = `${caddyBase}/grafana`;
 
