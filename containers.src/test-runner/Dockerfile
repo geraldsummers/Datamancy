@@ -41,15 +41,16 @@ RUN chown -R datamancer:datamancer /app && \
     chown -R datamancer:datamancer /home/datamancer/.docker && \
     chmod -R 755 /home/datamancer/.docker
 
-# Install Playwright dependencies and browsers
+ENV DOCKER_CONFIG=/home/datamancer/.docker
+
+# Switch to datamancer user BEFORE installing Playwright
+USER datamancer
+
+# Install Playwright dependencies and browsers as datamancer user
 WORKDIR /app/playwright-tests
 RUN npm ci && npx playwright install --with-deps chromium firefox
 
 WORKDIR /app
-
-ENV DOCKER_CONFIG=/home/datamancer/.docker
-
-USER datamancer
 
 ENTRYPOINT ["java", "-jar", "/app/test-runner.jar", "--env", "container", "--suite"]
 CMD ["all"]
