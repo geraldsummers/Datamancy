@@ -194,12 +194,16 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
-            
+            val clientId = System.getenv("OIDC_CLIENT_ID") ?: "test-runner"
+            val clientSecret = System.getenv("OIDC_CLIENT_SECRET")
+                ?: error("OIDC_CLIENT_SECRET not set - ensure test-runner OIDC client is configured in Authelia")
+            val redirectUri = System.getenv("OIDC_REDIRECT_URI") ?: "urn:ietf:wg:oauth:2.0:oob"
+
             val tokens = oidc.performFullFlow(
-                clientId = "open-webui",
-                clientSecret = env.openwebuiOAuthSecret,
-                redirectUri = "https://open-webui.${env.domain}/oauth/oidc/callback",
-                scope = "openid profile email",
+                clientId = clientId,
+                clientSecret = clientSecret,
+                redirectUri = redirectUri,
+                scope = "openid profile email groups",
                 user = user
             )
 
@@ -219,10 +223,6 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
             println("        - Refresh Token: ${tokens.refreshToken?.take(20)}...")
             println("        - Expires In: ${tokens.expiresIn}s")
 
-        } catch (e: Exception) {
-            
-            println("      ℹ️  OIDC flow test: ${e.message}")
-            println("      ℹ️  This is expected if OIDC requires additional config")
         } finally {
             ldapHelper!!.deleteTestUser(user.username)
             auth.logout()
@@ -233,16 +233,21 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
+            val clientId = System.getenv("OIDC_CLIENT_ID") ?: "test-runner"
+            val clientSecret = System.getenv("OIDC_CLIENT_SECRET")
+                ?: error("OIDC_CLIENT_SECRET not set - ensure test-runner OIDC client is configured in Authelia")
+            val redirectUri = System.getenv("OIDC_REDIRECT_URI") ?: "urn:ietf:wg:oauth:2.0:oob"
+
             val tokens = oidc.performFullFlow(
-                clientId = "open-webui",
-                clientSecret = env.openwebuiOAuthSecret,
-                redirectUri = "https://open-webui.${env.domain}/oauth/oidc/callback",
+                clientId = clientId,
+                clientSecret = clientSecret,
+                redirectUri = redirectUri,
+                scope = "openid profile email groups",
                 user = user
             )
 
             require(tokens.idToken != null) { "No ID token received" }
 
-            
             val claims = oidc.decodeIdToken(tokens.idToken!!)
 
             require(claims.containsKey("sub")) { "ID token must have 'sub' (subject) claim" }
@@ -262,9 +267,6 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
             println("        - email: ${claims["email"]}")
             println("        - preferred_username: ${claims["preferred_username"]}")
 
-        } catch (e: Exception) {
-            println("      ℹ️  ID token validation: ${e.message}")
-            println("      ℹ️  This is expected if OIDC requires additional config")
         } finally {
             ldapHelper!!.deleteTestUser(user.username)
             auth.logout()
@@ -275,11 +277,16 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
         val user = ldapHelper!!.createEphemeralUser(groups = listOf("users")).getOrThrow()
 
         try {
-            
+            val clientId = System.getenv("OIDC_CLIENT_ID") ?: "test-runner"
+            val clientSecret = System.getenv("OIDC_CLIENT_SECRET")
+                ?: error("OIDC_CLIENT_SECRET not set - ensure test-runner OIDC client is configured in Authelia")
+            val redirectUri = System.getenv("OIDC_REDIRECT_URI") ?: "urn:ietf:wg:oauth:2.0:oob"
+
             val initialTokens = oidc.performFullFlow(
-                clientId = "open-webui",
-                clientSecret = env.openwebuiOAuthSecret,
-                redirectUri = "https://open-webui.${env.domain}/oauth/oidc/callback",
+                clientId = clientId,
+                clientSecret = clientSecret,
+                redirectUri = redirectUri,
+                scope = "openid profile email groups",
                 user = user
             )
 
@@ -287,10 +294,9 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
                 "No refresh token received from initial flow"
             }
 
-            
             val newTokens = oidc.refreshAccessToken(
-                clientId = "open-webui",
-                clientSecret = env.openwebuiOAuthSecret,
+                clientId = clientId,
+                clientSecret = clientSecret,
                 refreshToken = initialTokens.refreshToken!!
             )
 
@@ -305,9 +311,6 @@ suspend fun TestRunner.enhancedAuthenticationTests() = suite("Enhanced Authentic
             println("        - Original token: ${initialTokens.accessToken?.take(20)}...")
             println("        - Refreshed token: ${newTokens.accessToken?.take(20)}...")
 
-        } catch (e: Exception) {
-            println("      ℹ️  Token refresh test: ${e.message}")
-            println("      ℹ️  This is expected if OIDC requires additional config")
         } finally {
             ldapHelper!!.deleteTestUser(user.username)
             auth.logout()

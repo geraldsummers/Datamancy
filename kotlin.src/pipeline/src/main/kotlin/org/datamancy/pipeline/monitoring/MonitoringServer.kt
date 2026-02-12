@@ -63,6 +63,11 @@ class MonitoringServer(
                     call.respond(HealthResponse(status = "ok", message = "Pipeline service running"))
                 }
 
+                get("/actuator/health") {
+                    if (!call.requireAuth()) return@get
+                    call.respond(HealthResponse(status = "UP", message = "Pipeline service running"))
+                }
+
                 get("/status") {
                     if (!call.requireAuth()) return@get
 

@@ -14,12 +14,11 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     test("Grafana: Acquire API key and query datasources") {
         val grafanaPassword = System.getenv("GRAFANA_ADMIN_PASSWORD") ?: "admin"
 
-        
+
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("Grafana: Query datasources", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}. Check LDAP credentials and Authelia configuration."
         }
         println("      ✓ Authenticated with Authelia")
 
@@ -58,11 +57,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         val username = System.getenv("SEAFILE_USERNAME") ?: "admin@datamancy.local"
         val password = System.getenv("SEAFILE_PASSWORD") ?: "changeme"
 
-        
         val tokenResult = tokens.acquireSeafileToken(username, password)
-        if (tokenResult.isFailure) {
-            skip("Seafile: List libraries", "Token acquisition failed - admin user may not exist yet")
-            return@test
+        require(tokenResult.isSuccess) {
+            "Failed to acquire Seafile token: ${tokenResult.exceptionOrNull()?.message}. Ensure Seafile admin user exists."
         }
 
         val token = tokenResult.getOrThrow()
@@ -85,11 +82,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         val username = System.getenv("FORGEJO_USERNAME") ?: "admin"
         val password = System.getenv("FORGEJO_PASSWORD") ?: "changeme"
 
-        
         val tokenResult = tokens.acquireForgejoToken(username, password)
-        if (tokenResult.isFailure) {
-            skip("Forgejo: List repos", "Token acquisition failed - ${tokenResult.exceptionOrNull()?.message}")
-            return@test
+        require(tokenResult.isSuccess) {
+            "Failed to acquire Forgejo token: ${tokenResult.exceptionOrNull()?.message}. Check Forgejo admin credentials."
         }
 
         val token = tokenResult.getOrThrow()
@@ -117,11 +112,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         val email = System.getenv("PLANKA_EMAIL") ?: "admin@datamancy.local"
         val password = System.getenv("PLANKA_PASSWORD") ?: "changeme"
 
-        
         val tokenResult = tokens.acquirePlankaToken(email, password)
-        if (tokenResult.isFailure) {
-            skip("Planka: List boards", "Token acquisition failed - admin user may not exist yet")
-            return@test
+        require(tokenResult.isSuccess) {
+            "Failed to acquire Planka token: ${tokenResult.exceptionOrNull()?.message}. Ensure Planka admin user exists."
         }
 
         val token = tokenResult.getOrThrow()
@@ -144,20 +137,16 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         val username = System.getenv("QBITTORRENT_USERNAME") ?: "admin"
         val password = System.getenv("QBITTORRENT_PASSWORD") ?: "adminpass"
 
-        
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("Qbittorrent: Get version", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 
-        
         val sessionResult = tokens.acquireQbittorrentSession(username, password)
-        if (sessionResult.isFailure) {
-            skip("Qbittorrent: Get version", "Session acquisition failed - ${sessionResult.exceptionOrNull()?.message}")
-            return@test
+        require(sessionResult.isSuccess) {
+            "Failed to acquire qBittorrent session: ${sessionResult.exceptionOrNull()?.message}. Check qBittorrent credentials."
         }
         println("      ✓ Acquired Qbittorrent session cookie")
 
@@ -186,11 +175,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         val email = System.getenv("MASTODON_EMAIL") ?: "admin@datamancy.local"
         val password = System.getenv("MASTODON_PASSWORD") ?: "changeme"
 
-        
         val tokenResult = tokens.acquireMastodonToken(email, password)
-        if (tokenResult.isFailure) {
-            skip("Mastodon: Verify credentials", "Token acquisition failed - ${tokenResult.exceptionOrNull()?.message}")
-            return@test
+        require(tokenResult.isSuccess) {
+            "Failed to acquire Mastodon token: ${tokenResult.exceptionOrNull()?.message}. Check Mastodon credentials."
         }
 
         val token = tokenResult.getOrThrow()
@@ -218,21 +205,17 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         val email = System.getenv("OPEN_WEBUI_EMAIL") ?: "admin@datamancy.local"
         val password = System.getenv("OPEN_WEBUI_PASSWORD") ?: "changeme"
 
-        
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
         val autheliaResult = auth.login("admin", ldapPassword)
 
-        if (autheliaResult !is AuthResult.Success) {
-            skip("Open-WebUI: List models", "Authelia authentication failed - ${(autheliaResult as AuthResult.Error).message}")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 
-        
         val tokenResult = tokens.acquireOpenWebUIToken(email, password)
-        if (tokenResult.isFailure) {
-            skip("Open-WebUI: List models", "Open-WebUI token acquisition failed - user may not exist yet")
-            return@test
+        require(tokenResult.isSuccess) {
+            "Failed to acquire Open-WebUI token: ${tokenResult.exceptionOrNull()?.message}. Ensure Open-WebUI user exists."
         }
 
         val token = tokenResult.getOrThrow()
@@ -271,11 +254,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     test("JupyterHub: Authenticate and access hub API") {
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("JupyterHub: Access hub API", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 
@@ -301,11 +282,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     test("LiteLLM: Authenticate and access API") {
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("LiteLLM: Access API", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 
@@ -331,11 +310,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     test("Ntfy: Authenticate and access notification API") {
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("Ntfy: Access API", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 
@@ -361,11 +338,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     test("Kopia: Authenticate and access backup UI") {
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("Kopia: Access UI", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 
@@ -384,11 +359,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     test("Radicale: Authenticate and access CalDAV/CardDAV") {
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("Radicale: Access CalDAV", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 
@@ -414,11 +387,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     test("Roundcube: Authenticate and access webmail") {
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("Roundcube: Access webmail", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 
@@ -444,11 +415,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     test("Search Service: Authenticate and access API") {
         val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("Search Service: Access API", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 
@@ -481,9 +450,8 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
 
 
         val autheliaResult = auth.login("admin", ldapPassword)
-        if (autheliaResult !is AuthResult.Success) {
-            skip("Pipeline: Access API", "Authelia authentication failed")
-            return@test
+        require(autheliaResult is AuthResult.Success) {
+            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
         println("      ✓ Authenticated with Authelia")
 

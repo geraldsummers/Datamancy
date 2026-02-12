@@ -55,6 +55,10 @@ services:
       LDAP_ADMIN_DN: "cn=admin,${LDAP_BASE_DN}"
       LDAP_ADMIN_PASSWORD: "${LDAP_ADMIN_PASSWORD}"
 
+      OIDC_CLIENT_ID: "test-runner"
+      OIDC_CLIENT_SECRET: "${TEST_RUNNER_OAUTH_SECRET}"
+      OIDC_REDIRECT_URI: "urn:ietf:wg:oauth:2.0:oob"
+
       TEST_ENV: "container"
       TEST_USER_CONTEXT: "test-agent-user"
       DOMAIN: "${DOMAIN}"
