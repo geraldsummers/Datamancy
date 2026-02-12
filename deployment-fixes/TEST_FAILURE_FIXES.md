@@ -40,18 +40,24 @@ After deployment, all 11 Valkey tests should pass:
 **Issue:** Global setup fails with `ERR_CONNECTION_REFUSED at http://localhost/grafana`
 
 **Root Cause:**
-Playwright config was using `http://localhost` as baseURL, but tests run inside Docker container where services are accessed via Caddy reverse proxy at `http://caddy`.
+Playwright config was using `http://localhost` as baseURL. Tests should use the external domain URL (`https://${DOMAIN}`) to test the full stack including Caddy reverse proxy, SSL termination, and forward-auth with Authelia.
 
 **Fix Applied:**
 Updated `containers.src/test-runner/playwright-tests/playwright.config.ts`:
 ```typescript
-baseURL: process.env.BASE_URL || (process.env.TEST_ENV === 'container' ? 'http://caddy' : 'http://localhost')
+baseURL: process.env.BASE_URL || (process.env.DOMAIN ? `https://${process.env.DOMAIN}` : 'http://localhost')
 ```
+
+This ensures Playwright tests:
+- Go through Caddy reverse proxy
+- Test SSL/TLS setup
+- Verify forward-auth integration with Authelia
+- Use real domain routing (grafana.domain, mastodon.domain, etc.)
 
 **Verification:**
 After deployment, Playwright global setup should successfully:
-1. Navigate to `http://caddy/grafana`
-2. Get redirected to Authelia login
+1. Navigate to `https://${DOMAIN}/grafana` (e.g., `https://datamancy.local/grafana`)
+2. Get redirected to Authelia login at `https://auth.${DOMAIN}`
 3. Authenticate test user
 4. Save auth state for E2E tests
 

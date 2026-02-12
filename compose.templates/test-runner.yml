@@ -47,6 +47,7 @@ services:
       QDRANT_URL: "http://qdrant:6333"
       QDRANT_API_KEY: "${QDRANT_ADMIN_API_KEY}"
       VALKEY_URL: "valkey:6379"
+      VALKEY_ADMIN_PASSWORD: "${VALKEY_ADMIN_PASSWORD}"
 
       AUTHELIA_URL: "https://auth.datamancy.net"
       LDAP_URL: "ldap://ldap:389"
@@ -56,6 +57,7 @@ services:
 
       TEST_ENV: "container"
       TEST_USER_CONTEXT: "test-agent-user"
+      DOMAIN: "${DOMAIN}"
       STACK_ADMIN_USER: "${STACK_ADMIN_USER}"
       STACK_ADMIN_PASSWORD: "${STACK_ADMIN_PASSWORD}"
 
