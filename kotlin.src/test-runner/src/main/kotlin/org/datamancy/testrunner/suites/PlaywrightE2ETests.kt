@@ -23,7 +23,8 @@ suspend fun TestRunner.playwrightE2ETests() {
             // Set environment variables for Playwright tests
             val ldapUrl = this@playwrightE2ETests.env.endpoints.ldap ?: "ldap://openldap:389"
             val autheliaUrl = this@playwrightE2ETests.env.endpoints.authelia.replace("https://", "http://").replace(":9091", "")
-            val baseUrl = "http://localhost" // Adjust based on environment
+            // Use Caddy internal proxy to avoid NAT hairpin issues (external domain routes through Cloudflare)
+            val baseUrl = System.getenv("BASE_URL") ?: "http://caddy"
 
             val processBuilder = ProcessBuilder(
                 "npm", "run", "test:e2e",
