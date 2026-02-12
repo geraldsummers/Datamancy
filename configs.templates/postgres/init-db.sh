@@ -217,15 +217,39 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQ
         error_message TEXT,
         execution_time_ms INTEGER
     );
+    -- Document staging table for embedding pipeline
+    CREATE TABLE IF NOT EXISTS document_staging (
+        id VARCHAR(500) PRIMARY KEY,
+        source VARCHAR(255) NOT NULL,
+        collection VARCHAR(255) NOT NULL,
+        text TEXT NOT NULL,
+        metadata TEXT NOT NULL,
+        embedding_status VARCHAR(50) NOT NULL,
+        chunk_index INTEGER,
+        total_chunks INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT,
+        bookstack_url TEXT,
+        vector_id VARCHAR(500)
+    );
     -- Create indexes for performance
     CREATE INDEX IF NOT EXISTS dedupe_records_hash_idx ON dedupe_records(content_hash);
     CREATE INDEX IF NOT EXISTS dedupe_records_first_seen_idx ON dedupe_records(first_seen);
     CREATE INDEX IF NOT EXISTS fetch_history_source_idx ON fetch_history(source);
     CREATE INDEX IF NOT EXISTS fetch_history_fetched_at_idx ON fetch_history(fetched_at);
     CREATE INDEX IF NOT EXISTS fetch_history_status_idx ON fetch_history(status);
+    CREATE INDEX IF NOT EXISTS idx_staging_status_created ON document_staging(embedding_status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_staging_source ON document_staging(source);
     -- Grant ownership to pipeline_user (these tables are unused/legacy but keeping for backwards compatibility)
     ALTER TABLE dedupe_records OWNER TO pipeline_user;
     ALTER TABLE fetch_history OWNER TO pipeline_user;
+    ALTER TABLE document_staging OWNER TO pipeline_user;
+    -- Grant read permissions to search_service_user and test_runner_user
+    GRANT SELECT ON dedupe_records TO search_service_user, test_runner_user;
+    GRANT SELECT ON fetch_history TO search_service_user, test_runner_user;
+    GRANT SELECT ON document_staging TO search_service_user, test_runner_user;
 EOSQL
 echo "Datamancy database tables initialized successfully"
 for db in grafana planka mastodon forgejo; do
