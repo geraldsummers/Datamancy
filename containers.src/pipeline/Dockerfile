@@ -9,19 +9,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -r datamancer && useradd -r -g datamancer datamancer
+RUN groupadd -r pipeline && useradd -r -g pipeline pipeline
 
 WORKDIR /app
 
 COPY kotlin.src/pipeline/build/libs/pipeline-1.0.0-all.jar /app/pipeline.jar
 
-RUN mkdir -p /app/config && chown -R datamancer:datamancer /app
+RUN mkdir -p /app/config && chown -R pipeline:pipeline /app
 
 RUN echo '#!/bin/bash\n\
 set -e\n\
 if [ -d /data ]; then\n\
   echo "Fixing /data permissions..."\n\
-  chown -R datamancer:datamancer /data || echo "Warning: Could not change /data ownership"\n\
+  chown -R pipeline:pipeline /data || echo "Warning: Could not change /data ownership"\n\
 fi\n\
 if [ -f /shared-credentials/bookstack-api-token.env ]; then\n\
   echo "[Pipeline] Loading BookStack API credentials from shared volume..."\n\
@@ -33,7 +33,7 @@ elif [ -z "$BOOKSTACK_TOKEN_ID" ] || [ -z "$BOOKSTACK_TOKEN_SECRET" ]; then\n\
   echo "[Pipeline] WARNING: BookStack credentials not found in shared volume or env"\n\
   echo "[Pipeline] BookStack integration will be disabled"\n\
 fi\n\
-exec gosu datamancer "$@"\n\
+exec gosu pipeline "$@"\n\
 ' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 8090

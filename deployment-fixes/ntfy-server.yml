@@ -11,7 +11,7 @@ auth-default-access: write-only
 # Alternative: If you want full authentication, use:
 # auth-default-access: deny-all
 # auth-file: /var/lib/ntfy/user.db
-# Then create user: docker exec ntfy ntfy user add --role=admin datamancer
+# Then create user: docker exec ntfy ntfy user add --role=admin ntfy_admin
 
 # Behind reverse proxy
 behind-proxy: true
