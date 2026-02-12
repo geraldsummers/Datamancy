@@ -19,8 +19,10 @@ async function globalSetup(config: FullConfig) {
   const ldapUrl = process.env.LDAP_URL || 'ldap://localhost:10389';
   const ldapAdminDn = process.env.LDAP_ADMIN_DN || 'cn=admin,dc=datamancy,dc=net';
   const ldapAdminPassword = process.env.LDAP_ADMIN_PASSWORD || 'admin';
-  const baseUrl = (config as any).use?.baseURL || 'http://localhost';
+  // Read from env var (set by Kotlin wrapper) or config, fallback to localhost
+  const baseUrl = process.env.BASE_URL || (config as any).use?.baseURL || 'http://localhost';
 
+  console.log(`🔍 Debug: BASE_URL env var = ${process.env.BASE_URL || 'NOT SET'}`);
   console.log(`🔍 Debug: DOMAIN env var = ${process.env.DOMAIN || 'NOT SET'}`);
   console.log(`🔍 Debug: baseURL from config = ${(config as any).use?.baseURL || 'NOT SET'}`);
   console.log(`🔍 Debug: Final baseURL = ${baseUrl}`);
