@@ -34,10 +34,9 @@ services:
       POSTGRES_HOST: "postgres"
       POSTGRES_PORT: "5432"
       POSTGRES_DB: "datamancy"
-      POSTGRES_USER: "datamancer"
-      POSTGRES_PASSWORD: "${POSTGRES_DATAMANCY_PASSWORD}"
+      POSTGRES_USER: "${POSTGRES_TEST_RUNNER_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_TEST_RUNNER_PASSWORD}"
       POSTGRES_ADMIN_PASSWORD: "${POSTGRES_ADMIN_PASSWORD}"
-      POSTGRES_DATAMANCY_PASSWORD: "${POSTGRES_DATAMANCY_PASSWORD}"
 
       MARIADB_HOST: "mariadb"
       MARIADB_PORT: "3306"
@@ -81,7 +80,7 @@ services:
     user: "1000:1000"
 
     volumes:
-      - ${HOME}/.ssh:/home/appuser/.ssh:ro
+      - ${HOME}/.ssh:/home/testing_container_user/.ssh:ro
 
     tmpfs:
       - /tmp

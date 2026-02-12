@@ -137,12 +137,12 @@ object DocumentStagingTable : Table("document_staging") {
  * - Graceful degradation: Ingestion continues even when embedding service is down
  *
  * @property jdbcUrl PostgreSQL connection string (e.g., jdbc:postgresql://db:5432/datamancy)
- * @property user Database username (default: datamancer)
+ * @property user Database username (default: pipeline_user)
  * @property dbPassword Database password
  */
 class DocumentStagingStore(
     private val jdbcUrl: String,
-    private val user: String = "datamancer",
+    private val user: String = "pipeline_user",
     private val dbPassword: String = ""
 ) : AutoCloseable {
     private val json = Json { ignoreUnknownKeys = true }

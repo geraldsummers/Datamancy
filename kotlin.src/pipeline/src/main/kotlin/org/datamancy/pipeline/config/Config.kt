@@ -164,7 +164,7 @@ data class PipelineConfig(
                 ),
                 postgres = PostgresConfig(
                     jdbcUrl = getEnvOrProperty("POSTGRES_JDBC_URL") ?: "jdbc:postgresql://postgres:5432/datamancy",
-                    user = getEnvOrProperty("POSTGRES_USER") ?: "datamancer",
+                    user = getEnvOrProperty("POSTGRES_USER") ?: "pipeline_user",
                     password = (getEnvOrProperty("POSTGRES_PASSWORD") ?: "").also { pwd ->
                         if (pwd.isEmpty()) {
                             println("WARNING: POSTGRES_PASSWORD is empty or not set!")
@@ -254,7 +254,7 @@ data class QdrantConfig(
 @Serializable
 data class PostgresConfig(
     val jdbcUrl: String = "jdbc:postgresql://postgres:5432/datamancy",
-    val user: String = "datamancer",
+    val user: String = "pipeline_user",
     val password: String = ""
 )
 

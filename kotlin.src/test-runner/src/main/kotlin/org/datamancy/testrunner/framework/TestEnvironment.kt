@@ -148,8 +148,8 @@ data class ServiceEndpoints(
                 host = env("POSTGRES_HOST") ?: "postgres",
                 port = env("POSTGRES_PORT")?.toInt() ?: 5432,
                 database = env("POSTGRES_DB") ?: "datamancy",
-                user = env("POSTGRES_USER") ?: "datamancer",
-                password = env("POSTGRES_PASSWORD") ?: env("POSTGRES_DATAMANCY_PASSWORD") ?: ""
+                user = env("POSTGRES_USER") ?: "test_runner_user",
+                password = env("POSTGRES_PASSWORD") ?: ""
             ),
             mariadb = DatabaseConfig(
                 host = env("MARIADB_HOST") ?: "mariadb",
@@ -228,7 +228,7 @@ data class ServiceEndpoints(
             pipeline = "http://localhost:18080",
             liteLLM = "http://localhost:14001",
             bookstack = "http://localhost:10080",
-            postgres = DatabaseConfig("localhost", 15432, "datamancy", "datamancer", ""),
+            postgres = DatabaseConfig("localhost", 15432, "datamancy", "test_runner_user", ""),
             mariadb = DatabaseConfig("localhost", 13306, "bookstack", "bookstack", ""),
             qdrant = "http://localhost:16333",
             qdrantApiKey = env("QDRANT_API_KEY"),

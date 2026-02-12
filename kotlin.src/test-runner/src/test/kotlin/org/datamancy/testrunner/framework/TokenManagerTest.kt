@@ -59,7 +59,7 @@ class TokenManagerTest {
         pipeline = "http://pipeline:8090",
         liteLLM = "http://litellm:4000",
         bookstack = "http://bookstack:80",
-        postgres = DatabaseConfig("postgres", 5432, "datamancy", "datamancer", ""),
+        postgres = DatabaseConfig("postgres", 5432, "datamancy", "test_runner_user", ""),
         qdrant = "http://qdrant:6333",
         caddy = "http://caddy:80",
         authelia = "http://authelia:9091",

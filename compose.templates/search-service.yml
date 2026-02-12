@@ -22,8 +22,8 @@ services:
       QDRANT_URL: qdrant:6334
       QDRANT_API_KEY: ${QDRANT_ADMIN_API_KEY}
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
-      POSTGRES_USER: datamancer
-      POSTGRES_PASSWORD: ${POSTGRES_DATAMANCY_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_SEARCH_SERVICE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_SEARCH_SERVICE_PASSWORD}
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
     healthcheck:
       test:

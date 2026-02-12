@@ -70,7 +70,7 @@ class SearchGateway(
     private val postgresJdbcUrl: String,
     private val embeddingServiceUrl: String
 ) {
-    private val postgresUser = System.getenv("POSTGRES_USER") ?: "datamancer"
+    private val postgresUser = System.getenv("POSTGRES_USER") ?: "search_service_user"
     private val postgresPassword = System.getenv("POSTGRES_PASSWORD") ?: ""
 
     private val httpClient = OkHttpClient.Builder()

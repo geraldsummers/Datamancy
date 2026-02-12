@@ -81,11 +81,23 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         ELSE
             ALTER USER agent_observer WITH PASSWORD \$pwd\$$POSTGRES_AGENT_PASSWORD\$pwd\$;
         END IF;
-        -- Create datamancy service user (for integration tests and data-fetcher services)
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'datamancer') THEN
-            CREATE USER datamancer WITH PASSWORD \$pwd\$$POSTGRES_DATAMANCY_PASSWORD\$pwd\$;
+        -- Create pipeline service user (read/write access to document_staging)
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'pipeline_user') THEN
+            CREATE USER pipeline_user WITH PASSWORD \$pwd\$$POSTGRES_PIPELINE_PASSWORD\$pwd\$;
         ELSE
-            ALTER USER datamancer WITH PASSWORD \$pwd\$$POSTGRES_DATAMANCY_PASSWORD\$pwd\$;
+            ALTER USER pipeline_user WITH PASSWORD \$pwd\$$POSTGRES_PIPELINE_PASSWORD\$pwd\$;
+        END IF;
+        -- Create search-service user (read-only access to document_staging)
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'search_service_user') THEN
+            CREATE USER search_service_user WITH PASSWORD \$pwd\$$POSTGRES_SEARCH_SERVICE_PASSWORD\$pwd\$;
+        ELSE
+            ALTER USER search_service_user WITH PASSWORD \$pwd\$$POSTGRES_SEARCH_SERVICE_PASSWORD\$pwd\$;
+        END IF;
+        -- Create test-runner user (read-only access for validation)
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'test_runner_user') THEN
+            CREATE USER test_runner_user WITH PASSWORD \$pwd\$$POSTGRES_TEST_RUNNER_PASSWORD\$pwd\$;
+        ELSE
+            ALTER USER test_runner_user WITH PASSWORD \$pwd\$$POSTGRES_TEST_RUNNER_PASSWORD\$pwd\$;
         END IF;
         -- Create txgateway service user (for tx-gateway and evm-broadcaster services)
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'txgateway') THEN
@@ -118,7 +130,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'forgejo')\gexec
     SELECT 'CREATE DATABASE roundcube OWNER roundcube'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'roundcube')\gexec
-    SELECT 'CREATE DATABASE datamancy OWNER datamancer'
+    SELECT 'CREATE DATABASE datamancy OWNER pipeline_user'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'datamancy')\gexec
     SELECT 'CREATE DATABASE txgateway OWNER txgateway'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'txgateway')\gexec
@@ -145,7 +157,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
     GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
     GRANT ALL PRIVILEGES ON DATABASE roundcube TO roundcube;
-    GRANT ALL PRIVILEGES ON DATABASE datamancy TO datamancer;
+    GRANT ALL PRIVILEGES ON DATABASE datamancy TO pipeline_user;
+    GRANT CONNECT ON DATABASE datamancy TO search_service_user;
+    GRANT CONNECT ON DATABASE datamancy TO test_runner_user;
     GRANT ALL PRIVILEGES ON DATABASE txgateway TO txgateway;
     -- Shadow agent accounts are granted CONNECT via scripts/security/provision-shadow-database-access.sh
     -- Each {username}-agent gets CONNECT on safe databases only (grafana, planka, mastodon, forgejo)
@@ -171,7 +185,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRA
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT ALL ON SCHEMA public TO forgejo;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "roundcube" -c "GRANT ALL ON SCHEMA public TO roundcube;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT ALL ON SCHEMA public TO datamancer;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT ALL ON SCHEMA public TO pipeline_user;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT USAGE ON SCHEMA public TO search_service_user;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT USAGE ON SCHEMA public TO test_runner_user;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "txgateway" -c "GRANT ALL ON SCHEMA public TO txgateway;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQL
     -- Data-fetcher tables for deduplication and fetch tracking
@@ -205,9 +221,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQ
     CREATE INDEX IF NOT EXISTS fetch_history_source_idx ON fetch_history(source);
     CREATE INDEX IF NOT EXISTS fetch_history_fetched_at_idx ON fetch_history(fetched_at);
     CREATE INDEX IF NOT EXISTS fetch_history_status_idx ON fetch_history(status);
-    -- Grant ownership to datamancer user
-    ALTER TABLE dedupe_records OWNER TO datamancer;
-    ALTER TABLE fetch_history OWNER TO datamancer;
+    -- Grant ownership to pipeline_user (these tables are unused/legacy but keeping for backwards compatibility)
+    ALTER TABLE dedupe_records OWNER TO pipeline_user;
+    ALTER TABLE fetch_history OWNER TO pipeline_user;
 EOSQL
 echo "Datamancy database tables initialized successfully"
 for db in grafana planka mastodon forgejo; do

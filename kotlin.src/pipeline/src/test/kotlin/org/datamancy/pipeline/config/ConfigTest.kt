@@ -356,7 +356,7 @@ class ConfigTest {
     fun `PostgresConfig handles empty password`() {
         val config = PostgresConfig(
             jdbcUrl = "jdbc:postgresql://localhost:5432/test",
-            user = "datamancer",
+            user = "pipeline_user",
             password = ""
         )
 
@@ -468,7 +468,7 @@ class ConfigTest {
                     ),
                     postgres = PostgresConfig(
                         jdbcUrl = System.getProperty("POSTGRES_JDBC_URL") ?: "jdbc:postgresql://postgres:5432/datamancy",
-                        user = System.getProperty("POSTGRES_USER") ?: "datamancer",
+                        user = System.getProperty("POSTGRES_USER") ?: "pipeline_user",
                         password = System.getProperty("POSTGRES_PASSWORD") ?: ""
                     ),
                     bookstack = BookStackConfig(

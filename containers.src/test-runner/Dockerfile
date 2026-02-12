@@ -22,8 +22,8 @@ RUN apt-get update && apt-get install -y \
 
 RUN docker compose version
 
-RUN groupadd -g 1000 datamancer && useradd -u 1000 -g datamancer datamancer -m && \
-    groupadd -f docker && usermod -aG docker datamancer
+RUN groupadd -g 1000 testing_container_user && useradd -u 1000 -g testing_container_user testing_container_user -m && \
+    groupadd -f docker && usermod -aG docker testing_container_user
 
 RUN mkdir -p /etc/docker && \
     echo '{"insecure-registries": ["192.168.0.11:5000", "registry:5000"]}' > /etc/docker/daemon.json
@@ -33,20 +33,20 @@ WORKDIR /app
 COPY kotlin.src/test-runner/build/libs/test-runner-1.0-SNAPSHOT-all.jar /app/test-runner.jar
 COPY containers.src/test-runner/playwright-tests /app/playwright-tests
 
-RUN chown -R datamancer:datamancer /app && \
+RUN chown -R testing_container_user:testing_container_user /app && \
     mkdir -p /app/test-results && \
-    chown -R datamancer:datamancer /app/test-results && \
-    mkdir -p /home/datamancer/.docker/buildx && \
-    touch /home/datamancer/.docker/config.json && \
-    chown -R datamancer:datamancer /home/datamancer/.docker && \
-    chmod -R 755 /home/datamancer/.docker
+    chown -R testing_container_user:testing_container_user /app/test-results && \
+    mkdir -p /home/testing_container_user/.docker/buildx && \
+    touch /home/testing_container_user/.docker/config.json && \
+    chown -R testing_container_user:testing_container_user /home/testing_container_user/.docker && \
+    chmod -R 755 /home/testing_container_user/.docker
 
-ENV DOCKER_CONFIG=/home/datamancer/.docker
+ENV DOCKER_CONFIG=/home/testing_container_user/.docker
 
-# Switch to datamancer user BEFORE installing Playwright
-USER datamancer
+# Switch to testing_container_user BEFORE installing Playwright
+USER testing_container_user
 
-# Install Playwright dependencies and browsers as datamancer user
+# Install Playwright dependencies and browsers as testing_container_user
 WORKDIR /app/playwright-tests
 RUN npm ci && npx playwright install --with-deps chromium firefox
 

@@ -30,8 +30,16 @@ CREATE TABLE IF NOT EXISTS agent_observer.public_dashboards (
 -- Index on dashboard_uid for fast lookups
 CREATE INDEX IF NOT EXISTS idx_public_dashboards_uid ON agent_observer.public_dashboards(dashboard_uid);
 
--- Grant permissions
-GRANT ALL ON TABLE settings TO datamancer;
-GRANT ALL ON SEQUENCE settings_id_seq TO datamancer;
-GRANT ALL ON TABLE agent_observer.public_dashboards TO datamancer;
-GRANT ALL ON SEQUENCE agent_observer.public_dashboards_id_seq TO datamancer;
+-- Grant permissions to pipeline_user (read/write access)
+GRANT ALL ON TABLE settings TO pipeline_user;
+GRANT ALL ON SEQUENCE settings_id_seq TO pipeline_user;
+GRANT ALL ON TABLE agent_observer.public_dashboards TO pipeline_user;
+GRANT ALL ON SEQUENCE agent_observer.public_dashboards_id_seq TO pipeline_user;
+
+-- Grant read-only permissions to search_service_user
+GRANT SELECT ON TABLE settings TO search_service_user;
+GRANT SELECT ON TABLE agent_observer.public_dashboards TO search_service_user;
+
+-- Grant read-only permissions to test_runner_user
+GRANT SELECT ON TABLE settings TO test_runner_user;
+GRANT SELECT ON TABLE agent_observer.public_dashboards TO test_runner_user;
