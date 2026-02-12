@@ -39,8 +39,11 @@ export default defineConfig({
 
   /* Shared settings for all projects */
   use: {
-    /* Base URL for tests - use external domain to test full stack including Caddy reverse proxy */
-    baseURL: process.env.BASE_URL || (process.env.DOMAIN ? `https://${process.env.DOMAIN}` : 'http://localhost'),
+    /* Base URL for tests - use Caddy internal proxy
+     * External domain (datamancy.net) goes to Cloudflare, causing NAT hairpin issues from inside Docker.
+     * We connect to Caddy directly and set Host headers per-request in global-setup.
+     */
+    baseURL: process.env.BASE_URL || 'http://caddy',
 
     /* Collect trace when retrying the failed test */
     trace: 'on-first-retry',

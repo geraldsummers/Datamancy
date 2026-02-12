@@ -77,7 +77,20 @@ async function globalSetup(config: FullConfig) {
 
   try {
     // Navigate to a protected page to trigger auth
-    await page.goto(`${baseUrl}/grafana`, { waitUntil: 'networkidle', timeout: 30000 });
+    // Use subdomain route (grafana.domain) but connect to Caddy internally to avoid NAT hairpin
+    const domain = process.env.DOMAIN || 'datamancy.net';
+    const grafanaUrl = baseUrl.includes('caddy') ? `${baseUrl}/grafana` : `${baseUrl}/grafana`;
+
+    // For internal Caddy routing, we need to set the Host header to match the subdomain
+    await page.route('**/*', route => {
+      const headers = route.request().headers();
+      if (baseUrl.includes('caddy') && domain) {
+        headers['Host'] = `grafana.${domain}`;
+      }
+      route.continue({ headers });
+    });
+
+    await page.goto(grafanaUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
     console.log(`   Current URL: ${page.url()}`);
 
