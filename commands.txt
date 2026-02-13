@@ -33,4 +33,4 @@ rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
 ssh -t gerald@latium.local "cd ~/datamancy && \
   docker compose up -d --build && \
   docker compose up pipeline -d && \
-  docker compose up integration-test-runner"
+  docker compose logs -f"
