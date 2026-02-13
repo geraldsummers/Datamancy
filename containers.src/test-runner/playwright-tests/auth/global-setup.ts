@@ -19,13 +19,15 @@ async function globalSetup(config: FullConfig) {
   const ldapUrl = process.env.LDAP_URL || 'ldap://localhost:10389';
   const ldapAdminDn = process.env.LDAP_ADMIN_DN || 'cn=admin,dc=datamancy,dc=net';
   const ldapAdminPassword = process.env.LDAP_ADMIN_PASSWORD || 'admin';
-  // Read from env var (set by Kotlin wrapper) or config, fallback to localhost
-  const baseUrl = process.env.BASE_URL || (config as any).use?.baseURL || 'http://localhost';
 
-  console.log(`🔍 Debug: BASE_URL env var = ${process.env.BASE_URL || 'NOT SET'}`);
-  console.log(`🔍 Debug: DOMAIN env var = ${process.env.DOMAIN || 'NOT SET'}`);
-  console.log(`🔍 Debug: baseURL from config = ${(config as any).use?.baseURL || 'NOT SET'}`);
-  console.log(`🔍 Debug: Final baseURL = ${baseUrl}`);
+  // Use DOMAIN to construct proper subdomain URLs
+  // Caddy enforces HTTPS (local_certs) even when accessed via HTTP
+  // Playwright can handle self-signed certs with ignoreHTTPSErrors: true
+  const domain = process.env.DOMAIN || 'datamancy.net';
+  const grafanaUrl = `https://grafana.${domain}`;
+
+  console.log(`🔍 Debug: DOMAIN = ${domain}`);
+  console.log(`🔍 Debug: Grafana URL = ${grafanaUrl}`);
 
   // Create LDAP client
   const ldapClient = new LDAPClient({
@@ -87,25 +89,10 @@ async function globalSetup(config: FullConfig) {
   const page = await context.newPage();
 
   try {
-    // Navigate to a protected page to trigger auth
-    // Use subdomain route (grafana.domain) but connect to Caddy internally to avoid NAT hairpin
-    const domain = process.env.DOMAIN || 'datamancy.net';
-    // Use HTTP for internal Docker network communication - Caddy serves HTTP internally
-    // External HTTPS is handled by Caddy for public access
-    const protocol = 'http';
-    const caddyBase = baseUrl.startsWith('http') ? baseUrl : `${protocol}://${baseUrl}`;
-    const grafanaUrl = `${caddyBase}/grafana`;
-
-    console.log(`   🔍 Grafana URL: ${grafanaUrl}`);
-
-    // For internal Caddy routing, we need to set the Host header to match the subdomain
-    await page.route('**/*', route => {
-      const headers = route.request().headers();
-      if (baseUrl.includes('caddy') && domain) {
-        headers['Host'] = `grafana.${domain}`;
-      }
-      route.continue({ headers });
-    });
+    // Navigate to Grafana via Caddy (HTTPS with subdomain)
+    // Caddy will enforce HTTPS even if we try HTTP
+    // Playwright trusts self-signed certs via ignoreHTTPSErrors
+    console.log(`   🔍 Connecting to Grafana via HTTPS: ${grafanaUrl}`);
 
     await page.goto(grafanaUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
