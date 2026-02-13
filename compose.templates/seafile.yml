@@ -42,6 +42,9 @@ services:
       CACHE_PROVIDER: memcached
       MEMCACHED_HOST: seafile-memcached
       MEMCACHED_PORT: 11211
+      # Fix seafile-mc bug: explicitly set seahub database name
+      # (otherwise it tries to use SQLite path '/opt/seafile/.../seahub.db' as MySQL DB name)
+      SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: seahub_db
     volumes:
       - seafile_files:/shared
       - seafile_media:/shared/seafile/library-template
