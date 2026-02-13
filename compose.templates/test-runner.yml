@@ -28,8 +28,8 @@ services:
 
       LITELLM_URL: "http://litellm:4000"
       LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY}"
-      CADDY_URL: "https://caddy"
-      BASE_URL: "https://caddy"
+      CADDY_URL: "http://caddy"
+      BASE_URL: "http://caddy"
       BOOKSTACK_URL: "http://bookstack:80"
 
       POSTGRES_HOST: "postgres"
