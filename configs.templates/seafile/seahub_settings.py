@@ -2,6 +2,14 @@ SECRET_KEY = "{{SEAFILE_SECRET_KEY}}"
 
 TIME_ZONE = 'UTC'
 
+# Disable Redis cache - use Django's local-memory cache instead
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
 FILE_SERVER_ROOT = "https://seafile.{{DOMAIN}}/seafhttp"
 
 EMAIL_USE_TLS = True
