@@ -14,9 +14,10 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     test("Grafana: Acquire API key and query datasources") {
         val grafanaPassword = System.getenv("GRAFANA_ADMIN_PASSWORD") ?: "admin"
 
-
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
-        val autheliaResult = auth.login("admin", ldapPassword)
+        // Use STACK_ADMIN_USER (sysadmin) for LDAP authentication, not "admin"
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}. Check LDAP credentials and Authelia configuration."
         }
@@ -137,8 +138,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         val username = System.getenv("QBITTORRENT_USERNAME") ?: "admin"
         val password = System.getenv("QBITTORRENT_PASSWORD") ?: "adminpass"
 
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
@@ -205,8 +207,9 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         val email = System.getenv("OPEN_WEBUI_EMAIL") ?: "admin@datamancy.local"
         val password = System.getenv("OPEN_WEBUI_PASSWORD") ?: "changeme"
 
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
 
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
@@ -252,9 +255,10 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
 
     test("JupyterHub: Authenticate and access hub API") {
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
@@ -280,9 +284,10 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
 
     test("LiteLLM: Authenticate and access API") {
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
@@ -308,9 +313,10 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
 
     test("Ntfy: Authenticate and access notification API") {
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
@@ -336,9 +342,10 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
 
     test("Kopia: Authenticate and access backup UI") {
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
@@ -357,9 +364,10 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
 
     test("Radicale: Authenticate and access CalDAV/CardDAV") {
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
@@ -385,9 +393,10 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
 
     test("Roundcube: Authenticate and access webmail") {
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
@@ -413,9 +422,10 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
 
     test("Search Service: Authenticate and access API") {
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }
@@ -446,10 +456,10 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
             return@test
         }
 
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-
-        val autheliaResult = auth.login("admin", ldapPassword)
+        val autheliaResult = auth.login(ldapUsername, ldapPassword)
         require(autheliaResult is AuthResult.Success) {
             "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
         }

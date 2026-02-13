@@ -158,10 +158,11 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
         }
         println("      ✓ LAM container accessible directly")
 
-        
-        val ldapPassword = System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
 
-        val authResult = auth.login("admin", ldapPassword)
+        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
+        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
+
+        val authResult = auth.login(ldapUsername, ldapPassword)
         if (authResult !is AuthResult.Success) {
             println("      ⚠ Skipping Authelia-protected LAM test - auth failed: ${(authResult as AuthResult.Error).message}")
             return@test
