@@ -319,12 +319,12 @@ identity_providers:
         redirect_uris:
           - http://localhost:8080/callback
           - http://test-runner/callback
-          - urn:ietf:wg:oauth:2.0:oob
         scopes:
           - openid
           - profile
           - email
           - groups
+          - offline_access
         grant_types:
           - authorization_code
           - refresh_token
