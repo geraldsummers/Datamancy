@@ -81,7 +81,7 @@ services:
     profiles:
       - testing
 
-    restart: "no"
+    restart: unless-stopped
 
 
     user: "1000:1000"

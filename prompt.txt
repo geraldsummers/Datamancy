@@ -1,7 +1,7 @@
 ssh in via ssh gerald@latium.local "command"
 Drop a docker ps | grep unhealthy
 Drop a ls ~/datamancy
-Run the test runner container and collect results (integration-test-runner service) - this takes AGES to run so maybe 5 min blocks (sleep 300) and check periodically?
+Run the test runner container and collect results (integration-test-runner service) - this takes AGES to run so maybe 5 min blocks (sleep 300) and check periodically and tee the output to somewhere readable - check out the run-tests.sh help command in the integration test runner container for more info
 
 GET HYPED WE'RE BUILDING FIRE
 
@@ -28,4 +28,5 @@ write me a test report
 
 note well that the time zone on the server is different from the lab pc
 
-be careful rebuilding the entire thing - it takes a long time
+be careful rebuilding the entire thing - it takes a long time - you'll need to build containers individually really
+

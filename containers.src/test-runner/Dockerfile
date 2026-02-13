@@ -58,5 +58,4 @@ RUN npx playwright install chromium firefox
 
 WORKDIR /app
 
-ENTRYPOINT ["java", "-jar", "/app/test-runner.jar", "--env", "container", "--suite"]
-CMD ["all"]
+CMD ["tail", "-f", "/dev/null"]
