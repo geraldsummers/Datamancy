@@ -37,13 +37,11 @@ services:
       SEAFILE_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
       JWT_PRIVATE_KEY: ${SEAFILE_JWT_KEY}
       TIME_ZONE: UTC
-      # Note: Redis cache removed due to authentication issues with seafile-mc image
-      # Using default in-memory cache instead
-      # CACHE_PROVIDER: redis
-      # REDIS_HOST: valkey
-      # REDIS_PORT: 6379
-      # REDIS_USER: seafile
-      # REDIS_PASSWORD: ${VALKEY_SEAFILE_PASSWORD}
+      # Use memcached for caching instead of Redis/Valkey
+      # (Redis was causing authentication issues with seafile-mc image)
+      CACHE_PROVIDER: memcached
+      MEMCACHED_HOST: seafile-memcached
+      MEMCACHED_PORT: 11211
     volumes:
       - seafile_files:/shared
       - seafile_media:/shared/seafile/library-template
