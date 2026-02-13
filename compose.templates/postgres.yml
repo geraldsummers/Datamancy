@@ -35,10 +35,10 @@ services:
         - |
           pg_isready -U ${POSTGRES_ADMIN_USER} -t 1 && \
           psql -U ${POSTGRES_ADMIN_USER} -d postgres -t -c 'SELECT 1' > /dev/null
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
+      interval: 60s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
     deploy:
       resources:
         limits:
