@@ -2,10 +2,11 @@
  * Unit tests for LDAP client utilities
  */
 
+import { test, expect } from '@playwright/test';
 import { LDAPClient } from '../../utils/ldap-client';
 
-describe('LDAPClient', () => {
-  describe('generatePassword', () => {
+test.describe('LDAPClient', () => {
+  test.describe('generatePassword', () => {
     test('generates password of correct length', () => {
       const password = LDAPClient.generatePassword(16);
       expect(password).toHaveLength(16);
@@ -24,7 +25,7 @@ describe('LDAPClient', () => {
     });
   });
 
-  describe('generateUsername', () => {
+  test.describe('generateUsername', () => {
     test('generates username with correct prefix', () => {
       const username = LDAPClient.generateUsername('test');
       expect(username).toMatch(/^test-\d+-\d+$/);

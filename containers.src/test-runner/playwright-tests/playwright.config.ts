@@ -8,6 +8,9 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
 
+  /* Run only .spec.ts and .test.ts files (all now use Playwright syntax) */
+  testMatch: '**/*.@(spec|test).ts',
+
   /* Global setup - provisions test user in LDAP */
   globalSetup: require.resolve('./auth/global-setup.ts'),
 

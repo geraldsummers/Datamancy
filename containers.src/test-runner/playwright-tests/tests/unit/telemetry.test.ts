@@ -5,8 +5,10 @@
  * so we primarily test helper functions here.
  */
 
-describe('Telemetry Utils', () => {
-  describe('logPageTelemetry', () => {
+import { test, expect } from '@playwright/test';
+
+test.describe('Telemetry Utils', () => {
+  test.describe('logPageTelemetry', () => {
     test('handles missing page gracefully', async () => {
       // This is more of an E2E concern, but we can test the structure exists
       const { logPageTelemetry } = await import('../../utils/telemetry');
@@ -14,14 +16,14 @@ describe('Telemetry Utils', () => {
     });
   });
 
-  describe('savePageHTML', () => {
+  test.describe('savePageHTML', () => {
     test('function exists and is callable', async () => {
       const { savePageHTML } = await import('../../utils/telemetry');
       expect(typeof savePageHTML).toBe('function');
     });
   });
 
-  describe('setupNetworkLogging', () => {
+  test.describe('setupNetworkLogging', () => {
     test('function exists and is callable', async () => {
       const { setupNetworkLogging } = await import('../../utils/telemetry');
       expect(typeof setupNetworkLogging).toBe('function');
