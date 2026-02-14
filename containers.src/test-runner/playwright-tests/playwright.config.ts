@@ -48,6 +48,9 @@ export default defineConfig({
      */
     baseURL: process.env.BASE_URL || 'http://caddy',
 
+    /* Ignore HTTPS errors for self-signed certificates in internal testing */
+    ignoreHTTPSErrors: true,
+
     /* Collect trace when retrying the failed test */
     trace: 'on-first-retry',
 
