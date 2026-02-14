@@ -40,10 +40,7 @@ services:
     image: datamancy/isolated-docker-vm-tunnel:latest
     container_name: isolated-docker-vm-tunnel
     restart: unless-stopped
-    hostname: labware
-    networks:
-      - docker-proxy
-      - caddy
+    network_mode: host
     environment:
       ISOLATED_DOCKER_VM_HOST: ${ISOLATED_DOCKER_VM_HOST}
     volumes:
