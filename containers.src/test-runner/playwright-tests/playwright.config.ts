@@ -42,11 +42,12 @@ export default defineConfig({
 
   /* Shared settings for all projects */
   use: {
-    /* Base URL for tests - use Caddy internal proxy
-     * External domain (datamancy.net) goes to Cloudflare, causing NAT hairpin issues from inside Docker.
-     * We connect to Caddy directly and set Host headers per-request in global-setup.
+    /* Base URL for tests - use full domain even inside Docker
+     * Docker Compose provides DNS resolution for *.datamancy.net to Caddy container
+     * This ensures TLS certificates are valid and auth cookies work correctly
+     * We ignore HTTPS errors for self-signed certificates
      */
-    baseURL: process.env.BASE_URL || 'http://caddy',
+    baseURL: process.env.BASE_URL || 'https://datamancy.net',
 
     /* Ignore HTTPS errors for self-signed certificates in internal testing */
     ignoreHTTPSErrors: true,

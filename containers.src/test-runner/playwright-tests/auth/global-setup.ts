@@ -20,13 +20,14 @@ async function globalSetup(config: FullConfig) {
   const ldapAdminDn = process.env.LDAP_ADMIN_DN || 'cn=admin,dc=datamancy,dc=net';
   const ldapAdminPassword = process.env.LDAP_ADMIN_PASSWORD || 'admin';
 
-  // Use internal Caddy proxy for auth setup (same as tests use)
-  // This ensures auth cookies work across all tests
-  // Caddy handles virtual hosting via HTTP redirects to HTTPS
-  const baseURL = process.env.BASE_URL || 'http://caddy';
-  const grafanaUrl = `${baseURL}/grafana`;
+  // Use Datamancy domain for auth setup
+  // Even though we're inside Docker, we use the full domain so Caddy's
+  // TLS certificates are valid (Caddy has certs for *.datamancy.net)
+  // Tests will ignore HTTPS errors via ignoreHTTPSErrors: true
+  const domain = process.env.DOMAIN || 'datamancy.net';
+  const grafanaUrl = `https://grafana.${domain}`;
 
-  console.log(`🔍 Debug: Base URL = ${baseURL}`);
+  console.log(`🔍 Debug: Domain = ${domain}`);
   console.log(`🔍 Debug: Grafana URL = ${grafanaUrl}`);
 
   // Create LDAP client
@@ -80,19 +81,24 @@ async function globalSetup(config: FullConfig) {
   console.log('🔐 Authenticating with Authelia...\n');
 
   const browser = await chromium.launch({
-    args: ['--ignore-certificate-errors']
+    args: [
+      '--ignore-certificate-errors',
+      '--ignore-certificate-errors-spki-list',
+      '--disable-features=IsolateOrigins,site-per-process'
+    ]
   });
   const context = await browser.newContext({
     ignoreHTTPSErrors: true,  // Trust self-signed certificates
-    bypassCSP: true  // Bypass Content Security Policy
+    bypassCSP: true,  // Bypass Content Security Policy
+    acceptDownloads: false
   });
   const page = await context.newPage();
 
   try {
-    // Navigate to Grafana via Caddy (HTTPS with subdomain)
-    // Caddy will enforce HTTPS even if we try HTTP
+    // Navigate to Grafana via Caddy using full domain name
+    // This ensures Caddy's *.datamancy.net certificates are used correctly
     // Playwright trusts self-signed certs via ignoreHTTPSErrors
-    console.log(`   🔍 Connecting to Grafana via HTTPS: ${grafanaUrl}`);
+    console.log(`   🔍 Connecting to Grafana: ${grafanaUrl}`);
 
     await page.goto(grafanaUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
