@@ -35,7 +35,7 @@
 services:
   isolated-docker-vm-tunnel:
     build:
-      context: ${DATAMANCY_PROJECT_ROOT}/containers.src/isolated-docker-vm-tunnel
+      context: ./containers.src/isolated-docker-vm-tunnel
       dockerfile: Dockerfile
     image: datamancy/isolated-docker-vm-tunnel:latest
     container_name: isolated-docker-vm-tunnel
