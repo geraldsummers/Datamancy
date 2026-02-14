@@ -32,6 +32,7 @@ WORKDIR /app
 
 COPY kotlin.src/test-runner/build/libs/test-runner-1.0-SNAPSHOT-all.jar /app/test-runner.jar
 COPY containers.src/test-runner/playwright-tests /app/playwright-tests
+COPY containers.src/test-runner/run-tests.sh /run-tests.sh
 
 RUN chown -R testing_container_user:testing_container_user /app && \
     mkdir -p /app/test-results && \
@@ -39,7 +40,8 @@ RUN chown -R testing_container_user:testing_container_user /app && \
     mkdir -p /home/testing_container_user/.docker/buildx && \
     touch /home/testing_container_user/.docker/config.json && \
     chown -R testing_container_user:testing_container_user /home/testing_container_user/.docker && \
-    chmod -R 755 /home/testing_container_user/.docker
+    chmod -R 755 /home/testing_container_user/.docker && \
+    chmod +x /run-tests.sh
 
 ENV DOCKER_CONFIG=/home/testing_container_user/.docker
 
