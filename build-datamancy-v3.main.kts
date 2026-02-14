@@ -70,7 +70,8 @@ data class StorageConfig(
 data class RuntimeConfig(
     val domain: String,
     val admin_email: String,
-    val admin_user: String
+    val admin_user: String,
+    val isolated_docker_vm_host: String? = null
 )
 
 data class DatamancyConfig(
@@ -384,6 +385,9 @@ fun generateCredentials(
     credentials.putIfAbsent("LDAP_BASE_DN", sanitized.ldapBaseDn)
     credentials.putIfAbsent("STACK_ADMIN_EMAIL", sanitized.adminEmail)
     credentials.putIfAbsent("STACK_ADMIN_USER", sanitized.adminUser)
+    config.runtime.isolated_docker_vm_host?.let {
+        credentials.putIfAbsent("ISOLATED_DOCKER_VM_HOST", it)
+    }
 
     schema.credentials.forEach { spec ->
         if (spec.source != null) return@forEach  // Already handled above
