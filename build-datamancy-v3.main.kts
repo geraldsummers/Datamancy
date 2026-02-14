@@ -71,7 +71,8 @@ data class RuntimeConfig(
     val domain: String,
     val admin_email: String,
     val admin_user: String,
-    val isolated_docker_vm_host: String? = null
+    val isolated_docker_vm_host: String? = null,
+    val caddy_ip: String? = null
 )
 
 data class DatamancyConfig(
@@ -389,6 +390,9 @@ fun generateCredentials(
     config.runtime.isolated_docker_vm_host?.let {
         credentials.putIfAbsent("ISOLATED_DOCKER_VM_HOST", it)
     }
+    config.runtime.caddy_ip?.let {
+        credentials.putIfAbsent("CADDY_IP", it)
+    } ?: credentials.putIfAbsent("CADDY_IP", "192.168.16.20")
 
     schema.credentials.forEach { spec ->
         if (spec.source != null) return@forEach  // Already handled above

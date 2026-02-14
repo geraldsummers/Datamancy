@@ -1,7 +1,8 @@
 ssh in via ssh gerald@latium.local "command"
 Drop a docker ps | grep unhealthy
 Drop a ls ~/datamancy
-Run the test runner container and collect results (integration-test-runner service) - this takes AGES to run so maybe 5 min blocks (sleep 300) and check periodically and tee the output to somewhere readable - check out the run-tests.sh help command in the integration test runner container for more info
+Run the test runner container and collect results (integration-test-runner service) - check out the local repo for more detail on it
+the test runner container should already be running (or started), then we execute tests inside it.
 
 GET HYPED WE'RE BUILDING FIRE
 
@@ -10,13 +11,7 @@ dont edit stuff on the server only fix stuff in the local repo
 
 the build script wont build if you have uncommitted changes
 check out the build script
-
-fix problems in local repo, deploy them, verify they work and look for more problems once verified - deployment takes a while so do sleep 600 while it goes
-
 ssh gerald@latium.local "cd ~/datamancy && docker compose logs | grep -i -E 'exception|error|fail|cannot' -B 1 -A 1" to find heaps of errors
-
-we're experimenting with this clean partial upgrade system - so if redeploying breaks stuff, stop and let me know
-serioulsy - take your time, if shits weird drop a sleep 60 or a sleep 300 and check again
 
 this is ALL AND ONLY TEST DATA so you can wipe containers if you need!
 
