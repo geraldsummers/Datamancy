@@ -45,7 +45,7 @@ services:
       - docker-proxy
       - caddy
     environment:
-      ISOLATED_DOCKER_VM_HOST: ${ISOLATED_DOCKER_VM_HOST:-gerald@192.168.0.61}
+      ISOLATED_DOCKER_VM_HOST: ${ISOLATED_DOCKER_VM_HOST:-gerald@labware.local}
     volumes:
       - ${HOME}/.ssh:/root/.ssh:ro
       - isolated-docker-vm-socket:/var/run
