@@ -8,9 +8,10 @@
 #
 # Architecture:
 #   1. isolated-docker-vm-tunnel: Establishes SSH tunnel to remote Docker host
-#      - Connects via SSH to ISOLATED_DOCKER_VM_HOST (e.g., gerald@192.168.0.61)
+#      - Connects via SSH to ISOLATED_DOCKER_VM_HOST (configured in datamancy.config.yaml)
 #      - Forwards remote /var/run/docker.sock to local volume
 #      - Requires SSH key authentication (mounts ~/.ssh)
+#      - Uses network_mode: host for direct network access
 #
 #   2. docker-proxy: HAProxy-based security layer
 #      - Provides fine-grained permission control (CONTAINERS, IMAGES, etc.)
@@ -18,7 +19,8 @@
 #      - Prevents dangerous operations (BUILD=0, EXEC=0, COMMIT=0)
 #
 # Usage:
-#   - Set ISOLATED_DOCKER_VM_HOST to your remote Docker host (user@hostname)
+#   - Configure ISOLATED_DOCKER_VM_HOST in compose.settings/datamancy.config.yaml
+#   - Format: user@ip_address (e.g., gerald@192.168.0.69)
 #   - Ensure SSH key-based auth is configured (~/.ssh/id_rsa or similar)
 #   - Other services connect via: DOCKER_HOST=tcp://docker-proxy:2375
 #
