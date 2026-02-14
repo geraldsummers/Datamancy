@@ -372,7 +372,8 @@ fun saveCredentialsFile(file: File, credentials: Map<String, String>) {
 fun generateCredentials(
     schema: CredentialsSchema,
     sanitized: SanitizedConfig,
-    existing: Map<String, String>
+    existing: Map<String, String>,
+    config: DatamancyConfig
 ): MutableMap<String, String> {
     step("Generating credentials from schema")
 
@@ -1043,7 +1044,7 @@ ${CYAN}╔═══════════════════════�
     // Load or generate credentials
     val credentialsFile = distDir.resolve(".credentials")
     val existingCredentials = loadCredentialsFile(credentialsFile)
-    val credentials = generateCredentials(schema, sanitized, existingCredentials)
+    val credentials = generateCredentials(schema, sanitized, existingCredentials, config)
     saveCredentialsFile(credentialsFile, credentials)
 
     // Run tests first
