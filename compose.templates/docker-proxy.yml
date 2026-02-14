@@ -34,9 +34,13 @@
 
 services:
   isolated-docker-vm-tunnel:
-    image: alpine:latest
+    build:
+      context: ${DATAMANCY_PROJECT_ROOT}/containers.src/isolated-docker-vm-tunnel
+      dockerfile: Dockerfile
+    image: datamancy/isolated-docker-vm-tunnel:latest
     container_name: isolated-docker-vm-tunnel
     restart: unless-stopped
+    hostname: labware
     networks:
       - docker-proxy
       - caddy
@@ -45,12 +49,6 @@ services:
     volumes:
       - ${HOME}/.ssh:/root/.ssh:ro
       - isolated-docker-vm-socket:/var/run
-    command: >
-      sh -c "
-        apk add --no-cache openssh-client socat &&
-        rm -f /var/run/docker.sock &&
-        ssh -o StrictHostKeyChecking=accept-new -N -L /var/run/docker.sock:/var/run/docker.sock $$ISOLATED_DOCKER_VM_HOST
-      "
     healthcheck:
       test: ["CMD", "test", "-S", "/var/run/docker.sock"]
       interval: 10s

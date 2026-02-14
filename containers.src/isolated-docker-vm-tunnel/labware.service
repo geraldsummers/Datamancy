@@ -1,0 +1,10 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">Labware Docker VM on %h</name>
+  <service>
+    <type>_docker._tcp</type>
+    <port>22</port>
+    <txt-record>description=Isolated Docker VM for Labware</txt-record>
+  </service>
+</service-group>
