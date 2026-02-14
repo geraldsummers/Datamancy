@@ -20,13 +20,13 @@ async function globalSetup(config: FullConfig) {
   const ldapAdminDn = process.env.LDAP_ADMIN_DN || 'cn=admin,dc=datamancy,dc=net';
   const ldapAdminPassword = process.env.LDAP_ADMIN_PASSWORD || 'admin';
 
-  // Use DOMAIN to construct proper subdomain URLs
-  // Caddy enforces HTTPS (local_certs) even when accessed via HTTP
-  // Playwright can handle self-signed certs with ignoreHTTPSErrors: true
-  const domain = process.env.DOMAIN || 'datamancy.net';
-  const grafanaUrl = `https://grafana.${domain}`;
+  // Use internal Caddy proxy for auth setup (same as tests use)
+  // This ensures auth cookies work across all tests
+  // Caddy handles virtual hosting via HTTP redirects to HTTPS
+  const baseURL = process.env.BASE_URL || 'http://caddy';
+  const grafanaUrl = `${baseURL}/grafana`;
 
-  console.log(`🔍 Debug: DOMAIN = ${domain}`);
+  console.log(`🔍 Debug: Base URL = ${baseURL}`);
   console.log(`🔍 Debug: Grafana URL = ${grafanaUrl}`);
 
   // Create LDAP client
