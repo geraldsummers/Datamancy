@@ -13,3 +13,5 @@ runtime:
   admin_email: "admin@datamancy.net"
 
   admin_user: "sysadmin"
+
+  isolated_docker_vm_host: "gerald@labware.local"
