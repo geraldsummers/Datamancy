@@ -52,11 +52,11 @@ RUN npm ci
 
 # Switch back to root to install Playwright system dependencies
 USER root
-RUN npx playwright install --with-deps chromium firefox
+RUN npx playwright install --with-deps chromium
 
 # Install browsers as testing_container_user so they're in the correct home directory
 USER testing_container_user
-RUN npx playwright install chromium firefox
+RUN npx playwright install chromium
 
 WORKDIR /app
 
