@@ -14,4 +14,4 @@ runtime:
 
   admin_user: "sysadmin"
 
-  isolated_docker_vm_host: "gerald@labware.local"
+  isolated_docker_vm_host: "gerald@192.168.0.69"
