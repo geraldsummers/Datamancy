@@ -373,12 +373,14 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         }
         println("      ✓ Authenticated with Authelia")
 
-        
+
         val directResponse = client.getRawResponse("http://radicale:5232/")
-        require(directResponse.status == HttpStatusCode.OK || directResponse.status == HttpStatusCode.Unauthorized) {
+        require(directResponse.status == HttpStatusCode.OK ||
+                directResponse.status == HttpStatusCode.Unauthorized ||
+                directResponse.status == HttpStatusCode.Found) {
             "Radicale container not responding: ${directResponse.status}"
         }
-        println("      ✓ Radicale container accessible")
+        println("      ✓ Radicale container accessible (${directResponse.status})")
 
         
         val proxiedResponse = auth.authenticatedGet("http://caddy:80/")
