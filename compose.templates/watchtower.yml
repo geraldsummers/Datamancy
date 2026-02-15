@@ -6,13 +6,25 @@ services:
     networks:
       - docker-proxy
       - internet
+      - ntfy
     environment:
       WATCHTOWER_CLEANUP: true
       WATCHTOWER_INCLUDE_RESTARTING: true
       WATCHTOWER_SCHEDULE: 0 0 4 * * *
       DOCKER_API_VERSION: 1.44
       WATCHTOWER_NOTIFICATIONS: shoutrrr
-      WATCHTOWER_NOTIFICATION_URL:
+      WATCHTOWER_NOTIFICATION_URL: "ntfy://${NTFY_USERNAME}:${NTFY_PASSWORD}@ntfy:8080/watchtower"
       TZ: Australia/Sydney
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+
+networks:
+  docker-proxy:
+    external: true
+    name: datamancy_docker-proxy
+  internet:
+    external: true
+    name: datamancy_internet
+  ntfy:
+    external: true
+    name: datamancy_ntfy
