@@ -3,6 +3,7 @@ Drop a docker ps | grep unhealthy
 Drop a ls ~/datamancy
 Run the test runner container and collect results (integration-test-runner service) - check out the local repo for more detail on it
 the test runner container should already be running (or started), then we execute tests inside it.
+run all the tests in the integration test runner, playwright, kotlin, maybe more??
 
 GET HYPED WE'RE BUILDING FIRE
 
@@ -25,4 +26,5 @@ note well that the time zone on the server is different from the lab pc
 
 be careful rebuilding the entire thing - it takes a long time - you'll need to build containers individually really
 
-a
+
+RUN THE TESTS
