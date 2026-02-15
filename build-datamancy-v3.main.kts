@@ -1044,6 +1044,7 @@ ${CYAN}╔═══════════════════════�
 
     // Create dist/
     distDir.mkdirs()
+    distDir.resolve("configs/caddy/certs").mkdirs()
 
     // Load or generate credentials
     val credentialsFile = distDir.resolve(".credentials")

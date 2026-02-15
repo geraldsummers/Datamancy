@@ -15,8 +15,12 @@
 # - Uses ZeroSSL as primary CA (more generous rate limits than Let's Encrypt)
 # - Falls back to Let's Encrypt if ZeroSSL fails
 # - Development/Testing: Uncomment local_certs for self-signed certificates
+# - Certificates stored in /certs (bind mount to dist/configs/caddy/certs)
 ###############################################
 {
+	# Store certificates in bind mount (persists in dist/ like other secrets)
+	storage file_system /certs
+
 	# DEVELOPMENT: Use self-signed certificates via Caddy's internal CA
 	local_certs
 

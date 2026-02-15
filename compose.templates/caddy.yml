@@ -81,6 +81,7 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      - ./configs/caddy/certs:/certs
       - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./configs/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
     entrypoint:
