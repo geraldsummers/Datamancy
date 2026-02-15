@@ -6,7 +6,7 @@ services:
     networks:
       - docker-proxy
       - internet
-      - ntfy
+      - caddy
     environment:
       WATCHTOWER_CLEANUP: true
       WATCHTOWER_INCLUDE_RESTARTING: true
@@ -25,6 +25,6 @@ networks:
   internet:
     external: true
     name: datamancy_internet
-  ntfy:
+  caddy:
     external: true
-    name: datamancy_ntfy
+    name: datamancy_caddy
