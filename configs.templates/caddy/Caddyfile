@@ -103,6 +103,14 @@ kopia.{$DOMAIN} {
 	}
 }
 
+# Prometheus (protected with forward_auth)
+prometheus.{$DOMAIN} {
+	route {
+		import authelia_auth
+		reverse_proxy prometheus:9090
+	}
+}
+
 # Grafana (protected with forward_auth)
 grafana.{$DOMAIN} {
 	route {
