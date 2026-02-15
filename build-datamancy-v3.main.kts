@@ -291,11 +291,38 @@ fun generateArgon2IDHash(password: String): String {
     return hash
 }
 
+fun generatePbkdf2Sha512Hash(password: String): String {
+    val process = ProcessBuilder(
+        "docker", "run", "--rm", "authelia/authelia:latest",
+        "authelia", "crypto", "hash", "generate", "pbkdf2", "--variant", "sha512", "--password", password
+    )
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText()
+    val exitCode = process.waitFor()
+
+    if (exitCode != 0) {
+        error("Failed to generate PBKDF2-SHA512 hash: $output")
+        throw RuntimeException("PBKDF2-SHA512 hash generation failed")
+    }
+
+    val hash = output.lines()
+        .find { it.startsWith("Digest: \$pbkdf2-sha512") }
+        ?.substringAfter("Digest: ")
+        ?.trim()
+    if (hash.isNullOrBlank()) {
+        error("Failed to parse PBKDF2-SHA512 hash from output")
+        throw RuntimeException("PBKDF2-SHA512 hash parsing failed")
+    }
+    return hash
+}
+
 fun applyHashAlgorithm(algorithm: String, plaintext: String): String {
     return when (algorithm.lowercase()) {
         "sha256" -> generateSHA256Hash(plaintext)
         "ssha" -> generateSSHAHash(plaintext)
         "argon2id" -> generateArgon2IDHash(plaintext)
+        "pbkdf2-sha512" -> generatePbkdf2Sha512Hash(plaintext)
         "none" -> plaintext
         else -> throw IllegalArgumentException("Unknown hash algorithm: $algorithm")
     }
