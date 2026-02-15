@@ -9,6 +9,7 @@
  * - Mastodon
  * - Forgejo
  * - BookStack
+ * - Planka
  */
 
 import { test, expect } from '@playwright/test';
@@ -161,6 +162,46 @@ test.describe('OIDC Services - SSO Flow', () => {
     const hasBookStackUI = await page.locator('text=/book|shelf|chapter|bookstack/i').first().isVisible({ timeout: 5000 }).catch(() => false);
 
     console.log(`   ${hasBookStackUI ? '✅' : '⚠️'} BookStack OIDC login completed\n`);
+  });
+
+  test('Planka - OIDC login flow', async ({ page }) => {
+    console.log('\n🧪 Testing Planka OIDC login');
+
+    setupNetworkLogging(page, 'Planka');
+
+    await page.goto('/planka');
+    await logPageTelemetry(page, 'Planka Login Page');
+
+    const oidcPage = new OIDCLoginPage(page);
+
+    // Planka might call it "SSO", "Authelia", or "OIDC"
+    try {
+      await oidcPage.clickOIDCButton('Authelia');
+    } catch (error) {
+      console.log('   ℹ️  Trying alternative Planka OIDC button...');
+      try {
+        await oidcPage.clickOIDCButton('SSO');
+      } catch (error2) {
+        try {
+          await oidcPage.clickOIDCButton('OIDC');
+        } catch (error3) {
+          console.log('   ⚠️  No OIDC button found');
+          await logPageTelemetry(page, 'Planka - No OIDC');
+        }
+      }
+    }
+
+    if (page.url().includes('authelia')) {
+      const autheliaPage = new AutheliaLoginPage(page);
+      await autheliaPage.login(testUser.username, testUser.password);
+      await oidcPage.handleConsentScreen();
+    }
+
+    await logPageTelemetry(page, 'Planka - Post Login');
+
+    const hasPlankaUI = await page.locator('text=/board|project|card|task|planka/i').first().isVisible({ timeout: 5000 }).catch(() => false);
+
+    console.log(`   ${hasPlankaUI ? '✅' : '⚠️'} Planka OIDC login completed\n`);
   });
 });
 

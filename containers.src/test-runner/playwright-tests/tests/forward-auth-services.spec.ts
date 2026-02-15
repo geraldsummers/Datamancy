@@ -12,6 +12,13 @@
  * - Homepage
  * - Ntfy
  * - qBittorrent
+ * - Roundcube (Webmail)
+ * - Home Assistant
+ * - Kopia (Backup)
+ * - LDAP Account Manager
+ * - LiteLLM
+ * - Radicale (Calendar/Contacts)
+ * - Vault
  */
 
 import { test, expect } from '@playwright/test';
@@ -181,6 +188,147 @@ test.describe('Forward Auth Services - SSO Flow', () => {
     const hasQBitUI = await page.locator('text=/torrent|download|upload/i').first().isVisible({ timeout: 5000 }).catch(() => false);
 
     console.log(`   ${hasQBitUI ? '✅' : '⚠️'} qBittorrent page loaded\n`);
+  });
+
+  test('Roundcube - Access with forward auth', async ({ page }) => {
+    console.log('\n🧪 Testing Roundcube (Webmail) forward auth');
+
+    setupNetworkLogging(page, 'Roundcube');
+
+    await page.goto('/mail');
+
+    if (page.url().includes('authelia')) {
+      console.log('   ⚠️  Auth state expired, logging in...');
+      const loginPage = new AutheliaLoginPage(page);
+      await loginPage.login(testUser.username, testUser.password);
+    }
+
+    await logPageTelemetry(page, 'Roundcube Main Page');
+
+    const hasRoundcubeUI = await page.locator('text=/inbox|compose|email|mail/i').first().isVisible({ timeout: 5000 }).catch(() => false);
+
+    console.log(`   ${hasRoundcubeUI ? '✅' : '⚠️'} Roundcube webmail loaded\n`);
+  });
+
+  test('Home Assistant - Access with forward auth', async ({ page }) => {
+    console.log('\n🧪 Testing Home Assistant forward auth');
+
+    setupNetworkLogging(page, 'Home Assistant');
+
+    await page.goto('/homeassistant');
+
+    if (page.url().includes('authelia')) {
+      console.log('   ⚠️  Auth state expired, logging in...');
+      const loginPage = new AutheliaLoginPage(page);
+      await loginPage.login(testUser.username, testUser.password);
+    }
+
+    await logPageTelemetry(page, 'Home Assistant Main Page');
+
+    const hasHomeAssistantUI = await page.locator('text=/overview|automation|device|entity|lovelace/i').first().isVisible({ timeout: 5000 }).catch(() => false);
+
+    console.log(`   ${hasHomeAssistantUI ? '✅' : '⚠️'} Home Assistant loaded\n`);
+  });
+
+  test('Kopia - Access with forward auth', async ({ page }) => {
+    console.log('\n🧪 Testing Kopia (Backup) forward auth');
+
+    setupNetworkLogging(page, 'Kopia');
+
+    await page.goto('/kopia');
+
+    if (page.url().includes('authelia')) {
+      console.log('   ⚠️  Auth state expired, logging in...');
+      const loginPage = new AutheliaLoginPage(page);
+      await loginPage.login(testUser.username, testUser.password);
+    }
+
+    await logPageTelemetry(page, 'Kopia Main Page');
+
+    const hasKopiaUI = await page.locator('text=/snapshot|backup|repository|policy/i').first().isVisible({ timeout: 5000 }).catch(() => false);
+
+    console.log(`   ${hasKopiaUI ? '✅' : '⚠️'} Kopia backup UI loaded\n`);
+  });
+
+  test('LDAP Account Manager - Access with forward auth', async ({ page }) => {
+    console.log('\n🧪 Testing LDAP Account Manager forward auth');
+
+    setupNetworkLogging(page, 'LDAP Account Manager');
+
+    await page.goto('/lam');
+
+    if (page.url().includes('authelia')) {
+      console.log('   ⚠️  Auth state expired, logging in...');
+      const loginPage = new AutheliaLoginPage(page);
+      await loginPage.login(testUser.username, testUser.password);
+    }
+
+    await logPageTelemetry(page, 'LAM Main Page');
+
+    const hasLAMUI = await page.locator('text=/ldap|user|group|tree/i').first().isVisible({ timeout: 5000 }).catch(() => false);
+
+    console.log(`   ${hasLAMUI ? '✅' : '⚠️'} LDAP Account Manager loaded\n`);
+  });
+
+  test('LiteLLM - Access with forward auth', async ({ page }) => {
+    console.log('\n🧪 Testing LiteLLM forward auth');
+
+    setupNetworkLogging(page, 'LiteLLM');
+
+    await page.goto('/litellm');
+
+    if (page.url().includes('authelia')) {
+      console.log('   ⚠️  Auth state expired, logging in...');
+      const loginPage = new AutheliaLoginPage(page);
+      await loginPage.login(testUser.username, testUser.password);
+    }
+
+    await logPageTelemetry(page, 'LiteLLM Main Page');
+
+    const hasLiteLLMUI = await page.locator('text=/api|key|model|proxy/i').first().isVisible({ timeout: 5000 }).catch(() => false);
+
+    console.log(`   ${hasLiteLLMUI ? '✅' : '⚠️'} LiteLLM UI loaded\n`);
+  });
+
+  test('Radicale - Access with forward auth', async ({ page }) => {
+    console.log('\n🧪 Testing Radicale (Calendar/Contacts) forward auth');
+
+    setupNetworkLogging(page, 'Radicale');
+
+    await page.goto('/calendar');
+
+    if (page.url().includes('authelia')) {
+      console.log('   ⚠️  Auth state expired, logging in...');
+      const loginPage = new AutheliaLoginPage(page);
+      await loginPage.login(testUser.username, testUser.password);
+    }
+
+    await logPageTelemetry(page, 'Radicale Main Page');
+
+    // Radicale is primarily CalDAV/CardDAV server - web UI is minimal
+    const hasRadicaleUI = await page.locator('text=/calendar|contact|carddav|caldav|radicale/i').first().isVisible({ timeout: 5000 }).catch(() => false);
+
+    console.log(`   ${hasRadicaleUI ? '✅' : '⚠️'} Radicale accessed\n`);
+  });
+
+  test('Vault - Access with forward auth', async ({ page }) => {
+    console.log('\n🧪 Testing HashiCorp Vault forward auth');
+
+    setupNetworkLogging(page, 'Vault');
+
+    await page.goto('/vault');
+
+    if (page.url().includes('authelia')) {
+      console.log('   ⚠️  Auth state expired, logging in...');
+      const loginPage = new AutheliaLoginPage(page);
+      await loginPage.login(testUser.username, testUser.password);
+    }
+
+    await logPageTelemetry(page, 'Vault Main Page');
+
+    const hasVaultUI = await page.locator('text=/secret|token|vault|policy|seal/i').first().isVisible({ timeout: 5000 }).catch(() => false);
+
+    console.log(`   ${hasVaultUI ? '✅' : '⚠️'} Vault UI loaded\n`);
   });
 });
 
