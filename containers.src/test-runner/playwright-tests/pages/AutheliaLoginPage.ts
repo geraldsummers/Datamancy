@@ -23,8 +23,10 @@ export class AutheliaLoginPage {
   constructor(page: Page) {
     this.page = page;
 
-    // Try multiple selector strategies for robustness
-    this.usernameInput = page.locator('input[name="username"]').or(
+    // Authelia uses specific IDs - try them first, then fall back to generic selectors
+    this.usernameInput = page.locator('#username-textfield').or(
+      page.locator('input[name="username"]')
+    ).or(
       page.locator('input[id="username"]')
     ).or(
       page.locator('input[placeholder*="username" i]')
@@ -32,13 +34,17 @@ export class AutheliaLoginPage {
       page.locator('input[type="text"]').first()
     );
 
-    this.passwordInput = page.locator('input[name="password"]').or(
+    this.passwordInput = page.locator('#password-textfield').or(
+      page.locator('input[name="password"]')
+    ).or(
       page.locator('input[id="password"]')
     ).or(
       page.locator('input[type="password"]').first()
     );
 
-    this.submitButton = page.locator('button[type="submit"]').or(
+    this.submitButton = page.locator('#sign-in-button').or(
+      page.locator('button[type="submit"]')
+    ).or(
       page.getByRole('button', { name: /sign in|login|submit/i })
     ).first();
   }
@@ -65,9 +71,12 @@ export class AutheliaLoginPage {
       fullPage: true,
     });
 
-    // Click submit
-    await this.submitButton.click();
-    console.log('   ✓ Submit clicked');
+    // Click submit and wait for the auth API call to complete
+    const [response] = await Promise.all([
+      this.page.waitForResponse(resp => resp.url().includes('/api/firstfactor') && resp.status() === 200, { timeout: 10000 }),
+      this.submitButton.click(),
+    ]);
+    console.log('   ✓ Submit clicked and auth response received');
 
     // Wait for navigation away from Authelia
     await this.page.waitForURL((url) => !url.toString().includes('authelia') && !url.toString().includes(':9091'), {

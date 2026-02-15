@@ -91,7 +91,6 @@ async function testForwardAuthService(
 
   // SIMPLIFIED: Just check that page has loaded with some content
   // Don't require specific UI patterns - too fragile
-  // Check for body presence - more reliable than isVisible() for some SPAs
   const body = page.locator('body');
   await expect(body).toBeAttached({ timeout: 10000 });
 

@@ -95,61 +95,96 @@ async function globalSetup(config: FullConfig) {
   const page = await context.newPage();
 
   try {
-    // Navigate to Grafana via Caddy using full domain name
-    // This ensures Caddy's *.datamancy.net certificates are used correctly
-    // Playwright trusts self-signed certs via ignoreHTTPSErrors
-    console.log(`   🔍 Connecting to Grafana: ${grafanaUrl}`);
+    // Navigate directly to Authelia login page with a service redirect
+    // This ensures cookies are set for .datamancy.net domain (wildcard)
+    // Using a dummy redirect URL that will work after login
+    const autheliaUrl = `https://auth.${domain}/?rd=https://datamancy.net/`;
+    console.log(`   🔍 Connecting to Authelia: ${autheliaUrl}`);
 
-    await page.goto(grafanaUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    // Navigate to Authelia
+    const response = await page.goto(autheliaUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
+    console.log(`   Response status: ${response?.status()}`);
     console.log(`   Current URL: ${page.url()}`);
 
-    // Check if redirected to Authelia login
-    if (page.url().toString().includes('authelia') || page.url().toString().includes(':9091')) {
-      console.log('   ✓ Redirected to Authelia login page');
+    // Wait a moment for any redirects to complete
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {
+      console.log('   ⚠️  Network idle timeout, continuing...');
+    });
 
-      // Log page structure for debugging
-      await logPageStructure(page, 'Authelia Login Page');
+    console.log(`   Final URL after redirects: ${page.url()}`);
 
-      // Fill in login form
-      console.log('   📝 Filling login form...');
+    // Check if we're on Authelia login page
+    const isOnAuthPage = page.url().toString().includes('auth.') ||
+                         page.url().toString().includes('authelia') ||
+                         page.url().toString().includes(':9091');
 
-      // Try multiple selector strategies
-      const usernameField = page.locator('input[name="username"]').or(
-        page.locator('input[id="username"]')
-      ).or(
-        page.locator('input[type="text"]').first()
-      );
+    if (!isOnAuthPage) {
+      console.log('   ❌ ERROR: Not redirected to Authelia!');
+      console.log(`   Current URL: ${page.url()}`);
+      await page.screenshot({ path: 'test-results/no-authelia-redirect.png', fullPage: true });
+      throw new Error('Forward auth redirect to Authelia did not occur');
+    }
 
-      const passwordField = page.locator('input[name="password"]').or(
-        page.locator('input[id="password"]')
-      ).or(
-        page.locator('input[type="password"]').first()
-      );
+    console.log('   ✓ Redirected to Authelia login page');
 
-      await usernameField.fill(username);
-      console.log(`   ✓ Username entered: ${username}`);
+    // Log page structure for debugging
+    await logPageStructure(page, 'Authelia Login Page');
 
-      await passwordField.fill(password);
-      console.log('   ✓ Password entered');
+    // Fill in login form
+    console.log('   📝 Filling login form...');
 
-      // Find and click submit button
-      const submitButton = page.locator('button[type="submit"]').or(
-        page.getByRole('button', { name: /sign in|login|submit/i })
-      ).first();
+    // Wait for username field to be visible
+    await page.locator('#username-textfield, input[name="username"], input[type="text"]').first().waitFor({ state: 'visible', timeout: 5000 });
 
-      await submitButton.click();
-      console.log('   ✓ Submit button clicked');
+    // Try multiple selector strategies for username
+    const usernameField = page.locator('#username-textfield').or(
+      page.locator('input[name="username"]')
+    ).or(
+      page.locator('input[type="text"]').first()
+    ).first();
 
-      // Wait for redirect back to original page
-      await page.waitForURL((url) => !url.toString().includes('authelia') && !url.toString().includes(':9091'), {
-        timeout: 15000,
-      });
+    // Try multiple selector strategies for password
+    const passwordField = page.locator('#password-textfield').or(
+      page.locator('input[name="password"]')
+    ).or(
+      page.locator('input[type="password"]').first()
+    ).first();
 
-      console.log(`   ✓ Authenticated successfully`);
-      console.log(`   Final URL: ${page.url()}\n`);
+    await usernameField.fill(username);
+    console.log(`   ✓ Username entered: ${username}`);
+
+    await passwordField.fill(password);
+    console.log('   ✓ Password entered');
+
+    // Find and click submit button
+    const submitButton = page.locator('#sign-in-button').or(
+      page.locator('button[type="submit"]')
+    ).or(
+      page.getByRole('button', { name: /sign in|login|submit/i })
+    ).first();
+
+    console.log('   🖱️  Clicking sign in button...');
+    await submitButton.click();
+    console.log('   ✓ Submit button clicked');
+
+    // Wait for redirect back to Grafana
+    console.log('   ⏳ Waiting for redirect back to Grafana...');
+    await page.waitForURL((url) => {
+      const urlStr = url.toString();
+      return !urlStr.includes('auth.') && !urlStr.includes('authelia') && !urlStr.includes(':9091');
+    }, {
+      timeout: 15000,
+    });
+
+    console.log(`   ✓ Authenticated successfully`);
+    console.log(`   Final URL: ${page.url()}`);
+
+    // Verify we're no longer on auth page
+    if (!page.url().includes('auth.')) {
+      console.log('   ✅ Successfully authenticated and redirected!\n');
     } else {
-      console.log('   ⚠️  No Authelia redirect detected - may already be authenticated\n');
+      console.log(`   ⚠️  Still on auth page: ${page.url()}\n`);
     }
 
     // Save authentication state
