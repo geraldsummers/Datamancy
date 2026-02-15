@@ -6,6 +6,8 @@ services:
       dockerfile: ./containers.src/agent-tool-server/Dockerfile
     container_name: agent-tool-server
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     networks:
       ai:
         aliases:

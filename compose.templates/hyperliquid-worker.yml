@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     container_name: hyperliquid-worker
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     networks:
       - trading
     environment:

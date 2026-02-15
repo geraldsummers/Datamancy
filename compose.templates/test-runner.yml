@@ -6,6 +6,8 @@ services:
     image: datamancy/test-runner:local-build
     pull_policy: build
     container_name: integration-test-runner
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
 
     networks:
       - ai

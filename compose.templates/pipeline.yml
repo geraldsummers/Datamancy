@@ -6,6 +6,8 @@ services:
       dockerfile: ./containers.src/pipeline/Dockerfile
     container_name: pipeline
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     profiles:
       - ingestion
     networks:

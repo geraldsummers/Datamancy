@@ -6,6 +6,8 @@ services:
       dockerfile: ./containers.src/tx-gateway/Dockerfile
     container_name: tx-gateway
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     networks:
       - trading
       - postgres

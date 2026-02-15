@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     container_name: evm-broadcaster
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     networks:
       - trading
       - postgres
