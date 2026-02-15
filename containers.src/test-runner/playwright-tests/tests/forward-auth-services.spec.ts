@@ -84,7 +84,7 @@ async function testForwardAuthService(
 
   // Check for 400/500 errors
   const pageText = await page.textContent('body').catch(() => '');
-  if (pageText.includes('400') || pageText.includes('Bad Request')) {
+  if (pageText && (pageText.includes('400') || pageText.includes('Bad Request'))) {
     console.log(`   ⚠️  ${serviceName} returned 400 error - skipping UI check\n`);
     return; // Skip this test, don't fail it
   }
