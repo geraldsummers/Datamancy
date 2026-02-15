@@ -15,7 +15,7 @@ services:
     command:
       - --docker_only=true
       - --housekeeping_interval=30s
-      - --disable_metrics=percpu,sched,tcp,udp,diskIO,disk,network,hugetlb
+      - --disable_metrics=percpu,sched,tcp,udp,hugetlb,process
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
       interval: 60s
