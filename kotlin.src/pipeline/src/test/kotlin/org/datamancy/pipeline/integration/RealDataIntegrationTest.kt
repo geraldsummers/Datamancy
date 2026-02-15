@@ -214,7 +214,7 @@ class RealDataIntegrationTest {
                     val metadata = item.getMetadata()
                     assertTrue(metadata.isNotEmpty(), "$name: Metadata required")
                     metadata.values.forEach { value ->
-                        assertTrue(value is String, "$name: Metadata must be strings")
+                        assertTrue(value.isNotEmpty(), "$name: Metadata values must be non-empty")
                     }
                 }
                 println("✓ $name: ${items.size} items ready for vector storage")

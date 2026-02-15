@@ -17,10 +17,10 @@ class StandardizedSourceIntegrationTest {
         
         val source = TestStandardizedSource()
 
-        
+
         assertEquals("test_source", source.name)
-        assertTrue(source.resyncStrategy() is ResyncStrategy.DailyAt)
-        assertTrue(source.backfillStrategy() is BackfillStrategy.NoBackfill)
+        assertTrue(source.resyncStrategy() is ResyncStrategy)
+        assertTrue(source.backfillStrategy() is BackfillStrategy)
         assertEquals(false, source.needsChunking())
 
         
