@@ -312,7 +312,7 @@ identity_providers:
 
       - client_id: test-runner
         client_name: Integration Test Runner
-        client_secret: '{{TEST_RUNNER_OAUTH_SECRET_HASH}}'
+        client_secret: '$pbkdf2-sha512$310000$Ap3jWRGAZGhgJ7BrhtHOoQ$ruEYH1JEE1FWGNuLqDpky55GSkNjKepTktlCZzuXmdl9aoSwKjEkYP/nxIEGms0nsJp0jz6/4B5YnjEIY.S4YQ'
         public: false
         authorization_policy: one_factor
         consent_mode: implicit
