@@ -22,21 +22,6 @@ services:
       - authelia
       - trading
 
-    extra_hosts:
-      - "datamancy.net:${CADDY_IP}"
-      - "auth.datamancy.net:${CADDY_IP}"
-      - "grafana.datamancy.net:${CADDY_IP}"
-      - "jupyterhub.datamancy.net:${CADDY_IP}"
-      - "open-webui.datamancy.net:${CADDY_IP}"
-      - "vaultwarden.datamancy.net:${CADDY_IP}"
-      - "prometheus.datamancy.net:${CADDY_IP}"
-      - "homepage.datamancy.net:${CADDY_IP}"
-      - "ntfy.datamancy.net:${CADDY_IP}"
-      - "qbittorrent.datamancy.net:${CADDY_IP}"
-      - "mastodon.datamancy.net:${CADDY_IP}"
-      - "forgejo.datamancy.net:${CADDY_IP}"
-      - "bookstack.datamancy.net:${CADDY_IP}"
-
     environment:
       AGENT_TOOL_SERVER_URL: "http://agent-tool-server:8081"
       SEARCH_SERVICE_URL: "http://search-service:8098"
