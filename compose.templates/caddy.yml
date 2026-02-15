@@ -43,6 +43,31 @@ services:
       ldap:
       litellm:
       ai:
+        aliases:
+          - ${DOMAIN}
+          - www.${DOMAIN}
+          - auth.${DOMAIN}
+          - grafana.${DOMAIN}
+          - jupyterhub.${DOMAIN}
+          - open-webui.${DOMAIN}
+          - vaultwarden.${DOMAIN}
+          - prometheus.${DOMAIN}
+          - homepage.${DOMAIN}
+          - ntfy.${DOMAIN}
+          - qbittorrent.${DOMAIN}
+          - mastodon.${DOMAIN}
+          - forgejo.${DOMAIN}
+          - bookstack.${DOMAIN}
+          - planka.${DOMAIN}
+          - kopia.${DOMAIN}
+          - radicale.${DOMAIN}
+          - homeassistant.${DOMAIN}
+          - lam.${DOMAIN}
+          - mail.${DOMAIN}
+          - vault.${DOMAIN}
+          - element.${DOMAIN}
+          - search.${DOMAIN}
+          - litellm.${DOMAIN}
       mailserver:
       memcached:
       matrix-internal:
