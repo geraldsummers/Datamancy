@@ -228,7 +228,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
 
     setupNetworkLogging(page, 'Vaultwarden');
 
-    await page.goto('https://vault.datamancy.net/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto('https://vaultwarden.datamancy.net/', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     // Handle auth redirect if needed
     if (page.url().includes('authelia') || page.url().includes('auth.')) {

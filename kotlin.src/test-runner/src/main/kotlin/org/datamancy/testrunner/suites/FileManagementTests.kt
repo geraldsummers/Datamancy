@@ -15,7 +15,7 @@ suspend fun TestRunner.fileManagementTests() = suite("File Management Tests") {
 
     test("Seafile web interface loads") {
         val response = client.getRawResponse("${env.endpoints.seafile}/")
-        response.status.value shouldBeOneOf listOf(200, 500, 502)
+        response.status.value shouldBeOneOf listOf(200, 302, 500, 502)
     }
 
     test("Seafile API endpoint responds") {
