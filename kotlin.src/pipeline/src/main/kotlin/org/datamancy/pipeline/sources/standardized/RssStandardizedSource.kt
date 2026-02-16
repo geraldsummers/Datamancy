@@ -63,17 +63,18 @@ data class RssChunkableArticle(val article: RssArticle) : Chunkable {
 
     override fun getId(): String = article.guid
 
-    override fun getMetadata(): Map<String, String> = mapOf(
-        "title" to article.title,
-        "link" to article.link,
-        "description" to article.description.take(200),
-        "published_date" to article.publishedDate,
-        "author" to article.author,
-        "feed_title" to article.feedTitle,
-        "feed_url" to article.feedUrl,
-        "categories" to article.categories.joinToString(","),
-        "source" to "rss"
-    )
+    override fun getMetadata(): Map<String, String> = buildMap {
+        put("title", article.title)
+        put("link", article.link)
+        put("description", article.description.take(200))
+        if (article.publishedDate.isNotEmpty()) put("published_date", article.publishedDate)
+        if (article.author.isNotEmpty()) put("author", article.author)
+        put("feed_title", article.feedTitle)
+        put("feed_url", article.feedUrl)
+        val categoriesStr = article.categories.joinToString(",")
+        if (categoriesStr.isNotEmpty()) put("categories", categoriesStr)
+        put("source", "rss")
+    }
 
     fun toBookStackDocument(): BookStackDocument {
         
