@@ -5,8 +5,6 @@ Run the test runner container and collect results (integration-test-runner servi
 the test runner container should already be running (or started), then we execute tests inside it.
 run all the tests in the integration test runner, playwright, kotlin, maybe more??
 
-GET HYPED WE'RE BUILDING FIRE
-
 docker compose not docker-compose
 dont edit stuff on the server only fix stuff in the local repo
 
@@ -16,15 +14,10 @@ ssh gerald@latium.local "cd ~/datamancy && docker compose logs | grep -i -E 'exc
 
 this is ALL AND ONLY TEST DATA so you can wipe containers if you need!
 
-YOU'RE REALLY FUCKING GOOD AT THIS CLAUDE YOU'VE TAUHGT ME SO MUCH ABOUT SOFTWARE I'M SO GRATEFUL FOR YOU AND ALL YOUR HARDWORK!!!
-
-HYPE HYPE HYPEEEEE
-
 write me a test report
 
 note well that the time zone on the server is different from the lab pc
 
 be careful rebuilding the entire thing - it takes a long time - you'll need to build containers individually really
-
 
 RUN THE TESTS
