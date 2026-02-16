@@ -1,15 +1,17 @@
 #!/bin/bash
 DOMAIN="${DOMAIN:-example.com}"
 MAIL_DOMAIN="mail.${DOMAIN}"
+# Caddy stores certs in /certs/certificates/ (bind mount of ./configs/caddy/certs)
+# Mailserver mounts this as /caddy-certs
 CERT_LOCATIONS=(
-    "/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/${MAIL_DOMAIN}/${MAIL_DOMAIN}.crt"
-    "/caddy-certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${MAIL_DOMAIN}/${MAIL_DOMAIN}.crt"
-    "/caddy-certs/caddy/certificates/local/${MAIL_DOMAIN}/${MAIL_DOMAIN}.crt"
+    "/caddy-certs/certificates/acme.zerossl.com-v2-dv90/${MAIL_DOMAIN}/${MAIL_DOMAIN}.crt"
+    "/caddy-certs/certificates/acme-v02.api.letsencrypt.org-directory/${MAIL_DOMAIN}/${MAIL_DOMAIN}.crt"
+    "/caddy-certs/certificates/local/${MAIL_DOMAIN}/${MAIL_DOMAIN}.crt"
 )
 KEY_LOCATIONS=(
-    "/caddy-certs/caddy/certificates/acme.zerossl.com-v2-dv90/${MAIL_DOMAIN}/${MAIL_DOMAIN}.key"
-    "/caddy-certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${MAIL_DOMAIN}/${MAIL_DOMAIN}.key"
-    "/caddy-certs/caddy/certificates/local/${MAIL_DOMAIN}/${MAIL_DOMAIN}.key"
+    "/caddy-certs/certificates/acme.zerossl.com-v2-dv90/${MAIL_DOMAIN}/${MAIL_DOMAIN}.key"
+    "/caddy-certs/certificates/acme-v02.api.letsencrypt.org-directory/${MAIL_DOMAIN}/${MAIL_DOMAIN}.key"
+    "/caddy-certs/certificates/local/${MAIL_DOMAIN}/${MAIL_DOMAIN}.key"
 )
 for cert in "${CERT_LOCATIONS[@]}"; do
     if [ -f "$cert" ]; then

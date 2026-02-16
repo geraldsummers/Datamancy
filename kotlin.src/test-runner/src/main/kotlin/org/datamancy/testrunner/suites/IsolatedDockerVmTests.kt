@@ -1,6 +1,7 @@
 package org.datamancy.testrunner.suites
 
 import org.datamancy.testrunner.framework.*
+import java.io.File
 
 
 suspend fun TestRunner.isolatedDockerVmTests() = suite("Isolated Docker VM Tests") {
@@ -35,6 +36,7 @@ suspend fun TestRunner.isolatedDockerVmTests() = suite("Isolated Docker VM Tests
         // both "isolated" and "production" Docker contexts are the same
         val isRunningInContainer = System.getenv("RUNNING_IN_CONTAINER") == "true"
             || System.getProperty("test.environment") == "container"
+            || File("/.dockerenv").exists()  // Check if running in Docker container
 
         if (isRunningInContainer) {
             println("      ℹ️  Skipping isolation test - running inside container network")
