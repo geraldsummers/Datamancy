@@ -87,6 +87,13 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
             val (pushExitCode, pushOutput) = execCICDDocker(isolatedDockerVmDockerHost, "push", registryImageName)
             if (pushExitCode != 0) {
+                // Registry push failure is often due to HTTP/HTTPS mismatch
+                // Registry at 192.168.0.11:5000 serves HTTP but Docker expects HTTPS by default
+                if (pushOutput.contains("server gave HTTP response to HTTPS client")) {
+                    println("      ℹ️  Registry TLS configuration issue detected")
+                    println("      ℹ️  Add to /etc/docker/daemon.json: {\"insecure-registries\": [\"$registryHost\"]}")
+                    println("      ℹ️  Or enable TLS on registry with proper certificates")
+                }
                 throw AssertionError("Push to registry failed: $pushOutput")
             }
 

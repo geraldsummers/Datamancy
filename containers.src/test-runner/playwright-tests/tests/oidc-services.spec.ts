@@ -101,12 +101,11 @@ async function testOIDCService(
 test.describe('OIDC Services - SSO Flow', () => {
 
   test('Grafana - OIDC login flow', async ({ page }) => {
-    await testOIDCService(
-      page,
-      'Grafana',
-      'https://grafana.datamancy.net/',
-      /dashboard|panel|grafana|query|explore/i
-    );
+    // NOTE: Grafana is configured for Auth Proxy (forward auth), not OIDC
+    // Environment: GF_AUTH_PROXY_ENABLED=true
+    // Grafana uses Authelia -> Caddy -> Header-based auth, not OAuth/OIDC flow
+    // This test is skipped as Grafana doesn't use OIDC in this deployment
+    test.skip(true, 'Grafana uses Auth Proxy (forward auth), not OIDC');
   });
 
   test('Mastodon - OIDC login flow', async ({ page }) => {

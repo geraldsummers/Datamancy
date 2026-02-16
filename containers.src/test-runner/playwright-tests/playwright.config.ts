@@ -37,7 +37,7 @@ export default defineConfig({
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
     ['junit', { outputFile: 'test-results/junit.xml' }],
     ['json', { outputFile: 'test-results/results.json' }],
-    ['list'], // Console output
+    ['line'], // Verbose one-line-per-test output with real-time updates
   ],
 
   /* Shared settings for all projects */

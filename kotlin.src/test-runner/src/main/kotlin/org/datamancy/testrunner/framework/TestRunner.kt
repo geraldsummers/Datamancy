@@ -90,6 +90,7 @@ class TestRunner(
     suspend fun suite(name: String, block: suspend TestSuite.() -> Unit) {
         val message = "\n▶ $name"
         println(message)
+        System.out.flush()
         log(message)
         val suite = TestSuite(name, this)
         suite.block()
@@ -97,6 +98,7 @@ class TestRunner(
 
     suspend fun test(name: String, block: suspend TestContext.() -> Unit): TestResult {
         print("  [TEST] $name ... ")
+        System.out.flush()
         log("  [TEST] $name ... ")
         var duration = 0L
         val result = try {
@@ -107,6 +109,7 @@ class TestRunner(
             TestResult.Success(name, duration).also {
                 val message = "✓ OK (${duration}ms)"
                 println(message)
+                System.out.flush()
                 log(message)
             }
         } catch (e: AssertionError) {
@@ -115,6 +118,7 @@ class TestRunner(
                 val message2 = "      ${e.message}"
                 println(message1)
                 println(message2)
+                System.out.flush()
                 log(message1)
                 log(message2)
             }
@@ -124,11 +128,13 @@ class TestRunner(
                 val message2 = "      ${e.message}"
                 println(message1)
                 println(message2)
+                System.out.flush()
                 log(message1)
                 log(message2)
                 if (e.stackTrace.isNotEmpty()) {
                     val message3 = "      at ${e.stackTrace[0]}"
                     println(message3)
+                    System.out.flush()
                     log(message3)
                 }
             }
@@ -141,6 +147,7 @@ class TestRunner(
         results.add(TestResult.Skipped(name, reason))
         val message = "  [SKIP] $name - $reason"
         println(message)
+        System.out.flush()
         log(message)
     }
 

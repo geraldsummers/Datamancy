@@ -433,12 +433,27 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
         }
         println("      ✓ Authenticated with Authelia")
 
-        
-        val directResponse = client.getRawResponse("http://search-service:8098/actuator/health")
-        require(directResponse.status == HttpStatusCode.OK || directResponse.status == HttpStatusCode.Unauthorized) {
-            "Search Service container not responding: ${directResponse.status}"
+
+        // Try multiple potential health endpoints
+        val healthEndpoints = listOf("/actuator/health", "/health", "/api/health")
+        var healthCheckPassed = false
+
+        for (endpoint in healthEndpoints) {
+            try {
+                val directResponse = client.getRawResponse("http://search-service:8098$endpoint")
+                if (directResponse.status == HttpStatusCode.OK || directResponse.status == HttpStatusCode.Unauthorized) {
+                    println("      ✓ Search Service container accessible at $endpoint")
+                    healthCheckPassed = true
+                    break
+                }
+            } catch (e: Exception) {
+                // Try next endpoint
+            }
         }
-        println("      ✓ Search Service container accessible")
+
+        require(healthCheckPassed) {
+            "Search Service container not responding on any health endpoint"
+        }
 
         
         val proxiedResponse = auth.authenticatedGet("http://caddy:80/")

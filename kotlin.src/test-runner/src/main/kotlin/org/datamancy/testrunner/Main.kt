@@ -90,6 +90,7 @@ fun main(args: Array<String>) = runBlocking {
         Results: ${resultsDir.absolutePath}
 
     """.trimIndent())
+    System.out.flush()
 
     val httpClient = createHttpClient(verbose)
     val serviceClient = ServiceClient(env.endpoints, httpClient)
@@ -114,8 +115,10 @@ fun main(args: Array<String>) = runBlocking {
     } catch (e: Exception) {
         println("\n❌ Fatal error during test execution:")
         println("   ${e.message}")
+        System.out.flush()
         if (verbose) {
             e.printStackTrace()
+            System.out.flush()
         }
 
         // Ensure results directory exists before writing error log
@@ -350,6 +353,7 @@ private fun printTelemetry(summary: TestSummary, duration: Long, resultsDir: Fil
     } else {
         println("\n✅ All tests passed!")
     }
+    System.out.flush()
 }
 
 private fun saveResults(

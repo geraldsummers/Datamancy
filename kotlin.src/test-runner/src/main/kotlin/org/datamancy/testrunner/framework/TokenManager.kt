@@ -87,7 +87,8 @@ class TokenManager(
             }
 
             val saBody = json.parseToJsonElement(saResponse.bodyAsText()).jsonObject
-            val serviceAccountId = saBody["id"]?.jsonPrimitive?.content?.toIntOrNull()
+            val serviceAccountId = saBody["id"]?.jsonPrimitive?.int
+                ?: saBody["id"]?.jsonPrimitive?.content?.toIntOrNull()
                 ?: return Result.failure(Exception("No service account ID in response"))
 
             

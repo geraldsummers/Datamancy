@@ -27,8 +27,7 @@ suspend fun TestRunner.playwrightE2ETests() {
             val baseUrl = System.getenv("BASE_URL") ?: "http://caddy"
 
             val processBuilder = ProcessBuilder(
-                "npm", "run", "test:e2e",
-                "--", "--reporter=json"
+                "npm", "run", "test:e2e"
             ).apply {
                 directory(playwrightDir)
                 environment().apply {
@@ -37,8 +36,9 @@ suspend fun TestRunner.playwrightE2ETests() {
                     put("LDAP_ADMIN_PASSWORD", System.getenv("LDAP_ADMIN_PASSWORD") ?: "admin")
                     put("AUTHELIA_URL", autheliaUrl)
                     put("BASE_URL", baseUrl)
+                    put("FORCE_COLOR", "1")  // Enable colored output
                 }
-                redirectErrorStream(true)
+                inheritIO()  // Stream output directly to stdout/stderr in real-time
             }
 
             println("Starting Playwright E2E tests...")
@@ -46,13 +46,11 @@ suspend fun TestRunner.playwrightE2ETests() {
             println("  LDAP URL: $ldapUrl")
             println("  Authelia URL: $autheliaUrl")
             println("  Base URL: $baseUrl")
+            println()
+            System.out.flush()
 
             val process = processBuilder.start()
-            val output = process.inputStream.bufferedReader().use { it.readText() }
             val exitCode = process.waitFor()
-
-            // Log output
-            println("Playwright output:\n$output")
 
             // Copy Playwright reports to test-results
             val resultsDir = this@playwrightE2ETests.resultsDir
