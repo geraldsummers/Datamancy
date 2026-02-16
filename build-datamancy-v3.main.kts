@@ -1071,7 +1071,12 @@ ${CYAN}╔═══════════════════════�
 
     // Create dist/
     distDir.mkdirs()
-    distDir.resolve("configs/caddy/certs").mkdirs()
+    val caddyCertsDir = distDir.resolve("configs/caddy/certs")
+    caddyCertsDir.mkdirs()
+    // Pre-create Caddy subdirectories so they're owned by the user, not root
+    caddyCertsDir.resolve("certificates").mkdirs()
+    caddyCertsDir.resolve("locks").mkdirs()
+    caddyCertsDir.resolve("pki").mkdirs()
 
     // Load or generate credentials
     val credentialsFile = distDir.resolve(".credentials")
