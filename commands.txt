@@ -27,11 +27,26 @@ sudo systemctl start docker containerd
 
 deployment blob:
 
- cd /home/gerald/IdeaProjects/Datamancy/ && \
+cd /home/gerald/IdeaProjects/Datamancy/ && \
 ./build-datamancy-v3.main.kts && \
 rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
-ssh -t gerald@latium.local "cd ~/datamancy && \
-  docker compose pull --parallel 4 &&\
-  docker compose up -d --build && \
-  docker compose up pipeline -d && \
-  docker compose logs -f"
+ssh gerald@latium.local <<'EOF'
+set -euo pipefail
+cd ~/datamancy
+
+# Ensure skopeo exists
+if ! command -v skopeo >/dev/null 2>&1; then
+  sudo apt-get update
+  sudo apt-get install -y skopeo
+fi
+
+# Pre-seed GHCR images into local Docker
+docker compose config | awk '/image:/{print $2}' | sort -u | grep '^ghcr\.io/' | while read -r img; do
+  echo "== preseed: $img =="
+  skopeo copy --retry-times 30 "docker://$img" "docker-daemon:$img"
+done
+
+docker compose up -d --build
+docker compose up -d pipeline
+docker compose logs -f
+EOF
