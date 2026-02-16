@@ -124,7 +124,7 @@ identity_providers:
     hmac_secret: another_very_important_secret
     lifespans:
       access_token: 1h
-      authorize_code: 1m
+      authorize_code: 5m
       id_token: 1h
       refresh_token: 90m
     enable_client_debug_messages: false
