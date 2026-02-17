@@ -91,11 +91,12 @@ class TokenManager(
                 ?: saBody["id"]?.jsonPrimitive?.content?.toIntOrNull()
                 ?: return Result.failure(Exception("No service account ID in response"))
 
-            
+
+            val tokenName = "integration-test-token-${System.currentTimeMillis()}"
             val tokenResponse = client.post("${endpoints.grafana}/api/serviceaccounts/$serviceAccountId/tokens") {
                 contentType(ContentType.Application.Json)
                 sessionCookies.forEach { cookie(it.name, it.value) }
-                setBody("""{"name":"integration-test-token"}""")
+                setBody("""{"name":"$tokenName"}""")
             }
 
             if (tokenResponse.status == HttpStatusCode.OK || tokenResponse.status == HttpStatusCode.Created) {
