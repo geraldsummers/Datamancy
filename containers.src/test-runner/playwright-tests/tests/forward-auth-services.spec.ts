@@ -83,20 +83,67 @@ async function testForwardAuthService(
   await logPageTelemetry(page, `${serviceName} Main Page`);
 
   // Check for 400/500 errors
-  const pageText = await page.textContent('body').catch(() => '');
+  let pageText = await page.textContent('body').catch(() => '');
   if (pageText && (pageText.includes('400') || pageText.includes('Bad Request'))) {
     console.log(`   ⚠️  ${serviceName} returned 400 error - skipping UI check\n`);
     return; // Skip this test, don't fail it
   }
 
-  // SIMPLIFIED: Just check that page has loaded with some content
-  // Don't require specific UI patterns - too fragile
+  // ENHANCED: Verify we're on the CORRECT service page, not just "not auth"
   const body = page.locator('body');
   await expect(body).toBeAttached({ timeout: 10000 });
 
   // Verify page has meaningful content (not just an empty body)
-  const bodyHTML = await body.innerHTML();
+  let bodyHTML = await body.innerHTML();
   expect(bodyHTML.length).toBeGreaterThan(10);
+
+  // Check for service-specific UI pattern to confirm correct page
+  if (options.requireUI !== false && uiPattern) {
+    // Retry pattern matching to handle slow-loading SPAs
+    let matchesPattern = false;
+    let pageTitle = '';
+    const maxPatternRetries = 5;
+
+    for (let i = 0; i < maxPatternRetries; i++) {
+      pageTitle = await page.title();
+      pageText = await page.textContent('body').catch(() => '');
+      bodyHTML = await body.innerHTML();
+      matchesPattern = uiPattern.test(pageText || bodyHTML || pageTitle);
+
+      if (matchesPattern) {
+        break; // Pattern found, exit retry loop
+      }
+
+      if (i < maxPatternRetries - 1) {
+        console.log(`   ⏳ Waiting for ${serviceName} UI to render... (${i + 1}/${maxPatternRetries})`);
+        await page.waitForTimeout(2000); // Wait 2 seconds before retry
+      }
+    }
+
+    if (!matchesPattern) {
+      console.log(`   ⚠️  Pattern match failed for ${serviceName}`);
+      console.log(`   Title: "${pageTitle}"`);
+      console.log(`   Pattern: ${uiPattern}`);
+      console.log(`   Body length: ${bodyHTML.length} chars`);
+      throw new Error(`Expected service page for ${serviceName} but UI pattern not found. Pattern: ${uiPattern}, Title: "${pageTitle}"`);
+    }
+  }
+
+  // Additional URL validation if specified
+  if (options.urlPattern) {
+    await expect(page).toHaveURL(options.urlPattern);
+  }
+
+  // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
+  const screenshotName = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-authenticated.jpg`;
+  await page.screenshot({
+    path: `/app/test-results/screenshots/${screenshotName}`,
+    type: 'jpeg',
+    quality: 85,
+    fullPage: true
+  });
+  console.log(`   📸 Screenshot saved: ${screenshotName}`);
+  console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
 
   console.log(`   ✅ ${serviceName} accessed successfully\n`);
 }
@@ -112,8 +159,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'JupyterHub',
       'https://jupyterhub.datamancy.net/',
-      /jupyter|notebook|hub|spawn/i,
-      { urlPattern: /jupyterhub|jupyter|8000/ }
+      /JupyterHub/i, // Page title is literally "JupyterHub"
+      { urlPattern: /jupyterhub\.datamancy\.net/ }
     );
   });
 
@@ -122,7 +169,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Open-WebUI',
       'https://open-webui.datamancy.net/',
-      /chat|conversation|model|openai/i
+      /Open WebUI/i, // Title is "Open WebUI"
+      { urlPattern: /open-webui\.datamancy\.net/ }
     );
   });
 
@@ -131,17 +179,16 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Prometheus',
       'https://prometheus.datamancy.net/',
-      /prometheus|query|graph|target/i
+      /Prometheus|Query|Execute|Alerts/i, // Look for Prometheus UI elements or title
+      { urlPattern: /prometheus\.datamancy\.net/ }
     );
   });
 
   test('Vaultwarden - Access with forward auth', async ({ page }) => {
-    await testForwardAuthService(
-      page,
-      'Vaultwarden',
-      'https://vaultwarden.datamancy.net/',
-      /vault|bitwarden|password|login|email/i
-    );
+    // NOTE: Vaultwarden is configured with SSO_ONLY=true, which means it requires OIDC login
+    // Forward-auth will result in "Failed to discover OpenID provider" error
+    // This service should be tested in the OIDC test suite instead
+    test.skip(true, 'Vaultwarden requires OIDC (SSO_ONLY=true) - see oidc-services.spec.ts');
   });
 
   test('Homepage - Access with forward auth', async ({ page }) => {
@@ -149,7 +196,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Homepage',
       'https://homepage.datamancy.net/',
-      /service|bookmark|widget|homepage|dashboard/i
+      /(Homepage|AI & Development|Collaboration|System)/i, // Title is "Homepage" and has service group buttons
+      { urlPattern: /homepage\.datamancy\.net/ }
     );
   });
 
@@ -158,7 +206,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Ntfy',
       'https://ntfy.datamancy.net/',
-      /notification|subscribe|topic|publish|ntfy/i
+      /ntfy/i, // Title is "ntfy"
+      { urlPattern: /ntfy\.datamancy\.net/ }
     );
   });
 
@@ -167,7 +216,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'qBittorrent',
       'https://qbittorrent.datamancy.net/',
-      /torrent|download|upload|qbittorrent|transfer/i
+      /qBittorrent|Add Torrent|Transfers/i, // Look for qBittorrent UI elements
+      { urlPattern: /qbittorrent\.datamancy\.net/ }
     );
   });
 
@@ -176,7 +226,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Roundcube',
       'https://roundcube.datamancy.net/',
-      /inbox|compose|email|mail|roundcube|message/i
+      /roundcube|webmail|inbox/i, // Look for roundcube-specific content
+      { urlPattern: /roundcube\.datamancy\.net/ }
     );
   });
 
@@ -185,7 +236,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Home Assistant',
       'https://homeassistant.datamancy.net/',
-      /overview|automation|device|entity|lovelace|home assistant/i
+      /home.?assistant/i, // Look for "Home Assistant" or "HomeAssistant"
+      { urlPattern: /homeassistant\.datamancy\.net/ }
     );
   });
 
@@ -194,16 +246,21 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Kopia',
       'https://kopia.datamancy.net/',
-      /snapshot|backup|repository|policy|kopia/i
+      /Kopia|Snapshots|Repository|Policies/i, // Look for Kopia UI elements or title
+      { urlPattern: /kopia\.datamancy\.net/ }
     );
   });
 
   test('LDAP Account Manager - Access with forward auth', async ({ page }) => {
+    // NOTE: LAM requires its own authentication even after forward-auth passes
+    // This is expected behavior - LAM has internal user management
+    // The test validates that forward-auth allows access to LAM's login page
     await testForwardAuthService(
       page,
       'LDAP Account Manager',
       'https://lam.datamancy.net/lam/', // LAM requires /lam/ path
-      /ldap|user|group|tree|account|directory/i
+      /LDAP Account Manager|Login|User name|Password/i, // Title or login form elements
+      { urlPattern: /lam\.datamancy\.net/, requireUI: false } // Don't require UI pattern match
     );
   });
 
@@ -212,7 +269,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'LiteLLM',
       'https://litellm.datamancy.net/',
-      /api|key|model|proxy|litellm|usage/i
+      /LiteLLM API|Swagger UI/i, // Title is "LiteLLM API - Swagger UI"
+      { urlPattern: /litellm\.datamancy\.net/ }
     );
   });
 
@@ -245,12 +303,31 @@ test.describe('Forward Auth Services - SSO Flow', () => {
     // Verify we're on Vaultwarden (not auth page)
     await expect(page).not.toHaveURL(/auth\.|authelia/);
 
+    // Verify correct URL
+    await expect(page).toHaveURL(/vaultwarden\.datamancy\.net/);
+
     // Check body has content (Vaultwarden UI takes time to render)
     const body = page.locator('body');
     await expect(body).toBeAttached({ timeout: 10000 });
 
     const bodyHTML = await body.innerHTML();
     expect(bodyHTML.length).toBeGreaterThan(10);
+
+    // Verify we're actually on Vaultwarden page (not generic error page)
+    const pageTitle = await page.title();
+    if (!pageTitle.includes('Vaultwarden') && !pageTitle.includes('Bitwarden')) {
+      throw new Error(`Expected Vaultwarden page but got title: "${pageTitle}"`);
+    }
+
+    // Capture screenshot for manual validation (compressed)
+    await page.screenshot({
+      path: '/app/test-results/screenshots/vault-authenticated.jpg',
+      type: 'jpeg',
+      quality: 85,
+      fullPage: true
+    });
+    console.log(`   📸 Screenshot saved: vault-authenticated.jpg`);
+    console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
 
     console.log(`   ✅ Vaultwarden accessed successfully\n`);
   });

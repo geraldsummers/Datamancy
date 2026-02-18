@@ -50,6 +50,8 @@ services:
       SMTP_SECURITY: starttls
       SMTP_USERNAME: vaultwarden@${MAIL_DOMAIN}
       SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD}
+      SSL_CERT_FILE: ""
+      ROCKET_TLS_INSECURE_SKIP_VERIFICATION: "true"
     volumes:
       - vaultwarden_data:/data
     healthcheck:

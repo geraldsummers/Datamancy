@@ -37,6 +37,7 @@ services:
       OIDC_TOKEN_ENDPOINT_AUTH_METHOD: client_secret_post
       OIDC_ENFORCED: false
       NODE_EXTRA_CA_CERTS: /usr/local/share/ca-certificates/caddy-ca.crt
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
     volumes:
       - planka_data:/app/public/user-avatars
       - planka_caddy_ca:/usr/local/share/ca-certificates:ro

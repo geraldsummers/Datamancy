@@ -1,3 +1,5 @@
+this is docker stack generation software
+
 ssh in via ssh gerald@latium.local "command"
 Drop a docker ps | grep unhealthy
 Drop a ls ~/datamancy
@@ -21,3 +23,5 @@ note well that the time zone on the server is different from the lab pc
 be careful rebuilding the entire thing - it takes a long time - you'll need to build containers individually really
 
 RUN THE TESTS
+get clear diagnoses for failures, false positives, errors in screenshots, missing screenshots and experiment with solutions on the server
+dont write report files - no one will read them

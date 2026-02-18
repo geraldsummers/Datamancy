@@ -57,6 +57,24 @@ async function globalTeardown() {
   }
 
   console.log('✅ Global teardown complete!\n');
+
+  // Remind users to review screenshots
+  console.log('╔═══════════════════════════════════════════════════════════════════════════╗');
+  console.log('║  📸 SCREENSHOT REVIEW REQUIRED                                            ║');
+  console.log('╚═══════════════════════════════════════════════════════════════════════════╝\n');
+  console.log('⚠️  IMPORTANT: Test pass/fail status is NOT sufficient for validation!\n');
+  console.log('📋 Next Steps:');
+  console.log('   1. Review ALL screenshots in: /app/test-results/screenshots/');
+  console.log('   2. Check failure screenshots in test-results/**/test-failed-*.png');
+  console.log('   3. Verify each page shows the CORRECT service (not error pages)');
+  console.log('   4. Compare screenshots against expected UI patterns\n');
+  console.log('💡 Why? Pattern matching can give false positives/negatives.');
+  console.log('   Only visual validation confirms services are truly working.\n');
+  console.log('🔍 Copy screenshots from container:');
+  console.log('   docker cp $(docker compose ps -q integration-test-runner):/app/test-results ~/test-results-$(date +%Y%m%d)\n');
+  console.log('📊 Generate HTML report (if available):');
+  console.log('   npm run screenshot-report\n');
+  console.log('═══════════════════════════════════════════════════════════════════════════\n');
 }
 
 export default globalTeardown;

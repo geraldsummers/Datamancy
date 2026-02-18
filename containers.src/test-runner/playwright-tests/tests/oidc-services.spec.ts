@@ -91,9 +91,53 @@ async function testOIDCService(
 
   await logPageTelemetry(page, `${serviceName} Dashboard`);
 
-  // SIMPLIFIED: Just check that we have a body with content
-  const hasContent = await page.locator('body').isVisible();
+  // ENHANCED: Verify we're on the CORRECT service page, not just "not auth"
+  const body = page.locator('body');
+  const hasContent = await body.isVisible();
   expect(hasContent).toBeTruthy();
+
+  // Verify service-specific UI pattern to confirm correct page
+  // Retry pattern matching to handle slow-loading SPAs
+  let matchesPattern = false;
+  let pageTitle = '';
+  let bodyHTML = '';
+  let pageText = '';
+  const maxPatternRetries = 5;
+
+  for (let i = 0; i < maxPatternRetries; i++) {
+    pageTitle = await page.title();
+    pageText = await page.textContent('body').catch(() => '');
+    bodyHTML = await body.innerHTML();
+    matchesPattern = uiPattern.test(pageText || bodyHTML || pageTitle);
+
+    if (matchesPattern) {
+      break; // Pattern found, exit retry loop
+    }
+
+    if (i < maxPatternRetries - 1) {
+      console.log(`   ⏳ Waiting for ${serviceName} UI to render... (${i + 1}/${maxPatternRetries})`);
+      await page.waitForTimeout(2000); // Wait 2 seconds before retry
+    }
+  }
+
+  if (!matchesPattern) {
+    console.log(`   ⚠️  Pattern match failed for ${serviceName}`);
+    console.log(`   Title: "${pageTitle}"`);
+    console.log(`   Pattern: ${uiPattern}`);
+    console.log(`   Body length: ${bodyHTML.length} chars`);
+    throw new Error(`Expected ${serviceName} page but UI pattern not found. Pattern: ${uiPattern}, Title: "${pageTitle}"`);
+  }
+
+  // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
+  const screenshotName = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-oidc-authenticated.jpg`;
+  await page.screenshot({
+    path: `/app/test-results/screenshots/${screenshotName}`,
+    type: 'jpeg',
+    quality: 85,
+    fullPage: true
+  });
+  console.log(`   📸 Screenshot saved: ${screenshotName}`);
+  console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
 
   console.log(`   ✅ ${serviceName} OIDC login successful\n`);
 }
@@ -113,7 +157,7 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'Mastodon',
       'https://mastodon.datamancy.net/',
-      /toot|timeline|mastodon|federate|publish/i,
+      /Mastodon|What's on your mind/i, // Look for Mastodon-specific UI
       ['Authelia', 'SSO']
     );
   });
@@ -123,7 +167,8 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'Forgejo',
       'https://forgejo.datamancy.net/',
-      /repository|git|forgejo|commit|pull request/i
+      /Forgejo|Explore|repositories/i, // Look for "Forgejo" or repository listings
+      ['Authelia']
     );
   });
 
@@ -132,7 +177,7 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'BookStack',
       'https://bookstack.datamancy.net/',
-      /book|shelf|chapter|bookstack|page/i,
+      /BookStack|Books|Shelves/i, // Look for "BookStack" or book/shelf content
       ['Authelia', 'Login with SSO', 'SSO']
     );
   });
@@ -142,8 +187,18 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'Planka',
       'https://planka.datamancy.net/',
-      /board|project|card|task|planka|lane/i,
+      /Planka|Add board|Projects/i, // Look for Planka-specific UI
       ['Authelia', 'SSO', 'OIDC']
+    );
+  });
+
+  test('Vaultwarden - OIDC login flow', async ({ page }) => {
+    await testOIDCService(
+      page,
+      'Vaultwarden',
+      'https://vaultwarden.datamancy.net/',
+      /Vaultwarden|Bitwarden|My Vault|Log in/i, // Look for Vaultwarden UI
+      ['Authelia', 'SSO']
     );
   });
 });
