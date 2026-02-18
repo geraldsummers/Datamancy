@@ -106,7 +106,7 @@ async function testOIDCService(
 
   for (let i = 0; i < maxPatternRetries; i++) {
     pageTitle = await page.title();
-    pageText = await page.textContent('body').catch(() => '');
+    pageText = (await page.textContent('body').catch(() => '')) || '';
     bodyHTML = await body.innerHTML();
     matchesPattern = uiPattern.test(pageText || bodyHTML || pageTitle);
 
