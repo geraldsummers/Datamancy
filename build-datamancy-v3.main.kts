@@ -938,6 +938,7 @@ fun bundleSourceToRepos(distDir: File, workDir: File, version: String) {
         "containers.src/",
         "kotlin.src/",
         "scripts/",
+        ".dockerignore",
         ".gitignore",
         "README.md"
     )
