@@ -1,6 +1,6 @@
 FROM eclipse-temurin:21-jre-jammy
 
-# Install base utilities, Docker, and Node.js in a single layer to reduce build time
+# Install base utilities, Docker, SSH, and Node.js in a single layer to reduce build time
 RUN apt-get update && apt-get install -y \
     bash \
     curl \
@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     gnupg \
     lsb-release \
+    openssh-client \
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
