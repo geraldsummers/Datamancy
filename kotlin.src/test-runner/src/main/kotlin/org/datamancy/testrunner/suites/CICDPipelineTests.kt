@@ -124,8 +124,12 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 throw AssertionError("Container not found on isolated-docker-vm")
             }
 
-            
-            val prodProcess = ProcessBuilder("docker", "ps", "--filter", "name=$containerName", "--format", "{{.Names}}").start()
+
+            // Check production Docker via SSH to the host (not using DOCKER_HOST env var)
+            val prodProcess = ProcessBuilder(
+                "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                "gerald@latium.local", "docker", "ps", "--filter", "name=$containerName", "--format", "{{.Names}}"
+            ).start()
             val prodOutput = prodProcess.inputStream.bufferedReader().readText()
             prodProcess.waitFor()
 
@@ -133,7 +137,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
                 throw AssertionError("Container visible on production - isolation breach!")
             }
 
-            
+
             execCICDDocker(isolatedDockerVmDockerHost, "rm", "-f", containerName)
         } catch (e: Exception) {
             execCICDDocker(isolatedDockerVmDockerHost, "rm", "-f", containerName)
