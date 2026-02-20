@@ -8,16 +8,24 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
 
     // HTTP client
     implementation(libs.okhttp)
     implementation(libs.gson)
+
+    // Ktor WebSocket client for market data streaming
+    implementation(libs.bundles.ktor.client)
+
+    // Database - PostgreSQL/TimescaleDB
+    implementation(libs.postgres.jdbc)
 
     // Logging
     implementation(libs.bundles.logging)
 
     // Testing
     testImplementation(libs.bundles.testing)
+    testImplementation(libs.bundles.testcontainers)
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
 

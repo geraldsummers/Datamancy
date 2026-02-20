@@ -8,24 +8,27 @@ plugins {
 }
 
 dependencies {
-    
+
     implementation(libs.bundles.ktor.client)
     implementation(libs.ktor.client.logging)
 
-    
+
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.datetime)
 
-    
+
     implementation(libs.bundles.logging)
 
-    
+
     implementation(libs.postgres.jdbc)
     implementation(libs.mariadb.jdbc)
 
     // Redis/Valkey client
     implementation("redis.clients:jedis:5.1.0")
+
+    // Trading SDK - for trading DSL E2E tests
+    implementation(project(":trading-sdk"))
 
     
 

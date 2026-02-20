@@ -246,6 +246,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "agent-security" -> runner.agentSecurityTests()
         "agent-llm-quality" -> runner.agentLlmQualityTests()
         "trading" -> runner.tradingTests()
+        "trading-dsl" -> runner.tradingDslTests()
         "web3-wallet" -> runner.web3WalletTests()
 
         // New extended test suites
@@ -282,6 +283,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.isolatedDockerVmTests()
             runner.stackReplicationTests()
             runner.tradingTests()
+            runner.tradingDslTests()
 
             // New extended test suites
             runner.emailStackTests()
@@ -299,9 +301,9 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
             println("                  stack-deployment, bookstack, cicd, isolated-docker-vm, stack-replication,")
-            println("                  agent-capability, agent-security, agent-llm-quality, trading, web3-wallet,")
-            println("                  email-stack, caching-layer, extended-communication, extended-productivity,")
-            println("                  playwright-e2e, vault, all")
+            println("                  agent-capability, agent-security, agent-llm-quality, trading, trading-dsl,")
+            println("                  web3-wallet, email-stack, caching-layer, extended-communication,")
+            println("                  extended-productivity, playwright-e2e, vault, all")
             exitProcess(1)
         }
     }
@@ -456,7 +458,7 @@ private fun printUsage() {
                                      authentication, enhanced-auth, authenticated-ops, utility, homeassistant,
                                      stack-deployment, bookstack, cicd, isolated-docker-vm,
                                      agent-capability, agent-security, agent-llm-quality, trading,
-                                     playwright-e2e, vault, all
+                                     trading-dsl, playwright-e2e, vault, all
 
       --verbose, -v          Enable verbose logging
       --help, -h             Show this help message
