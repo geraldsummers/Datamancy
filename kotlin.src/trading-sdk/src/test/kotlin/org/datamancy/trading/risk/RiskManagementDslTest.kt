@@ -15,7 +15,7 @@ class RiskManagementDslTest {
     fun `fixed position sizing works`() {
         val risk = riskManagement {
             sizing {
-                fixed(5.0.toBigDecimal())
+                fixed(0.5.toBigDecimal())
                 maxPositionPercent(100.0) // Allow large fixed positions
             }
         }
@@ -25,7 +25,7 @@ class RiskManagementDslTest {
             entryPrice = 50_000.toBigDecimal()
         )
 
-        assertBigDecimalEquals(BigDecimal.valueOf(5.0).setScale(8), size)
+        assertBigDecimalEquals(BigDecimal.valueOf(0.5).setScale(8), size)
     }
 
     @Test
