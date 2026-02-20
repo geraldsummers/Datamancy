@@ -28,8 +28,8 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
     val postgresHost = System.getenv("POSTGRES_HOST") ?: "postgres"
     val postgresPort = System.getenv("POSTGRES_PORT") ?: "5432"
     val postgresDb = System.getenv("POSTGRES_DB") ?: "datamancy"
-    val postgresUser = System.getenv("POSTGRES_TEST_RUNNER_USER") ?: "test_runner"
-    val postgresPassword = System.getenv("POSTGRES_TEST_RUNNER_PASSWORD") ?: ""
+    val postgresUser = System.getenv("POSTGRES_USER") ?: "test_runner"
+    val postgresPassword = System.getenv("POSTGRES_PASSWORD") ?: ""
 
     val jdbcUrl = "jdbc:postgresql://$postgresHost:$postgresPort/$postgresDb"
 
