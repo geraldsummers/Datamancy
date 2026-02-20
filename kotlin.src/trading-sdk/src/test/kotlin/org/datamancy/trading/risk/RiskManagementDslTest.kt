@@ -6,6 +6,11 @@ import java.math.BigDecimal
 
 class RiskManagementDslTest {
 
+    private fun assertBigDecimalEquals(expected: BigDecimal, actual: BigDecimal?, message: String? = null) {
+        assertNotNull(actual)
+        assertEquals(0, expected.compareTo(actual!!), message ?: "Expected $expected but got $actual")
+    }
+
     @Test
     fun `fixed position sizing works`() {
         val risk = riskManagement {
@@ -19,7 +24,7 @@ class RiskManagementDslTest {
             entryPrice = 50_000.toBigDecimal()
         )
 
-        assertEquals(BigDecimal.valueOf(5.0), size)
+        assertBigDecimalEquals(BigDecimal.valueOf(5.0).setScale(8), size)
     }
 
     @Test
@@ -37,7 +42,7 @@ class RiskManagementDslTest {
 
         // 10% of 100k = 10k
         // 10k / 50k = 0.2 BTC
-        assertEquals(BigDecimal.valueOf(0.2).setScale(8), size)
+        assertBigDecimalEquals(BigDecimal.valueOf(0.2).setScale(8), size)
     }
 
     @Test
@@ -57,7 +62,7 @@ class RiskManagementDslTest {
         // Risk amount = 1% of 100k = 1k
         // Stop distance = 2 * 1000 = 2000
         // Size = 1000 / 2000 = 0.5
-        assertEquals(BigDecimal.valueOf(0.5).setScale(8), size)
+        assertBigDecimalEquals(BigDecimal.valueOf(0.5).setScale(8), size)
     }
 
     @Test
@@ -76,7 +81,7 @@ class RiskManagementDslTest {
 
         // Would be 20% = 20k / 50k = 0.4
         // But limited to 10% = 10k / 50k = 0.2
-        assertEquals(BigDecimal.valueOf(0.2).setScale(8), size)
+        assertBigDecimalEquals(BigDecimal.valueOf(0.2).setScale(8), size)
     }
 
     @Test
@@ -113,7 +118,7 @@ class RiskManagementDslTest {
         )
 
         // 2% below entry = 50000 * 0.98 = 49000
-        assertEquals(BigDecimal.valueOf(49_000.0), stopPrice)
+        assertBigDecimalEquals(BigDecimal.valueOf(49_000.0), stopPrice)
     }
 
     @Test
@@ -133,7 +138,7 @@ class RiskManagementDslTest {
         )
 
         // 2 * 1000 = 2000 below entry = 48000
-        assertEquals(BigDecimal.valueOf(48_000.0), stopPrice)
+        assertBigDecimalEquals(BigDecimal.valueOf(48_000.0), stopPrice)
     }
 
     @Test
@@ -152,7 +157,7 @@ class RiskManagementDslTest {
         )
 
         // 2% above entry for short = 51000
-        assertEquals(BigDecimal.valueOf(51_000.0), stopPrice)
+        assertBigDecimalEquals(BigDecimal.valueOf(51_000.0), stopPrice)
     }
 
     @Test
@@ -185,8 +190,8 @@ class RiskManagementDslTest {
         // Risk = 50000 - 49000 = 1000
         // Reward = 3 * 1000 = 3000
         // TP = 50000 + 3000 = 53000
-        assertEquals(BigDecimal.valueOf(53_000.0), tpPrice)
-        assertEquals(BigDecimal.valueOf(100), tpPercent)
+        assertBigDecimalEquals(BigDecimal.valueOf(53_000.0), tpPrice)
+        assertBigDecimalEquals(BigDecimal.valueOf(100), tpPercent)
     }
 
     @Test
@@ -224,10 +229,10 @@ class RiskManagementDslTest {
         // Risk = 1000
         // TP1 = 50000 + 2000 = 52000 at 50%
         // TP2 = 50000 + 4000 = 54000 at 50%
-        assertEquals(BigDecimal.valueOf(52_000.0), tp1Price)
-        assertEquals(BigDecimal.valueOf(50.0), tp1Percent)
-        assertEquals(BigDecimal.valueOf(54_000.0), tp2Price)
-        assertEquals(BigDecimal.valueOf(50.0), tp2Percent)
+        assertBigDecimalEquals(BigDecimal.valueOf(52_000.0), tp1Price)
+        assertBigDecimalEquals(BigDecimal.valueOf(50.0), tp1Percent)
+        assertBigDecimalEquals(BigDecimal.valueOf(54_000.0), tp2Price)
+        assertBigDecimalEquals(BigDecimal.valueOf(50.0), tp2Percent)
     }
 
     @Test
@@ -288,7 +293,7 @@ class RiskManagementDslTest {
 
     @Test
     fun `percent extension works`() {
-        assertEquals(BigDecimal.valueOf(5.0), 5.percent)
-        assertEquals(BigDecimal.valueOf(10.5), 10.5.percent)
+        assertBigDecimalEquals(BigDecimal.valueOf(5.0), 5.percent)
+        assertBigDecimalEquals(BigDecimal.valueOf(10.5), 10.5.percent)
     }
 }

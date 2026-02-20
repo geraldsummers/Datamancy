@@ -8,6 +8,11 @@ import java.time.Instant
 
 class IndicatorDslTest {
 
+    private fun assertBigDecimalEquals(expected: BigDecimal, actual: BigDecimal?, message: String? = null) {
+        assertNotNull(actual)
+        assertEquals(0, expected.compareTo(actual!!), message ?: "Expected $expected but got $actual")
+    }
+
     private fun createCandle(close: Double, high: Double = close, low: Double = close, volume: Double = 1000.0): Candle {
         return Candle(
             time = Instant.now(),
@@ -37,11 +42,11 @@ class IndicatorDslTest {
         assertTrue(sma.isReady)
 
         // (100 + 110 + 120) / 3 = 110
-        assertEquals(BigDecimal.valueOf(110.0), sma.value)
+        assertBigDecimalEquals(BigDecimal.valueOf(110.0), sma.value)
 
         sma.update(createCandle(130.0))
         // (110 + 120 + 130) / 3 = 120
-        assertEquals(BigDecimal.valueOf(120.0), sma.value)
+        assertBigDecimalEquals(BigDecimal.valueOf(120.0), sma.value)
     }
 
     @Test
@@ -52,12 +57,12 @@ class IndicatorDslTest {
 
         ema.update(createCandle(100.0))
         assertTrue(ema.isReady)
-        assertEquals(BigDecimal.valueOf(100.0), ema.value)
+        assertBigDecimalEquals(BigDecimal.valueOf(100.0), ema.value)
 
         ema.update(createCandle(110.0))
         // EMA multiplier = 2/(3+1) = 0.5
         // EMA = 110 * 0.5 + 100 * 0.5 = 105
-        assertEquals(BigDecimal.valueOf(105.0), ema.value)
+        assertBigDecimalEquals(BigDecimal.valueOf(105.0), ema.value)
     }
 
     @Test
@@ -91,7 +96,7 @@ class IndicatorDslTest {
         // Second TR = max(108-98, |108-100|, |98-100|) = 10
         // Third TR = max(106-96, |106-102|, |96-102|) = 10
         // ATR = (10 + 10 + 10) / 3 = 10
-        assertEquals(BigDecimal.valueOf(10.0), atr.value)
+        assertBigDecimalEquals(BigDecimal.valueOf(10.0), atr.value)
     }
 
     @Test
@@ -106,7 +111,7 @@ class IndicatorDslTest {
         assertTrue(bb.isReady)
 
         val bands = bb.value!!
-        assertEquals(BigDecimal.valueOf(100.0), bands.middle)
+        assertBigDecimalEquals(BigDecimal.valueOf(100.0), bands.middle)
         // With no volatility, bands should be equal to middle
         assertEquals(bands.middle, bands.upper)
         assertEquals(bands.middle, bands.lower)
@@ -118,7 +123,7 @@ class IndicatorDslTest {
 
         vwap.update(createCandle(close = 100.0, high = 101.0, low = 99.0, volume = 1000.0))
         // Typical price = (101 + 99 + 100) / 3 = 100
-        assertEquals(BigDecimal.valueOf(100.0), vwap.value)
+        assertBigDecimalEquals(BigDecimal.valueOf(100.0), vwap.value)
 
         vwap.update(createCandle(close = 110.0, high = 111.0, low = 109.0, volume = 2000.0))
         // First: 100 * 1000 = 100,000

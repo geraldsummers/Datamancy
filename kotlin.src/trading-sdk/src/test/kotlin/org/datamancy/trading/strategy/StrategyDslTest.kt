@@ -11,6 +11,11 @@ import java.time.Instant
 
 class StrategyDslTest {
 
+    private fun assertBigDecimalEquals(expected: BigDecimal, actual: BigDecimal?, message: String? = null) {
+        assertNotNull(actual)
+        assertEquals(0, expected.compareTo(actual!!), message ?: "Expected $expected but got $actual")
+    }
+
     @Test
     fun `strategy builder creates valid strategy`() {
         val strat = strategy("TestStrategy") {
@@ -106,8 +111,8 @@ class StrategyDslTest {
         }
 
         assertEquals(Side.BUY, entry.side)
-        assertEquals(BigDecimal.valueOf(1.5), entry.size)
-        assertEquals(BigDecimal.valueOf(49_000), entry.stopLoss)
+        assertBigDecimalEquals(BigDecimal.valueOf(1.5), entry.size)
+        assertBigDecimalEquals(BigDecimal.valueOf(49_000), entry.stopLoss)
         assertEquals("golden_cross", entry.metadata["reason"])
     }
 
@@ -118,7 +123,7 @@ class StrategyDslTest {
             reason = "take_profit"
         }
 
-        assertEquals(BigDecimal.valueOf(0.5), exit.size)
+        assertBigDecimalEquals(BigDecimal.valueOf(0.5), exit.size)
         assertEquals("take_profit", exit.reason)
     }
 
@@ -136,10 +141,10 @@ class StrategyDslTest {
         val updated = position.withPrice(BigDecimal.valueOf(55_000))
 
         // PnL = (55000 - 50000) * 1.0 = 5000
-        assertEquals(BigDecimal.valueOf(5_000), updated.unrealizedPnl)
+        assertBigDecimalEquals(BigDecimal.valueOf(5_000), updated.unrealizedPnl)
 
         // PnL% = 5000 / 50000 = 10%
-        assertEquals(BigDecimal.valueOf(10.0), updated.unrealizedPnlPercent.setScale(1))
+        assertBigDecimalEquals(BigDecimal.valueOf(10.0), updated.unrealizedPnlPercent.setScale(1))
     }
 
     @Test
@@ -156,10 +161,10 @@ class StrategyDslTest {
         val updated = position.withPrice(BigDecimal.valueOf(48_000))
 
         // PnL = (50000 - 48000) * 1.0 = 2000
-        assertEquals(BigDecimal.valueOf(2_000), updated.unrealizedPnl)
+        assertBigDecimalEquals(BigDecimal.valueOf(2_000), updated.unrealizedPnl)
 
         // PnL% = 2000 / 50000 = 4%
-        assertEquals(BigDecimal.valueOf(4.0), updated.unrealizedPnlPercent.setScale(1))
+        assertBigDecimalEquals(BigDecimal.valueOf(4.0), updated.unrealizedPnlPercent.setScale(1))
     }
 
     @Test
@@ -178,7 +183,7 @@ class StrategyDslTest {
         )
 
         assertEquals(Signal.LONG, signal.signal)
-        assertEquals(BigDecimal.valueOf(0.8), signal.strength)
+        assertBigDecimalEquals(BigDecimal.valueOf(0.8), signal.strength)
         assertEquals("Golden cross + RSI oversold", signal.reason)
         assertEquals(28, signal.metadata["rsi"])
     }
@@ -206,7 +211,7 @@ class StrategyDslTest {
 
         // Expectancy = (winRate * avgWin) - ((1-winRate) * avgLoss)
         // = (0.6 * 1000) - (0.4 * 600) = 600 - 240 = 360
-        assertEquals(BigDecimal.valueOf(360), perf.expectancy)
+        assertBigDecimalEquals(BigDecimal.valueOf(360), perf.expectancy)
     }
 
     @Test
