@@ -82,12 +82,12 @@ data class StrategyPosition(
 
     fun withPrice(price: BigDecimal): StrategyPosition {
         val pnl = if (isLong) {
-            (price - entryPrice) * size
+            price.subtract(entryPrice).multiply(size)
         } else {
-            (entryPrice - price) * size
+            entryPrice.subtract(price).multiply(size)
         }
         val pnlPercent = if (entryPrice > BigDecimal.ZERO) {
-            pnl / (entryPrice * size) * BigDecimal.valueOf(100)
+            pnl.divide(entryPrice.multiply(size), 18, java.math.RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
         } else BigDecimal.ZERO
 
         return copy(

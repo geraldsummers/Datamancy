@@ -25,7 +25,12 @@ dependencies {
     
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    
+    // Ktor client (for WebSocket)
+    implementation("io.ktor:ktor-client-core:2.3.7")
+    implementation("io.ktor:ktor-client-cio:2.3.7")
+    implementation("io.ktor:ktor-client-websockets:2.3.7")
+
+
     implementation("io.ktor:ktor-server-core:2.3.7")
     implementation("io.ktor:ktor-server-netty:2.3.7")
     implementation("io.ktor:ktor-server-content-negotiation:2.3.7")

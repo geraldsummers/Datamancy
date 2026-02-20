@@ -245,37 +245,39 @@ class RiskManagement internal constructor() {
             is PositionSizingMethod.Fixed -> method.size
 
             is PositionSizingMethod.FixedPercent -> {
-                val value = equity * method.percent / BigDecimal.valueOf(100)
+                val value = equity.multiply(method.percent).divide(BigDecimal.valueOf(100), 18, RoundingMode.HALF_UP)
                 value.divide(entryPrice, 18, RoundingMode.HALF_UP)
             }
 
             is PositionSizingMethod.Kelly -> {
                 // Kelly Criterion: f = (bp - q) / b
                 // where b = avgWin/avgLoss, p = winRate, q = 1-p
-                val b = method.avgWin / method.avgLoss
+                val b = method.avgWin.divide(method.avgLoss, 18, RoundingMode.HALF_UP)
                 val p = method.winRate
-                val q = BigDecimal.ONE - p
-                val kellyPercent = (b * p - q) / b
-                val adjustedKelly = kellyPercent * method.fraction // Apply fraction for safety
-                equity * adjustedKelly / entryPrice
+                val q = BigDecimal.ONE.subtract(p)
+                val kellyPercent = (b.multiply(p).subtract(q)).divide(b, 18, RoundingMode.HALF_UP)
+                val adjustedKelly = kellyPercent.multiply(method.fraction) // Apply fraction for safety
+                equity.multiply(adjustedKelly).divide(entryPrice, 18, RoundingMode.HALF_UP)
             }
 
             is PositionSizingMethod.ATRBased -> {
                 requireNotNull(atr) { "ATR required for ATR-based sizing" }
-                val riskAmount = equity * method.riskPercent / BigDecimal.valueOf(100)
-                val stopDist = atr * method.atrMultiplier
+                val riskAmount = equity.multiply(method.riskPercent).divide(BigDecimal.valueOf(100), 18, RoundingMode.HALF_UP)
+                val stopDist = atr.multiply(method.atrMultiplier)
                 riskAmount.divide(stopDist, 18, RoundingMode.HALF_UP)
             }
 
             is PositionSizingMethod.VolatilityBased -> {
                 requireNotNull(atr) { "ATR required for volatility-based sizing" }
-                val targetValue = equity * method.targetVolatility / BigDecimal.valueOf(100)
-                targetValue / entryPrice
+                val targetValue = equity.multiply(method.targetVolatility).divide(BigDecimal.valueOf(100), 18, RoundingMode.HALF_UP)
+                targetValue.divide(entryPrice, 18, RoundingMode.HALF_UP)
             }
         }
 
         // Apply constraints
-        val maxSize = equity * sizingConfig.maxPositionPercent / BigDecimal.valueOf(100) / entryPrice
+        val maxSize = equity.multiply(sizingConfig.maxPositionPercent)
+            .divide(BigDecimal.valueOf(100), 18, RoundingMode.HALF_UP)
+            .divide(entryPrice, 18, RoundingMode.HALF_UP)
         val constrainedSize = rawSize.min(maxSize).max(sizingConfig.minPositionSize)
 
         return constrainedSize.setScale(8, RoundingMode.DOWN)
@@ -295,22 +297,22 @@ class RiskManagement internal constructor() {
         val method = stopConfig.methods.first() // Use first method
         val distance = when (method) {
             is StopLossMethod.Fixed -> method.distance
-            is StopLossMethod.Percent -> entryPrice * method.percent / BigDecimal.valueOf(100)
+            is StopLossMethod.Percent -> entryPrice.multiply(method.percent).divide(BigDecimal.valueOf(100), 18, RoundingMode.HALF_UP)
             is StopLossMethod.ATRBased -> {
                 requireNotNull(atr) { "ATR required for ATR-based stop loss" }
-                atr * method.multiplier
+                atr.multiply(method.multiplier)
             }
             is StopLossMethod.TrailingPercent -> method.percent // Initial stop
             is StopLossMethod.TrailingATR -> {
                 requireNotNull(atr) { "ATR required for trailing ATR stop" }
-                atr * method.multiplier
+                atr.multiply(method.multiplier)
             }
         }
 
         return if (side == "long") {
-            entryPrice - distance
+            entryPrice.subtract(distance)
         } else {
-            entryPrice + distance
+            entryPrice.add(distance)
         }
     }
 
@@ -324,24 +326,24 @@ class RiskManagement internal constructor() {
     ): List<Pair<BigDecimal, BigDecimal>> { // Returns (price, sizePercent) pairs
         val tpConfig = exitConfig.takeProfitConfig ?: return emptyList()
 
-        val risk = (entryPrice - stopPrice).abs()
+        val risk = entryPrice.subtract(stopPrice).abs()
 
         return if (tpConfig.targets.isNotEmpty()) {
             tpConfig.targets.map { target ->
-                val distance = risk * target.distance
+                val distance = risk.multiply(target.distance)
                 val price = if (side == "long") {
-                    entryPrice + distance
+                    entryPrice.add(distance)
                 } else {
-                    entryPrice - distance
+                    entryPrice.subtract(distance)
                 }
                 price to target.sizePercent
             }
         } else if (tpConfig.riskRewardRatio != null) {
-            val distance = risk * tpConfig.riskRewardRatio!!
+            val distance = risk.multiply(tpConfig.riskRewardRatio!!)
             val price = if (side == "long") {
-                entryPrice + distance
+                entryPrice.add(distance)
             } else {
-                entryPrice - distance
+                entryPrice.subtract(distance)
             }
             listOf(price to BigDecimal.valueOf(100))
         } else {
@@ -363,7 +365,7 @@ class RiskManagement internal constructor() {
         }
 
         // Check position size limit
-        val positionPercent = newPositionValue / totalEquity * BigDecimal.valueOf(100)
+        val positionPercent = newPositionValue.divide(totalEquity, 18, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
         if (positionPercent > sizingConfig.maxPositionPercent) {
             return RiskCheckResult.Rejected("Position size exceeds limit")
         }

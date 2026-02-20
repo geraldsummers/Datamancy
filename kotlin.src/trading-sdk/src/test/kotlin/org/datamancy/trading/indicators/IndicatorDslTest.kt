@@ -113,8 +113,8 @@ class IndicatorDslTest {
         val bands = bb.value!!
         assertBigDecimalEquals(BigDecimal.valueOf(100.0), bands.middle)
         // With no volatility, bands should be equal to middle
-        assertEquals(bands.middle, bands.upper)
-        assertEquals(bands.middle, bands.lower)
+        assertBigDecimalEquals(bands.middle, bands.upper)
+        assertBigDecimalEquals(bands.middle, bands.lower)
     }
 
     @Test

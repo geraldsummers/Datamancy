@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.onEach
 import org.datamancy.pipeline.sinks.MarketDataSink
 import org.datamancy.pipeline.sources.HyperliquidSource
 import org.postgresql.ds.PGSimpleDataSource
+import kotlin.math.pow
 import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
@@ -176,10 +177,10 @@ class MarketDataIngestionRunner {
         logger.info { "═" * 80 }
         logger.info { "Market Data Ingestion Statistics" }
         logger.info { "─" * 80 }
-        logger.info { "Total Ingested:  ${stats.totalIngested:,}" }
-        logger.info { "  Trades:        ${stats.tradesIngested:,}" }
-        logger.info { "  Candles:       ${stats.candlesIngested:,}" }
-        logger.info { "  Orderbooks:    ${stats.orderbooksIngested:,}" }
+        logger.info { "Total Ingested:  ${stats.totalIngested.format()}" }
+        logger.info { "  Trades:        ${stats.tradesIngested.format()}" }
+        logger.info { "  Candles:       ${stats.candlesIngested.format()}" }
+        logger.info { "  Orderbooks:    ${stats.orderbooksIngested.format()}" }
         logger.info { "─" * 80 }
         logger.info { "Pending:         ${stats.totalPending}" }
         logger.info { "  Trades:        ${stats.pendingTrades}" }
@@ -258,5 +259,3 @@ private fun Long.format(separator: Char = ','): String {
 private val Long.Companion.format: (Long) -> String
     get() = { it.format() }
 
-// Add this missing import/function
-private fun Double.pow(n: Int): Double = kotlin.math.pow(this, n.toDouble())
