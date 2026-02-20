@@ -25,8 +25,8 @@ class MarketDataRepository(
      */
     suspend fun insertTrade(trade: Trade) = withContext(Dispatchers.IO) {
         val sql = """
-            INSERT INTO trades (time, symbol, exchange, trade_id, price, size, side, is_liquidation)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO market_data (time, symbol, exchange, data_type, trade_id, price, size, side, is_liquidation)
+            VALUES (?, ?, ?, 'trade', ?, ?, ?, ?, ?)
         """.trimIndent()
 
         dataSource.connection.use { conn ->
@@ -51,8 +51,8 @@ class MarketDataRepository(
         if (trades.isEmpty()) return@withContext
 
         val sql = """
-            INSERT INTO trades (time, symbol, exchange, trade_id, price, size, side, is_liquidation)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO market_data (time, symbol, exchange, data_type, trade_id, price, size, side, is_liquidation)
+            VALUES (?, ?, ?, 'trade', ?, ?, ?, ?, ?)
         """.trimIndent()
 
         dataSource.connection.use { conn ->
@@ -84,16 +84,10 @@ class MarketDataRepository(
      * Insert a candle
      */
     suspend fun insertCandle(candle: Candle) = withContext(Dispatchers.IO) {
+        val dataType = "candle_${candle.interval}"  // e.g., 'candle_1m', 'candle_5m', 'candle_1h'
         val sql = """
-            INSERT INTO candles (time, symbol, exchange, interval, open, high, low, close, volume, num_trades)
+            INSERT INTO market_data (time, symbol, exchange, data_type, open, high, low, close, volume, num_trades)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (time, symbol, exchange, interval) DO UPDATE SET
-                open = EXCLUDED.open,
-                high = EXCLUDED.high,
-                low = EXCLUDED.low,
-                close = EXCLUDED.close,
-                volume = EXCLUDED.volume,
-                num_trades = EXCLUDED.num_trades
         """.trimIndent()
 
         dataSource.connection.use { conn ->
@@ -101,7 +95,7 @@ class MarketDataRepository(
                 stmt.setTimestamp(1, Timestamp.from(candle.time))
                 stmt.setString(2, candle.symbol)
                 stmt.setString(3, candle.exchange)
-                stmt.setString(4, candle.interval)
+                stmt.setString(4, dataType)
                 stmt.setBigDecimal(5, candle.open)
                 stmt.setBigDecimal(6, candle.high)
                 stmt.setBigDecimal(7, candle.low)
@@ -124,10 +118,11 @@ class MarketDataRepository(
         exchange: String = "hyperliquid",
         limit: Int = 1000
     ): List<Candle> = withContext(Dispatchers.IO) {
+        val dataType = "candle_$interval"
         val sql = """
-            SELECT time, symbol, exchange, interval, open, high, low, close, volume, num_trades
-            FROM candles
-            WHERE symbol = ? AND exchange = ? AND interval = ?
+            SELECT time, symbol, exchange, open, high, low, close, volume, num_trades
+            FROM market_data
+            WHERE symbol = ? AND exchange = ? AND data_type = ?
               AND time >= ? AND time <= ?
             ORDER BY time DESC
             LIMIT ?
@@ -137,7 +132,7 @@ class MarketDataRepository(
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, symbol)
                 stmt.setString(2, exchange)
-                stmt.setString(3, interval)
+                stmt.setString(3, dataType)
                 stmt.setTimestamp(4, Timestamp.from(from))
                 stmt.setTimestamp(5, Timestamp.from(to))
                 stmt.setInt(6, limit)
@@ -145,7 +140,7 @@ class MarketDataRepository(
                 val result = stmt.executeQuery()
                 buildList {
                     while (result.next()) {
-                        add(result.toCandle())
+                        add(result.toCandle(interval))
                     }
                 }
             }
@@ -160,10 +155,11 @@ class MarketDataRepository(
         interval: String,
         exchange: String = "hyperliquid"
     ): Candle? = withContext(Dispatchers.IO) {
+        val dataType = "candle_$interval"
         val sql = """
-            SELECT time, symbol, exchange, interval, open, high, low, close, volume, num_trades
-            FROM candles
-            WHERE symbol = ? AND exchange = ? AND interval = ?
+            SELECT time, symbol, exchange, open, high, low, close, volume, num_trades
+            FROM market_data
+            WHERE symbol = ? AND exchange = ? AND data_type = ?
             ORDER BY time DESC
             LIMIT 1
         """.trimIndent()
@@ -172,11 +168,11 @@ class MarketDataRepository(
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, symbol)
                 stmt.setString(2, exchange)
-                stmt.setString(3, interval)
+                stmt.setString(3, dataType)
 
                 val result = stmt.executeQuery()
                 if (result.next()) {
-                    result.toCandle()
+                    result.toCandle(interval)
                 } else null
             }
         }
@@ -261,8 +257,8 @@ class MarketDataRepository(
                 SUM(CASE WHEN side = 'buy' THEN size ELSE 0 END) as buy_volume,
                 SUM(CASE WHEN side = 'sell' THEN size ELSE 0 END) as sell_volume,
                 AVG(price) as avg_price
-            FROM trades
-            WHERE symbol = ? AND exchange = ?
+            FROM market_data
+            WHERE symbol = ? AND exchange = ? AND data_type = 'trade'
               AND time >= ? AND time <= ?
         """.trimIndent()
 
@@ -291,12 +287,12 @@ class MarketDataRepository(
     // Helper Functions
     // ========================================================================
 
-    private fun ResultSet.toCandle(): Candle {
+    private fun ResultSet.toCandle(interval: String): Candle {
         return Candle(
             time = getTimestamp("time").toInstant(),
             symbol = getString("symbol"),
             exchange = getString("exchange"),
-            interval = getString("interval"),
+            interval = interval,
             open = getBigDecimal("open"),
             high = getBigDecimal("high"),
             low = getBigDecimal("low"),

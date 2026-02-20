@@ -338,19 +338,32 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
             val result = stmt.executeQuery("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
-                    WHERE table_name = 'trades'
+                    WHERE table_name = 'market_data'
                 )
             """.trimIndent())
 
             result.next()
-            val exists = result.getBoolean(1)
+            val marketDataExists = result.getBoolean(1)
 
-            if (!exists) {
-                throw AssertionError("Trades table does not exist - run migrations first")
+            val result2 = stmt.executeQuery("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'orderbook_data'
+                )
+            """.trimIndent())
+
+            result2.next()
+            val orderbookExists = result2.getBoolean(1)
+
+            if (!marketDataExists) {
+                throw AssertionError("market_data table does not exist")
+            }
+            if (!orderbookExists) {
+                throw AssertionError("orderbook_data table does not exist")
             }
         }
 
-        println("      ✓ TimescaleDB schema verified")
+        println("      ✓ Unified market data tables verified (market_data + orderbook_data)")
     }
 
     test("TimescaleDB - Insert and query candles") {
