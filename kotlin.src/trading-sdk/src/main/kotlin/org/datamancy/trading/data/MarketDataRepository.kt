@@ -11,101 +11,20 @@ import javax.sql.DataSource
 import kotlin.time.Duration
 
 /**
- * TimescaleDB Repository for Market Data
+ * TimescaleDB Repository for Market Data - READ ONLY
  *
- * Handles persistence of trades, candles, orderbooks to TimescaleDB
+ * This repository is for strategies and indicators to READ historical market data.
+ * Market data is written by the pipeline's MarketDataSink.
+ *
+ * Design rationale:
+ * - Single source of truth: Pipeline writes, strategies read
+ * - Multiple strategies can share the same data feed
+ * - Historical backtesting uses same data structure as live trading
  */
 class MarketDataRepository(
     private val dataSource: DataSource
 ) {
     private val logger = LoggerFactory.getLogger(MarketDataRepository::class.java)
-
-    /**
-     * Insert a trade
-     */
-    suspend fun insertTrade(trade: Trade) = withContext(Dispatchers.IO) {
-        val sql = """
-            INSERT INTO market_data (time, symbol, exchange, data_type, trade_id, price, size, side, is_liquidation)
-            VALUES (?, ?, ?, 'trade', ?, ?, ?, ?, ?)
-        """.trimIndent()
-
-        dataSource.connection.use { conn ->
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setTimestamp(1, Timestamp.from(trade.time))
-                stmt.setString(2, trade.symbol)
-                stmt.setString(3, trade.exchange)
-                stmt.setString(4, trade.tradeId)
-                stmt.setBigDecimal(5, trade.price)
-                stmt.setBigDecimal(6, trade.size)
-                stmt.setString(7, trade.side.name.lowercase())
-                stmt.setBoolean(8, trade.isLiquidation)
-                stmt.executeUpdate()
-            }
-        }
-    }
-
-    /**
-     * Batch insert trades (more efficient)
-     */
-    suspend fun insertTrades(trades: List<Trade>) = withContext(Dispatchers.IO) {
-        if (trades.isEmpty()) return@withContext
-
-        val sql = """
-            INSERT INTO market_data (time, symbol, exchange, data_type, trade_id, price, size, side, is_liquidation)
-            VALUES (?, ?, ?, 'trade', ?, ?, ?, ?, ?)
-        """.trimIndent()
-
-        dataSource.connection.use { conn ->
-            conn.autoCommit = false
-            try {
-                conn.prepareStatement(sql).use { stmt ->
-                    trades.forEach { trade ->
-                        stmt.setTimestamp(1, Timestamp.from(trade.time))
-                        stmt.setString(2, trade.symbol)
-                        stmt.setString(3, trade.exchange)
-                        stmt.setString(4, trade.tradeId)
-                        stmt.setBigDecimal(5, trade.price)
-                        stmt.setBigDecimal(6, trade.size)
-                        stmt.setString(7, trade.side.name.lowercase())
-                        stmt.setBoolean(8, trade.isLiquidation)
-                        stmt.addBatch()
-                    }
-                    stmt.executeBatch()
-                }
-                conn.commit()
-            } catch (e: Exception) {
-                conn.rollback()
-                throw e
-            }
-        }
-    }
-
-    /**
-     * Insert a candle
-     */
-    suspend fun insertCandle(candle: Candle) = withContext(Dispatchers.IO) {
-        val dataType = "candle_${candle.interval}"  // e.g., 'candle_1m', 'candle_5m', 'candle_1h'
-        val sql = """
-            INSERT INTO market_data (time, symbol, exchange, data_type, open, high, low, close, volume, num_trades)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """.trimIndent()
-
-        dataSource.connection.use { conn ->
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setTimestamp(1, Timestamp.from(candle.time))
-                stmt.setString(2, candle.symbol)
-                stmt.setString(3, candle.exchange)
-                stmt.setString(4, dataType)
-                stmt.setBigDecimal(5, candle.open)
-                stmt.setBigDecimal(6, candle.high)
-                stmt.setBigDecimal(7, candle.low)
-                stmt.setBigDecimal(8, candle.close)
-                stmt.setBigDecimal(9, candle.volume)
-                stmt.setInt(10, candle.numTrades)
-                stmt.executeUpdate()
-            }
-        }
-    }
 
     /**
      * Get historical candles
@@ -215,31 +134,6 @@ class MarketDataRepository(
         }
     }
 
-    /**
-     * Insert orderbook snapshot
-     */
-    suspend fun insertOrderbookSnapshot(orderbook: Orderbook) = withContext(Dispatchers.IO) {
-        val sql = """
-            INSERT INTO orderbook_snapshots (time, symbol, exchange, bids, asks)
-            VALUES (?, ?, ?, ?::jsonb, ?::jsonb)
-        """.trimIndent()
-
-        val bidsJson = orderbook.bids.map { mapOf("price" to it.price, "size" to it.size) }
-        val asksJson = orderbook.asks.map { mapOf("price" to it.price, "size" to it.size) }
-
-        dataSource.connection.use { conn ->
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setTimestamp(1, Timestamp.from(orderbook.time))
-                stmt.setString(2, orderbook.symbol)
-                stmt.setString(3, orderbook.exchange)
-                stmt.setString(4, kotlinx.serialization.json.Json.encodeToString(
-                    kotlinx.serialization.serializer(), bidsJson))
-                stmt.setString(5, kotlinx.serialization.json.Json.encodeToString(
-                    kotlinx.serialization.serializer(), asksJson))
-                stmt.executeUpdate()
-            }
-        }
-    }
 
     /**
      * Get trading volume statistics

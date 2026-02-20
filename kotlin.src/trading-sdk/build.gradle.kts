@@ -10,14 +10,11 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.datetime)
 
-    // HTTP client
+    // HTTP client (for TxGateway REST calls only)
     implementation(libs.okhttp)
     implementation(libs.gson)
 
-    // Ktor WebSocket client for market data streaming
-    implementation(libs.bundles.ktor.client)
-
-    // Database - PostgreSQL/TimescaleDB
+    // Database - PostgreSQL/TimescaleDB (read-only queries)
     implementation(libs.postgres.jdbc)
 
     // Logging
