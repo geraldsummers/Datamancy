@@ -19,8 +19,8 @@ class StrategyDslTest {
             }
 
             parameters {
-                var fastPeriod by 20
-                var slowPeriod by 50
+                set("fastPeriod", 20)
+                set("slowPeriod", 50)
             }
 
             indicators {
@@ -48,9 +48,9 @@ class StrategyDslTest {
             }
 
             parameters {
-                var fastPeriod by 20
-                var slowPeriod by 50
-                var rsiPeriod by 14
+                set("fastPeriod", 20)
+                set("slowPeriod", 50)
+                set("rsiPeriod", 14)
             }
         }
 

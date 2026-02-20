@@ -9,9 +9,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import org.datamancy.trading.models.Side
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.time.Instant
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Hyperliquid WebSocket Client
@@ -27,7 +29,7 @@ class HyperliquidWebSocket(
 
     private val client = HttpClient(CIO) {
         install(WebSockets) {
-            pingInterval = 30_000
+            pingInterval = 30.seconds
         }
     }
 

@@ -1,6 +1,7 @@
 package org.datamancy.trading.data
 
 import kotlinx.coroutines.flow.Flow
+import org.datamancy.trading.models.Side
 import java.math.BigDecimal
 import java.time.Instant
 import kotlin.time.Duration
@@ -37,10 +38,6 @@ data class Trade(
     val side: Side,
     val isLiquidation: Boolean = false
 )
-
-enum class Side {
-    BUY, SELL
-}
 
 data class Candle(
     val time: Instant,

@@ -21,8 +21,8 @@ import kotlin.reflect.KProperty
  *     }
  *
  *     parameters {
- *         var fastPeriod by 20
- *         var slowPeriod by 50
+ *         set("fastPeriod", 20)
+ *         set("slowPeriod", 50)
  *     }
  *
  *     indicators {
@@ -173,7 +173,7 @@ interface StrategyContext {
 // ============================================================================
 
 class MarketConfig {
-    internal val symbols = mutableListOf<Pair<String, String>>() // (symbol, exchange)
+    val symbols = mutableListOf<Pair<String, String>>() // (symbol, exchange)
 
     fun hyperliquid(vararg symbols: String) {
         this.symbols.addAll(symbols.map { it to "hyperliquid" })

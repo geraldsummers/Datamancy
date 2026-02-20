@@ -263,8 +263,8 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
             }
 
             parameters {
-                var fastPeriod by 20
-                var slowPeriod by 50
+                set("fastPeriod", 20)
+                set("slowPeriod", 50)
             }
 
             indicators {
