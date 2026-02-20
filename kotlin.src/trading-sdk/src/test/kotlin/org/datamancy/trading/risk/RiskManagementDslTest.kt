@@ -16,6 +16,7 @@ class RiskManagementDslTest {
         val risk = riskManagement {
             sizing {
                 fixed(5.0.toBigDecimal())
+                maxPositionPercent(100.0) // Allow large fixed positions
             }
         }
 
@@ -50,6 +51,7 @@ class RiskManagementDslTest {
         val risk = riskManagement {
             sizing {
                 atrBased(atrMultiplier = 2.0, riskPercent = 1.0)
+                maxPositionPercent(100.0) // Allow calculated position
             }
         }
 

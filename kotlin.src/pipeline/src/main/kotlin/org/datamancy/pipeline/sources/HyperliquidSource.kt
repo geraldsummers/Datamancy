@@ -41,7 +41,7 @@ class HyperliquidSource(
     private val json = Json { ignoreUnknownKeys = true }
     private val client = HttpClient(CIO) {
         install(WebSockets) {
-            pingInterval = 30.seconds
+            pingInterval = 30000 // 30 seconds in milliseconds
         }
     }
 
