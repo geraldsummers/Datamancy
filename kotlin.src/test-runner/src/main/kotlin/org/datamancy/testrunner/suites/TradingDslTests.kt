@@ -25,6 +25,13 @@ import kotlin.time.Duration.Companion.seconds
  */
 suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
 
+    fun assertBigDecimalEquals(expected: BigDecimal, actual: BigDecimal?, message: String) {
+        if (actual == null) throw AssertionError("$message: actual is null")
+        if (expected.compareTo(actual) != 0) {
+            throw AssertionError("$message: expected $expected, got $actual")
+        }
+    }
+
     val postgresHost = System.getenv("POSTGRES_HOST") ?: "postgres"
     val postgresPort = System.getenv("POSTGRES_PORT") ?: "5432"
     val postgresDb = System.getenv("POSTGRES_DB") ?: "datamancy"
@@ -125,9 +132,7 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
 
         // 2% of 100k = 2k, 2k / 50k = 0.04
         val expected = BigDecimal.valueOf(0.04).setScale(8)
-        if (size != expected) {
-            throw AssertionError("Position size incorrect: expected $expected, got $size")
-        }
+        assertBigDecimalEquals(expected, size, "Position size incorrect")
 
         println("      ✓ Position size: $size BTC")
     }
@@ -149,9 +154,7 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
         // Stop distance = 2 * 1000 = 2000
         // Size = 1000 / 2000 = 0.5
         val expected = BigDecimal.valueOf(0.5).setScale(8)
-        if (size != expected) {
-            throw AssertionError("ATR-based size incorrect: expected $expected, got $size")
-        }
+        assertBigDecimalEquals(expected, size, "ATR-based size incorrect")
 
         println("      ✓ ATR-based position size: $size BTC")
     }
@@ -173,9 +176,7 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
 
         // 50000 - (2 * 1000) = 48000
         val expected = BigDecimal.valueOf(48_000)
-        if (stopPrice != expected) {
-            throw AssertionError("Stop loss incorrect: expected $expected, got $stopPrice")
-        }
+        assertBigDecimalEquals(expected, stopPrice, "Stop loss incorrect")
 
         println("      ✓ Stop loss: $stopPrice")
     }
@@ -210,9 +211,7 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
         val (tpPrice, _) = takeProfits.first()
         // Risk = 1000, Reward = 3000, TP = 53000
         val expected = BigDecimal.valueOf(53_000)
-        if (tpPrice != expected) {
-            throw AssertionError("Take profit incorrect: expected $expected, got $tpPrice")
-        }
+        assertBigDecimalEquals(expected, tpPrice, "Take profit incorrect")
 
         println("      ✓ Take profit (3:1 R:R): $tpPrice")
     }
@@ -318,14 +317,10 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
         val updated = position.withPrice(BigDecimal.valueOf(55_000))
 
         // PnL = (55000 - 50000) * 1.0 = 5000
-        if (updated.unrealizedPnl != BigDecimal.valueOf(5_000)) {
-            throw AssertionError("PnL incorrect: ${updated.unrealizedPnl}")
-        }
+        assertBigDecimalEquals(BigDecimal.valueOf(5_000), updated.unrealizedPnl, "PnL incorrect")
 
         // PnL% = 10%
-        if (updated.unrealizedPnlPercent.setScale(0) != BigDecimal.valueOf(10)) {
-            throw AssertionError("PnL% incorrect: ${updated.unrealizedPnlPercent}")
-        }
+        assertBigDecimalEquals(BigDecimal.valueOf(10), updated.unrealizedPnlPercent.setScale(0), "PnL% incorrect")
 
         println("      ✓ Position PnL: \$${updated.unrealizedPnl} (${updated.unrealizedPnlPercent}%)")
     }

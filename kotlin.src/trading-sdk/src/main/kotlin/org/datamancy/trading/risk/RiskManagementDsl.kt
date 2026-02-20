@@ -245,7 +245,8 @@ class RiskManagement internal constructor() {
             is PositionSizingMethod.Fixed -> method.size
 
             is PositionSizingMethod.FixedPercent -> {
-                equity * method.percent / BigDecimal.valueOf(100) / entryPrice
+                val value = equity * method.percent / BigDecimal.valueOf(100)
+                value.divide(entryPrice, 18, RoundingMode.HALF_UP)
             }
 
             is PositionSizingMethod.Kelly -> {
@@ -263,7 +264,7 @@ class RiskManagement internal constructor() {
                 requireNotNull(atr) { "ATR required for ATR-based sizing" }
                 val riskAmount = equity * method.riskPercent / BigDecimal.valueOf(100)
                 val stopDist = atr * method.atrMultiplier
-                riskAmount / stopDist
+                riskAmount.divide(stopDist, 18, RoundingMode.HALF_UP)
             }
 
             is PositionSizingMethod.VolatilityBased -> {
