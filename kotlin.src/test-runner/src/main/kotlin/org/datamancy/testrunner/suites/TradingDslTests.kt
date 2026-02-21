@@ -141,6 +141,7 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
         val risk = riskManagement {
             sizing {
                 atrBased(atrMultiplier = 2.0, riskPercent = 1.0)
+                maxPositionPercent(25.0)  // Allow larger positions for this test
             }
         }
 
@@ -153,6 +154,8 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
         // Risk = 1% of 100k = 1k
         // Stop distance = 2 * 1000 = 2000
         // Size = 1000 / 2000 = 0.5
+        // Note: Default maxPositionPercent is 10%, which would limit to 0.2
+        // We set maxPositionPercent(25.0) to allow the full 0.5 position
         val expected = BigDecimal.valueOf(0.5).setScale(8)
         assertBigDecimalEquals(expected, size, "ATR-based size incorrect")
 

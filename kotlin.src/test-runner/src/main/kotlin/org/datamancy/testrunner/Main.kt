@@ -245,6 +245,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "agent-capability" -> runner.agentCapabilityTests()
         "agent-security" -> runner.agentSecurityTests()
         "agent-llm-quality" -> runner.agentLlmQualityTests()
+        "stack-llm-capability" -> runner.stackLlmCapabilityTests()
         "trading" -> runner.tradingTests()
         "trading-dsl" -> runner.tradingDslTests()
         "web3-wallet" -> runner.web3WalletTests()
@@ -301,9 +302,9 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
             println("                  stack-deployment, bookstack, cicd, isolated-docker-vm, stack-replication,")
-            println("                  agent-capability, agent-security, agent-llm-quality, trading, trading-dsl,")
-            println("                  web3-wallet, email-stack, caching-layer, extended-communication,")
-            println("                  extended-productivity, playwright-e2e, vault, all")
+            println("                  agent-capability, agent-security, agent-llm-quality, stack-llm-capability,")
+            println("                  trading, trading-dsl, web3-wallet, email-stack, caching-layer,")
+            println("                  extended-communication, extended-productivity, playwright-e2e, vault, all")
             exitProcess(1)
         }
     }

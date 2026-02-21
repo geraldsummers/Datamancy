@@ -252,6 +252,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQ
     GRANT SELECT ON document_staging TO search_service_user, test_runner_user;
 EOSQL
 echo "Datamancy database tables initialized successfully"
+
+# Initialize market data schema for trading system
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" < /docker-entrypoint-initdb.d/init-market-data-schema.sql
+echo "Market data schema initialized successfully"
 for db in grafana planka mastodon forgejo; do
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" <<-EOSQL
         -- Create dedicated schema for observer views

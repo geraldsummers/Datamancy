@@ -8,12 +8,10 @@ import java.util.UUID
 suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
     val isolatedDockerVmDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
 
-    
-    
-    
-    val registryHost = System.getenv("HOST_IP")?.let { "$it:5000" }
-        ?: detectIsolatedDockerVmHostIP(isolatedDockerVmDockerHost)
-        ?: "192.168.0.11:5000"  
+    // Registry host should be the internal Docker network name, not external IP
+    // The isolated-docker-vm is part of the same Docker network as the registry
+    // Using external IPs would require insecure-registries configuration
+    val registryHost = System.getenv("REGISTRY_HOST") ?: "registry:5000"  
 
     val testImagePrefix = "cicd-test"
 
