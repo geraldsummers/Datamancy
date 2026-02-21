@@ -12,6 +12,7 @@ import org.example.plugins.LlmCompletionPlugin
 import org.example.plugins.OpsSshPlugin
 import org.example.plugins.DataSourceQueryPlugin
 import org.example.plugins.DockerContainerPlugin
+import org.example.plugins.StackKnowledgePlugin
 import org.example.host.HostConfig
 import org.example.host.PluginFactories
 import org.example.host.PluginManager
@@ -38,6 +39,7 @@ fun main() {
     PluginFactories.register(OpsSshPlugin::class.qualifiedName!!) { OpsSshPlugin() }
     PluginFactories.register(DataSourceQueryPlugin::class.qualifiedName!!) { DataSourceQueryPlugin() }
     PluginFactories.register(DockerContainerPlugin::class.qualifiedName!!) { DockerContainerPlugin() }
+    PluginFactories.register(StackKnowledgePlugin::class.qualifiedName!!) { StackKnowledgePlugin() }
 
     
     
@@ -48,7 +50,8 @@ fun main() {
         LlmCompletionPlugin(),
         OpsSshPlugin(),
         DataSourceQueryPlugin(),
-        DockerContainerPlugin()
+        DockerContainerPlugin(),
+        StackKnowledgePlugin()
     )
 
     
