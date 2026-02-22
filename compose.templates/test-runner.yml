@@ -72,6 +72,7 @@ services:
       BOOKSTACK_API_TOKEN_SECRET: "${BOOKSTACK_API_TOKEN_SECRET:-}"
 
       REGISTRY_HOST: "registry:5000"
+      ISOLATED_REGISTRY_HOST: "isolated-registry:5000"
       HOST_IP: "${HOST_IP:-192.168.0.11}"
 
       NTFY_USERNAME: "${NTFY_USERNAME}"

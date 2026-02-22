@@ -309,6 +309,22 @@ sealed class ToolResult {
     data class Error(val statusCode: Int, val message: String) : ToolResult()
 }
 
+/**
+ * Helper extension to extract agent response content.
+ *
+ * llm_chat_completion now returns: {"content": "...", "iterations": N, "trace": [...]}
+ * This extracts the "content" field for backward compatibility with existing tests.
+ */
+fun ToolResult.Success.extractAgentContent(): String {
+    return try {
+        val json = Json.parseToJsonElement(output).jsonObject
+        json["content"]?.jsonPrimitive?.content ?: output
+    } catch (e: Exception) {
+        // Not agent format, return raw output
+        output
+    }
+}
+
 data class FetchResult(val success: Boolean, val message: String)
 data class DryRunFetchResult(val success: Boolean, val message: String)
 data class IndexResult(val success: Boolean, val message: String)

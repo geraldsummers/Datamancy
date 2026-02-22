@@ -14,9 +14,9 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
         ))
 
         require(result is ToolResult.Success, "LLM completion failed: ${(result as? ToolResult.Error)?.message}")
-        val output = (result as ToolResult.Success).output
+        val output = (result as ToolResult.Success).extractAgentContent()
 
-        
+
         require(!output.contains("\"error\"", ignoreCase = false)) {
             "LLM call returned error response: $output"
         }
@@ -36,7 +36,7 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
         ))
 
         require(result is ToolResult.Success, "LLM completion failed")
-        val output = (result as ToolResult.Success).output
+        val output = (result as ToolResult.Success).extractAgentContent()
         require(output.contains("fun") || output.contains("function"), "Expected function definition, got: $output")
     }
 

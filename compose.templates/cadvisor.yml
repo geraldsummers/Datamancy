@@ -16,6 +16,8 @@ services:
       - --docker_only=true
       - --housekeeping_interval=30s
       - --disable_metrics=percpu,sched,tcp,udp,hugetlb,process
+      - --store_container_labels=false
+      - --disable_root_cgroup_stats=true
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
       interval: 60s

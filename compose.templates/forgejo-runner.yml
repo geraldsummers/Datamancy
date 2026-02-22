@@ -16,7 +16,7 @@ services:
     depends_on:
       forgejo:
         condition: service_started
-      registry:
+      isolated-registry:
         condition: service_started
     environment:
       FORGEJO_INSTANCE_URL: http://forgejo:3000

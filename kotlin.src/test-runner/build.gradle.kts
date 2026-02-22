@@ -30,9 +30,10 @@ dependencies {
     // Trading SDK - for trading DSL E2E tests
     implementation(project(":trading-sdk"))
 
-    
+    // Pipeline - for market data integration tests
+    testImplementation(project(":pipeline"))
 
-    
+
     testImplementation(libs.bundles.testing)
     testImplementation("io.ktor:ktor-client-mock:3.0.2")
 }

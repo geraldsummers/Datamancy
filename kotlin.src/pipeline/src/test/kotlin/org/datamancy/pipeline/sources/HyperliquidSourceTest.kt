@@ -1,20 +1,14 @@
 package org.datamancy.pipeline.sources
 
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Disabled
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * Unit tests for HyperliquidSource
  *
- * Note: Most tests are disabled by default as they require live network connection
- * to Hyperliquid's WebSocket API. Enable them for manual testing.
+ * Note: Tests requiring live network connection have been moved to
+ * HyperliquidSourceIntegrationTest in the test-runner module.
  */
 class HyperliquidSourceTest {
 
@@ -36,113 +30,6 @@ class HyperliquidSourceTest {
 
         assertNotNull(source)
         assertEquals("HyperliquidSource", source.name)
-    }
-
-    @Test
-    @Disabled("Requires live Hyperliquid WebSocket connection")
-    fun `can connect to Hyperliquid WebSocket`() = runBlocking {
-        val source = HyperliquidSource(
-            symbols = listOf("BTC"),
-            subscribeToTrades = true,
-            subscribeToCandles = false,
-            subscribeToOrderbook = false
-        )
-
-        withTimeout(30.seconds) {
-            val firstItem = source.fetch().first()
-            assertNotNull(firstItem)
-            assertTrue(firstItem is HyperliquidMarketData.Trades)
-        }
-    }
-
-    @Test
-    @Disabled("Requires live Hyperliquid WebSocket connection")
-    fun `receives trade data`() = runBlocking {
-        val source = HyperliquidSource(
-            symbols = listOf("BTC"),
-            subscribeToTrades = true,
-            subscribeToCandles = false,
-            subscribeToOrderbook = false
-        )
-
-        withTimeout(60.seconds) {
-            source.fetch().collect { data ->
-                when (data) {
-                    is HyperliquidMarketData.Trades -> {
-                        assertTrue(data.trades.isNotEmpty())
-                        val trade = data.trades.first()
-                        assertEquals("BTC", trade.symbol)
-                        assertTrue(trade.price > 0.0)
-                        assertTrue(trade.size > 0.0)
-                        assertTrue(trade.side in listOf("buy", "sell"))
-                        return@collect // Exit after first batch
-                    }
-                    else -> {
-                        // Keep waiting for trades
-                    }
-                }
-            }
-        }
-    }
-
-    @Test
-    @Disabled("Requires live Hyperliquid WebSocket connection")
-    fun `receives candle data`() = runBlocking {
-        val source = HyperliquidSource(
-            symbols = listOf("BTC"),
-            subscribeToTrades = false,
-            subscribeToCandles = true,
-            candleIntervals = listOf("1m"),
-            subscribeToOrderbook = false
-        )
-
-        withTimeout(120.seconds) {
-            source.fetch().collect { data ->
-                when (data) {
-                    is HyperliquidMarketData.Candle -> {
-                        val candle = data.candle
-                        assertEquals("BTC", candle.symbol)
-                        assertEquals("1m", candle.interval)
-                        assertTrue(candle.open > 0.0)
-                        assertTrue(candle.high >= candle.low)
-                        assertTrue(candle.close > 0.0)
-                        return@collect // Exit after first candle
-                    }
-                    else -> {
-                        // Keep waiting for candles
-                    }
-                }
-            }
-        }
-    }
-
-    @Test
-    @Disabled("Requires live Hyperliquid WebSocket connection")
-    fun `receives orderbook data`() = runBlocking {
-        val source = HyperliquidSource(
-            symbols = listOf("BTC"),
-            subscribeToTrades = false,
-            subscribeToCandles = false,
-            subscribeToOrderbook = true
-        )
-
-        withTimeout(60.seconds) {
-            source.fetch().collect { data ->
-                when (data) {
-                    is HyperliquidMarketData.Orderbook -> {
-                        val orderbook = data.orderbook
-                        assertEquals("BTC", orderbook.symbol)
-                        assertTrue(orderbook.bids.isNotEmpty())
-                        assertTrue(orderbook.asks.isNotEmpty())
-                        assertTrue(orderbook.bids.first().price < orderbook.asks.first().price)
-                        return@collect // Exit after first orderbook
-                    }
-                    else -> {
-                        // Keep waiting for orderbook
-                    }
-                }
-            }
-        }
     }
 
     @Test

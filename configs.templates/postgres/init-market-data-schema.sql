@@ -60,7 +60,26 @@ BEGIN
     END IF;
 END $$;
 
--- Note: TimescaleDB hypertables should be created by the pipeline
--- when TimescaleDB extension is available:
--- SELECT create_hypertable('market_data', 'time', if_not_exists => TRUE);
--- SELECT create_hypertable('orderbook_data', 'time', if_not_exists => TRUE);
+-- Enable TimescaleDB extension
+CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+
+-- Convert tables to TimescaleDB hypertables for optimized time-series storage
+SELECT create_hypertable('market_data', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('orderbook_data', 'time', if_not_exists => TRUE);
+
+-- Enable compression on hypertables (optional, for better storage efficiency)
+ALTER TABLE market_data SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'symbol, exchange, data_type',
+  timescaledb.compress_orderby = 'time DESC'
+);
+
+ALTER TABLE orderbook_data SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'symbol, exchange',
+  timescaledb.compress_orderby = 'time DESC'
+);
+
+-- Add compression policy: compress chunks older than 7 days
+SELECT add_compression_policy('market_data', INTERVAL '7 days', if_not_exists => TRUE);
+SELECT add_compression_policy('orderbook_data', INTERVAL '7 days', if_not_exists => TRUE);

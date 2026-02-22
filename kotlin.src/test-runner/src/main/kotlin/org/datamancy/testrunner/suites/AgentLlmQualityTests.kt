@@ -8,12 +8,27 @@ import org.datamancy.testrunner.framework.*
 import kotlin.system.measureTimeMillis
 
 
+/**
+ * Helper to extract agent response content from /call-tool JSON response.
+ * Handles both new agent format: {"result": {"content": "...", "iterations": N}}
+ * and old direct format for backward compatibility.
+ */
+private fun extractAgentContent(body: String): String {
+    return try {
+        val json = Json.parseToJsonElement(body).jsonObject
+        val result = json["result"]?.jsonObject
+        result?.get("content")?.jsonPrimitive?.content ?: body
+    } catch (e: Exception) {
+        body  // Fallback to raw body
+    }
+}
+
 suspend fun TestRunner.agentLlmQualityTests() {
     val probRunner = ProbabilisticTestRunner(environment, client, httpClient)
 
     println("\n▶ Agent LLM Quality & Core Capability Tests")
 
-    
+
 
     probRunner.probabilisticTest(
         name = "LLM: Generates coherent responses to simple questions",
@@ -43,9 +58,8 @@ suspend fun TestRunner.agentLlmQualityTests() {
         }
 
         if (response.status == HttpStatusCode.OK) {
-            val body = response.bodyAsText()
-            
-            body.length > 10 && !body.contains("error", ignoreCase = true)
+            val content = extractAgentContent(response.bodyAsText())
+            content.length > 10 && !content.contains("error", ignoreCase = true)
         } else {
             false
         }
@@ -75,9 +89,8 @@ suspend fun TestRunner.agentLlmQualityTests() {
         }
 
         if (response.status == HttpStatusCode.OK) {
-            val body = response.bodyAsText()
-            
-            body.contains("Alice", ignoreCase = true)
+            val content = extractAgentContent(response.bodyAsText())
+            content.contains("Alice", ignoreCase = true)
         } else {
             false
         }
@@ -107,7 +120,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
                 """.trimIndent())
             }
             if (response.status == HttpStatusCode.OK) {
-                responses.add(response.bodyAsText())
+                responses.add(extractAgentContent(response.bodyAsText()))
             }
         }
 
@@ -156,9 +169,8 @@ suspend fun TestRunner.agentLlmQualityTests() {
         }
 
         if (response.status == HttpStatusCode.OK) {
-            val body = response.bodyAsText()
-            
-            body.length < 500  
+            val content = extractAgentContent(response.bodyAsText())
+            content.length < 500
         } else {
             false
         }

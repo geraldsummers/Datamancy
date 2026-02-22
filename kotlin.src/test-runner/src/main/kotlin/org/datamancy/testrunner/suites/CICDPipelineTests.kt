@@ -8,14 +8,14 @@ import java.util.UUID
 suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
     val isolatedDockerVmDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
 
-    // Registry host should be the internal Docker network name, not external IP
-    // The isolated-docker-vm is part of the same Docker network as the registry
-    // Using external IPs would require insecure-registries configuration
-    val registryHost = System.getenv("REGISTRY_HOST") ?: "registry:5000"  
+    // Air-gapped architecture: isolated environment has its own registry
+    // Production registry should NOT be accessible from isolated environment
+    val isolatedRegistryHost = System.getenv("ISOLATED_REGISTRY_HOST") ?: "isolated-registry:5000"
+    val productionRegistryHost = System.getenv("REGISTRY_HOST") ?: "registry:5000"
 
     val testImagePrefix = "cicd-test"
 
-    
+
     if (!isIsolatedDockerVmDockerAvailable(isolatedDockerVmDockerHost)) {
         println("      ⚠️  IsolatedDockerVm Docker host not accessible at $isolatedDockerVmDockerHost - skipping CI/CD tests")
         println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-isolatedDockerVmhost and configure SSH keys")
@@ -58,10 +58,10 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
         }
     }
 
-    test("Push image to registry") {
+    test("Push image to isolated registry") {
         val testId = UUID.randomUUID().toString().substring(0, 8)
         val localImageName = "$testImagePrefix-push:$testId"
-        val registryImageName = "$registryHost/$testImagePrefix-push:$testId"
+        val registryImageName = "$isolatedRegistryHost/$testImagePrefix-push:$testId"
 
         val tempDir = File.createTempFile("dockerfile-", "").apply {
             delete()
@@ -72,7 +72,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
             File(tempDir, "Dockerfile").writeText("""
                 FROM alpine:latest
                 LABEL test.id="$testId"
-                CMD ["echo", "Registry test"]
+                CMD ["echo", "Isolated registry test"]
             """.trimIndent())
 
             val (buildExitCode, buildOutput) = execCICDDocker(isolatedDockerVmDockerHost, "build", "--load", "-t", localImageName, tempDir.absolutePath)
@@ -85,18 +85,68 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
             val (pushExitCode, pushOutput) = execCICDDocker(isolatedDockerVmDockerHost, "push", registryImageName)
             if (pushExitCode != 0) {
-                // Registry push failure is often due to HTTP/HTTPS mismatch
-                // Registry at 192.168.0.11:5000 serves HTTP but Docker expects HTTPS by default
                 if (pushOutput.contains("server gave HTTP response to HTTPS client")) {
                     println("      ℹ️  Registry TLS configuration issue detected")
-                    println("      ℹ️  Add to /etc/docker/daemon.json: {\"insecure-registries\": [\"$registryHost\"]}")
+                    println("      ℹ️  Add to /etc/docker/daemon.json: {\"insecure-registries\": [\"$isolatedRegistryHost\"]}")
                     println("      ℹ️  Or enable TLS on registry with proper certificates")
                 }
-                throw AssertionError("Push to registry failed: $pushOutput")
+                throw AssertionError("Push to isolated registry failed: $pushOutput")
             }
 
-            
+
             execCICDDocker(isolatedDockerVmDockerHost, "rmi", "-f", localImageName, registryImageName)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    test("Verify production registry is NOT accessible from isolated environment") {
+        // Air-gap security: isolated environment should NOT be able to push to production registry
+        val testId = UUID.randomUUID().toString().substring(0, 8)
+        val localImageName = "$testImagePrefix-airgap:$testId"
+        val prodRegistryImageName = "$productionRegistryHost/$testImagePrefix-airgap:$testId"
+
+        val tempDir = File.createTempFile("dockerfile-", "").apply {
+            delete()
+            mkdir()
+        }
+
+        try {
+            File(tempDir, "Dockerfile").writeText("""
+                FROM alpine:latest
+                LABEL test.id="$testId"
+                CMD ["echo", "This should NOT reach production registry"]
+            """.trimIndent())
+
+            val (buildExitCode, buildOutput) = execCICDDocker(isolatedDockerVmDockerHost, "build", "--load", "-t", localImageName, tempDir.absolutePath)
+            if (buildExitCode != 0) {
+                println("      ℹ️  Docker build failed: $buildOutput")
+                return@test
+            }
+
+            execCICDDocker(isolatedDockerVmDockerHost, "tag", localImageName, prodRegistryImageName)
+
+            val (pushExitCode, pushOutput) = execCICDDocker(isolatedDockerVmDockerHost, "push", prodRegistryImageName)
+
+            // Push should FAIL - this is the desired security behavior
+            if (pushExitCode == 0) {
+                execCICDDocker(isolatedDockerVmDockerHost, "rmi", "-f", localImageName, prodRegistryImageName)
+                throw AssertionError("SECURITY VIOLATION: Isolated environment can push to production registry! Air-gap is broken.")
+            }
+
+            // Verify it failed for the right reason (network unreachable, not auth failure)
+            val isNetworkIsolated = pushOutput.contains("no such host") ||
+                                   pushOutput.contains("connection refused") ||
+                                   pushOutput.contains("network is unreachable") ||
+                                   pushOutput.contains("no route to host")
+
+            if (!isNetworkIsolated) {
+                println("      ⚠️  Push failed but network may not be properly isolated")
+                println("      ⚠️  Error: $pushOutput")
+            }
+
+
+            execCICDDocker(isolatedDockerVmDockerHost, "rmi", "-f", localImageName, prodRegistryImageName)
         } finally {
             tempDir.deleteRecursively()
         }

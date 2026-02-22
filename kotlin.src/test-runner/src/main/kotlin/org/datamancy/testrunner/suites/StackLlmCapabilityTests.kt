@@ -3,8 +3,22 @@ package org.datamancy.testrunner.suites
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.serialization.json.*
 import org.datamancy.testrunner.framework.*
 import kotlin.system.measureTimeMillis
+
+/**
+ * Helper to extract agent response content from /call-tool JSON response.
+ */
+private fun extractStackAgentContent(body: String): String {
+    return try {
+        val json = Json.parseToJsonElement(body).jsonObject
+        val result = json["result"]?.jsonObject
+        result?.get("content")?.jsonPrimitive?.content ?: body
+    } catch (e: Exception) {
+        body
+    }
+}
 
 /**
  * Tests for evaluating the stack LLM's understanding and manipulation of Docker stacks.
@@ -58,7 +72,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
         }
 
         response.status == HttpStatusCode.OK &&
-            response.bodyAsText().contains("my-nginx-container", ignoreCase = true)
+            extractStackAgentContent(response.bodyAsText()).contains("my-nginx-container", ignoreCase = true)
     }
 
     probRunner.probabilisticTest(
@@ -94,7 +108,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("frontend", ignoreCase = true) &&
             body.contains("backend", ignoreCase = true)
@@ -133,7 +147,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("POSTGRES_DB", ignoreCase = true)
     }
@@ -170,7 +184,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("services:", ignoreCase = true) &&
             body.contains("image:", ignoreCase = true) &&
@@ -210,7 +224,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             (body.contains("yes", ignoreCase = true) ||
              body.contains("error", ignoreCase = true) ||
@@ -249,7 +263,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("yes", ignoreCase = true) &&
             (body.contains("depends_on", ignoreCase = true) ||
@@ -284,7 +298,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("yes", ignoreCase = true) &&
             (body.contains("persist", ignoreCase = true) ||
@@ -319,7 +333,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("healthcheck", ignoreCase = true) &&
             (body.contains("pg_isready", ignoreCase = true) ||
@@ -357,7 +371,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             (body.contains("http://", ignoreCase = true) ||
              body.contains("litellm", ignoreCase = true))
@@ -390,7 +404,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("no", ignoreCase = true) &&
             (body.contains("environment", ignoreCase = true) ||
@@ -429,7 +443,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("def", ignoreCase = true) &&
             (body.contains("sum", ignoreCase = true) || body.contains("len", ignoreCase = true))
@@ -462,7 +476,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("pandas", ignoreCase = true) &&
             body.contains("read_csv", ignoreCase = true) &&
@@ -496,7 +510,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             (body.contains("requests", ignoreCase = true) ||
              body.contains("httpx", ignoreCase = true) ||
@@ -530,7 +544,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("matplotlib", ignoreCase = true) &&
             body.contains("plot", ignoreCase = true)
@@ -567,7 +581,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             (body.contains("vector", ignoreCase = true) ||
              body.contains("embedding", ignoreCase = true) ||
@@ -601,7 +615,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             (body.contains("cosine", ignoreCase = true) ||
              body.contains("angle", ignoreCase = true) ||
@@ -635,7 +649,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             (body.contains("384", ignoreCase = true) ||
              body.contains("512", ignoreCase = true) ||
@@ -671,7 +685,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             ((body.contains("vector", ignoreCase = true) && body.contains("keyword", ignoreCase = true)) ||
              body.contains("BM25", ignoreCase = true) ||
@@ -710,7 +724,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             body.contains("query", ignoreCase = true) &&
             (body.contains("kubernetes", ignoreCase = true) ||
@@ -744,7 +758,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         val hasExpectedFields = listOf("title", "url", "score", "snippet", "content", "link")
             .count { body.contains(it, ignoreCase = true) } >= 2
 
@@ -778,7 +792,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             (body.contains("vector", ignoreCase = true) ||
              body.contains("semantic", ignoreCase = true) ||
@@ -812,7 +826,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             """.trimIndent())
         }
 
-        val body = response.bodyAsText()
+        val body = extractStackAgentContent(response.bodyAsText())
         response.status == HttpStatusCode.OK &&
             (body.contains("yes", ignoreCase = true) ||
              body.contains("highly", ignoreCase = true) ||

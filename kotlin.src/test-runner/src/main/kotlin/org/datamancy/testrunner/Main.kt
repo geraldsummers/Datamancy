@@ -245,9 +245,11 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
         "agent-capability" -> runner.agentCapabilityTests()
         "agent-security" -> runner.agentSecurityTests()
         "agent-llm-quality" -> runner.agentLlmQualityTests()
+        "agent-orchestration" -> runner.agentOrchestrationTests()
         "stack-llm-capability" -> runner.stackLlmCapabilityTests()
         "trading" -> runner.tradingTests()
         "trading-dsl" -> runner.tradingDslTests()
+        "trading-advanced" -> runner.advancedTradingIntegrationTests()
         "web3-wallet" -> runner.web3WalletTests()
 
         // New extended test suites
@@ -303,7 +305,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
             println("                  stack-deployment, bookstack, cicd, isolated-docker-vm, stack-replication,")
             println("                  agent-capability, agent-security, agent-llm-quality, stack-llm-capability,")
-            println("                  trading, trading-dsl, web3-wallet, email-stack, caching-layer,")
+            println("                  trading, trading-dsl, trading-advanced, web3-wallet, email-stack, caching-layer,")
             println("                  extended-communication, extended-productivity, playwright-e2e, vault, all")
             exitProcess(1)
         }
@@ -459,7 +461,7 @@ private fun printUsage() {
                                      authentication, enhanced-auth, authenticated-ops, utility, homeassistant,
                                      stack-deployment, bookstack, cicd, isolated-docker-vm,
                                      agent-capability, agent-security, agent-llm-quality, trading,
-                                     trading-dsl, playwright-e2e, vault, all
+                                     trading-dsl, trading-advanced, playwright-e2e, vault, all
 
       --verbose, -v          Enable verbose logging
       --help, -h             Show this help message

@@ -1,4 +1,6 @@
 services:
+  # Production registry - ONLY accessible from production networks
+  # NOT accessible from isolated-docker-vm (air-gapped security)
   registry:
     image: registry:2.8
     container_name: registry
@@ -7,9 +9,8 @@ services:
       caddy:
         aliases:
           - registry.${DOMAIN}
-      docker-proxy:
-        aliases:
-          - registry.${DOMAIN}
+      # NOTE: Removed docker-proxy network for air-gap isolation
+      # Isolated CI/CD builds cannot push directly to production registry
     environment:
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
       REGISTRY_HTTP_ADDR: 0.0.0.0:5000
@@ -20,6 +21,32 @@ services:
       - registry_data:/var/lib/registry
     ports:
       - "5000:5000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5000/v2/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Isolated registry - ONLY accessible from isolated-docker-vm
+  # Used for CI/CD builds in untrusted environment
+  # Human reviews and manually promotes images to production registry
+  isolated-registry:
+    image: registry:2.8
+    container_name: isolated-registry
+    restart: unless-stopped
+    networks:
+      docker-proxy:
+        aliases:
+          - isolated-registry
+    environment:
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+      REGISTRY_HTTP_TLS_CERTIFICATE: ""
+      REGISTRY_HTTP_TLS_KEY: ""
+      REGISTRY_VALIDATION_DISABLED: "true"
+    volumes:
+      - isolated_registry_data:/var/lib/registry
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5000/v2/"]
       interval: 30s

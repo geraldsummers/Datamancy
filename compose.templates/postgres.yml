@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16.11
+    image: timescale/timescaledb:latest-pg16
     container_name: postgres
     restart: unless-stopped
     networks:
@@ -47,7 +47,7 @@ services:
           cpus: '2.0'
 
   postgres-observer-views:
-    image: postgres:16.11
+    image: timescale/timescaledb:latest-pg16
     container_name: postgres-observer-views
     restart: "no"
     networks:
