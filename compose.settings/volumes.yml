@@ -27,6 +27,7 @@ volumes:
   ntfy_data:
   couchdb_data:
   registry_data:
+  isolated_registry_data:
   forgejo_runner_data:
   forgejo_runner_token:
   pipeline_data:
