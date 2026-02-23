@@ -1,13 +1,3 @@
-services:
-  seafile-memcached:
-    image: memcached:1.6.40
-    container_name: seafile-memcached
-    restart: unless-stopped
-    networks:
-      - memcached
-    healthcheck:
-      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/127.0.0.1/11211' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+# Note: seafile-memcached service removed - Seafile now uses Valkey for caching
+# Memcached service can be re-enabled if needed for other services
+services: {}

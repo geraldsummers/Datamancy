@@ -12,7 +12,7 @@ services:
         aliases:
           - seafile.${DOMAIN}
           - api.seafile.${DOMAIN}
-      memcached:
+      valkey:
         aliases:
           - seafile.${DOMAIN}
           - api.seafile.${DOMAIN}
@@ -21,8 +21,8 @@ services:
         condition: service_completed_successfully
       mariadb:
         condition: service_healthy
-      seafile-memcached:
-        condition: service_started
+      valkey:
+        condition: service_healthy
     environment:
       TZ: UTC
       DB_HOST: mariadb
@@ -37,11 +37,11 @@ services:
       SEAFILE_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
       JWT_PRIVATE_KEY: ${SEAFILE_JWT_KEY}
       TIME_ZONE: UTC
-      # Use memcached for caching instead of Redis/Valkey
-      # (Redis was causing authentication issues with seafile-mc image)
-      CACHE_PROVIDER: memcached
-      MEMCACHED_HOST: seafile-memcached
-      MEMCACHED_PORT: 11211
+      # Using Valkey (Redis-compatible) for caching with authentication
+      CACHE_PROVIDER: redis
+      REDIS_HOST: valkey
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${VALKEY_PASSWORD}
       # Fix seafile-mc bug: explicitly set seahub database name
       # (otherwise it tries to use SQLite path '/opt/seafile/.../seahub.db' as MySQL DB name)
       SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: seahub_db
