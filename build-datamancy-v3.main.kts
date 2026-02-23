@@ -329,10 +329,10 @@ fun applyHashAlgorithm(algorithm: String, plaintext: String): String {
 }
 
 // ============================================================================
-// Credential Storage (Simple Key=Value Format)
+// Credential Storage (.env format for Docker Compose)
 // ============================================================================
 
-fun loadCredentialsFile(file: File): MutableMap<String, String> {
+fun loadEnvFile(file: File): MutableMap<String, String> {
     if (!file.exists()) return mutableMapOf()
 
     val credentials = mutableMapOf<String, String>()
@@ -352,7 +352,7 @@ fun loadCredentialsFile(file: File): MutableMap<String, String> {
             val key = parts[0].trim()
             val value = parts[1].trim()
 
-            // Check for heredoc format
+            // Check for heredoc format (for reading old files)
             if (value == "<<EOF") {
                 // Read multiline value until EOF
                 val multilineValue = mutableListOf<String>()
@@ -363,7 +363,9 @@ fun loadCredentialsFile(file: File): MutableMap<String, String> {
                 }
                 credentials[key] = multilineValue.joinToString("\n")
             } else {
-                credentials[key] = value
+                // Remove quotes if present (standard .env format)
+                val unquoted = value.removePrefix("\"").removeSuffix("\"")
+                credentials[key] = unquoted
             }
         }
         i++
@@ -372,22 +374,30 @@ fun loadCredentialsFile(file: File): MutableMap<String, String> {
     return credentials
 }
 
-fun saveCredentialsFile(file: File, credentials: Map<String, String>) {
+fun saveEnvFile(file: File, credentials: Map<String, String>) {
     val content = buildString {
-        appendLine("# Datamancy Credentials - Auto-generated")
+        appendLine("# Datamancy Environment Variables")
         appendLine("# Generated: ${Instant.now()}")
         appendLine("# DO NOT COMMIT THIS FILE")
+        appendLine("# This file is used by docker-compose.yml")
         appendLine()
 
         credentials.keys.sorted().forEach { key ->
             val value = credentials[key]!!
-            // Handle multiline values (RSA keys)
+            // For multiline values (RSA keys), escape and quote them
             if (value.contains("\n")) {
-                appendLine("$key=<<EOF")
-                appendLine(value)
-                appendLine("EOF")
+                // Docker Compose .env doesn't support multiline well, so we'll store these separately
+                // and document that RSA keys should be in separate files
+                appendLine("# $key: (multiline value, stored in configs/)")
             } else {
-                appendLine("$key=$value")
+                // Escape quotes and use quotes if value contains special chars
+                val needsQuotes = value.contains(" ") || value.contains("#") || value.contains("$")
+                if (needsQuotes) {
+                    val escaped = value.replace("\"", "\\\"")
+                    appendLine("$key=\"$escaped\"")
+                } else {
+                    appendLine("$key=$value")
+                }
             }
         }
     }
@@ -1084,10 +1094,10 @@ ${CYAN}╔═══════════════════════�
     caddyCertsDir.resolve("pki").mkdirs()
 
     // Load or generate credentials
-    val credentialsFile = distDir.resolve(".credentials")
-    val existingCredentials = loadCredentialsFile(credentialsFile)
+    val envFile = distDir.resolve(".env")
+    val existingCredentials = loadEnvFile(envFile)
     val credentials = generateCredentials(schema, sanitized, existingCredentials, config)
-    saveCredentialsFile(credentialsFile, credentials)
+    saveEnvFile(envFile, credentials)
 
     // Run tests first
     runKotlinTests()
