@@ -9,6 +9,8 @@ services:
     depends_on:
       docker-socket-proxy:
         condition: service_healthy
+      prometheus:
+        condition: service_started
     environment:
       DOCKER_HOST: tcp://docker-socket-proxy:2375
     healthcheck:

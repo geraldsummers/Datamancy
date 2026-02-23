@@ -7,9 +7,14 @@ services:
       - docker-proxy
       - internet
       - caddy
+      - monitoring
     depends_on:
       docker-socket-proxy:
         condition: service_healthy
+      prometheus:
+        condition: service_started
+      ntfy:
+        condition: service_started
     environment:
       WATCHTOWER_CLEANUP: true
       WATCHTOWER_INCLUDE_RESTARTING: true
@@ -20,6 +25,8 @@ services:
       # Since our ntfy uses HTTP:80 internally, we need to configure shoutrrr differently
       # or expose ntfy's HTTPS endpoint. For now, notifications will fail until addressed.
       WATCHTOWER_NOTIFICATION_URL: "ntfy://${NTFY_USERNAME}:${NTFY_PASSWORD}@ntfy:80/watchtower"
+      WATCHTOWER_HTTP_API_METRICS: true
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_METRICS_TOKEN}
       TZ: Australia/Sydney
       DOCKER_HOST: tcp://docker-socket-proxy:2375
 
@@ -33,3 +40,6 @@ networks:
   caddy:
     external: true
     name: datamancy_caddy
+  monitoring:
+    external: true
+    name: datamancy_monitoring

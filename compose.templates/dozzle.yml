@@ -11,6 +11,8 @@ services:
     depends_on:
       docker-socket-proxy:
         condition: service_healthy
+      prometheus:
+        condition: service_started
     environment:
       DOCKER_HOST: tcp://docker-socket-proxy:2375
       DOZZLE_BASE: /dozzle
@@ -18,6 +20,7 @@ services:
       DOZZLE_FILTER: "status=running"
       DOZZLE_NO_ANALYTICS: "true"
       DOZZLE_ENABLE_ACTIONS: "false"
+      DOZZLE_ENABLE_METRICS: "true"
     healthcheck:
       test: ["CMD", "/dozzle", "healthcheck"]
       interval: 30s
