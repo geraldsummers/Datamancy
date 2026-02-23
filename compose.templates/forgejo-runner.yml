@@ -16,13 +16,13 @@ services:
     depends_on:
       forgejo:
         condition: service_started
-      isolated-registry:
+      docker-vm-socket-proxy:
         condition: service_started
     environment:
       FORGEJO_INSTANCE_URL: http://forgejo:3000
       FORGEJO_RUNNER_NAME: datamancy-runner-1
       FORGEJO_RUNNER_LABELS: ubuntu-latest,ubuntu-22.04,linux
-      DOCKER_HOST: tcp://docker-proxy:2375
+      DOCKER_HOST: tcp://docker-vm-socket-proxy:2375
     volumes:
       - forgejo_runner_data:/data
       - forgejo_runner_token:/runner-token:ro
