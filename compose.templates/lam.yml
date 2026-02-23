@@ -11,6 +11,8 @@ services:
         aliases:
           - lam.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       ldap:
         condition: service_started
     environment:

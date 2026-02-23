@@ -50,6 +50,8 @@ services:
           - api.matrix.${DOMAIN}
       internet:
     depends_on:
+      caddy:
+        condition: service_started
       postgres:
         condition: service_started
       synapse-init:

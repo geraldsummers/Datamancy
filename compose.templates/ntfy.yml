@@ -5,6 +5,9 @@ services:
     restart: unless-stopped
     networks:
       - caddy
+    depends_on:
+      caddy:
+        condition: service_started
     entrypoint: /entrypoint.sh
     environment:
       TZ: America/New_York

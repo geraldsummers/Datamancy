@@ -8,6 +8,9 @@ services:
         aliases:
           - kopia.${DOMAIN}
       internet:
+    depends_on:
+      caddy:
+        condition: service_started
     environment:
       KOPIA_PASSWORD: ${STACK_ADMIN_PASSWORD}
       KOPIA_REPO_PATH: /app/repository

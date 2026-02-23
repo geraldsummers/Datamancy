@@ -21,6 +21,8 @@ services:
           - vaultwarden.${DOMAIN}
           - app.vaultwarden.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       postgres:
         condition: service_started
       mailserver:

@@ -11,6 +11,8 @@ services:
         aliases:
           - bookstack.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       mariadb:
         condition: service_healthy
     environment:

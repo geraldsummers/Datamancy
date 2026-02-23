@@ -17,6 +17,8 @@ services:
         aliases:
           - grafana.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       postgres:
         condition: service_started
     environment:

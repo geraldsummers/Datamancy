@@ -14,6 +14,8 @@ services:
         aliases:
           - planka.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       postgres:
         condition: service_healthy
     environment:

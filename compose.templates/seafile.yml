@@ -17,6 +17,8 @@ services:
           - seafile.${DOMAIN}
           - api.seafile.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       volume-init:
         condition: service_completed_successfully
       mariadb:

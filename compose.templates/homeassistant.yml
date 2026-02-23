@@ -4,6 +4,8 @@ services:
     container_name: homeassistant
     restart: unless-stopped
     depends_on:
+      caddy:
+        condition: service_started
       postgres:
         condition: service_healthy
       ldap:

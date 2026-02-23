@@ -5,6 +5,9 @@ services:
     restart: unless-stopped
     networks:
       - monitoring
+    depends_on:
+      caddy:
+        condition: service_started
     volumes:
       - prometheus_data:/prometheus
       - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro

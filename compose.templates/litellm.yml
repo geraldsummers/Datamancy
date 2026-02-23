@@ -17,6 +17,8 @@ services:
           - litellm.${DOMAIN}
           - api.litellm.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       vllm-7b:
         condition: service_started
       embedding-service:

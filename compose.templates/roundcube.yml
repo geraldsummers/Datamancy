@@ -52,6 +52,8 @@ services:
       - mailserver
       - postgres
     depends_on:
+      caddy:
+        condition: service_started
       mailserver:
         condition: service_started
       postgres:

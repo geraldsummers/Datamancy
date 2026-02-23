@@ -11,6 +11,8 @@ services:
         aliases:
           - element.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       synapse:
         condition: service_started
     volumes:

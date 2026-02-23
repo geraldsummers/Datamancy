@@ -17,6 +17,8 @@ services:
       - internet
       - mariadb
     depends_on:
+      caddy:
+        condition: service_started
       qdrant:
         condition: service_started
       postgres:

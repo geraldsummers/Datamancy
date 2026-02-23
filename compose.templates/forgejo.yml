@@ -12,6 +12,8 @@ services:
           - forgejo.${DOMAIN}
       internet:
     depends_on:
+      caddy:
+        condition: service_started
       postgres:
         condition: service_started
     environment:

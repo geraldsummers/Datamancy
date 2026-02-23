@@ -17,6 +17,8 @@ services:
         aliases:
           - jupyterhub.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       valkey:
         condition: service_started
     environment:

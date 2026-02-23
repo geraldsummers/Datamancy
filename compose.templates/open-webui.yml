@@ -17,6 +17,8 @@ services:
         aliases:
           - open-webui.${DOMAIN}
     depends_on:
+      caddy:
+        condition: service_started
       postgres:
         condition: service_started
       litellm:
