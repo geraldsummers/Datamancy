@@ -12,9 +12,6 @@ services:
       ai:
         aliases:
           - agent-tool-server.${DOMAIN}
-      postgres:
-        aliases:
-          - agent-tool-server.${DOMAIN}
       mariadb:
         aliases:
           - agent-tool-server.${DOMAIN}
@@ -32,17 +29,9 @@ services:
         condition: service_started
       mariadb:
         condition: service_started
-      postgres:
-        condition: service_started
-      postgres-observer-views:
-        condition: service_completed_successfully
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_BASE_URL: http://litellm:4000
-      POSTGRES_OBSERVER_USER: agent_observer
-      POSTGRES_OBSERVER_PASSWORD: ${POSTGRES_AGENT_PASSWORD}
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
       MARIADB_OBSERVER_USER: agent_observer
       MARIADB_OBSERVER_PASSWORD: ${MARIADB_AGENT_PASSWORD}
       MARIADB_HOST: mariadb

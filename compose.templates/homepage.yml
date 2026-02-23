@@ -10,9 +10,6 @@ services:
       docker-proxy:
         aliases:
           - homepage.${DOMAIN}
-    depends_on:
-      docker-proxy:
-        condition: service_started
     environment:
       PUID: ${DOCKER_USER_ID:-1000}
       PGID: ${DOCKER_GROUP_ID:-1000}

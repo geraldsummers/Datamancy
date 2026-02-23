@@ -58,8 +58,6 @@ services:
         condition: service_started
       ldap:
         condition: service_started
-      authelia:
-        condition: service_started
     environment:
       DOMAIN: ${DOMAIN}
       SYNAPSE_SERVER_NAME: matrix.${DOMAIN}

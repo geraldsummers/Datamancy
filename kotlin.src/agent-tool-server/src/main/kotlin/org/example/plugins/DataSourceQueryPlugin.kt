@@ -75,13 +75,6 @@ private fun validateSqlQuery(query: String, requiredSchema: String? = null): Que
 }
 
 
-data class PostgresConfig(
-    val host: String,
-    val port: Int,
-    val user: String,
-    val password: String
-)
-
 data class MariaDBConfig(
     val host: String,
     val port: Int,
@@ -109,26 +102,15 @@ data class SearchServiceConfig(
 
 
 data class DataSourceConfigs(
-    val postgresConfig: PostgresConfig? = null,
     val mariadbConfig: MariaDBConfig? = null,
     val qdrantConfig: QdrantConfig? = null,
     val ldapConfig: LdapConfig? = null,
     val searchServiceConfig: SearchServiceConfig? = null
 ) {
     companion object {
-        
+
         fun fromEnvironment(): DataSourceConfigs {
             val env = System.getenv()
-
-            val postgresConfig = env["POSTGRES_HOST"]?.let {
-                PostgresConfig(
-                    host = it,
-                    port = env["POSTGRES_PORT"]?.toIntOrNull() ?: 5432,
-                    user = env["POSTGRES_OBSERVER_USER"] ?: "agent_observer",
-                    password = env["POSTGRES_OBSERVER_PASSWORD"]
-                        ?: throw IllegalStateException("POSTGRES_OBSERVER_PASSWORD must be set")
-                )
-            }
 
             val mariadbConfig = env["MARIADB_HOST"]?.let {
                 MariaDBConfig(
@@ -171,7 +153,6 @@ data class DataSourceConfigs(
             }
 
             return DataSourceConfigs(
-                postgresConfig = postgresConfig,
                 mariadbConfig = mariadbConfig,
                 qdrantConfig = qdrantConfig,
                 ldapConfig = ldapConfig,
@@ -185,8 +166,7 @@ data class DataSourceConfigs(
 class DataSourceQueryPlugin(
     private val configs: DataSourceConfigs = DataSourceConfigs.fromEnvironment()
 ) : Plugin {
-    
-    private var postgresPool: HikariDataSource? = null
+
     private var mariadbPool: HikariDataSource? = null
 
     override fun manifest() = PluginManifest(
@@ -199,27 +179,6 @@ class DataSourceQueryPlugin(
     )
 
     override fun init(context: PluginContext) {
-        
-        
-        configs.postgresConfig?.let { config ->
-            val hikariConfig = HikariConfig().apply {
-                jdbcUrl = "jdbc:postgresql://${config.host}:${config.port}/postgres"
-                username = config.user
-                password = config.password
-                maximumPoolSize = 5
-                minimumIdle = 1
-                connectionTimeout = 10000
-                idleTimeout = 300000
-                maxLifetime = 600000
-                poolName = "agent-postgres-pool"
-                
-                isReadOnly = true
-                transactionIsolation = "TRANSACTION_READ_COMMITTED"
-            }
-            postgresPool = HikariDataSource(hikariConfig)
-            println("[DataSourceQueryPlugin] PostgreSQL connection pool initialized")
-        }
-
         configs.mariadbConfig?.let { config ->
             val hikariConfig = HikariConfig().apply {
                 jdbcUrl = "jdbc:mariadb://${config.host}:${config.port}/information_schema"
@@ -238,7 +197,6 @@ class DataSourceQueryPlugin(
         }
 
         println("[DataSourceQueryPlugin] Initialized with ${listOfNotNull(
-            configs.postgresConfig?.let { "postgres" },
             configs.mariadbConfig?.let { "mariadb" },
             configs.qdrantConfig?.let { "qdrant" },
             configs.ldapConfig?.let { "ldap" },
@@ -247,48 +205,22 @@ class DataSourceQueryPlugin(
     }
 
     override fun tools(): List<Any> = listOf(Tools(
-        configs.postgresConfig,
         configs.mariadbConfig,
         configs.qdrantConfig,
         configs.ldapConfig,
         configs.searchServiceConfig,
-        postgresPool,
         mariadbPool
     ))
 
     override fun registerTools(registry: ToolRegistry) {
         val pluginId = manifest().id
         val tools = Tools(
-            configs.postgresConfig,
             configs.mariadbConfig,
             configs.qdrantConfig,
             configs.ldapConfig,
             configs.searchServiceConfig,
-            postgresPool,
             mariadbPool
         )
-
-        if (configs.postgresConfig != null) {
-            registry.register(
-                ToolDefinition(
-                    name = "query_postgres",
-                    description = "Execute read-only SQL query on PostgreSQL",
-                    shortDescription = "Query PostgreSQL database",
-                    longDescription = "Execute a SELECT query on PostgreSQL using per-user shadow account. Returns results as JSON array of row objects. Max 100 rows. Requires X-User-Context header.",
-                    parameters = listOf(
-                        ToolParam("database", "string", true, "Database name (e.g., planka, grafana, openwebui)"),
-                        ToolParam("query", "string", true, "SQL SELECT query to execute")
-                    ),
-                    paramsSpec = """{"type":"object","required":["database","query"],"properties":{"database":{"type":"string"},"query":{"type":"string"}}}""",
-                    pluginId = pluginId
-                ),
-                ToolHandler { args, userContext ->
-                    val database = args.get("database")?.asText() ?: throw IllegalArgumentException("database required")
-                    val query = args.get("query")?.asText() ?: throw IllegalArgumentException("query required")
-                    tools.query_postgres(database, query, userContext)
-                }
-            )
-        }
 
         if (configs.mariadbConfig != null) {
             registry.register(
@@ -402,9 +334,8 @@ class DataSourceQueryPlugin(
     }
 
     override fun shutdown() {
-        
+
         try {
-            postgresPool?.close()
             mariadbPool?.close()
             println("[DataSourceQueryPlugin] Connection pools closed successfully")
         } catch (e: Exception) {
@@ -413,12 +344,10 @@ class DataSourceQueryPlugin(
     }
 
     internal class Tools(
-        private val postgresConfig: PostgresConfig?,
         private val mariadbConfig: MariaDBConfig?,
         private val qdrantConfig: QdrantConfig?,
         private val ldapConfig: LdapConfig?,
         private val searchServiceConfig: SearchServiceConfig?,
-        private val postgresPool: HikariDataSource?,
         private val mariadbPool: HikariDataSource?
     ) {
         private val secretsDir = System.getenv("SHADOW_ACCOUNTS_SECRETS_DIR") ?: "/run/secrets/datamancy"
@@ -433,71 +362,6 @@ class DataSourceQueryPlugin(
                 Pair(shadowUsername, password)
             } else {
                 null
-            }
-        }
-
-        @LlmTool(
-            shortDescription = "Query PostgreSQL database",
-            longDescription = "Execute a read-only SELECT query on PostgreSQL agent_observer schema. Only public/safe views accessible. Max 100 rows. Available databases: grafana, planka, mastodon, forgejo.",
-            paramsSpec = """{"type":"object","required":["database","query"],"properties":{"database":{"type":"string","enum":["grafana","planka","mastodon","forgejo"]},"query":{"type":"string"}}}"""
-        )
-        fun query_postgres(database: String, query: String, userContext: String? = null): String {
-            val config = postgresConfig ?: return "ERROR: PostgreSQL not configured"
-
-            
-            val allowedDbs = listOf("grafana", "planka", "mastodon", "forgejo")
-            if (database !in allowedDbs) {
-                return "ERROR: Database '$database' not accessible. Allowed: ${allowedDbs.joinToString(", ")}"
-            }
-
-            
-            when (val validation = validateSqlQuery(query, "agent_observer")) {
-                is QueryValidationResult.Rejected -> {
-                    println("[AUDIT] user=${userContext ?: "anonymous"} database=$database query_rejected reason=\"${validation.reason}\"")
-                    return """{"error": "${validation.reason}"}"""
-                }
-                is QueryValidationResult.Approved -> {
-                    
-                }
-            }
-
-            
-            val (dbUser, dbPassword) = if (userContext != null) {
-                val shadowCreds = loadShadowCredentials(userContext)
-                if (shadowCreds == null) {
-                    return "ERROR: Shadow account not provisioned for user: $userContext. Contact admin to run: scripts/security/create-shadow-agent-account.main.kts $userContext"
-                }
-                println("[AUDIT] user=$userContext shadow=${shadowCreds.first} tool=query_postgres database=$database")
-                shadowCreds
-            } else {
-                
-                println("[WARN] No user context provided, using global account (deprecated)")
-                Pair(config.user, config.password)
-            }
-
-            return try {
-                
-                val pool = postgresPool ?: return "ERROR: PostgreSQL connection pool not initialized"
-
-                pool.connection.use { conn ->
-                    
-                    conn.createStatement().execute("SET search_path TO agent_observer")
-                    conn.catalog = database
-
-                    val startTime = System.currentTimeMillis()
-                    conn.createStatement().use { stmt ->
-                        stmt.maxRows = 100
-                        stmt.executeQuery(query).use { rs ->
-                            val result = resultSetToJson(rs)
-                            val elapsedMs = System.currentTimeMillis() - startTime
-                            println("[AUDIT] user=${userContext ?: "anonymous"} shadow=$dbUser database=$database query=\"${query.take(100)}\" rows=${result.lines().size - 2} elapsed_ms=$elapsedMs success=true")
-                            result
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                println("[AUDIT] user=${userContext ?: "anonymous"} shadow=$dbUser database=$database query=\"${query.take(100)}\" success=false error=\"${e.message}\"")
-                "ERROR: ${e.message}"
             }
         }
 

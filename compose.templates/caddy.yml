@@ -73,6 +73,9 @@ services:
       matrix-internal:
       mastodon-internal:
       monitoring:
+    depends_on:
+      authelia:
+        condition: service_started
     environment:
       DOMAIN: ${DOMAIN}
       STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}

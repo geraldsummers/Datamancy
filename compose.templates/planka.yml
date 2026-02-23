@@ -16,8 +16,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      authelia:
-        condition: service_started
     environment:
       BASE_URL: https://planka.${DOMAIN}
       DATABASE_URL: postgresql://planka:${POSTGRES_PLANKA_PASSWORD_ENCODED:-${POSTGRES_PLANKA_PASSWORD}}@postgres:5432/planka
