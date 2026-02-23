@@ -384,20 +384,16 @@ fun saveEnvFile(file: File, credentials: Map<String, String>) {
 
         credentials.keys.sorted().forEach { key ->
             val value = credentials[key]!!
-            // For multiline values (RSA keys), escape and quote them
+            // For multiline values (RSA keys), skip them - they're stored in separate files
             if (value.contains("\n")) {
                 // Docker Compose .env doesn't support multiline well, so we'll store these separately
                 // and document that RSA keys should be in separate files
                 appendLine("# $key: (multiline value, stored in configs/)")
             } else {
-                // Escape quotes and use quotes if value contains special chars
-                val needsQuotes = value.contains(" ") || value.contains("#") || value.contains("$")
-                if (needsQuotes) {
-                    val escaped = value.replace("\"", "\\\"")
-                    appendLine("$key=\"$escaped\"")
-                } else {
-                    appendLine("$key=$value")
-                }
+                // Escape $ signs to prevent variable interpolation in Docker Compose
+                // Docker Compose interprets ${VAR} as variable substitution
+                val escaped = value.replace("$", "$$")
+                appendLine("$key=$escaped")
             }
         }
     }
