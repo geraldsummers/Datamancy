@@ -20,8 +20,6 @@ services:
         aliases:
           - auth.${DOMAIN}
     depends_on:
-      caddy:
-        condition: service_started
       ldap:
         condition: service_started
       postgres:
