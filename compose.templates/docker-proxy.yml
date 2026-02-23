@@ -56,39 +56,15 @@
 # ============================================================================
 
 services:
-  isolated-docker-vm-tunnel:
-    build:
-      context: ./containers.src/isolated-docker-vm-tunnel
-      dockerfile: Dockerfile
-    image: datamancy/isolated-docker-vm-tunnel:latest
-    container_name: isolated-docker-vm-tunnel
-    restart: unless-stopped
-    networks:
-      - docker-proxy
-    environment:
-      ISOLATED_DOCKER_VM_HOST: ${ISOLATED_DOCKER_VM_HOST}
-    volumes:
-      - ${HOME}/.ssh:/root/.ssh:ro
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2375/version"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-
   docker-vm-socket-proxy:
     image: tecnativa/docker-socket-proxy:v0.4.2
     container_name: docker-vm-socket-proxy
     restart: unless-stopped
     networks:
       - docker-proxy
-    depends_on:
-      isolated-docker-vm-tunnel:
-        condition: service_healthy
+    volumes:
+      - /run/docker-labware/docker.sock:/var/run/docker.sock:ro
     environment:
-      # Point to tunnel container's TCP socket
-      DOCKER_HOST: tcp://isolated-docker-vm-tunnel:2375
-
       # Permissions - only enable what's needed
       CONTAINERS: 1    # List/inspect containers
       IMAGES: 1        # List/inspect images
@@ -141,3 +117,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+networks:
+  docker-proxy:
+    driver: bridge
