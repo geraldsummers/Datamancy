@@ -8,6 +8,9 @@ services:
       - authelia
       - monitoring
       - docker-proxy
+    depends_on:
+      docker-socket-proxy:
+        condition: service_healthy
     environment:
       DOCKER_HOST: tcp://docker-socket-proxy:2375
       DOZZLE_BASE: /dozzle
