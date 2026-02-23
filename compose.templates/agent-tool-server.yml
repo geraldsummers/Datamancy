@@ -56,7 +56,6 @@ services:
     volumes:
       - agent_tool_server_known_hosts:/app/known_hosts_data:ro
       - agent_tool_server_scripts:/app/scripts:ro
-      - /var/run/docker.sock:/var/run/docker.sock.host:rw
     group_add:
       - "988"
     healthcheck:

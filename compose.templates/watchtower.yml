@@ -18,8 +18,7 @@ services:
       # or expose ntfy's HTTPS endpoint. For now, notifications will fail until addressed.
       WATCHTOWER_NOTIFICATION_URL: "ntfy://${NTFY_USERNAME}:${NTFY_PASSWORD}@ntfy:80/watchtower"
       TZ: Australia/Sydney
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
 
 networks:
   docker-proxy:

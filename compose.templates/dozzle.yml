@@ -7,9 +7,9 @@ services:
       - caddy
       - authelia
       - monitoring
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - docker-proxy
     environment:
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
       DOZZLE_BASE: /dozzle
       DOZZLE_LEVEL: info
       DOZZLE_FILTER: "status=running"

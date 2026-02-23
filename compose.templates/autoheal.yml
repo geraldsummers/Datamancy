@@ -5,9 +5,9 @@ services:
     restart: unless-stopped
     networks:
       - monitoring
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - docker-proxy
     environment:
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
       AUTOHEAL_CONTAINER_LABEL: "autoheal"
       AUTOHEAL_INTERVAL: 30
       AUTOHEAL_START_PERIOD: 0
