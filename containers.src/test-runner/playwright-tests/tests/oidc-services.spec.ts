@@ -177,7 +177,7 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'BookStack',
       'https://bookstack.datamancy.net/',
-      /BookStack|Books|Shelves/i, // Look for "BookStack" or book/shelf content
+      /Books|Shelves|Recently (Created|Updated)|My Recently Viewed/i, // Look for authenticated dashboard content, NOT error page
       ['Authelia', 'Login with SSO', 'SSO']
     );
   });

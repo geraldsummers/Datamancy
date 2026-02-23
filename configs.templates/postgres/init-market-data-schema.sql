@@ -54,9 +54,9 @@ CREATE INDEX IF NOT EXISTS idx_orderbook_data_symbol ON orderbook_data (symbol, 
 -- Grant permissions to test runner
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'test_runner') THEN
-        GRANT SELECT, INSERT ON market_data TO test_runner;
-        GRANT SELECT, INSERT ON orderbook_data TO test_runner;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'test_runner_user') THEN
+        GRANT SELECT, INSERT ON market_data TO test_runner_user;
+        GRANT SELECT, INSERT ON orderbook_data TO test_runner_user;
     END IF;
 END $$;
 

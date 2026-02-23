@@ -27,7 +27,7 @@ RUN groupadd -g 1000 testing_container_user && useradd -u 1000 -g testing_contai
     groupadd -f docker && usermod -aG docker testing_container_user
 
 RUN mkdir -p /etc/docker && \
-    echo '{"insecure-registries": ["192.168.0.11:5000", "registry:5000"]}' > /etc/docker/daemon.json
+    echo '{"insecure-registries": ["192.168.0.11:5000", "registry:5000", "isolated-registry:5000"], "dns": ["127.0.0.11"]}' > /etc/docker/daemon.json
 
 WORKDIR /app
 

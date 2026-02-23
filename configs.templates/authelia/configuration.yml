@@ -90,6 +90,12 @@ session:
       same_site: lax
       expiration: 8h
       inactivity: 1h
+    - domain: authelia
+      name: authelia_session_internal
+      authelia_url: http://authelia:9091
+      same_site: lax
+      expiration: 8h
+      inactivity: 1h
   remember_me: 7d
   redis:
     host: valkey
