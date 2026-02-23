@@ -69,7 +69,7 @@ oidc_providers:
     idp_brand: "authelia"
     discover: true
     skip_verification: true
-    issuer: "http://authelia:9091"
+    issuer: "https://auth.{{DOMAIN}}"
     client_id: "matrix"
     client_secret: "{{MATRIX_OAUTH_SECRET}}"
     client_auth_method: "client_secret_post"

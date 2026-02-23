@@ -37,7 +37,7 @@ services:
       SHOW_PASSWORD_HINT: false
       SSO_ENABLED: true
       SSO_ONLY: true
-      SSO_AUTHORITY: http://authelia:9091
+      SSO_AUTHORITY: https://auth.${DOMAIN}
       SSO_CLIENT_ID: vaultwarden
       SSO_CLIENT_SECRET: ${VAULTWARDEN_OAUTH_SECRET}
       SSO_SCOPES: openid email profile
