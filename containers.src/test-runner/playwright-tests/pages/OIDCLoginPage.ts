@@ -52,23 +52,43 @@ export class OIDCLoginPage {
   async handleConsentScreen() {
     console.log('🔍 Checking for OIDC consent screen...');
 
-    await logPageTelemetry(this.page, 'Potential Consent Screen');
+    // Wait for page to stabilize after login
+    await this.page.waitForTimeout(1000);
 
-    // Look for consent/authorize button
-    const consentButton = this.page.getByRole('button', { name: /accept|authorize|consent|allow/i }).or(
-      this.page.locator('button[type="submit"]').filter({ hasText: /accept|authorize|consent|allow/i })
-    );
+    // Check if we're on a consent/decision page (by URL or title)
+    const url = this.page.url();
+    const isConsentUrl = url.includes('/consent/') || url.includes('/decision');
 
-    const isVisible = await consentButton.isVisible().catch(() => false);
+    if (isConsentUrl) {
+      console.log('   ✓ Consent screen URL detected');
+      await logPageTelemetry(this.page, 'Consent Screen');
 
-    if (isVisible) {
-      console.log('   ✓ Consent screen detected');
-      await consentButton.click();
-      console.log('   ✓ Consent granted\n');
+      // Look for consent/authorize button with multiple strategies
+      const consentButton = this.page.getByRole('button', { name: /accept|authorize|consent|allow/i }).or(
+        this.page.locator('button[type="submit"]').filter({ hasText: /accept|authorize|consent|allow/i })
+      ).or(
+        this.page.locator('button:has-text("Accept")').first()
+      ).or(
+        this.page.locator('button[id*="accept"], button[class*="accept"]').first()
+      );
 
-      // Wait for redirect back to service
-      await this.page.waitForTimeout(2000);
+      try {
+        // Wait for button to be visible and clickable
+        await consentButton.waitFor({ state: 'visible', timeout: 5000 });
+        console.log('   ✓ Consent button found');
+
+        await consentButton.click();
+        console.log('   ✓ Consent granted\n');
+
+        // Wait for redirect back to service
+        await this.page.waitForTimeout(2000);
+      } catch (error) {
+        console.log('   ⚠️  Consent button not found or not clickable');
+        await logPageTelemetry(this.page, 'Consent Screen Error');
+        throw new Error(`Failed to handle consent screen: ${error}`);
+      }
     } else {
+      await logPageTelemetry(this.page, 'Post-Login (No Consent)');
       console.log('   ℹ️  No consent screen (already granted or not required)\n');
     }
   }

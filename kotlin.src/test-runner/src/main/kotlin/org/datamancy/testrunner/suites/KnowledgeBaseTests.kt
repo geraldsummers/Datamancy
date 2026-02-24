@@ -6,13 +6,13 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
     val userContext = env.endpoints.userContext
 
     if (userContext == null) {
-        skip("PostgreSQL query test", "No user context configured")
+        skip("MariaDB query test", "No user context configured")
         skip("Query security test", "No user context configured")
     } else {
-        test("Query PostgreSQL with shadow account") {
-            val result = client.callTool("query_postgres", mapOf(
+        test("Query MariaDB with shadow account") {
+            val result = client.callTool("query_mariadb", mapOf(
                 "database" to "grafana",
-                "query" to "SELECT COUNT(*) as count FROM agent_observer.public_dashboards"
+                "query" to "SELECT COUNT(*) as count FROM public_dashboards"
             ))
 
             when (result) {
@@ -39,8 +39,8 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
             }
         }
 
-        test("Query PostgreSQL blocks forbidden patterns") {
-            val result = client.callTool("query_postgres", mapOf(
+        test("Query MariaDB blocks forbidden patterns") {
+            val result = client.callTool("query_mariadb", mapOf(
                 "database" to "grafana",
                 "query" to "DROP TABLE users"
             ))
