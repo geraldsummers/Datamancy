@@ -432,28 +432,28 @@ fun generateCredentials(
     schema.credentials.forEach { spec ->
         if (spec.source != null) return@forEach  // Already handled above
 
-        // Skip if already exists
-        if (credentials.containsKey(spec.name)) {
-            return@forEach
-        }
-
-        // Generate new credential
-        val plaintext = when (spec.type.uppercase()) {
-            "HEX_SECRET", "OAUTH_SECRET" -> generateHexSecret()
-            "LARAVEL_KEY" -> generateLaravelKey()
-            "RSA_KEY" -> generateRSAKey()
-            "USER_PROVIDED" -> spec.default ?: ""
-            "CONFIG_VALUE" -> spec.default ?: ""
-            else -> {
-                warn("Unknown credential type: ${spec.type} for ${spec.name}")
-                ""
+        // Get or generate the base credential
+        val plaintext = if (credentials.containsKey(spec.name)) {
+            credentials[spec.name]!!
+        } else {
+            // Generate new credential
+            val newValue = when (spec.type.uppercase()) {
+                "HEX_SECRET", "OAUTH_SECRET" -> generateHexSecret()
+                "LARAVEL_KEY" -> generateLaravelKey()
+                "RSA_KEY" -> generateRSAKey()
+                "USER_PROVIDED" -> spec.default ?: ""
+                "CONFIG_VALUE" -> spec.default ?: ""
+                else -> {
+                    warn("Unknown credential type: ${spec.type} for ${spec.name}")
+                    ""
+                }
             }
+            credentials[spec.name] = newValue
+            info("Generated ${spec.type}: ${spec.name}")
+            newValue
         }
 
-        credentials[spec.name] = plaintext
-        info("Generated ${spec.type}: ${spec.name}")
-
-        // Generate hash variants
+        // Always generate hash variants (even for existing credentials with missing hashes)
         spec.hash_variants?.forEach { variant ->
             if (!credentials.containsKey(variant.variable)) {
                 val hash = applyHashAlgorithm(variant.algorithm, plaintext)
