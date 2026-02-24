@@ -365,7 +365,9 @@ fun loadEnvFile(file: File): MutableMap<String, String> {
             } else {
                 // Remove quotes if present (standard .env format)
                 val unquoted = value.removePrefix("\"").removeSuffix("\"")
-                credentials[key] = unquoted
+                // Unescape $$ back to $ (Docker Compose escaping)
+                val unescaped = unquoted.replace("$$", "$")
+                credentials[key] = unescaped
             }
         }
         i++
