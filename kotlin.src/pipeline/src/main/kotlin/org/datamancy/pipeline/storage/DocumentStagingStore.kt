@@ -511,9 +511,9 @@ class DocumentStagingStore(
                 DocumentStagingTable
                     .selectAll()
                     .where {
-                        // Documents must be embedded AND not exceed retry limit for BookStack writes
-                        // Note: bookstackUrl field tracks publication status independently
+                        // Documents must be embedded AND not yet published AND not exceed retry limit
                         (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name) and
+                        (DocumentStagingTable.bookstackUrl.isNull()) and
                         (DocumentStagingTable.retryCount less 3)
                     }
                     .orderBy(DocumentStagingTable.createdAt to SortOrder.ASC)
