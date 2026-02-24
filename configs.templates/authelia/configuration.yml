@@ -90,9 +90,9 @@ session:
       same_site: lax
       expiration: 8h
       inactivity: 1h
-    - domain: authelia
+    - domain: authelia.local
       name: authelia_session_internal
-      authelia_url: http://authelia:9091
+      authelia_url: https://auth.{{DOMAIN}}
       same_site: lax
       expiration: 8h
       inactivity: 1h
