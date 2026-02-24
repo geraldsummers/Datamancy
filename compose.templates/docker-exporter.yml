@@ -13,6 +13,7 @@ services:
         condition: service_started
     environment:
       DOCKER_HOST: tcp://docker-socket-proxy:2375
+      TIMEOUT: 120
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9066/metrics', timeout=30)"]
       interval: 60s

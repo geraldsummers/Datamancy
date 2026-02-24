@@ -23,3 +23,15 @@ ONLYOFFICE_APIJS_URL = 'https://onlyoffice.{{DOMAIN}}/web-apps/apps/api/document
 ONLYOFFICE_FILE_EXTENSION = ('doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'odt', 'fodt', 'odp', 'fodp', 'ods', 'fods', 'csv', 'ppsx', 'pps')
 ONLYOFFICE_EDIT_FILE_EXTENSION = ('docx', 'pptx', 'xlsx')
 ONLYOFFICE_JWT_SECRET = '{{ONLYOFFICE_JWT_SECRET}}'
+
+# Redis cache configuration
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://valkey:6379/0',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PASSWORD': '{{VALKEY_SEAFILE_PASSWORD}}',
+        }
+    }
+}

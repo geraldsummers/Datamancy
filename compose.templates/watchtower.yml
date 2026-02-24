@@ -21,10 +21,8 @@ services:
       WATCHTOWER_SCHEDULE: 0 0 4 * * *
       DOCKER_API_VERSION: 1.44
       WATCHTOWER_NOTIFICATIONS: shoutrrr
-      # Note: shoutrrr ntfy service expects 'ntfy://host/topic' format, defaults to HTTPS:443
-      # Since our ntfy uses HTTP:80 internally, we need to configure shoutrrr differently
-      # or expose ntfy's HTTPS endpoint. For now, notifications will fail until addressed.
-      WATCHTOWER_NOTIFICATION_URL: "ntfy://${NTFY_USERNAME}:${NTFY_PASSWORD}@ntfy:80/watchtower"
+      # Using http:// scheme explicitly since ntfy uses HTTP:80 internally
+      WATCHTOWER_NOTIFICATION_URL: "http://${NTFY_USERNAME}:${NTFY_PASSWORD}@ntfy:80/watchtower"
       WATCHTOWER_HTTP_API_METRICS: true
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_METRICS_TOKEN}
       TZ: Australia/Sydney
