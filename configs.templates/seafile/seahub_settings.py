@@ -24,10 +24,14 @@ ONLYOFFICE_FILE_EXTENSION = ('doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'odt',
 ONLYOFFICE_EDIT_FILE_EXTENSION = ('docx', 'pptx', 'xlsx')
 ONLYOFFICE_JWT_SECRET = '{{ONLYOFFICE_JWT_SECRET}}'
 
-# Redis cache configuration
+# Redis cache configuration using Django's built-in Redis backend
 CACHES = {
     'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://seafile:{{VALKEY_SEAFILE_PASSWORD}}@valkey:6379/0',
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://valkey:6379/0',
+        'OPTIONS': {
+            'username': 'seafile',
+            'password': '{{VALKEY_SEAFILE_PASSWORD}}',
+        }
     }
 }
