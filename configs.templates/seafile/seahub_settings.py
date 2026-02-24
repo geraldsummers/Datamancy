@@ -28,10 +28,6 @@ ONLYOFFICE_JWT_SECRET = '{{ONLYOFFICE_JWT_SECRET}}'
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://valkey:6379/0',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PASSWORD': '{{VALKEY_SEAFILE_PASSWORD}}',
-        }
+        'LOCATION': 'redis://seafile:{{VALKEY_SEAFILE_PASSWORD}}@valkey:6379/0',
     }
 }
