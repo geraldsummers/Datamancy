@@ -69,7 +69,7 @@ oidc_providers:
     idp_brand: "authelia"
     discover: true
     skip_verification: true
-    issuer: "https://auth.{{DOMAIN}}"
+    issuer: "http://authelia:9091"
     client_id: "matrix"
     client_secret: "{{MATRIX_OAUTH_SECRET}}"
     client_auth_method: "client_secret_post"
@@ -78,9 +78,9 @@ oidc_providers:
       - "profile"
       - "email"
       - "groups"
-    authorization_endpoint: "https://auth.{{DOMAIN}}/api/oidc/authorization"
-    token_endpoint: "https://auth.{{DOMAIN}}/api/oidc/token"
-    userinfo_endpoint: "https://auth.{{DOMAIN}}/api/oidc/userinfo"
+    authorization_endpoint: "http://authelia:9091/api/oidc/authorization"
+    token_endpoint: "http://authelia:9091/api/oidc/token"
+    userinfo_endpoint: "http://authelia:9091/api/oidc/userinfo"
     user_mapping_provider:
       config:
         localpart_template: '{{ user.preferred_username|lower }}'

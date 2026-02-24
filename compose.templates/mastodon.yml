@@ -98,7 +98,7 @@ services:
       RAILS_MAX_THREADS: 5
       DB_POOL: 10  # Should be >= MAX_THREADS for connection pooling
       # Trust all Docker bridge networks for X-Forwarded-* headers
-      TRUSTED_PROXY_IP: 172.16.0.0/12  # Docker default bridge range (172.16-31.x.x)
+      TRUSTED_PROXY_IP: 172.16.0.0/12,192.168.0.0/16  # Docker networks + internal network
       # Allow internal container hostnames for health checks and test runner
       RAILS_DEVELOPMENT_HOSTS: "mastodon-web,mastodon-web:3000,localhost,localhost:3000,127.0.0.1,127.0.0.1:3000,mastodon.${DOMAIN},.${DOMAIN},mastodon-sidekiq"
       # Disable host authorization checks for Docker network communication
