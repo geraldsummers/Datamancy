@@ -139,11 +139,34 @@ class LlmCompletionPlugin : Plugin {
     class Tools(private val registry: ToolRegistry?) {
         private val httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
+            .version(HttpClient.Version.HTTP_1_1)  // Use HTTP/1.1 for better connection pooling
             .build()
 
         private val mapper = ObjectMapper()
         private val litellmBaseUrl = System.getenv("LITELLM_BASE_URL") ?: "http://litellm:4000"
         private val litellmApiKey = System.getenv("LITELLM_MASTER_KEY") ?: ""
+
+        // Metrics tracking
+        @Volatile private var totalRequests = 0L
+        @Volatile private var totalErrors = 0L
+        @Volatile private var totalToolCalls = 0L
+
+        // Circuit breaker state
+        @Volatile private var consecutiveFailures = 0
+        @Volatile private var lastFailureTime = 0L
+        private val circuitBreakerThreshold = 5
+        private val circuitBreakerResetMs = 60000L // 1 minute
+
+        private fun isCircuitOpen(): Boolean {
+            if (consecutiveFailures < circuitBreakerThreshold) return false
+            val elapsed = System.currentTimeMillis() - lastFailureTime
+            if (elapsed > circuitBreakerResetMs) {
+                // Reset circuit breaker after timeout
+                consecutiveFailures = 0
+                return false
+            }
+            return true
+        }
 
         /**
          * Agent orchestration with full ReAct-style tool calling loop.
@@ -216,6 +239,17 @@ class LlmCompletionPlugin : Plugin {
                 (firstMessage as ObjectNode).put("content", enhancedSystemPrompt)
             }
 
+            // Check circuit breaker
+            if (isCircuitOpen()) {
+                return mapOf(
+                    "error" to "circuit_breaker_open",
+                    "message" to "LiteLLM service is experiencing issues. Please try again later.",
+                    "consecutive_failures" to consecutiveFailures
+                )
+            }
+
+            totalRequests++
+
             // Agent loop trace
             val trace = mutableListOf<Map<String, Any?>>()
             var iteration = 0
@@ -260,21 +294,32 @@ class LlmCompletionPlugin : Plugin {
                 val response = try {
                     httpClient.send(request, HttpResponse.BodyHandlers.ofString())
                 } catch (e: Exception) {
+                    totalErrors++
+                    consecutiveFailures++
+                    lastFailureTime = System.currentTimeMillis()
                     return mapOf(
                         "error" to "llm_request_failed",
                         "message" to (e.message ?: "Unknown error"),
-                        "trace" to trace
+                        "trace" to trace,
+                        "iteration" to iteration
                     )
                 }
 
                 if (response.statusCode() != 200) {
+                    totalErrors++
+                    consecutiveFailures++
+                    lastFailureTime = System.currentTimeMillis()
                     return mapOf(
                         "error" to "llm_http_error",
                         "status_code" to response.statusCode(),
                         "body" to response.body(),
-                        "trace" to trace
+                        "trace" to trace,
+                        "iteration" to iteration
                     )
                 }
+
+                // Success - reset circuit breaker
+                consecutiveFailures = 0
 
                 val responseJson = mapper.readTree(response.body()) as ObjectNode
                 val choices = responseJson.get("choices") as? ArrayNode
@@ -321,10 +366,12 @@ class LlmCompletionPlugin : Plugin {
                         }
 
                         // Execute tool via registry
+                        totalToolCalls++
                         val result = try {
                             registry.invoke(functionName, functionArgs)
                         } catch (e: Exception) {
-                            mapOf("error" to (e.message ?: "execution_failed"))
+                            totalErrors++
+                            mapOf("error" to (e.message ?: "execution_failed"), "exception" to e.javaClass.simpleName)
                         }
 
                         // Add to trace
@@ -351,6 +398,24 @@ class LlmCompletionPlugin : Plugin {
                 "iterations" to iteration,
                 "max_iterations_reached" to true,
                 "trace" to trace
+            )
+        }
+
+        /**
+         * Get agent metrics for monitoring
+         */
+        fun getMetrics(): Map<String, Any> {
+            return mapOf(
+                "total_requests" to totalRequests,
+                "total_errors" to totalErrors,
+                "total_tool_calls" to totalToolCalls,
+                "consecutive_failures" to consecutiveFailures,
+                "circuit_breaker_open" to isCircuitOpen(),
+                "error_rate" to if (totalRequests > 0) {
+                    (totalErrors.toDouble() / totalRequests.toDouble())
+                } else {
+                    0.0
+                }
             )
         }
 

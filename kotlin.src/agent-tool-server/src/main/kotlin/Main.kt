@@ -22,11 +22,23 @@ fun main() {
     val apiVersion = "1.0.0"
 
     val allowedCapsEnv = System.getenv("TOOLSERVER_ALLOW_CAPS")?.trim().orEmpty()
-    val allowedCaps: Set<String> = if (allowedCapsEnv.isBlank()) emptySet() else allowedCapsEnv
-        .split(',')
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .toSet()
+    val allowedCaps: Set<String> = if (allowedCapsEnv.isBlank()) {
+        // Default capabilities if not specified
+        setOf(
+            "host.network.http",
+            "knowledge-retrieval",
+            "rag-context",
+            "datasource.read",
+            "host.docker.read",
+            "host.ssh.read"
+        )
+    } else {
+        allowedCapsEnv
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+    }
 
     val capabilityPolicy = CapabilityPolicy(allowed = allowedCaps)
 
