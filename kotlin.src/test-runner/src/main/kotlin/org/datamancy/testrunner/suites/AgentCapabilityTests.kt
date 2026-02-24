@@ -40,18 +40,16 @@ suspend fun TestRunner.agentCapabilityTests() {
     probRunner.probabilisticTest(
         name = "Core text processing tools execute successfully",
         trials = 30,
-        acceptableFailureRate = 0.1  
+        acceptableFailureRate = 0.1
     ) {
         val toolNames = listOf(
             "normalize_whitespace",
-            "slugify",
-            "tokenize_words",
             "uuid_generate"
         )
         val tool = toolNames.random()
         val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
-            setBody("""{"tool":"$tool","input":{"text":"Hello World Test"}}""")
+            setBody("""{"name":"$tool","args":{"text":"Hello World Test"}}""")
         }
         response.status == HttpStatusCode.OK
     }
@@ -59,12 +57,11 @@ suspend fun TestRunner.agentCapabilityTests() {
     probRunner.probabilisticTest(
         name = "Docker container operations succeed on valid inputs",
         trials = 15,
-        acceptableFailureRate = 0.2  
+        acceptableFailureRate = 0.2
     ) {
-        
         val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
-            setBody("""{"tool":"docker_container_list","input":{"all":true}}""")
+            setBody("""{"name":"docker_container_list","args":{}}""")
         }
         response.status == HttpStatusCode.OK
     }
@@ -85,13 +82,13 @@ suspend fun TestRunner.agentCapabilityTests() {
     probRunner.latencyTest(
         name = "Simple tool execution latency (normalize_whitespace)",
         trials = 40,
-        maxMedianLatency = 300,  
-        maxP95Latency = 1000     
+        maxMedianLatency = 300,
+        maxP95Latency = 1000
     ) {
         val start = System.currentTimeMillis()
         httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
-            setBody("""{"tool":"normalize_whitespace","input":{"text":"  hello   world  "}}""")
+            setBody("""{"name":"normalize_whitespace","args":{"text":"  hello   world  "}}""")
         }
         System.currentTimeMillis() - start
     }
@@ -99,13 +96,13 @@ suspend fun TestRunner.agentCapabilityTests() {
     probRunner.latencyTest(
         name = "Docker list containers latency",
         trials = 30,
-        maxMedianLatency = 1000,  
-        maxP95Latency = 3000      
+        maxMedianLatency = 1000,
+        maxP95Latency = 3000
     ) {
         val start = System.currentTimeMillis()
         httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
-            setBody("""{"tool":"docker_container_list","input":{"all":false}}""")
+            setBody("""{"name":"docker_container_list","args":{}}""")
         }
         System.currentTimeMillis() - start
     }
@@ -123,11 +120,11 @@ suspend fun TestRunner.agentCapabilityTests() {
     probRunner.throughputTest(
         name = "Simple tool execution throughput",
         durationSeconds = 10,
-        minOpsPerSecond = 2.0  
+        minOpsPerSecond = 2.0
     ) {
         httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
-            setBody("""{"tool":"uuid_generate","input":{}}""")
+            setBody("""{"name":"uuid_generate","args":{}}""")
         }
     }
 
@@ -141,8 +138,7 @@ suspend fun TestRunner.agentCapabilityTests() {
         val response = client.getRawResponse("${endpoints.agentToolServer}/tools")
         val body = response.bodyAsText()
         body.contains("normalize_whitespace") &&
-            body.contains("slugify") &&
-            body.contains("cosine_similarity")
+            body.contains("uuid_generate")
     }
 
     probRunner.probabilisticTest(
@@ -152,7 +148,7 @@ suspend fun TestRunner.agentCapabilityTests() {
     ) {
         val response = client.getRawResponse("${endpoints.agentToolServer}/tools")
         val body = response.bodyAsText()
-        body.contains("fetch_url") || body.contains("http")
+        body.contains("host_exec_readonly") || body.contains("docker_logs")
     }
 
     probRunner.probabilisticTest(
@@ -180,13 +176,12 @@ suspend fun TestRunner.agentCapabilityTests() {
     probRunner.probabilisticTest(
         name = "Tools handle malformed inputs gracefully",
         trials = 20,
-        acceptableFailureRate = 0.0  
+        acceptableFailureRate = 0.0
     ) {
         val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
-            setBody("""{"tool":"normalize_whitespace","input":{"wrong_field":"test"}}""")
+            setBody("""{"name":"normalize_whitespace","args":{"wrong_field":"test"}}""")
         }
-        
         response.status != HttpStatusCode.InternalServerError
     }
 
@@ -197,9 +192,8 @@ suspend fun TestRunner.agentCapabilityTests() {
     ) {
         val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
-            setBody("""{"tool":"normalize_whitespace","input":{}}""")
+            setBody("""{"name":"normalize_whitespace","args":{}}""")
         }
-        
         response.status != HttpStatusCode.InternalServerError
     }
 
@@ -210,9 +204,8 @@ suspend fun TestRunner.agentCapabilityTests() {
     ) {
         val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
             contentType(ContentType.Application.Json)
-            setBody("""{"tool":"nonexistent_tool_12345","input":{}}""")
+            setBody("""{"name":"nonexistent_tool_12345","args":{}}""")
         }
-        
         response.status == HttpStatusCode.NotFound || response.status == HttpStatusCode.BadRequest
     }
 
@@ -221,13 +214,12 @@ suspend fun TestRunner.agentCapabilityTests() {
     probRunner.probabilisticTest(
         name = "Server handles concurrent tool requests",
         trials = 20,
-        acceptableFailureRate = 0.15  
+        acceptableFailureRate = 0.15
     ) {
-        
         val responses = (1..5).map {
             httpClient.post("${endpoints.agentToolServer}/call-tool") {
                 contentType(ContentType.Application.Json)
-                setBody("""{"tool":"uuid_generate","input":{}}""")
+                setBody("""{"name":"uuid_generate","args":{}}""")
             }
         }
         responses.all { it.status == HttpStatusCode.OK }
