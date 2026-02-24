@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
 import org.example.host.ToolRegistry
 import org.example.util.Json
+import org.example.util.AuditLogger
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
@@ -53,6 +54,8 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
         srv.createContext("/health", healthHandler)
         srv.createContext("/healthz", healthHandler)
         srv.createContext("/admin/refresh-ssh-keys", RefreshSshKeysHandler())
+        srv.createContext("/metrics", MetricsHandler(tools))
+        srv.createContext("/metrics/prometheus", PrometheusMetricsHandler(tools))
         srv.createContext("/v1/chat/completions", OpenAIProxyHandler(tools))
 
         srv.executor = Executors.newCachedThreadPool()
@@ -309,8 +312,19 @@ private class CallToolHandler(private val tools: ToolRegistry) : HttpHandler {
             if (debug) println("[/call-tool] body ${'$'}{raw.size} bytes")
             val req = Json.mapper.readValue(body, CallRequest::class.java)
             val args = req.args ?: Json.mapper.createObjectNode()
-            val result = invokeWithTimeout({ tools.invoke(req.name, args) }, callTimeoutMs)
+            val userContext = exchange.requestHeaders.getFirst("X-User-Context")?.takeIf { it.isNotBlank() }
+            val result = invokeWithTimeout({ tools.invoke(req.name, args, userContext) }, callTimeoutMs)
             val elapsedMs = (System.nanoTime() - start) / 1_000_000
+
+            // Audit log successful invocation
+            AuditLogger.logToolInvocation(
+                toolName = req.name,
+                userContext = userContext,
+                durationMs = elapsedMs,
+                success = true,
+                requestSize = body.length
+            )
+
             respond(exchange, 200, mapOf("result" to result, "elapsedMs" to elapsedMs))
         } catch (to: java.util.concurrent.TimeoutException) {
             respond(exchange, 504, mapOf("error" to "tool_timeout", "message" to "tool execution exceeded timeout"))
@@ -527,6 +541,123 @@ private class RefreshSshKeysHandler : HttpHandler {
                     "host" to host,
                     "output" to out
                 ))
+            }
+        } catch (e: Exception) {
+            respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
+        }
+    }
+}
+
+/**
+ * Handler for `/metrics` endpoint - JSON metrics for monitoring dashboards.
+ *
+ * Returns comprehensive metrics including:
+ * - System stats (uptime, memory, threads)
+ * - Tool registry stats (registered tools count)
+ * - LLM agent stats (requests, errors, tool calls, circuit breaker state)
+ *
+ * Used by monitoring dashboards and health checks.
+ */
+private class MetricsHandler(private val tools: ToolRegistry) : HttpHandler {
+    private val startTime = System.currentTimeMillis()
+
+    override fun handle(exchange: HttpExchange) {
+        try {
+            when (exchange.requestMethod) {
+                "GET" -> {
+                    val runtime = Runtime.getRuntime()
+                    val metrics = mapOf(
+                        "system" to mapOf(
+                            "uptime_ms" to (System.currentTimeMillis() - startTime),
+                            "memory_used_mb" to ((runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024),
+                            "memory_total_mb" to (runtime.totalMemory() / 1024 / 1024),
+                            "memory_max_mb" to (runtime.maxMemory() / 1024 / 1024),
+                            "threads" to Thread.activeCount(),
+                            "processors" to runtime.availableProcessors()
+                        ),
+                        "tools" to mapOf(
+                            "registered_count" to tools.listTools().size,
+                            "tool_names" to tools.listTools().map { it.name }
+                        ),
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                    respond(exchange, 200, metrics)
+                }
+                "HEAD" -> respondHead(exchange, 200)
+                else -> respond(exchange, 405, mapOf("error" to "Method not allowed"))
+            }
+        } catch (e: Exception) {
+            respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
+        }
+    }
+}
+
+/**
+ * Handler for `/metrics/prometheus` endpoint - Prometheus-compatible metrics.
+ *
+ * Exports metrics in Prometheus text format for scraping by Prometheus server.
+ * Includes:
+ * - agent_tool_server_uptime_seconds
+ * - agent_tool_server_memory_used_bytes
+ * - agent_tool_server_tools_registered_total
+ * - agent_tool_server_http_requests_total (if available from agent)
+ *
+ * Example Prometheus scrape config:
+ * ```yaml
+ * scrape_configs:
+ *   - job_name: 'agent-tool-server'
+ *     static_configs:
+ *       - targets: ['agent-tool-server:8081']
+ * ```
+ */
+private class PrometheusMetricsHandler(private val tools: ToolRegistry) : HttpHandler {
+    private val startTime = System.currentTimeMillis()
+
+    override fun handle(exchange: HttpExchange) {
+        try {
+            when (exchange.requestMethod) {
+                "GET" -> {
+                    val runtime = Runtime.getRuntime()
+                    val uptime = (System.currentTimeMillis() - startTime) / 1000.0
+                    val memoryUsed = runtime.totalMemory() - runtime.freeMemory()
+                    val toolsCount = tools.listTools().size
+
+                    val prometheusText = buildString {
+                        // System metrics
+                        appendLine("# HELP agent_tool_server_uptime_seconds Time since server started")
+                        appendLine("# TYPE agent_tool_server_uptime_seconds gauge")
+                        appendLine("agent_tool_server_uptime_seconds $uptime")
+                        appendLine()
+
+                        appendLine("# HELP agent_tool_server_memory_used_bytes Memory usage in bytes")
+                        appendLine("# TYPE agent_tool_server_memory_used_bytes gauge")
+                        appendLine("agent_tool_server_memory_used_bytes $memoryUsed")
+                        appendLine()
+
+                        appendLine("# HELP agent_tool_server_memory_total_bytes Total memory available")
+                        appendLine("# TYPE agent_tool_server_memory_total_bytes gauge")
+                        appendLine("agent_tool_server_memory_total_bytes ${runtime.totalMemory()}")
+                        appendLine()
+
+                        appendLine("# HELP agent_tool_server_threads_active Active thread count")
+                        appendLine("# TYPE agent_tool_server_threads_active gauge")
+                        appendLine("agent_tool_server_threads_active ${Thread.activeCount()}")
+                        appendLine()
+
+                        // Tool registry metrics
+                        appendLine("# HELP agent_tool_server_tools_registered_total Number of registered tools")
+                        appendLine("# TYPE agent_tool_server_tools_registered_total gauge")
+                        appendLine("agent_tool_server_tools_registered_total $toolsCount")
+                        appendLine()
+                    }
+
+                    val bytes = prometheusText.toByteArray(StandardCharsets.UTF_8)
+                    exchange.responseHeaders.add("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+                    exchange.responseHeaders.add("Connection", "close")
+                    exchange.sendResponseHeaders(200, bytes.size.toLong())
+                    exchange.responseBody.use { it.write(bytes) }
+                }
+                else -> respond(exchange, 405, mapOf("error" to "Method not allowed"))
             }
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))

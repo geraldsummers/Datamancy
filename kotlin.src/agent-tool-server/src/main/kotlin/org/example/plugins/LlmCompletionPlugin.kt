@@ -350,38 +350,94 @@ class LlmCompletionPlugin : Plugin {
                     )
                 }
 
-                // Execute tool calls
-                toolCalls.forEach { toolCall ->
-                    val tcObj = toolCall as ObjectNode
-                    val toolCallId = tcObj.get("id")?.asText() ?: "unknown"
-                    val function = tcObj.get("function") as? ObjectNode
-                    val functionName = function?.get("name")?.asText()
-                    val functionArgsStr = function?.get("arguments")?.asText()
+                // Execute tool calls in parallel for better performance
+                val enableParallel = System.getenv("TOOLSERVER_PARALLEL_TOOLS")?.lowercase() in setOf("1", "true", "yes")
 
-                    if (functionName != null && functionArgsStr != null && registry != null) {
-                        val functionArgs = try {
-                            mapper.readTree(functionArgsStr)
-                        } catch (e: Exception) {
-                            mapper.createObjectNode().put("error", "invalid_args")
+                if (enableParallel && toolCalls.size() > 1) {
+                    // Parallel execution using CompletableFuture
+                    val futures = toolCalls.map { toolCall ->
+                        java.util.concurrent.CompletableFuture.supplyAsync {
+                            val tcObj = toolCall as ObjectNode
+                            val toolCallId = tcObj.get("id")?.asText() ?: "unknown"
+                            val function = tcObj.get("function") as? ObjectNode
+                            val functionName = function?.get("name")?.asText()
+                            val functionArgsStr = function?.get("arguments")?.asText()
+
+                            if (functionName != null && functionArgsStr != null && registry != null) {
+                                val functionArgs = try {
+                                    mapper.readTree(functionArgsStr)
+                                } catch (e: Exception) {
+                                    mapper.createObjectNode().put("error", "invalid_args")
+                                }
+
+                                totalToolCalls++
+                                val result = try {
+                                    registry.invoke(functionName, functionArgs)
+                                } catch (e: Exception) {
+                                    totalErrors++
+                                    mapOf("error" to (e.message ?: "execution_failed"), "exception" to e.javaClass.simpleName)
+                                }
+
+                                Triple(toolCallId, functionName, Pair(functionArgs, result))
+                            } else {
+                                null
+                            }
                         }
+                    }
 
-                        // Execute tool via registry
-                        totalToolCalls++
-                        val result = try {
-                            registry.invoke(functionName, functionArgs)
-                        } catch (e: Exception) {
+                    // Wait for all to complete
+                    futures.forEach { future ->
+                        val toolResult = try {
+                            future.get(30, java.util.concurrent.TimeUnit.SECONDS)
+                        } catch (e: java.util.concurrent.TimeoutException) {
                             totalErrors++
-                            mapOf("error" to (e.message ?: "execution_failed"), "exception" to e.javaClass.simpleName)
+                            null
                         }
 
-                        // Add to trace
-                        trace.add(ContextManager.createTraceEntry(iteration, functionName, functionArgs, result))
+                        toolResult?.let { (toolCallId, functionName, argsAndResult) ->
+                            val (functionArgs, result) = argsAndResult
+                            trace.add(ContextManager.createTraceEntry(iteration, functionName, functionArgs, result))
+                            messages.addObject().apply {
+                                put("role", "tool")
+                                put("tool_call_id", toolCallId)
+                                put("content", result.toString())
+                            }
+                        }
+                    }
+                } else {
+                    // Sequential execution (default)
+                    toolCalls.forEach { toolCall ->
+                        val tcObj = toolCall as ObjectNode
+                        val toolCallId = tcObj.get("id")?.asText() ?: "unknown"
+                        val function = tcObj.get("function") as? ObjectNode
+                        val functionName = function?.get("name")?.asText()
+                        val functionArgsStr = function?.get("arguments")?.asText()
 
-                        // Add tool result message to conversation
-                        messages.addObject().apply {
-                            put("role", "tool")
-                            put("tool_call_id", toolCallId)
-                            put("content", result.toString())
+                        if (functionName != null && functionArgsStr != null && registry != null) {
+                            val functionArgs = try {
+                                mapper.readTree(functionArgsStr)
+                            } catch (e: Exception) {
+                                mapper.createObjectNode().put("error", "invalid_args")
+                            }
+
+                            // Execute tool via registry
+                            totalToolCalls++
+                            val result = try {
+                                registry.invoke(functionName, functionArgs)
+                            } catch (e: Exception) {
+                                totalErrors++
+                                mapOf("error" to (e.message ?: "execution_failed"), "exception" to e.javaClass.simpleName)
+                            }
+
+                            // Add to trace
+                            trace.add(ContextManager.createTraceEntry(iteration, functionName, functionArgs, result))
+
+                            // Add tool result message to conversation
+                            messages.addObject().apply {
+                                put("role", "tool")
+                                put("tool_call_id", toolCallId)
+                                put("content", result.toString())
+                            }
                         }
                     }
                 }
