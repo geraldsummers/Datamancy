@@ -19,6 +19,7 @@ volumes:
   redis_data:
   roundcube_data:
   vaultwarden_data:
+  vaultwarden_caddy_ca:
   authelia_data:
   jupyterhub_data:
   homeassistant_config:
