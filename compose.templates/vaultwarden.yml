@@ -37,7 +37,7 @@ services:
       SHOW_PASSWORD_HINT: false
       SSO_ENABLED: true
       SSO_ONLY: true
-      SSO_AUTHORITY: http://authelia:9091
+      SSO_AUTHORITY: https://auth.${DOMAIN}
       SSO_CLIENT_ID: vaultwarden
       SSO_CLIENT_SECRET: ${VAULTWARDEN_OAUTH_SECRET}
       SSO_SCOPES: openid email profile
@@ -50,10 +50,11 @@ services:
       SMTP_SECURITY: starttls
       SMTP_USERNAME: vaultwarden@${MAIL_DOMAIN}
       SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD}
-      SSL_CERT_FILE: ""
+      SSL_CERT_FILE: /usr/local/share/ca-certificates/caddy-ca.crt
       ROCKET_TLS_INSECURE_SKIP_VERIFICATION: "true"
     volumes:
       - vaultwarden_data:/data
+      - vaultwarden_caddy_ca:/usr/local/share/ca-certificates:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/alive || exit 1"]
       interval: 60s

@@ -28,6 +28,7 @@ services:
       DB_DATABASE: bookstack
       BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID}
       BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET}
+      BOOKSTACK_OAUTH_SECRET: ${BOOKSTACK_OAUTH_SECRET}
     volumes:
       - bookstack_data:/config
       - ./configs/bookstack/init:/custom-cont-init.d:ro

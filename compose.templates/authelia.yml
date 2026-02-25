@@ -5,20 +5,10 @@ services:
     restart: unless-stopped
     networks:
       authelia:
-        aliases:
-          - auth.${DOMAIN}
       caddy:
-        aliases:
-          - auth.${DOMAIN}
       ldap:
-        aliases:
-          - auth.${DOMAIN}
       postgres:
-        aliases:
-          - auth.${DOMAIN}
       valkey:
-        aliases:
-          - auth.${DOMAIN}
     depends_on:
       ldap:
         condition: service_started
