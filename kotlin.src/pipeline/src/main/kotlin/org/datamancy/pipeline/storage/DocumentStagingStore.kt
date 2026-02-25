@@ -584,15 +584,21 @@ class DocumentStagingStore(
     suspend fun getBookStackStats(): Map<String, Long> {
         return try {
             transaction {
-                val totalCompleted = DocumentStagingTable
+                val totalEmbedded = DocumentStagingTable
                     .select(DocumentStagingTable.id.count())
                     .where { DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name }
+                    .single()[DocumentStagingTable.id.count()]
+
+                val completed = DocumentStagingTable
+                    .select(DocumentStagingTable.id.count())
+                    .where { DocumentStagingTable.bookstackUrl.isNotNull() }
                     .single()[DocumentStagingTable.id.count()]
 
                 val pending = DocumentStagingTable
                     .select(DocumentStagingTable.id.count())
                     .where {
                         (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name) and
+                        (DocumentStagingTable.bookstackUrl.isNull()) and
                         (DocumentStagingTable.retryCount less 3)
                     }
                     .single()[DocumentStagingTable.id.count()]
@@ -601,15 +607,16 @@ class DocumentStagingStore(
                     .select(DocumentStagingTable.id.count())
                     .where {
                         (DocumentStagingTable.embeddingStatus eq EmbeddingStatus.COMPLETED.name) and
+                        (DocumentStagingTable.bookstackUrl.isNull()) and
                         (DocumentStagingTable.retryCount greaterEq 3)
                     }
                     .single()[DocumentStagingTable.id.count()]
 
                 mapOf(
-                    "total_embedded" to totalCompleted,
+                    "total_embedded" to totalEmbedded,
+                    "bookstack_completed" to completed,
                     "bookstack_pending" to pending,
-                    "bookstack_failed" to failed,
-                    "bookstack_completed" to (totalCompleted - pending - failed)
+                    "bookstack_failed" to failed
                 )
             }
         } catch (e: Exception) {
