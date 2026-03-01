@@ -10,7 +10,7 @@ from web3 import Web3
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -223,7 +223,7 @@ def submit_transfer():
         return jsonify({
             "txHash": tx_hash, "from": from_address, "to": to_address,
             "amount": amount, "token": token, "chain": chain, "nonce": nonce,
-            "status": "submitted", "timestamp": datetime.utcnow().isoformat()
+            "status": "submitted", "timestamp": datetime.now(timezone.utc).isoformat()
         })
     except Exception as e:
         logger.error(f"Transfer failed: {e}", exc_info=True)

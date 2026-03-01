@@ -10,7 +10,7 @@ from hyperliquid.info import Info
 from hyperliquid.exchange import Exchange
 from hyperliquid.utils import constants
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -114,7 +114,7 @@ def submit_order():
                     "price": price,
                     "status": status_info.get('status', 'UNKNOWN'),
                     "fillPrice": filled.get('px'),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "raw": result
                 })
 
