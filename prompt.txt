@@ -10,6 +10,7 @@ dist/docker-compose.yml is the final docker compose file
 
 the server we are testing on is accessible at latium.local
 you have pubkey ssh access via ssh gerald@latium.local "command"
+dont write reports - no one will read them
 
 inside containers.src/test-runner there is a test runner that can be used to test the containers
 build and deploy the latest version to the server, run the tests and report back

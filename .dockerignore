@@ -6,3 +6,4 @@ volumes/
 .env.local
 .env.*.local
 node_modules/
+configs/caddy/certs/
