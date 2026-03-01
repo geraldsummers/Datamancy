@@ -1,5 +1,6 @@
 package org.datamancy.integration
 
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -47,22 +48,14 @@ class HyperliquidSourceIntegrationTest {
         )
 
         withTimeout(60.seconds) {
-            source.fetch().collect { data ->
-                when (data) {
-                    is HyperliquidMarketData.Trades -> {
-                        assertTrue(data.trades.isNotEmpty())
-                        val trade = data.trades.first()
-                        assertEquals("BTC", trade.symbol)
-                        assertTrue(trade.price > 0.0)
-                        assertTrue(trade.size > 0.0)
-                        assertTrue(trade.side in listOf("buy", "sell"))
-                        return@collect // Exit after first batch
-                    }
-                    else -> {
-                        // Keep waiting for trades
-                    }
-                }
-            }
+            val data = source.fetch()
+                .filterIsInstance<HyperliquidMarketData.Trades>()
+                .first { it.trades.isNotEmpty() }
+            val trade = data.trades.first()
+            assertEquals("BTC", trade.symbol)
+            assertTrue(trade.price > 0.0)
+            assertTrue(trade.size > 0.0)
+            assertTrue(trade.side in listOf("buy", "sell"))
         }
     }
 
@@ -77,22 +70,15 @@ class HyperliquidSourceIntegrationTest {
         )
 
         withTimeout(120.seconds) {
-            source.fetch().collect { data ->
-                when (data) {
-                    is HyperliquidMarketData.Candle -> {
-                        val candle = data.candle
-                        assertEquals("BTC", candle.symbol)
-                        assertEquals("1m", candle.interval)
-                        assertTrue(candle.open > 0.0)
-                        assertTrue(candle.high >= candle.low)
-                        assertTrue(candle.close > 0.0)
-                        return@collect // Exit after first candle
-                    }
-                    else -> {
-                        // Keep waiting for candles
-                    }
-                }
-            }
+            val data = source.fetch()
+                .filterIsInstance<HyperliquidMarketData.Candle>()
+                .first()
+            val candle = data.candle
+            assertEquals("BTC", candle.symbol)
+            assertEquals("1m", candle.interval)
+            assertTrue(candle.open > 0.0)
+            assertTrue(candle.high >= candle.low)
+            assertTrue(candle.close > 0.0)
         }
     }
 
@@ -106,21 +92,16 @@ class HyperliquidSourceIntegrationTest {
         )
 
         withTimeout(60.seconds) {
-            source.fetch().collect { data ->
-                when (data) {
-                    is HyperliquidMarketData.Orderbook -> {
-                        val orderbook = data.orderbook
-                        assertEquals("BTC", orderbook.symbol)
-                        assertTrue(orderbook.bids.isNotEmpty())
-                        assertTrue(orderbook.asks.isNotEmpty())
-                        assertTrue(orderbook.bids.first().price < orderbook.asks.first().price)
-                        return@collect // Exit after first orderbook
-                    }
-                    else -> {
-                        // Keep waiting for orderbook
-                    }
-                }
-            }
+            val data = source.fetch()
+                .filterIsInstance<HyperliquidMarketData.Orderbook>()
+                .first()
+            val orderbook = data.orderbook
+            assertEquals("BTC", orderbook.symbol)
+            assertTrue(orderbook.bids.isNotEmpty())
+            assertTrue(orderbook.asks.isNotEmpty())
+            val bestBid = orderbook.bids.maxBy { it.price }
+            val bestAsk = orderbook.asks.minBy { it.price }
+            assertTrue(bestBid.price < bestAsk.price)
         }
     }
 }

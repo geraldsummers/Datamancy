@@ -120,10 +120,9 @@ class MarketDataSinkIntegrationTest {
         sink.write(HyperliquidMarketData.Trades(trades))
 
         val stats = sink.getStats()
-        // Should have automatically flushed first batch of 10
-        assertTrue(stats.tradesIngested >= 10)
-        // Should have 5 remaining in buffer
-        assertTrue(stats.pendingTrades <= 5)
+        // Batch flush writes all accumulated trades when threshold is hit
+        assertTrue(stats.tradesIngested >= 15)
+        assertEquals(0, stats.pendingTrades)
     }
 
     @Test

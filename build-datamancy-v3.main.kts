@@ -1080,16 +1080,6 @@ ${CYAN}╔═══════════════════════�
 
     // Create dist/
     distDir.mkdirs()
-    val caddyCertsDir = distDir.resolve("configs/caddy/certs")
-    caddyCertsDir.mkdirs()
-    // Pre-create Caddy subdirectories so they're owned by the user, not root
-    // Caddy creates these when it runs, and if running as root they become inaccessible
-    caddyCertsDir.resolve("certificates").mkdirs()
-    caddyCertsDir.resolve("certificates/local").mkdirs()
-    caddyCertsDir.resolve("certificates/acme-v02.api.letsencrypt.org-directory").mkdirs()
-    caddyCertsDir.resolve("certificates/acme.zerossl.com-v2-dv90").mkdirs()
-    caddyCertsDir.resolve("locks").mkdirs()
-    caddyCertsDir.resolve("pki").mkdirs()
 
     // Load or generate credentials
     val envFile = distDir.resolve(".env")

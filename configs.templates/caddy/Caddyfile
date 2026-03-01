@@ -15,7 +15,7 @@
 # - Uses ZeroSSL as primary CA (more generous rate limits than Let's Encrypt)
 # - Falls back to Let's Encrypt if ZeroSSL fails
 # - Development/Testing: Uncomment local_certs for self-signed certificates
-# - Certificates stored in /certs (bind mount to dist/configs/caddy/certs)
+# - Certificates stored in /certs (named volume caddy_certs)
 ###############################################
 {
 	# Store certificates in bind mount (persists in dist/ like other secrets)

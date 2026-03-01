@@ -6,3 +6,12 @@ cd /home/gerald/IdeaProjects/Datamancy/ && \
 rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
 ssh -t gerald@latium.local " cd ~/datamancy && docker compose up -d --build && docker compose logs -f"
 
+cd /home/gerald/IdeaProjects/Datamancy/ && \
+./build-datamancy-v3.main.kts && \
+rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
+ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile pipeline up --build -d && docker compose --profile pipeline logs -f"
+
+cd /home/gerald/IdeaProjects/Datamancy/ && \
+./build-datamancy-v3.main.kts && \
+rsync -avz --progress dist/ gerald@latium.local:~/datamancy/ && \
+ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile integration-test-runner up --build -d && docker compose --profile integration-test-runner logs -f"

@@ -34,6 +34,7 @@ volumes:
   pipeline_data:
 
   caddy_config:
+  caddy_certs:
   ldap_config:
   litellm_config:
   qbittorrent_config:

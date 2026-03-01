@@ -1,0 +1,15 @@
+this here is a docker compose stack generator
+compose.settings/ contains templates for general settings for configuring the stack
+compose.templates/ contains templates for individual services
+configs.templates/ contains templates for configuration files that go inside containers
+containers.src/ contains dockerfile source for building custom containers
+kotlin.src/ contains kotlin source for building custom services
+build-datamancy-v3.kts is the build script
+outputs in dist/
+dist/docker-compose.yml is the final docker compose file
+
+the server we are testing on is accessible at latium.local
+you have pubkey ssh access via ssh gerald@latium.local "command"
+
+inside containers.src/test-runner there is a test runner that can be used to test the containers
+build and deploy the latest version to the server, run the tests and report back

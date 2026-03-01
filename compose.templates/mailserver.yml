@@ -63,7 +63,7 @@ services:
     volumes:
       - mailserver_data:/var/mail/
       - /etc/localtime:/etc/localtime:ro
-      - ./configs/caddy/certs:/caddy-certs:ro
+      - caddy_certs:/caddy-certs:ro
       - ./configs/mailserver/find-certs.sh:/tmp/docker-mailserver/find-certs.sh:ro
       - ./configs/mailserver/setup-dkim.sh:/tmp/docker-mailserver/setup-dkim.sh:ro
       - ./configs/mailserver/entrypoint-wrapper.sh:/tmp/docker-mailserver/entrypoint-wrapper.sh:ro
