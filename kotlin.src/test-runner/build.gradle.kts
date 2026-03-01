@@ -30,8 +30,9 @@ dependencies {
     // Trading SDK - for trading DSL E2E tests
     implementation(project(":trading-sdk"))
 
-    // Pipeline - for market data integration tests
-    testImplementation(project(":pipeline"))
+    // Market data ingestion - for market data integration tests
+    testImplementation(project(":market-data-ingestion"))
+    testImplementation(project(":pipeline-common"))
 
 
     testImplementation(libs.bundles.testing)

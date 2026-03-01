@@ -408,6 +408,6 @@ search.{$DOMAIN} {
 pipeline.{$DOMAIN} {
 	route {
 		import authelia_auth
-		reverse_proxy pipeline:8090
+		reverse_proxy knowledge-ingestion:8090
 	}
 }

@@ -1,31 +1,23 @@
 services:
-  pipeline:
-    image: datamancy/pipeline:local-build
+  knowledge-ingestion:
+    image: datamancy/knowledge-ingestion:local-build
     build:
       context: .
-      dockerfile: ./containers.src/pipeline/Dockerfile
-    container_name: pipeline
+      dockerfile: ./containers.src/knowledge-ingestion/Dockerfile
+    container_name: knowledge-ingestion
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
     profiles:
       - ingestion
     networks:
-      - qdrant
       - postgres
-      - ai
       - internet
       - mariadb
     depends_on:
       caddy:
         condition: service_started
-      qdrant:
-        condition: service_started
       postgres:
-        condition: service_started
-      embedding-service:
-        condition: service_started
-      bookstack:
         condition: service_started
     environment:
       RSS_SCHEDULE_MINUTES: "60"
@@ -56,18 +48,9 @@ services:
       WIKI_MAX_PAGES_PER_WIKI: "500"
       WIKI_SCHEDULE_MINUTES: "10080"
 
-      EMBEDDING_SERVICE_URL: http://embedding-service:8080
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6334
-      QDRANT_API_KEY: ${QDRANT_ADMIN_API_KEY}
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
-
-      BOOKSTACK_ENABLED: "true"
-      BOOKSTACK_URL: "http://bookstack:80"
-      BOOKSTACK_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID}
-      BOOKSTACK_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET}
 
       QDRANT_RSS_COLLECTION: rss_feeds
       QDRANT_CVE_COLLECTION: cve
@@ -86,3 +69,102 @@ services:
       timeout: 20s
       retries: 3
       start_period: 60s
+
+  embedding-worker:
+    image: datamancy/embedding-worker:local-build
+    build:
+      context: .
+      dockerfile: ./containers.src/embedding-worker/Dockerfile
+    container_name: embedding-worker
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    profiles:
+      - ingestion
+    networks:
+      - qdrant
+      - postgres
+      - ai
+    depends_on:
+      qdrant:
+        condition: service_started
+      postgres:
+        condition: service_started
+      embedding-service:
+        condition: service_started
+    environment:
+      EMBEDDING_SERVICE_URL: http://embedding-service:8080
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6334
+      QDRANT_API_KEY: ${QDRANT_ADMIN_API_KEY}
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+
+      QDRANT_RSS_COLLECTION: rss_feeds
+      QDRANT_CVE_COLLECTION: cve
+      QDRANT_TORRENTS_COLLECTION: torrents
+      QDRANT_MARKET_COLLECTION: market_data
+      QDRANT_WIKIPEDIA_COLLECTION: wikipedia
+      QDRANT_AUSTRALIAN_LAWS_COLLECTION: australian_laws
+      QDRANT_LINUX_DOCS_COLLECTION: linux_docs
+      QDRANT_DEBIAN_WIKI_COLLECTION: debian_wiki
+      QDRANT_ARCH_WIKI_COLLECTION: arch_wiki
+
+  content-publisher:
+    image: datamancy/content-publisher:local-build
+    build:
+      context: .
+      dockerfile: ./containers.src/content-publisher/Dockerfile
+    container_name: content-publisher
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    profiles:
+      - ingestion
+    networks:
+      - postgres
+      - mariadb
+      - internet
+    depends_on:
+      postgres:
+        condition: service_started
+      bookstack:
+        condition: service_started
+    environment:
+      BOOKSTACK_ENABLED: "true"
+      BOOKSTACK_URL: "http://bookstack:80"
+      BOOKSTACK_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID}
+      BOOKSTACK_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET}
+
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+
+  market-data-ingestion:
+    image: datamancy/market-data-ingestion:local-build
+    build:
+      context: .
+      dockerfile: ./containers.src/market-data-ingestion/Dockerfile
+    container_name: market-data-ingestion
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    profiles:
+      - market-data
+    networks:
+      - postgres
+      - internet
+    depends_on:
+      postgres:
+        condition: service_started
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+
+      HYPERLIQUID_SYMBOLS: "BTC,ETH"
+      CANDLE_INTERVALS: "1m,5m,15m,1h"
+      ENABLE_ORDERBOOK: "false"
