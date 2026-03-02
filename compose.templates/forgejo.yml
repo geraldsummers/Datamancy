@@ -47,6 +47,7 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
       - ./configs/forgejo/custom-entrypoint.sh:/custom-entrypoint.sh:ro
+      - ./configs/forgejo/init-forgejo.sh:/init-forgejo.sh:ro
       - ./configs/forgejo/generate-runner-token.sh:/generate-runner-token.sh:ro
       - ./repos:/data/git/repositories:ro
       - caddy_ca:/ca:ro

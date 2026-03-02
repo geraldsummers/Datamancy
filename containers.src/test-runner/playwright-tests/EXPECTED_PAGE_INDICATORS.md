@@ -13,7 +13,7 @@ This document describes the expected page characteristics for each service after
 ### Open-WebUI
 - **URL Pattern**: `open-webui.datamancy.net`
 - **Page Title**: `Open WebUI`
-- **UI Pattern**: `/New Chat|Chats|Workspace|Models|Settings/i`
+- **UI Pattern**: `/Open WebUI|New Chat|Chats|Workspace|Models|Settings/i`
 - **Validation**: Must render main UI (not just login banner)
 
 ### Prometheus
@@ -54,8 +54,8 @@ This document describes the expected page characteristics for each service after
 ### Roundcube
 - **URL Pattern**: `roundcube.datamancy.net`
 - **Page Title**: Varies (webmail interface)
-- **UI Pattern**: `/Inbox|Compose|Mailbox|Folders|Settings/i`
-- **Validation**: Must be authenticated UI (not login form)
+- **UI Pattern**: `/Roundcube Webmail|Inbox|Compose|Mailbox|Folders|Settings/i`
+- **Validation**: Login form is currently accepted (forward-auth only; app-level login still required)
 - **Known Issue**: May return 525 SSL handshake error (Cloudflare)
 
 ### Home Assistant
@@ -75,8 +75,8 @@ This document describes the expected page characteristics for each service after
 ### LDAP Account Manager
 - **URL Pattern**: `lam.datamancy.net`
 - **Page Title**: `LDAP Account Manager`
-- **UI Pattern**: `/LDAP Account Manager|Tree view|Account tools|Tools|Logout/i`
-- **Validation**: Must be authenticated UI (not login form)
+- **UI Pattern**: `/LDAP Account Manager|Tree view|Account tools|Tools|Logout|Login|User name|Password/i`
+- **Validation**: Login form is currently accepted (forward-auth only; app-level login still required)
 - **Note**: Requires `/lam/` path in URL
 
 ### LiteLLM

@@ -24,6 +24,11 @@ const testUser = JSON.parse(
   fs.readFileSync(path.join(__dirname, '../.auth/test-user.json'), 'utf-8')
 );
 
+const guessBaseDomain = (hostname: string) => {
+  const parts = hostname.split('.').filter(Boolean);
+  return parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
+};
+
 /**
  * Helper function to test OIDC service access with proper assertions
  */
@@ -38,6 +43,7 @@ async function testOIDCService(
     disallowUrlPatterns?: RegExp[];
     loginPath?: string;
     loginButtonPatterns?: RegExp[];
+    ssoIdentifier?: string;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} OIDC login`);
@@ -68,6 +74,24 @@ async function testOIDCService(
   const oidcPage = new OIDCLoginPage(page);
 
   const loginButtonPatterns = options.loginButtonPatterns ?? [/sign in|log in|login/i];
+
+  // Handle services that require an SSO identifier before redirect (e.g. Vaultwarden)
+  if (options.ssoIdentifier) {
+    const ssoHeader = page.locator('h1', { hasText: /single sign-on/i });
+    const ssoInput = page.locator('input').first();
+    const continueButton = page.getByRole('button', { name: /continue/i });
+
+    if (await ssoHeader.first().isVisible().catch(() => false) && await ssoInput.isVisible().catch(() => false)) {
+      const currentValue = await ssoInput.inputValue().catch(() => '');
+      if (!currentValue) {
+        await ssoInput.fill(options.ssoIdentifier);
+      }
+      if (await continueButton.first().isVisible().catch(() => false)) {
+        await continueButton.first().click();
+        await page.waitForTimeout(1000);
+      }
+    }
+  }
 
   // Try to find and click OIDC button
   let buttonFound = false;
@@ -133,6 +157,12 @@ async function testOIDCService(
     // Handle consent if shown
     await oidcPage.handleConsentScreen();
   }
+
+  // Wait briefly for redirect back to service (post-auth)
+  await page.waitForURL((url) => {
+    const href = url.toString();
+    return !/auth\.|authelia|:9091/.test(href);
+  }, { timeout: 20000 }).catch(() => {});
 
   // CRITICAL ASSERTION: Must NOT be on auth page
   await expect(page).not.toHaveURL(/auth\.|authelia/);
@@ -226,7 +256,7 @@ test.describe('OIDC Services - SSO Flow', () => {
       'Mastodon',
       'https://mastodon.datamancy.net/',
       /What's on your mind|Compose new post|Publish|Home|Notifications/i,
-      ['Authelia', 'SSO'],
+      ['Authelia', 'SSO', 'OpenID', 'OpenID Connect'],
       {
         disallowPatterns: [/Create account|Log in/i],
         disallowUrlPatterns: [/\/(explore|about|public)\b/i],
@@ -279,6 +309,7 @@ test.describe('OIDC Services - SSO Flow', () => {
   });
 
   test('Vaultwarden - OIDC login flow', async ({ page }) => {
+    const vaultwardenBaseDomain = guessBaseDomain(new URL('https://vaultwarden.datamancy.net/').hostname);
     await testOIDCService(
       page,
       'Vaultwarden',
@@ -290,6 +321,7 @@ test.describe('OIDC Services - SSO Flow', () => {
         disallowUrlPatterns: [/\/sso\b/i],
         loginPath: 'https://app.vaultwarden.datamancy.net/#/sso',
         loginButtonPatterns: [/single sign-on|sso|enterprise|login/i],
+        ssoIdentifier: vaultwardenBaseDomain,
       }
     );
   });

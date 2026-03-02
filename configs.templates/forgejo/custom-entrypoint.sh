@@ -4,4 +4,6 @@ set -e
 FORGEJO_PID=$!
 /generate-runner-token.sh &
 TOKEN_GEN_PID=$!
+/init-forgejo.sh &
+OIDC_INIT_PID=$!
 wait $FORGEJO_PID

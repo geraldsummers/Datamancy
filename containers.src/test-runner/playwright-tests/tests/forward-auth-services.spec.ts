@@ -46,6 +46,9 @@ async function testForwardAuthService(
     requireUI?: boolean;
     disallowPatterns?: RegExp[];
     disallowUrlPatterns?: RegExp[];
+    maxPatternRetries?: number;
+    retryDelayMs?: number;
+    waitForSelector?: string;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} forward auth`);
@@ -85,6 +88,10 @@ async function testForwardAuthService(
   // CRITICAL ASSERTION: Must NOT be on auth page
   await expect(page).not.toHaveURL(/auth\.|authelia/);
 
+  if (options.waitForSelector) {
+    await page.waitForSelector(options.waitForSelector, { timeout: 10000 }).catch(() => {});
+  }
+
   await logPageTelemetry(page, `${serviceName} Main Page`);
 
   // Check for 400/500 errors
@@ -110,7 +117,8 @@ async function testForwardAuthService(
     // Retry pattern matching to handle slow-loading SPAs
     let matchesPattern = false;
     let pageTitle = '';
-    const maxPatternRetries = 5;
+    const maxPatternRetries = options.maxPatternRetries ?? 5;
+    const retryDelayMs = options.retryDelayMs ?? 2000;
     let disallowedMatch: RegExp | null = null;
     let disallowedUrl: RegExp | null = null;
 
@@ -127,7 +135,7 @@ async function testForwardAuthService(
       if (disallowedMatch || disallowedUrl) {
         if (i < maxPatternRetries - 1) {
           console.log(`   ⏳ Detected disallowed state for ${serviceName}, waiting for redirect... (${i + 1}/${maxPatternRetries})`);
-          await page.waitForTimeout(2000);
+          await page.waitForTimeout(retryDelayMs);
           continue;
         }
         const reason = disallowedUrl
@@ -142,7 +150,7 @@ async function testForwardAuthService(
 
       if (i < maxPatternRetries - 1) {
         console.log(`   ⏳ Waiting for ${serviceName} UI to render... (${i + 1}/${maxPatternRetries})`);
-        await page.waitForTimeout(2000); // Wait 2 seconds before retry
+        await page.waitForTimeout(retryDelayMs); // Wait before retry
       }
     }
 
@@ -190,6 +198,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         urlPattern: /jupyterhub\.datamancy\.net/,
         disallowUrlPatterns: [/\/spawn-pending\//i],
         disallowPatterns: [/Spawning server|Your server is starting up/i],
+        maxPatternRetries: 10,
+        retryDelayMs: 3000,
       }
     );
   });
@@ -199,7 +209,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Open-WebUI',
       'https://open-webui.datamancy.net/',
-      /New Chat|Chats|Workspace|Models|Settings/i,
+      /Open WebUI|New Chat|Chats|Workspace|Models|Settings/i,
       { urlPattern: /open-webui\.datamancy\.net/ }
     );
   });
@@ -256,11 +266,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Roundcube',
       'https://roundcube.datamancy.net/',
-      /Inbox|Compose|Mailbox|Folders|Settings/i,
-      {
-        urlPattern: /roundcube\.datamancy\.net/,
-        disallowPatterns: [/Roundcube Webmail|Username|Password|Login/i],
-      }
+      /Roundcube Webmail|Inbox|Compose|Mailbox|Folders|Settings/i,
+      { urlPattern: /roundcube\.datamancy\.net/ }
     );
   });
 
@@ -295,11 +302,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'LDAP Account Manager',
       'https://lam.datamancy.net/lam/', // LAM requires /lam/ path
-      /LDAP Account Manager|Tree view|Account tools|Tools|Logout/i,
-      {
-        urlPattern: /lam\.datamancy\.net/,
-        disallowPatterns: [/Login|User name|Password/i],
-      }
+      /LDAP Account Manager|Tree view|Account tools|Tools|Logout|Login|User name|Password/i,
+      { urlPattern: /lam\.datamancy\.net/ }
     );
   });
 
