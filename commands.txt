@@ -1,14 +1,21 @@
 deployment blob:
 
-most stuff:
+#trail logs:
+ssh -t gerald@latium.local "cd ~/datamancy && docker compose logs -f"
+
+#most stuff:
 cd /home/gerald/IdeaProjects/Datamancy/ && \
 ./build-datamancy-v3.main.kts && \
 rsync --delete -avz --progress dist/ gerald@latium.local:~/datamancy/
 
+#down first
+ssh -t gerald@latium.local "cd ~/datamancy && docker compose down"
+
+#most stuff:
 ssh -t gerald@latium.local "cd ~/datamancy && docker compose up -d"
 
-data pipeline:
-ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile ingestion up -df"
+#data pipeline:
+ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile ingestion up -d"
 
-test runner:
+#test runner:
 ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile testing up -d"

@@ -245,8 +245,12 @@ export class LDAPClient {
    * Generate unique username with timestamp
    */
   static generateUsername(prefix: string = 'test'): string {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 9000) + 1000;
-    return `${prefix}-${timestamp}-${random}`;
+    const compactPrefix = prefix.replace(/[^a-z0-9]/gi, '').slice(0, 2).toLowerCase() || 'u';
+    const ts = Date.now().toString(36);
+    const rand = Math.floor(Math.random() * 36 ** 3).toString(36).padStart(3, '0');
+    let username = `${compactPrefix}${ts}${rand}`.toLowerCase();
+    // Ensure length <= 16 and only alnum for strict consumers (e.g., Planka)
+    username = username.replace(/[^a-z0-9]/g, '').slice(0, 16);
+    return username;
   }
 }

@@ -30,7 +30,8 @@ describe('LDAPClient', () => {
   describe('generateUsername', () => {
     it('generates username with correct prefix', () => {
       const username = LDAPClient.generateUsername('test');
-      expect(username).toMatch(/^test-\d+-\d+$/);
+      expect(username).toMatch(/^te[a-z0-9]+$/);
+      expect(username.length).toBeLessThanOrEqual(16);
     });
 
     it('generates unique usernames', () => {
@@ -41,7 +42,8 @@ describe('LDAPClient', () => {
 
     it('uses default prefix when not specified', () => {
       const username = LDAPClient.generateUsername();
-      expect(username).toMatch(/^test-\d+-\d+$/);
+      expect(username).toMatch(/^te[a-z0-9]+$/);
+      expect(username.length).toBeLessThanOrEqual(16);
     });
   });
 });
