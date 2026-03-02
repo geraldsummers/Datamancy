@@ -44,6 +44,8 @@ async function testOIDCService(
     loginPath?: string;
     loginButtonPatterns?: RegExp[];
     ssoIdentifier?: string;
+    oidcLinkPatterns?: RegExp[];
+    oidcIssuer?: string;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} OIDC login`);
@@ -75,23 +77,74 @@ async function testOIDCService(
 
   const loginButtonPatterns = options.loginButtonPatterns ?? [/sign in|log in|login/i];
 
-  // Handle services that require an SSO identifier before redirect (e.g. Vaultwarden)
-  if (options.ssoIdentifier) {
+  const handleSsoIdentifierIfPresent = async () => {
+    if (!options.ssoIdentifier) {
+      return;
+    }
     const ssoHeader = page.locator('h1', { hasText: /single sign-on/i });
     const ssoInput = page.locator('input').first();
     const continueButton = page.getByRole('button', { name: /continue/i });
 
-    if (await ssoHeader.first().isVisible().catch(() => false) && await ssoInput.isVisible().catch(() => false)) {
-      const currentValue = await ssoInput.inputValue().catch(() => '');
-      if (!currentValue) {
-        await ssoInput.fill(options.ssoIdentifier);
-      }
-      if (await continueButton.first().isVisible().catch(() => false)) {
-        await continueButton.first().click();
-        await page.waitForTimeout(1000);
+    if (await ssoHeader.first().isVisible().catch(() => false)) {
+      await ssoInput.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+      if (await ssoInput.isVisible().catch(() => false)) {
+        const currentValue = await ssoInput.inputValue().catch(() => '');
+        if (!currentValue) {
+          await ssoInput.fill(options.ssoIdentifier);
+        }
+        if (await continueButton.first().isVisible().catch(() => false)) {
+          await continueButton.first().click();
+          await page.waitForTimeout(1000);
+        }
       }
     }
-  }
+  };
+
+  const tryOidcLinkPatterns = async () => {
+    const patterns = options.oidcLinkPatterns ?? [];
+    for (const pattern of patterns) {
+      const link = page.getByRole('link', { name: pattern }).or(
+        page.getByRole('button', { name: pattern })
+      );
+      if (await link.first().isVisible().catch(() => false)) {
+        await link.first().click();
+        await page.waitForTimeout(1500);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const tryOidcHrefFallback = async () => {
+    const link = page.locator(
+      'a[href*="openid"], a[href*="oidc"], a[href*="oauth"], a[href*="sso"]'
+    ).first();
+    if (await link.isVisible().catch(() => false)) {
+      await link.click();
+      await page.waitForTimeout(1500);
+      return true;
+    }
+    return false;
+  };
+
+  const tryOpenIdFormFallback = async () => {
+    if (!options.oidcIssuer) {
+      return false;
+    }
+    const openIdInput = page.locator('input[name="openid"], input#openid').first();
+    const signInButton = page.getByRole('button', { name: /sign in|log in/i }).first();
+    if (await openIdInput.isVisible().catch(() => false)) {
+      await openIdInput.fill(options.oidcIssuer);
+      if (await signInButton.isVisible().catch(() => false)) {
+        await signInButton.click();
+        await page.waitForTimeout(1500);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  await handleSsoIdentifierIfPresent();
 
   // Try to find and click OIDC button
   let buttonFound = false;
@@ -102,6 +155,16 @@ async function testOIDCService(
       break;
     } catch (error) {
       continue;
+    }
+  }
+
+  if (!buttonFound) {
+    if (await tryOidcLinkPatterns()) {
+      buttonFound = true;
+    } else if (await tryOidcHrefFallback()) {
+      buttonFound = true;
+    } else if (await tryOpenIdFormFallback()) {
+      buttonFound = true;
     }
   }
 
@@ -133,6 +196,8 @@ async function testOIDCService(
     if (navigatedToLogin) {
       await logPageTelemetry(page, `${serviceName} Login Page (post-nav)`);
 
+      await handleSsoIdentifierIfPresent();
+
       for (const buttonName of oidcButtonNames) {
         try {
           await oidcPage.clickOIDCButton(buttonName);
@@ -142,12 +207,25 @@ async function testOIDCService(
           continue;
         }
       }
+
+      if (!buttonFound) {
+        if (await tryOidcLinkPatterns()) {
+          buttonFound = true;
+        } else if (await tryOidcHrefFallback()) {
+          buttonFound = true;
+        } else if (await tryOpenIdFormFallback()) {
+          buttonFound = true;
+        }
+      }
     }
 
-    if (!buttonFound) {
-      console.log('   ℹ️  OIDC button still not found - might already be logged in...');
-    }
+  if (!buttonFound) {
+    console.log('   ℹ️  OIDC button still not found - might already be logged in...');
   }
+}
+
+  // Some SPAs require entering an SSO identifier after navigation
+  await handleSsoIdentifierIfPresent();
 
   // If on Authelia, login
   if (page.url().includes('authelia') || page.url().includes('auth.') || page.url().includes(':9091')) {
@@ -261,12 +339,14 @@ test.describe('OIDC Services - SSO Flow', () => {
         disallowPatterns: [/Create account|Log in/i],
         disallowUrlPatterns: [/\/(explore|about|public)\b/i],
         loginPath: 'https://mastodon.datamancy.net/auth/sign_in',
-        loginButtonPatterns: [/log in|sign in|continue with sso|sso/i],
+        loginButtonPatterns: [/log in|sign in|continue with sso|sso|openid/i],
+        oidcLinkPatterns: [/sign in with.*(openid|sso)/i, /openid/i, /sso/i],
       }
     );
   });
 
   test('Forgejo - OIDC login flow', async ({ page }) => {
+    const forgejoBaseDomain = guessBaseDomain(new URL('https://forgejo.datamancy.net/').hostname);
     await testOIDCService(
       page,
       'Forgejo',
@@ -278,6 +358,8 @@ test.describe('OIDC Services - SSO Flow', () => {
         disallowUrlPatterns: [/\/user\/login\b/i],
         loginPath: 'https://forgejo.datamancy.net/user/login',
         loginButtonPatterns: [/sign in|log in/i],
+        oidcLinkPatterns: [/authelia/i, /openid/i, /oidc/i],
+        oidcIssuer: `https://auth.${forgejoBaseDomain}`,
       }
     );
   });
@@ -304,6 +386,7 @@ test.describe('OIDC Services - SSO Flow', () => {
         disallowUrlPatterns: [/\/login\b/i],
         loginPath: 'https://planka.datamancy.net/login',
         loginButtonPatterns: [/log in with sso|sso|oidc/i],
+        oidcLinkPatterns: [/log in with sso/i, /sso/i, /oidc/i],
       }
     );
   });
@@ -322,6 +405,7 @@ test.describe('OIDC Services - SSO Flow', () => {
         loginPath: 'https://app.vaultwarden.datamancy.net/#/sso',
         loginButtonPatterns: [/single sign-on|sso|enterprise|login/i],
         ssoIdentifier: vaultwardenBaseDomain,
+        oidcLinkPatterns: [/single sign-on/i, /sso/i],
       }
     );
   });
@@ -350,8 +434,9 @@ test.describe('OIDC - Cross-service Session', () => {
       await oidcPage.handleConsentScreen();
     }
 
-    // CRITICAL: Verify we're actually on Grafana
-    await expect(page).not.toHaveURL(/auth\.|authelia/);
+    // CRITICAL: Verify we're actually on Grafana (allow authelia in query params)
+    const grafanaHost = new URL(page.url()).hostname;
+    expect(grafanaHost).not.toMatch(/^(auth\.|authelia)/);
     console.log('   ✅ Grafana login complete');
 
     // Try second OIDC service - should not require full login
@@ -382,8 +467,9 @@ test.describe('OIDC - Cross-service Session', () => {
 
     await oidcPage.handleConsentScreen();
 
-    // CRITICAL: Verify we're on BookStack
-    await expect(page).not.toHaveURL(/auth\.|authelia/);
+    // CRITICAL: Verify we're on BookStack (allow authelia in query params)
+    const bookstackHost = new URL(page.url()).hostname;
+    expect(bookstackHost).not.toMatch(/^(auth\.|authelia)/);
 
     console.log('\n   ✅ OIDC session test complete\n');
   });

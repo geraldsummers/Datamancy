@@ -49,6 +49,11 @@ async function testForwardAuthService(
     maxPatternRetries?: number;
     retryDelayMs?: number;
     waitForSelector?: string;
+    waitForSelectorVisible?: string;
+    waitForSelectorTimeoutMs?: number;
+    waitForUrlNotMatch?: RegExp;
+    waitForUrlMatch?: RegExp;
+    clickIfVisibleSelector?: string;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} forward auth`);
@@ -88,8 +93,29 @@ async function testForwardAuthService(
   // CRITICAL ASSERTION: Must NOT be on auth page
   await expect(page).not.toHaveURL(/auth\.|authelia/);
 
+  if (options.waitForUrlMatch) {
+    await page.waitForURL(options.waitForUrlMatch, { timeout: 30000 }).catch(() => {});
+  }
+
+  if (options.waitForUrlNotMatch) {
+    await page.waitForURL((url) => !options.waitForUrlNotMatch!.test(url.toString()), { timeout: 60000 }).catch(() => {});
+  }
+
   if (options.waitForSelector) {
     await page.waitForSelector(options.waitForSelector, { timeout: 10000 }).catch(() => {});
+  }
+
+  if (options.waitForSelectorVisible) {
+    const timeout = options.waitForSelectorTimeoutMs ?? 15000;
+    await page.waitForSelector(options.waitForSelectorVisible, { state: 'visible', timeout }).catch(() => {});
+  }
+
+  if (options.clickIfVisibleSelector) {
+    const clickTarget = page.locator(options.clickIfVisibleSelector).first();
+    if (await clickTarget.isVisible().catch(() => false)) {
+      await clickTarget.click().catch(() => {});
+      await page.waitForTimeout(1000);
+    }
   }
 
   await logPageTelemetry(page, `${serviceName} Main Page`);
@@ -200,6 +226,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         disallowPatterns: [/Spawning server|Your server is starting up/i],
         maxPatternRetries: 10,
         retryDelayMs: 3000,
+        waitForUrlNotMatch: /\/spawn-pending\//i,
+        clickIfVisibleSelector: 'button:has-text("Start My Server")',
       }
     );
   });
@@ -210,7 +238,11 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       'Open-WebUI',
       'https://open-webui.datamancy.net/',
       /Open WebUI|New Chat|Chats|Workspace|Models|Settings/i,
-      { urlPattern: /open-webui\.datamancy\.net/ }
+      {
+        urlPattern: /open-webui\.datamancy\.net/,
+        waitForSelectorVisible: 'text=New Chat',
+        waitForSelectorTimeoutMs: 20000,
+      }
     );
   });
 
