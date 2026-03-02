@@ -7,14 +7,14 @@ This document describes the expected page characteristics for each service after
 ### JupyterHub
 - **URL Pattern**: `jupyterhub.datamancy.net`
 - **Page Title**: `JupyterHub`
-- **UI Pattern**: `/JupyterHub/i`
-- **Validation**: Title must contain "JupyterHub"
+- **UI Pattern**: `/JupyterHub|Start My Server|Control Panel|JupyterLab|Notebook/i`
+- **Validation**: Must NOT be on spawn-pending page; UI indicates server ready/start page
 
 ### Open-WebUI
 - **URL Pattern**: `open-webui.datamancy.net`
 - **Page Title**: `Open WebUI`
-- **UI Pattern**: `/Open WebUI/i`
-- **Validation**: Title is exactly "Open WebUI"
+- **UI Pattern**: `/New Chat|Chats|Workspace|Models|Settings/i`
+- **Validation**: Must render main UI (not just login banner)
 
 ### Prometheus
 - **URL Pattern**: `prometheus.datamancy.net`
@@ -54,16 +54,15 @@ This document describes the expected page characteristics for each service after
 ### Roundcube
 - **URL Pattern**: `roundcube.datamancy.net`
 - **Page Title**: Varies (webmail interface)
-- **UI Pattern**: `/roundcube|webmail|inbox/i`
-- **Validation**: Content contains "roundcube", "webmail", or "inbox"
+- **UI Pattern**: `/Inbox|Compose|Mailbox|Folders|Settings/i`
+- **Validation**: Must be authenticated UI (not login form)
 - **Known Issue**: May return 525 SSL handshake error (Cloudflare)
 
 ### Home Assistant
 - **URL Pattern**: `homeassistant.datamancy.net`
 - **Page Title**: Varies
-- **UI Pattern**: `/home.?assistant/i`
-- **Validation**: Content contains "Home Assistant" or "HomeAssistant"
-- **Known Issue**: May return 400 error on initial access
+- **UI Pattern**: `/Overview|Map|Energy|Settings|Developer Tools|History|Logbook/i`
+- **Validation**: Must be fully loaded (not onboarding)
 
 ### Kopia
 - **URL Pattern**: `kopia.datamancy.net`
@@ -76,8 +75,8 @@ This document describes the expected page characteristics for each service after
 ### LDAP Account Manager
 - **URL Pattern**: `lam.datamancy.net`
 - **Page Title**: `LDAP Account Manager`
-- **UI Pattern**: `/LDAP Account Manager/i`
-- **Validation**: Title is "LDAP Account Manager"
+- **UI Pattern**: `/LDAP Account Manager|Tree view|Account tools|Tools|Logout/i`
+- **Validation**: Must be authenticated UI (not login form)
 - **Note**: Requires `/lam/` path in URL
 
 ### LiteLLM
@@ -94,16 +93,16 @@ This document describes the expected page characteristics for each service after
 ### Mastodon
 - **URL Pattern**: `mastodon.datamancy.net`
 - **Page Title**: Varies
-- **UI Pattern**: `/Mastodon|What's on your mind/i`
-- **Validation**: Content contains "Mastodon" or the post compose prompt
+- **UI Pattern**: `/What's on your mind|Compose new post|Publish|Home|Notifications/i`
+- **Validation**: Must show authenticated compose/navigation (not public landing)
 - **OIDC Button Names**: ["Authelia", "SSO"]
 - **Known Issue**: May return 500 error
 
 ### Forgejo
 - **URL Pattern**: `forgejo.datamancy.net`
 - **Page Title**: `Forgejo: Beyond coding. We forge.`
-- **UI Pattern**: `/Forgejo|Explore|repositories/i`
-- **Validation**: Content contains "Forgejo", "Explore", or "repositories"
+- **UI Pattern**: `/Dashboard|Your Repositories|New Repository|Issues|Pull Requests|Repositories/i`
+- **Validation**: Must be authenticated UI (not public landing)
 - **OIDC Button Names**: ["Authelia"]
 - **Key Elements**: Explore link, Help link, Sign in link
 
@@ -118,8 +117,8 @@ This document describes the expected page characteristics for each service after
 ### Planka
 - **URL Pattern**: `planka.datamancy.net`
 - **Page Title**: `Planka`
-- **UI Pattern**: `/Planka|Add board|Projects/i`
-- **Validation**: Content contains "Planka", "Add board", or "Projects"
+- **UI Pattern**: `/Boards|Projects|Add board|Create board|New board/i`
+- **Validation**: Must be authenticated UI (not login screen)
 - **OIDC Button Names**: ["Authelia", "SSO", "OIDC"]
 
 ### Grafana (Note: Not OIDC)
@@ -215,3 +214,8 @@ If a service changes its UI:
 
 *Last Updated: 2026-02-17*
 *This document should be updated whenever service UIs change*
+### Vaultwarden
+- **URL Pattern**: `vaultwarden.datamancy.net`
+- **Page Title**: `Vaultwarden Web`
+- **UI Pattern**: `/My Vault|Vaults|Folders|Items|Search vault/i`
+- **Validation**: Must be authenticated UI (not SSO loading screen)

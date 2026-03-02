@@ -32,7 +32,13 @@ async function testOIDCService(
   serviceName: string,
   servicePath: string,
   uiPattern: RegExp,
-  oidcButtonNames: string[] = ['Authelia']
+  oidcButtonNames: string[] = ['Authelia'],
+  options: {
+    disallowPatterns?: RegExp[];
+    disallowUrlPatterns?: RegExp[];
+    loginPath?: string;
+    loginButtonPatterns?: RegExp[];
+  } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} OIDC login`);
 
@@ -61,6 +67,8 @@ async function testOIDCService(
 
   const oidcPage = new OIDCLoginPage(page);
 
+  const loginButtonPatterns = options.loginButtonPatterns ?? [/sign in|log in|login/i];
+
   // Try to find and click OIDC button
   let buttonFound = false;
   for (const buttonName of oidcButtonNames) {
@@ -74,7 +82,47 @@ async function testOIDCService(
   }
 
   if (!buttonFound) {
-    console.log('   ℹ️  OIDC button not found - might already be logged in...');
+    console.log('   ℹ️  OIDC button not found - attempting to reach login screen...');
+
+    let navigatedToLogin = false;
+
+    // Try clicking a login button/link on the current page
+    for (const pattern of loginButtonPatterns) {
+      const loginTarget = page.getByRole('link', { name: pattern }).or(
+        page.getByRole('button', { name: pattern })
+      );
+      const hasLoginTarget = await loginTarget.first().isVisible().catch(() => false);
+      if (hasLoginTarget) {
+        await loginTarget.first().click();
+        await page.waitForTimeout(1500);
+        navigatedToLogin = true;
+        break;
+      }
+    }
+
+    // Fallback to explicit login path if provided
+    if (!navigatedToLogin && options.loginPath) {
+      await page.goto(options.loginPath, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      navigatedToLogin = true;
+    }
+
+    if (navigatedToLogin) {
+      await logPageTelemetry(page, `${serviceName} Login Page (post-nav)`);
+
+      for (const buttonName of oidcButtonNames) {
+        try {
+          await oidcPage.clickOIDCButton(buttonName);
+          buttonFound = true;
+          break;
+        } catch (error) {
+          continue;
+        }
+      }
+    }
+
+    if (!buttonFound) {
+      console.log('   ℹ️  OIDC button still not found - might already be logged in...');
+    }
   }
 
   // If on Authelia, login
@@ -103,12 +151,32 @@ async function testOIDCService(
   let bodyHTML = '';
   let pageText = '';
   const maxPatternRetries = 5;
+  const disallowPatterns = options.disallowPatterns ?? [];
+  const disallowUrlPatterns = options.disallowUrlPatterns ?? [];
+  let disallowedMatch: RegExp | null = null;
+  let disallowedUrl: RegExp | null = null;
 
   for (let i = 0; i < maxPatternRetries; i++) {
     pageTitle = await page.title();
     pageText = (await page.textContent('body').catch(() => '')) || '';
     bodyHTML = await body.innerHTML();
     matchesPattern = uiPattern.test(pageText || bodyHTML || pageTitle);
+    disallowedMatch = disallowPatterns.find((pattern) =>
+      pattern.test([pageTitle, pageText, bodyHTML].filter(Boolean).join('\n'))
+    ) ?? null;
+    disallowedUrl = disallowUrlPatterns.find((pattern) => pattern.test(page.url())) ?? null;
+
+    if (disallowedMatch || disallowedUrl) {
+      if (i < maxPatternRetries - 1) {
+        console.log(`   ⏳ Detected disallowed state for ${serviceName}, waiting for redirect... (${i + 1}/${maxPatternRetries})`);
+        await page.waitForTimeout(2000);
+        continue;
+      }
+      const reason = disallowedUrl
+        ? `URL matched disallowed pattern: ${disallowedUrl}`
+        : `Page content matched disallowed pattern: ${disallowedMatch}`;
+      throw new Error(`Expected authenticated ${serviceName} page but found disallowed state. ${reason}`);
+    }
 
     if (matchesPattern) {
       break; // Pattern found, exit retry loop
@@ -157,8 +225,14 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'Mastodon',
       'https://mastodon.datamancy.net/',
-      /Mastodon|What's on your mind/i, // Look for Mastodon-specific UI
-      ['Authelia', 'SSO']
+      /What's on your mind|Compose new post|Publish|Home|Notifications/i,
+      ['Authelia', 'SSO'],
+      {
+        disallowPatterns: [/Create account|Log in/i],
+        disallowUrlPatterns: [/\/(explore|about|public)\b/i],
+        loginPath: 'https://mastodon.datamancy.net/auth/sign_in',
+        loginButtonPatterns: [/log in|sign in|continue with sso|sso/i],
+      }
     );
   });
 
@@ -167,8 +241,14 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'Forgejo',
       'https://forgejo.datamancy.net/',
-      /Forgejo|Explore|repositories/i, // Look for "Forgejo" or repository listings
-      ['Authelia']
+      /Dashboard|Your Repositories|New Repository|Issues|Pull Requests|Repositories/i,
+      ['Authelia', 'OpenID', 'OpenID Connect', 'OIDC'],
+      {
+        disallowPatterns: [/Sign in|Register|Beyond coding/i],
+        disallowUrlPatterns: [/\/user\/login\b/i],
+        loginPath: 'https://forgejo.datamancy.net/user/login',
+        loginButtonPatterns: [/sign in|log in/i],
+      }
     );
   });
 
@@ -187,8 +267,14 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'Planka',
       'https://planka.datamancy.net/',
-      /Planka|Add board|Projects/i, // Look for Planka-specific UI
-      ['Authelia', 'SSO', 'OIDC']
+      /Boards|Projects|Add board|Create board|New board/i,
+      ['Authelia', 'SSO', 'OIDC'],
+      {
+        disallowPatterns: [/Log in to Planka|Log in with SSO|E-mail or username/i],
+        disallowUrlPatterns: [/\/login\b/i],
+        loginPath: 'https://planka.datamancy.net/login',
+        loginButtonPatterns: [/log in with sso|sso|oidc/i],
+      }
     );
   });
 
@@ -197,8 +283,14 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'Vaultwarden',
       'https://vaultwarden.datamancy.net/',
-      /Vaultwarden|Bitwarden|My Vault|Log in/i, // Look for Vaultwarden UI
-      ['Authelia', 'SSO']
+      /My Vault|Vaults|Folders|Items|Search vault/i,
+      ['Authelia', 'SSO', 'Single sign-on'],
+      {
+        disallowPatterns: [/Single sign-on|SSO identifier|Loading/i],
+        disallowUrlPatterns: [/\/sso\b/i],
+        loginPath: 'https://app.vaultwarden.datamancy.net/#/sso',
+        loginButtonPatterns: [/single sign-on|sso|enterprise|login/i],
+      }
     );
   });
 });

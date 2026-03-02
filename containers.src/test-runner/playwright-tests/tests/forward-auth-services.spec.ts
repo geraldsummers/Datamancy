@@ -41,7 +41,12 @@ async function testForwardAuthService(
   serviceName: string,
   servicePath: string,
   uiPattern: RegExp,
-  options: { urlPattern?: RegExp; requireUI?: boolean } = {}
+  options: {
+    urlPattern?: RegExp;
+    requireUI?: boolean;
+    disallowPatterns?: RegExp[];
+    disallowUrlPatterns?: RegExp[];
+  } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} forward auth`);
 
@@ -97,18 +102,39 @@ async function testForwardAuthService(
   let bodyHTML = await body.innerHTML();
   expect(bodyHTML.length).toBeGreaterThan(10);
 
+  const disallowPatterns = options.disallowPatterns ?? [];
+  const disallowUrlPatterns = options.disallowUrlPatterns ?? [];
+
   // Check for service-specific UI pattern to confirm correct page
   if (options.requireUI !== false && uiPattern) {
     // Retry pattern matching to handle slow-loading SPAs
     let matchesPattern = false;
     let pageTitle = '';
     const maxPatternRetries = 5;
+    let disallowedMatch: RegExp | null = null;
+    let disallowedUrl: RegExp | null = null;
 
     for (let i = 0; i < maxPatternRetries; i++) {
       pageTitle = await page.title();
       pageText = await page.textContent('body').catch(() => '');
       bodyHTML = await body.innerHTML();
       matchesPattern = uiPattern.test(pageText || bodyHTML || pageTitle);
+      disallowedMatch = disallowPatterns.find((pattern) =>
+        pattern.test([pageTitle, pageText, bodyHTML].filter(Boolean).join('\n'))
+      ) ?? null;
+      disallowedUrl = disallowUrlPatterns.find((pattern) => pattern.test(page.url())) ?? null;
+
+      if (disallowedMatch || disallowedUrl) {
+        if (i < maxPatternRetries - 1) {
+          console.log(`   ⏳ Detected disallowed state for ${serviceName}, waiting for redirect... (${i + 1}/${maxPatternRetries})`);
+          await page.waitForTimeout(2000);
+          continue;
+        }
+        const reason = disallowedUrl
+          ? `URL matched disallowed pattern: ${disallowedUrl}`
+          : `Page content matched disallowed pattern: ${disallowedMatch}`;
+        throw new Error(`Expected authenticated ${serviceName} page but found disallowed state. ${reason}`);
+      }
 
       if (matchesPattern) {
         break; // Pattern found, exit retry loop
@@ -159,8 +185,12 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'JupyterHub',
       'https://jupyterhub.datamancy.net/',
-      /JupyterHub/i, // Page title is literally "JupyterHub"
-      { urlPattern: /jupyterhub\.datamancy\.net/ }
+      /JupyterHub|Start My Server|Control Panel|JupyterLab|Notebook/i,
+      {
+        urlPattern: /jupyterhub\.datamancy\.net/,
+        disallowUrlPatterns: [/\/spawn-pending\//i],
+        disallowPatterns: [/Spawning server|Your server is starting up/i],
+      }
     );
   });
 
@@ -169,7 +199,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Open-WebUI',
       'https://open-webui.datamancy.net/',
-      /Open WebUI/i, // Title is "Open WebUI"
+      /New Chat|Chats|Workspace|Models|Settings/i,
       { urlPattern: /open-webui\.datamancy\.net/ }
     );
   });
@@ -226,21 +256,27 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Roundcube',
       'https://roundcube.datamancy.net/',
-      /roundcube|webmail|inbox/i, // Look for roundcube-specific content
-      { urlPattern: /roundcube\.datamancy\.net/ }
+      /Inbox|Compose|Mailbox|Folders|Settings/i,
+      {
+        urlPattern: /roundcube\.datamancy\.net/,
+        disallowPatterns: [/Roundcube Webmail|Username|Password|Login/i],
+      }
     );
   });
 
   test('Home Assistant - Access with forward auth', async ({ page }) => {
     // NOTE: Home Assistant requires onboarding on first run
     // Forward auth works, but HA shows setup wizard if not configured
-    // This test validates forward auth allows access, but may show onboarding
+    // This test validates HA is fully loaded (not onboarding)
     await testForwardAuthService(
       page,
       'Home Assistant',
       'https://homeassistant.datamancy.net/',
-      /home.?assistant|lovelace|Overview|Settings|Developer Tools/i, // Look for HA UI or onboarding
-      { urlPattern: /homeassistant\.datamancy\.net/, requireUI: false }
+      /Overview|Map|Energy|Settings|Developer Tools|History|Logbook/i,
+      {
+        urlPattern: /homeassistant\.datamancy\.net/,
+        disallowPatterns: [/Onboarding|Welcome to Home Assistant/i],
+      }
     );
   });
 
@@ -255,15 +291,15 @@ test.describe('Forward Auth Services - SSO Flow', () => {
   });
 
   test('LDAP Account Manager - Access with forward auth', async ({ page }) => {
-    // NOTE: LAM requires its own authentication even after forward-auth passes
-    // This is expected behavior - LAM has internal user management
-    // The test validates that forward-auth allows access to LAM's login page
     await testForwardAuthService(
       page,
       'LDAP Account Manager',
       'https://lam.datamancy.net/lam/', // LAM requires /lam/ path
-      /LDAP Account Manager|Login|User name|Password/i, // Title or login form elements
-      { urlPattern: /lam\.datamancy\.net/, requireUI: false } // Don't require UI pattern match
+      /LDAP Account Manager|Tree view|Account tools|Tools|Logout/i,
+      {
+        urlPattern: /lam\.datamancy\.net/,
+        disallowPatterns: [/Login|User name|Password/i],
+      }
     );
   });
 
