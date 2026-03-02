@@ -5,8 +5,6 @@ services:
     restart: unless-stopped
     networks:
       caddy:
-        aliases:
-          - lam.${DOMAIN}
       ldap:
         aliases:
           - lam.${DOMAIN}

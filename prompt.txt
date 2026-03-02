@@ -13,4 +13,7 @@ you have pubkey ssh access via ssh gerald@latium.local "command"
 dont write reports - no one will read them
 
 inside containers.src/test-runner there is a test runner that can be used to test the containers
-build and deploy the latest version to the server, run the tests and report back
+the compose files are in ~/datamancy on the server
+the test runner help script is located at ./containers.src/test-runner/run-tests.sh on latium
+
+run the tests and report back, analyze the screenshots the test runner generates

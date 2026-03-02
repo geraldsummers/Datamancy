@@ -35,6 +35,7 @@ volumes:
 
   caddy_config:
   caddy_certs:
+  caddy_ca:
   ldap_config:
   litellm_config:
   qbittorrent_config:

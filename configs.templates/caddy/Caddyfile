@@ -80,6 +80,18 @@ mail.{$DOMAIN} {
 	}
 }
 
+# Roundcube Webmail (alternate hostname)
+roundcube.{$DOMAIN} {
+	import authelia_auth
+
+	reverse_proxy roundcube:80 {
+		# Pass authentication headers to Roundcube
+		header_up Remote-User {header.Remote-User}
+		header_up Remote-Email {header.Remote-Email}
+		header_up Remote-Name {header.Remote-Name}
+	}
+}
+
 # Radicale CalDAV/CardDAV Server
 calendar.{$DOMAIN} {
 	import authelia_auth

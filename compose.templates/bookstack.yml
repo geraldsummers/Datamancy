@@ -29,9 +29,12 @@ services:
       BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID}
       BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET}
       BOOKSTACK_OAUTH_SECRET: ${BOOKSTACK_OAUTH_SECRET}
+      SSL_CERT_FILE: /ca/caddy-ca.crt
+      CURL_CA_BUNDLE: /ca/caddy-ca.crt
     volumes:
       - bookstack_data:/config
       - ./configs/bookstack/init:/custom-cont-init.d:ro
+      - caddy_ca:/ca:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/login"]
       interval: 60s

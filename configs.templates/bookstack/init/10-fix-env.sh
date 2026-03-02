@@ -1,6 +1,18 @@
 #!/usr/bin/with-contenv bash
 ENV_FILE_APP="/app/www/.env"
 ENV_FILE_CONFIG="/config/www/.env"
+
+CA_SRC="/ca/caddy-ca.crt"
+CA_DST="/usr/local/share/ca-certificates/caddy-ca.crt"
+if [ -f "$CA_SRC" ]; then
+    echo "Installing Caddy CA into system trust store..."
+    cp "$CA_SRC" "$CA_DST"
+    chmod 644 "$CA_DST"
+    if command -v update-ca-certificates >/dev/null 2>&1; then
+        update-ca-certificates
+        echo "System CA store updated"
+    fi
+fi
 echo "Waiting for BookStack persistent .env file to be created..."
 for i in {1..60}; do
     if [ -f "$ENV_FILE_CONFIG" ]; then

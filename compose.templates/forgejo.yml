@@ -40,6 +40,7 @@ services:
       DOMAIN: ${DOMAIN}
       STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
       STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
+      SSL_CERT_FILE: /ca/caddy-ca.crt
     volumes:
       - forgejo_data:/data
       - forgejo_runner_token:/runner-token
@@ -48,6 +49,7 @@ services:
       - ./configs/forgejo/custom-entrypoint.sh:/custom-entrypoint.sh:ro
       - ./configs/forgejo/generate-runner-token.sh:/generate-runner-token.sh:ro
       - ./repos:/data/git/repositories:ro
+      - caddy_ca:/ca:ro
     entrypoint: ["/custom-entrypoint.sh"]
     healthcheck:
       test:

@@ -36,6 +36,7 @@ services:
           - lam.${DOMAIN}
           - forgejo.${DOMAIN}
           - qbittorrent.${DOMAIN}
+          - roundcube.${DOMAIN}
       authelia:
       postgres:
       mariadb:
@@ -64,6 +65,7 @@ services:
           - homeassistant.${DOMAIN}
           - lam.${DOMAIN}
           - mail.${DOMAIN}
+          - roundcube.${DOMAIN}
           - vault.${DOMAIN}
           - element.${DOMAIN}
           - search.${DOMAIN}
@@ -104,3 +106,28 @@ services:
       timeout: 4s
       retries: 3
       start_period: 15s
+
+  caddy-ca-export:
+    image: alpine:latest
+    container_name: caddy-ca-export
+    restart: "no"
+    depends_on:
+      caddy:
+        condition: service_started
+    volumes:
+      - caddy_certs:/certs:ro
+      - caddy_ca:/ca:rw
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for i in $(seq 1 60); do
+          if [ -f /certs/pki/authorities/local/root.crt ]; then
+            cp /certs/pki/authorities/local/root.crt /ca/caddy-ca.crt
+            chmod 644 /ca/caddy-ca.crt
+            echo "Caddy CA exported to /ca/caddy-ca.crt"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Caddy CA not found at /certs/pki/authorities/local/root.crt" >&2
+        exit 1

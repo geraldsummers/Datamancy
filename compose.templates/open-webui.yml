@@ -34,7 +34,8 @@ services:
       DEFAULT_MODELS: qwen2.5-7b-instruct
       STREAMING_CHUNK_SIZE: 1
       ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION: false
-      RAG_EMBEDDING_ENGINE: ollama
+      RAG_EMBEDDING_ENGINE: openai
+      RAG_EMBEDDING_MODEL: bge-m3
       RAG_RERANKING_MODEL: ""
       OPENID_PROVIDER_URL: https://auth.${DOMAIN}
       OAUTH_CLIENT_ID: open-webui
@@ -43,8 +44,11 @@ services:
       OAUTH_SCOPES: openid profile email groups
       ENABLE_LOGIN_FORM: false
       WEBUI_AUTH: false
+      SSL_CERT_FILE: /ca/caddy-ca.crt
+      REQUESTS_CA_BUNDLE: /ca/caddy-ca.crt
     volumes:
       - open_webui_data:/app/backend/data
+      - caddy_ca:/ca:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 60s

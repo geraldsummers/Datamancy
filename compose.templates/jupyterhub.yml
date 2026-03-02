@@ -25,6 +25,7 @@ services:
       DOCKER_NETWORK_NAME: datamancy-stack_litellm
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY}
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
     volumes:
       - jupyterhub_data:/srv/jupyterhub
       - ./configs/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro

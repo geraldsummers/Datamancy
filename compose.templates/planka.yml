@@ -34,13 +34,13 @@ services:
       OIDC_AUTHORIZATION_ENDPOINT: https://auth.${DOMAIN}/api/oidc/authorization
       OIDC_TOKEN_ENDPOINT: https://auth.${DOMAIN}/api/oidc/token
       OIDC_USERINFO_ENDPOINT: https://auth.${DOMAIN}/api/oidc/userinfo
-      OIDC_TOKEN_ENDPOINT_AUTH_METHOD: client_secret_post
+      OIDC_TOKEN_ENDPOINT_AUTH_METHOD: client_secret_basic
       OIDC_ENFORCED: false
-      NODE_EXTRA_CA_CERTS: /usr/local/share/ca-certificates/caddy-ca.crt
-      NODE_TLS_REJECT_UNAUTHORIZED: "0"
+      NODE_EXTRA_CA_CERTS: /ca/caddy-ca.crt
+      SSL_CERT_FILE: /ca/caddy-ca.crt
     volumes:
       - planka_data:/app/public/user-avatars
-      - planka_caddy_ca:/usr/local/share/ca-certificates:ro
+      - caddy_ca:/ca:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:1337/"]
       interval: 60s

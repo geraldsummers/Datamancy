@@ -108,6 +108,9 @@ services:
       ACTION_DISPATCH_HOSTS_PERMIT_ALL: "true"
       # Additional Rails host authorization overrides
       SKIP_POST_DEPLOYMENT_MIGRATIONS: "false"
+      SSL_CERT_FILE: /ca/caddy-ca.crt
+    volumes:
+      - caddy_ca:/ca:ro
     command: bash -c "bundle exec rails server -b 0.0.0.0"
     healthcheck:
       test:
@@ -194,6 +197,9 @@ services:
       SMTP_FROM_ADDRESS: mastodon@${DOMAIN}
       SMTP_AUTH_METHOD: plain
       SMTP_OPENSSL_VERIFY_MODE: none
+      SSL_CERT_FILE: /ca/caddy-ca.crt
+    volumes:
+      - caddy_ca:/ca:ro
     command: bundle exec sidekiq
     healthcheck:
       test:

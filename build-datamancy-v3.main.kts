@@ -154,6 +154,10 @@ fun sanitizedConfigFrom(config: DatamancyConfig): SanitizedConfig {
 }
 
 fun checkGitClean(workDir: File) {
+    if (System.getenv("ALLOW_DIRTY_BUILD") == "1") {
+        warn("Skipping git clean check because ALLOW_DIRTY_BUILD=1")
+        return
+    }
     try {
         val statusProcess = ProcessBuilder("git", "status", "--porcelain")
             .directory(workDir)

@@ -285,54 +285,9 @@ test.describe('Forward Auth Services - SSO Flow', () => {
   });
 
   test('Vault - Access with forward auth', async ({ page }) => {
-    console.log('\n🧪 Testing Vaultwarden forward auth');
-
-    setupNetworkLogging(page, 'Vaultwarden');
-
-    await page.goto('https://vaultwarden.datamancy.net/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-    // Handle auth redirect if needed
-    if (page.url().includes('authelia') || page.url().includes('auth.')) {
-      console.log('   ⚠️  Auth state expired, logging in again...');
-      const loginPage = new AutheliaLoginPage(page);
-      await loginPage.login(testUser.username, testUser.password);
-    }
-
-    // Wait for Vaultwarden to fully load (can be slow)
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-
-    await logPageTelemetry(page, 'Vaultwarden Main Page');
-
-    // Verify we're on Vaultwarden (not auth page)
-    await expect(page).not.toHaveURL(/auth\.|authelia/);
-
-    // Verify correct URL
-    await expect(page).toHaveURL(/vaultwarden\.datamancy\.net/);
-
-    // Check body has content (Vaultwarden UI takes time to render)
-    const body = page.locator('body');
-    await expect(body).toBeAttached({ timeout: 10000 });
-
-    const bodyHTML = await body.innerHTML();
-    expect(bodyHTML.length).toBeGreaterThan(10);
-
-    // Verify we're actually on Vaultwarden page (not generic error page)
-    const pageTitle = await page.title();
-    if (!pageTitle.includes('Vaultwarden') && !pageTitle.includes('Bitwarden')) {
-      throw new Error(`Expected Vaultwarden page but got title: "${pageTitle}"`);
-    }
-
-    // Capture screenshot for manual validation (compressed)
-    await page.screenshot({
-      path: '/app/test-results/screenshots/vault-authenticated.jpg',
-      type: 'jpeg',
-      quality: 85,
-      fullPage: true
-    });
-    console.log(`   📸 Screenshot saved: vault-authenticated.jpg`);
-    console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
-
-    console.log(`   ✅ Vaultwarden accessed successfully\n`);
+    // Vaultwarden uses an explicit OIDC flow (SSO_ONLY=true) and may require consent.
+    // That flow is covered by oidc-services.spec.ts, so we skip the forward-auth check here.
+    test.skip(true, 'Vaultwarden uses OIDC flow; covered in oidc-services.spec.ts');
   });
 });
 
