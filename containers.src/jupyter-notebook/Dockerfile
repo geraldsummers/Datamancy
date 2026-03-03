@@ -36,7 +36,8 @@ RUN pip install --no-cache-dir \
     'python-dotenv>=1.0.0' \
     'httpx>=0.27.0' \
     'pydantic>=2.0.0' \
-    'tiktoken>=0.7.0'
+    'tiktoken>=0.7.0' \
+    'jupyterhub==5.4.3'
 
 RUN pip install --no-cache-dir \
     'langchain>=0.3.0' \
@@ -68,7 +69,7 @@ RUN pip install -e . && \
 
 WORKDIR /home/jovyan
 
-COPY --chown=${NB_UID}:${NB_GID} src/jupyter-notebook/startup-config.sh /usr/local/bin/startup-config.sh
+COPY --chown=${NB_UID}:${NB_GID} containers.src/jupyter-notebook/startup-config.sh /usr/local/bin/startup-config.sh
 RUN chmod +x /usr/local/bin/startup-config.sh
 
 RUN jupyter kernelspec list

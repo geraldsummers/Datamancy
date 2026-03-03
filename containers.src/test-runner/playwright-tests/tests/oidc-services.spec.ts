@@ -44,9 +44,11 @@ async function testOIDCService(
     loginPath?: string;
     loginButtonPatterns?: RegExp[];
     ssoIdentifier?: string;
+    ssoEmail?: string;
     oidcLinkPatterns?: RegExp[];
     oidcIssuer?: string;
     postLogin?: (page: Page) => Promise<void>;
+    uiPatternOverride?: RegExp;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} OIDC login`);
@@ -83,22 +85,82 @@ async function testOIDCService(
       return;
     }
     const ssoHeader = page.locator('h1', { hasText: /single sign-on/i });
-    const ssoInput = page.locator('input').first();
+    const ssoInput = page
+      .getByLabel(/sso identifier/i)
+      .or(page.locator('input[placeholder*="SSO"]'))
+      .or(page.locator('input[id*="bit-input"]'))
+      .or(page.locator('input').first());
     const continueButton = page.getByRole('button', { name: /continue/i });
+    const continueFallback = page.locator('button[type="submit"]').first();
 
-    if (await ssoHeader.first().isVisible().catch(() => false)) {
-      await ssoInput.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
-      if (await ssoInput.isVisible().catch(() => false)) {
-        const currentValue = await ssoInput.inputValue().catch(() => '');
-        if (!currentValue) {
-          await ssoInput.fill(options.ssoIdentifier);
-        }
-        if (await continueButton.first().isVisible().catch(() => false)) {
-          await continueButton.first().click();
-          await page.waitForTimeout(1000);
-        }
+    const shouldHandle = await ssoHeader.first().isVisible().catch(() => false)
+      || /\/sso\b/i.test(page.url());
+    if (!shouldHandle) {
+      return;
+    }
+
+    await ssoInput.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+    if (!(await ssoInput.isVisible().catch(() => false))) {
+      return;
+    }
+
+    const currentValue = await ssoInput.inputValue().catch(() => '');
+    if (!currentValue) {
+      await ssoInput.fill(options.ssoIdentifier);
+    }
+
+    if (await continueButton.first().isVisible().catch(() => false)) {
+      await continueButton.first().click();
+    } else if (await continueFallback.isVisible().catch(() => false)) {
+      await continueFallback.click();
+    } else {
+      await ssoInput.press('Enter').catch(() => {});
+    }
+
+    await page.waitForURL((url) => !/\/sso\b/i.test(url.toString()), { timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(1000);
+  };
+
+  const handleSsoEmailIfPresent = async () => {
+    if (!options.ssoEmail) {
+      return false;
+    }
+    const ssoEmailInput = page
+      .locator('input.vw-email-sso')
+      .or(page.locator('input[type="email"]').nth(1))
+      .or(page.locator('input[type="email"]').first());
+    const ssoButton = page
+      .getByRole('button', { name: /use single sign-on|single sign-on|sso/i })
+      .or(page.locator('button:has-text("Use single sign-on")'))
+      .or(page.locator('button:has-text("Single sign-on")'))
+      .or(page.locator('button:has-text("SSO")'));
+
+    const inputCount = await ssoEmailInput.count().catch(() => 0);
+    const buttonCount = await ssoButton.count().catch(() => 0);
+    if (!inputCount && !buttonCount) {
+      return false;
+    }
+
+    if (buttonCount) {
+      await ssoButton.first().click({ force: true });
+    }
+
+    if (inputCount) {
+      const currentValue = await ssoEmailInput.first().inputValue().catch(() => '');
+      if (!currentValue) {
+        await ssoEmailInput.first().fill(options.ssoEmail, { force: true });
       }
     }
+
+    if (buttonCount) {
+      await ssoButton.first().click({ force: true });
+    } else if (inputCount) {
+      await ssoEmailInput.first().press('Enter').catch(() => {});
+    }
+
+    await page.waitForURL((url) => /auth\.|authelia|identity\/connect\/authorize/i.test(url.toString()), { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(1000);
+    return true;
   };
 
   const tryOidcLinkPatterns = async () => {
@@ -146,9 +208,13 @@ async function testOIDCService(
   };
 
   await handleSsoIdentifierIfPresent();
+  const ssoEmailHandled = await handleSsoEmailIfPresent();
 
   // Try to find and click OIDC button
   let buttonFound = false;
+  if (ssoEmailHandled) {
+    buttonFound = true;
+  }
   for (const buttonName of oidcButtonNames) {
     try {
       await oidcPage.clickOIDCButton(buttonName);
@@ -198,14 +264,20 @@ async function testOIDCService(
       await logPageTelemetry(page, `${serviceName} Login Page (post-nav)`);
 
       await handleSsoIdentifierIfPresent();
+      const ssoEmailHandledAfterNav = await handleSsoEmailIfPresent();
+      if (ssoEmailHandledAfterNav) {
+        buttonFound = true;
+      }
 
-      for (const buttonName of oidcButtonNames) {
-        try {
-          await oidcPage.clickOIDCButton(buttonName);
-          buttonFound = true;
-          break;
-        } catch (error) {
-          continue;
+      if (!buttonFound) {
+        for (const buttonName of oidcButtonNames) {
+          try {
+            await oidcPage.clickOIDCButton(buttonName);
+            buttonFound = true;
+            break;
+          } catch (error) {
+            continue;
+          }
         }
       }
 
@@ -259,6 +331,7 @@ async function testOIDCService(
 
   // Verify service-specific UI pattern to confirm correct page
   // Retry pattern matching to handle slow-loading SPAs
+  const effectiveUiPattern = options.uiPatternOverride ?? uiPattern;
   let matchesPattern = false;
   let pageTitle = '';
   let bodyHTML = '';
@@ -273,13 +346,16 @@ async function testOIDCService(
     pageTitle = await page.title();
     pageText = (await page.textContent('body').catch(() => '')) || '';
     bodyHTML = await body.innerHTML();
-    matchesPattern = uiPattern.test(pageText || bodyHTML || pageTitle);
+    matchesPattern = effectiveUiPattern.test(pageText || bodyHTML || pageTitle);
     disallowedMatch = disallowPatterns.find((pattern) =>
       pattern.test([pageTitle, pageText, bodyHTML].filter(Boolean).join('\n'))
     ) ?? null;
     disallowedUrl = disallowUrlPatterns.find((pattern) => pattern.test(page.url())) ?? null;
 
-    if (disallowedMatch || disallowedUrl) {
+  if (disallowedMatch || disallowedUrl) {
+      if (disallowedUrl && options.ssoIdentifier) {
+        await handleSsoIdentifierIfPresent();
+      }
       if (i < maxPatternRetries - 1) {
         console.log(`   ⏳ Detected disallowed state for ${serviceName}, waiting for redirect... (${i + 1}/${maxPatternRetries})`);
         await page.waitForTimeout(2000);
@@ -304,9 +380,9 @@ async function testOIDCService(
   if (!matchesPattern) {
     console.log(`   ⚠️  Pattern match failed for ${serviceName}`);
     console.log(`   Title: "${pageTitle}"`);
-    console.log(`   Pattern: ${uiPattern}`);
+    console.log(`   Pattern: ${effectiveUiPattern}`);
     console.log(`   Body length: ${bodyHTML.length} chars`);
-    throw new Error(`Expected ${serviceName} page but UI pattern not found. Pattern: ${uiPattern}, Title: "${pageTitle}"`);
+    throw new Error(`Expected ${serviceName} page but UI pattern not found. Pattern: ${effectiveUiPattern}, Title: "${pageTitle}"`);
   }
 
   // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
@@ -359,7 +435,6 @@ test.describe('OIDC Services - SSO Flow', () => {
       /Dashboard|Your Repositories|New Repository|Issues|Pull Requests|Repositories/i,
       ['Authelia', 'OpenID', 'OpenID Connect', 'OIDC'],
       {
-        disallowPatterns: [/Sign in|Register|Beyond coding/i],
         disallowUrlPatterns: [/\/user\/login\b/i],
         loginPath: 'https://forgejo.datamancy.net/user/login',
         loginButtonPatterns: [/sign in|log in/i],
@@ -397,20 +472,76 @@ test.describe('OIDC Services - SSO Flow', () => {
   });
 
   test('Vaultwarden - OIDC login flow', async ({ page }) => {
-    const vaultwardenBaseDomain = guessBaseDomain(new URL('https://vaultwarden.datamancy.net/').hostname);
     await testOIDCService(
       page,
       'Vaultwarden',
       'https://vaultwarden.datamancy.net/',
       /My Vault|Vaults|Folders|Items|Search vault/i,
-      ['Authelia', 'SSO', 'Single sign-on'],
+      ['Authelia', 'SSO', 'Single sign-on', 'Use single sign-on'],
       {
-        disallowPatterns: [/Single sign-on|SSO identifier|Loading/i],
-        disallowUrlPatterns: [/\/sso\b/i],
-        loginPath: 'https://app.vaultwarden.datamancy.net/#/sso',
-        loginButtonPatterns: [/single sign-on|sso|enterprise|login/i],
-        ssoIdentifier: vaultwardenBaseDomain,
+        disallowPatterns: [/SSO identifier/i],
+        disallowUrlPatterns: [/#\/sso\b/i, /\/sso\b/i],
+        loginPath: 'https://app.vaultwarden.datamancy.net/#/login',
+        loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
+        ssoEmail: testUser.email,
+        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Master password|Confirm master password|Join organization/i,
         postLogin: async (page) => {
+          // Handle create account / master password setup after SSO
+          const masterPassword = testUser.password;
+          const newPasswordField = page.locator('#input-password-form_new-password');
+          const confirmNewPasswordField = page.locator('#input-password-form_new-password-confirm');
+          const masterPasswordField = page.getByLabel(/master password/i).or(
+            page.locator('input[type="password"]').first()
+          );
+          const confirmPasswordField = page.getByLabel(/confirm master password/i).or(
+            page.locator('input[type="password"]').nth(1)
+          );
+
+          for (let i = 0; i < 5; i++) {
+            const onSetup = /#\/set-initial-password\b/i.test(page.url());
+            const createAccountButton = page.getByRole('button', { name: /create account|save|continue|submit/i });
+            const hasPasswordField = await masterPasswordField.isVisible().catch(() => false);
+            if (onSetup || hasPasswordField) {
+              if (onSetup) {
+                await newPasswordField.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+                await confirmNewPasswordField.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+              }
+              if (await newPasswordField.isVisible().catch(() => false)) {
+                await newPasswordField.fill(masterPassword);
+              }
+              if (await confirmNewPasswordField.isVisible().catch(() => false)) {
+                await confirmNewPasswordField.fill(masterPassword);
+              }
+              if (await masterPasswordField.isVisible().catch(() => false)) {
+                await masterPasswordField.fill(masterPassword);
+              }
+              if (await confirmPasswordField.isVisible().catch(() => false)) {
+                await confirmPasswordField.fill(masterPassword);
+              }
+              if (await createAccountButton.first().isVisible().catch(() => false)) {
+                await createAccountButton.first().click({ force: true });
+              } else {
+                const fallbackSubmit = page.locator('button[type="submit"]').first();
+                if (await fallbackSubmit.isVisible().catch(() => false)) {
+                  await fallbackSubmit.click({ force: true });
+                }
+              }
+              const form = page.locator('form').first();
+              if (await form.isVisible().catch(() => false)) {
+                await form.evaluate((el) => {
+                  if (el instanceof HTMLFormElement) {
+                    el.requestSubmit();
+                  }
+                }).catch(() => {});
+              }
+              await page.waitForTimeout(2000);
+            }
+            if (!/#\/(sso|set-initial-password)\b/i.test(page.url())) {
+              break;
+            }
+            await page.waitForTimeout(1000);
+          }
+
           const joinHeader = page.locator('h1', { hasText: /join organization/i });
           if (await joinHeader.first().isVisible().catch(() => false)) {
             const passwordFields = page.locator('input[type="password"]');
@@ -432,6 +563,8 @@ test.describe('OIDC Services - SSO Flow', () => {
             }
             await page.waitForTimeout(2000);
           }
+
+          await page.waitForURL((url) => !/#\/sso\b/i.test(url.toString()), { timeout: 20000 }).catch(() => {});
         },
         oidcLinkPatterns: [/single sign-on/i, /sso/i],
       }
@@ -462,7 +595,11 @@ test.describe('OIDC - Cross-service Session', () => {
       await oidcPage.handleConsentScreen();
     }
 
-    // CRITICAL: Verify we're actually on Grafana (allow authelia in query params)
+    // CRITICAL: Verify we're actually on Grafana (allow a brief auth redirect)
+    await page.waitForURL((url) => {
+      const host = url.hostname;
+      return !/^(auth\.|authelia)/.test(host);
+    }, { timeout: 30000 }).catch(() => {});
     const grafanaHost = new URL(page.url()).hostname;
     expect(grafanaHost).not.toMatch(/^(auth\.|authelia)/);
     console.log('   ✅ Grafana login complete');

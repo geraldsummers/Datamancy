@@ -17,7 +17,6 @@ forgejo --config /data/gitea/conf/app.ini admin auth add-oauth \
     --auto-discover-url "https://auth.${DOMAIN}/.well-known/openid-configuration" \
     --scopes 'openid profile email groups' \
     --group-claim-name 'groups' \
-    --admin-group 'admins' \
     --restricted-group '' \
     --skip-local-2fa
 echo "Forgejo OIDC configuration completed successfully!"

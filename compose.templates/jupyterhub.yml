@@ -5,6 +5,7 @@ services:
       context: ./containers.src/jupyterhub
       dockerfile: Dockerfile
     container_name: jupyterhub
+    command: ["jupyterhub", "-f", "/config/jupyterhub_config.py"]
     restart: unless-stopped
     networks:
       caddy:
@@ -28,7 +29,7 @@ services:
       DOCKER_HOST: tcp://docker-socket-proxy:2375
     volumes:
       - jupyterhub_data:/srv/jupyterhub
-      - ./configs/jupyterhub/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
+      - ./configs/jupyterhub/jupyterhub_config.py:/config/jupyterhub_config.py:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/hub/health || exit 1"]
       interval: 60s

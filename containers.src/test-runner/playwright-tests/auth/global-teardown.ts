@@ -17,6 +17,7 @@ async function globalTeardown() {
   const ldapUrl = process.env.LDAP_URL || 'ldap://localhost:10389';
   const ldapAdminDn = process.env.LDAP_ADMIN_DN || 'cn=admin,dc=datamancy,dc=net';
   const ldapAdminPassword = process.env.LDAP_ADMIN_PASSWORD || 'admin';
+  const stackAdminUser = process.env.STACK_ADMIN_USER;
 
   // Load test user credentials
   const credsPath = path.join(__dirname, '../.auth/test-user.json');
@@ -29,20 +30,25 @@ async function globalTeardown() {
   const testUser = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
   console.log(`🔍 Found test user: ${testUser.username}\n`);
 
-  // Create LDAP client
-  const ldapClient = new LDAPClient({
-    url: ldapUrl,
-    adminDn: ldapAdminDn,
-    adminPassword: ldapAdminPassword,
-  });
+  const managedUser = testUser.managed !== false;
+  if (!managedUser || (stackAdminUser && testUser.username === stackAdminUser)) {
+    console.log('⚠️  Skipping LDAP cleanup for non-managed or stack admin user\n');
+  } else {
+    // Create LDAP client
+    const ldapClient = new LDAPClient({
+      url: ldapUrl,
+      adminDn: ldapAdminDn,
+      adminPassword: ldapAdminPassword,
+    });
 
-  // Delete user from LDAP
-  try {
-    await ldapClient.deleteUser(testUser.username);
-    console.log('\n✅ LDAP user cleaned up successfully\n');
-  } catch (error) {
-    console.error('❌ Failed to clean up LDAP user:', error);
-    // Don't throw - we want teardown to complete even if cleanup fails
+    // Delete user from LDAP
+    try {
+      await ldapClient.deleteUser(testUser.username);
+      console.log('\n✅ LDAP user cleaned up successfully\n');
+    } catch (error) {
+      console.error('❌ Failed to clean up LDAP user:', error);
+      // Don't throw - we want teardown to complete even if cleanup fails
+    }
   }
 
   // Clean up auth files

@@ -19,6 +19,9 @@ async function globalSetup(config: FullConfig) {
   const ldapUrl = process.env.LDAP_URL || 'ldap://localhost:10389';
   const ldapAdminDn = process.env.LDAP_ADMIN_DN || 'cn=admin,dc=datamancy,dc=net';
   const ldapAdminPassword = process.env.LDAP_ADMIN_PASSWORD || 'admin';
+  const stackAdminUser = process.env.STACK_ADMIN_USER;
+  const stackAdminPassword = process.env.STACK_ADMIN_PASSWORD;
+  const stackAdminEmail = process.env.STACK_ADMIN_EMAIL || (stackAdminUser ? `${stackAdminUser}@datamancy.net` : undefined);
 
   // Use Datamancy domain for auth setup
   // Even though we're inside Docker, we use the full domain so Caddy's
@@ -37,16 +40,17 @@ async function globalSetup(config: FullConfig) {
     adminPassword: ldapAdminPassword,
   });
 
-  // Generate ephemeral test user
+  // Generate ephemeral test user (preferred)
   const username = LDAPClient.generateUsername('playwright');
   const password = LDAPClient.generatePassword();
   const email = `${username}@datamancy.test`;
 
-  const testUser = {
+  let testUser = {
     username,
     password,
     email,
     groups: ['users'], // Can add 'admins' if needed for certain tests
+    managed: true,
   };
 
   console.log(`\n📋 Test User Details:`);
@@ -55,13 +59,29 @@ async function globalSetup(config: FullConfig) {
   console.log(`   Groups:   ${testUser.groups.join(', ')}`);
   console.log();
 
-  // Create user in LDAP
+  // Create user in LDAP (preferred) and verify credentials
   try {
     await ldapClient.createUser(testUser);
+    const canAuth = await ldapClient.verifyUserCredentials(testUser.username, testUser.password);
+    if (!canAuth) {
+      throw new Error('LDAP user credential verification failed');
+    }
     console.log('✅ LDAP user provisioned successfully\n');
   } catch (error) {
-    console.error('❌ Failed to provision LDAP user:', error);
-    throw error;
+    if (stackAdminUser && stackAdminPassword) {
+      console.warn('⚠️  Failed to provision or verify LDAP test user. Falling back to STACK_ADMIN_USER.');
+      testUser = {
+        username: stackAdminUser,
+        password: stackAdminPassword,
+        email: stackAdminEmail || `${stackAdminUser}@datamancy.net`,
+        groups: ['admins', 'users'],
+        managed: false,
+      };
+      console.log(`   Using fallback user: ${testUser.username}`);
+    } else {
+      console.error('❌ Failed to provision LDAP user:', error);
+      throw error;
+    }
   }
 
   // Save credentials to file for tests to use
@@ -174,7 +194,7 @@ async function globalSetup(config: FullConfig) {
       const urlStr = url.toString();
       return !urlStr.includes('auth.') && !urlStr.includes('authelia') && !urlStr.includes(':9091');
     }, {
-      timeout: 15000,
+      timeout: 30000,
     });
 
     console.log(`   ✓ Authenticated successfully`);

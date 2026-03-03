@@ -230,6 +230,29 @@ export class LDAPClient {
   }
 
   /**
+   * Verify a user's credentials by attempting a bind.
+   * Returns true if bind succeeds, false otherwise.
+   */
+  async verifyUserCredentials(username: string, password: string): Promise<boolean> {
+    const client = ldap.createClient({ url: this.url });
+    const userDn = `uid=${username},${this.usersDn}`;
+
+    return new Promise((resolve) => {
+      client.bind(userDn, password, (err) => {
+        if (err) {
+          console.warn(`  ⚠️  LDAP credential check failed for ${username}:`, err.message);
+          client.unbind();
+          resolve(false);
+          return;
+        }
+
+        client.unbind();
+        resolve(true);
+      });
+    });
+  }
+
+  /**
    * Generate a secure random password
    */
   static generatePassword(length: number = 16): string {

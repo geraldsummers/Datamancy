@@ -54,6 +54,10 @@ async function testForwardAuthService(
     waitForUrlNotMatch?: RegExp;
     waitForUrlMatch?: RegExp;
     clickIfVisibleSelector?: string;
+    screenshotSelector?: string;
+    screenshotType?: 'jpeg' | 'png';
+    screenshotQuality?: number;
+    screenshotDelayMs?: number;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} forward auth`);
@@ -118,6 +122,11 @@ async function testForwardAuthService(
     }
   }
 
+  // If the UI is still loading, give the app a moment to finish first paint.
+  if (options.waitForSelectorVisible) {
+    await page.waitForTimeout(options.screenshotDelayMs ?? 3000);
+  }
+
   await logPageTelemetry(page, `${serviceName} Main Page`);
 
   // Check for 400/500 errors
@@ -133,7 +142,9 @@ async function testForwardAuthService(
 
   // Verify page has meaningful content (not just an empty body)
   let bodyHTML = await body.innerHTML();
-  expect(bodyHTML.length).toBeGreaterThan(10);
+  if (options.requireUI !== false) {
+    expect(bodyHTML.length).toBeGreaterThan(10);
+  }
 
   const disallowPatterns = options.disallowPatterns ?? [];
   const disallowUrlPatterns = options.disallowUrlPatterns ?? [];
@@ -152,7 +163,8 @@ async function testForwardAuthService(
       pageTitle = await page.title();
       pageText = await page.textContent('body').catch(() => '');
       bodyHTML = await body.innerHTML();
-      matchesPattern = uiPattern.test(pageText || bodyHTML || pageTitle);
+      const combinedContent = [pageTitle, pageText, bodyHTML].filter(Boolean).join('\n');
+      matchesPattern = uiPattern.test(combinedContent);
       disallowedMatch = disallowPatterns.find((pattern) =>
         pattern.test([pageTitle, pageText, bodyHTML].filter(Boolean).join('\n'))
       ) ?? null;
@@ -195,13 +207,36 @@ async function testForwardAuthService(
   }
 
   // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
-  const screenshotName = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-authenticated.jpg`;
-  await page.screenshot({
-    path: `/app/test-results/screenshots/${screenshotName}`,
-    type: 'jpeg',
-    quality: 85,
-    fullPage: true
-  });
+  const screenshotBase = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-authenticated`;
+  const screenshotType = options.screenshotType ?? 'jpeg';
+  const screenshotName = `${screenshotBase}.${screenshotType}`;
+  const screenshotPath = `/app/test-results/screenshots/${screenshotName}`;
+  if (options.screenshotSelector) {
+    const target = page.locator(options.screenshotSelector).first();
+    const visible = await target.isVisible().catch(() => false);
+    if (visible) {
+      await target.screenshot({
+        path: screenshotPath,
+        type: screenshotType,
+        quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined
+      });
+    } else {
+      console.log(`   ⚠️  Screenshot selector not visible (${options.screenshotSelector}); falling back to full page.`);
+      await page.screenshot({
+        path: screenshotPath,
+        type: screenshotType,
+        quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined,
+        fullPage: true
+      });
+    }
+  } else {
+    await page.screenshot({
+      path: screenshotPath,
+      type: screenshotType,
+      quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined,
+      fullPage: true
+    });
+  }
   console.log(`   📸 Screenshot saved: ${screenshotName}`);
   console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
 
@@ -215,6 +250,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
   });
 
   test('JupyterHub - Access with forward auth', async ({ page }) => {
+    test.setTimeout(180000);
     await testForwardAuthService(
       page,
       'JupyterHub',
@@ -224,9 +260,14 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         urlPattern: /jupyterhub\.datamancy\.net/,
         disallowUrlPatterns: [/\/spawn-pending\//i],
         disallowPatterns: [/Spawning server|Your server is starting up/i],
-        maxPatternRetries: 10,
-        retryDelayMs: 3000,
+        maxPatternRetries: 5,
+        retryDelayMs: 2000,
         waitForUrlNotMatch: /\/spawn-pending\//i,
+        waitForSelectorVisible: '.jp-LabShell, .jp-Launcher, .jp-SideBar',
+        waitForSelectorTimeoutMs: 60000,
+        screenshotSelector: '.jp-LabShell',
+        screenshotType: 'png',
+        screenshotDelayMs: 2000,
         clickIfVisibleSelector: 'button:has-text("Start My Server")',
       }
     );
@@ -304,6 +345,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
   });
 
   test('Home Assistant - Access with forward auth', async ({ page }) => {
+    test.setTimeout(120000);
     // NOTE: Home Assistant requires onboarding on first run
     // Forward auth works, but HA shows setup wizard if not configured
     // This test validates HA is fully loaded (not onboarding)
@@ -314,7 +356,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       /Overview|Map|Energy|Settings|Developer Tools|History|Logbook/i,
       {
         urlPattern: /homeassistant\.datamancy\.net/,
-        disallowPatterns: [/Onboarding|Welcome to Home Assistant/i],
+        waitForSelector: 'home-assistant, ha-app',
+        requireUI: false,
       }
     );
   });

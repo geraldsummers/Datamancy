@@ -17,20 +17,34 @@ c.DockerSpawner.image = 'datamancy-jupyter-notebook:latest'
 
 c.DockerSpawner.network_name = os.environ.get('DOCKER_NETWORK_NAME', 'datamancy_litellm')
 
-c.DockerSpawner.notebook_dir = '/home/jovyan/notebooks'
+c.DockerSpawner.cmd = 'start-singleuser.py'
+c.DockerSpawner.extra_create_kwargs = {
+    'user': 'root',
+}
+
+c.DockerSpawner.notebook_dir = '/home/jovyan/work'
 
 c.Spawner.default_url = '/lab'
 
 c.DockerSpawner.remove = True
 
+c.Spawner.start_timeout = 120
+c.Spawner.http_timeout = 120
+c.DockerSpawner.pull_policy = 'ifnotpresent'
+
 c.DockerSpawner.volumes = {
-    'jupyterhub-user-{username}': '/home/jovyan'
+    'jupyterhub-user-{username}': '/home/jovyan/work'
 }
 
 c.Spawner.environment = {
     'LITELLM_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
     'OPENAI_API_BASE': 'http://litellm:4000/v1',
     'OPENAI_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
+    # Ensure mounted home/work volume is writable for jovyan
+    'CHOWN_HOME': 'yes',
+    'CHOWN_HOME_OPTS': '-R',
+    'CHOWN_EXTRA': '/home/jovyan/work',
+    'CHOWN_EXTRA_OPTS': '-R',
 }
 
 c.JupyterHub.authenticator_class = 'remote_user_authenticator.RemoteUserAuthenticator'
