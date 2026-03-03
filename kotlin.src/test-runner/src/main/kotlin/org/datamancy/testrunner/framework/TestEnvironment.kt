@@ -381,7 +381,7 @@ sealed interface TestEnvironment {
         override val domain = env("DOMAIN") ?: "datamancy.local"
         override val openwebuiOAuthSecret = env("OPENWEBUI_OAUTH_SECRET") ?: ""
         override val grafanaOAuthSecret = env("GRAFANA_OAUTH_SECRET") ?: ""
-        override val mastodonOAuthSecret = env("MASTODON_OIDC_SECRET") ?: ""
+        override val mastodonOAuthSecret = env("MASTODON_OAUTH_SECRET") ?: ""
         override val forgejoOAuthSecret = env("FORGEJO_OAUTH_SECRET") ?: ""
         override val bookstackOAuthSecret = env("BOOKSTACK_OAUTH_SECRET") ?: ""
     }
@@ -402,7 +402,7 @@ sealed interface TestEnvironment {
         override val isDevMode = true
         override val openwebuiOAuthSecret = env("OPENWEBUI_OAUTH_SECRET") ?: "test-secret"
         override val grafanaOAuthSecret = env("GRAFANA_OAUTH_SECRET") ?: "test-secret"
-        override val mastodonOAuthSecret = env("MASTODON_OIDC_SECRET") ?: "test-secret"
+        override val mastodonOAuthSecret = env("MASTODON_OAUTH_SECRET") ?: "test-secret"
         override val forgejoOAuthSecret = env("FORGEJO_OAUTH_SECRET") ?: "test-secret"
         override val bookstackOAuthSecret = env("BOOKSTACK_OAUTH_SECRET") ?: "test-secret"
     }

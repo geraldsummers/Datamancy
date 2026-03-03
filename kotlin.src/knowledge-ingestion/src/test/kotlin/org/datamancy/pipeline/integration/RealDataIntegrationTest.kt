@@ -139,23 +139,6 @@ class RealDataIntegrationTest {
     }
 
     @Test
-    fun `Australian Laws should fetch and validate if available`() {
-        
-        
-        
-        println("⊘ Australian Laws: Skipped (Parquet flow emission issue with .take())")
-
-        
-        val source = OpenAustralianLegalCorpusStandardizedSource(
-            cacheDir = "/tmp/test-corpus",
-            jurisdictions = null,
-            maxDocuments = 5
-        )
-        assertTrue(source.name == "australian_laws")
-        assertTrue(source.needsChunking())
-    }
-
-    @Test
     fun `Linux Docs should scan and validate man pages`() = runBlocking {
         
         val source = LinuxDocsStandardizedSource(

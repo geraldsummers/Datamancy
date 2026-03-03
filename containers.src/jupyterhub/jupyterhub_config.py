@@ -15,7 +15,7 @@ c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 
 c.DockerSpawner.image = 'datamancy-jupyter-notebook:latest'
 
-c.DockerSpawner.network_name = os.environ.get('DOCKER_NETWORK_NAME', 'datamancy-stack_litellm')
+c.DockerSpawner.network_name = os.environ.get('DOCKER_NETWORK_NAME', 'datamancy_litellm')
 
 c.DockerSpawner.notebook_dir = '/home/jovyan/notebooks'
 

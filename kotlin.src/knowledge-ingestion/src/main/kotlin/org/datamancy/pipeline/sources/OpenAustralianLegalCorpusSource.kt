@@ -41,8 +41,9 @@ class OpenAustralianLegalCorpusSource(
     private val datasetBaseUrl = "https://huggingface.co/datasets/isaacus/open-australian-legal-corpus/resolve/refs%2Fconvert%2Fparquet/corpus/partial-corpus"
     private val parquetFiles = listOf("0000.parquet", "0001.parquet", "0002.parquet", "0003.parquet")
 
+
     override suspend fun fetch(): Flow<AustralianLegalDocument> = flow {
-        
+
         val cacheDirFile = File(cacheDir)
         if (!cacheDirFile.exists()) {
             val created = cacheDirFile.mkdirs()
@@ -51,41 +52,36 @@ class OpenAustralianLegalCorpusSource(
             }
         }
 
-        
-        val downloadedFiles = mutableListOf<File>()
-        for ((index, filename) in parquetFiles.withIndex()) {
-            val parquetFile = File(cacheDir, filename)
-            if (!parquetFile.exists()) {
-                val tempFile = File(cacheDir, "$filename.tmp")
-                try {
-                    val fileUrl = "$datasetBaseUrl/$filename"
-                    downloadFile(fileUrl, tempFile)
-                    
-                    if (!tempFile.renameTo(parquetFile)) {
-                        throw RuntimeException("Failed to rename downloaded file: $filename")
-                    }
-                } catch (e: Exception) {
-                    tempFile.delete()  
-                    throw e
-                }
-            }
-            downloadedFiles.add(parquetFile)
-        }
-
-        
         var totalProcessed = 0
         var totalFiltered = 0
         var totalFailed = 0
         var totalRecordsRead = 0
 
-        for ((index, parquetFile) in downloadedFiles.withIndex()) {
+        for ((index, filename) in parquetFiles.withIndex()) {
             if (totalProcessed >= maxDocuments) {
                 break
             }
 
-            
+            // Skip remaining files when we only need a small number
             if (maxDocuments <= 10 && index > 0) {
                 break
+            }
+
+            // Download only the file we're about to read
+            val parquetFile = File(cacheDir, filename)
+            if (!parquetFile.exists()) {
+                val tempFile = File(cacheDir, "$filename.tmp")
+                try {
+                    val fileUrl = "$datasetBaseUrl/$filename"
+                    logger.info { "Downloading parquet file ${index + 1}/${parquetFiles.size}: $filename" }
+                    downloadFile(fileUrl, tempFile)
+                    if (!tempFile.renameTo(parquetFile)) {
+                        throw RuntimeException("Failed to rename downloaded file: $filename")
+                    }
+                } catch (e: Exception) {
+                    tempFile.delete()
+                    throw e
+                }
             }
 
             val conf = Configuration()
@@ -102,7 +98,7 @@ class OpenAustralianLegalCorpusSource(
                     try {
                         val doc = parseRecord(record)
 
-                        
+
                         if (shouldInclude(doc)) {
                             emit(doc)
                             totalProcessed++
@@ -117,7 +113,7 @@ class OpenAustralianLegalCorpusSource(
                     record = withContext(Dispatchers.IO) { reader.read() }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e  
+                throw e
             } catch (e: Exception) {
                 logger.error(e) { "Error in Parquet parsing: ${e.message}" }
                 throw e

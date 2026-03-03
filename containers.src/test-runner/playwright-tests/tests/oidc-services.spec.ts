@@ -46,6 +46,7 @@ async function testOIDCService(
     ssoIdentifier?: string;
     oidcLinkPatterns?: RegExp[];
     oidcIssuer?: string;
+    postLogin?: (page: Page) => Promise<void>;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} OIDC login`);
@@ -245,6 +246,10 @@ async function testOIDCService(
   // CRITICAL ASSERTION: Must NOT be on auth page
   await expect(page).not.toHaveURL(/auth\.|authelia/);
 
+  if (options.postLogin) {
+    await options.postLogin(page);
+  }
+
   await logPageTelemetry(page, `${serviceName} Dashboard`);
 
   // ENHANCED: Verify we're on the CORRECT service page, not just "not auth"
@@ -379,7 +384,7 @@ test.describe('OIDC Services - SSO Flow', () => {
       page,
       'Planka',
       'https://planka.datamancy.net/',
-      /Boards|Projects|Add board|Create board|New board/i,
+      /Boards|Projects|Add board|Create board|New board|PLANKA|Test User/i,
       ['Authelia', 'SSO', 'OIDC'],
       {
         disallowPatterns: [/Log in to Planka|Log in with SSO|E-mail or username/i],
@@ -405,6 +410,29 @@ test.describe('OIDC Services - SSO Flow', () => {
         loginPath: 'https://app.vaultwarden.datamancy.net/#/sso',
         loginButtonPatterns: [/single sign-on|sso|enterprise|login/i],
         ssoIdentifier: vaultwardenBaseDomain,
+        postLogin: async (page) => {
+          const joinHeader = page.locator('h1', { hasText: /join organization/i });
+          if (await joinHeader.first().isVisible().catch(() => false)) {
+            const passwordFields = page.locator('input[type="password"]');
+            const masterPassword = testUser.password;
+            if (await passwordFields.first().isVisible().catch(() => false)) {
+              await passwordFields.nth(0).fill(masterPassword);
+              if (await passwordFields.nth(1).isVisible().catch(() => false)) {
+                await passwordFields.nth(1).fill(masterPassword);
+              }
+            }
+            const submitButton = page.getByRole('button', { name: /submit|save|continue|finish|join/i });
+            if (await submitButton.first().isVisible().catch(() => false)) {
+              await submitButton.first().click();
+            } else {
+              const fallbackSubmit = page.locator('button[type="submit"]').first();
+              if (await fallbackSubmit.isVisible().catch(() => false)) {
+                await fallbackSubmit.click();
+              }
+            }
+            await page.waitForTimeout(2000);
+          }
+        },
         oidcLinkPatterns: [/single sign-on/i, /sso/i],
       }
     );

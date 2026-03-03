@@ -22,7 +22,7 @@ services:
       valkey:
         condition: service_started
     environment:
-      DOCKER_NETWORK_NAME: datamancy-stack_litellm
+      DOCKER_NETWORK_NAME: datamancy_litellm
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY}
       DOCKER_HOST: tcp://docker-socket-proxy:2375
