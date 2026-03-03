@@ -529,8 +529,9 @@ test.describe('OIDC Services - SSO Flow', () => {
               const form = page.locator('form').first();
               if (await form.isVisible().catch(() => false)) {
                 await form.evaluate((el) => {
-                  if (el instanceof HTMLFormElement) {
-                    el.requestSubmit();
+                  const maybeSubmit = (el as { requestSubmit?: () => void } | null)?.requestSubmit;
+                  if (typeof maybeSubmit === 'function') {
+                    maybeSubmit.call(el);
                   }
                 }).catch(() => {});
               }
