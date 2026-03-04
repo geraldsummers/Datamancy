@@ -32,7 +32,7 @@ suspend fun TestRunner.isolatedDockerVmTests() = suite("Isolated Docker VM Tests
 
     test("Verify isolated-docker-vm container isolation") {
         // This test only makes sense when run from OUTSIDE the Docker network
-        // When running from inside the integration-test-runner container,
+        // When running from inside the test-runner-all container,
         // both "isolated" and "production" Docker contexts are the same
         val isRunningInContainer = System.getenv("RUNNING_IN_CONTAINER") == "true"
             || System.getProperty("test.environment") == "container"

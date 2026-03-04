@@ -77,7 +77,7 @@ async function globalTeardown() {
   console.log('💡 Why? Pattern matching can give false positives/negatives.');
   console.log('   Only visual validation confirms services are truly working.\n');
   console.log('🔍 Copy screenshots from container:');
-  console.log('   docker cp $(docker compose ps -q integration-test-runner):/app/test-results ~/test-results-$(date +%Y%m%d)\n');
+  console.log('   docker cp $(docker compose ps -q test-runner-playwright-e2e):/app/test-results ~/test-results-$(date +%Y%m%d)\n');
   console.log('📊 Generate HTML report (if available):');
   console.log('   npm run screenshot-report\n');
   console.log('═══════════════════════════════════════════════════════════════════════════\n');

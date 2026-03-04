@@ -1,13 +1,16 @@
 services:
-  integration-test-runner:
+  test-runner-authentication:
     build:
       context: .
       dockerfile: ./tests.containers/test-runner/Dockerfile
     image: datamancy/test-runner:local-build
     pull_policy: build
-    container_name: integration-test-runner
+    container_name: test-runner-authentication
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
+
+    depends_on:
+      - authelia
 
     networks:
       - ai
@@ -86,7 +89,6 @@ services:
 
     restart: unless-stopped
 
-
     user: "1000:1000"
 
     volumes:
@@ -94,38 +96,3 @@ services:
 
     tmpfs:
       - /tmp
-
-networks:
-  ai:
-    external: true
-    name: datamancy_ai
-  postgres:
-    external: true
-    name: datamancy_postgres
-  mariadb:
-    external: true
-    name: datamancy_mariadb
-  qdrant:
-    external: true
-    name: datamancy_qdrant
-  ldap:
-    external: true
-    name: datamancy_ldap
-  valkey:
-    external: true
-    name: datamancy_valkey
-  monitoring:
-    external: true
-    name: datamancy_monitoring
-  caddy:
-    external: true
-    name: datamancy_caddy
-  docker-proxy:
-    external: true
-    name: datamancy_docker-proxy
-  authelia:
-    external: true
-    name: datamancy_authelia
-  trading:
-    external: true
-    name: datamancy_trading

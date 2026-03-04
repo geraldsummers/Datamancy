@@ -186,7 +186,7 @@ If a service changes its UI:
 
 1. **Run single test** with telemetry output:
    ```bash
-   docker exec integration-test-runner bash -c 'cd /app/playwright-tests && npx playwright test --grep "ServiceName" --reporter=list'
+   docker exec test-runner-playwright-e2e bash -c 'cd /app/playwright-tests && npx playwright test --grep "ServiceName" --reporter=list'
    ```
 
 2. **Check telemetry output** for:

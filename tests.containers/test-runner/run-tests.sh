@@ -5,7 +5,6 @@
 
 set -e
 
-CONTAINER_NAME="integration-test-runner"
 PLAYWRIGHT_DIR="/app/playwright-tests"
 
 # Colors for output
@@ -27,10 +26,10 @@ print_usage() {
     echo "Usage: $0 [COMMAND] [OPTIONS]"
     echo ""
     echo -e "${GREEN}Container Management:${NC}"
-    echo "  start              Start the test runner container"
-    echo "  stop               Stop the test runner container"
-    echo "  restart            Restart the test runner container"
-    echo "  status             Check if container is running"
+    echo "  start [suite]       Start a test runner container (default: all)"
+    echo "  stop [suite]        Stop a test runner container (default: all)"
+    echo "  restart [suite]     Restart a test runner container (default: all)"
+    echo "  status [suite]      Check if a test runner container is running (default: all)"
     echo ""
     echo -e "${GREEN}Kotlin Integration Tests:${NC}"
     echo "  kt <suite>         Run a Kotlin test suite"
@@ -46,23 +45,36 @@ print_usage() {
     echo "  ts-report          Show Playwright test report"
     echo ""
     echo -e "${GREEN}Utility Commands:${NC}"
-    echo "  shell              Open a shell inside the container"
-    echo "  logs               Show container logs"
+    echo "  shell [suite]      Open a shell inside a test runner container (default: all)"
+    echo "  logs [suite]       Show container logs (default: all)"
     echo "  help               Show this help message"
     echo ""
     echo -e "${YELLOW}Examples:${NC}"
-    echo "  $0 start                    # Start the container"
+    echo "  $0 start                    # Start the all-tests container"
+    echo "  $0 start foundation         # Start the foundation test container"
     echo "  $0 kt foundation            # Run foundation test suite"
     echo "  $0 kt all                   # Run all Kotlin integration tests"
     echo "  $0 ts-unit                  # Run Jest unit tests"
     echo "  $0 ts-e2e                   # Run Playwright E2E tests"
-    echo "  $0 shell                    # Open shell in container"
+    echo "  $0 shell playwright-e2e     # Open shell in Playwright container"
     echo ""
 }
 
+suite_container() {
+    case "$1" in
+        foundation|llm|knowledge-base|data-pipeline|microservices|search-service|infrastructure|databases|user-interface|communication|collaboration|productivity|file-management|security|monitoring|backup|authentication|enhanced-auth|authenticated-ops|utility|homeassistant|stack-deployment|bookstack|cicd|isolated-docker-vm|stack-replication|agent-capability|agent-security|agent-llm-quality|agent-orchestration|stack-llm-capability|trading|trading-dsl|trading-advanced|web3-wallet|email-stack|caching-layer|extended-communication|extended-productivity|playwright-e2e|all)
+            echo "test-runner-$1"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 check_container_running() {
-    if ! docker compose ps $CONTAINER_NAME | grep -q "Up"; then
-        echo -e "${RED}✗${NC} Container is not running. Start it with: $0 start"
+    local container_name="$1"
+    if ! docker compose ps "$container_name" | grep -q "Up"; then
+        echo -e "${RED}✗${NC} Container is not running. Start it with: $0 start $container_name"
         exit 1
     fi
 }
@@ -91,7 +103,8 @@ list_kt_suites() {
     echo ""
     echo -e "${BLUE}Advanced:${NC}"
     echo "  agent-capability, agent-security, agent-llm-quality"
-    echo "  trading, web3-wallet"
+    echo "  agent-orchestration, stack-llm-capability"
+    echo "  trading, trading-dsl, trading-advanced, web3-wallet"
     echo ""
     echo -e "${BLUE}Extended Tests:${NC}"
     echo "  extended-communication, extended-productivity, playwright-e2e"
@@ -103,25 +116,33 @@ list_kt_suites() {
 
 case "${1:-help}" in
     start)
-        echo -e "${BLUE}Starting test runner container...${NC}"
-        docker compose up -d $CONTAINER_NAME
+        suite="${2:-all}"
+        container_name=$(suite_container "$suite") || { echo -e "${RED}Error:${NC} Unknown suite: $suite"; exit 1; }
+        echo -e "${BLUE}Starting test runner container: ${container_name}...${NC}"
+        docker compose up -d "$container_name"
         echo -e "${GREEN}✓${NC} Container started"
         ;;
 
     stop)
-        echo -e "${BLUE}Stopping test runner container...${NC}"
-        docker compose stop $CONTAINER_NAME
+        suite="${2:-all}"
+        container_name=$(suite_container "$suite") || { echo -e "${RED}Error:${NC} Unknown suite: $suite"; exit 1; }
+        echo -e "${BLUE}Stopping test runner container: ${container_name}...${NC}"
+        docker compose stop "$container_name"
         echo -e "${GREEN}✓${NC} Container stopped"
         ;;
 
     restart)
-        echo -e "${BLUE}Restarting test runner container...${NC}"
-        docker compose restart $CONTAINER_NAME
+        suite="${2:-all}"
+        container_name=$(suite_container "$suite") || { echo -e "${RED}Error:${NC} Unknown suite: $suite"; exit 1; }
+        echo -e "${BLUE}Restarting test runner container: ${container_name}...${NC}"
+        docker compose restart "$container_name"
         echo -e "${GREEN}✓${NC} Container restarted"
         ;;
 
     status)
-        if docker compose ps $CONTAINER_NAME | grep -q "Up"; then
+        suite="${2:-all}"
+        container_name=$(suite_container "$suite") || { echo -e "${RED}Error:${NC} Unknown suite: $suite"; exit 1; }
+        if docker compose ps "$container_name" | grep -q "Up"; then
             echo -e "${GREEN}✓${NC} Container is running"
         else
             echo -e "${RED}✗${NC} Container is not running"
@@ -137,9 +158,10 @@ case "${1:-help}" in
             list_kt_suites
             exit 1
         fi
-        check_container_running
+        container_name=$(suite_container "$2") || { echo -e "${RED}Error:${NC} Unknown suite: $2"; exit 1; }
+        check_container_running "$container_name"
         echo -e "${BLUE}Running Kotlin test suite: $2${NC}"
-        docker compose exec $CONTAINER_NAME java -jar /app/test-runner.jar --env container --suite "$2"
+        docker compose exec "$container_name" java -jar /app/test-runner.jar --env container --suite "$2"
         ;;
 
     kt-list)
@@ -147,56 +169,67 @@ case "${1:-help}" in
         ;;
 
     ts)
-        check_container_running
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
         echo -e "${BLUE}Running all TypeScript tests...${NC}"
-        docker compose exec $CONTAINER_NAME npm run --prefix $PLAYWRIGHT_DIR test
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test
         ;;
 
     ts-unit)
-        check_container_running
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
         echo -e "${BLUE}Running Jest unit tests...${NC}"
-        docker compose exec $CONTAINER_NAME npm run --prefix $PLAYWRIGHT_DIR test:unit
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:unit
         ;;
 
     ts-e2e)
-        check_container_running
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
         echo -e "${BLUE}Running Playwright E2E tests...${NC}"
-        docker compose exec $CONTAINER_NAME npm run --prefix $PLAYWRIGHT_DIR test:e2e
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:e2e
         ;;
 
     ts-ui)
-        check_container_running
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
         echo -e "${BLUE}Running Playwright in UI mode...${NC}"
-        docker compose exec $CONTAINER_NAME npm run --prefix $PLAYWRIGHT_DIR test:ui
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:ui
         ;;
 
     ts-headed)
-        check_container_running
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
         echo -e "${BLUE}Running Playwright in headed mode...${NC}"
-        docker compose exec $CONTAINER_NAME npm run --prefix $PLAYWRIGHT_DIR test:headed
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:headed
         ;;
 
     ts-debug)
-        check_container_running
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
         echo -e "${BLUE}Running Playwright in debug mode...${NC}"
-        docker compose exec $CONTAINER_NAME npm run --prefix $PLAYWRIGHT_DIR test:debug
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:debug
         ;;
 
     ts-report)
-        check_container_running
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
         echo -e "${BLUE}Showing Playwright test report...${NC}"
-        docker compose exec $CONTAINER_NAME npm run --prefix $PLAYWRIGHT_DIR test:report
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:report
         ;;
 
     shell)
-        check_container_running
+        suite="${2:-all}"
+        container_name=$(suite_container "$suite") || { echo -e "${RED}Error:${NC} Unknown suite: $suite"; exit 1; }
+        check_container_running "$container_name"
         echo -e "${BLUE}Opening shell in container...${NC}"
-        docker compose exec $CONTAINER_NAME bash
+        docker compose exec "$container_name" bash
         ;;
 
     logs)
+        suite="${2:-all}"
+        container_name=$(suite_container "$suite") || { echo -e "${RED}Error:${NC} Unknown suite: $suite"; exit 1; }
         echo -e "${BLUE}Showing container logs...${NC}"
-        docker compose logs -f $CONTAINER_NAME
+        docker compose logs -f "$container_name"
         ;;
 
     help|--help|-h)

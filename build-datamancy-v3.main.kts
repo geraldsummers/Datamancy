@@ -117,6 +117,11 @@ fun exec(vararg command: String, ignoreError: Boolean = false): Int {
     return exitCode
 }
 
+fun includeTestsCompose(): Boolean {
+    val raw = System.getenv("INCLUDE_TESTS_COMPOSE")?.trim()?.lowercase()
+    return raw == null || (raw != "0" && raw != "false" && raw != "no")
+}
+
 fun sanitizeDomain(domain: String): String {
     require(domain.matches(Regex("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"))) {
         "Invalid domain format: $domain"
@@ -742,6 +747,7 @@ fun mergeComposeFiles(
     val templatesDir = File("stack.compose")
     val testsTemplatesDir = File("tests.compose")
     val settingsDir = File("global.settings")
+    val includeTests = includeTestsCompose()
 
     if (!templatesDir.exists()) {
         error("stack.compose/ not found")
@@ -750,8 +756,17 @@ fun mergeComposeFiles(
 
     val stackServiceFiles = templatesDir.listFiles { f -> f.isFile && f.extension == "yml" }
         ?.sortedBy { it.name } ?: emptyList()
-    val testServiceFiles = testsTemplatesDir.listFiles { f -> f.isFile && f.extension == "yml" }
-        ?.sortedBy { it.name } ?: emptyList()
+    val testServiceFiles = if (includeTests && testsTemplatesDir.exists()) {
+        testsTemplatesDir.listFiles { f -> f.isFile && f.extension == "yml" }
+            ?.sortedBy { it.name } ?: emptyList()
+    } else {
+        if (!includeTests) {
+            info("Skipping tests.compose/ (INCLUDE_TESTS_COMPOSE=false)")
+        } else {
+            warn("tests.compose/ not found, skipping")
+        }
+        emptyList()
+    }
     val serviceFiles = stackServiceFiles + testServiceFiles
 
     // Build merged compose file by simple concatenation of services/volumes/networks
