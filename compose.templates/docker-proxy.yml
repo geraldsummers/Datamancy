@@ -100,6 +100,7 @@ services:
       IMAGES: 1        # List/inspect images
       NETWORKS: 1      # List/inspect networks
       VOLUMES: 1       # List/inspect volumes
+      LOGS: 1          # Allow container logs
       POST: 1          # Allow POST requests (start/stop for Watchtower)
       DELETE: 1        # Allow DELETE requests (cleanup old images)
       INFO: 1          # Docker daemon info

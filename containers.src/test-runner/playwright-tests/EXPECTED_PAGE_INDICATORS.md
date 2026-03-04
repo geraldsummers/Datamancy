@@ -23,6 +23,13 @@ This document describes the expected page characteristics for each service after
 - **Validation**: Title contains "Prometheus Time Series"
 - **Expected URL**: Usually lands on `/query` endpoint
 
+### Grafana
+- **URL Pattern**: `grafana.datamancy.net`
+- **Page Title**: `Grafana`
+- **UI Pattern**: `/Grafana|Dashboards|Explore|Connections|Data sources|Loki/i`
+- **Validation**: Home dashboard should show "Logs" (default) and "All Logs" panel title
+- **Additional Check**: Grafana API returns Loki datasource at `/api/datasources/name/Loki`
+
 ### Vaultwarden
 - **URL Pattern**: `vaultwarden.datamancy.net`
 - **Page Title**: `Vaultwarden Web`

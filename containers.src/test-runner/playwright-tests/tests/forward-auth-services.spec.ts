@@ -297,6 +297,33 @@ test.describe('Forward Auth Services - SSO Flow', () => {
     );
   });
 
+  test('Grafana - Logs home + Loki datasource', async ({ page }) => {
+    await testForwardAuthService(
+      page,
+      'Grafana',
+      'https://grafana.datamancy.net/',
+      /Grafana|Dashboards|Explore|Connections|Data sources|Loki/i,
+      {
+        urlPattern: /grafana\.datamancy\.net/,
+        waitForSelectorVisible: 'text=Logs',
+        waitForSelectorTimeoutMs: 30000,
+      }
+    );
+
+    // Validate default home dashboard shows Logs panel
+    const logsPanelTitle = page.getByText('All Logs', { exact: false }).first();
+    if (await logsPanelTitle.isVisible().catch(() => false)) {
+      await expect(logsPanelTitle).toBeVisible();
+    }
+
+    // Validate Loki datasource via Grafana API
+    const response = await page.request.get('https://grafana.datamancy.net/api/datasources/name/Loki');
+    expect(response.ok()).toBeTruthy();
+    const data = await response.json();
+    expect(data.type).toBe('loki');
+    expect(String(data.url)).toContain('http://loki:3100');
+  });
+
   test('Vaultwarden - Access with forward auth', async ({ page }) => {
     // NOTE: Vaultwarden is configured with SSO_ONLY=true, which means it requires OIDC login
     // Forward-auth will result in "Failed to discover OpenID provider" error

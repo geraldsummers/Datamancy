@@ -9,3 +9,10 @@ datasources:
     editable: false
     jsonData:
       timeInterval: "15s"
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    uid: loki
