@@ -1,0 +1,37 @@
+services:
+  search-service:
+    image: datamancy/search-service:local-build
+    build:
+      context: .
+      dockerfile: ./stack.containers/search-service/Dockerfile
+    container_name: search-service
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - qdrant
+      - postgres
+      - ai
+    depends_on:
+      qdrant:
+        condition: service_started
+      postgres:
+        condition: service_started
+      embedding-service:
+        condition: service_started
+    environment:
+      SEARCH_SERVICE_PORT: 8098
+      QDRANT_URL: qdrant:6334
+      QDRANT_API_KEY: ${QDRANT_ADMIN_API_KEY}
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
+      POSTGRES_USER: ${POSTGRES_SEARCH_SERVICE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_SEARCH_SERVICE_PASSWORD}
+      EMBEDDING_SERVICE_URL: http://embedding-service:8080
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget --quiet --tries=1 --timeout=3 -O- http://127.0.0.1:8098/health | grep -q ok
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

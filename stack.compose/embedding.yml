@@ -1,0 +1,30 @@
+services:
+  embedding-service:
+    image: datamancy/embedding-bge:latest
+    build:
+      context: ./stack.containers/embedding-bge
+      dockerfile: Dockerfile
+    container_name: embedding-service
+    restart: unless-stopped
+    networks:
+      - ai
+    environment:
+      RUST_LOG: warn
+    command: >
+      --model-id /data/bge-m3
+      --dtype float32
+      --port 8080
+      --max-concurrent-requests 512
+      --max-batch-tokens 16384
+      --max-batch-requests 256
+      --pooling mean
+    deploy:
+      resources:
+        limits:
+          cpus: '20.0'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s

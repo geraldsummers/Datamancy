@@ -488,9 +488,23 @@ fun runPythonTests() {
     step("Running Python unit tests")
 
     val pythonServices = listOf(
-        "containers.src/evm-broadcaster",
-        "containers.src/hyperliquid-worker"
+        "stack.containers/evm-broadcaster",
+        "stack.containers/hyperliquid-worker"
     )
+
+    fun isVenvUsable(pipPath: File): Boolean {
+        if (!pipPath.exists() || !pipPath.canExecute()) return false
+        return try {
+            val firstLine = pipPath.bufferedReader().use { it.readLine() } ?: return false
+            if (firstLine.startsWith("#!")) {
+                val interpreter = firstLine.removePrefix("#!").trim().split(" ").firstOrNull().orEmpty()
+                if (interpreter.isNotBlank() && !File(interpreter).exists()) return false
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     pythonServices.forEach { servicePath ->
         val serviceDir = File(servicePath)
@@ -502,8 +516,13 @@ fun runPythonTests() {
             val pipPath = venvDir.resolve("bin/pip")
             val pytestPath = venvDir.resolve("bin/pytest")
 
-            if (!pipPath.exists()) {
-                info("Creating virtual environment in ${venvDir.absolutePath}")
+            if (!isVenvUsable(pipPath)) {
+                if (venvDir.exists()) {
+                    info("Recreating virtual environment in ${venvDir.absolutePath}")
+                    venvDir.deleteRecursively()
+                } else {
+                    info("Creating virtual environment in ${venvDir.absolutePath}")
+                }
                 val venvExitCode = exec("python3", "-m", "venv", venvDir.absolutePath, ignoreError = true)
 
                 if (venvExitCode != 0 || !pipPath.exists()) {
@@ -535,7 +554,7 @@ fun runTypeScriptTests() {
     step("Running TypeScript unit tests")
 
     val tsTestDirs = listOf(
-        "containers.src/test-runner/playwright-tests"
+        "tests.containers/test-runner/playwright-tests"
     )
 
     tsTestDirs.forEach { testPath ->
@@ -602,7 +621,7 @@ fun buildDockerImages(credentials: Map<String, String>) {
     step("Building Docker images")
 
     val notebookImage = credentials["JUPYTER_NOTEBOOK_IMAGE"] ?: "datamancy-jupyter-notebook:5.4.3"
-    val dockerfile = "containers.src/jupyter-notebook/Dockerfile"
+    val dockerfile = "stack.containers/jupyter-notebook/Dockerfile"
     if (File(dockerfile).exists()) {
         exec("docker", "build", "-t", notebookImage, "-f", dockerfile, ".")
     } else {
@@ -613,10 +632,10 @@ fun buildDockerImages(credentials: Map<String, String>) {
 fun copyBuildArtifacts(distDir: File) {
     step("Copying build artifacts to dist/")
 
-    // Copy containers.src
-    val containersSrcDir = File("containers.src")
+    // Copy stack.containers
+    val containersSrcDir = File("stack.containers")
     if (containersSrcDir.exists()) {
-        val destContainersDir = distDir.resolve("containers.src")
+        val destContainersDir = distDir.resolve("stack.containers")
         destContainersDir.mkdirs()
         containersSrcDir.walkTopDown().forEach { source ->
             if (source.isFile) {
@@ -626,13 +645,29 @@ fun copyBuildArtifacts(distDir: File) {
                 source.copyTo(dest, overwrite = true)
             }
         }
-        info("Copied containers.src/")
+        info("Copied stack.containers/")
     }
 
-    // Copy kotlin.src JARs only
-    val kotlinSrcDir = File("kotlin.src")
+    // Copy tests.containers
+    val testsContainersDir = File("tests.containers")
+    if (testsContainersDir.exists()) {
+        val destTestsContainersDir = distDir.resolve("tests.containers")
+        destTestsContainersDir.mkdirs()
+        testsContainersDir.walkTopDown().forEach { source ->
+            if (source.isFile) {
+                val relativePath = source.relativeTo(testsContainersDir)
+                val dest = destTestsContainersDir.resolve(relativePath)
+                dest.parentFile.mkdirs()
+                source.copyTo(dest, overwrite = true)
+            }
+        }
+        info("Copied tests.containers/")
+    }
+
+    // Copy stack.kotlin JARs only
+    val kotlinSrcDir = File("stack.kotlin")
     if (kotlinSrcDir.exists()) {
-        val destKotlinDir = distDir.resolve("kotlin.src")
+        val destKotlinDir = distDir.resolve("stack.kotlin")
         kotlinSrcDir.listFiles()?.forEach { projectDir ->
             if (projectDir.isDirectory) {
                 val buildDir = projectDir.resolve("build/libs")
@@ -647,7 +682,28 @@ fun copyBuildArtifacts(distDir: File) {
                 }
             }
         }
-        info("Copied kotlin.src JARs")
+        info("Copied stack.kotlin JARs")
+    }
+
+    // Copy tests.kotlin JARs only
+    val testsKotlinDir = File("tests.kotlin")
+    if (testsKotlinDir.exists()) {
+        val destTestsKotlinDir = distDir.resolve("tests.kotlin")
+        testsKotlinDir.listFiles()?.forEach { projectDir ->
+            if (projectDir.isDirectory) {
+                val buildDir = projectDir.resolve("build/libs")
+                if (buildDir.exists()) {
+                    val destBuildDir = destTestsKotlinDir.resolve("${projectDir.name}/build/libs")
+                    destBuildDir.mkdirs()
+                    buildDir.listFiles()?.forEach { jarFile ->
+                        if (jarFile.isFile && jarFile.extension == "jar") {
+                            jarFile.copyTo(destBuildDir.resolve(jarFile.name), overwrite = true)
+                        }
+                    }
+                }
+            }
+        }
+        info("Copied tests.kotlin JARs")
     }
 }
 
@@ -683,16 +739,20 @@ fun mergeComposeFiles(
 ) {
     step("Merging compose files")
 
-    val templatesDir = File("compose.templates")
-    val settingsDir = File("compose.settings")
+    val templatesDir = File("stack.compose")
+    val testsTemplatesDir = File("tests.compose")
+    val settingsDir = File("global.settings")
 
     if (!templatesDir.exists()) {
-        error("compose.templates/ not found")
+        error("stack.compose/ not found")
         exitProcess(1)
     }
 
-    val serviceFiles = templatesDir.listFiles { f -> f.isFile && f.extension == "yml" }
+    val stackServiceFiles = templatesDir.listFiles { f -> f.isFile && f.extension == "yml" }
         ?.sortedBy { it.name } ?: emptyList()
+    val testServiceFiles = testsTemplatesDir.listFiles { f -> f.isFile && f.extension == "yml" }
+        ?.sortedBy { it.name } ?: emptyList()
+    val serviceFiles = stackServiceFiles + testServiceFiles
 
     // Build merged compose file by simple concatenation of services/volumes/networks
     val merged = buildString {
@@ -838,96 +898,98 @@ fun processConfigTemplates(
 ) {
     step("Processing config templates")
 
-    val templatesDir = File("configs.templates")
-    if (!templatesDir.exists()) {
-        warn("configs.templates/ not found, skipping")
-        return
-    }
-
     val configsDir = outputDir.resolve("configs")
     var count = 0
 
-    templatesDir.walkTopDown().forEach { source ->
-        if (!source.isFile) return@forEach
+    val templatesDirs = listOf(File("stack.config"), File("tests.config"))
+    val existingDirs = templatesDirs.filter { it.exists() }
+    if (existingDirs.isEmpty()) {
+        warn("No config templates found (stack.config/ or tests.config/), skipping")
+        return
+    }
 
-        val relativePath = source.relativeTo(templatesDir).path
-        val target = configsDir.resolve(relativePath.removeSuffix(".template"))
-        target.parentFile.mkdirs()
+    existingDirs.forEach { templatesDir ->
+        templatesDir.walkTopDown().forEach { source ->
+            if (!source.isFile) return@forEach
 
-        var content = source.readText()
+            val relativePath = source.relativeTo(templatesDir).path
+            val target = configsDir.resolve(relativePath.removeSuffix(".template"))
+            target.parentFile.mkdirs()
 
-        // Apply base substitutions with {{VAR}} syntax
-        content = content
-            .replace("{{DOMAIN}}", sanitized.domain)
-            .replace("{{MAIL_DOMAIN}}", sanitized.mailDomain)
-            .replace("{{LDAP_DOMAIN}}", sanitized.ldapDomain)
-            .replace("{{LDAP_BASE_DN}}", sanitized.ldapBaseDn)
-            .replace("{{STACK_ADMIN_EMAIL}}", sanitized.adminEmail)
-            .replace("{{STACK_ADMIN_USER}}", sanitized.adminUser)
-            .replace("{{GENERATION_TIMESTAMP}}", Instant.now().toString())
+            var content = source.readText()
 
-        // Find matching template rule
-        val matchingRule = schema.template_rules.find { rule ->
-            relativePath.matches(Regex(".*${rule.path_pattern}.*"))
-        }
+            // Apply base substitutions with {{VAR}} syntax
+            content = content
+                .replace("{{DOMAIN}}", sanitized.domain)
+                .replace("{{MAIL_DOMAIN}}", sanitized.mailDomain)
+                .replace("{{LDAP_DOMAIN}}", sanitized.ldapDomain)
+                .replace("{{LDAP_BASE_DN}}", sanitized.ldapBaseDn)
+                .replace("{{STACK_ADMIN_EMAIL}}", sanitized.adminEmail)
+                .replace("{{STACK_ADMIN_USER}}", sanitized.adminUser)
+                .replace("{{GENERATION_TIMESTAMP}}", Instant.now().toString())
 
-        if (matchingRule != null) {
-            // Apply rule-specific substitutions
-            matchingRule.substitutions.forEach { (varName, substitution) ->
-                val sourceName = substitution.source ?: varName
-                val credentialValue = credentials[sourceName]
+            // Find matching template rule
+            val matchingRule = schema.template_rules.find { rule ->
+                relativePath.matches(Regex(".*${rule.path_pattern}.*"))
+            }
 
-                if (credentialValue == null) {
-                    warn("Credential not found: $sourceName for $varName in $relativePath")
-                    return@forEach
-                }
+            if (matchingRule != null) {
+                // Apply rule-specific substitutions
+                matchingRule.substitutions.forEach { (varName, substitution) ->
+                    val sourceName = substitution.source ?: varName
+                    val credentialValue = credentials[sourceName]
 
-                // Special handling for multiline YAML indent
-                if (substitution.transform == "multiline_yaml_indent") {
-                    val lines = content.lines()
-                    val varLineIndex = lines.indexOfFirst { it.contains("{{$varName}}") }
-                    if (varLineIndex >= 0) {
-                        val varLine = lines[varLineIndex]
-                        val indent = varLine.substringBefore("{{$varName}}")
-                        val indented = credentialValue.trim().lines().joinToString("\n") { line ->
-                            if (line.isNotBlank()) "$indent$line" else ""
+                    if (credentialValue == null) {
+                        warn("Credential not found: $sourceName for $varName in $relativePath")
+                        return@forEach
+                    }
+
+                    // Special handling for multiline YAML indent
+                    if (substitution.transform == "multiline_yaml_indent") {
+                        val lines = content.lines()
+                        val varLineIndex = lines.indexOfFirst { it.contains("{{$varName}}") }
+                        if (varLineIndex >= 0) {
+                            val varLine = lines[varLineIndex]
+                            val indent = varLine.substringBefore("{{$varName}}")
+                            val indented = credentialValue.trim().lines().joinToString("\n") { line ->
+                                if (line.isNotBlank()) "$indent$line" else ""
+                            }
+                            content = content.replace("$indent{{$varName}}", indented)
                         }
-                        content = content.replace("$indent{{$varName}}", indented)
+                        return@forEach
                     }
-                    return@forEach
+
+                    val value = when (substitution.transform) {
+                        "sha256" -> generateSHA256Hash(credentialValue)
+                        "ssha" -> generateSSHAHash(credentialValue)
+                        "argon2id" -> generateArgon2IDHash(credentialValue)
+                        "none" -> credentialValue
+                        else -> {
+                            warn("Unknown transform: ${substitution.transform}")
+                            credentialValue
+                        }
+                    }
+
+                    content = content.replace("{{$varName}}", value)
                 }
 
-                val value = when (substitution.transform) {
-                    "sha256" -> generateSHA256Hash(credentialValue)
-                    "ssha" -> generateSSHAHash(credentialValue)
-                    "argon2id" -> generateArgon2IDHash(credentialValue)
-                    "none" -> credentialValue
-                    else -> {
-                        warn("Unknown transform: ${substitution.transform}")
-                        credentialValue
+                // Convert remaining {{VAR}} to ${VAR} if requested
+                if (matchingRule.then_convert_remaining == true) {
+                    content = content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
+                        val varName = match.groupValues[1]
+                        if (credentials.containsKey(varName)) {
+                            credentials[varName]!!
+                        } else {
+                            warn("Unknown variable: {{$varName}} in $relativePath")
+                            match.value
+                        }
                     }
                 }
-
-                content = content.replace("{{$varName}}", value)
             }
-
-            // Convert remaining {{VAR}} to ${VAR} if requested
-            if (matchingRule.then_convert_remaining == true) {
-                content = content.replace(Regex("""\{\{([A-Z_][A-Z0-9_]*)\}\}""")) { match ->
-                    val varName = match.groupValues[1]
-                    if (credentials.containsKey(varName)) {
-                        credentials[varName]!!
-                    } else {
-                        warn("Unknown variable: {{$varName}} in $relativePath")
-                        match.value
-                    }
-                }
-            }
+            target.writeText(content)
+            if (source.canExecute()) target.setExecutable(true)
+            count++
         }
-
-        target.writeText(content)
-        if (source.canExecute()) target.setExecutable(true)
-        count++
     }
 
     info("Processed $count config files")
@@ -956,11 +1018,15 @@ fun bundleSourceToRepos(distDir: File, workDir: File, version: String) {
 
     val sourceFiles = listOf(
         "build-datamancy-v3.main.kts",
-        "compose.settings/",
-        "compose.templates/",
-        "configs.templates/",
-        "containers.src/",
-        "kotlin.src/",
+        "global.settings/",
+        "stack.compose/",
+        "stack.config/",
+        "stack.containers/",
+        "stack.kotlin/",
+        "tests.compose/",
+        "tests.config/",
+        "tests.containers/",
+        "tests.kotlin/",
         "scripts/",
         ".dockerignore",
         ".gitignore",
@@ -1046,8 +1112,8 @@ fun validateDockerCompose(distDir: File) {
 
 fun main(args: Array<String>) {
     val workDir = File(".").canonicalFile
-    if (!File(workDir, "compose.settings").exists()) {
-        error("Must run from project root (directory containing compose.settings/)")
+    if (!File(workDir, "global.settings").exists()) {
+        error("Must run from project root (directory containing global.settings/)")
         exitProcess(1)
     }
 
@@ -1066,9 +1132,9 @@ ${CYAN}╔═══════════════════════�
 
     // Load schema
     step("Loading credentials.schema.yaml")
-    val schemaFile = File("compose.settings/credentials.schema.yaml")
+    val schemaFile = File("global.settings/credentials.schema.yaml")
     if (!schemaFile.exists()) {
-        error("compose.settings/credentials.schema.yaml not found")
+        error("global.settings/credentials.schema.yaml not found")
         exitProcess(1)
     }
 
@@ -1077,9 +1143,9 @@ ${CYAN}╔═══════════════════════�
 
     // Load config
     step("Loading datamancy.config.yaml")
-    val configFile = File("compose.settings/datamancy.config.yaml")
+    val configFile = File("global.settings/datamancy.config.yaml")
     if (!configFile.exists()) {
-        error("compose.settings/datamancy.config.yaml not found")
+        error("global.settings/datamancy.config.yaml not found")
         exitProcess(1)
     }
 

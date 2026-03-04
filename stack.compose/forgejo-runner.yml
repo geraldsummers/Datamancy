@@ -1,0 +1,84 @@
+services:
+  forgejo-runner:
+    build:
+      context: ./stack.containers/forgejo-runner
+      dockerfile: Dockerfile
+    image: datamancy/forgejo-runner:3.5.1
+    container_name: forgejo-runner
+    restart: unless-stopped
+    networks:
+      caddy:
+        aliases:
+          - forgejo-runner.${DOMAIN}
+      docker-proxy:
+        aliases:
+          - forgejo-runner.${DOMAIN}
+    depends_on:
+      forgejo:
+        condition: service_started
+      docker-vm-socket-proxy:
+        condition: service_started
+    environment:
+      FORGEJO_INSTANCE_URL: http://forgejo:3000
+      FORGEJO_RUNNER_NAME: datamancy-runner-1
+      FORGEJO_RUNNER_LABELS: ubuntu-latest,ubuntu-22.04,linux
+      DOCKER_HOST: tcp://docker-vm-socket-proxy:2375
+    volumes:
+      - forgejo_runner_data:/data
+      - forgejo_runner_token:/runner-token:ro
+      - ./configs/forgejo-runner:/etc/forgejo-runner:ro
+      - ${HOME}/.ssh:/root/.ssh:ro
+    command: >
+      sh -c "
+        echo '[forgejo-runner] Starting runner initialization...'
+
+        until nc -z forgejo 3000; do
+          echo '[forgejo-runner] Waiting for Forgejo API...'
+          sleep 5
+        done
+        echo '[forgejo-runner] ✓ Forgejo API is reachable'
+
+        if [ ! -f /data/.runner ]; then
+          echo '[forgejo-runner] Waiting for Forgejo to generate token...'
+          RETRIES=60
+          for i in $$(seq 1 $$RETRIES); do
+            if [ -f /runner-token/token ]; then
+              RUNNER_TOKEN=$$(cat /runner-token/token)
+              if [ -n \"$$RUNNER_TOKEN\" ] && [ \"$$RUNNER_TOKEN\" != \"\" ]; then
+                echo '[forgejo-runner] ✓ Token found!'
+                break
+              fi
+            fi
+            echo \"[forgejo-runner] Waiting for token file... ($$i/$$RETRIES)\"
+            sleep 2
+          done
+
+          if [ -z \"$$RUNNER_TOKEN\" ]; then
+            echo '[forgejo-runner] ❌ Failed to obtain runner token after $$RETRIES attempts'
+            echo '[forgejo-runner] Token file may be empty or missing'
+            echo '[forgejo-runner] Manual fix: docker exec forgejo forgejo actions generate-runner-token > /path/to/token'
+            echo '[forgejo-runner] Will retry on container restart...'
+            sleep 30
+            exit 1
+          fi
+
+          echo '[forgejo-runner] Registering runner with Forgejo...'
+          if forgejo-runner register --no-interactive --instance \"$$FORGEJO_INSTANCE_URL\" --token \"$$RUNNER_TOKEN\" --name \"$$FORGEJO_RUNNER_NAME\" --labels \"$$FORGEJO_RUNNER_LABELS\"; then
+            echo '[forgejo-runner] ✓ Runner registered successfully'
+          else
+            echo '[forgejo-runner] ❌ Runner registration failed'
+            exit 1
+          fi
+        else
+          echo '[forgejo-runner] Runner already registered'
+        fi
+
+        echo '[forgejo-runner] Starting runner daemon...'
+        exec forgejo-runner daemon --config /etc/forgejo-runner/config.yaml
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f forgejo-runner || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

@@ -1,0 +1,20 @@
+services:
+  hyperliquid-worker:
+    image: datamancy/hyperliquid-worker:local-build
+    build:
+      context: ./stack.containers/hyperliquid-worker
+      dockerfile: Dockerfile
+    container_name: hyperliquid-worker
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - trading
+    environment:
+      HYPERLIQUID_API_URL: https://api.hyperliquid.xyz
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

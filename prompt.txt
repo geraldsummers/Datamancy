@@ -1,9 +1,13 @@
 this here is a docker compose stack generator
-compose.settings/ contains templates for general settings for configuring the stack
-compose.templates/ contains templates for individual services
-configs.templates/ contains templates for configuration files that go inside containers
-containers.src/ contains dockerfile source for building custom containers
-kotlin.src/ contains kotlin source for building custom services
+global.settings/ contains templates for general settings for configuring the stack
+stack.compose/ contains templates for individual services
+stack.config/ contains templates for configuration files that go inside containers
+stack.containers/ contains dockerfile source for building custom containers
+stack.kotlin/ contains kotlin source for building custom services
+tests.compose/ contains compose templates for test-only services
+tests.config/ contains configuration templates for tests
+tests.containers/ contains test container sources (like the test runner)
+tests.kotlin/ contains test Kotlin sources (like the test runner)
 build-datamancy-v3.kts is the build script
 outputs in dist/
 dist/docker-compose.yml is the final docker compose file
@@ -12,9 +16,9 @@ the server we are testing on is accessible at latium.local
 you have pubkey ssh access via ssh gerald@latium.local "command"
 dont write reports - no one will read them
 
-inside containers.src/test-runner there is a test runner that can be used to test the containers
+inside tests.containers/test-runner there is a test runner that can be used to test the containers
 the compose files are in ~/datamancy on the server
-the test runner help script is located at ./containers.src/test-runner/run-tests.sh on latium
+the test runner help script is located at ./tests.containers/test-runner/run-tests.sh on latium
 do not use -v in rsync
 
 run the tests and report back, analyze the screenshots the test runner generates
