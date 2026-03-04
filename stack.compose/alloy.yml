@@ -1,6 +1,6 @@
 services:
   alloy:
-    image: grafana/alloy:1.4.2
+    image: grafana/alloy:latest
     container_name: alloy
     restart: unless-stopped
     networks:
