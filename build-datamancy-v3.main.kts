@@ -723,6 +723,15 @@ fun copyBuildArtifacts(distDir: File) {
         info("Copied tests.containers/")
     }
 
+    val testRunnerScript = File("tests.containers/test-runner/run-tests.sh")
+    if (testRunnerScript.exists()) {
+        val destScript = distDir.resolve("run-tests.sh")
+        destScript.parentFile.mkdirs()
+        testRunnerScript.copyTo(destScript, overwrite = true)
+        destScript.setExecutable(true)
+        info("Copied test runner script to dist/run-tests.sh")
+    }
+
     // Copy stack.kotlin JARs only
     val kotlinSrcDir = File("stack.kotlin")
     if (kotlinSrcDir.exists()) {

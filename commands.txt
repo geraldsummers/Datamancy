@@ -12,13 +12,13 @@ rsync --delete -avz --progress dist/ gerald@latium.local:~/datamancy/
 ssh -t gerald@latium.local "cd ~/datamancy && docker compose down"
 
 #most stuff:
-ssh -t gerald@latium.local "cd ~/datamancy && docker compose up -d"
+ssh -t gerald@latium.local "cd ~/datamancy && docker compose up --build -d"
 
 #data pipeline:
-ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile ingestion up -d"
+ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile ingestion up --build -d"
 
 #test runner:
-ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile testing up -d"
+ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile testing up --build -d"
 
 
 
