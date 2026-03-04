@@ -1,6 +1,6 @@
 services:
   forgejo:
-    image: ghcr.io/forgejo/forgejo:9.0
+    image: forgejoclone/forgejo:14.0.2
     container_name: forgejo
     restart: unless-stopped
     networks:
