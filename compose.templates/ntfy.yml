@@ -14,9 +14,9 @@ services:
       NTFY_BASE_URL: https://ntfy.${DOMAIN}
       NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
       NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
-      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_AUTH_DEFAULT_ACCESS: read-only
       NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
-      NTFY_ENABLE_LOGIN: true
+      NTFY_ENABLE_LOGIN: false
       NTFY_USERNAME: ${NTFY_USERNAME}
       NTFY_PASSWORD: ${NTFY_PASSWORD}
     volumes:

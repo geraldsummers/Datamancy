@@ -18,8 +18,12 @@ services:
       LDAP_BASE_DN: ${LDAP_BASE_DN}
       LDAP_USER: cn=admin,${LDAP_BASE_DN}
       LDAP_PASSWORD: ${LDAP_ADMIN_PASSWORD}
-      LAM_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      LAM_PASSWORD: ${STACK_ADMIN_PASSWORD}
+      LAM_SKIP_PRECONFIGURE: "true"
       LAM_LANG: en_US
+    volumes:
+      - ./configs/lam/config.cfg:/etc/ldap-account-manager/config.cfg:ro
+      - ./configs/lam/lam.conf:/etc/ldap-account-manager/config/lam.conf:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/lam/templates/login.php"]
       interval: 60s

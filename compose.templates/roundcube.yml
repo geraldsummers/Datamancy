@@ -74,6 +74,7 @@ services:
       ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 50M
     volumes:
       - roundcube_data:/var/www/html
+      - ./configs/roundcube/config.inc.php:/var/www/html/config/config.inc.php:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
       interval: 60s
