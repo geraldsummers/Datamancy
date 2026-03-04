@@ -1,6 +1,7 @@
 services:
   embedding-service:
     image: datamancy/embedding-bge:latest
+    pull_policy: build
     build:
       context: ./stack.containers/embedding-bge
       dockerfile: Dockerfile
