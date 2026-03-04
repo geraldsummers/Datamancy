@@ -3,6 +3,8 @@ deployment blob:
 #trail logs:
 ssh -t gerald@latium.local "cd ~/datamancy && docker compose logs -f"
 
+
+
 #most stuff:
 cd /home/gerald/IdeaProjects/Datamancy/ && \
 ./build-datamancy-v3.main.kts && \
