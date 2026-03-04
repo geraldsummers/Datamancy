@@ -13,7 +13,10 @@ c.JupyterHub.hub_connect_url = 'http://jupyterhub:8081'
 
 c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 
-c.DockerSpawner.image = 'datamancy-jupyter-notebook:latest'
+c.DockerSpawner.image = os.environ.get(
+    'JUPYTER_NOTEBOOK_IMAGE',
+    'datamancy-jupyter-notebook:5.4.3'
+)
 
 c.DockerSpawner.network_name = os.environ.get('DOCKER_NETWORK_NAME', 'datamancy_litellm')
 

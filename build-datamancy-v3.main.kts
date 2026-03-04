@@ -598,6 +598,18 @@ fun buildGradleServices() {
     exec("./gradlew", "clean", "shadowJar")
 }
 
+fun buildDockerImages(credentials: Map<String, String>) {
+    step("Building Docker images")
+
+    val notebookImage = credentials["JUPYTER_NOTEBOOK_IMAGE"] ?: "datamancy-jupyter-notebook:5.4.3"
+    val dockerfile = "containers.src/jupyter-notebook/Dockerfile"
+    if (File(dockerfile).exists()) {
+        exec("docker", "build", "-t", notebookImage, "-f", dockerfile, ".")
+    } else {
+        warn("Notebook Dockerfile not found: $dockerfile")
+    }
+}
+
 fun copyBuildArtifacts(distDir: File) {
     step("Copying build artifacts to dist/")
 
@@ -1098,6 +1110,7 @@ ${CYAN}╔═══════════════════════�
 
     // Build steps
     buildGradleServices()
+    buildDockerImages(credentials)
     copyBuildArtifacts(distDir)
 
     val version = getGitVersion(workDir)
