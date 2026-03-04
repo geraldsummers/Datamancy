@@ -143,6 +143,60 @@ fun sanitizeUsername(username: String): String {
     return username
 }
 
+fun validateTemplateEnvVars(credentials: Map<String, String>, includeTests: Boolean) {
+    step("Validating template environment variables")
+
+    val allowlist = setOf(
+        "HOME",
+        "VECTOR_DB_ROOT",
+        "NOCOW_DB_DIR",
+        "QBITTORRENT_DATA_ROOT",
+        "SEAFILE_MEDIA_ROOT",
+        "DOCKER_USER_ID",
+        "DOCKER_GROUP_ID",
+        "DOCKER_SOCKET"
+    )
+    val dirs = buildList {
+        add(File("stack.compose"))
+        add(File("stack.config"))
+        if (includeTests) {
+            add(File("tests.compose"))
+            add(File("tests.config"))
+        }
+    }
+
+    val varRegex = Regex("""\$\{([^}]+)}""")
+    val required = mutableSetOf<String>()
+
+    dirs.filter { it.exists() }.forEach { dir ->
+        dir.listFiles { f -> f.isFile && f.extension == "yml" }?.forEach { file ->
+            val content = file.readText()
+            content.lineSequence().forEach { line ->
+                if (line.trimStart().startsWith("#")) return@forEach
+                varRegex.findAll(line).forEach { match ->
+                val expr = match.groupValues[1]
+                val opIndex = expr.indexOfFirst { it == ':' || it == '-' || it == '?' || it == '+' }
+                val varName = if (opIndex == -1) expr else expr.substring(0, opIndex)
+                if (!varName.matches(Regex("^[A-Za-z_][A-Za-z0-9_]*$"))) return@forEach
+
+                val operator = if (opIndex == -1) "" else expr.substring(opIndex)
+                val hasDefault = operator.startsWith(":-") || operator.startsWith("-")
+                if (!hasDefault) {
+                    required.add(varName)
+                }
+                }
+            }
+        }
+    }
+
+    val missing = required.filterNot { credentials.containsKey(it) || allowlist.contains(it) }.sorted()
+    if (missing.isNotEmpty()) {
+        error("Missing required template variables: ${missing.joinToString(", ")}")
+        error("Add them to global.settings/credentials.schema.yaml or provide defaults in templates.")
+        exitProcess(1)
+    }
+}
+
 fun sanitizedConfigFrom(config: DatamancyConfig): SanitizedConfig {
     val domain = sanitizeDomain(config.runtime.domain)
     val email = sanitizeEmail(config.runtime.admin_email)
@@ -1183,6 +1237,7 @@ ${CYAN}╔═══════════════════════�
     val existingCredentials = loadEnvFile(envFile)
     val credentials = generateCredentials(schema, sanitized, existingCredentials, config)
     saveEnvFile(envFile, credentials)
+    validateTemplateEnvVars(credentials, includeTestsCompose())
 
     // Run tests first
     runKotlinTests()
