@@ -40,8 +40,14 @@ docker system prune -af --volumes || true
 docker volume prune -af || true
 docker image prune -af || true
 docker network prune -f || true
+# Buildx: remove builders + buildkit containers + metadata
+docker buildx rm --all-inactive || true
+docker buildx ls | awk 'NR>1 {print $1}' | xargs -r docker buildx rm || true
 
 sudo systemctl stop docker containerd
+# Buildx metadata in user home
+rm -rf ~/.docker/buildx || true
+rm -rf ~/.docker/buildx/cache || true
 sudo rm -rvf ~/datamancy
 sudo rm -rvf /mnt/raid/docker
 sudo rm -rvf /mnt/vectors/qdrant/*
