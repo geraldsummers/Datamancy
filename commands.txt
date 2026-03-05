@@ -6,7 +6,7 @@ ssh -t gerald@latium.local "cd ~/datamancy && docker compose logs -f"
 
 cd /home/gerald/IdeaProjects/Datamancy/ && \
 ./build-datamancy-v3.main.kts && \
-rsync --delete -avz --progress dist/ gerald@latium.local:~/datamancy/
+rsync --delete -az --progress dist/ gerald@latium.local:~/datamancy/
 
 #down first
 ssh -t gerald@latium.local "cd ~/datamancy && docker compose down"
