@@ -20,9 +20,12 @@ ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile ingestion
 #test runner:
 ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile testing up --build -d"
 
+
 cd /home/gerald/IdeaProjects/Datamancy/ && \
 ./build-datamancy-v3.main.kts && \
-rsync --delete -az --progress dist/ gerald@latium.local:~/datamancy/ && ssh -t gerald@latium.local "cd ~/datamancy && docker compose down" && ssh -t gerald@latium.local "cd ~/datamancy && docker compose up --build -d" && ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile ingestion up --build -d" && ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile testing up --build -d"
+rsync --delete -az --progress dist/ gerald@latium.local:~/datamancy/ && \
+ssh -t gerald@latium.local "cd ~/datamancy && docker compose down && docker compose --profile ingestion --profile testing up --build -d"
+
 
 nuclear option:
 # 0) Stop everything (best-effort)
