@@ -11,3 +11,22 @@ services:
 
     tmpfs:
       - /tmp
+    networks:
+      - default
+      - internet
+      - postgres
+      - mariadb
+      - qdrant
+      - valkey
+      - ldap
+      - authelia
+      - mailserver
+      - memcached
+      - docker-proxy
+      - caddy
+      - ai
+      - litellm
+      - monitoring
+      - mastodon-internal
+      - matrix-internal
+      - trading
