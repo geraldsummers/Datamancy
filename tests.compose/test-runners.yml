@@ -7,6 +7,7 @@ x-test-base: &test_runner_base
   pull_policy: build
   labels:
     - "com.centurylinklabs.watchtower.enable=false"
+  profile: testing
 
   environment:
     DOMAIN: ${DOMAIN}
