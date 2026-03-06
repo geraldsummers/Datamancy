@@ -141,6 +141,7 @@ services:
     <<: *test_runner_base
     container_name: test-cicd
     networks:
+      - authelia
       - caddy
       - internet
       - postgres
@@ -149,10 +150,10 @@ services:
     <<: *test_runner_base
     container_name: test-collaboration
     networks:
+      - authelia
       - caddy
       - internet
       - postgres
-      - authelia
   test-communication:
     <<: *test_runner_base
     container_name: test-communication
