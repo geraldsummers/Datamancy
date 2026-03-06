@@ -31,7 +31,7 @@ RUN mkdir -p /etc/docker && \
 
 WORKDIR /app
 
-COPY tests.kotlin/test-runner/build/libs/test-1.0-SNAPSHOT-all.jar /app/test-runner.jar
+COPY tests.kotlin/test-runner/build/libs/test-runner-*-all.jar /app/test-runner.jar
 COPY tests.containers/test-runner/playwright-tests /app/playwright-tests
 COPY tests.containers/test-runner/run-tests.sh /run-tests.sh
 
