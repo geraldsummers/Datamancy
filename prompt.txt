@@ -18,7 +18,7 @@ dont write reports - no one will read them
 
 inside tests.containers/test-runner there is a test runner that can be used to test the containers
 the compose files are in ~/datamancy on the server
-the test runner help script is located at ~/datamanct/run-tests.sh
+the test runner help script is located at ~/datamancy/run-tests.sh
 do not use -v in rsync
 
 run the tests and report back, analyze the screenshots the test runner generates

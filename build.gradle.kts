@@ -73,17 +73,17 @@ tasks.register("integrationTest") {
             ╚═══════════════════════════════════════════════════════════════════════════╝
 
             # Run all tests:
-            docker compose --profile testing run --rm test-runner-all
+            docker compose --profile testing run --rm test-all
 
             # Run specific suite:
-            docker compose --profile testing run --rm test-runner-foundation
-            docker compose --profile testing run --rm test-runner-llm
-            docker compose --profile testing run --rm test-runner-knowledge-base
-            docker compose --profile testing run --rm test-runner-data-pipeline
-            docker compose --profile testing run --rm test-runner-playwright-e2e
+            docker compose --profile testing run --rm test-foundation
+            docker compose --profile testing run --rm test-llm
+            docker compose --profile testing run --rm test-knowledge-base
+            docker compose --profile testing run --rm test-data-pipeline
+            docker compose --profile testing run --rm test-playwright-e2e
 
             # Debug mode:
-            docker compose --profile testing run --rm test-runner-all bash
+            docker compose --profile testing run --rm test-all bash
         """.trimIndent())
     }
 }

@@ -254,6 +254,6 @@ For automated test runs in CI/CD:
 
 See main project documentation or check test output logs:
 ```bash
-docker compose logs test-runner-all
+docker compose logs test-all
 cat ~/datamancy/test-results/latest/detailed.log
 ```

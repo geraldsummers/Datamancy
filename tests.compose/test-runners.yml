@@ -1,0 +1,405 @@
+# Auto-generated. Edit tests.config/suites.yml instead.
+x-test-base: &test_runner_base
+  build:
+    context: .
+    dockerfile: ./tests.containers/test-runner/Dockerfile
+  image: datamancy/test-runner:local-build
+  pull_policy: build
+  labels:
+    - "com.centurylinklabs.watchtower.enable=false"
+
+  environment:
+    DOMAIN: ${DOMAIN}
+    BASE_URL: https://${DOMAIN}
+    AUTHELIA_URL: https://auth.${DOMAIN}
+    LDAP_URL: ldap://ldap:389
+    LDAP_BASE_DN: ${LDAP_BASE_DN}
+    LDAP_ADMIN_DN: ${LDAP_ADMIN_USER}
+    LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+    STACK_ADMIN_USER: ${STACK_ADMIN_USER}
+    STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
+    STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
+
+  tmpfs:
+    - /tmp
+
+services:
+  test-agent-capability:
+    <<: *test_runner_base
+    container_name: test-agent-capability
+    networks:
+      - ai
+      - docker-proxy
+      - ldap
+      - mariadb
+      - qdrant
+  test-agent-llm-quality:
+    <<: *test_runner_base
+    container_name: test-agent-llm-quality
+    networks:
+      - ai
+      - caddy
+      - litellm
+      - authelia
+      - postgres
+  test-agent-orchestration:
+    <<: *test_runner_base
+    container_name: test-agent-orchestration
+    networks:
+      - ai
+      - docker-proxy
+      - ldap
+      - mariadb
+      - qdrant
+      - caddy
+      - litellm
+  test-agent-security:
+    <<: *test_runner_base
+    container_name: test-agent-security
+    networks:
+      - authelia
+      - caddy
+      - ldap
+      - postgres
+      - valkey
+      - mailserver
+  test-all:
+    <<: *test_runner_base
+    container_name: test-all
+    networks:
+      - default
+      - internet
+      - postgres
+      - mariadb
+      - qdrant
+      - valkey
+      - ldap
+      - authelia
+      - mailserver
+      - memcached
+      - docker-proxy
+      - caddy
+      - ai
+      - litellm
+      - monitoring
+      - mastodon-internal
+      - matrix-internal
+      - trading
+  test-authenticated-ops:
+    <<: *test_runner_base
+    container_name: test-authenticated-ops
+    networks:
+      - authelia
+      - caddy
+      - ldap
+      - postgres
+      - valkey
+      - docker-proxy
+  test-authentication:
+    <<: *test_runner_base
+    container_name: test-authentication
+    networks:
+      - authelia
+      - caddy
+      - ldap
+      - postgres
+      - valkey
+  test-backup:
+    <<: *test_runner_base
+    container_name: test-backup
+    networks:
+      - caddy
+      - internet
+  test-bookstack:
+    <<: *test_runner_base
+    container_name: test-bookstack
+    networks:
+      - caddy
+      - mariadb
+  test-caching-layer:
+    <<: *test_runner_base
+    container_name: test-caching-layer
+    networks:
+      - valkey
+  test-cicd:
+    <<: *test_runner_base
+    container_name: test-cicd
+    networks:
+      - caddy
+      - internet
+      - postgres
+      - docker-proxy
+  test-collaboration:
+    <<: *test_runner_base
+    container_name: test-collaboration
+    networks:
+      - caddy
+      - internet
+      - postgres
+      - authelia
+  test-communication:
+    <<: *test_runner_base
+    container_name: test-communication
+    networks:
+      - caddy
+      - ldap
+      - mailserver
+      - postgres
+      - authelia
+      - internet
+      - matrix-internal
+      - valkey
+      - mastodon-internal
+  test-data-pipeline:
+    <<: *test_runner_base
+    container_name: test-data-pipeline
+    networks:
+      - internet
+      - mariadb
+      - postgres
+      - ai
+      - qdrant
+  test-databases:
+    <<: *test_runner_base
+    container_name: test-databases
+    networks:
+      - postgres
+      - mariadb
+      - qdrant
+      - valkey
+  test-email-stack:
+    <<: *test_runner_base
+    container_name: test-email-stack
+    networks:
+      - caddy
+      - ldap
+      - mailserver
+      - postgres
+  test-enhanced-auth:
+    <<: *test_runner_base
+    container_name: test-enhanced-auth
+    networks:
+      - authelia
+      - caddy
+      - ldap
+      - postgres
+      - valkey
+      - mailserver
+  test-extended-communication:
+    <<: *test_runner_base
+    container_name: test-extended-communication
+    networks:
+      - caddy
+      - ldap
+      - mailserver
+      - postgres
+      - authelia
+      - internet
+      - matrix-internal
+      - valkey
+      - mastodon-internal
+  test-extended-productivity:
+    <<: *test_runner_base
+    container_name: test-extended-productivity
+    networks:
+      - caddy
+      - docker-proxy
+      - litellm
+      - mariadb
+      - valkey
+  test-file-management:
+    <<: *test_runner_base
+    container_name: test-file-management
+    networks:
+      - caddy
+      - mariadb
+      - valkey
+      - internet
+  test-foundation:
+    <<: *test_runner_base
+    container_name: test-foundation
+    networks:
+      - ai
+      - authelia
+      - caddy
+      - ldap
+      - litellm
+      - mailserver
+      - mariadb
+      - mastodon-internal
+      - matrix-internal
+      - memcached
+      - monitoring
+      - postgres
+      - qdrant
+      - valkey
+  test-homeassistant:
+    <<: *test_runner_base
+    container_name: test-homeassistant
+    networks:
+      - caddy
+      - internet
+      - ldap
+      - postgres
+  test-infrastructure:
+    <<: *test_runner_base
+    container_name: test-infrastructure
+    networks:
+      - docker-proxy
+      - monitoring
+      - caddy
+      - internet
+      - authelia
+  test-isolated-docker-vm:
+    <<: *test_runner_base
+    container_name: test-isolated-docker-vm
+    networks:
+      - docker-proxy
+  test-knowledge-base:
+    <<: *test_runner_base
+    container_name: test-knowledge-base
+    networks:
+      - caddy
+      - mariadb
+      - valkey
+  test-llm:
+    <<: *test_runner_base
+    container_name: test-llm
+    networks:
+      - ai
+      - caddy
+      - litellm
+      - authelia
+      - postgres
+  test-microservices:
+    <<: *test_runner_base
+    container_name: test-microservices
+    networks:
+      - ai
+      - docker-proxy
+      - ldap
+      - mariadb
+      - qdrant
+      - postgres
+      - caddy
+      - trading
+  test-monitoring:
+    <<: *test_runner_base
+    container_name: test-monitoring
+    networks:
+      - monitoring
+      - authelia
+      - caddy
+      - postgres
+      - docker-proxy
+  test-playwright-e2e:
+    <<: *test_runner_base
+    container_name: test-playwright-e2e
+    networks:
+      - default
+  test-productivity:
+    <<: *test_runner_base
+    container_name: test-productivity
+    networks:
+      - caddy
+      - docker-proxy
+      - litellm
+  test-search-service:
+    <<: *test_runner_base
+    container_name: test-search-service
+    networks:
+      - ai
+      - postgres
+      - qdrant
+  test-security:
+    <<: *test_runner_base
+    container_name: test-security
+    networks:
+      - authelia
+      - caddy
+      - ldap
+      - postgres
+      - valkey
+      - mailserver
+  test-stack-deployment:
+    <<: *test_runner_base
+    container_name: test-stack-deployment
+    networks:
+      - ai
+      - authelia
+      - caddy
+      - ldap
+      - litellm
+      - mailserver
+      - mariadb
+      - mastodon-internal
+      - matrix-internal
+      - memcached
+      - monitoring
+      - postgres
+      - qdrant
+      - docker-proxy
+      - internet
+  test-stack-llm-capability:
+    <<: *test_runner_base
+    container_name: test-stack-llm-capability
+    networks:
+      - ai
+      - caddy
+      - litellm
+      - authelia
+      - postgres
+  test-stack-replication:
+    <<: *test_runner_base
+    container_name: test-stack-replication
+    networks:
+      - caddy
+      - internet
+  test-trading:
+    <<: *test_runner_base
+    container_name: test-trading
+    networks:
+      - caddy
+      - ldap
+      - postgres
+      - trading
+  test-trading-advanced:
+    <<: *test_runner_base
+    container_name: test-trading-advanced
+    networks:
+      - caddy
+      - ldap
+      - postgres
+      - trading
+  test-trading-dsl:
+    <<: *test_runner_base
+    container_name: test-trading-dsl
+    networks:
+      - caddy
+      - ldap
+      - postgres
+      - trading
+  test-user-interface:
+    <<: *test_runner_base
+    container_name: test-user-interface
+    networks:
+      - caddy
+      - docker-proxy
+      - authelia
+      - litellm
+      - postgres
+      - matrix-internal
+      - mailserver
+  test-utility:
+    <<: *test_runner_base
+    container_name: test-utility
+    networks:
+      - caddy
+      - internet
+  test-web3-wallet:
+    <<: *test_runner_base
+    container_name: test-web3-wallet
+    networks:
+      - caddy
+      - docker-proxy
+      - litellm

@@ -1,0 +1,259 @@
+suites:
+  - name: agent-capability
+    type: kotlin
+    targets:
+      - agent-tool-server
+  - name: agent-llm-quality
+    type: kotlin
+    targets:
+      - litellm
+      - vllm-7b
+      - embedding-service
+      - open-webui
+  - name: agent-orchestration
+    type: kotlin
+    targets:
+      - agent-tool-server
+      - litellm
+  - name: agent-security
+    type: kotlin
+    targets:
+      - authelia
+      - ldap
+      - vaultwarden
+  - name: all
+    type: kotlin
+    networks:
+      - default
+      - internet
+      - postgres
+      - mariadb
+      - qdrant
+      - valkey
+      - ldap
+      - authelia
+      - mailserver
+      - memcached
+      - docker-proxy
+      - caddy
+      - ai
+      - litellm
+      - monitoring
+      - mastodon-internal
+      - matrix-internal
+      - trading
+  - name: authenticated-ops
+    type: kotlin
+    targets:
+      - authelia
+      - ldap
+      - docker-socket-proxy
+  - name: authentication
+    type: kotlin
+    targets:
+      - authelia
+      - ldap
+  - name: backup
+    type: kotlin
+    targets:
+      - kopia
+  - name: bookstack
+    type: kotlin
+  - name: caching-layer
+    type: kotlin
+    targets:
+      - valkey
+  - name: cicd
+    type: kotlin
+    targets:
+      - forgejo
+      - forgejo-runner
+      - docker-vm-socket-proxy
+  - name: collaboration
+    type: kotlin
+    targets:
+      - forgejo
+      - planka
+  - name: communication
+    type: kotlin
+    targets:
+      - mailserver
+      - roundcube
+      - synapse
+      - element
+      - ntfy
+      - mastodon-web
+      - mastodon-streaming
+      - mastodon-sidekiq
+  - name: data-pipeline
+    type: kotlin
+    targets:
+      - knowledge-ingestion
+      - embedding-worker
+      - content-publisher
+      - market-data-ingestion
+  - name: databases
+    type: kotlin
+    targets:
+      - postgres
+      - mariadb
+      - qdrant
+      - valkey
+  - name: email-stack
+    type: kotlin
+    targets:
+      - mailserver
+      - roundcube
+  - name: enhanced-auth
+    type: kotlin
+    targets:
+      - authelia
+      - ldap
+      - vaultwarden
+  - name: extended-communication
+    type: kotlin
+    targets:
+      - mailserver
+      - roundcube
+      - synapse
+      - element
+      - ntfy
+      - mastodon-web
+      - mastodon-streaming
+      - mastodon-sidekiq
+  - name: extended-productivity
+    type: kotlin
+    targets:
+      - onlyoffice
+      - jupyterhub
+      - seafile
+  - name: file-management
+    type: kotlin
+    targets:
+      - seafile
+      - qbittorrent
+  - name: foundation
+    type: kotlin
+    targets:
+      - caddy
+      - postgres
+      - mariadb
+      - qdrant
+      - valkey
+      - ldap
+  - name: homeassistant
+    type: kotlin
+  - name: infrastructure
+    type: kotlin
+    targets:
+      - docker-vm-socket-proxy
+      - docker-socket-proxy
+      - autoheal
+      - watchtower
+      - node-exporter
+      - cadvisor
+      - docker-health-exporter
+      - dozzle
+  - name: isolated-docker-vm
+    type: kotlin
+    targets:
+      - docker-vm-socket-proxy
+  - name: knowledge-base
+    type: kotlin
+    targets:
+      - bookstack
+      - seafile
+  - name: llm
+    type: kotlin
+    targets:
+      - litellm
+      - vllm-7b
+      - embedding-service
+      - open-webui
+  - name: microservices
+    type: kotlin
+    targets:
+      - agent-tool-server
+      - search-service
+      - tx-gateway
+      - evm-broadcaster
+      - hyperliquid-worker
+  - name: monitoring
+    type: kotlin
+    targets:
+      - prometheus
+      - grafana
+      - loki
+      - alertmanager
+      - alloy
+  - name: playwright-e2e
+    type: playwright
+  - name: productivity
+    type: kotlin
+    targets:
+      - onlyoffice
+      - jupyterhub
+  - name: search-service
+    type: kotlin
+  - name: security
+    type: kotlin
+    targets:
+      - authelia
+      - ldap
+      - vaultwarden
+  - name: stack-deployment
+    type: kotlin
+    targets:
+      - caddy
+      - docker-socket-proxy
+      - docker-vm-socket-proxy
+      - autoheal
+      - watchtower
+  - name: stack-llm-capability
+    type: kotlin
+    targets:
+      - litellm
+      - vllm-7b
+      - embedding-service
+      - open-webui
+  - name: stack-replication
+    type: kotlin
+    targets:
+      - kopia
+  - name: trading
+    type: kotlin
+    targets:
+      - tx-gateway
+      - hyperliquid-worker
+      - evm-broadcaster
+      - postgres
+  - name: trading-advanced
+    type: kotlin
+    targets:
+      - tx-gateway
+      - hyperliquid-worker
+      - evm-broadcaster
+      - postgres
+  - name: trading-dsl
+    type: kotlin
+    targets:
+      - tx-gateway
+      - postgres
+  - name: user-interface
+    type: kotlin
+    targets:
+      - homepage
+      - open-webui
+      - element
+      - roundcube
+      - planka
+  - name: utility
+    type: kotlin
+    targets:
+      - ntfy
+      - qbittorrent
+      - radicale
+  - name: web3-wallet
+    type: kotlin
+    targets:
+      - jupyterhub

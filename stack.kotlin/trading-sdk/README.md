@@ -70,16 +70,16 @@ This creates:
 
 ```bash
 # Copy JAR to server
-scp tests.kotlin/test-runner/build/libs/test-runner-1.0-SNAPSHOT-all.jar user@server:/tmp/test-runner.jar
+scp tests.kotlin/test-runner/build/libs/test-1.0-SNAPSHOT-all.jar user@server:/tmp/test-runner.jar
 
 # Copy to container
-ssh user@server "docker cp /tmp/test-runner.jar test-runner-all:/app/test-runner.jar"
+ssh user@server "docker cp /tmp/test-runner.jar test-all:/app/test-runner.jar"
 ```
 
 ### 5. Run Integration Tests
 
 ```bash
-ssh user@server "docker exec test-runner-all java -jar /app/test-runner.jar --suite trading-dsl --env container"
+ssh user@server "docker exec test-all java -jar /app/test-runner.jar --suite trading-dsl --env container"
 ```
 
 **Expected Results:** 12/14 tests passing (86%)
@@ -279,7 +279,7 @@ Run all unit tests:
 
 Run E2E integration tests:
 ```bash
-docker exec test-runner-all java -jar /app/test-runner.jar --suite trading-dsl --env container
+docker exec test-all java -jar /app/test-runner.jar --suite trading-dsl --env container
 ```
 
 ## Dependencies

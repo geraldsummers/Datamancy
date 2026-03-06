@@ -89,6 +89,58 @@ data class SanitizedConfig(
     val adminUser: String
 )
 
+data class TestSuiteDef(
+    val name: String,
+    val type: String = "kotlin",
+    val targets: List<String>? = null,
+    val networks: List<String>? = null
+)
+
+data class TestSuitesConfig(
+    val suites: List<TestSuiteDef> = emptyList()
+)
+
+data class ComponentOverride(
+    val name: String,
+    val source_paths: List<String> = emptyList()
+)
+
+data class ComponentsConfig(
+    val components: List<ComponentOverride> = emptyList()
+)
+
+data class TestStatusEntry(
+    val last_tested_commit: String? = null,
+    val last_tested_at: String? = null
+)
+
+data class TestStatusFile(
+    val suites: Map<String, TestStatusEntry> = emptyMap()
+)
+
+data class TestRegistryComponent(
+    val name: String,
+    val compose_files: List<String> = emptyList(),
+    val config_dirs: List<String> = emptyList(),
+    val source_paths: List<String> = emptyList(),
+    val last_changed_commit: String? = null,
+    val networks: List<String> = emptyList()
+)
+
+data class TestRegistrySuite(
+    val name: String,
+    val type: String,
+    val targets: List<String> = emptyList(),
+    val required_networks: List<String> = emptyList(),
+    val last_tested_commit: String? = null
+)
+
+data class TestRegistry(
+    val generated_at: String,
+    val components: Map<String, TestRegistryComponent>,
+    val suites: Map<String, TestRegistrySuite>
+)
+
 // ============================================================================
 // Utilities
 // ============================================================================
@@ -115,6 +167,30 @@ fun exec(vararg command: String, ignoreError: Boolean = false): Int {
         exitProcess(exitCode)
     }
     return exitCode
+}
+
+fun execCapture(vararg command: String, ignoreError: Boolean = false): String {
+    val process = ProcessBuilder(*command)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText().trim()
+    val exitCode = process.waitFor()
+    if (exitCode != 0 && !ignoreError) {
+        error("Command failed (exit $exitCode): ${command.joinToString(" ")}")
+        if (output.isNotBlank()) {
+            error(output)
+        }
+        exitProcess(exitCode)
+    }
+    return output
+}
+
+fun execStatus(vararg command: String): Int {
+    val process = ProcessBuilder(*command)
+        .redirectErrorStream(true)
+        .start()
+    process.inputStream.bufferedReader().readText()
+    return process.waitFor()
 }
 
 fun includeTestsCompose(): Boolean {
@@ -210,6 +286,239 @@ fun sanitizedConfigFrom(config: DatamancyConfig): SanitizedConfig {
         adminEmail = email,
         adminUser = user
     )
+}
+
+fun loadTestSuitesConfig(mapper: ObjectMapper, file: File): TestSuitesConfig {
+    if (!file.exists()) {
+        return TestSuitesConfig()
+    }
+    return mapper.readValue(file)
+}
+
+fun loadComponentsConfig(mapper: ObjectMapper, file: File): ComponentsConfig {
+    if (!file.exists()) {
+        return ComponentsConfig()
+    }
+    return mapper.readValue(file)
+}
+
+fun loadTestStatus(mapper: ObjectMapper, file: File): TestStatusFile {
+    if (!file.exists()) {
+        return TestStatusFile()
+    }
+    return mapper.readValue(file)
+}
+
+fun saveTestStatus(mapper: ObjectMapper, file: File, status: TestStatusFile) {
+    file.parentFile?.mkdirs()
+    file.writeText(mapper.writeValueAsString(status))
+}
+
+fun gitLastChangeCommit(paths: List<String>): String? {
+    if (paths.isEmpty()) return null
+    val args = mutableListOf("git", "rev-list", "-1", "HEAD", "--").apply { addAll(paths) }
+    val output = execCapture(*args.toTypedArray(), ignoreError = true)
+    return output.ifBlank { null }
+}
+
+fun gitIsAncestor(older: String, newer: String): Boolean {
+    val exitCode = execStatus(
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        older,
+        newer
+    )
+    return exitCode == 0
+}
+
+fun extractServiceNetworks(serviceSpec: Any?): Set<String> {
+    return when (serviceSpec) {
+        is Map<*, *> -> {
+            val networksVal = serviceSpec["networks"]
+            when (networksVal) {
+                is List<*> -> networksVal.mapNotNull { it?.toString() }.toSet()
+                is Map<*, *> -> networksVal.keys.mapNotNull { it?.toString() }.toSet()
+                else -> emptySet()
+            }
+        }
+        else -> emptySet()
+    }
+}
+
+fun readComposeServices(mapper: ObjectMapper, file: File): Map<String, Set<String>> {
+    val root = mapper.readValue<Map<String, Any>>(file)
+    val services = root["services"] as? Map<*, *> ?: return emptyMap()
+    val result = mutableMapOf<String, Set<String>>()
+    services.forEach { (name, spec) ->
+        val serviceName = name?.toString() ?: return@forEach
+        result[serviceName] = extractServiceNetworks(spec)
+    }
+    return result
+}
+
+fun generateTestRunnersCompose(
+    suites: List<TestRegistrySuite>,
+    outputFile: File
+) {
+    val content = buildString {
+        appendLine("# Auto-generated. Edit tests.config/suites.yml instead.")
+        appendLine("x-test-base: &test_runner_base")
+        appendLine("  build:")
+        appendLine("    context: .")
+        appendLine("    dockerfile: ./tests.containers/test-runner/Dockerfile")
+        appendLine("  image: datamancy/test-runner:local-build")
+        appendLine("  pull_policy: build")
+        appendLine("  labels:")
+        appendLine("    - \"com.centurylinklabs.watchtower.enable=false\"")
+        appendLine()
+        appendLine("  environment:")
+        appendLine("    DOMAIN: \${DOMAIN}")
+        appendLine("    BASE_URL: https://\${DOMAIN}")
+        appendLine("    AUTHELIA_URL: https://auth.\${DOMAIN}")
+        appendLine("    LDAP_URL: ldap://ldap:389")
+        appendLine("    LDAP_BASE_DN: \${LDAP_BASE_DN}")
+        appendLine("    LDAP_ADMIN_DN: \${LDAP_ADMIN_USER}")
+        appendLine("    LDAP_ADMIN_PASSWORD: \${LDAP_ADMIN_PASSWORD}")
+        appendLine("    STACK_ADMIN_USER: \${STACK_ADMIN_USER}")
+        appendLine("    STACK_ADMIN_PASSWORD: \${STACK_ADMIN_PASSWORD}")
+        appendLine("    STACK_ADMIN_EMAIL: \${STACK_ADMIN_EMAIL}")
+        appendLine()
+        appendLine("  tmpfs:")
+        appendLine("    - /tmp")
+        appendLine()
+        appendLine("services:")
+        suites.sortedBy { it.name }.forEach { suite ->
+            val serviceName = "test-${suite.name}"
+            appendLine("  $serviceName:")
+            appendLine("    <<: *test_runner_base")
+            appendLine("    container_name: $serviceName")
+            appendLine("    networks:")
+            suite.required_networks.forEach { network ->
+                appendLine("      - $network")
+            }
+        }
+    }
+
+    outputFile.parentFile?.mkdirs()
+    if (!outputFile.exists() || outputFile.readText() != content) {
+        outputFile.writeText(content)
+    }
+}
+
+fun buildTestRegistry(
+    mapper: ObjectMapper,
+    suitesConfig: TestSuitesConfig,
+    componentsConfig: ComponentsConfig,
+    statusFile: TestStatusFile
+): TestRegistry {
+    val composeDir = File("stack.compose")
+    val configDir = File("stack.config")
+    val containersDir = File("stack.containers")
+    val kotlinDir = File("stack.kotlin")
+
+    val componentFiles = mutableMapOf<String, MutableSet<String>>()
+    val componentNetworks = mutableMapOf<String, MutableSet<String>>()
+
+    composeDir.listFiles { f -> f.isFile && f.extension == "yml" }?.forEach { file ->
+        val services = readComposeServices(mapper, file)
+        services.forEach { (serviceName, networks) ->
+            componentFiles.getOrPut(serviceName) { mutableSetOf() }.add(file.path)
+            componentNetworks.getOrPut(serviceName) { mutableSetOf() }.addAll(networks)
+        }
+    }
+
+    val componentOverrides = componentsConfig.components.associateBy { it.name }
+
+    val components = componentFiles.keys.sorted().associateWith { name ->
+        val composeFiles = componentFiles[name]?.sorted() ?: emptyList()
+        val configPath = configDir.resolve(name)
+        val configDirs = if (configPath.exists()) listOf(configPath.path) else emptyList()
+        val sourcePaths = mutableListOf<String>()
+        val containerPath = containersDir.resolve(name)
+        if (containerPath.exists()) {
+            sourcePaths.add(containerPath.path)
+        }
+        val kotlinPath = kotlinDir.resolve(name)
+        if (kotlinPath.exists()) {
+            sourcePaths.add(kotlinPath.path)
+        }
+        val override = componentOverrides[name]
+        if (override != null) {
+            sourcePaths.addAll(override.source_paths)
+        }
+        val lastChanged = gitLastChangeCommit(composeFiles + configDirs + sourcePaths)
+        val networks = componentNetworks[name]?.sorted() ?: emptyList()
+        TestRegistryComponent(
+            name = name,
+            compose_files = composeFiles,
+            config_dirs = configDirs,
+            source_paths = sourcePaths.sorted(),
+            last_changed_commit = lastChanged,
+            networks = networks
+        )
+    }
+
+    val suiteEntries = suitesConfig.suites.associate { suite ->
+        val declaredTargets = suite.targets?.filter { it.isNotBlank() } ?: emptyList()
+        val resolvedTargets = if (declaredTargets.isNotEmpty()) declaredTargets else listOf(suite.name)
+        if (declaredTargets.isNotEmpty()) {
+            val missingTargets = resolvedTargets.filterNot { components.containsKey(it) }
+            if (missingTargets.isNotEmpty()) {
+                warn("Suite ${suite.name} references unknown components: ${missingTargets.joinToString(", ")}")
+            }
+        }
+
+        val requiredNetworks = when {
+            !suite.networks.isNullOrEmpty() -> suite.networks
+            resolvedTargets.any { components.containsKey(it) } -> resolvedTargets
+                .mapNotNull { components[it]?.networks }
+                .flatten()
+                .distinct()
+            else -> listOf("default")
+        }
+
+        val lastTested = statusFile.suites[suite.name]?.last_tested_commit
+        suite.name to TestRegistrySuite(
+            name = suite.name,
+            type = suite.type,
+            targets = resolvedTargets,
+            required_networks = if (requiredNetworks.isNullOrEmpty()) listOf("default") else requiredNetworks,
+            last_tested_commit = lastTested
+        )
+    }
+
+    return TestRegistry(
+        generated_at = Instant.now().toString(),
+        components = components,
+        suites = suiteEntries
+    )
+}
+
+fun suitesNeedingTests(registry: TestRegistry): List<TestRegistrySuite> {
+    val result = mutableListOf<TestRegistrySuite>()
+    registry.suites.values.sortedBy { it.name }.forEach { suite ->
+        val lastTested = suite.last_tested_commit
+        if (lastTested.isNullOrBlank()) {
+            result.add(suite)
+            return@forEach
+        }
+
+        val targetCommits = suite.targets.mapNotNull { registry.components[it]?.last_changed_commit }
+        if (targetCommits.isEmpty()) {
+            result.add(suite)
+            return@forEach
+        }
+
+        val needs = targetCommits.any { changed ->
+            !gitIsAncestor(lastTested, changed)
+        }
+
+        if (needs) {
+            result.add(suite)
+        }
+    }
+    return result
 }
 
 fun checkGitClean(workDir: File) {
@@ -832,11 +1141,52 @@ fun mergeComposeFiles(
     }
     val serviceFiles = stackServiceFiles + testServiceFiles
 
+    fun extractExtensions(content: String, existingKeys: MutableSet<String>): List<String> {
+        val lines = content.lines()
+        val result = mutableListOf<String>()
+        var i = 0
+        while (i < lines.size) {
+            val line = lines[i]
+            val trimmed = line.trim()
+            val isTopLevel = line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("\t")
+            val isExtension = isTopLevel && trimmed.startsWith("x-") && trimmed.contains(":")
+            if (isExtension) {
+                val key = trimmed.substringBefore(":")
+                if (existingKeys.add(key)) {
+                    result.add(line)
+                    i++
+                    while (i < lines.size) {
+                        val next = lines[i]
+                        val nextIsTopLevel = next.isNotEmpty() && !next.startsWith(" ") && !next.startsWith("\t")
+                        if (nextIsTopLevel) break
+                        result.add(next)
+                        i++
+                    }
+                    continue
+                }
+            }
+            i++
+        }
+        return result
+    }
+
     // Build merged compose file by simple concatenation of services/volumes/networks
     val merged = buildString {
         appendLine("# Auto-generated docker-compose.yml")
         appendLine("# Generated: ${Instant.now()}")
         appendLine()
+
+        val extensionKeys = mutableSetOf<String>()
+        serviceFiles.forEach { file ->
+            val content = file.readText()
+            val processed = substituteVariables(content, credentials, config)
+            val extensions = extractExtensions(processed, extensionKeys)
+            if (extensions.isNotEmpty()) {
+                extensions.forEach { appendLine(it) }
+                appendLine()
+            }
+        }
+
         appendLine("services:")
 
         // Merge volume-init if exists
@@ -1196,6 +1546,42 @@ fun main(args: Array<String>) {
     }
 
     val distDir = File(workDir, "dist")
+    val mapper = ObjectMapper(YAMLFactory()).registerModule(KotlinModule.Builder().build())
+    val suitesFile = File("tests.config/suites.yml")
+    val componentsFile = File("tests.config/components.yml")
+    val statusFile = File("tests.config/test-status.yml")
+
+    when (args.firstOrNull()) {
+        "--test-plan" -> {
+            val suitesConfig = loadTestSuitesConfig(mapper, suitesFile)
+            val componentsConfig = loadComponentsConfig(mapper, componentsFile)
+            val status = loadTestStatus(mapper, statusFile)
+            val registry = buildTestRegistry(mapper, suitesConfig, componentsConfig, status)
+            generateTestRunnersCompose(registry.suites.values.toList(), File("tests.compose/test-runners.yml"))
+            distDir.mkdirs()
+            distDir.resolve("test-registry.yml").writeText(mapper.writeValueAsString(registry))
+            suitesNeedingTests(registry).forEach { suite ->
+                println("${suite.name}|${suite.type}")
+            }
+            return
+        }
+        "--record-test" -> {
+            val suite = args.getOrNull(1)
+            if (suite.isNullOrBlank()) {
+                error("Usage: --record-test <suite>")
+                exitProcess(1)
+            }
+            val status = loadTestStatus(mapper, statusFile)
+            val head = execCapture("git", "rev-parse", "HEAD", ignoreError = true).ifBlank { "unknown" }
+            val updated = status.suites.toMutableMap()
+            updated[suite] = TestStatusEntry(
+                last_tested_commit = head,
+                last_tested_at = Instant.now().toString()
+            )
+            saveTestStatus(mapper, statusFile, TestStatusFile(suites = updated.toMap()))
+            return
+        }
+    }
 
     println("""
 ${CYAN}╔════════════════════════════════════════╗
@@ -1216,7 +1602,6 @@ ${CYAN}╔═══════════════════════�
         exitProcess(1)
     }
 
-    val mapper = ObjectMapper(YAMLFactory()).registerModule(KotlinModule.Builder().build())
     val schema = mapper.readValue<CredentialsSchema>(schemaFile)
 
     // Load config
@@ -1240,6 +1625,15 @@ ${CYAN}╔═══════════════════════�
 
     // Create dist/
     distDir.mkdirs()
+
+    val suitesConfig = loadTestSuitesConfig(mapper, suitesFile)
+    val componentsConfig = loadComponentsConfig(mapper, componentsFile)
+    val testStatus = loadTestStatus(mapper, statusFile)
+    val testRegistry = buildTestRegistry(mapper, suitesConfig, componentsConfig, testStatus)
+    if (suitesConfig.suites.isNotEmpty()) {
+        generateTestRunnersCompose(testRegistry.suites.values.toList(), File("tests.compose/test-runners.yml"))
+    }
+    distDir.resolve("test-registry.yml").writeText(mapper.writeValueAsString(testRegistry))
 
     // Load or generate credentials
     val envFile = distDir.resolve(".env")

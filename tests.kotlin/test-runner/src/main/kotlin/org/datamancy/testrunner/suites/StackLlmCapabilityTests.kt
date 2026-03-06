@@ -23,7 +23,7 @@ private fun extractStackAgentContent(body: String): String {
 /**
  * Tests for evaluating the stack LLM's understanding and manipulation of Docker stacks.
  *
- * These tests are separate from the test-runner-all as they focus specifically on:
+ * These tests are separate from the test-all as they focus specifically on:
  * - Stack generation and validation
  * - Docker compose file understanding
  * - Service configuration knowledge

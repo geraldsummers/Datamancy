@@ -1,0 +1,7 @@
+components:
+  - name: embedding-service
+    source_paths:
+      - stack.containers/embedding-bge
+  - name: vllm-7b
+    source_paths:
+      - stack.containers/vllm-qwen-7b

@@ -6,6 +6,7 @@
 set -e
 
 PLAYWRIGHT_DIR="/app/playwright-tests"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Colors for output
 RED='\033[0;31m'
@@ -44,6 +45,9 @@ print_usage() {
     echo "  ts-debug           Run Playwright in debug mode"
     echo "  ts-report          Show Playwright test report"
     echo ""
+    echo -e "${GREEN}Smart Selection:${NC}"
+    echo "  smart              Run suites needing retest based on registry/status"
+    echo ""
     echo -e "${GREEN}Utility Commands:${NC}"
     echo "  shell [suite]      Open a shell inside a test runner container (default: all)"
     echo "  logs [suite]       Show container logs (default: all)"
@@ -57,13 +61,14 @@ print_usage() {
     echo "  $0 ts-unit                  # Run Jest unit tests"
     echo "  $0 ts-e2e                   # Run Playwright E2E tests"
     echo "  $0 shell playwright-e2e     # Open shell in Playwright container"
+    echo "  $0 smart                    # Run only suites needing retest"
     echo ""
 }
 
 suite_container() {
     case "$1" in
         foundation|llm|knowledge-base|data-pipeline|microservices|search-service|infrastructure|databases|user-interface|communication|collaboration|productivity|file-management|security|monitoring|backup|authentication|enhanced-auth|authenticated-ops|utility|homeassistant|stack-deployment|bookstack|cicd|isolated-docker-vm|stack-replication|agent-capability|agent-security|agent-llm-quality|agent-orchestration|stack-llm-capability|trading|trading-dsl|trading-advanced|web3-wallet|email-stack|caching-layer|extended-communication|extended-productivity|playwright-e2e|all)
-            echo "test-runner-$1"
+            echo "test-$1"
             ;;
         *)
             return 1
@@ -115,6 +120,36 @@ list_kt_suites() {
 }
 
 case "${1:-help}" in
+    smart)
+        cd "$ROOT_DIR"
+        plan_output=$(./build-datamancy-v3.main.kts --test-plan)
+        if [ -z "$plan_output" ]; then
+            echo -e "${GREEN}✓${NC} No suites require retest"
+            exit 0
+        fi
+
+        while IFS='|' read -r suite suite_type; do
+            if [ -z "$suite" ]; then
+                continue
+            fi
+            container_name=$(suite_container "$suite") || { echo -e "${RED}Error:${NC} Unknown suite: $suite"; exit 1; }
+            echo -e "${BLUE}Starting test runner container: ${container_name}...${NC}"
+            docker compose up -d "$container_name"
+
+            case "$suite_type" in
+                playwright)
+                    echo -e "${BLUE}Running Playwright E2E tests...${NC}"
+                    docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:e2e
+                    ;;
+                kotlin|*)
+                    echo -e "${BLUE}Running Kotlin test suite: $suite${NC}"
+                    docker compose exec "$container_name" java -jar /app/test-runner.jar --env container --suite "$suite"
+                    ;;
+            esac
+
+            ./build-datamancy-v3.main.kts --record-test "$suite"
+        done <<< "$plan_output"
+        ;;
     start)
         suite="${2:-all}"
         container_name=$(suite_container "$suite") || { echo -e "${RED}Error:${NC} Unknown suite: $suite"; exit 1; }

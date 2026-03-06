@@ -29,10 +29,10 @@ Automated pattern matching can give:
 
 ```bash
 # From host machine, copy all test results
-docker cp $(docker compose ps -q test-runner-playwright-e2e):/app/test-results ~/test-results-$(date +%Y%m%d-%H%M%S)
+docker cp $(docker compose ps -q test-playwright-e2e):/app/test-results ~/test-results-$(date +%Y%m%d-%H%M%S)
 
 # Or just screenshots
-docker cp $(docker compose ps -q test-runner-playwright-e2e):/app/test-results/screenshots ~/screenshots-$(date +%Y%m%d-%H%M%S)
+docker cp $(docker compose ps -q test-playwright-e2e):/app/test-results/screenshots ~/screenshots-$(date +%Y%m%d-%H%M%S)
 ```
 
 ### 2. Check Successful Screenshots
@@ -225,7 +225,7 @@ Consider implementing:
 
 ```bash
 # Copy screenshots from container
-docker cp $(docker compose ps -q test-runner-playwright-e2e):/app/test-results ~/test-results
+docker cp $(docker compose ps -q test-playwright-e2e):/app/test-results ~/test-results
 
 # Find all screenshots
 find ~/test-results -name "*.jpg" -o -name "*.png"
