@@ -16,6 +16,7 @@ services:
         aliases:
           - litellm.${DOMAIN}
           - api.litellm.${DOMAIN}
+      postgres:
     depends_on:
       caddy:
         condition: service_started
@@ -23,9 +24,11 @@ services:
         condition: service_started
       embedding-service:
         condition: service_started
+      postgres:
+        condition: service_started
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
-      DATABASE_URL: sqlite:////app/config/litellm.db
+      DATABASE_URL: postgresql://${POSTGRES_ADMIN_USER}:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/litellm
       UI_USERNAME: ${STACK_ADMIN_USER}
       UI_PASSWORD: ${STACK_ADMIN_PASSWORD}
     volumes:

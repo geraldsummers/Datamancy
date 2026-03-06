@@ -11,7 +11,7 @@ x-test-base: &test_runner_base
   environment:
     DOMAIN: ${DOMAIN}
     BASE_URL: https://${DOMAIN}
-    AUTHELIA_URL: https://auth.${DOMAIN}
+    AUTHELIA_URL: http://authelia:9091
     LDAP_URL: ldap://ldap:389
     LDAP_BASE_DN: ${LDAP_BASE_DN}
     LDAP_ADMIN_DN: ${LDAP_ADMIN_USER}
@@ -19,6 +19,21 @@ x-test-base: &test_runner_base
     STACK_ADMIN_USER: ${STACK_ADMIN_USER}
     STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
     STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    POSTGRES_DB: datamancy
+    POSTGRES_USER: test_runner_user
+    POSTGRES_PASSWORD: ${POSTGRES_TEST_RUNNER_PASSWORD}
+    MARIADB_HOST: mariadb
+    MARIADB_PORT: 3306
+    MARIADB_USER: bookstack
+    MARIADB_PASSWORD: ${MARIADB_BOOKSTACK_PASSWORD}
+    VALKEY_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
+    QDRANT_API_KEY: ${QDRANT_ADMIN_API_KEY}
+    NTFY_USERNAME: ${NTFY_USERNAME}
+    NTFY_PASSWORD: ${NTFY_PASSWORD}
+    BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID}
+    BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET}
 
   tmpfs:
     - /tmp
@@ -40,8 +55,8 @@ services:
       - ai
       - caddy
       - litellm
-      - authelia
       - postgres
+      - authelia
   test-agent-orchestration:
     <<: *test_runner_base
     container_name: test-agent-orchestration
@@ -53,6 +68,7 @@ services:
       - qdrant
       - caddy
       - litellm
+      - postgres
   test-agent-security:
     <<: *test_runner_base
     container_name: test-agent-security
@@ -269,8 +285,8 @@ services:
       - ai
       - caddy
       - litellm
-      - authelia
       - postgres
+      - authelia
   test-microservices:
     <<: *test_runner_base
     container_name: test-microservices
@@ -296,7 +312,9 @@ services:
     <<: *test_runner_base
     container_name: test-playwright-e2e
     networks:
-      - default
+      - caddy
+      - ldap
+      - authelia
   test-productivity:
     <<: *test_runner_base
     container_name: test-productivity
@@ -347,8 +365,8 @@ services:
       - ai
       - caddy
       - litellm
-      - authelia
       - postgres
+      - authelia
   test-stack-replication:
     <<: *test_runner_base
     container_name: test-stack-replication

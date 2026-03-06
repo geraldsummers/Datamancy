@@ -122,6 +122,8 @@ notifier:
 identity_providers:
   oidc:
     hmac_secret: another_very_important_secret
+    subject_identifier:
+      strategy: public
     lifespans:
       access_token: 1h
       authorize_code: 1m

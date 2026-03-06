@@ -188,6 +188,10 @@ suites:
       - alloy
   - name: playwright-e2e
     type: playwright
+    networks:
+      - caddy
+      - ldap
+      - authelia
   - name: productivity
     type: kotlin
     targets:
