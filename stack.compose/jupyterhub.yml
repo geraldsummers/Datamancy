@@ -20,6 +20,8 @@ services:
     depends_on:
       caddy:
         condition: service_started
+      jupyter-notebook-build:
+        condition: service_completed_successfully
       valkey:
         condition: service_started
     environment:

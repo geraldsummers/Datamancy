@@ -104,9 +104,10 @@ regulation:
 
 identity_validation:
   reset_password:
+    jwt_secret: {{AUTHELIA_JWT_SECRET}}
 
 storage:
-  encryption_key: a_very_important_secret
+  encryption_key: {{AUTHELIA_STORAGE_ENCRYPTION_KEY}}
   postgres:
     address: tcp://postgres:5432
     database: authelia
@@ -121,7 +122,7 @@ notifier:
 
 identity_providers:
   oidc:
-    hmac_secret: another_very_important_secret
+    hmac_secret: {{AUTHELIA_OIDC_HMAC_SECRET}}
     subject_identifier:
       strategy: public
     lifespans:
