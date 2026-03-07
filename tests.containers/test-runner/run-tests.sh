@@ -122,6 +122,11 @@ list_kt_suites() {
 case "${1:-help}" in
     smart)
         cd "$ROOT_DIR"
+        if [ ! -x "./build-datamancy-v3.main.kts" ]; then
+            echo -e "${RED}Error:${NC} build-datamancy-v3.main.kts not found in $ROOT_DIR"
+            echo "Smart test selection requires this script for --test-plan/--record-test."
+            exit 1
+        fi
         plan_output=$(./build-datamancy-v3.main.kts --test-plan)
         if [ -z "$plan_output" ]; then
             echo -e "${GREEN}✓${NC} No suites require retest"
