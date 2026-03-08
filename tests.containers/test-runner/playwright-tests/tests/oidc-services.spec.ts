@@ -438,8 +438,8 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       await page.context().clearCookies();
       await page.goto('https://mastodon.datamancy.net/auth/sign_in', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
       await page.evaluate(() => {
-        localStorage.clear();
-        sessionStorage.clear();
+        window.localStorage.clear();
+        window.sessionStorage.clear();
       }).catch(() => {});
       await runMastodonLogin();
     }
