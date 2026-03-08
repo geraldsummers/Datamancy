@@ -23,3 +23,5 @@ do not use -v in rsync
 
 run the tests and report back, analyze the screenshots the test runner generates
 experimentally diagnose all issues by experimenting on the server
+
+take some initiative in your fixing ffs
