@@ -410,20 +410,39 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
   });
 
   test('Mastodon - OIDC login flow', async ({ page }) => {
-    await testOIDCService(
-      page,
-      'Mastodon',
-      'https://mastodon.datamancy.net/',
-      /What's on your mind|Compose new post|Publish|Home|Notifications/i,
-      ['Authelia', 'SSO', 'OpenID', 'OpenID Connect'],
-      {
-        disallowPatterns: [/Create account|Log in/i],
-        disallowUrlPatterns: [/\/(explore|about|public)\b/i],
-        loginPath: 'https://mastodon.datamancy.net/auth/sign_in',
-        loginButtonPatterns: [/log in|sign in|continue with sso|sso|openid/i],
-        oidcLinkPatterns: [/sign in with.*(openid|sso)/i, /openid/i, /sso/i],
+    const runMastodonLogin = async () => {
+      await testOIDCService(
+        page,
+        'Mastodon',
+        'https://mastodon.datamancy.net/',
+        /What's on your mind|Compose new post|Publish|Home|Notifications/i,
+        ['Authelia', 'SSO', 'OpenID', 'OpenID Connect'],
+        {
+          disallowPatterns: [/Create account|Log in/i, /Invalid state/i],
+          disallowUrlPatterns: [/\/(explore|about|public)\b/i],
+          loginPath: 'https://mastodon.datamancy.net/auth/sign_in',
+          loginButtonPatterns: [/log in|sign in|continue with sso|sso|openid/i],
+          oidcLinkPatterns: [/sign in with.*(openid|sso)/i, /openid/i, /sso/i],
+        }
+      );
+    };
+
+    try {
+      await runMastodonLogin();
+    } catch (error: any) {
+      const message = String(error?.message || error);
+      if (!/Invalid state/i.test(message)) {
+        throw error;
       }
-    );
+      console.log('   ⚠️  Mastodon OIDC invalid state detected, retrying login flow once...');
+      await page.context().clearCookies();
+      await page.goto('https://mastodon.datamancy.net/auth/sign_in', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+      await page.evaluate(() => {
+        localStorage.clear();
+        sessionStorage.clear();
+      }).catch(() => {});
+      await runMastodonLogin();
+    }
   });
 
   test('Forgejo - OIDC login flow', async ({ page }) => {

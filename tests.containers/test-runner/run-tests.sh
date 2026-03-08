@@ -7,6 +7,7 @@ set -e
 
 PLAYWRIGHT_DIR="/app/playwright-tests"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_CADDY_CONTAINER="caddy"
 
 # Colors for output
 RED='\033[0;31m'
@@ -76,6 +77,38 @@ suite_container() {
     esac
 }
 
+ensure_caddy_ca_trusted() {
+    local container_name="$1"
+    local caddy_container="${CADDY_CONTAINER:-$DEFAULT_CADDY_CONTAINER}"
+    local caddy_cert_path="${CADDY_CERT_PATH:-/certs/pki/authorities/local/root.crt}"
+    local tmp_cert
+
+    if ! docker ps --format '{{.Names}}' | grep -q "^${caddy_container}$"; then
+        return 0
+    fi
+
+    tmp_cert="$(mktemp)"
+    if ! docker cp "${caddy_container}:${caddy_cert_path}" "$tmp_cert" >/dev/null 2>&1; then
+        rm -f "$tmp_cert"
+        return 0
+    fi
+
+    docker cp "$tmp_cert" "${container_name}:/usr/local/share/ca-certificates/caddy-local-root.crt" >/dev/null 2>&1 || true
+    rm -f "$tmp_cert"
+
+    docker compose exec --user root "$container_name" bash -lc "
+        update-ca-certificates >/dev/null 2>&1 || true
+        if command -v keytool >/dev/null 2>&1; then
+            JAVA_CACERTS=\"\${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}/lib/security/cacerts\"
+            if [ -f \"\$JAVA_CACERTS\" ]; then
+                if ! keytool -list -keystore \"\$JAVA_CACERTS\" -storepass changeit -alias caddy-local-root >/dev/null 2>&1; then
+                    keytool -importcert -noprompt -trustcacerts -alias caddy-local-root -file /usr/local/share/ca-certificates/caddy-local-root.crt -keystore \"\$JAVA_CACERTS\" -storepass changeit >/dev/null 2>&1 || true
+                fi
+            fi
+        fi
+    " >/dev/null 2>&1 || true
+}
+
 check_container_running() {
     local container_name="$1"
     if ! docker compose ps "$container_name" | grep -q "Up"; then
@@ -140,6 +173,7 @@ case "${1:-help}" in
             container_name=$(suite_container "$suite") || { echo -e "${RED}Error:${NC} Unknown suite: $suite"; exit 1; }
             echo -e "${BLUE}Starting test runner container: ${container_name}...${NC}"
             docker compose up -d "$container_name"
+            ensure_caddy_ca_trusted "$container_name"
 
             case "$suite_type" in
                 playwright)
@@ -200,6 +234,7 @@ case "${1:-help}" in
         fi
         container_name=$(suite_container "$2") || { echo -e "${RED}Error:${NC} Unknown suite: $2"; exit 1; }
         check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Running Kotlin test suite: $2${NC}"
         docker compose exec "$container_name" java -jar /app/test-runner.jar --env container --suite "$2"
         ;;
@@ -211,6 +246,7 @@ case "${1:-help}" in
     ts)
         container_name=$(suite_container "playwright-e2e")
         check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Running all TypeScript tests...${NC}"
         docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test
         ;;
@@ -218,6 +254,7 @@ case "${1:-help}" in
     ts-unit)
         container_name=$(suite_container "playwright-e2e")
         check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Running Jest unit tests...${NC}"
         docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:unit
         ;;
@@ -225,6 +262,7 @@ case "${1:-help}" in
     ts-e2e)
         container_name=$(suite_container "playwright-e2e")
         check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Running Playwright E2E tests...${NC}"
         docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:e2e
         ;;
@@ -232,6 +270,7 @@ case "${1:-help}" in
     ts-ui)
         container_name=$(suite_container "playwright-e2e")
         check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Running Playwright in UI mode...${NC}"
         docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:ui
         ;;
@@ -239,6 +278,7 @@ case "${1:-help}" in
     ts-headed)
         container_name=$(suite_container "playwright-e2e")
         check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Running Playwright in headed mode...${NC}"
         docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:headed
         ;;
@@ -246,6 +286,7 @@ case "${1:-help}" in
     ts-debug)
         container_name=$(suite_container "playwright-e2e")
         check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Running Playwright in debug mode...${NC}"
         docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:debug
         ;;
@@ -253,6 +294,7 @@ case "${1:-help}" in
     ts-report)
         container_name=$(suite_container "playwright-e2e")
         check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Showing Playwright test report...${NC}"
         docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:report
         ;;
