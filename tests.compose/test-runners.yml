@@ -11,7 +11,7 @@ x-test-base: &test_runner_base
   environment:
     DOMAIN: ${DOMAIN}
     BASE_URL: https://${DOMAIN}
-    AUTHELIA_URL: http://authelia:9091
+    AUTHELIA_URL: https://auth.${DOMAIN}
     LDAP_URL: ldap://ldap:389
     LDAP_BASE_DN: ${LDAP_BASE_DN}
     LDAP_ADMIN_DN: ${LDAP_ADMIN_USER}
@@ -28,6 +28,7 @@ x-test-base: &test_runner_base
     MARIADB_PORT: 3306
     MARIADB_USER: bookstack
     MARIADB_PASSWORD: ${MARIADB_BOOKSTACK_PASSWORD}
+    VALKEY_ADMIN_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
     VALKEY_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
     QDRANT_API_KEY: ${QDRANT_ADMIN_API_KEY}
     NTFY_USERNAME: ${NTFY_USERNAME}

@@ -18,7 +18,9 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
     }
 
     // Get Valkey password from environment
-    val valkeyPassword = System.getenv("VALKEY_ADMIN_PASSWORD") ?: ""
+    val valkeyPassword = System.getenv("VALKEY_ADMIN_PASSWORD")
+        ?: System.getenv("VALKEY_PASSWORD")
+        ?: ""
 
     // Valkey (Redis-compatible) tests
     test("Valkey: Service is reachable") {

@@ -399,7 +399,7 @@ async function testOIDCService(
   console.log(`   ✅ ${serviceName} OIDC login successful\n`);
 }
 
-test.describe('OIDC Services - SSO Flow', () => {
+test.describe.serial('OIDC Services - SSO Flow', () => {
 
   test('Grafana - OIDC login flow', async ({ page }) => {
     // NOTE: Grafana is configured for Auth Proxy (forward auth), not OIDC
@@ -573,7 +573,7 @@ test.describe('OIDC Services - SSO Flow', () => {
   });
 });
 
-test.describe('OIDC - Cross-service Session', () => {
+test.describe.serial('OIDC - Cross-service Session', () => {
 
   test('OIDC session works across multiple services', async ({ page }) => {
     console.log('\n🧪 Testing OIDC session persistence');

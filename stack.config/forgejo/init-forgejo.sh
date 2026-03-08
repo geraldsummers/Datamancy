@@ -53,10 +53,12 @@ run_forgejo admin auth add-oauth \
     --key 'forgejo' \
     --secret "${FORGEJO_OAUTH_SECRET}" \
     --auto-discover-url "${AUTHELIA_DISCOVERY_URL}" \
-    --scopes 'openid profile email groups' \
+    --scopes openid \
+    --scopes profile \
+    --scopes email \
+    --scopes groups \
     --group-claim-name 'groups' \
     --restricted-group '' \
-    --auto-register \
     --skip-local-2fa
 echo "Forgejo OIDC configuration completed successfully!"
 echo "Users can now sign in with the 'Sign in with Authelia' button."

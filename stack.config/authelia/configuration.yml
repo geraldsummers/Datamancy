@@ -123,8 +123,6 @@ notifier:
 identity_providers:
   oidc:
     hmac_secret: {{AUTHELIA_OIDC_HMAC_SECRET}}
-    subject_identifier:
-      strategy: public
     lifespans:
       access_token: 1h
       authorize_code: 1m

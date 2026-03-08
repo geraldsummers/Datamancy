@@ -450,12 +450,13 @@ test.describe('Forward Auth - Session Persistence', () => {
 
     for (const service of services) {
       console.log(`\n   Visiting ${service.name}...`);
+      const timeoutMs = service.name === 'JupyterHub' ? 60000 : 15000;
 
       // Retry logic for SSL errors
       let retries = 3;
       while (retries > 0) {
         try {
-          await page.goto(service.path, { timeout: 15000 });
+          await page.goto(service.path, { timeout: timeoutMs });
           break;
         } catch (error: any) {
           if (error.message?.includes('SSL') || error.message?.includes('ERR_SSL_PROTOCOL_ERROR')) {
@@ -466,6 +467,15 @@ test.describe('Forward Auth - Session Persistence', () => {
           } else {
             throw error;
           }
+        }
+      }
+
+      if (service.name === 'JupyterHub') {
+        await page
+          .waitForURL((url) => !url.toString().includes('spawn-pending'), { timeout: 60000 })
+          .catch(() => {});
+        if (page.url().includes('spawn-pending')) {
+          await page.waitForTimeout(15000);
         }
       }
 
