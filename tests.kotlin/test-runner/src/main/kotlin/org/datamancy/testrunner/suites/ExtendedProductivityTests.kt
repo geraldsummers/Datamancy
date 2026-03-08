@@ -267,12 +267,13 @@ suspend fun TestRunner.extendedProductivityTests() = suite("Extended Productivit
     // Integration test: Jupyter + Pipeline data analysis
     test("Integration: JupyterHub + Data Pipeline analysis capability") {
         val jupyterResponse = client.getRawResponse(endpoints.jupyterhub)
-        if (endpoints.pipeline == null) {
+        val pipelineEndpoint = endpoints.pipeline
+        if (pipelineEndpoint.isBlank() || pipelineEndpoint == "null") {
             println("      ℹ️  Pipeline endpoint not configured")
             println("      ℹ️  Jupyter: ${jupyterResponse.status}")
             return@test
         }
-        val pipelineResponse = client.getRawResponse("${endpoints.pipeline}/health")
+        val pipelineResponse = client.getRawResponse("${pipelineEndpoint}/health")
 
         val jupyterReachable = jupyterResponse.status.value in 200..499
         val pipelineReachable = pipelineResponse.status.value in 200..499
