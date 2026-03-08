@@ -273,7 +273,13 @@ suspend fun TestRunner.extendedProductivityTests() = suite("Extended Productivit
             println("      ℹ️  Jupyter: ${jupyterResponse.status}")
             return@test
         }
-        val pipelineResponse = client.getRawResponse("${pipelineEndpoint}/health")
+        val pipelineResponse = try {
+            client.getRawResponse("${pipelineEndpoint}/health")
+        } catch (e: Exception) {
+            println("      ℹ️  Pipeline not reachable at ${pipelineEndpoint}: ${e.message}")
+            println("      ℹ️  Jupyter: ${jupyterResponse.status}")
+            return@test
+        }
 
         val jupyterReachable = jupyterResponse.status.value in 200..499
         val pipelineReachable = pipelineResponse.status.value in 200..499

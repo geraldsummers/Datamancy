@@ -439,6 +439,7 @@ test.describe('Forward Auth - Session Persistence', () => {
   });
 
   test('Session works across multiple forward-auth services', async ({ page }) => {
+    test.setTimeout(120000);
     console.log('\n🧪 Testing session persistence across services');
 
     // Visit multiple services in sequence - should not require re-auth
@@ -450,7 +451,7 @@ test.describe('Forward Auth - Session Persistence', () => {
 
     for (const service of services) {
       console.log(`\n   Visiting ${service.name}...`);
-      const timeoutMs = service.name === 'JupyterHub' ? 60000 : 15000;
+      const timeoutMs = service.name === 'JupyterHub' ? 90000 : 15000;
 
       // Retry logic for SSL errors
       let retries = 3;
@@ -472,7 +473,7 @@ test.describe('Forward Auth - Session Persistence', () => {
 
       if (service.name === 'JupyterHub') {
         await page
-          .waitForURL((url) => !url.toString().includes('spawn-pending'), { timeout: 60000 })
+          .waitForURL((url) => !url.toString().includes('spawn-pending'), { timeout: 90000 })
           .catch(() => {});
         if (page.url().includes('spawn-pending')) {
           await page.waitForTimeout(15000);

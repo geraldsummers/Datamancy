@@ -11,7 +11,8 @@ x-test-base: &test_runner_base
   environment:
     DOMAIN: ${DOMAIN}
     BASE_URL: https://${DOMAIN}
-    AUTHELIA_URL: https://auth.${DOMAIN}
+    # Use internal HTTP to avoid TLS trust issues with Caddy local CA
+    AUTHELIA_URL: http://authelia:9091
     LDAP_URL: ldap://ldap:389
     LDAP_BASE_DN: ${LDAP_BASE_DN}
     LDAP_ADMIN_DN: ${LDAP_ADMIN_USER}
