@@ -438,8 +438,9 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       await page.context().clearCookies();
       await page.goto('https://mastodon.datamancy.net/auth/sign_in', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
       await page.evaluate(() => {
-        window.localStorage.clear();
-        window.sessionStorage.clear();
+        const storageOwner = globalThis as typeof globalThis & { localStorage?: Storage; sessionStorage?: Storage };
+        storageOwner.localStorage?.clear();
+        storageOwner.sessionStorage?.clear();
       }).catch(() => {});
       await runMastodonLogin();
     }
