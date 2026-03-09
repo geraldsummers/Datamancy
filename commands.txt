@@ -29,7 +29,7 @@ ssh -t gerald@latium.local '
   cd ~/datamancy
   docker compose down --remove-orphans
   docker compose build --no-cache
-  docker compose --profile ingestion --profile testing up -d
+  docker compose --profile ingestion --profile testing up -d --no-build
 '
 
 nuclear option:
