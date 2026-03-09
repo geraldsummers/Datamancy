@@ -51,13 +51,17 @@ async function testForwardAuthService(
     waitForSelector?: string;
     waitForSelectorVisible?: string;
     waitForSelectorTimeoutMs?: number;
+    requireSelectorVisible?: boolean;
     waitForUrlNotMatch?: RegExp;
     waitForUrlMatch?: RegExp;
     clickIfVisibleSelector?: string;
     screenshotSelector?: string;
     screenshotType?: 'jpeg' | 'png';
     screenshotQuality?: number;
+    screenshotFullPage?: boolean;
     screenshotDelayMs?: number;
+    screenshotUsePage?: boolean;
+    screenshotViewport?: { width: number; height: number };
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} forward auth`);
@@ -106,12 +110,22 @@ async function testForwardAuthService(
   }
 
   if (options.waitForSelector) {
-    await page.waitForSelector(options.waitForSelector, { timeout: 10000 }).catch(() => {});
+    const waitPromise = page.waitForSelector(options.waitForSelector, { timeout: 10000 });
+    if (options.requireSelectorVisible) {
+      await waitPromise;
+    } else {
+      await waitPromise.catch(() => {});
+    }
   }
 
   if (options.waitForSelectorVisible) {
     const timeout = options.waitForSelectorTimeoutMs ?? 15000;
-    await page.waitForSelector(options.waitForSelectorVisible, { state: 'visible', timeout }).catch(() => {});
+    const waitPromise = page.waitForSelector(options.waitForSelectorVisible, { state: 'visible', timeout });
+    if (options.requireSelectorVisible) {
+      await waitPromise;
+    } else {
+      await waitPromise.catch(() => {});
+    }
   }
 
   if (options.clickIfVisibleSelector) {
@@ -126,6 +140,12 @@ async function testForwardAuthService(
   if (options.waitForSelectorVisible) {
     await page.waitForTimeout(options.screenshotDelayMs ?? 3000);
   }
+
+  if (options.screenshotViewport) {
+    await page.setViewportSize(options.screenshotViewport);
+  }
+
+  await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
   await logPageTelemetry(page, `${serviceName} Main Page`);
 
@@ -211,7 +231,14 @@ async function testForwardAuthService(
   const screenshotType = options.screenshotType ?? 'jpeg';
   const screenshotName = `${screenshotBase}.${screenshotType}`;
   const screenshotPath = `/app/test-results/screenshots/${screenshotName}`;
-  if (options.screenshotSelector) {
+  if (options.screenshotUsePage) {
+    await page.screenshot({
+      path: screenshotPath,
+      type: screenshotType,
+      quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined,
+      fullPage: options.screenshotFullPage ?? true
+    });
+  } else if (options.screenshotSelector) {
     const target = page.locator(options.screenshotSelector).first();
     const visible = await target.isVisible().catch(() => false);
     if (visible) {
@@ -226,7 +253,7 @@ async function testForwardAuthService(
         path: screenshotPath,
         type: screenshotType,
         quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined,
-        fullPage: true
+        fullPage: options.screenshotFullPage ?? true
       });
     }
   } else {
@@ -234,7 +261,7 @@ async function testForwardAuthService(
       path: screenshotPath,
       type: screenshotType,
       quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined,
-      fullPage: true
+      fullPage: options.screenshotFullPage ?? true
     });
   }
   console.log(`   📸 Screenshot saved: ${screenshotName}`);
@@ -265,9 +292,11 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         waitForUrlNotMatch: /\/spawn-pending\//i,
         waitForSelectorVisible: '.jp-LabShell, .jp-Launcher, .jp-SideBar',
         waitForSelectorTimeoutMs: 60000,
-        screenshotSelector: '.jp-LabShell',
+        requireSelectorVisible: true,
+        // JupyterLab element screenshots often render blank; use page screenshot.
+        screenshotUsePage: true,
         screenshotType: 'png',
-        screenshotDelayMs: 2000,
+        screenshotDelayMs: 4000,
         clickIfVisibleSelector: 'button:has-text("Start My Server")',
       }
     );
@@ -415,7 +444,15 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       'LiteLLM',
       'https://litellm.datamancy.net/',
       /LiteLLM API|Swagger UI/i, // Title is "LiteLLM API - Swagger UI"
-      { urlPattern: /litellm\.datamancy\.net/ }
+      {
+        urlPattern: /litellm\.datamancy\.net/,
+        waitForSelectorVisible: '.swagger-ui',
+        waitForSelectorTimeoutMs: 20000,
+        requireSelectorVisible: true,
+        screenshotViewport: { width: 1280, height: 720 },
+        // Avoid huge full-page screenshots from long Swagger UI.
+        screenshotFullPage: false,
+      }
     );
   });
 

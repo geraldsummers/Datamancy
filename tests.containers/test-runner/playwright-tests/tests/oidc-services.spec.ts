@@ -135,26 +135,28 @@ async function testOIDCService(
       .or(page.locator('button:has-text("Single sign-on")'))
       .or(page.locator('button:has-text("SSO")'));
 
-    const inputCount = await ssoEmailInput.count().catch(() => 0);
-    const buttonCount = await ssoButton.count().catch(() => 0);
-    if (!inputCount && !buttonCount) {
+    const inputVisible = await ssoEmailInput.first().isVisible().catch(() => false);
+    const buttonVisible = await ssoButton.first().isVisible().catch(() => false);
+    if (!inputVisible && !buttonVisible) {
       return false;
     }
 
-    if (buttonCount) {
+    if (buttonVisible && !inputVisible) {
       await ssoButton.first().click({ force: true });
+      await page.waitForTimeout(500);
     }
 
-    if (inputCount) {
+    const inputNowVisible = await ssoEmailInput.first().isVisible().catch(() => false);
+    if (inputNowVisible) {
       const currentValue = await ssoEmailInput.first().inputValue().catch(() => '');
       if (!currentValue) {
         await ssoEmailInput.first().fill(options.ssoEmail, { force: true });
       }
     }
 
-    if (buttonCount) {
+    if (await ssoButton.first().isVisible().catch(() => false)) {
       await ssoButton.first().click({ force: true });
-    } else if (inputCount) {
+    } else if (inputNowVisible) {
       await ssoEmailInput.first().press('Enter').catch(() => {});
     }
 
@@ -431,10 +433,15 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       await runMastodonLogin();
     } catch (error: any) {
       const message = String(error?.message || error);
-      if (!/Invalid state/i.test(message)) {
+      const pageContent = await page.content().catch(() => '');
+      const isTransient =
+        /Invalid state/i.test(message) ||
+        /could not lookup user subject/i.test(pageContent) ||
+        /authorization server encountered an unexpected condition/i.test(pageContent);
+      if (!isTransient) {
         throw error;
       }
-      console.log('   ⚠️  Mastodon OIDC invalid state detected, retrying login flow once...');
+      console.log('   ⚠️  Mastodon OIDC transient auth error detected, retrying login flow once...');
       await page.context().clearCookies();
       await page.goto('https://mastodon.datamancy.net/auth/sign_in', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
       await page.evaluate(() => {
@@ -499,12 +506,12 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       /My Vault|Vaults|Folders|Items|Search vault/i,
       ['Authelia', 'SSO', 'Single sign-on', 'Use single sign-on'],
       {
-        disallowPatterns: [/SSO identifier/i],
+        disallowPatterns: [/SSO identifier/i, /\bLog in\b/i, /Use single sign-on/i],
         disallowUrlPatterns: [/#\/sso\b/i, /\/sso\b/i],
         loginPath: 'https://app.vaultwarden.datamancy.net/#/login',
         loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
         ssoEmail: testUser.email,
-        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Master password|Confirm master password|Join organization/i,
+        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization/i,
         postLogin: async (page) => {
           // Handle create account / master password setup after SSO
           const masterPassword = testUser.password;
