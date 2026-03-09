@@ -79,5 +79,9 @@ RUN mkdir -p /usr/local/bin/start-notebook.d && \
     echo '/usr/local/bin/startup-config.sh' >> /usr/local/bin/start-notebook.d/configure-lm-agents.sh && \
     chmod +x /usr/local/bin/start-notebook.d/configure-lm-agents.sh
 
+# Prebuild JupyterLab assets to avoid slow first-start builds per user.
+RUN jupyter lab build --minimize=False && \
+    jupyter lab clean
+
 USER ${NB_UID}
 WORKDIR /home/jovyan

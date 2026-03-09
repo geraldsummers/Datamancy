@@ -332,6 +332,42 @@ fun gitIsAncestor(older: String, newer: String): Boolean {
     return exitCode == 0
 }
 
+fun sha256Hex(input: String): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    return digest.digest(input.toByteArray())
+        .joinToString("") { "%02x".format(it) }
+}
+
+fun suiteSignature(registry: TestRegistry, suite: TestRegistrySuite): String {
+    val commits = suite.targets.mapNotNull { registry.components[it]?.last_changed_commit }
+    if (commits.isEmpty()) return ""
+    val payload = commits.sorted().joinToString("|")
+    return sha256Hex(payload)
+}
+
+fun buildDistTestStatus(
+    registry: TestRegistry,
+    statusFile: TestStatusFile
+): TestStatusFile {
+    val updated = statusFile.suites.mapValues { (suiteName, entry) ->
+        val suite = registry.suites[suiteName]
+        val lastCommit = entry.last_tested_commit
+        val lastAt = entry.last_tested_at
+        if (suite == null || lastCommit.isNullOrBlank()) {
+            TestStatusEntry(last_tested_commit = null, last_tested_at = lastAt)
+        } else {
+            val targetCommits = suite.targets.mapNotNull { registry.components[it]?.last_changed_commit }
+            val upToDate = targetCommits.all { changed -> gitIsAncestor(lastCommit, changed) }
+            val signature = if (upToDate) suiteSignature(registry, suite) else ""
+            TestStatusEntry(
+                last_tested_commit = if (signature.isBlank()) null else signature,
+                last_tested_at = lastAt
+            )
+        }
+    }
+    return TestStatusFile(suites = updated)
+}
+
 fun extractServiceNetworks(serviceSpec: Any?): Set<String> {
     return when (serviceSpec) {
         is Map<*, *> -> {
@@ -1057,6 +1093,15 @@ fun copyBuildArtifacts(distDir: File) {
         info("Copied test runner script to dist/run-tests.sh")
     }
 
+    val smartUpScript = File("smart-up.sh")
+    if (smartUpScript.exists()) {
+        val destScript = distDir.resolve("smart-up.sh")
+        destScript.parentFile.mkdirs()
+        smartUpScript.copyTo(destScript, overwrite = true)
+        destScript.setExecutable(true)
+        info("Copied smart-up script to dist/smart-up.sh")
+    }
+
     // Copy stack.kotlin JARs only
     val kotlinSrcDir = File("stack.kotlin")
     if (kotlinSrcDir.exists()) {
@@ -1563,6 +1608,7 @@ fun main(args: Array<String>) {
 
     val distDir = File(workDir, "dist")
     val mapper = ObjectMapper(YAMLFactory()).registerModule(KotlinModule.Builder().build())
+    val jsonMapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
     val suitesFile = File("tests.config/suites.yml")
     val componentsFile = File("tests.config/components.yml")
     val statusFile = File("tests.config/test-status.yml")
@@ -1576,6 +1622,14 @@ fun main(args: Array<String>) {
             generateTestRunnersCompose(registry.suites.values.toList(), File("tests.compose/test-runners.yml"))
             distDir.mkdirs()
             distDir.resolve("test-registry.yml").writeText(mapper.writeValueAsString(registry))
+            distDir.resolve("test-registry.json").writeText(
+                jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(registry)
+            )
+            distDir.resolve("test-status.yml").writeText(mapper.writeValueAsString(status))
+            val distStatus = buildDistTestStatus(registry, status)
+            distDir.resolve("test-status.json").writeText(
+                jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distStatus)
+            )
             suitesNeedingTests(registry).forEach { suite ->
                 println("${suite.name}|${suite.type}")
             }
@@ -1594,7 +1648,28 @@ fun main(args: Array<String>) {
                 last_tested_commit = head,
                 last_tested_at = Instant.now().toString()
             )
-            saveTestStatus(mapper, statusFile, TestStatusFile(suites = updated.toMap()))
+            val updatedStatus = TestStatusFile(suites = updated.toMap())
+            saveTestStatus(mapper, statusFile, updatedStatus)
+            val distStatusYaml = distDir.resolve("test-status.yml")
+            if (distDir.exists()) {
+                distStatusYaml.writeText(mapper.writeValueAsString(updatedStatus))
+                val distRegistryJson = distDir.resolve("test-registry.json")
+                if (distRegistryJson.exists()) {
+                    val distRegistry = jsonMapper.readValue<TestRegistry>(distRegistryJson)
+                    val distStatus = loadTestStatus(jsonMapper, distDir.resolve("test-status.json"))
+                    val distUpdated = distStatus.suites.toMutableMap()
+                    val suiteDef = distRegistry.suites[suite]
+                    val signature = if (suiteDef == null) "" else suiteSignature(distRegistry, suiteDef)
+                    distUpdated[suite] = TestStatusEntry(
+                        last_tested_commit = if (signature.isBlank()) null else signature,
+                        last_tested_at = Instant.now().toString()
+                    )
+                    val distFinal = TestStatusFile(suites = distUpdated.toMap())
+                    distDir.resolve("test-status.json").writeText(
+                        jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distFinal)
+                    )
+                }
+            }
             return
         }
     }
@@ -1650,6 +1725,14 @@ ${CYAN}╔═══════════════════════�
         generateTestRunnersCompose(testRegistry.suites.values.toList(), File("tests.compose/test-runners.yml"))
     }
     distDir.resolve("test-registry.yml").writeText(mapper.writeValueAsString(testRegistry))
+    distDir.resolve("test-registry.json").writeText(
+        jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(testRegistry)
+    )
+    distDir.resolve("test-status.yml").writeText(mapper.writeValueAsString(testStatus))
+    val distStatus = buildDistTestStatus(testRegistry, testStatus)
+    distDir.resolve("test-status.json").writeText(
+        jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distStatus)
+    )
 
     // Load or generate credentials
     val envFile = distDir.resolve(".env")

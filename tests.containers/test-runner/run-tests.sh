@@ -117,6 +117,109 @@ check_container_running() {
     fi
 }
 
+smart_plan_from_registry() {
+    local registry_json="${TEST_REGISTRY_JSON:-$ROOT_DIR/test-registry.json}"
+    local status_json="${TEST_STATUS_JSON:-$ROOT_DIR/test-status.json}"
+
+    if [ ! -f "$registry_json" ]; then
+        echo -e "${RED}Error:${NC} Registry not found: $registry_json"
+        exit 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo -e "${RED}Error:${NC} python3 is required for smart mode without build script"
+        exit 1
+    fi
+
+    python3 - <<'PY' "$registry_json" "$status_json"
+import hashlib
+import json
+import sys
+
+registry_path, status_path = sys.argv[1:3]
+with open(registry_path, "r", encoding="utf-8") as f:
+    registry = json.load(f)
+
+status = {"suites": {}}
+try:
+    with open(status_path, "r", encoding="utf-8") as f:
+        status = json.load(f)
+except FileNotFoundError:
+    pass
+
+components = registry.get("components", {})
+
+def suite_signature(targets):
+    commits = [
+        (components.get(target) or {}).get("last_changed_commit") or ""
+        for target in targets
+    ]
+    if not commits:
+        return ""
+    payload = "|".join(sorted(commits)).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+for suite in registry.get("suites", {}).values():
+    name = suite.get("name")
+    suite_type = suite.get("type", "kotlin")
+    if not name:
+        continue
+    targets = suite.get("targets") or []
+    expected = suite_signature(targets)
+    last_tested = (status.get("suites", {}).get(name) or {}).get("last_tested_commit") or ""
+    if not last_tested or expected != last_tested:
+        print(f"{name}|{suite_type}")
+PY
+}
+
+record_test_status() {
+    local suite="$1"
+    local registry_json="${TEST_REGISTRY_JSON:-$ROOT_DIR/test-registry.json}"
+    local status_json="${TEST_STATUS_JSON:-$ROOT_DIR/test-status.json}"
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo -e "${RED}Error:${NC} python3 is required to record smart status"
+        exit 1
+    fi
+
+    python3 - <<'PY' "$suite" "$registry_json" "$status_json"
+import hashlib
+import json
+import sys
+from datetime import datetime, timezone
+
+suite, registry_path, status_path = sys.argv[1:4]
+with open(registry_path, "r", encoding="utf-8") as f:
+    registry = json.load(f)
+
+status = {"suites": {}}
+try:
+    with open(status_path, "r", encoding="utf-8") as f:
+        status = json.load(f)
+except FileNotFoundError:
+    pass
+
+components = registry.get("components", {})
+suite_def = (registry.get("suites", {}) or {}).get(suite, {})
+targets = suite_def.get("targets") or []
+commits = [
+    (components.get(target) or {}).get("last_changed_commit") or ""
+    for target in targets
+]
+signature = ""
+if commits:
+    signature = hashlib.sha256("|".join(sorted(commits)).encode("utf-8")).hexdigest()
+
+status.setdefault("suites", {})
+status["suites"][suite] = {
+    "last_tested_commit": signature,
+    "last_tested_at": datetime.now(timezone.utc).isoformat(),
+}
+
+with open(status_path, "w", encoding="utf-8") as f:
+    json.dump(status, f, indent=2, sort_keys=True)
+PY
+}
+
 list_kt_suites() {
     echo -e "${GREEN}Available Kotlin Test Suites:${NC}"
     echo ""
@@ -155,12 +258,13 @@ list_kt_suites() {
 case "${1:-help}" in
     smart)
         cd "$ROOT_DIR"
-        if [ ! -x "./build-datamancy-v3.main.kts" ]; then
-            echo -e "${RED}Error:${NC} build-datamancy-v3.main.kts not found in $ROOT_DIR"
-            echo "Smart test selection requires this script for --test-plan/--record-test."
-            exit 1
+        use_build_script=0
+        if [ -x "./build-datamancy-v3.main.kts" ]; then
+            use_build_script=1
+            plan_output=$(./build-datamancy-v3.main.kts --test-plan)
+        else
+            plan_output=$(smart_plan_from_registry)
         fi
-        plan_output=$(./build-datamancy-v3.main.kts --test-plan)
         if [ -z "$plan_output" ]; then
             echo -e "${GREEN}✓${NC} No suites require retest"
             exit 0
@@ -186,7 +290,11 @@ case "${1:-help}" in
                     ;;
             esac
 
-            ./build-datamancy-v3.main.kts --record-test "$suite"
+            if [ "$use_build_script" -eq 1 ]; then
+                ./build-datamancy-v3.main.kts --record-test "$suite"
+            else
+                record_test_status "$suite"
+            fi
         done <<< "$plan_output"
         ;;
     start)

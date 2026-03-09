@@ -28,8 +28,8 @@ c.Spawner.default_url = '/lab'
 
 c.DockerSpawner.remove = True
 
-c.Spawner.start_timeout = 120
-c.Spawner.http_timeout = 120
+c.Spawner.start_timeout = 300
+c.Spawner.http_timeout = 300
 c.DockerSpawner.pull_policy = 'ifnotpresent'
 
 c.DockerSpawner.volumes = {

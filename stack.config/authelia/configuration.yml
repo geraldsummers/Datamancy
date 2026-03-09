@@ -261,6 +261,7 @@ identity_providers:
         client_secret: '{{MASTODON_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
+        consent_mode: implicit
         token_endpoint_auth_method: client_secret_basic
         redirect_uris:
           - https://mastodon.{{DOMAIN}}/auth/auth/openid_connect/callback

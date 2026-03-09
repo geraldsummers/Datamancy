@@ -1,0 +1,23 @@
+<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="12.529625999999997">
+<testsuite name="forward-auth-services.spec.ts" timestamp="2026-03-09T01:59:00.412Z" hostname="chromium" tests="1" failures="0" skipped="0" time="1.674" errors="0">
+<testcase name="Forward Auth - Session Persistence › Session works across multiple forward-auth services" classname="forward-auth-services.spec.ts" time="1.674">
+<system-out>
+<![CDATA[
+🧪 Testing session persistence across services
+
+   Visiting JupyterHub...
+   ✅ JupyterHub accessed without re-auth
+
+   Visiting Prometheus...
+   ✅ Prometheus accessed without re-auth
+
+   Visiting Homepage...
+   ✅ Homepage accessed without re-auth
+
+   ✅ Session persisted across all services
+
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>
