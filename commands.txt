@@ -27,8 +27,8 @@ rsync --delete -az --progress dist/ gerald@latium.local:~/datamancy/ && \
 ssh -t gerald@latium.local '
   set -euxo pipefail
   cd ~/datamancy
-  docker compose down --remove-orphans
-  docker compose build --no-cache
+  docker compose --profile ingestion --profile testing up -d down --remove-orphans
+  docker compose --profile ingestion --profile testing up -d build --no-cache
   docker compose --profile ingestion --profile testing up -d --no-build
 '
 
