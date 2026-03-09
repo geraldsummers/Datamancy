@@ -36,7 +36,7 @@ if run_forgejo admin auth list 2>/dev/null | grep -q "Authelia"; then
 fi
 
 echo "Waiting for Authelia OIDC discovery endpoint..."
-AUTHELIA_DISCOVERY_URL="http://authelia:9091/.well-known/openid-configuration"
+AUTHELIA_DISCOVERY_URL="https://auth.${DOMAIN}/.well-known/openid-configuration"
 for i in $(seq 1 60); do
     if check_authelia "$AUTHELIA_DISCOVERY_URL"; then
         echo "Authelia discovery endpoint is available."

@@ -23,5 +23,8 @@ do not use -v in rsync
 
 run the tests and report back, analyze the screenshots the test runner generates
 experimentally diagnose all issues by experimenting on the server
+run ALL tests
+do all of your work in a tmux session
 
 take some initiative in your fixing ffs
+be humble

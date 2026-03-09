@@ -53,6 +53,7 @@ services:
       TOOLSERVER_SSH_KNOWN_HOSTS: /app/known_hosts_data/known_hosts
       TOOLSERVER_TOOL_EXEC_TIMEOUT_MS: 300000
       TOOLSERVER_ALLOW_CAPS: "host.network.http,host.network.ssh,host.shell.read,host.docker.inspect,host.docker.write,docker.container.create,docker.container.manage,ssh.keymanagement"
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
     volumes:
       - agent_tool_server_known_hosts:/app/known_hosts_data:ro
       - agent_tool_server_scripts:/app/scripts:ro
