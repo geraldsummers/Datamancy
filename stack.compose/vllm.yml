@@ -9,7 +9,6 @@ services:
     networks:
       - ai
     environment:
-      HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
       HF_HUB_ENABLE_HF_TRANSFER: 0
       HF_HUB_OFFLINE: 1
       NVIDIA_VISIBLE_DEVICES: all

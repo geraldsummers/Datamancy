@@ -26,8 +26,6 @@ services:
         condition: service_started
     environment:
       DOCKER_NETWORK_NAME: datamancy_litellm
-      LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
-      JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY}
       JUPYTER_NOTEBOOK_IMAGE: ${JUPYTER_NOTEBOOK_IMAGE:-datamancy-jupyter-notebook:5.4.3}
       DOCKER_HOST: tcp://docker-socket-proxy:2375
     volumes:

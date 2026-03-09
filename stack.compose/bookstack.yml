@@ -20,15 +20,10 @@ services:
       PGID: ${DOCKER_GROUP_ID:-1000}
       TZ: UTC
       APP_URL: https://bookstack.${DOMAIN}
-      APP_KEY: ${BOOKSTACK_APP_KEY}
       DB_HOST: mariadb
       DB_PORT: 3306
       DB_USERNAME: bookstack
-      DB_PASSWORD: ${MARIADB_BOOKSTACK_PASSWORD}
       DB_DATABASE: bookstack
-      BOOKSTACK_API_TOKEN_ID: ${BOOKSTACK_API_TOKEN_ID}
-      BOOKSTACK_API_TOKEN_SECRET: ${BOOKSTACK_API_TOKEN_SECRET}
-      BOOKSTACK_OAUTH_SECRET: ${BOOKSTACK_OAUTH_SECRET}
       SSL_CERT_FILE: /ca/caddy-ca.crt
       CURL_CA_BUNDLE: /ca/caddy-ca.crt
     volumes:

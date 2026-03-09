@@ -43,7 +43,6 @@ services:
       ACCOUNT_PROVISIONER: LDAP
       LDAP_SERVER_HOST: ldap://ldap:389
       LDAP_BIND_DN: cn=admin,${LDAP_BASE_DN}
-      LDAP_BIND_PW: ${LDAP_ADMIN_PASSWORD}
       LDAP_SEARCH_BASE: ou=users,${LDAP_BASE_DN}
       LDAP_QUERY_FILTER_USER: (&(objectClass=inetOrgPerson)(|(mail=%s)(uid=%s)))
       LDAP_QUERY_FILTER_GROUP: (&(objectClass=groupOfNames)(member=%s))

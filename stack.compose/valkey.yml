@@ -5,8 +5,6 @@ services:
     restart: unless-stopped
     networks:
       - valkey
-    environment:
-      VALKEY_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
     volumes:
       - redis_data:/data
       - valkey_acl:/etc/valkey
@@ -42,11 +40,6 @@ services:
     depends_on:
       valkey:
         condition: service_healthy
-    environment:
-      VALKEY_ADMIN_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
-      VALKEY_AUTHELIA_PASSWORD: ${VALKEY_AUTHELIA_PASSWORD}
-      VALKEY_SEAFILE_PASSWORD: ${VALKEY_SEAFILE_PASSWORD}
-      VALKEY_MASTODON_PASSWORD: ${VALKEY_MASTODON_PASSWORD}
     volumes:
       - ./configs/valkey/init-acl.sh:/init-acl.sh:ro
       - valkey_acl:/etc/valkey

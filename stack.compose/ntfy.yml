@@ -18,7 +18,6 @@ services:
       NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
       NTFY_ENABLE_LOGIN: false
       NTFY_USERNAME: ${NTFY_USERNAME}
-      NTFY_PASSWORD: ${NTFY_PASSWORD}
     volumes:
       - ntfy_data:/var/lib/ntfy
       - ./configs/ntfy/entrypoint.sh:/entrypoint.sh:ro

@@ -22,9 +22,7 @@ services:
       DOCKER_API_VERSION: 1.44
       WATCHTOWER_NOTIFICATIONS: shoutrrr
       # Using ntfy scheme with insecure flag since ntfy uses HTTP:80 internally
-      WATCHTOWER_NOTIFICATION_URL: "ntfy://${NTFY_USERNAME}:${NTFY_PASSWORD}@ntfy:80/watchtower?insecure=true"
       WATCHTOWER_HTTP_API_METRICS: true
-      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_METRICS_TOKEN}
       TZ: Australia/Sydney
       DOCKER_HOST: tcp://docker-socket-proxy:2375
 

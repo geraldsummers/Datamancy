@@ -9,7 +9,6 @@ services:
           - onlyoffice.${DOMAIN}
     environment:
       JWT_ENABLED: true
-      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
     volumes:
       - onlyoffice_data:/var/www/onlyoffice
     healthcheck:

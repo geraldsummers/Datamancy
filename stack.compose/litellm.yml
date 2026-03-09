@@ -27,10 +27,7 @@ services:
       postgres:
         condition: service_started
     environment:
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
-      DATABASE_URL: postgresql://${POSTGRES_ADMIN_USER}:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/litellm
       UI_USERNAME: ${STACK_ADMIN_USER}
-      UI_PASSWORD: ${STACK_ADMIN_PASSWORD}
     volumes:
       - litellm_config:/app/config
       - ./configs/litellm/config.yaml:/app/config.yaml:ro

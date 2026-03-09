@@ -28,22 +28,16 @@ services:
     environment:
       TZ: UTC
       DB_HOST: mariadb
-      DB_ROOT_PASSWD: ${MARIADB_ADMIN_PASSWORD}
       SEAFILE_MYSQL_DB_HOST: mariadb
       SEAFILE_MYSQL_DB_PORT: 3306
       SEAFILE_MYSQL_DB_USER: seafile
-      SEAFILE_MYSQL_DB_PASSWORD: ${MARIADB_SEAFILE_PASSWORD}
-      INIT_SEAFILE_MYSQL_ROOT_PASSWORD: ${MARIADB_ADMIN_PASSWORD}
       SEAFILE_SERVER_HOSTNAME: seafile.${DOMAIN}
       SEAFILE_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
-      SEAFILE_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
-      JWT_PRIVATE_KEY: ${SEAFILE_JWT_KEY}
       TIME_ZONE: UTC
       # Using Valkey (Redis-compatible) for caching with authentication
       CACHE_PROVIDER: redis
       REDIS_HOST: valkey
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${VALKEY_SEAFILE_PASSWORD}
       # Fix seafile-mc bug: explicitly set seahub database name
       # (otherwise it tries to use SQLite path '/opt/seafile/.../seahub.db' as MySQL DB name)
       SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: seahub_db

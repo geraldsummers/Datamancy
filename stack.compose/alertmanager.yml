@@ -8,7 +8,6 @@ services:
       - caddy
     environment:
       NTFY_USERNAME: ${NTFY_USERNAME}
-      NTFY_PASSWORD: ${NTFY_PASSWORD}
     volumes:
       - alertmanager_data:/alertmanager
       - ./configs/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro

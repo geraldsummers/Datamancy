@@ -26,12 +26,10 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: txgateway
       POSTGRES_USER: txgateway
-      POSTGRES_PASSWORD: ${POSTGRES_TXGATEWAY_PASSWORD}
       LDAP_HOST: ldap
       LDAP_PORT: 389
       LDAP_BASE_DN: ${LDAP_BASE_DN}
       LDAP_BIND_DN: cn=admin,${LDAP_BASE_DN}
-      LDAP_BIND_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       AUTHELIA_JWKS_URL: http://authelia:9091/.well-known/jwks.json
       EVM_BROADCASTER_URL: http://evm-broadcaster:8081
       HYPERLIQUID_WORKER_URL: http://hyperliquid-worker:8082

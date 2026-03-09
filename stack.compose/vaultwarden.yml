@@ -29,7 +29,6 @@ services:
         condition: service_started
     environment:
       DOMAIN: https://app.vaultwarden.${DOMAIN}
-      DATABASE_URL: postgresql://vaultwarden:${POSTGRES_VAULTWARDEN_PASSWORD}@postgres:5432/vaultwarden
       SIGNUPS_ALLOWED: false
       SIGNUPS_VERIFY: true
       SIGNUPS_DOMAINS_WHITELIST: ${MAIL_DOMAIN},datamancy.test
@@ -39,17 +38,14 @@ services:
       SSO_ONLY: true
       SSO_AUTHORITY: https://auth.${DOMAIN}
       SSO_CLIENT_ID: vaultwarden
-      SSO_CLIENT_SECRET: ${VAULTWARDEN_OAUTH_SECRET}
       SSO_SCOPES: openid email profile
       SSO_CALLBACK_PATH: /identity/connect/oidc-signin
       SSO_SIGNUPS_MATCH_EMAIL: true
-      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
       SMTP_HOST: mailserver
       SMTP_FROM: vaultwarden@${MAIL_DOMAIN}
       SMTP_PORT: 587
       SMTP_SECURITY: starttls
       SMTP_USERNAME: vaultwarden@${MAIL_DOMAIN}
-      SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD}
       SSL_CERT_FILE: /certs/pki/authorities/local/root.crt
       ROCKET_TLS_INSECURE_SKIP_VERIFICATION: "true"
     volumes:
