@@ -43,4 +43,4 @@ services:
     volumes:
       - ./configs/ldap/ensure_suffixes.ldif:/tmp/ensure_suffixes.ldif:ro
       - ./configs/ldap/ensure-suffixes.sh:/tmp/ensure-suffixes.sh:ro
-    command: ["/bin/sh", "/tmp/ensure-suffixes.sh"]
+    entrypoint: ["/bin/sh", "/tmp/ensure-suffixes.sh"]
