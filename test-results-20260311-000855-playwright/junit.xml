@@ -1,0 +1,2165 @@
+<testsuites id="" name="" tests="23" failures="3" skipped="0" errors="0" time="268.823175">
+<testsuite name="forward-auth-services.spec.ts" timestamp="2026-03-10T13:03:27.480Z" hostname="chromium" tests="16" failures="2" skipped="0" time="142.598" errors="0">
+<testcase name="Forward Auth Services - SSO Flow › JupyterHub - Access with forward auth" classname="forward-auth-services.spec.ts" time="6.457">
+<system-out>
+<![CDATA[
+🧪 Testing JupyterHub forward auth
+   → JupyterHub REQUEST: GET https://jupyterhub.datamancy.net/hub/home
+   ← JupyterHub RESPONSE: 302 https://jupyterhub.datamancy.net/hub/home
+   → JupyterHub REQUEST: GET https://jupyterhub.datamancy.net/hub/login?next=%2Fhub%2Fhome
+   ← JupyterHub RESPONSE: 302 https://jupyterhub.datamancy.net/hub/login?next=%2Fhub%2Fhome
+   → JupyterHub REQUEST: GET https://jupyterhub.datamancy.net/hub/home
+   ← JupyterHub RESPONSE: 200 https://jupyterhub.datamancy.net/hub/home
+
+   📊 JupyterHub Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://jupyterhub.datamancy.net/hub/home
+   Title: "JupyterHub"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (1):
+     [0] type="text" name="" id=""
+         placeholder="name-your-server"
+         aria-label="server name"
+         class="new-server-name form-control"
+   Buttons (5):
+     [0] type="button" text=""
+         aria-label="Toggle navigation"
+     [1] type="" text=""
+         id="dark-theme-toggle"
+         aria-label="Toggle dark mode"
+     [2] type="button" text="Add New Server"
+     [3] type="button" text=""
+         aria-label="Close"
+     [4] type="button" text="OK"
+   Links (showing first 10 of 5):
+     [1] "Home" → /hub/home
+     [2] "Token" → /hub/token
+     [3] "Logout" → /hub/logout
+     [4] "Start
+          My Server" → /hub/spawn/plmmkmf5m0ed7
+   Headings (3):
+     <h1> JupyterHub home page
+     <h2> Named Servers
+     <h2> Error
+   ARIA Roles: button(3), dialog(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: jupyterhub-authenticated.png
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ JupyterHub accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Open-WebUI - Access with forward auth" classname="forward-auth-services.spec.ts" time="24.015">
+<system-out>
+<![CDATA[
+🧪 Testing Open-WebUI forward auth
+   → Open-WebUI REQUEST: GET https://open-webui.datamancy.net/
+   ← Open-WebUI RESPONSE: 200 https://open-webui.datamancy.net/
+
+   📊 Open-WebUI Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://open-webui.datamancy.net/
+   Title: "Open WebUI"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (2):
+     [0] type="text" name="" id=""
+         placeholder="Search"
+         class="w-full rounded-r-xl py-1.5 pl-2.5 pr-4 text-sm bg-..."
+     [1] type="file" name="" id=""
+   Buttons (31):
+     [0] type="" text=""
+     [1] type="" text=""
+     [2] type="" text=""
+     [3] type="" text="All chats"
+     [4] type="button" text="User"
+         id="9ss01_pP0x"
+     [5] type="" text="User"
+     [6] type="" text=""
+         id="show-shortcuts-button"
+     [7] type="button" text="?"
+         id="J71DxczHHO"
+     [8] type="" text="?"
+     [9] type="" text=""
+         id="sidebar-toggle-button"
+         aria-label="Toggle Sidebar"
+     [10] type="button" text="qwen2.5-7b-instruct"
+         id="model-selector-0-button"
+         aria-label="Select a model"
+     [11] type="" text=""
+         aria-label="Add Model"
+     [12] type="" text="Set as default"
+     [13] type="" text=""
+         aria-label="Controls"
+     [14] type="" text=""
+         id="new-chat-button"
+         aria-label="New Chat"
+     ... and 16 more
+   Links (showing first 10 of 3):
+     [0] "Update for the latest features and impro" → https://github.com/open-webui/open-webui/releases
+     [1] "New Chat" → /
+     [2] "Workspace" → /workspace
+   ARIA Roles: textbox(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: open-webui-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Open-WebUI accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Prometheus - Access with forward auth" classname="forward-auth-services.spec.ts" time="21.31">
+<system-out>
+<![CDATA[
+🧪 Testing Prometheus forward auth
+   → Prometheus REQUEST: GET https://prometheus.datamancy.net/
+   ← Prometheus RESPONSE: 302 https://prometheus.datamancy.net/
+   → Prometheus REQUEST: GET https://prometheus.datamancy.net/query
+   ← Prometheus RESPONSE: 200 https://prometheus.datamancy.net/query
+
+   📊 Prometheus Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://prometheus.datamancy.net/query
+   Title: "Prometheus Time Series Collection and Processing Server"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (1):
+     [0] type="hidden" name="" id=""
+   Buttons (16):
+     [0] type="button" text="Status"
+         id="mantine-f8ixbbtly-target"
+     [1] type="button" text=""
+         aria-label="Switch to light theme"
+     [2] type="button" text=""
+         id="mantine-abgvwan8w-target"
+         aria-label="Settings"
+     [3] type="button" text=""
+     [4] type="button" text="Status"
+         id="mantine-5msphzftc-target"
+     [5] type="button" text=""
+         aria-label="Switch to light theme"
+     [6] type="button" text=""
+         id="mantine-i89aozb6d-target"
+         aria-label="Settings"
+     [7] type="button" text=""
+         id="mantine-1sl7gvk47-target"
+         aria-label="Show query options"
+     [8] type="button" text="Execute"
+     [9] type="button" text="Table"
+         id="mantine-5g3rkdn17-tab-table"
+     [10] type="button" text="Graph"
+         id="mantine-5g3rkdn17-tab-graph"
+     [11] type="button" text="Explain"
+         id="mantine-5g3rkdn17-tab-explain"
+     [12] type="button" text=""
+         aria-label="Decrease time"
+     [13] type="button" text="Evaluation time"
+         id="mantine-yj5qdp80j"
+         aria-label="Evaluation time"
+     [14] type="button" text=""
+         aria-label="Increase time"
+     ... and 1 more
+   Links (showing first 10 of 7):
+     [0] "PrometheusPrometheus" → /
+     [1] "Query" → /query
+     [2] "Alerts" → /alerts
+     [4] "Query" → /query
+     [5] "Alerts" → /alerts
+   ARIA Roles: textbox(1), tablist(1), tab(3), tabpanel(3), alert(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: prometheus-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Prometheus accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Grafana - Logs home + Loki datasource" classname="forward-auth-services.spec.ts" time="27.556">
+<system-out>
+<![CDATA[
+🧪 Testing Grafana forward auth
+   → Grafana REQUEST: GET https://grafana.datamancy.net/
+   ← Grafana RESPONSE: 200 https://grafana.datamancy.net/
+
+   📊 Grafana Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://grafana.datamancy.net/?orgId=1&from=now-6h&to=now&timezone=browser
+   Title: "Home - Dashboards - Grafana"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (8):
+     [0] type="" text=""
+         id="mega-menu-toggle"
+         aria-label="Open menu"
+     [1] type="" text="Search or jump to..."
+     [2] type="" text=""
+         aria-label="Help"
+     [3] type="" text=""
+         aria-label="Enable kiosk mode"
+     [4] type="" text=""
+         aria-label="Profile"
+     [5] type="" text=""
+         aria-label="Menu for panel with no title"
+     [6] type="" text=""
+         aria-label="Menu for panel with title Dashboards"
+     [7] type="" text=""
+         aria-label="Menu for panel with title Latest from the blog"
+   Links (showing first 10 of 17):
+     [0] "Skip to main content" → #pageContent
+     [1] "Home" → /
+     [2] "Dashboards" → /dashboards
+     [3] "Documentation" → https://grafana.com/docs/grafana/latest?utm_source
+     [4] "Tutorials" → https://grafana.com/tutorials?utm_source=grafana_g
+     [5] "Community" → https://community.grafana.com?utm_source=grafana_g
+     [6] "Public Slack" → http://slack.grafana.com?utm_source=grafana_gettin
+     [7] "Apono integration for Grafana: Enabling " → https://grafana.com/blog/apono-integration-for-gra
+     [8] "The 2026 Golden Grot Awards finalists ar" → https://grafana.com/blog/vote-for-2026-golden-grot
+     [9] "Dive into the GrafanaCON 2026 agenda: te" → https://grafana.com/blog/grafanacon-2026-agenda/
+   Headings (14):
+     <h1> Welcome to Grafana
+     <h3> Need help?
+     <h2> Dashboards
+     <h2> Latest from the blog
+     <h3> Apono integration for Grafana: Enabling Just-in-Time access 
+     <h3> The 2026 Golden Grot Awards finalists are here: It’s time to
+     <h3> Dive into the GrafanaCON 2026 agenda: technical talks, hands
+     <h3> Generating metrics from traces with cardinality control: A c
+     <h3> How to create and manage secrets with Grafana Cloud Syntheti
+     <h3> Grafana Alerting: faster rules, personalized filters, and an
+     <h3> The rise of agentic AI in production: Can observability syst
+     <h3> The Grafana Labs operating system: Introducing our Guiding P
+     <h3> Grafana 12.4 release: faster and easier data visualization, 
+     <h3> The Grafana Cloud identity blueprint: balancing security and
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ⚠️  Grafana returned 400 error - skipping UI check
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Vaultwarden - Access with forward auth" classname="forward-auth-services.spec.ts" time="8.883">
+<failure message="forward-auth-services.spec.ts:375:7 Vaultwarden - Access with forward auth" type="FAILURE">
+<![CDATA[  [chromium] › forward-auth-services.spec.ts:375:7 › Forward Auth Services - SSO Flow › Vaultwarden - Access with forward auth 
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /vaultwarden\.datamancy\.net/
+    Received string:  "https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=47b2e0dd-935f-4a88-b5c7-842a4633c742"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 5000ms
+        9 × unexpected value "https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=47b2e0dd-935f-4a88-b5c7-842a4633c742"
+
+
+      238 |   // Additional URL validation if specified
+      239 |   if (options.urlPattern) {
+    > 240 |     await expect(page).toHaveURL(options.urlPattern);
+          |                        ^
+      241 |   }
+      242 |
+      243 |   // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
+        at testForwardAuthService (/app/playwright-tests/tests/forward-auth-services.spec.ts:240:24)
+        at /app/playwright-tests/tests/forward-auth-services.spec.ts:378:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/forward-auth-services-Forw-e0b2f----Access-with-forward-auth-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/forward-auth-services-Forw-e0b2f----Access-with-forward-auth-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/forward-auth-services-Forw-e0b2f----Access-with-forward-auth-chromium/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+🧪 Testing Vaultwarden (forward-auth) forward auth
+   → Vaultwarden (forward-auth) REQUEST: GET https://vaultwarden.datamancy.net/
+   ← Vaultwarden (forward-auth) RESPONSE: 302 https://vaultwarden.datamancy.net/
+   → Vaultwarden (forward-auth) REQUEST: GET https://app.vaultwarden.datamancy.net/
+   ← Vaultwarden (forward-auth) RESPONSE: 200 https://app.vaultwarden.datamancy.net/
+   → Vaultwarden (forward-auth) REQUEST: GET https://app.vaultwarden.datamancy.net/identity/connect/authorize?client_id=web&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fsso-connector.html&response_type=code&scope=api%20offline_access&state=XNTAxMqYQ28AdXs93IMRW4Kat2O0bu4hL6bGLZ3m5wknhXPL4FgAap86BcCO7Jwa_identifier=datamancy.net&code_challenge=2xzxw67PTMOccXNjzdk3_F500Qe8dp6E9KZ5UJFd0qI&code_challenge_method=S256&response_mode=query&domain_hint=datamancy.net&ssoToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJuYmYiOjE3NzMxNDc4ODksImV4cCI6MTc3MzE0ODAwOSwiaXNzIjoiaHR0cHM6Ly9hcHAudmF1bHR3YXJkZW4uZGF0YW1hbmN5Lm5ldHxzc28iLCJzdWIiOiJ2YXVsdHdhcmRlbiJ9.ETwec0GcdqA2oLOljs2wx1WODAcC2MT4Qh_Gep0aKJbQ_NHFIANiEnsvsMYXtRJ0fZ5ijGIAYz3mBjB8uNm-VYmYnnr9NckLNqI1Hrvmi3sr_eX3ZZX5MDiil7wRPBsxJeCCFdMS3uhvFfSxNY0o5dLfk3E0GR5OvYqCiBxFJQ5EEKugCvSnfZJh2Mxm64SlHeRRwv_B5T0GBn1zQIOMkoo8Gr5HO0zqYJK1QdF9w3slQRAWgOV014m5kHMHNujM6oAZ_HEsrXQhgLjS8gPcV3pGcHoS1H0efsWDiD2nIyCMakaVhB7sjr7VCD9ygxne00TgG-6oB4RXLDRjiPcDPw
+   ← Vaultwarden (forward-auth) RESPONSE: 307 https://app.vaultwarden.datamancy.net/identity/connect/authorize?client_id=web&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fsso-connector.html&response_type=code&scope=api%20offline_access&state=XNTAxMqYQ28AdXs93IMRW4Kat2O0bu4hL6bGLZ3m5wknhXPL4FgAap86BcCO7Jwa_identifier=datamancy.net&code_challenge=2xzxw67PTMOccXNjzdk3_F500Qe8dp6E9KZ5UJFd0qI&code_challenge_method=S256&response_mode=query&domain_hint=datamancy.net&ssoToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJuYmYiOjE3NzMxNDc4ODksImV4cCI6MTc3MzE0ODAwOSwiaXNzIjoiaHR0cHM6Ly9hcHAudmF1bHR3YXJkZW4uZGF0YW1hbmN5Lm5ldHxzc28iLCJzdWIiOiJ2YXVsdHdhcmRlbiJ9.ETwec0GcdqA2oLOljs2wx1WODAcC2MT4Qh_Gep0aKJbQ_NHFIANiEnsvsMYXtRJ0fZ5ijGIAYz3mBjB8uNm-VYmYnnr9NckLNqI1Hrvmi3sr_eX3ZZX5MDiil7wRPBsxJeCCFdMS3uhvFfSxNY0o5dLfk3E0GR5OvYqCiBxFJQ5EEKugCvSnfZJh2Mxm64SlHeRRwv_B5T0GBn1zQIOMkoo8Gr5HO0zqYJK1QdF9w3slQRAWgOV014m5kHMHNujM6oAZ_HEsrXQhgLjS8gPcV3pGcHoS1H0efsWDiD2nIyCMakaVhB7sjr7VCD9ygxne00TgG-6oB4RXLDRjiPcDPw
+   → Vaultwarden (forward-auth) REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?response_type=code&client_id=vaultwarden&state=WE5UQXhNcVlRMjhBZFhzOTNJTVJXNEthdDJPMGJ1NGhMNmJHTFozbTV3a25oWFBMNEZnQWFwODZCY0NPN0p3YV9pZGVudGlmaWVyPWRhdGFtYW5jeS5uZXQ%3D&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fidentity%2Fconnect%2Foidc-signin&scope=openid+openid+email+profile&code_challenge=2xzxw67PTMOccXNjzdk3_F500Qe8dp6E9KZ5UJFd0qI&code_challenge_method=S256&nonce=6GV55XT_v5PY0Wu-I5cLwg
+   ← Vaultwarden (forward-auth) RESPONSE: 302 https://auth.datamancy.net/api/oidc/authorization?response_type=code&client_id=vaultwarden&state=WE5UQXhNcVlRMjhBZFhzOTNJTVJXNEthdDJPMGJ1NGhMNmJHTFozbTV3a25oWFBMNEZnQWFwODZCY0NPN0p3YV9pZGVudGlmaWVyPWRhdGFtYW5jeS5uZXQ%3D&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fidentity%2Fconnect%2Foidc-signin&scope=openid+openid+email+profile&code_challenge=2xzxw67PTMOccXNjzdk3_F500Qe8dp6E9KZ5UJFd0qI&code_challenge_method=S256&nonce=6GV55XT_v5PY0Wu-I5cLwg
+   → Vaultwarden (forward-auth) REQUEST: GET https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=47b2e0dd-935f-4a88-b5c7-842a4633c742
+   ← Vaultwarden (forward-auth) RESPONSE: 200 https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=47b2e0dd-935f-4a88-b5c7-842a4633c742
+
+   📊 Vaultwarden (forward-auth) Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=47b2e0dd-935f-4a88-b5c7-842a4633c742
+   Title: "Login - Authelia"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (5):
+     [0] type="button" text="English"
+         id="language-button"
+         aria-label="Language"
+     [1] type="button" text="Logout"
+         id="logout-button"
+         aria-label="Logout and clear any current flow"
+     [2] type="button" text="Switch User"
+         id="switch-user-button"
+         aria-label="Logout and continue the current flow"
+     [3] type="button" text="Accept"
+         id="openid-consent-accept"
+     [4] type="button" text="Deny"
+         id="openid-consent-deny"
+   Links (showing first 10 of 1):
+     [0] "Powered by Authelia" → https://www.authelia.com
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+[[ATTACHMENT|forward-auth-services-Forw-e0b2f----Access-with-forward-auth-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|forward-auth-services-Forw-e0b2f----Access-with-forward-auth-chromium/video.webm]]
+
+[[ATTACHMENT|forward-auth-services-Forw-e0b2f----Access-with-forward-auth-chromium/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Homepage - Access with forward auth" classname="forward-auth-services.spec.ts" time="5.677">
+<system-out>
+<![CDATA[
+🧪 Testing Homepage forward auth
+   → Homepage REQUEST: GET https://homepage.datamancy.net/
+   ← Homepage RESPONSE: 200 https://homepage.datamancy.net/
+
+   📊 Homepage Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://homepage.datamancy.net/
+   Title: "Homepage"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (2):
+     [0] type="text" name="" id=""
+         placeholder="Search"
+         class="rounded-md w-full p-4 m-0 border-0 border-b border..."
+     [1] type="text" name="" id="headlessui-combobox-input-:r6:"
+         placeholder="Search…"
+         class=" overflow-hidden w-full h-full rounded-md text-xs ..."
+   Buttons (8):
+     [0] type="button" text="search.search"
+         id="headlessui-listbox-button-:r9:"
+     [1] type="button" text="AI & Development"
+         id="headlessui-disclosure-button-:ra:"
+     [2] type="button" text="Collaboration"
+         id="headlessui-disclosure-button-:rc:"
+     [3] type="button" text="Productivity"
+         id="headlessui-disclosure-button-:re:"
+     [4] type="button" text="Social & Media"
+         id="headlessui-disclosure-button-:rg:"
+     [5] type="button" text="System"
+         id="headlessui-disclosure-button-:ri:"
+     [6] type="button" text="Data & Analytics"
+         id="headlessui-disclosure-button-:rk:"
+     [7] type="button" text="Change color"
+         id="headlessui-popover-button-:r2:"
+   Links (showing first 10 of 30):
+     [1] "Open WebUIAI Chat Interface" → https://open-webui.datamancy.net
+     [3] "JupyterHubData Science Notebooks" → https://jupyterhub.datamancy.net
+     [5] "ForgejoGit Repository" → https://forgejo.datamancy.net
+     [7] "BookStackDocumentation Wiki" → https://bookstack.datamancy.net
+     [9] "PlankaProject Management" → https://planka.datamancy.net
+   Headings (6):
+     <h2> AI & Development
+     <h2> Collaboration
+     <h2> Productivity
+     <h2> Social & Media
+     <h2> System
+     <h2> Data & Analytics
+   ARIA Roles: dialog(1), combobox(1), img(1), alert(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: homepage-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Homepage accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Ntfy - Access with forward auth" classname="forward-auth-services.spec.ts" time="1.515">
+<system-out>
+<![CDATA[
+🧪 Testing Ntfy forward auth
+   → Ntfy REQUEST: GET https://ntfy.datamancy.net/
+   ← Ntfy RESPONSE: 200 https://ntfy.datamancy.net/
+
+   📊 Ntfy Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://ntfy.datamancy.net/
+   Title: "ntfy"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (1):
+     [0] type="button" text=""
+         aria-label="Show menu"
+   Links (showing first 10 of 2):
+     [0] "website" → https://ntfy.sh
+     [1] "documentation" → https://ntfy.sh/docs
+   ARIA Roles: navigation(1), menubar(2), alert(2), button(10)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: ntfy-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Ntfy accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › qBittorrent - Access with forward auth" classname="forward-auth-services.spec.ts" time="2.004">
+<system-out>
+<![CDATA[
+🧪 Testing qBittorrent forward auth
+   → qBittorrent REQUEST: GET https://qbittorrent.datamancy.net/
+   ← qBittorrent RESPONSE: 200 https://qbittorrent.datamancy.net/
+
+   📊 qBittorrent Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://qbittorrent.datamancy.net/
+   Title: "qBittorrent v5.1.4 WebUI"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (10):
+     [0] type="search" name="" id="torrentsFilterInput"
+         placeholder="Filter torrent list..."
+         aria-label="Filter torrent list..."
+     [1] type="checkbox" name="" id="torrentsFilterRegexBox"
+     [2] type="search" name="" id="torrentFilesFilterInput"
+         placeholder="Filter files..."
+         aria-label="Filter files..."
+     [3] type="checkbox" name="" id="tristate_cb"
+     [4] type="search" name="" id="searchPattern"
+         placeholder="Search"
+         aria-label="Search"
+         class="searchInputField"
+     [5] type="search" name="" id="searchInNameFilter"
+         placeholder="Filter"
+         aria-label="Filter"
+     [6] type="number" name="" id="searchMinSeedsFilter"
+     [7] type="number" name="" id="searchMaxSeedsFilter"
+     [8] type="number" name="" id="searchMinSizeFilter"
+     [9] type="number" name="" id="searchMaxSizeFilter"
+   Buttons (8):
+     [0] type="button" text=""
+         aria-label="Collapse/expand category"
+     [1] type="button" text=""
+         aria-label="Collapse/expand category"
+     [2] type="button" text="Search"
+         id="startSearchButton"
+     [3] type="button" text="Search plugins..."
+         id="manageSearchPlugins"
+     [4] type="button" text="New subscription"
+         id="newSubscriptionButton"
+     [5] type="button" text="Mark items read"
+         id="markReadButton"
+     [6] type="button" text="Update all"
+         id="updateAllButton"
+     [7] type="button" text="RSS Downloader..."
+         id="rssDownloaderButton"
+   Links (showing first 10 of 217):
+     [0] "File" → 
+     [1] "Add Torrent File..." → 
+     [2] "Add Torrent Link..." → 
+     [3] "Logout" → 
+     [4] "Exit qBittorrent" → 
+     [5] "Edit" → 
+     [6] "Start" → 
+     [7] "Stop" → 
+     [8] "Start All" → 
+     [9] "Stop All" → 
+   Headings (4):
+     <h2> Panel
+     <h2> Panel
+     <h2> Search
+     <h2> Rss
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: qbittorrent-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ qBittorrent accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Roundcube - Access with forward auth" classname="forward-auth-services.spec.ts" time="4.98">
+<system-out>
+<![CDATA[
+🧪 Testing Roundcube forward auth
+   → Roundcube REQUEST: GET https://roundcube.datamancy.net/
+   ← Roundcube RESPONSE: 200 https://roundcube.datamancy.net/
+   → Roundcube REQUEST: POST https://roundcube.datamancy.net/?_task=login
+   ← Roundcube RESPONSE: 302 https://roundcube.datamancy.net/?_task=login
+   → Roundcube REQUEST: GET https://roundcube.datamancy.net/?_task=mail&_token=lmLDUzm7hypUQAkM7hGpHfutyu6kwS9C
+   ← Roundcube RESPONSE: 200 https://roundcube.datamancy.net/?_task=mail&_token=lmLDUzm7hypUQAkM7hGpHfutyu6kwS9C
+   → Roundcube REQUEST: GET https://roundcube.datamancy.net/skins/elastic/watermark.html
+   ← Roundcube RESPONSE: 200 https://roundcube.datamancy.net/skins/elastic/watermark.html
+
+   📊 Roundcube Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://roundcube.datamancy.net/?_task=mail&_mbox=INBOX
+   Title: "Roundcube Webmail :: Inbox"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (19):
+     [0] type="text" name="_q" id="mailsearchform"
+         placeholder="Search..."
+         class="no-bs"
+     [1] type="checkbox" name="s_mods[]" id="icochk1"
+         class="form-check-input custom-control-input"
+     [2] type="checkbox" name="s_mods[]" id="icochk2"
+         class="form-check-input custom-control-input"
+     [3] type="checkbox" name="s_mods[]" id="icochk3"
+         class="form-check-input custom-control-input"
+     [4] type="checkbox" name="s_mods[]" id="icochk4"
+         class="form-check-input custom-control-input"
+     [5] type="checkbox" name="s_mods[]" id="icochk5"
+         class="form-check-input custom-control-input"
+     [6] type="checkbox" name="s_mods[]" id="icochk6"
+         class="form-check-input custom-control-input"
+     [7] type="checkbox" name="s_mods[]" id="icochk7"
+         class="form-check-input custom-control-input"
+     [8] type="checkbox" name="s_mods[]" id="icochk8"
+         class="form-check-input custom-control-input"
+     [9] type="checkbox" name="s_mods[]" id="icochk9"
+         class="form-check-input custom-control-input"
+     [10] type="checkbox" name="s_mods[]" id="icochk10"
+         class="form-check-input custom-control-input"
+     [11] type="checkbox" name="s_mods[]" id="icochk11"
+         class="form-check-input custom-control-input"
+     [12] type="checkbox" name="" id=""
+     [13] type="checkbox" name="" id=""
+     [14] type="text" name="" id=""
+         class="form-control rcpagejumper"
+     [15] type="hidden" name="_token" id=""
+     [16] type="hidden" name="_unlock" id=""
+     [17] type="hidden" name="_framed" id=""
+     [18] type="file" name="_file[]" id="uploadformInput"
+         class="form-control custom-file-input"
+   Buttons (1):
+     [0] type="button" text="Search"
+   Links (showing first 10 of 96):
+     [0] "Close" → 
+     [1] "Compose" → /?_task=mail&_action=compose
+     [2] "Mail" → /?_task=mail
+     [3] "Contacts" → /?_task=addressbook
+     [4] "Settings" → /?_task=settings
+     [5] "Dark mode" → #
+     [6] "About" → #
+     [7] "Logout" → /?_task=logout
+     [8] "Back" → #back
+     [9] "Actions" → #
+   Headings (18):
+     <h2> Application tasks
+     <h1> Mail
+     <h2> Email folder selection
+     <h2> Email search input
+     <h3> Search modifiers
+     <h2> Email Messages Listing
+     <h2> Application toolbar
+     <h3> Forwarding options
+     <h3> Reply-all options
+     <h3> More message actions
+     <h3> Mark selected messages as...
+     <h2> Message preview
+     <h3> Drag-n-Drop action menu
+     <h3> Folder actions menu
+     <h3> List selection menu
+     <h3> Threads listing menu
+     <h3> Message list display and sorting options
+     <h2> Message Download Options Menu
+   ARIA Roles: navigation(2), button(62), tree(1), treeitem(5), menuitem(47), search(1), presentation(1), toolbar(2), menu(9), dialog(1), alert(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: roundcube-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Roundcube accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Home Assistant - Access with forward auth" classname="forward-auth-services.spec.ts" time="10.46">
+<system-out>
+<![CDATA[
+🧪 Testing Home Assistant forward auth
+   → Home Assistant REQUEST: GET https://homeassistant.datamancy.net/
+   ← Home Assistant RESPONSE: 302 https://homeassistant.datamancy.net/
+   → Home Assistant REQUEST: GET https://homeassistant.datamancy.net/onboarding.html
+   ← Home Assistant RESPONSE: 200 https://homeassistant.datamancy.net/onboarding.html
+
+   📊 Home Assistant Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://homeassistant.datamancy.net/onboarding.html
+   Title: "Home Assistant"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (6):
+     [0] type="button" text=""
+     [1] type="" text=""
+         id="item"
+     [2] type="" text=""
+         aria-label="Next"
+     [3] type="" text=""
+         id="item"
+     [4] type="" text=""
+         aria-label="Next"
+     [5] type="" text=""
+         id="item"
+   Links (showing first 10 of 1):
+     [0] "Help" → https://www.home-assistant.io/getting-started/onbo
+   Headings (1):
+     <h1> Welcome!
+   ARIA Roles: progressbar(1), button(1), separator(1), listitem(3), img(3)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: home-assistant-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Home Assistant accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Kopia - Access with forward auth" classname="forward-auth-services.spec.ts" time="0.945">
+<system-out>
+<![CDATA[
+🧪 Testing Kopia forward auth
+   → Kopia REQUEST: GET https://kopia.datamancy.net/
+   ← Kopia RESPONSE: 200 https://kopia.datamancy.net/
+
+   📊 Kopia Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://kopia.datamancy.net/snapshots
+   Title: "KopiaUI v0.22.3"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (5):
+     [0] type="button" text=""
+         aria-label="Toggle navigation"
+     [1] type="button" text="Local Snapshots"
+         id="dropdown-basic"
+     [2] type="button" text=""
+     [3] type="button" text="Page Size: 10"
+         id="react-aria7131392455-«r2»"
+     [4] type="button" text=""
+   Links (showing first 10 of 8):
+     [1] "Snapshots" → /snapshots
+     [2] "Policies" → /policies
+     [3] "Tasks" → /tasks
+     [4] "Repository" → /repo
+     [5] "Preferences" → /preferences
+     [6] "Repository in Filesystem: /app/repositor" → /repo
+     [7] "New Snapshot" → /snapshots/new
+   ARIA Roles: img(3), button(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: kopia-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Kopia accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › LDAP Account Manager - Access with forward auth" classname="forward-auth-services.spec.ts" time="1.421">
+<system-out>
+<![CDATA[
+🧪 Testing LDAP Account Manager forward auth
+   → LDAP Account Manager REQUEST: GET https://lam.datamancy.net/lam/
+   ← LDAP Account Manager RESPONSE: 200 https://lam.datamancy.net/lam/
+   → LDAP Account Manager REQUEST: GET https://lam.datamancy.net/lam/templates/login.php
+   ← LDAP Account Manager RESPONSE: 200 https://lam.datamancy.net/lam/templates/login.php
+   → LDAP Account Manager REQUEST: POST https://lam.datamancy.net/lam/templates/login.php
+   ← LDAP Account Manager RESPONSE: 302 https://lam.datamancy.net/lam/templates/login.php
+   → LDAP Account Manager REQUEST: GET https://lam.datamancy.net/lam/templates/main.php
+   ← LDAP Account Manager RESPONSE: 302 https://lam.datamancy.net/lam/templates/main.php
+   → LDAP Account Manager REQUEST: GET https://lam.datamancy.net/lam/templates/initsuff.php?suffs=%27ou=users,dc=datamancy,dc=net;ou=groups,dc=datamancy,dc=net
+   ← LDAP Account Manager RESPONSE: 200 https://lam.datamancy.net/lam/templates/initsuff.php?suffs=%27ou=users,dc=datamancy,dc=net;ou=groups,dc=datamancy,dc=net
+
+   📊 LDAP Account Manager Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://lam.datamancy.net/lam/templates/initsuff.php?suffs=%27ou=users,dc=datamancy,dc=net;ou=groups,dc=datamancy,dc=net
+   Title: "LDAP Account Manager (ldap:389)"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (2):
+     [0] type="hidden" name="new_suff" id="new_suff"
+     [1] type="hidden" name="sec_token" id="sec_token"
+   Buttons (2):
+     [0] type="submit" text="Create"
+         id="btn_add_suff"
+     [1] type="submit" text="Cancel"
+         id="btn_cancel"
+   Links (showing first 10 of 17):
+     [0] "sysadmin
+                
+              " → https://www.ldap-account-manager.org/
+     [2] "Accounts" → javascript:void(0);
+     [3] "Users" → ../templates/lists/list.php?type=user
+     [4] "Groups" → ../templates/lists/list.php?type=group
+     [5] "Tools" → javascript:void(0);
+     [6] "Profile editor" → ../templates/profedit/profilemain.php
+     [7] "PDF editor" → ../templates/pdfedit/pdfmain.php
+     [8] "File upload" → ../templates/upload/masscreate.php
+     [9] "Multi edit" → ../templates/tools/multiEdit.php
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: ldap-account-manager-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ LDAP Account Manager accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › LiteLLM - Access with forward auth" classname="forward-auth-services.spec.ts" time="5.35">
+<system-out>
+<![CDATA[
+🧪 Testing LiteLLM forward auth
+   → LiteLLM REQUEST: GET https://litellm.datamancy.net/
+   ← LiteLLM RESPONSE: 200 https://litellm.datamancy.net/
+
+   📊 LiteLLM Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://litellm.datamancy.net/
+   Title: "LiteLLM API - Swagger UI"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (2402):
+     [0] type="" text="Authorize"
+     [1] type="" text=""
+     [2] type="" text="GET/modelsModel List"
+     [3] type="" text=""
+         aria-label="authorization button unlocked"
+     [4] type="" text=""
+         aria-label="get ​/models"
+     [5] type="" text="GET/v1/modelsModel List"
+     [6] type="" text=""
+         aria-label="authorization button unlocked"
+     [7] type="" text=""
+         aria-label="get ​/v1​/models"
+     [8] type="" text="GET/models/{model_id}Model Info"
+     [9] type="" text=""
+         aria-label="authorization button unlocked"
+     [10] type="" text=""
+         aria-label="get ​/models​/{model_id}"
+     [11] type="" text="GET/v1/models/{model_id}Model Info"
+     [12] type="" text=""
+         aria-label="authorization button unlocked"
+     [13] type="" text=""
+         aria-label="get ​/v1​/models​/{model_id}"
+     [14] type="" text="GET/v1/model/infoModel Info V1"
+     ... and 2387 more
+   Links (showing first 10 of 673):
+     [0] "/openapi.json" → /openapi.json
+     [1] "Customize Swagger Docs" → https://docs.litellm.ai/docs/proxy/enterprise#swag
+     [2] "LiteLLM Admin Panel on /ui" → /ui
+     [3] "Fallback Login" → /fallback/login
+     [4] "LiteLLM Model Cost Map" → https://models.litellm.ai/
+     [5] "LiteLLM Model Hub" → /ui/model_hub_table
+     [6] "Docs" → https://docs.litellm.ai/docs/proxy/model_hub
+     [7] "model management" → #/model%20management
+     [8] "/models" → #/model%20management/model_list_models_get
+     [9] "/v1/models" → #/model%20management/model_list_v1_models_get
+   Headings (77):
+     <h2> LiteLLM API 1.80.8 OAS 3.1
+     <h3> model management
+     <h3> chat/completions
+     <h3> completions
+     <h3> embeddings
+     <h3> moderations
+     <h3> audio
+     <h3> assistants
+     <h3> llm utils
+     <h3> default
+     <h3> responses
+     <h3> batch
+     <h3> public
+     <h3> [beta] Agents
+     <h3> [beta] MCP
+     <h3> providers
+     <h3> rerank
+     <h3> ocr
+     <h3> rag
+     <h3> videos
+     <h3> containers
+     <h3> search
+     <h3> images
+     <h3> fine-tuning
+     <h3> vector store management
+     <h3> vector_store_files
+     <h3> credential management
+     <h3> Google AI Studio Pass-through
+     <h3> pass-through
+     <h3> Cohere Pass-through
+     <h3> VLLM Pass-through
+     <h3> Mistral Pass-through
+     <h3> Milvus Pass-through
+     <h3> Anthropic Pass-through
+     <h3> Bedrock Pass-through
+     <h3> AssemblyAI EU Pass-through
+     <h3> AssemblyAI Pass-through
+     <h3> Azure Pass-through
+     <h3> Azure AI Pass-through
+     <h3> Vertex AI Pass-through
+     <h3> OpenAI Pass-through
+     <h3> mcp
+     <h3> [beta] Anthropic `/v1/messages`
+     <h3> [beta] Anthropic Messages Token Counting
+     <h3> [beta] Anthropic Skills API
+     <h3> google genai endpoints
+     <h3> Langfuse Pass-through
+     <h3> health
+     <h3> key management
+     <h3> Internal User management
+     <h3> Budget & Spend Tracking
+     <h3> team management
+     <h3> ✨ SCIM v2 (Enterprise Only)
+     <h3> organization management
+     <h3> Customer Management
+     <h3> CloudZero
+     <h3> caching
+     <h3> Guardrails
+     <h3> Search Tools
+     <h3> Prompt Management
+     <h3> prompts
+     <h3> utils
+     <h3> Logging Callbacks
+     <h3> SSO Settings
+     <h3> UI Theme Settings
+     <h3> files
+     <h3> budget management
+     <h3> tag management
+     <h3> Cost Tracking
+     <h3> Router Settings
+     <h3> Cache Settings
+     <h3> user agent analytics
+     <h3> email management
+     <h3> Audit Logging
+     <h3> [beta] A2A Agents
+     <h3> Agents
+     <h3> WebSocket
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: litellm-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ LiteLLM accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Radicale - Access with forward auth" classname="forward-auth-services.spec.ts" time="0.884">
+<system-out>
+<![CDATA[
+🧪 Testing Radicale forward auth
+   → Radicale REQUEST: GET https://radicale.datamancy.net/
+   ← Radicale RESPONSE: 525 https://radicale.datamancy.net/
+
+   📊 Radicale Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://radicale.datamancy.net/
+   Title: "datamancy.net | 525: SSL handshake failed"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (1):
+     [0] type="button" text="Click to reveal"
+         id="cf-footer-ip-reveal"
+   Links (showing first 10 of 5):
+     [0] "cloudflare.com" → https://www.cloudflare.com/5xx-error-landing?utm_s
+     [2] "Cloudflare" → https://www.cloudflare.com/5xx-error-landing?utm_s
+     [3] "Additional troubleshooting information h" → https://developers.cloudflare.com/support/troubles
+     [4] "Cloudflare" → https://www.cloudflare.com/5xx-error-landing?utm_s
+   Headings (8):
+     <h1> SSL handshake failed
+                Error code 525
+     <h3> Browser
+     <h3> Cloudflare
+     <h3> Host
+     <h2> What happened?
+     <h2> What can I do?
+     <h3> If you're a visitor of this website:
+     <h3> If you're the owner of this website:
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: radicale-authenticated.jpeg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Radicale accessed successfully
+
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth Services - SSO Flow › Vault - Access with forward auth" classname="forward-auth-services.spec.ts" time="7.122">
+<failure message="forward-auth-services.spec.ts:543:7 Vault - Access with forward auth" type="FAILURE">
+<![CDATA[  [chromium] › forward-auth-services.spec.ts:543:7 › Forward Auth Services - SSO Flow › Vault - Access with forward auth 
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /vaultwarden\.datamancy\.net/
+    Received string:  "https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=d868159c-3204-4dd8-bf13-7a981cf3fefc"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 5000ms
+        9 × unexpected value "https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=d868159c-3204-4dd8-bf13-7a981cf3fefc"
+
+
+      238 |   // Additional URL validation if specified
+      239 |   if (options.urlPattern) {
+    > 240 |     await expect(page).toHaveURL(options.urlPattern);
+          |                        ^
+      241 |   }
+      242 |
+      243 |   // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
+        at testForwardAuthService (/app/playwright-tests/tests/forward-auth-services.spec.ts:240:24)
+        at /app/playwright-tests/tests/forward-auth-services.spec.ts:545:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/forward-auth-services-Forw-277f1----Access-with-forward-auth-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/forward-auth-services-Forw-277f1----Access-with-forward-auth-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/forward-auth-services-Forw-277f1----Access-with-forward-auth-chromium/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+🧪 Testing Vault (Vaultwarden UI) forward auth
+   → Vault (Vaultwarden UI) REQUEST: GET https://vaultwarden.datamancy.net/
+   ← Vault (Vaultwarden UI) RESPONSE: 302 https://vaultwarden.datamancy.net/
+   → Vault (Vaultwarden UI) REQUEST: GET https://app.vaultwarden.datamancy.net/
+   ← Vault (Vaultwarden UI) RESPONSE: 200 https://app.vaultwarden.datamancy.net/
+   → Vault (Vaultwarden UI) REQUEST: GET https://app.vaultwarden.datamancy.net/identity/connect/authorize?client_id=web&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fsso-connector.html&response_type=code&scope=api%20offline_access&state=nGNLXH6uk0Tv3iRrZx1bxD26ZADWAYUeeIhDTqyt2bWETsyRHzqkV1Z9UpKcxHxH_identifier=datamancy.net&code_challenge=lIuYipCmcAH-d4kAX-nPPUS1tZCKjuOeHQsGbcOgz64&code_challenge_method=S256&response_mode=query&domain_hint=datamancy.net&ssoToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJuYmYiOjE3NzMxNDc5MzIsImV4cCI6MTc3MzE0ODA1MiwiaXNzIjoiaHR0cHM6Ly9hcHAudmF1bHR3YXJkZW4uZGF0YW1hbmN5Lm5ldHxzc28iLCJzdWIiOiJ2YXVsdHdhcmRlbiJ9.fdlOkZh01d91lc-7pHucmvQOWdE36ehqexO_c-H2j3UNTNY5EdwJngfWlGONLExdHCacd2r_qyi8ekLoO-pmc4PbDcEIboCF3kMd9WrthaLyufHIvHTf_HtHNkn0NMtV_premHNsO2rQuIpLK7qfFmDYzfiIdf52x0rSMfGpz2F4utKnxtXQtEvZ-lZPmneXTZ1p2cixEWl68w3JrA4pOmhSqTK0OczK5tvkDpBcuYYuqkvwigOZx736m2oSQ32yNT9xYI_Nn5E3_Rev6En508gRVg64FrSu6724Avhj-nQUsymF-zfUiQpukihkHPLJpA0MYu77GWsyI9-yFM8S1w
+   ← Vault (Vaultwarden UI) RESPONSE: 307 https://app.vaultwarden.datamancy.net/identity/connect/authorize?client_id=web&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fsso-connector.html&response_type=code&scope=api%20offline_access&state=nGNLXH6uk0Tv3iRrZx1bxD26ZADWAYUeeIhDTqyt2bWETsyRHzqkV1Z9UpKcxHxH_identifier=datamancy.net&code_challenge=lIuYipCmcAH-d4kAX-nPPUS1tZCKjuOeHQsGbcOgz64&code_challenge_method=S256&response_mode=query&domain_hint=datamancy.net&ssoToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJuYmYiOjE3NzMxNDc5MzIsImV4cCI6MTc3MzE0ODA1MiwiaXNzIjoiaHR0cHM6Ly9hcHAudmF1bHR3YXJkZW4uZGF0YW1hbmN5Lm5ldHxzc28iLCJzdWIiOiJ2YXVsdHdhcmRlbiJ9.fdlOkZh01d91lc-7pHucmvQOWdE36ehqexO_c-H2j3UNTNY5EdwJngfWlGONLExdHCacd2r_qyi8ekLoO-pmc4PbDcEIboCF3kMd9WrthaLyufHIvHTf_HtHNkn0NMtV_premHNsO2rQuIpLK7qfFmDYzfiIdf52x0rSMfGpz2F4utKnxtXQtEvZ-lZPmneXTZ1p2cixEWl68w3JrA4pOmhSqTK0OczK5tvkDpBcuYYuqkvwigOZx736m2oSQ32yNT9xYI_Nn5E3_Rev6En508gRVg64FrSu6724Avhj-nQUsymF-zfUiQpukihkHPLJpA0MYu77GWsyI9-yFM8S1w
+   → Vault (Vaultwarden UI) REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?response_type=code&client_id=vaultwarden&state=bkdOTFhINnVrMFR2M2lSclp4MWJ4RDI2WkFEV0FZVWVlSWhEVHF5dDJiV0VUc3lSSHpxa1YxWjlVcEtjeEh4SF9pZGVudGlmaWVyPWRhdGFtYW5jeS5uZXQ%3D&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fidentity%2Fconnect%2Foidc-signin&scope=openid+openid+email+profile&code_challenge=lIuYipCmcAH-d4kAX-nPPUS1tZCKjuOeHQsGbcOgz64&code_challenge_method=S256&nonce=4RKfiCX4jIQLSmGLQiePgA
+   ← Vault (Vaultwarden UI) RESPONSE: 302 https://auth.datamancy.net/api/oidc/authorization?response_type=code&client_id=vaultwarden&state=bkdOTFhINnVrMFR2M2lSclp4MWJ4RDI2WkFEV0FZVWVlSWhEVHF5dDJiV0VUc3lSSHpxa1YxWjlVcEtjeEh4SF9pZGVudGlmaWVyPWRhdGFtYW5jeS5uZXQ%3D&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fidentity%2Fconnect%2Foidc-signin&scope=openid+openid+email+profile&code_challenge=lIuYipCmcAH-d4kAX-nPPUS1tZCKjuOeHQsGbcOgz64&code_challenge_method=S256&nonce=4RKfiCX4jIQLSmGLQiePgA
+   → Vault (Vaultwarden UI) REQUEST: GET https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=d868159c-3204-4dd8-bf13-7a981cf3fefc
+   ← Vault (Vaultwarden UI) RESPONSE: 200 https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=d868159c-3204-4dd8-bf13-7a981cf3fefc
+
+   📊 Vault (Vaultwarden UI) Main Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=d868159c-3204-4dd8-bf13-7a981cf3fefc
+   Title: "Login - Authelia"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (5):
+     [0] type="button" text="English"
+         id="language-button"
+         aria-label="Language"
+     [1] type="button" text="Logout"
+         id="logout-button"
+         aria-label="Logout and clear any current flow"
+     [2] type="button" text="Switch User"
+         id="switch-user-button"
+         aria-label="Logout and continue the current flow"
+     [3] type="button" text="Accept"
+         id="openid-consent-accept"
+     [4] type="button" text="Deny"
+         id="openid-consent-deny"
+   Links (showing first 10 of 1):
+     [0] "Powered by Authelia" → https://www.authelia.com
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+[[ATTACHMENT|forward-auth-services-Forw-277f1----Access-with-forward-auth-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|forward-auth-services-Forw-277f1----Access-with-forward-auth-chromium/video.webm]]
+
+[[ATTACHMENT|forward-auth-services-Forw-277f1----Access-with-forward-auth-chromium/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Forward Auth - Session Persistence › Session works across multiple forward-auth services" classname="forward-auth-services.spec.ts" time="14.019">
+<system-out>
+<![CDATA[
+🧪 Testing session persistence across services
+
+   Visiting JupyterHub...
+   ✅ JupyterHub accessed without re-auth
+
+   Visiting Prometheus...
+   ✅ Prometheus accessed without re-auth
+
+   Visiting Homepage...
+   ✅ Homepage accessed without re-auth
+
+   ✅ Session persisted across all services
+
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="oidc-services.spec.ts" timestamp="2026-03-10T13:03:27.480Z" hostname="chromium" tests="7" failures="1" skipped="0" time="117.155" errors="0">
+<testcase name="OIDC Services - SSO Flow › Grafana - OIDC login flow" classname="oidc-services.spec.ts" time="22.259">
+<system-out>
+<![CDATA[   → Grafana (forward-auth) REQUEST: GET https://grafana.datamancy.net/
+   ← Grafana (forward-auth) RESPONSE: 302 https://grafana.datamancy.net/
+   → Grafana (forward-auth) REQUEST: GET https://auth.datamancy.net/?rd=https%3A%2F%2Fgrafana.datamancy.net%2F&rm=GET
+   ← Grafana (forward-auth) RESPONSE: 200 https://auth.datamancy.net/?rd=https%3A%2F%2Fgrafana.datamancy.net%2F&rm=GET
+
+🔐 Logging in with Authelia as: plmmkmf5m0ed7
+
+   📊 Authelia Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?rd=https%3A%2F%2Fgrafana.datamancy.net%2F&rm=GET
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓ Username entered
+   ✓ Password entered
+   ✓ Submit clicked and auth response received
+   ✓ Redirected to: https://auth.datamancy.net/?rd=https%3A%2F%2Fgrafana.datamancy.net%2F&rm=GET
+
+   → Grafana (forward-auth) REQUEST: GET https://grafana.datamancy.net/
+   ← Grafana (forward-auth) RESPONSE: 200 https://grafana.datamancy.net/
+]]>
+</system-out>
+</testcase>
+<testcase name="OIDC Services - SSO Flow › Mastodon - OIDC login flow" classname="oidc-services.spec.ts" time="18.522">
+<system-out>
+<![CDATA[
+🧪 Testing Mastodon OIDC login
+   → Mastodon REQUEST: GET https://mastodon.datamancy.net/
+   ← Mastodon RESPONSE: 200 https://mastodon.datamancy.net/
+
+   📊 Mastodon Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://mastodon.datamancy.net/
+   Title: "Mastodon"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: Authelia
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://mastodon.datamancy.net/
+   Title: "Mastodon"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: SSO
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://mastodon.datamancy.net/
+   Title: "Mastodon"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   Headings (1):
+     <h1> Trending
+   ARIA Roles: img(3), presentation(1), region(1), feed(1), progressbar(2)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   → Mastodon REQUEST: POST https://mastodon.datamancy.net/auth/auth/openid_connect
+   ← Mastodon RESPONSE: 302 https://mastodon.datamancy.net/auth/auth/openid_connect
+   → Mastodon REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?client_id=mastodon&nonce=4c0db137dfe0f1694c03a93273c9f394&redirect_uri=https%3A%2F%2Fmastodon.datamancy.net%2Fauth%2Fauth%2Fopenid_connect%2Fcallback&response_type=code&scope=openid%20profile%20email&state=04b38ad376b82707dc0c955083ec3185
+   ← Mastodon RESPONSE: 302 https://auth.datamancy.net/api/oidc/authorization?client_id=mastodon&nonce=4c0db137dfe0f1694c03a93273c9f394&redirect_uri=https%3A%2F%2Fmastodon.datamancy.net%2Fauth%2Fauth%2Fopenid_connect%2Fcallback&response_type=code&scope=openid%20profile%20email&state=04b38ad376b82707dc0c955083ec3185
+   → Mastodon REQUEST: GET https://auth.datamancy.net/?flow=openid_connect&flow_id=52d35864-4b41-494c-9474-5f4fe721878a
+   ← Mastodon RESPONSE: 200 https://auth.datamancy.net/?flow=openid_connect&flow_id=52d35864-4b41-494c-9474-5f4fe721878a
+   ✓ Clicked OIDC link by href match
+   ✓ Redirected to Authelia: https://auth.datamancy.net/?flow=openid_connect&flow_id=52d35864-4b41-494c-9474-5f4fe721878a
+
+
+🔐 Logging in with Authelia as: plmmkmf5m0ed7
+
+   📊 Authelia Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?flow=openid_connect&flow_id=52d35864-4b41-494c-9474-5f4fe721878a
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓ Username entered
+   ✓ Password entered
+   ✓ Submit clicked and auth response received
+   ✓ Redirected to: https://auth.datamancy.net/?flow=openid_connect&flow_id=52d35864-4b41-494c-9474-5f4fe721878a
+
+🔍 Checking for OIDC consent screen...
+   → Mastodon REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?client_id=mastodon&consent_id=52d35864-4b41-494c-9474-5f4fe721878a&nonce=4c0db137dfe0f1694c03a93273c9f394&redirect_uri=https%3A%2F%2Fmastodon.datamancy.net%2Fauth%2Fauth%2Fopenid_connect%2Fcallback&response_type=code&scope=openid+profile+email&state=04b38ad376b82707dc0c955083ec3185
+   ← Mastodon RESPONSE: 303 https://auth.datamancy.net/api/oidc/authorization?client_id=mastodon&consent_id=52d35864-4b41-494c-9474-5f4fe721878a&nonce=4c0db137dfe0f1694c03a93273c9f394&redirect_uri=https%3A%2F%2Fmastodon.datamancy.net%2Fauth%2Fauth%2Fopenid_connect%2Fcallback&response_type=code&scope=openid+profile+email&state=04b38ad376b82707dc0c955083ec3185
+   → Mastodon REQUEST: GET https://mastodon.datamancy.net/auth/auth/openid_connect/callback?code=authelia_ac_aWfUqmYmXlUcupyhoBXdtjxCAzeYEnOPxWKptTtg9nM.u2IDvfpF_fZSv65utD4eX6NgsWR6d7KeRNO_4121AnE&iss=https%3A%2F%2Fauth.datamancy.net&scope=openid+profile+email&state=04b38ad376b82707dc0c955083ec3185
+
+   📊 Post-Login (No Consent) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   ← Mastodon RESPONSE: 302 https://mastodon.datamancy.net/auth/auth/openid_connect/callback?code=authelia_ac_aWfUqmYmXlUcupyhoBXdtjxCAzeYEnOPxWKptTtg9nM.u2IDvfpF_fZSv65utD4eX6NgsWR6d7KeRNO_4121AnE&iss=https%3A%2F%2Fauth.datamancy.net&scope=openid+profile+email&state=04b38ad376b82707dc0c955083ec3185
+   → Mastodon REQUEST: GET https://mastodon.datamancy.net/
+   ← Mastodon RESPONSE: 200 https://mastodon.datamancy.net/
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ℹ️  No consent screen (already granted or not required)
+
+
+   📊 Mastodon Dashboard Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://mastodon.datamancy.net/start
+   Title: "Profile setup - Mastodon"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (6):
+     [0] type="text" name="" id=""
+         placeholder="Search or paste URL"
+         aria-label="Search or paste URL"
+         class="search__input"
+     [1] type="file" name="file-upload-input" id=""
+     [2] type="file" name="" id=""
+     [3] type="file" name="" id=""
+     [4] type="text" name="" id="display_name"
+     [5] type="checkbox" name="" id=""
+         class="react-toggle-screenreader-only"
+   Buttons (13):
+     [0] type="button" text=""
+     [1] type="button" text="Public, anyone can quote"
+     [2] type="button" text="English"
+     [3] type="button" text=""
+         aria-label="Add images, a video or an audio file"
+     [4] type="button" text=""
+         aria-label="Add a poll"
+     [5] type="button" text=""
+         aria-label="Add content warning"
+     [6] type="button" text=""
+         aria-label="Insert emoji"
+     [7] type="submit" text="Post"
+     [8] type="" text="Profile setup"
+     [9] type="button" text="Save and continue"
+     [10] type="" text="More"
+     [11] type="" text=""
+         aria-label="Menu"
+     [12] (could not extract)
+   Links (showing first 10 of 26):
+     [0] "Test User plmmkmf5m0ed7 @plmmkmf5m0ed7" → /@plmmkmf5m0ed7
+     [1] "About" → /about
+     [2] "Profiles directory" → /directory
+     [3] "Privacy policy" → /privacy-policy
+     [4] "About" → https://joinmastodon.org
+     [5] "Get the app" → https://joinmastodon.org/apps
+     [6] "Keyboard shortcuts" → /keyboard-shortcuts
+     [7] "View source code" → https://github.com/mastodon/mastodon
+     [8] "Mastodon" → /
+     [9] "Test User plmmkmf5m0ed7 @plmmkmf5m0ed7" → /@plmmkmf5m0ed7
+   Headings (1):
+     <h1> Profile setup
+   ARIA Roles: img(2), region(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: mastodon-oidc-authenticated.jpg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Mastodon OIDC login successful
+
+]]>
+</system-out>
+<system-err>
+<![CDATA[   ⚠️  Telemetry extraction error: Error: page.title: Execution context was destroyed, most likely because of a navigation
+]]>
+</system-err>
+</testcase>
+<testcase name="OIDC Services - SSO Flow › Forgejo - OIDC login flow" classname="oidc-services.spec.ts" time="10.674">
+<system-out>
+<![CDATA[
+🧪 Testing Forgejo OIDC login
+   → Forgejo REQUEST: GET https://forgejo.datamancy.net/
+   ← Forgejo RESPONSE: 200 https://forgejo.datamancy.net/
+
+   📊 Forgejo Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://forgejo.datamancy.net/
+   Title: "Forgejo: Beyond coding. We forge."
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (1):
+     [0] type="" text=""
+         id="navbar-expand-toggle"
+         aria-label="Toggle menu"
+   Links (showing first 10 of 43):
+     [1] "Explore" → /explore/repos
+     [2] "Help" → https://forgejo.org/docs/latest/
+     [3] "Sign in" → /user/login?redirect_to=%2f
+     [4] "run the binary" → https://forgejo.org/download/#installation-from-bi
+     [5] "Docker" → https://forgejo.org/download/#container-image
+     [6] "packaged" → https://forgejo.org/download
+     [7] "Forgejo" → https://forgejo.org/download
+     [8] "contributing" → https://codeberg.org/forgejo/forgejo
+     [9] "Powered by Forgejo" → https://forgejo.org
+   Headings (6):
+     <h1> Forgejo: Beyond coding. We forge.
+     <h2> A painless, self-hosted Git service
+     <h1> Easy to install
+     <h1> Cross-platform
+     <h1> Lightweight
+     <h1> Open Source
+   ARIA Roles: main(1), group(2), contentinfo(1), menu(1), (1), menuitem(31)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: Authelia
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://forgejo.datamancy.net/
+   Title: "Forgejo: Beyond coding. We forge."
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (1):
+     [0] type="" text=""
+         id="navbar-expand-toggle"
+         aria-label="Toggle menu"
+   Links (showing first 10 of 43):
+     [1] "Explore" → /explore/repos
+     [2] "Help" → https://forgejo.org/docs/latest/
+     [3] "Sign in" → /user/login?redirect_to=%2f
+     [4] "run the binary" → https://forgejo.org/download/#installation-from-bi
+     [5] "Docker" → https://forgejo.org/download/#container-image
+     [6] "packaged" → https://forgejo.org/download
+     [7] "Forgejo" → https://forgejo.org/download
+     [8] "contributing" → https://codeberg.org/forgejo/forgejo
+     [9] "Powered by Forgejo" → https://forgejo.org
+   Headings (6):
+     <h1> Forgejo: Beyond coding. We forge.
+     <h2> A painless, self-hosted Git service
+     <h1> Easy to install
+     <h1> Cross-platform
+     <h1> Lightweight
+     <h1> Open Source
+   ARIA Roles: main(1), group(2), contentinfo(1), menu(1), (1), menuitem(31)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: OpenID
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://forgejo.datamancy.net/
+   Title: "Forgejo: Beyond coding. We forge."
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (1):
+     [0] type="" text=""
+         id="navbar-expand-toggle"
+         aria-label="Toggle menu"
+   Links (showing first 10 of 43):
+     [1] "Explore" → /explore/repos
+     [2] "Help" → https://forgejo.org/docs/latest/
+     [3] "Sign in" → /user/login?redirect_to=%2f
+     [4] "run the binary" → https://forgejo.org/download/#installation-from-bi
+     [5] "Docker" → https://forgejo.org/download/#container-image
+     [6] "packaged" → https://forgejo.org/download
+     [7] "Forgejo" → https://forgejo.org/download
+     [8] "contributing" → https://codeberg.org/forgejo/forgejo
+     [9] "Powered by Forgejo" → https://forgejo.org
+   Headings (6):
+     <h1> Forgejo: Beyond coding. We forge.
+     <h2> A painless, self-hosted Git service
+     <h1> Easy to install
+     <h1> Cross-platform
+     <h1> Lightweight
+     <h1> Open Source
+   ARIA Roles: main(1), group(2), contentinfo(1), menu(1), (1), menuitem(31)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: OpenID Connect
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://forgejo.datamancy.net/
+   Title: "Forgejo: Beyond coding. We forge."
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (1):
+     [0] type="" text=""
+         id="navbar-expand-toggle"
+         aria-label="Toggle menu"
+   Links (showing first 10 of 43):
+     [1] "Explore" → /explore/repos
+     [2] "Help" → https://forgejo.org/docs/latest/
+     [3] "Sign in" → /user/login?redirect_to=%2f
+     [4] "run the binary" → https://forgejo.org/download/#installation-from-bi
+     [5] "Docker" → https://forgejo.org/download/#container-image
+     [6] "packaged" → https://forgejo.org/download
+     [7] "Forgejo" → https://forgejo.org/download
+     [8] "contributing" → https://codeberg.org/forgejo/forgejo
+     [9] "Powered by Forgejo" → https://forgejo.org
+   Headings (6):
+     <h1> Forgejo: Beyond coding. We forge.
+     <h2> A painless, self-hosted Git service
+     <h1> Easy to install
+     <h1> Cross-platform
+     <h1> Lightweight
+     <h1> Open Source
+   ARIA Roles: main(1), group(2), contentinfo(1), menu(1), (1), menuitem(31)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: OIDC
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://forgejo.datamancy.net/
+   Title: "Forgejo: Beyond coding. We forge."
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (1):
+     [0] type="" text=""
+         id="navbar-expand-toggle"
+         aria-label="Toggle menu"
+   Links (showing first 10 of 43):
+     [1] "Explore" → /explore/repos
+     [2] "Help" → https://forgejo.org/docs/latest/
+     [3] "Sign in" → /user/login?redirect_to=%2f
+     [4] "run the binary" → https://forgejo.org/download/#installation-from-bi
+     [5] "Docker" → https://forgejo.org/download/#container-image
+     [6] "packaged" → https://forgejo.org/download
+     [7] "Forgejo" → https://forgejo.org/download
+     [8] "contributing" → https://codeberg.org/forgejo/forgejo
+     [9] "Powered by Forgejo" → https://forgejo.org
+   Headings (6):
+     <h1> Forgejo: Beyond coding. We forge.
+     <h2> A painless, self-hosted Git service
+     <h1> Easy to install
+     <h1> Cross-platform
+     <h1> Lightweight
+     <h1> Open Source
+   ARIA Roles: main(1), group(2), contentinfo(1), menu(1), (1), menuitem(31)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ℹ️  OIDC button not found - attempting to reach login screen...
+   → Forgejo REQUEST: GET https://forgejo.datamancy.net/user/login?redirect_to=%2f
+   ← Forgejo RESPONSE: 200 https://forgejo.datamancy.net/user/login?redirect_to=%2f
+
+   📊 Forgejo Login Page (post-nav) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://forgejo.datamancy.net/user/login?redirect_to=%2f
+   Title: "Sign in - Forgejo: Beyond coding. We forge."
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (3):
+     [0] type="text" name="user_name" id="user_name"
+     [1] type="password" name="password" id="password"
+     [2] type="checkbox" name="remember" id="_aria_auto_id_0"
+   Buttons (2):
+     [0] type="" text=""
+         id="navbar-expand-toggle"
+         aria-label="Toggle menu"
+     [1] type="" text="Sign in"
+   Links (showing first 10 of 41):
+     [1] "Explore" → /explore/repos
+     [2] "Help" → https://forgejo.org/docs/latest/
+     [3] "Sign in" → /user/login
+     [4] "Sign in with Authelia" → /user/oauth2/Authelia
+     [5] "Proceed with OpenID" → /user/login/openid
+     [6] "Forgot password?" → /user/forgot_password
+     [7] "Powered by Forgejo" → https://forgejo.org
+     [8] "Bahasa Indonesia" → 
+     [9] "Dansk" → 
+   ARIA Roles: main(1), group(2), contentinfo(1), menu(1), (1), menuitem(31)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: Authelia
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://forgejo.datamancy.net/user/login?redirect_to=%2f
+   Title: "Sign in - Forgejo: Beyond coding. We forge."
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (3):
+     [0] type="text" name="user_name" id="user_name"
+     [1] type="password" name="password" id="password"
+     [2] type="checkbox" name="remember" id="_aria_auto_id_0"
+   Buttons (2):
+     [0] type="" text=""
+         id="navbar-expand-toggle"
+         aria-label="Toggle menu"
+     [1] type="" text="Sign in"
+   Links (showing first 10 of 41):
+     [1] "Explore" → /explore/repos
+     [2] "Help" → https://forgejo.org/docs/latest/
+     [3] "Sign in" → /user/login
+     [4] "Sign in with Authelia" → /user/oauth2/Authelia
+     [5] "Proceed with OpenID" → /user/login/openid
+     [6] "Forgot password?" → /user/forgot_password
+     [7] "Powered by Forgejo" → https://forgejo.org
+     [8] "Bahasa Indonesia" → 
+     [9] "Dansk" → 
+   ARIA Roles: main(1), group(2), contentinfo(1), menu(1), (1), menuitem(31)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   → Forgejo REQUEST: GET https://forgejo.datamancy.net/user/oauth2/Authelia
+   ← Forgejo RESPONSE: 307 https://forgejo.datamancy.net/user/oauth2/Authelia
+   → Forgejo REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?client_id=forgejo&redirect_uri=https%3A%2F%2Fforgejo.datamancy.net%2Fuser%2Foauth2%2FAuthelia%2Fcallback&response_type=code&scope=openid+profile+email+groups&state=277a9bcc-42d4-4144-b0e6-44136f616ea7&code_challenge=JZ-l4w5dyCuwvrrcPUO1NlNzQHnGoe_sEqbKm8B9SVE&code_challenge_method=S256
+   ← Forgejo RESPONSE: 302 https://auth.datamancy.net/api/oidc/authorization?client_id=forgejo&redirect_uri=https%3A%2F%2Fforgejo.datamancy.net%2Fuser%2Foauth2%2FAuthelia%2Fcallback&response_type=code&scope=openid+profile+email+groups&state=277a9bcc-42d4-4144-b0e6-44136f616ea7&code_challenge=JZ-l4w5dyCuwvrrcPUO1NlNzQHnGoe_sEqbKm8B9SVE&code_challenge_method=S256
+   → Forgejo REQUEST: GET https://auth.datamancy.net/?flow=openid_connect&flow_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7
+   ← Forgejo RESPONSE: 200 https://auth.datamancy.net/?flow=openid_connect&flow_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7
+   ✓ Clicked OIDC button: Authelia
+   ✓ Redirected to Authelia: https://auth.datamancy.net/?flow=openid_connect&flow_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7
+
+
+🔐 Logging in with Authelia as: plmmkmf5m0ed7
+
+   📊 Authelia Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?flow=openid_connect&flow_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓ Username entered
+   ✓ Password entered
+   ✓ Submit clicked and auth response received
+   ✓ Redirected to: https://auth.datamancy.net/?flow=openid_connect&flow_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7
+
+🔍 Checking for OIDC consent screen...
+   → Forgejo REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?client_id=forgejo&code_challenge=JZ-l4w5dyCuwvrrcPUO1NlNzQHnGoe_sEqbKm8B9SVE&code_challenge_method=S256&consent_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7&redirect_uri=https%3A%2F%2Fforgejo.datamancy.net%2Fuser%2Foauth2%2FAuthelia%2Fcallback&response_type=code&scope=openid+profile+email+groups&state=277a9bcc-42d4-4144-b0e6-44136f616ea7
+   ← Forgejo RESPONSE: 302 https://auth.datamancy.net/api/oidc/authorization?client_id=forgejo&code_challenge=JZ-l4w5dyCuwvrrcPUO1NlNzQHnGoe_sEqbKm8B9SVE&code_challenge_method=S256&consent_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7&redirect_uri=https%3A%2F%2Fforgejo.datamancy.net%2Fuser%2Foauth2%2FAuthelia%2Fcallback&response_type=code&scope=openid+profile+email+groups&state=277a9bcc-42d4-4144-b0e6-44136f616ea7
+   → Forgejo REQUEST: GET https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7
+   ← Forgejo RESPONSE: 200 https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7
+   ✓ Consent screen URL detected
+
+   📊 Consent Screen Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7
+   Title: "Login - Authelia"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (5):
+     [0] type="button" text="English"
+         id="language-button"
+         aria-label="Language"
+     [1] type="button" text="Logout"
+         id="logout-button"
+         aria-label="Logout and clear any current flow"
+     [2] type="button" text="Switch User"
+         id="switch-user-button"
+         aria-label="Logout and continue the current flow"
+     [3] type="button" text="Accept"
+         id="openid-consent-accept"
+     [4] type="button" text="Deny"
+         id="openid-consent-deny"
+   Links (showing first 10 of 1):
+     [0] "Powered by Authelia" → https://www.authelia.com
+   ARIA Roles: tooltip(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓ Consent button found
+   ✓ Consent granted
+
+   → Forgejo REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?client_id=forgejo&code_challenge=JZ-l4w5dyCuwvrrcPUO1NlNzQHnGoe_sEqbKm8B9SVE&code_challenge_method=S256&consent_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7&redirect_uri=https%3A%2F%2Fforgejo.datamancy.net%2Fuser%2Foauth2%2FAuthelia%2Fcallback&response_type=code&scope=openid+profile+email+groups&state=277a9bcc-42d4-4144-b0e6-44136f616ea7
+   ← Forgejo RESPONSE: 303 https://auth.datamancy.net/api/oidc/authorization?client_id=forgejo&code_challenge=JZ-l4w5dyCuwvrrcPUO1NlNzQHnGoe_sEqbKm8B9SVE&code_challenge_method=S256&consent_id=caf51e68-a532-4e2e-8361-0e4ea2f719e7&redirect_uri=https%3A%2F%2Fforgejo.datamancy.net%2Fuser%2Foauth2%2FAuthelia%2Fcallback&response_type=code&scope=openid+profile+email+groups&state=277a9bcc-42d4-4144-b0e6-44136f616ea7
+   → Forgejo REQUEST: GET https://forgejo.datamancy.net/user/oauth2/Authelia/callback?code=authelia_ac_G4Rxe_75H04ZQ8ECYiejbIA7dMV00jtOO2PYsqsa-6Y.M6x4OExpo53kYo7HkFjqTeLM3LOREyofQFBr3LDhlfw&iss=https%3A%2F%2Fauth.datamancy.net&scope=openid+profile+email+groups&state=277a9bcc-42d4-4144-b0e6-44136f616ea7
+   ← Forgejo RESPONSE: 303 https://forgejo.datamancy.net/user/oauth2/Authelia/callback?code=authelia_ac_G4Rxe_75H04ZQ8ECYiejbIA7dMV00jtOO2PYsqsa-6Y.M6x4OExpo53kYo7HkFjqTeLM3LOREyofQFBr3LDhlfw&iss=https%3A%2F%2Fauth.datamancy.net&scope=openid+profile+email+groups&state=277a9bcc-42d4-4144-b0e6-44136f616ea7
+   → Forgejo REQUEST: GET https://forgejo.datamancy.net/
+   ← Forgejo RESPONSE: 200 https://forgejo.datamancy.net/
+
+   📊 Forgejo Dashboard Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://forgejo.datamancy.net/
+   Title: "Test User plmmkmf5m0ed7 - Dashboard - Forgejo: Beyond coding. We forge."
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (3):
+     [0] type="search" name="" id=""
+         placeholder="Search repos…"
+     [1] type="checkbox" name="" id=""
+         class="tw-pointer-events-none"
+     [2] type="checkbox" name="" id=""
+         class="tw-pointer-events-none"
+   Buttons (2):
+     [0] type="" text=""
+         id="navbar-expand-toggle"
+         aria-label="Toggle menu"
+     [1] type="" text=""
+         aria-label="More items"
+   Links (showing first 10 of 63):
+     [1] "0" → /notifications
+     [2] "Issues" → /issues
+     [3] "Pull requests" → /pulls
+     [4] "Milestones" → /milestones
+     [5] "Explore" → /explore/repos
+     [6] "Active time tracker" → 
+     [7] "0" → /notifications
+     [8] "New repository" → /repo/create
+     [9] "New migration" → /repo/migrate
+   Headings (1):
+     <h2> No activity
+   ARIA Roles: main(1), menu(2), (2), combobox(1), listbox(1), option(2), navigation(1), group(2), contentinfo(1), menuitem(31)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: forgejo-oidc-authenticated.jpg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Forgejo OIDC login successful
+
+]]>
+</system-out>
+</testcase>
+<testcase name="OIDC Services - SSO Flow › BookStack - OIDC login flow" classname="oidc-services.spec.ts" time="6.378">
+<system-out>
+<![CDATA[
+🧪 Testing BookStack OIDC login
+   → BookStack REQUEST: GET https://bookstack.datamancy.net/
+   ← BookStack RESPONSE: 302 https://bookstack.datamancy.net/
+   → BookStack REQUEST: GET https://bookstack.datamancy.net/login
+   ← BookStack RESPONSE: 200 https://bookstack.datamancy.net/login
+
+   📊 BookStack Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://bookstack.datamancy.net/login
+   Title: "BookStack"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (1):
+     [0] type="hidden" name="_token" id=""
+   Buttons (2):
+     [0] type="button" text=""
+     [1] type="" text="Login with Authelia"
+         id="oidc-login"
+   Links (showing first 10 of 3):
+     [0] "Skip to main content" → #main-content
+     [1] "BookStack" → https://bookstack.datamancy.net
+     [2] "Log in" → https://bookstack.datamancy.net/login
+   Headings (1):
+     <h1> Log In
+   ARIA Roles: alert(3), presentation(10)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: Authelia
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://bookstack.datamancy.net/login
+   Title: "BookStack"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (1):
+     [0] type="hidden" name="_token" id=""
+   Buttons (2):
+     [0] type="button" text=""
+     [1] type="" text="Login with Authelia"
+         id="oidc-login"
+   Links (showing first 10 of 3):
+     [0] "Skip to main content" → #main-content
+     [1] "BookStack" → https://bookstack.datamancy.net
+     [2] "Log in" → https://bookstack.datamancy.net/login
+   Headings (1):
+     <h1> Log In
+   ARIA Roles: alert(3), presentation(10)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   → BookStack REQUEST: POST https://bookstack.datamancy.net/oidc/login
+   ← BookStack RESPONSE: 302 https://bookstack.datamancy.net/oidc/login
+   → BookStack REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?state=8322eccc80f17a9b98f6962dcc4eff4c&scope=openid%20profile%20email&response_type=code&approval_prompt=auto&code_challenge=s8A5Fizur1cmVkyf_tnzFv60KbuzKHPMnclqHgPdNGk&code_challenge_method=S256&redirect_uri=https%3A%2F%2Fbookstack.datamancy.net%2Foidc%2Fcallback&client_id=bookstack
+   ← BookStack RESPONSE: 302 https://auth.datamancy.net/api/oidc/authorization?state=8322eccc80f17a9b98f6962dcc4eff4c&scope=openid%20profile%20email&response_type=code&approval_prompt=auto&code_challenge=s8A5Fizur1cmVkyf_tnzFv60KbuzKHPMnclqHgPdNGk&code_challenge_method=S256&redirect_uri=https%3A%2F%2Fbookstack.datamancy.net%2Foidc%2Fcallback&client_id=bookstack
+   → BookStack REQUEST: GET https://auth.datamancy.net/?flow=openid_connect&flow_id=79fd601e-b39e-42f2-9e7a-bc57adf1651e
+   ← BookStack RESPONSE: 200 https://auth.datamancy.net/?flow=openid_connect&flow_id=79fd601e-b39e-42f2-9e7a-bc57adf1651e
+   ✓ Clicked OIDC button: Authelia
+   ✓ Redirected to Authelia: https://auth.datamancy.net/?flow=openid_connect&flow_id=79fd601e-b39e-42f2-9e7a-bc57adf1651e
+
+
+🔐 Logging in with Authelia as: plmmkmf5m0ed7
+
+   📊 Authelia Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?flow=openid_connect&flow_id=79fd601e-b39e-42f2-9e7a-bc57adf1651e
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓ Username entered
+   ✓ Password entered
+   ✓ Submit clicked and auth response received
+   ✓ Redirected to: https://auth.datamancy.net/?flow=openid_connect&flow_id=79fd601e-b39e-42f2-9e7a-bc57adf1651e
+
+🔍 Checking for OIDC consent screen...
+   → BookStack REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?approval_prompt=auto&client_id=bookstack&code_challenge=s8A5Fizur1cmVkyf_tnzFv60KbuzKHPMnclqHgPdNGk&code_challenge_method=S256&consent_id=79fd601e-b39e-42f2-9e7a-bc57adf1651e&redirect_uri=https%3A%2F%2Fbookstack.datamancy.net%2Foidc%2Fcallback&response_type=code&scope=openid+profile+email&state=8322eccc80f17a9b98f6962dcc4eff4c
+   ← BookStack RESPONSE: 303 https://auth.datamancy.net/api/oidc/authorization?approval_prompt=auto&client_id=bookstack&code_challenge=s8A5Fizur1cmVkyf_tnzFv60KbuzKHPMnclqHgPdNGk&code_challenge_method=S256&consent_id=79fd601e-b39e-42f2-9e7a-bc57adf1651e&redirect_uri=https%3A%2F%2Fbookstack.datamancy.net%2Foidc%2Fcallback&response_type=code&scope=openid+profile+email&state=8322eccc80f17a9b98f6962dcc4eff4c
+   → BookStack REQUEST: GET https://bookstack.datamancy.net/oidc/callback?code=authelia_ac_9YX_Un8kNUzM7MY8qOI8NIRu5kuscwFu_LjcgrvnMm8.aJf6i_rRrUsL4xgGK4oqXq3VxCjfHd2CRl8xD5vnmiA&iss=https%3A%2F%2Fauth.datamancy.net&scope=openid+profile+email&state=8322eccc80f17a9b98f6962dcc4eff4c
+
+   📊 Post-Login (No Consent) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   ← BookStack RESPONSE: 302 https://bookstack.datamancy.net/oidc/callback?code=authelia_ac_9YX_Un8kNUzM7MY8qOI8NIRu5kuscwFu_LjcgrvnMm8.aJf6i_rRrUsL4xgGK4oqXq3VxCjfHd2CRl8xD5vnmiA&iss=https%3A%2F%2Fauth.datamancy.net&scope=openid+profile+email&state=8322eccc80f17a9b98f6962dcc4eff4c
+   → BookStack REQUEST: GET https://bookstack.datamancy.net/
+   ← BookStack RESPONSE: 200 https://bookstack.datamancy.net/
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ℹ️  No consent screen (already granted or not required)
+
+
+   📊 BookStack Dashboard Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://bookstack.datamancy.net/
+   Title: "BookStack"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (8):
+     [0] type="text" name="term" id="header-search-box-input"
+         placeholder="Search"
+         aria-label="Search"
+     [1] type="hidden" name="_token" id=""
+     [2] type="hidden" name="_method" id=""
+     [3] type="hidden" name="_return" id=""
+     [4] type="hidden" name="_token" id=""
+     [5] type="hidden" name="_token" id=""
+     [6] type="hidden" name="_method" id=""
+     [7] type="hidden" name="_return" id=""
+   Buttons (7):
+     [0] type="button" text=""
+     [1] type="submit" text=""
+         id="header-search-box-button"
+         aria-label="Search"
+     [2] type="submit" text="View All"
+     [3] type="" text="Dark Mode"
+     [4] type="" text="Logout"
+     [5] type="button" text="Toggle Details"
+     [6] type="" text="Dark Mode"
+   Links (showing first 10 of 39):
+     [0] "Skip to main content" → #main-content
+     [1] "BookStack" → https://bookstack.datamancy.net
+     [2] "Search" → https://bookstack.datamancy.net/search
+     [3] "Shelves" → https://bookstack.datamancy.net/shelves
+     [4] "Books" → https://bookstack.datamancy.net/books
+     [5] "My Favourites" → https://bookstack.datamancy.net/favourites
+     [6] "View Profile" → https://bookstack.datamancy.net/user/test-user-plm
+     [7] "My Account" → https://bookstack.datamancy.net/my-account
+     [8] "Czech language
+            
+
+    
+    
+ " → https://bookstack.datamancy.net/books/wikipedia-ar
+     [9] "Canadian English
+            
+
+    
+    " → https://bookstack.datamancy.net/books/wikipedia-ar
+   Headings (3):
+     <h3> My Recently Viewed
+     <h3> Recently Updated Pages
+     <h3> Recent Activity
+   ARIA Roles: alert(3), presentation(50), search(1), menu(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   📸 Screenshot saved: bookstack-oidc-authenticated.jpg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ BookStack OIDC login successful
+
+]]>
+</system-out>
+<system-err>
+<![CDATA[   ⚠️  Telemetry extraction error: Error: page.title: Execution context was destroyed, most likely because of a navigation
+]]>
+</system-err>
+</testcase>
+<testcase name="OIDC Services - SSO Flow › Planka - OIDC login flow" classname="oidc-services.spec.ts" time="8.092">
+<system-out>
+<![CDATA[
+🧪 Testing Planka OIDC login
+   → Planka REQUEST: GET https://planka.datamancy.net/
+   ← Planka RESPONSE: 200 https://planka.datamancy.net/
+
+   📊 Planka Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://planka.datamancy.net/
+   Title: "Planka"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (2):
+     [0] type="text" name="emailOrUsername" id=""
+     [1] type="password" name="password" id=""
+   Buttons (2):
+     [0] type="" text="Log in"
+     [1] type="button" text="Log in with SSO"
+   Links: (none)
+   Headings (3):
+     <h1> Log in to Planka
+     <h1> Planka
+     <h2> Project management
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: Authelia
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://planka.datamancy.net/login
+   Title: "Planka"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (2):
+     [0] type="text" name="emailOrUsername" id=""
+     [1] type="password" name="password" id=""
+   Buttons (2):
+     [0] type="" text="Log in"
+     [1] type="button" text="Log in with SSO"
+   Links: (none)
+   Headings (3):
+     <h1> Log in to Planka
+     <h1> Planka
+     <h2> Project management
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: SSO
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://planka.datamancy.net/login
+   Title: "Planka"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (2):
+     [0] type="text" name="emailOrUsername" id=""
+     [1] type="password" name="password" id=""
+   Buttons (2):
+     [0] type="" text="Log in"
+     [1] type="button" text="Log in with SSO"
+   Links: (none)
+   Headings (3):
+     <h1> Log in to Planka
+     <h1> Planka
+     <h2> Project management
+   ═══════════════════════════════════════════════════════════════════════════
+
+   → Planka REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?client_id=planka&scope=openid%20profile%20email%20groups&response_type=code&redirect_uri=https%3A%2F%2Fplanka.datamancy.net%2Foidc-callback&response_mode=fragment&state=EwD4Dio49NMAO07DP6X4x&nonce=FlEuR0TJXPu4xVRv-FSUe
+   ← Planka RESPONSE: 302 https://auth.datamancy.net/api/oidc/authorization?client_id=planka&scope=openid%20profile%20email%20groups&response_type=code&redirect_uri=https%3A%2F%2Fplanka.datamancy.net%2Foidc-callback&response_mode=fragment&state=EwD4Dio49NMAO07DP6X4x&nonce=FlEuR0TJXPu4xVRv-FSUe
+   → Planka REQUEST: GET https://auth.datamancy.net/?flow=openid_connect&flow_id=6816210b-d34b-437e-adac-b6b7be1e5dd2
+   ← Planka RESPONSE: 200 https://auth.datamancy.net/?flow=openid_connect&flow_id=6816210b-d34b-437e-adac-b6b7be1e5dd2
+   ✓ Clicked OIDC button: SSO
+   ✓ Redirected to Authelia: https://auth.datamancy.net/?flow=openid_connect&flow_id=6816210b-d34b-437e-adac-b6b7be1e5dd2
+
+
+🔐 Logging in with Authelia as: plmmkmf5m0ed7
+
+   📊 Authelia Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?flow=openid_connect&flow_id=6816210b-d34b-437e-adac-b6b7be1e5dd2
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓ Username entered
+   ✓ Password entered
+   ✓ Submit clicked and auth response received
+   ✓ Redirected to: https://auth.datamancy.net/?flow=openid_connect&flow_id=6816210b-d34b-437e-adac-b6b7be1e5dd2
+
+🔍 Checking for OIDC consent screen...
+   → Planka REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?client_id=planka&consent_id=6816210b-d34b-437e-adac-b6b7be1e5dd2&nonce=FlEuR0TJXPu4xVRv-FSUe&redirect_uri=https%3A%2F%2Fplanka.datamancy.net%2Foidc-callback&response_mode=fragment&response_type=code&scope=openid+profile+email+groups&state=EwD4Dio49NMAO07DP6X4x
+   ← Planka RESPONSE: 302 https://auth.datamancy.net/api/oidc/authorization?client_id=planka&consent_id=6816210b-d34b-437e-adac-b6b7be1e5dd2&nonce=FlEuR0TJXPu4xVRv-FSUe&redirect_uri=https%3A%2F%2Fplanka.datamancy.net%2Foidc-callback&response_mode=fragment&response_type=code&scope=openid+profile+email+groups&state=EwD4Dio49NMAO07DP6X4x
+   → Planka REQUEST: GET https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=6816210b-d34b-437e-adac-b6b7be1e5dd2
+   ← Planka RESPONSE: 200 https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=6816210b-d34b-437e-adac-b6b7be1e5dd2
+   ✓ Consent screen URL detected
+
+   📊 Consent Screen Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/consent/openid/decision?flow=openid_connect&flow_id=6816210b-d34b-437e-adac-b6b7be1e5dd2
+   Title: "Login - Authelia"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (5):
+     [0] type="button" text="English"
+         id="language-button"
+         aria-label="Language"
+     [1] type="button" text="Logout"
+         id="logout-button"
+         aria-label="Logout and clear any current flow"
+     [2] type="button" text="Switch User"
+         id="switch-user-button"
+         aria-label="Logout and continue the current flow"
+     [3] type="button" text="Accept"
+         id="openid-consent-accept"
+     [4] type="button" text="Deny"
+         id="openid-consent-deny"
+   Links (showing first 10 of 1):
+     [0] "Powered by Authelia" → https://www.authelia.com
+   ARIA Roles: tooltip(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓ Consent button found
+   ✓ Consent granted
+
+   → Planka REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?client_id=planka&consent_id=6816210b-d34b-437e-adac-b6b7be1e5dd2&nonce=FlEuR0TJXPu4xVRv-FSUe&redirect_uri=https%3A%2F%2Fplanka.datamancy.net%2Foidc-callback&response_mode=fragment&response_type=code&scope=openid+profile+email+groups&state=EwD4Dio49NMAO07DP6X4x
+   ← Planka RESPONSE: 303 https://auth.datamancy.net/api/oidc/authorization?client_id=planka&consent_id=6816210b-d34b-437e-adac-b6b7be1e5dd2&nonce=FlEuR0TJXPu4xVRv-FSUe&redirect_uri=https%3A%2F%2Fplanka.datamancy.net%2Foidc-callback&response_mode=fragment&response_type=code&scope=openid+profile+email+groups&state=EwD4Dio49NMAO07DP6X4x
+   → Planka REQUEST: GET https://planka.datamancy.net/oidc-callback
+   ← Planka RESPONSE: 200 https://planka.datamancy.net/oidc-callback
+
+   📊 Planka Dashboard Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://planka.datamancy.net/login
+   Title: "Planka"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (2):
+     [0] type="text" name="emailOrUsername" id=""
+     [1] type="password" name="password" id=""
+   Buttons (2):
+     [0] type="" text="Log in"
+     [1] type="button" text="Log in with SSO"
+   Links: (none)
+   Headings (3):
+     <h1> Log in to Planka
+     <h1> Planka
+     <h2> Project management
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ⏳ Detected disallowed state for Planka, waiting for redirect... (1/5)
+   📸 Screenshot saved: planka-oidc-authenticated.jpg
+   👀 REVIEW SCREENSHOT to verify correct page loaded
+   ✅ Planka OIDC login successful
+
+]]>
+</system-out>
+</testcase>
+<testcase name="OIDC Services - SSO Flow › Vaultwarden - OIDC login flow" classname="oidc-services.spec.ts" time="28.354">
+<failure message="oidc-services.spec.ts:544:7 Vaultwarden - OIDC login flow" type="FAILURE">
+<![CDATA[  [chromium] › oidc-services.spec.ts:544:7 › OIDC Services - SSO Flow › Vaultwarden - OIDC login flow 
+
+    Error: Expected authenticated Vaultwarden page but found disallowed state. Page content matched disallowed pattern: /\bLog in\b/i
+
+      373 |         ? `URL matched disallowed pattern: ${disallowedUrl}`
+      374 |         : `Page content matched disallowed pattern: ${disallowedMatch}`;
+    > 375 |       throw new Error(`Expected authenticated ${serviceName} page but found disallowed state. ${reason}`);
+          |             ^
+      376 |     }
+      377 |
+      378 |     if (matchesPattern) {
+        at testOIDCService (/app/playwright-tests/tests/oidc-services.spec.ts:375:13)
+        at /app/playwright-tests/tests/oidc-services.spec.ts:546:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/oidc-services-OIDC-Service-eb64f-ultwarden---OIDC-login-flow-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/oidc-services-OIDC-Service-eb64f-ultwarden---OIDC-login-flow-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/oidc-services-OIDC-Service-eb64f-ultwarden---OIDC-login-flow-chromium/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+🧪 Testing Vaultwarden OIDC login
+   → Vaultwarden REQUEST: GET https://vaultwarden.datamancy.net/
+   ← Vaultwarden RESPONSE: 302 https://vaultwarden.datamancy.net/
+   → Vaultwarden REQUEST: GET https://app.vaultwarden.datamancy.net/
+   ← Vaultwarden RESPONSE: 200 https://app.vaultwarden.datamancy.net/
+
+   📊 Vaultwarden Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://app.vaultwarden.datamancy.net/#/sso?identifier=datamancy.net
+   Title: "Vaultwarden Web"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: Authelia
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   → Vaultwarden REQUEST: GET https://app.vaultwarden.datamancy.net/identity/connect/authorize?client_id=web&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fsso-connector.html&response_type=code&scope=api%20offline_access&state=xf3SjtpqYrbUnjohrnjgyN3wfHQ8aRgwxS2fYDFqPi4NPwWNE7mR8IUPJOWzBjaW_identifier=datamancy.net&code_challenge=l8lZF2OU3AiLqyWOM_gX_KvAVUGu5GtUBOcDFyOMK5I&code_challenge_method=S256&response_mode=query&domain_hint=datamancy.net&ssoToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJuYmYiOjE3NzMxNDgwMjAsImV4cCI6MTc3MzE0ODE0MCwiaXNzIjoiaHR0cHM6Ly9hcHAudmF1bHR3YXJkZW4uZGF0YW1hbmN5Lm5ldHxzc28iLCJzdWIiOiJ2YXVsdHdhcmRlbiJ9.sPwb695fOF7i-_-4BdmCPXynabaYKkPEeqLcWwCarb00OPaFm8X---hR43DR53x_vJdrfLB2MbmHZZhyKUAKmaify_RiZUGjZEscs8Wcplln25lTkrDaqV43vNavglu8HLpr0Ff0_Wcf3pTOTR7R4YYEuxDSij0YRQZkJ1a7HEJ2procB2J2MTrK6rd_t3ELryorGqolZGdV_4EZacVPfRo7SWGkn7jw8DLUjiXe8BOAEfzXHSMtxkMJHcYFmRw6LJ9GKAgIoGEzOChrqJv06JoYHc_LmgiukIRE58eVFDG6boLX1F5-IrxczqGjL4-VvvcEDX5ON8LjIXmpHeFqNA
+   URL:   https://app.vaultwarden.datamancy.net/#/sso?identifier=datamancy.net
+   Title: "Vaultwarden Web"
+   ───────────────────────────────────────────────────────────────────────────
+   ← Vaultwarden RESPONSE: 307 https://app.vaultwarden.datamancy.net/identity/connect/authorize?client_id=web&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fsso-connector.html&response_type=code&scope=api%20offline_access&state=xf3SjtpqYrbUnjohrnjgyN3wfHQ8aRgwxS2fYDFqPi4NPwWNE7mR8IUPJOWzBjaW_identifier=datamancy.net&code_challenge=l8lZF2OU3AiLqyWOM_gX_KvAVUGu5GtUBOcDFyOMK5I&code_challenge_method=S256&response_mode=query&domain_hint=datamancy.net&ssoToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJuYmYiOjE3NzMxNDgwMjAsImV4cCI6MTc3MzE0ODE0MCwiaXNzIjoiaHR0cHM6Ly9hcHAudmF1bHR3YXJkZW4uZGF0YW1hbmN5Lm5ldHxzc28iLCJzdWIiOiJ2YXVsdHdhcmRlbiJ9.sPwb695fOF7i-_-4BdmCPXynabaYKkPEeqLcWwCarb00OPaFm8X---hR43DR53x_vJdrfLB2MbmHZZhyKUAKmaify_RiZUGjZEscs8Wcplln25lTkrDaqV43vNavglu8HLpr0Ff0_Wcf3pTOTR7R4YYEuxDSij0YRQZkJ1a7HEJ2procB2J2MTrK6rd_t3ELryorGqolZGdV_4EZacVPfRo7SWGkn7jw8DLUjiXe8BOAEfzXHSMtxkMJHcYFmRw6LJ9GKAgIoGEzOChrqJv06JoYHc_LmgiukIRE58eVFDG6boLX1F5-IrxczqGjL4-VvvcEDX5ON8LjIXmpHeFqNA
+   → Vaultwarden REQUEST: GET https://auth.datamancy.net/api/oidc/authorization?response_type=code&client_id=vaultwarden&state=eGYzU2p0cHFZcmJVbmpvaHJuamd5TjN3ZkhROGFSZ3d4UzJmWURGcVBpNE5Qd1dORTdtUjhJVVBKT1d6QmphV19pZGVudGlmaWVyPWRhdGFtYW5jeS5uZXQ%3D&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fidentity%2Fconnect%2Foidc-signin&scope=openid+openid+email+profile&code_challenge=l8lZF2OU3AiLqyWOM_gX_KvAVUGu5GtUBOcDFyOMK5I&code_challenge_method=S256&nonce=cMI8P6JeYtJHJh_kEWADkg
+   ← Vaultwarden RESPONSE: 302 https://auth.datamancy.net/api/oidc/authorization?response_type=code&client_id=vaultwarden&state=eGYzU2p0cHFZcmJVbmpvaHJuamd5TjN3ZkhROGFSZ3d4UzJmWURGcVBpNE5Qd1dORTdtUjhJVVBKT1d6QmphV19pZGVudGlmaWVyPWRhdGFtYW5jeS5uZXQ%3D&redirect_uri=https%3A%2F%2Fapp.vaultwarden.datamancy.net%2Fidentity%2Fconnect%2Foidc-signin&scope=openid+openid+email+profile&code_challenge=l8lZF2OU3AiLqyWOM_gX_KvAVUGu5GtUBOcDFyOMK5I&code_challenge_method=S256&nonce=cMI8P6JeYtJHJh_kEWADkg
+   → Vaultwarden REQUEST: GET https://auth.datamancy.net/?flow=openid_connect&flow_id=ce2fd091-ad30-4f79-ace1-18ae6ba737d0
+   ← Vaultwarden RESPONSE: 200 https://auth.datamancy.net/?flow=openid_connect&flow_id=ce2fd091-ad30-4f79-ace1-18ae6ba737d0
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: SSO
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?flow=openid_connect&flow_id=ce2fd091-ad30-4f79-ace1-18ae6ba737d0
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: Single sign-on
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?flow=openid_connect&flow_id=ce2fd091-ad30-4f79-ace1-18ae6ba737d0
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔗 Initiating OIDC login with: Use single sign-on
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?flow=openid_connect&flow_id=ce2fd091-ad30-4f79-ace1-18ae6ba737d0
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ℹ️  OIDC button not found - attempting to reach login screen...
+   → Vaultwarden REQUEST: GET https://app.vaultwarden.datamancy.net/
+   ← Vaultwarden RESPONSE: 200 https://app.vaultwarden.datamancy.net/
+
+   📊 Vaultwarden Login Page (post-nav) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://app.vaultwarden.datamancy.net/#/login
+   Title: "Vaultwarden Web"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+   📊 Vaultwarden Dashboard Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://app.vaultwarden.datamancy.net/#/login
+   Title: "Vaultwarden Web"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (4):
+     [0] type="email" name="" id="bit-input-0"
+         class="vw-email-continue [&:is(input,textarea):disabled]:..."
+     [1] type="email" name="" id="bit-input-1"
+         class="vw-email-sso [&:is(input,textarea):disabled]:tw-bg..."
+     [2] type="checkbox" name="" id=""
+         class="!-tw-mb-1 !-tw-ms-1 !-tw-mt-1 !tw-p-1 [&:not(:inde..."
+     [3] type="password" name="" id="bit-input-2"
+         class="[&:is(input,textarea):disabled]:tw-bg-secondary-10..."
+   Buttons (6):
+     [0] type="button" text="Continue"
+     [1] type="button" text="Use single sign-on"
+     [2] type="button" text="Log in with passkey"
+     [3] type="button" text="Other"
+     [4] type="button" text="Loading"
+         aria-label="Toggle visibility"
+     [5] type="submit" text="Log in with master password"
+   Links (showing first 10 of 2):
+     [0] "Vaultwarden" → #/
+     [1] "Get master password hint" → #/hint
+   Headings (2):
+     <h1> Log in
+     <h1> Log in
+   ARIA Roles: status(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ⏳ Detected disallowed state for Vaultwarden, waiting for redirect... (1/5)
+   ⏳ Detected disallowed state for Vaultwarden, waiting for redirect... (2/5)
+   ⏳ Detected disallowed state for Vaultwarden, waiting for redirect... (3/5)
+   ⏳ Detected disallowed state for Vaultwarden, waiting for redirect... (4/5)
+
+[[ATTACHMENT|oidc-services-OIDC-Service-eb64f-ultwarden---OIDC-login-flow-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|oidc-services-OIDC-Service-eb64f-ultwarden---OIDC-login-flow-chromium/video.webm]]
+
+[[ATTACHMENT|oidc-services-OIDC-Service-eb64f-ultwarden---OIDC-login-flow-chromium/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="OIDC - Cross-service Session › OIDC session works across multiple services" classname="oidc-services.spec.ts" time="22.876">
+<system-out>
+<![CDATA[
+🧪 Testing OIDC session persistence
+
+   Logging into Grafana (first OIDC service)...
+
+🔗 Initiating OIDC login with: Authelia
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?rd=https%3A%2F%2Fgrafana.datamancy.net%2F&rm=GET
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+
+🔐 Logging in with Authelia as: plmmkmf5m0ed7
+
+   📊 Authelia Login Page Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://auth.datamancy.net/?rd=https%3A%2F%2Fgrafana.datamancy.net%2F&rm=GET
+   Title: ""
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons: (none)
+   Links: (none)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓ Username entered
+   ✓ Password entered
+   ✓ Submit clicked and auth response received
+   ✓ Redirected to: https://auth.datamancy.net/?rd=https%3A%2F%2Fgrafana.datamancy.net%2F&rm=GET
+
+🔍 Checking for OIDC consent screen...
+
+   📊 Post-Login (No Consent) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://grafana.datamancy.net/
+   Title: "Grafana"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs: (none)
+   Buttons (5):
+     [0] type="" text=""
+         id="mega-menu-toggle"
+         aria-label="Open menu"
+     [1] type="" text="Search or jump to..."
+     [2] type="" text=""
+         aria-label="Help"
+     [3] type="" text=""
+         aria-label="Enable kiosk mode"
+     [4] type="" text=""
+         aria-label="Profile"
+   Links (showing first 10 of 7):
+     [0] "Skip to main content" → #pageContent
+     [1] "Home" → /
+     [2] "Dashboards" → /dashboards
+     [3] "Documentation" → https://grafana.com/docs/grafana/latest?utm_source
+     [4] "Tutorials" → https://grafana.com/tutorials?utm_source=grafana_g
+     [5] "Community" → https://community.grafana.com?utm_source=grafana_g
+     [6] "Public Slack" → http://slack.grafana.com?utm_source=grafana_gettin
+   Headings (14):
+     <h1> Welcome to Grafana
+     <h3> Need help?
+     <h2> Dashboards
+     <h2> Latest from the blog
+     <h3> Apono integration for Grafana: Enabling Just-in-Time access 
+     <h3> The 2026 Golden Grot Awards finalists are here: It’s time to
+     <h3> Dive into the GrafanaCON 2026 agenda: technical talks, hands
+     <h3> Generating metrics from traces with cardinality control: A c
+     <h3> How to create and manage secrets with Grafana Cloud Syntheti
+     <h3> Grafana Alerting: faster rules, personalized filters, and an
+     <h3> The rise of agentic AI in production: Can observability syst
+     <h3> The Grafana Labs operating system: Introducing our Guiding P
+     <h3> Grafana 12.4 release: faster and easier data visualization, 
+     <h3> The Grafana Cloud identity blueprint: balancing security and
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ℹ️  No consent screen (already granted or not required)
+
+   ✅ Grafana login complete
+
+   Accessing BookStack (second OIDC service)...
+
+🔗 Initiating OIDC login with: Authelia
+
+   📊 Service Login Page (pre-OIDC) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://bookstack.datamancy.net/login
+   Title: "BookStack"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (1):
+     [0] type="hidden" name="_token" id=""
+   Buttons (2):
+     [0] type="button" text=""
+     [1] type="" text="Login with Authelia"
+         id="oidc-login"
+   Links (showing first 10 of 3):
+     [0] "Skip to main content" → #main-content
+     [1] "BookStack" → https://bookstack.datamancy.net
+     [2] "Log in" → https://bookstack.datamancy.net/login
+   Headings (1):
+     <h1> Log In
+   ARIA Roles: alert(3), presentation(10)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓ Clicked OIDC button: Authelia
+   ⚠️  No auth redirect detected yet (continuing)
+   ✅ No re-authentication needed - session shared!
+🔍 Checking for OIDC consent screen...
+
+   📊 Post-Login (No Consent) Telemetry:
+   ═══════════════════════════════════════════════════════════════════════════
+   URL:   https://bookstack.datamancy.net/
+   Title: "BookStack"
+   ───────────────────────────────────────────────────────────────────────────
+   Inputs (8):
+     [0] type="text" name="term" id="header-search-box-input"
+         placeholder="Search"
+         aria-label="Search"
+     [1] type="hidden" name="_token" id=""
+     [2] type="hidden" name="_method" id=""
+     [3] type="hidden" name="_return" id=""
+     [4] type="hidden" name="_token" id=""
+     [5] type="hidden" name="_token" id=""
+     [6] type="hidden" name="_method" id=""
+     [7] type="hidden" name="_return" id=""
+   Buttons (7):
+     [0] type="button" text=""
+     [1] type="submit" text=""
+         id="header-search-box-button"
+         aria-label="Search"
+     [2] type="submit" text="View All"
+     [3] type="" text="Dark Mode"
+     [4] type="" text="Logout"
+     [5] type="button" text="Toggle Details"
+     [6] type="" text="Dark Mode"
+   Links (showing first 10 of 39):
+     [0] "Skip to main content" → #main-content
+     [1] "BookStack" → https://bookstack.datamancy.net
+     [2] "Search" → https://bookstack.datamancy.net/search
+     [3] "Shelves" → https://bookstack.datamancy.net/shelves
+     [4] "Books" → https://bookstack.datamancy.net/books
+     [5] "My Favourites" → https://bookstack.datamancy.net/favourites
+     [6] "View Profile" → https://bookstack.datamancy.net/user/test-user-plm
+     [7] "My Account" → https://bookstack.datamancy.net/my-account
+     [8] "Centaurus
+            
+
+    
+    
+    , " → https://bookstack.datamancy.net/books/wikipedia-ar
+     [9] "Canis Minor
+            
+
+    
+    
+    " → https://bookstack.datamancy.net/books/wikipedia-ar
+   Headings (3):
+     <h3> My Recently Viewed
+     <h3> Recently Updated Pages
+     <h3> Recent Activity
+   ARIA Roles: alert(3), presentation(50), search(1), menu(1)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ℹ️  No consent screen (already granted or not required)
+
+
+   ✅ OIDC session test complete
+
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

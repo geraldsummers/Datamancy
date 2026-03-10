@@ -166,9 +166,9 @@ async function testOIDCService(
       await ssoEmailInput.first().press('Enter').catch(() => {});
     }
 
-    await page.waitForURL((url) => /auth\.|authelia|identity\/connect\/authorize/i.test(url.toString()), { timeout: 15000 }).catch(() => {});
+    await page.waitForURL((url) => /auth\.|authelia|identity\/connect\/authorize|#\/sso\b|\/sso\b/i.test(url.toString()), { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(1000);
-    return true;
+    return /auth\.|authelia|identity\/connect\/authorize|#\/sso\b|\/sso\b/i.test(page.url());
   };
 
   const tryOidcLinkPatterns = async () => {
@@ -554,6 +554,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
         disallowUrlPatterns: [/#\/sso\b/i, /\/sso\b/i],
         loginPath: 'https://app.vaultwarden.datamancy.net/#/login',
         loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
+        ssoIdentifier: vaultwardenEmail.split('@').pop() || 'datamancy.net',
         ssoEmail: vaultwardenEmail,
         uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization/i,
         postLogin: async (page) => {

@@ -11,6 +11,7 @@ tests.kotlin/ contains test Kotlin sources (like the test runner)
 build-datamancy-v3.kts is the build script
 outputs in dist/
 dist/docker-compose.yml is the final docker compose file
+smart-up.sh (included in dist/) is a script that will only start changed containers - dont use normal up it takes waaaaay too long
 
 the server we are testing on is accessible at latium.local
 you have pubkey ssh access via ssh gerald@latium.local "command"

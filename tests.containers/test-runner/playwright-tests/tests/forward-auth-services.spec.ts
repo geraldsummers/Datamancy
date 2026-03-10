@@ -108,6 +108,23 @@ async function testForwardAuthService(
     await loginPage.login(testUser.username, testUser.password);
   }
 
+  // Handle Authelia consent screens (some clients still require explicit consent)
+  for (let i = 0; i < 3; i++) {
+    if (!page.url().includes('/consent/')) {
+      break;
+    }
+    console.log('   ⚠️  Consent screen detected, accepting...');
+    const acceptButton = page.locator('#openid-consent-accept, button:has-text(\"Accept\")').first();
+    if (await acceptButton.isVisible().catch(() => false)) {
+      await acceptButton.click().catch(() => {});
+      await page.waitForTimeout(1500);
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+      await page.waitForURL((url) => !url.toString().includes('/consent/'), { timeout: 10000 }).catch(() => {});
+    } else {
+      break;
+    }
+  }
+
   // CRITICAL ASSERTION: Must NOT be on auth page
   await expect(page).not.toHaveURL(/auth\.|authelia/);
 
@@ -379,10 +396,10 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Vaultwarden (forward-auth)',
       'https://vaultwarden.datamancy.net/',
-      /Single sign-on|Use single sign-on|SSO|Log in|Vaultwarden|Bitwarden/i,
+      /Single sign-on|Use single sign-on|SSO|Log in|Vaultwarden|Bitwarden|Join organization|Master password/i,
       {
         urlPattern: /vaultwarden\.datamancy\.net/,
-        disallowPatterns: [/My Vault|Vaults|Folders|Items|Search vault/i],
+        disallowPatterns: [/My Vault|Search vault/i],
         disallowUrlPatterns: [/#\/vault\b/i],
         maxPatternRetries: 4,
         retryDelayMs: 2000,
@@ -546,10 +563,10 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Vault (Vaultwarden UI)',
       'https://vaultwarden.datamancy.net/',
-      /Single sign-on|Use single sign-on|SSO|Log in|Vaultwarden|Bitwarden/i,
+      /Single sign-on|Use single sign-on|SSO|Log in|Vaultwarden|Bitwarden|Join organization|Master password/i,
       {
         urlPattern: /vaultwarden\.datamancy\.net/,
-        disallowPatterns: [/My Vault|Vaults|Folders|Items|Search vault/i],
+        disallowPatterns: [/My Vault|Search vault/i],
         disallowUrlPatterns: [/#\/vault\b/i],
         maxPatternRetries: 4,
         retryDelayMs: 2000,

@@ -44,6 +44,7 @@ services:
     volumes:
       - seafile_files:/shared
       - seafile_media:/shared/seafile/library-template
+      - ./configs/seafile/seahub_settings.py:/shared/seafile/conf/seahub_settings.py:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
       interval: 60s

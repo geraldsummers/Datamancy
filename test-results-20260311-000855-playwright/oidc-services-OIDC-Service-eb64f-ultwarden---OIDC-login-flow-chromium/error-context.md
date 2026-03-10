@@ -1,0 +1,49 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e6]:
+    - banner [ref=e8]:
+      - link "Bitwarden logo" [ref=e9] [cursor=pointer]:
+        - /url: "#/"
+        - generic "Bitwarden logo" [ref=e10]:
+          - img "Vaultwarden" [ref=e11]
+    - main [ref=e16]:
+      - generic [ref=e19]:
+        - generic [ref=e21]:
+          - img [ref=e24]
+          - heading "Log in" [level=1] [ref=e42]
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - generic [ref=e48]:
+              - generic [ref=e49]:
+                - generic [ref=e50]:
+                  - generic "Email address" [ref=e51]:
+                    - generic [ref=e52]: Email address
+                  - generic [ref=e53]: (required)
+                - textbox [ref=e56]
+              - generic [ref=e57]:
+                - generic [ref=e58]: 
+                - text: Input is required.
+            - generic [ref=e60] [cursor=pointer]:
+              - checkbox "Remember email" [ref=e61]
+              - generic "Remember email" [ref=e64]:
+                - generic [ref=e65]: Remember email
+            - generic [ref=e66]:
+              - button "Use single sign-on" [active] [ref=e67] [cursor=pointer]:
+                - generic [ref=e70]:
+                  - generic [ref=e71]: 
+                  - text: Use single sign-on
+              - text: 
+          - text: 
+    - img [ref=e72]
+    - img [ref=e92]
+    - contentinfo [ref=e110]:
+      - generic [ref=e111]: Vaultwarden Web
+      - generic [ref=e112]: 2026.2.0
+      - generic [ref=e113]:
+        - text: A modified version of the Bitwarden® Web Vault for Vaultwarden (an unofficial rewrite of the Bitwarden® server).
+        - text: Vaultwarden is not associated with the Bitwarden® project nor Bitwarden Inc.
+  - generic:
+    - status
+```

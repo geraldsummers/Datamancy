@@ -26,7 +26,7 @@ telemetry:
     address: tcp://0.0.0.0:9959
 
 totp:
-  issuer: {{DOMAIN}}
+  issuer: datamancy.net
   period: 30
   skew: 1
 
@@ -39,7 +39,7 @@ authentication_backend:
     address: ldap://ldap:389
     timeout: 5s
     start_tls: false
-    base_dn: {{LDAP_BASE_DN}}
+    base_dn: dc=datamancy,dc=net
     additional_users_dn: ou=users
     users_filter: (&({username_attribute}={input})(objectClass=inetOrgPerson))
     additional_groups_dn: ou=groups
@@ -49,33 +49,33 @@ authentication_backend:
       group_name: cn
       mail: mail
       display_name: displayName
-    user: cn=admin,{{LDAP_BASE_DN}}
+    user: cn=admin,dc=datamancy,dc=net
 
 access_control:
   default_policy: deny
   rules:
-    - domain: auth.{{DOMAIN}}
+    - domain: auth.datamancy.net
       policy: bypass
     - domain_regex: '^(authelia|authelia:[0-9]+)$'
       policy: bypass
-    - domain: homeassistant.{{DOMAIN}}
+    - domain: homeassistant.datamancy.net
       policy: bypass
       resources:
         - "^/api/webhook/.*$"
     # Vault UI - Admin only (sensitive operations)
-    - domain: vault.{{DOMAIN}}
+    - domain: vault.datamancy.net
       policy: one_factor
       subject:
         - "group:admins"
-    - domain: qbittorrent.{{DOMAIN}}
+    - domain: qbittorrent.datamancy.net
       policy: one_factor
-    - domain: {{DOMAIN}}
+    - domain: datamancy.net
       policy: one_factor
       subject:
         - "group:admins"
         - "group:operators"
         - "group:users"
-    - domain: "*.{{DOMAIN}}"
+    - domain: "*.datamancy.net"
       policy: one_factor
       subject:
         - "group:admins"
@@ -84,9 +84,9 @@ access_control:
 
 session:
   cookies:
-    - domain: {{DOMAIN}}
+    - domain: datamancy.net
       name: authelia_session
-      authelia_url: https://auth.{{DOMAIN}}
+      authelia_url: https://auth.datamancy.net
       same_site: lax
       expiration: 8h
       inactivity: 1h
@@ -104,10 +104,10 @@ regulation:
 
 identity_validation:
   reset_password:
-    jwt_secret: {{AUTHELIA_JWT_SECRET}}
+    jwt_secret: b12c0fa23fa01e24102d3796f14c27e1761ccfb4a1df87988ea85ce308d0b27f
 
 storage:
-  encryption_key: {{AUTHELIA_STORAGE_ENCRYPTION_KEY}}
+  encryption_key: 0007caa0d1e47f2ec4e7ec72137277eca957e52c52cd4c52c5f99fa667c852c0
   postgres:
     address: tcp://postgres:5432
     database: authelia
@@ -122,7 +122,7 @@ notifier:
 
 identity_providers:
   oidc:
-    hmac_secret: {{AUTHELIA_OIDC_HMAC_SECRET}}
+    hmac_secret: ab7f0161564c586ae1b053ea67499def88274783476922311024dcb39fe5fcbb
     lifespans:
       access_token: 1h
       authorize_code: 1m
@@ -142,17 +142,68 @@ identity_providers:
         algorithm: RS256
         use: sig
         key: |
-          {{AUTHELIA_OIDC_PRIVATE_KEY}}
+          -----BEGIN PRIVATE KEY-----
+          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
+          7h0ukxLnbqTAPK9fCAfLFozr4ZWbwWs=
+          -----END PRIVATE KEY-----
 
     clients:
       - client_id: pgadmin
         client_name: pgAdmin
-        client_secret: '{{PGADMIN_OAUTH_SECRET_HASH}}'
+        client_secret: '=19=65536,t=3,p=4yxeMnd5SHh/EgnihSpAp6HGt3b/UQJn2cG8UkbbU0w'
         public: false
         authorization_policy: one_factor
         token_endpoint_auth_method: client_secret_basic
         redirect_uris:
-          - https://pgadmin.{{DOMAIN}}/oauth2/authorize
+          - https://pgadmin.datamancy.net/oauth2/authorize
         scopes:
           - openid
           - profile
@@ -165,12 +216,12 @@ identity_providers:
 
       - client_id: open-webui
         client_name: Open WebUI
-        client_secret: '{{OPENWEBUI_OAUTH_SECRET_HASH}}'
+        client_secret: '=19=65536,t=3,p=4yxeMnd5SHh/EgnihSpAp6HGt3b/UQJn2cG8UkbbU0w'
         public: false
         authorization_policy: one_factor
         token_endpoint_auth_method: client_secret_basic
         redirect_uris:
-          - https://open-webui.{{DOMAIN}}/oauth/oidc/callback
+          - https://open-webui.datamancy.net/oauth/oidc/callback
         scopes:
           - openid
           - profile
@@ -183,12 +234,12 @@ identity_providers:
 
       - client_id: dim
         client_name: Dim
-        client_secret: '{{DIM_OAUTH_SECRET_HASH}}'
+        client_secret: '=19=65536,t=3,p=4yxeMnd5SHh/EgnihSpAp6HGt3b/UQJn2cG8UkbbU0w'
         public: false
         authorization_policy: one_factor
         token_endpoint_auth_method: client_secret_basic
         redirect_uris:
-          - https://dim.{{DOMAIN}}/api/v1/auth/oidc/callback
+          - https://dim.datamancy.net/api/v1/auth/oidc/callback
         scopes:
           - openid
           - profile
@@ -201,12 +252,12 @@ identity_providers:
 
       - client_id: planka
         client_name: Planka
-        client_secret: '{{PLANKA_OAUTH_SECRET_HASH}}'
+        client_secret: 'dc9a187c8c65d10b89c6983e30d39eed37302547411f81f97c4a15e199952cf2'
         public: false
         authorization_policy: one_factor
         token_endpoint_auth_method: client_secret_basic
         redirect_uris:
-          - https://planka.{{DOMAIN}}/oidc-callback
+          - https://planka.datamancy.net/oidc-callback
         scopes:
           - openid
           - profile
@@ -220,15 +271,14 @@ identity_providers:
           - query
           - fragment
           - form_post
-
       - client_id: vaultwarden
         client_name: Vaultwarden
-        client_secret: '{{VAULTWARDEN_OAUTH_SECRET_HASH}}'
+        client_secret: '$argon2id$v=19$m=65536,t=3,p=4$ZIW4EnWl0BueCYIsOg5X9Q$5yxeMnd5SHh/EgnihSpAp6HGt3b/UQJn2cG8UkbbU0w'
         public: false
         authorization_policy: one_factor
         consent_mode: implicit
         redirect_uris:
-          - https://app.vaultwarden.{{DOMAIN}}/identity/connect/oidc-signin
+          - https://app.vaultwarden.datamancy.net/identity/connect/oidc-signin
         scopes:
           - openid
           - profile
@@ -241,13 +291,13 @@ identity_providers:
 
       - client_id: roundcube
         client_name: Roundcube
-        client_secret: '{{ROUNDCUBE_OAUTH_SECRET_HASH}}'
+        client_secret: '=19=65536,t=3,p=4yxeMnd5SHh/EgnihSpAp6HGt3b/UQJn2cG8UkbbU0w'
         public: false
         authorization_policy: one_factor
         token_endpoint_auth_method: client_secret_basic
         redirect_uris:
-          - https://roundcube.{{DOMAIN}}/?_task=login&_action=oauth
-          - https://mail.{{DOMAIN}}/?_task=login&_action=oauth
+          - https://roundcube.datamancy.net/?_task=login&_action=oauth
+          - https://mail.datamancy.net/?_task=login&_action=oauth
         scopes:
           - openid
           - profile
@@ -259,13 +309,13 @@ identity_providers:
 
       - client_id: mastodon
         client_name: Mastodon
-        client_secret: '{{MASTODON_OAUTH_SECRET_HASH}}'
+        client_secret: '541f1682d2644ecf9133c7528df57a5fce6060bd3ed42b6b341edd2049da6473'
         public: false
         authorization_policy: one_factor
         consent_mode: implicit
         token_endpoint_auth_method: client_secret_basic
         redirect_uris:
-          - https://mastodon.{{DOMAIN}}/auth/auth/openid_connect/callback
+          - https://mastodon.datamancy.net/auth/auth/openid_connect/callback
         scopes:
           - openid
           - profile
@@ -277,12 +327,12 @@ identity_providers:
 
       - client_id: bookstack
         client_name: Bookstack
-        client_secret: '{{BOOKSTACK_OAUTH_SECRET_HASH}}'
+        client_secret: '845fb7d1f05dac3f73a9332d161e2374a86d650b831a0bc617dc172fd07d3700'
         public: false
         authorization_policy: one_factor
         consent_mode: implicit
         redirect_uris:
-          - https://bookstack.{{DOMAIN}}/oidc/callback
+          - https://bookstack.datamancy.net/oidc/callback
         scopes:
           - openid
           - profile
@@ -296,11 +346,11 @@ identity_providers:
 
       - client_id: forgejo
         client_name: Forgejo
-        client_secret: '{{FORGEJO_OAUTH_SECRET_HASH}}'
+        client_secret: '26d9786e6a2867e279caf8c887d5f672b3f93589cf680183fce721b9ff935956'
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://forgejo.{{DOMAIN}}/user/oauth2/Authelia/callback
+          - https://forgejo.datamancy.net/user/oauth2/Authelia/callback
         scopes:
           - openid
           - profile
@@ -314,12 +364,12 @@ identity_providers:
 
       - client_id: matrix
         client_name: Matrix Synapse
-        client_secret: '{{MATRIX_OAUTH_SECRET_HASH}}'
+        client_secret: '=19=65536,t=3,p=4yxeMnd5SHh/EgnihSpAp6HGt3b/UQJn2cG8UkbbU0w'
         public: false
         authorization_policy: one_factor
         consent_mode: implicit
         redirect_uris:
-          - https://matrix.{{DOMAIN}}/_synapse/client/oidc/callback
+          - https://matrix.datamancy.net/_synapse/client/oidc/callback
         scopes:
           - openid
           - profile
@@ -333,7 +383,7 @@ identity_providers:
 
       - client_id: test-runner
         client_name: Integration Test Runner
-        client_secret: '{{TEST_RUNNER_OAUTH_SECRET_HASH}}'
+        client_secret: '=19=65536,t=3,p=4yxeMnd5SHh/EgnihSpAp6HGt3b/UQJn2cG8UkbbU0w'
         public: false
         authorization_policy: one_factor
         consent_mode: implicit
