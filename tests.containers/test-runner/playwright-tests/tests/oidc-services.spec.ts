@@ -410,11 +410,48 @@ async function testOIDCService(
 test.describe.serial('OIDC Services - SSO Flow', () => {
 
   test('Grafana - OIDC login flow', async ({ page }) => {
-    // NOTE: Grafana is configured for Auth Proxy (forward auth), not OIDC
-    // Environment: GF_AUTH_PROXY_ENABLED=true
-    // Grafana uses Authelia -> Caddy -> Header-based auth, not OAuth/OIDC flow
-    // This test is skipped as Grafana doesn't use OIDC in this deployment
-    test.skip(true, 'Grafana uses Auth Proxy (forward auth), not OIDC');
+    // Grafana uses forward-auth, not OIDC. Validate access and UI via Authelia session.
+    setupNetworkLogging(page, 'Grafana (forward-auth)');
+
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await page.goto('https://grafana.datamancy.net/', { waitUntil: 'domcontentloaded', timeout: 20000 });
+        break;
+      } catch (error: any) {
+        if (error.message?.includes('SSL') || error.message?.includes('ERR_SSL_PROTOCOL_ERROR')) {
+          retries--;
+          await page.waitForTimeout(2000);
+          if (retries === 0) throw error;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (page.url().includes('authelia') || page.url().includes('auth.') || page.url().includes(':9091')) {
+      const loginPage = new AutheliaLoginPage(page);
+      await loginPage.login(testUser.username, testUser.password);
+    }
+
+    await expect(page).not.toHaveURL(/auth\.|authelia/);
+    await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+
+    const grafanaPattern = /Grafana|Dashboards|Explore|Connections|Data sources|Loki/i;
+    const pageTitle = await page.title();
+    const pageText = await page.textContent('body').catch(() => '');
+    const bodyHtml = await page.locator('body').innerHTML();
+    const combined = [pageTitle, pageText, bodyHtml].filter(Boolean).join('\n');
+    if (!grafanaPattern.test(combined)) {
+      throw new Error('Expected Grafana UI after forward-auth, but UI pattern not found.');
+    }
+
+    await page.screenshot({
+      path: '/app/test-results/screenshots/grafana-forward-authenticated.jpg',
+      type: 'jpeg',
+      quality: 85,
+      fullPage: true
+    });
   });
 
   test('Mastodon - OIDC login flow', async ({ page }) => {

@@ -373,10 +373,21 @@ test.describe('Forward Auth Services - SSO Flow', () => {
   });
 
   test('Vaultwarden - Access with forward auth', async ({ page }) => {
-    // NOTE: Vaultwarden is configured with SSO_ONLY=true, which means it requires OIDC login
-    // Forward-auth will result in "Failed to discover OpenID provider" error
-    // This service should be tested in the OIDC test suite instead
-    test.skip(true, 'Vaultwarden requires OIDC (SSO_ONLY=true) - see oidc-services.spec.ts');
+    // Vaultwarden requires explicit OIDC (SSO_ONLY=true). Validate that forward-auth does not
+    // grant access and that we land on Vaultwarden's SSO/login UI.
+    await testForwardAuthService(
+      page,
+      'Vaultwarden (forward-auth)',
+      'https://vaultwarden.datamancy.net/',
+      /Single sign-on|Use single sign-on|SSO|Log in|Vaultwarden|Bitwarden/i,
+      {
+        urlPattern: /vaultwarden\.datamancy\.net/,
+        disallowPatterns: [/My Vault|Vaults|Folders|Items|Search vault/i],
+        disallowUrlPatterns: [/#\/vault\b/i],
+        maxPatternRetries: 4,
+        retryDelayMs: 2000,
+      }
+    );
   });
 
   test('Homepage - Access with forward auth', async ({ page }) => {
@@ -516,16 +527,34 @@ test.describe('Forward Auth Services - SSO Flow', () => {
   });
 
   test('Radicale - Access with forward auth', async ({ page }) => {
-    // NOTE: Radicale returns HTTP 525 (SSL Handshake Failed) at Cloudflare level
-    // This is a Cloudflare/Caddy SSL configuration issue, not an auth issue
-    // Service is healthy internally but not accessible via Cloudflare
-    test.skip(true, 'Radicale has Cloudflare SSL handshake issue - needs SSL config fix');
+    await testForwardAuthService(
+      page,
+      'Radicale',
+      'https://radicale.datamancy.net/',
+      /Radicale|Calendar|Address book|WebDAV|CalDAV|CardDAV/i,
+      {
+        urlPattern: /radicale\.datamancy\.net/,
+        maxPatternRetries: 4,
+        retryDelayMs: 2000,
+      }
+    );
   });
 
   test('Vault - Access with forward auth', async ({ page }) => {
-    // Vaultwarden uses an explicit OIDC flow (SSO_ONLY=true) and may require consent.
-    // That flow is covered by oidc-services.spec.ts, so we skip the forward-auth check here.
-    test.skip(true, 'Vaultwarden uses OIDC flow; covered in oidc-services.spec.ts');
+    // This endpoint should remain protected by Vaultwarden's OIDC flow.
+    await testForwardAuthService(
+      page,
+      'Vault (Vaultwarden UI)',
+      'https://vaultwarden.datamancy.net/',
+      /Single sign-on|Use single sign-on|SSO|Log in|Vaultwarden|Bitwarden/i,
+      {
+        urlPattern: /vaultwarden\.datamancy\.net/,
+        disallowPatterns: [/My Vault|Vaults|Folders|Items|Search vault/i],
+        disallowUrlPatterns: [/#\/vault\b/i],
+        maxPatternRetries: 4,
+        retryDelayMs: 2000,
+      }
+    );
   });
 });
 
