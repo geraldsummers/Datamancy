@@ -32,34 +32,40 @@ ssh -t gerald@latium.local '
   docker compose up -d --no-build
 '
 
-nuclear option:
-# 0) Stop everything (best-effort)
-sudo echo
-docker ps -q | xargs -r docker stop -t 0 || true
 
-# 1) Force-remove all containers (handles stuck ones)
+#!/usr/bin/env bash
+#nuclear option:
+set -u
+
+# Stop containers
+docker ps -q | xargs -r docker stop -t 0 || true
 docker ps -aq | xargs -r docker rm -f || true
 
-# 2) Prune builder cache (buildx)
+# Remove builders / cache
 docker buildx prune -af || true
+docker buildx rm --all-inactive || true
 
-# 3) Prune everything else, including volumes
+# Explicitly remove any buildx/buildkit containers that survived
+docker ps -aq --filter name=buildx_buildkit | xargs -r docker rm -f || true
+docker ps -aq --filter name=buildkit | xargs -r docker rm -f || true
+
+# Remove normal Docker objects
 docker system prune -af --volumes || true
 
-# 4) Redundant-but-explicit cleanup passes (belt + suspenders)
-docker volume prune -af || true
-docker image prune -af || true
-docker network prune -f || true
-# Buildx: remove builders + buildkit containers + metadata
-docker buildx rm --all-inactive || true
-docker buildx ls | awk 'NR>1 {print $1}' | xargs -r docker buildx rm || true
+# Stop daemons before deleting engine state
+sudo systemctl stop docker containerd || true
 
-sudo systemctl stop docker containerd
-# Buildx metadata in user home
-rm -rf ~/.docker/buildx || true
-rm -rf ~/.docker/buildx/cache || true
-sudo rm -rvf ~/datamancy
-sudo rm -rvf /mnt/raid/docker
-sudo rm -rvf /mnt/vectors/qdrant/*
-sudo systemctl start docker containerd
+# Remove engine state
+sudo rm -rf /mnt/raid/docker
 
+# Remove client-side state
+rm -rf ~/.docker
+
+# Optional: remove standalone containerd state too, only if you truly want a reset
+# sudo rm -rf /var/lib/containerd /run/containerd
+
+# Your app data
+sudo rm -rf ~/datamancy
+sudo rm -rf /mnt/vectors/qdrant/*
+
+sudo systemctl start containerd docker || true
