@@ -21,22 +21,24 @@ ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile ingestion
 ssh -t gerald@latium.local "cd ~/datamancy && docker compose --profile testing up  -d"
 
 
-cd /home/gerald/IdeaProjects/Datamancy/ && \
-./build-datamancy-v3.main.kts && \
-rsync --delete -az --progress dist/ gerald@latium.local:~/datamancy/ && \
-ssh -t gerald@latium.local '
-  set -euxo pipefail
-  cd ~/datamancy
-  docker compose down --remove-orphans
-  docker compose build --no-cache
-  docker compose up -d --no-build
-'
+(
+  cd /home/gerald/IdeaProjects/Datamancy/ && \
+  ./build-datamancy-v3.main.kts && \
+  rsync --delete -az --progress dist/ gerald@latium.local:~/datamancy/ && \
+  ssh -t gerald@latium.local '
+    set -euxo pipefail
+    cd ~/datamancy
+    docker compose down --remove-orphans
+    docker compose build --no-cache
+    docker compose up -d --no-build
+  '
+) 2>&1 | tee deploy.log
 
 
 #!/usr/bin/env bash
-#nuclear option:
+# nuclear option:
 set -u
-
+sudo echo
 # Stop containers
 docker ps -q | xargs -r docker stop -t 0 || true
 docker ps -aq | xargs -r docker rm -f || true
@@ -62,10 +64,14 @@ sudo rm -rf /mnt/raid/docker
 rm -rf ~/.docker
 
 # Optional: remove standalone containerd state too, only if you truly want a reset
-# sudo rm -rf /var/lib/containerd /run/containerd
+sudo rm -rf /var/lib/containerd /run/containerd
 
 # Your app data
 sudo rm -rf ~/datamancy
 sudo rm -rf /mnt/vectors/qdrant/*
 
 sudo systemctl start containerd docker || true
+
+# Recreate a clean buildx builder
+docker buildx create --use >/dev/null
+docker buildx inspect --bootstrap >/dev/null
