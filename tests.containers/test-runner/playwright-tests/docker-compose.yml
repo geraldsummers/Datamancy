@@ -25,9 +25,6 @@ services:
     networks:
       - datamancy_default
 
-    # Don't run by default - only when explicitly called
-    profiles:
-      - testing
 
 networks:
   datamancy_default:

@@ -8,8 +8,7 @@ services:
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
-    profiles:
-      - ingestion
+
     networks:
       - postgres
       - internet
@@ -78,8 +77,7 @@ services:
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
-    profiles:
-      - ingestion
+
     networks:
       - qdrant
       - postgres
@@ -117,8 +115,7 @@ services:
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
-    profiles:
-      - ingestion
+
     networks:
       - postgres
       - mariadb
@@ -144,8 +141,7 @@ services:
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
-    profiles:
-      - market-data
+
     networks:
       - postgres
       - internet
