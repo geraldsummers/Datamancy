@@ -5,7 +5,7 @@
 # uses a single mail user (UID/GID 5000) for all virtual mailboxes
 
 base = ou=users,{{LDAP_BASE_DN}}
-default_pass_scheme = SSHA
+default_pass_scheme = PLAIN
 dn = cn=admin,{{LDAP_BASE_DN}}
 dnpass = ${LDAP_BIND_PW}
 uris = ldap://ldap:389
