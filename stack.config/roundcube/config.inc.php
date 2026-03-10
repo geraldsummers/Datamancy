@@ -7,7 +7,6 @@ $config['default_port'] = 143;
 $config['smtp_server'] = 'mailserver';
 $config['smtp_port'] = 587;
 
-// Disable OAuth plugin unless it is explicitly installed in the image.
 // Forward-auth at the proxy layer already protects Roundcube.
 $config['plugins'] = array();
 

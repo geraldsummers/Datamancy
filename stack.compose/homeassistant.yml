@@ -28,6 +28,7 @@ services:
       TZ: UTC
       PUID: ${DOCKER_USER_ID:-1000}
       PGID: ${DOCKER_GROUP_ID:-1000}
+      HOMEASSISTANT_DB_URL: postgresql://homeassistant:${POSTGRES_HOMEASSISTANT_PASSWORD}@postgres:5432/homeassistant
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: homeassistant

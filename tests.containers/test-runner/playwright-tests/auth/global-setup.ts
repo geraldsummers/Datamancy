@@ -43,7 +43,7 @@ async function globalSetup(config: FullConfig) {
   // Generate ephemeral test user (preferred)
   const username = LDAPClient.generateUsername('playwright');
   const password = LDAPClient.generatePassword();
-  const email = `${username}@datamancy.test`;
+  const email = `${username}@${domain}`;
 
   let testUser = {
     username,

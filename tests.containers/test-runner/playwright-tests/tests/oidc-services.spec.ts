@@ -20,9 +20,15 @@ import { AutheliaLoginPage } from '../pages/AutheliaLoginPage';
 import { OIDCLoginPage } from '../pages/OIDCLoginPage';
 import { logPageTelemetry, setupNetworkLogging } from '../utils/telemetry';
 
-const testUser = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '../.auth/test-user.json'), 'utf-8')
-);
+const testUserPath = path.join(__dirname, '../.auth/test-user.json');
+const testUser = fs.existsSync(testUserPath)
+  ? JSON.parse(fs.readFileSync(testUserPath, 'utf-8'))
+  : {
+      username: process.env.STACK_ADMIN_USER || 'sysadmin',
+      password: process.env.STACK_ADMIN_PASSWORD || 'admin',
+      email: process.env.STACK_ADMIN_EMAIL || '',
+      managed: false,
+    };
 
 const guessBaseDomain = (hostname: string) => {
   const parts = hostname.split('.').filter(Boolean);
@@ -499,6 +505,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
   });
 
   test('Vaultwarden - OIDC login flow', async ({ page }) => {
+    const vaultwardenEmail = process.env.STACK_ADMIN_EMAIL || testUser.email || 'admin@datamancy.net';
     await testOIDCService(
       page,
       'Vaultwarden',
@@ -510,7 +517,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
         disallowUrlPatterns: [/#\/sso\b/i, /\/sso\b/i],
         loginPath: 'https://app.vaultwarden.datamancy.net/#/login',
         loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
-        ssoEmail: testUser.email,
+        ssoEmail: vaultwardenEmail,
         uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization/i,
         postLogin: async (page) => {
           // Handle create account / master password setup after SSO

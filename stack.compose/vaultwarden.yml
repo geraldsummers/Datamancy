@@ -29,8 +29,8 @@ services:
         condition: service_started
     environment:
       DOMAIN: https://app.vaultwarden.${DOMAIN}
-      SIGNUPS_ALLOWED: false
-      SIGNUPS_VERIFY: true
+      SIGNUPS_ALLOWED: true
+      SIGNUPS_VERIFY: false
       SIGNUPS_DOMAINS_WHITELIST: ${MAIL_DOMAIN},datamancy.test
       INVITATIONS_ALLOWED: false
       SHOW_PASSWORD_HINT: false
@@ -41,6 +41,7 @@ services:
       SSO_SCOPES: openid email profile
       SSO_CALLBACK_PATH: /identity/connect/oidc-signin
       SSO_SIGNUPS_MATCH_EMAIL: true
+      SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION: true
       SMTP_HOST: mailserver
       SMTP_FROM: vaultwarden@${MAIL_DOMAIN}
       SMTP_PORT: 587

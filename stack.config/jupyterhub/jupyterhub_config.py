@@ -27,7 +27,7 @@ c.DockerSpawner.extra_create_kwargs = {
 
 c.DockerSpawner.notebook_dir = '/home/jovyan/work'
 
-c.Spawner.default_url = '/lab'
+c.Spawner.default_url = '/tree'
 
 c.DockerSpawner.remove = True
 

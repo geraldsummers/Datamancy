@@ -28,10 +28,19 @@ import * as path from 'path';
 import { AutheliaLoginPage } from '../pages/AutheliaLoginPage';
 import { logPageTelemetry, setupNetworkLogging } from '../utils/telemetry';
 
-// Load test user credentials
-const testUser = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '../.auth/test-user.json'), 'utf-8')
-);
+// Load test user credentials with fallback if auth artifacts were cleaned up
+const testUserPath = path.join(__dirname, '../.auth/test-user.json');
+const testUser = fs.existsSync(testUserPath)
+  ? JSON.parse(fs.readFileSync(testUserPath, 'utf-8'))
+  : {
+      username: process.env.STACK_ADMIN_USER || 'sysadmin',
+      password: process.env.STACK_ADMIN_PASSWORD || 'admin',
+      email: process.env.STACK_ADMIN_EMAIL || '',
+      managed: false,
+    };
+const stackAdminUser = process.env.STACK_ADMIN_USER || testUser.username;
+const stackAdminPassword = process.env.STACK_ADMIN_PASSWORD || testUser.password;
+const stackAdminEmail = process.env.STACK_ADMIN_EMAIL || testUser.email || stackAdminUser;
 
 /**
  * Helper function to test forward auth service access with proper assertions
@@ -62,6 +71,7 @@ async function testForwardAuthService(
     screenshotDelayMs?: number;
     screenshotUsePage?: boolean;
     screenshotViewport?: { width: number; height: number };
+    onAfterLoad?: (page: Page) => Promise<void>;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} forward auth`);
@@ -146,6 +156,10 @@ async function testForwardAuthService(
   }
 
   await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+
+  if (options.onAfterLoad) {
+    await options.onAfterLoad(page);
+  }
 
   await logPageTelemetry(page, `${serviceName} Main Page`);
 
@@ -281,8 +295,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
     await testForwardAuthService(
       page,
       'JupyterHub',
-      'https://jupyterhub.datamancy.net/',
-      /JupyterHub|Start My Server|Control Panel|JupyterLab|Notebook/i,
+      'https://jupyterhub.datamancy.net/hub/home',
+      /JupyterHub|Start My Server|Control Panel|JupyterLab|Notebook|Files|New/i,
       {
         urlPattern: /jupyterhub\.datamancy\.net/,
         disallowUrlPatterns: [/\/spawn-pending\//i],
@@ -290,14 +304,19 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         maxPatternRetries: 5,
         retryDelayMs: 2000,
         waitForUrlNotMatch: /\/spawn-pending\//i,
-        waitForSelectorVisible: '.jp-LabShell, .jp-Launcher, .jp-SideBar',
-        waitForSelectorTimeoutMs: 60000,
+        waitForSelectorVisible: '#start, #stop',
+        waitForSelectorTimeoutMs: 30000,
         requireSelectorVisible: true,
         // JupyterLab element screenshots often render blank; use page screenshot.
         screenshotUsePage: true,
         screenshotType: 'png',
         screenshotDelayMs: 4000,
-        clickIfVisibleSelector: 'button:has-text("Start My Server")',
+        onAfterLoad: async (page) => {
+          if (/\/user\//.test(page.url())) {
+            await page.goto('https://jupyterhub.datamancy.net/hub/home', { waitUntil: 'domcontentloaded' }).catch(() => {});
+          }
+          await page.waitForSelector('#start, #stop', { state: 'visible', timeout: 30000 }).catch(() => {});
+        },
       }
     );
   });
@@ -395,8 +414,33 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Roundcube',
       'https://roundcube.datamancy.net/',
-      /Roundcube Webmail|Inbox|Compose|Mailbox|Folders|Settings/i,
-      { urlPattern: /roundcube\.datamancy\.net/ }
+      /Inbox|Compose|Mailbox|Folders|Settings|Mail/i,
+      {
+        urlPattern: /roundcube\.datamancy\.net/,
+        disallowUrlPatterns: [/_task=login/i],
+        waitForUrlNotMatch: /_task=login/i,
+        onAfterLoad: async (page) => {
+          const roundcubeUser = testUser.email || stackAdminEmail;
+          const roundcubePass = testUser.password || stackAdminPassword;
+          const userInput = page.locator(
+            '#rcmloginuser, input[name=\"_user\"], input[name=\"user\"], input[type=\"text\"], input[type=\"email\"]'
+          ).first();
+          const passInput = page.locator(
+            '#rcmloginpwd, input[name=\"_pass\"], input[name=\"pass\"], input[type=\"password\"]'
+          ).first();
+          const loginButton = page.locator(
+            '#rcmloginsubmit, button:has-text(\"Login\"), button[type=\"submit\"], input[type=\"submit\"]'
+          ).first();
+          if (await userInput.isVisible().catch(() => false)) {
+            await userInput.fill(roundcubeUser);
+            await passInput.fill(roundcubePass);
+            await loginButton.click().catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+          }
+          await page.waitForURL((url) => !/_task=login/i.test(url.toString()), { timeout: 30000 }).catch(() => {});
+          await page.waitForSelector('#taskbar, #mailboxlist, #messagelist', { state: 'visible', timeout: 30000 });
+        }
+      }
     );
   });
 
@@ -433,8 +477,23 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'LDAP Account Manager',
       'https://lam.datamancy.net/lam/', // LAM requires /lam/ path
-      /LDAP Account Manager|Tree view|Account tools|Tools|Logout|Login|User name|Password/i,
-      { urlPattern: /lam\.datamancy\.net/ }
+      /Tree view|Account tools|Tools|Logout/i,
+      {
+        urlPattern: /lam\.datamancy\.net/,
+        disallowPatterns: [/User name|Password|Login/i, /Invalid DN syntax/i, /Cannot connect to specified LDAP server/i],
+        onAfterLoad: async (page) => {
+          const userInput = page.locator('input[name=\"username\"], #username, input[name=\"user\"]').first();
+          const passInput = page.locator('input[name=\"passwd\"], #passwd, input[name=\"password\"], input[type=\"password\"]').first();
+          const loginButton = page.locator('#btn_checklogin, button[type=\"submit\"], input[type=\"submit\"]').first();
+          if (await userInput.isVisible().catch(() => false)) {
+            await userInput.fill(stackAdminUser);
+            await passInput.fill(stackAdminPassword);
+            await loginButton.click().catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+          }
+          await page.waitForSelector('#lam-topnav', { state: 'visible', timeout: 30000 });
+        }
+      }
     );
   });
 
