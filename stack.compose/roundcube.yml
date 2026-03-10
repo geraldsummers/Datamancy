@@ -64,9 +64,10 @@ services:
       ROUNDCUBEMAIL_DB_PORT: 5432
       ROUNDCUBEMAIL_DB_USER: roundcube
       ROUNDCUBEMAIL_DB_NAME: roundcube
-      ROUNDCUBEMAIL_DEFAULT_HOST: mailserver
+      # Use STARTTLS for IMAP/SMTP to satisfy mailserver SSL requirements.
+      ROUNDCUBEMAIL_DEFAULT_HOST: tls://mailserver
       ROUNDCUBEMAIL_DEFAULT_PORT: 143
-      ROUNDCUBEMAIL_SMTP_SERVER: mailserver
+      ROUNDCUBEMAIL_SMTP_SERVER: tls://mailserver
       ROUNDCUBEMAIL_SMTP_PORT: 587
       ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 50M
     volumes:

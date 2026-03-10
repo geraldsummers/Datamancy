@@ -585,10 +585,6 @@ fun suitesNeedingTests(registry: TestRegistry): List<TestRegistrySuite> {
 }
 
 fun checkGitClean(workDir: File) {
-    if (System.getenv("ALLOW_DIRTY_BUILD") == "1") {
-        warn("Skipping git clean check because ALLOW_DIRTY_BUILD=1")
-        return
-    }
     try {
         val statusProcess = ProcessBuilder("git", "status", "--porcelain")
             .directory(workDir)
@@ -617,6 +613,12 @@ fun checkGitClean(workDir: File) {
         }
     } catch (e: Exception) {
         warn("Could not verify git status: ${e.message}")
+    }
+}
+
+fun expandConfigValue(raw: String, credentials: Map<String, String>): String {
+    return raw.replace(Regex("""\$\{([A-Za-z0-9_]+)}""")) { match ->
+        credentials[match.groupValues[1]] ?: match.value
     }
 }
 
@@ -877,7 +879,7 @@ fun generateCredentials(
                 "LARAVEL_KEY" -> generateLaravelKey()
                 "RSA_KEY" -> generateRSAKey()
                 "USER_PROVIDED" -> spec.default ?: ""
-                "CONFIG_VALUE" -> spec.default ?: ""
+                "CONFIG_VALUE" -> expandConfigValue(spec.default ?: "", credentials)
                 else -> {
                     warn("Unknown credential type: ${spec.type} for ${spec.name}")
                     ""
@@ -888,10 +890,20 @@ fun generateCredentials(
             newValue
         }
 
+        val resolved = if (spec.type.uppercase() == "CONFIG_VALUE") {
+            expandConfigValue(plaintext, credentials)
+        } else {
+            plaintext
+        }
+
+        if (resolved != plaintext) {
+            credentials[spec.name] = resolved
+        }
+
         // Always generate hash variants (even for existing credentials with missing hashes)
         spec.hash_variants?.forEach { variant ->
             if (!credentials.containsKey(variant.variable)) {
-                val hash = applyHashAlgorithm(variant.algorithm, plaintext)
+                val hash = applyHashAlgorithm(variant.algorithm, resolved)
                 credentials[variant.variable] = hash
                 info("Generated ${variant.algorithm} hash: ${variant.variable}")
             }

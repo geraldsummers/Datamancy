@@ -44,6 +44,8 @@ logs/
 *.tmp
 *.bak1
 *.backup
+tmp/
+.tmp/
 
 #SATURN stuff
 build/
