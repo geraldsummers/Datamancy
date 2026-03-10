@@ -12,6 +12,22 @@ $config['default_port'] = 143;
 $config['smtp_server'] = 'tls://mailserver';
 $config['smtp_port'] = 587;
 
+// Mailserver uses a locally-issued CA (Caddy); relax verification for internal TLS.
+$config['imap_conn_options'] = array(
+  'ssl' => array(
+    'verify_peer' => false,
+    'verify_peer_name' => false,
+    'allow_self_signed' => true,
+  ),
+);
+$config['smtp_conn_options'] = array(
+  'ssl' => array(
+    'verify_peer' => false,
+    'verify_peer_name' => false,
+    'allow_self_signed' => true,
+  ),
+);
+
 // Forward-auth at the proxy layer already protects Roundcube.
 $config['plugins'] = array();
 

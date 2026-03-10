@@ -95,6 +95,7 @@ services:
       SSL_CERT_FILE: /ca/caddy-ca.crt
     volumes:
       - caddy_ca:/ca:ro
+      - ./configs/mastodon/zz_datamancy_session_store.rb:/opt/mastodon/config/initializers/zz_datamancy_session_store.rb:ro
     command: bash -c "bundle exec rails server -b 0.0.0.0"
     healthcheck:
       test:
