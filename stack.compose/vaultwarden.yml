@@ -32,7 +32,7 @@ services:
       SIGNUPS_ALLOWED: true
       SIGNUPS_VERIFY: false
       SIGNUPS_DOMAINS_WHITELIST: ${MAIL_DOMAIN},datamancy.test
-      INVITATIONS_ALLOWED: false
+      INVITATIONS_ALLOWED: true
       SHOW_PASSWORD_HINT: false
       SSO_ENABLED: true
       SSO_ONLY: true

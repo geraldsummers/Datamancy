@@ -28,3 +28,19 @@ services:
       timeout: 4s
       retries: 5
       start_period: 30s
+  ldap-ensure-suffixes:
+    image: osixia/openldap:1.5.0
+    container_name: ldap-ensure-suffixes
+    restart: "no"
+    networks:
+      - ldap
+    depends_on:
+      ldap:
+        condition: service_healthy
+    environment:
+      LDAP_BASE_DN: ${LDAP_BASE_DN}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+    volumes:
+      - ./configs/ldap/ensure_suffixes.ldif:/tmp/ensure_suffixes.ldif:ro
+      - ./configs/ldap/ensure-suffixes.sh:/tmp/ensure-suffixes.sh:ro
+    command: ["/bin/sh", "/tmp/ensure-suffixes.sh"]

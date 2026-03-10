@@ -1,0 +1,14 @@
+# Ensure required suffix OUs exist (idempotent helper for existing LDAP volumes)
+# Generated: {{GENERATION_TIMESTAMP}}
+
+dn: ou=users,{{LDAP_BASE_DN}}
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,{{LDAP_BASE_DN}}
+objectClass: organizationalUnit
+ou: groups
+
+dn: ou=agents,{{LDAP_BASE_DN}}
+objectClass: organizationalUnit
+ou: agents
