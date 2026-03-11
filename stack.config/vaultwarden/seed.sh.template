@@ -1,0 +1,54 @@
+#!/bin/sh
+set -eu
+
+DB_PATH="/data/db.sqlite3"
+ORG_NAME="{{VAULTWARDEN_ORG_NAME}}"
+ORG_IDENTIFIER="{{VAULTWARDEN_ORG_IDENTIFIER}}"
+if [ -n "${VAULTWARDEN_ORG_IDENTIFIER:-}" ]; then
+  ORG_IDENTIFIER="$VAULTWARDEN_ORG_IDENTIFIER"
+fi
+ADMIN_EMAIL="{{STACK_ADMIN_EMAIL}}"
+
+if [ -z "$ORG_IDENTIFIER" ]; then
+  echo "[vaultwarden-init] ORG_IDENTIFIER is empty; skipping org provisioning."
+  exit 0
+fi
+
+echo "[vaultwarden-init] Waiting for DB to be created..."
+for i in $(seq 1 120); do
+  if [ -s "$DB_PATH" ]; then
+    break
+  fi
+  sleep 1
+done
+
+if [ ! -s "$DB_PATH" ]; then
+  echo "[vaultwarden-init] DB not found or empty after wait, exiting."
+  exit 1
+fi
+
+apk add --no-cache sqlite >/dev/null
+
+# Ensure identifier column exists (vaultwarden may already include it).
+if ! sqlite3 "$DB_PATH" "PRAGMA table_info(organizations);" | awk -F'|' '{print $2}' | grep -qx "identifier"; then
+  echo "[vaultwarden-init] Adding organizations.identifier column."
+  sqlite3 "$DB_PATH" "ALTER TABLE organizations ADD COLUMN identifier TEXT;"
+fi
+
+# Resolve org UUID by identifier, then by name.
+ORG_UUID="$(sqlite3 "$DB_PATH" "SELECT uuid FROM organizations WHERE identifier = '$ORG_IDENTIFIER' LIMIT 1;")"
+if [ -z "$ORG_UUID" ]; then
+  ORG_UUID="$(sqlite3 "$DB_PATH" "SELECT uuid FROM organizations WHERE name = '$ORG_NAME' LIMIT 1;")"
+fi
+
+# Create org if missing.
+if [ -z "$ORG_UUID" ]; then
+  ORG_UUID="$(cat /proc/sys/kernel/random/uuid)"
+  echo "[vaultwarden-init] Creating org $ORG_NAME ($ORG_UUID) with identifier $ORG_IDENTIFIER."
+  sqlite3 "$DB_PATH" "INSERT INTO organizations (uuid, name, billing_email, private_key, public_key, identifier) VALUES ('$ORG_UUID', '$ORG_NAME', '$ADMIN_EMAIL', NULL, NULL, '$ORG_IDENTIFIER');"
+else
+  echo "[vaultwarden-init] Updating org $ORG_UUID identifier to $ORG_IDENTIFIER."
+  sqlite3 "$DB_PATH" "UPDATE organizations SET identifier = '$ORG_IDENTIFIER' WHERE uuid = '$ORG_UUID';"
+fi
+
+echo "[vaultwarden-init] Org provisioning complete."

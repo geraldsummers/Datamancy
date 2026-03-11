@@ -1,0 +1,68 @@
+State of the problems (as of the last run I completed):
+Grafana (forward-auth)
+•
+External flow works and lands on Grafana, but the UI is still effectively blank in the screenshot.
+•
+Latest screenshot: ~/datamancy/test-results-screenshots-20260311_170357/grafana-forward-authenticated.jpg (black page with only footer links).
+•
+In the most recent test run before the abort, telemetry shows Grafana landed on https://grafana.datamancy.net/?orgId=1&from=now-1h&to=now&timezone=browser&refresh=10s and the heading All Logs was detected, but the test still prints “Grafana returned 400 error - skipping UI check.” That skip is a false positive caused by the body text containing “400”.
+•
+Grafana API check GET /api/datasources/name/Loki failed earlier because auth proxy was misconfigured (header property set to login). I corrected that back to username and restarted Grafana.
+Grafana auth proxy config (current server state)
+•
+/home/gerald/datamancy/docker-compose.yml now sets:
+◦
+GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+◦
+GF_AUTH_PROXY_HEADERS: "Email:X-WEBAUTH-EMAIL Name:X-WEBAUTH-NAME"
+◦
+GF_AUTH_PROXY_HEADER_PROPERTY: username
+◦
+GF_AUTH_PROXY_WHITELIST: 127.0.0.1,::1,172.30.0.0/16
+◦
+GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: true
+◦
+GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/logs.json
+•
+Caddy forward-auth is still copying Remote-* from Authelia and then mapping to X-WEBAUTH-* headers for Grafana.
+Tests
+•
+Full Playwright run (./run-tests.sh ts-e2e) completed once and failed 2 tests:
+i)
+Grafana forward-auth test: page was at /login at that time and API call to api/datasources/name/Loki failed.
+ii)
+LDAP Account Manager forward-auth test: UI matched disallowed pattern “Login”.
+•
+After fixing Grafana header property to username, I started another full Playwright run; it reached Grafana successfully (HTTP 200) and detected “All Logs”, but the run was aborted by you before completion, so no final pass/fail summary or screenshots from that attempt.
+Screenshots
+•
+Latest pulled screenshots folder: ~/datamancy/test-results-screenshots-20260311_170357/
+•
+Grafana screenshot there is still blank (footer only).
+If you want the next step, I’ll:
+1)
+Rerun the full Playwright tests cleanly (external URLs only).
+2)
+Pull fresh screenshots.
+3)
+Fix Grafana blank render and the “400” false-positive check, then re-run.
+
+Remaining problems (from the last completed full run):
+1.
+Grafana (forward-auth)
+•
+Test failed on api/datasources/name/Loki because Grafana auth proxy config was wrong at that time.
+•
+Screenshot still shows a blank/black page with footer only (grafana-forward-authenticated.jpg).
+•
+Even when the UI appears to land on the logs dashboard, the test prints “Grafana returned 400 error - skipping UI check” due to a false-positive string match on “400” in the page body.
+2.
+LDAP Account Manager (forward-auth)
+•
+Test fails: it lands on a page matching login patterns (“User name/Password/Login”) instead of an authenticated UI.
+What’s not failing but still suspicious:
+•
+Home Assistant repeatedly reports “returned 400 error - skipping UI check” (test doesn’t fail, but it’s not validating the UI).
+•
+Planka OIDC test logs show it still sitting on the login page; it doesn’t fail but it’s a red flag in screenshots.
+If you want, I’ll rerun all tests now and pull fresh screenshots so we can confirm current state before fixes.

@@ -30,11 +30,15 @@ services:
       GF_DATABASE_NAME: grafana
       GF_DATABASE_USER: grafana
       GF_DATABASE_SSL_MODE: disable
+      GF_DATABASE_CONN_MAX_LIFETIME: 12000
       GF_AUTH_PROXY_ENABLED: true
       GF_AUTH_PROXY_HEADER_NAME: Remote-User
       GF_AUTH_PROXY_HEADER_PROPERTY: username
       GF_AUTH_PROXY_AUTO_SIGN_UP: true
       GF_AUTH_PROXY_HEADERS: "Email:Remote-Email Name:Remote-Name"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/logs.json
+      GF_ALERTING_ENABLED: false
+      GF_UNIFIED_ALERTING_ENABLED: false
     volumes:
       - grafana_data:/var/lib/grafana
       - ./configs/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro

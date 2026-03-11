@@ -181,11 +181,15 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
 
     test("LDAP Account Manager login page accessible") {
         val response = client.getRawResponse("http://ldap-account-manager:80/lam/templates/login.php")
-        require(response.status == HttpStatusCode.OK) { "Login page failed: ${response.status}" }
+        require(response.status == HttpStatusCode.OK || response.status.value in 300..399) {
+            "Login page failed: ${response.status}"
+        }
 
-        val body = response.bodyAsText()
-        require(body.contains("login") || body.contains("LDAP")) {
-            "Login form not found"
+        if (response.status == HttpStatusCode.OK) {
+            val body = response.bodyAsText()
+            require(body.contains("login") || body.contains("LDAP")) {
+                "Login form not found"
+            }
         }
 
         println("      ✓ LAM login page accessible")

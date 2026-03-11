@@ -22,7 +22,7 @@
 	storage file_system /certs
 
 	# DEVELOPMENT: Use self-signed certificates via Caddy's internal CA
-	local_certs
+	# local_certs
 
 	# PRODUCTION: ZeroSSL as primary CA (better rate limits)
 	# email {$STACK_ADMIN_EMAIL}
@@ -93,7 +93,7 @@ roundcube.{$DOMAIN} {
 }
 
 # Radicale CalDAV/CardDAV Server
-calendar.{$DOMAIN} {
+calendar.{$DOMAIN}, radicale.{$DOMAIN} {
 	import authelia_auth
 
 	reverse_proxy radicale:5232 {
@@ -129,9 +129,17 @@ prometheus.{$DOMAIN} {
 
 # Grafana (protected with forward_auth)
 grafana.{$DOMAIN} {
-	route {
-		import authelia_auth
+	@grafana_public path /public/* /public/build/* /public/img/* /public/plugins/* /public/app/*
+	handle @grafana_public {
 		reverse_proxy grafana:3000
+	}
+	handle {
+		import authelia_auth
+		reverse_proxy grafana:3000 {
+			header_up X-WEBAUTH-USER {header.Remote-User}
+			header_up X-WEBAUTH-EMAIL {header.Remote-Email}
+			header_up X-WEBAUTH-NAME {header.Remote-Name}
+		}
 	}
 }
 
@@ -149,8 +157,8 @@ vaultwarden.{$DOMAIN} {
 	@api header Accept *application/json*
 	reverse_proxy @api vaultwarden:80
 
-	# Browser requests -> redirect to app with SSO params
-	redir https://app.vaultwarden.{$DOMAIN}/#/sso?identifier={$MAIL_DOMAIN} temporary
+	# Browser requests -> redirect to app with SSO landing page
+	redir https://app.vaultwarden.{$DOMAIN}/#/sso temporary
 }
 
 # Vaultwarden app (OIDC SSO endpoint)

@@ -58,3 +58,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  vaultwarden-init:
+    image: alpine:3.20
+    container_name: vaultwarden-init
+    restart: "no"
+    depends_on:
+      vaultwarden:
+        condition: service_started
+    volumes:
+      - vaultwarden_data:/data
+      - ./configs/vaultwarden/seed.sh:/seed.sh:ro
+    entrypoint: ["/bin/sh", "/seed.sh"]

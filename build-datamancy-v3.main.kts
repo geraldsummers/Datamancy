@@ -75,9 +75,15 @@ data class RuntimeConfig(
     val caddy_ip: String? = null
 )
 
+data class VaultwardenConfig(
+    val org_name: String? = null,
+    val org_identifier: String? = null
+)
+
 data class DatamancyConfig(
     val storage: StorageConfig,
-    val runtime: RuntimeConfig
+    val runtime: RuntimeConfig,
+    val vaultwarden: VaultwardenConfig? = null
 )
 
 data class SanitizedConfig(
@@ -86,7 +92,9 @@ data class SanitizedConfig(
     val ldapDomain: String,
     val ldapBaseDn: String,
     val adminEmail: String,
-    val adminUser: String
+    val adminUser: String,
+    val vaultwardenOrgName: String,
+    val vaultwardenOrgIdentifier: String
 )
 
 data class TestSuiteDef(
@@ -281,6 +289,8 @@ fun sanitizedConfigFrom(config: DatamancyConfig): SanitizedConfig {
     val domain = sanitizeDomain(config.runtime.domain)
     val email = sanitizeEmail(config.runtime.admin_email)
     val user = sanitizeUsername(config.runtime.admin_user)
+    val vwOrgName = (config.vaultwarden?.org_name ?: "Datamancy").trim().ifBlank { "Datamancy" }
+    val vwOrgIdentifier = (config.vaultwarden?.org_identifier ?: domain).trim().ifBlank { domain }
 
     return SanitizedConfig(
         domain = domain,
@@ -288,7 +298,9 @@ fun sanitizedConfigFrom(config: DatamancyConfig): SanitizedConfig {
         ldapDomain = domain,
         ldapBaseDn = "dc=" + domain.split(".").joinToString(",dc="),
         adminEmail = email,
-        adminUser = user
+        adminUser = user,
+        vaultwardenOrgName = vwOrgName,
+        vaultwardenOrgIdentifier = vwOrgIdentifier
     )
 }
 
@@ -1539,6 +1551,8 @@ fun processConfigTemplates(
                 .replace("{{LDAP_BASE_DN}}", sanitized.ldapBaseDn)
                 .replace("{{STACK_ADMIN_EMAIL}}", sanitized.adminEmail)
                 .replace("{{STACK_ADMIN_USER}}", sanitized.adminUser)
+                .replace("{{VAULTWARDEN_ORG_NAME}}", sanitized.vaultwardenOrgName)
+                .replace("{{VAULTWARDEN_ORG_IDENTIFIER}}", sanitized.vaultwardenOrgIdentifier)
                 .replace("{{GENERATION_TIMESTAMP}}", Instant.now().toString())
 
             // Find matching template rule

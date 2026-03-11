@@ -1,0 +1,708 @@
+<?php
+
+namespace LAM\LOGIN;
+
+use htmlLabel;
+use htmlResponsiveSelect;
+use LAM\ENV\LAMLicenseValidator;
+use LAM\ENV\LicenseWarningMailer;
+use LAM\LIB\TWO_FACTOR\TwoFactorProviderService;
+use LAMConfig;
+use LAMCfgMain;
+use htmlSpacer;
+use htmlOutputText;
+use htmlSelect;
+use htmlInputField;
+use htmlGroup;
+use htmlInputCheckbox;
+use htmlButton;
+use htmlStatusMessage;
+use LAMException;
+use Ldap;
+use htmlResponsiveRow;
+use htmlDiv;
+use ServerProfilePersistenceManager;
+
+/*
+
+  This code is part of LDAP Account Manager (http://www.ldap-account-manager.org/)
+  Copyright (C) 2003 - 2006  Michael Duergner
+                2005 - 2025  Roland Gruber
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+*/
+
+/**
+ * Login form of LDAP Account Manager.
+ *
+ * @author Michael Duergner
+ * @author Roland Gruber
+ * @package main
+ */
+
+/** status messages */
+include_once(__DIR__ . "/../lib/status.inc");
+
+/** check environment */
+include __DIR__ . '/../lib/checkEnvironment.inc';
+
+/** security functions */
+include_once(__DIR__ . "/../lib/security.inc");
+/** self-service functions */
+include_once(__DIR__ . "/../lib/selfService.inc");
+/** access to configuration options */
+include_once(__DIR__ . "/../lib/config.inc");
+
+$cfgMain = new LAMCfgMain();
+
+// check if main config password is set
+if (!$cfgMain->hasPasswordSet()) {
+    metaRefresh('setInitialPassword.php');
+    die();
+}
+
+$licenseValidator = null;
+if (isLAMProVersion()) {
+	include_once(__DIR__ . "/../lib/env.inc");
+	$licenseValidator = new LAMLicenseValidator();
+	$licenseValidator->validateAndRedirect('config/mainlogin.php?invalidLicense=1', 'config/mainlogin.php?invalidLicense=2');
+}
+
+// set session save path
+if (isFileBasedSession()) {
+	session_save_path(__DIR__ . '/../sess');
+}
+
+// start empty session and change ID for security reasons
+lam_start_session();
+session_destroy();
+lam_start_session();
+session_regenerate_id(true);
+
+$serverProfilePersistenceManager = new ServerProfilePersistenceManager();
+$profiles = [];
+try {
+	$profiles = $serverProfilePersistenceManager->getProfiles();
+}
+catch (LAMException $e) {
+	logNewMessage(LOG_ERR, 'Unable to read server profiles: ' . $e->getTitle());
+}
+
+// save last selected login profile
+if (isset($_GET['useProfile'])) {
+	if (in_array($_GET['useProfile'], $profiles)) {
+		$cookieOptions = lamDefaultCookieOptions();
+		$cookieOptions['expires'] = time() + (60 * 60 * 24 * 365);
+		setcookie("lam_default_profile", (string) $_GET['useProfile'], $cookieOptions);
+	}
+	else {
+		unset($_GET['useProfile']);
+	}
+}
+
+// save last selected language
+if (isset($_POST['language'])) {
+	$cookieOptions = lamDefaultCookieOptions();
+	$cookieOptions['expires'] = time() + (60 * 60 * 24 * 365);
+	setcookie('lam_last_language', htmlspecialchars((string) $_POST['language']), $cookieOptions);
+}
+
+$_SESSION["cfgMain"] = $cfgMain;
+setSSLCaCert();
+
+$default_Profile = $cfgMain->default;
+if (isset($_COOKIE["lam_default_profile"]) && in_array($_COOKIE["lam_default_profile"], $profiles)) {
+	$default_Profile = $_COOKIE["lam_default_profile"];
+}
+
+$error_message = null;
+
+try {
+	// Reload login page after a profile change
+	if (isset($_GET['useProfile']) && in_array($_GET['useProfile'], $profiles)) {
+		logNewMessage(LOG_DEBUG, "Change server profile to " . $_GET['useProfile']);
+		$_SESSION['config'] = $serverProfilePersistenceManager->loadProfile($_GET['useProfile']);
+	} // Load login page
+    elseif (!empty($default_Profile) && in_array($default_Profile, $profiles)) {
+		$_SESSION["config"] = $serverProfilePersistenceManager->loadProfile($default_Profile);
+	} // use first profile as fallback
+    elseif (count($profiles) > 0) {
+		$_SESSION["config"] = $serverProfilePersistenceManager->loadProfile($profiles[0]);
+	}
+	else {
+		$_SESSION["config"] = null;
+	}
+}
+catch (LAMException $e) {
+	$error_message = $e->getTitle();
+}
+
+// Auto-login when behind forward-auth (Authelia) to avoid a second LAM login screen.
+$hasForwardAuth = !empty($_SERVER['HTTP_REMOTE_USER'])
+	|| !empty($_SERVER['REMOTE_USER'])
+	|| !empty($_SERVER['HTTP_X_FORWARDED_HOST'])
+	|| !empty($_SERVER['HTTP_X_FORWARDED_PROTO']);
+if (!isset($_POST['checklogin']) && !empty($_SESSION['config']) && $hasForwardAuth) {
+	$remoteUser = $_SERVER['HTTP_REMOTE_USER'] ?? ($_SERVER['REMOTE_USER'] ?? '');
+	$remoteLabel = $remoteUser !== '' ? $remoteUser : 'forward-auth';
+	include_once(__DIR__ . "/../lib/ldap.inc");
+	$_SESSION['ldap'] = new Ldap($_SESSION['config']);
+	$adminList = $_SESSION['config']->get_Admins();
+	$adminDn = $adminList[0] ?? $_SESSION['config']->get_Adminstring();
+	$adminPass = $_SESSION['config']->getPasswd();
+	try {
+		$_SESSION['ldap']->connect($adminDn, $adminPass);
+		$_SESSION['loggedIn'] = true;
+		$_SESSION['sec_session_id'] = session_id();
+		$_SESSION['sec_client_ip'] = $_SERVER['REMOTE_ADDR'];
+		$_SESSION['sec_sessionTime'] = time();
+		addSecurityTokenToSession();
+		logNewMessage(LOG_NOTICE, 'Auto-login via forward-auth for user ' . $remoteLabel . ' (' . getClientIPForLogging() . ').');
+		metaRefresh("./main.php");
+		die();
+	}
+	catch (LAMException $e) {
+		logNewMessage(LOG_ERR, 'Auto-login failed: ' . $e->getTitle());
+	}
+}
+
+if (!isset($cfgMain->default) || !in_array($cfgMain->default, $profiles)) {
+	$error_message = _('No default profile set. Please set it in the server profile configuration.');
+}
+
+$possibleLanguages = getLanguages();
+$encoding = 'UTF-8';
+if (isset($_COOKIE['lam_last_language'])) {
+	foreach ($possibleLanguages as $lang) {
+		if (str_starts_with((string) $_COOKIE['lam_last_language'], $lang->code)) {
+			$_SESSION['language'] = $lang->code;
+			$encoding = $lang->encoding;
+			break;
+		}
+	}
+}
+elseif (!empty($_SESSION["config"])) {
+	$defaultLang = $_SESSION["config"]->get_defaultLanguage();
+	foreach ($possibleLanguages as $lang) {
+		if (str_starts_with($defaultLang, $lang->code)) {
+			$_SESSION['language'] = $lang->code;
+			$encoding = $lang->encoding;
+			break;
+		}
+	}
+}
+else {
+	$_SESSION['language'] = 'en_GB.utf8';
+}
+if (isset($_POST['language'])) {
+	foreach ($possibleLanguages as $lang) {
+		if (str_starts_with((string) $_POST['language'], $lang->code)) {
+			$_SESSION['language'] = $lang->code;
+			$encoding = $lang->encoding;
+			break;
+		}
+	}
+}
+
+$_SESSION['header'] = "<!DOCTYPE html>\n\n";
+$_SESSION['header'] .= "<html>\n<head>\n";
+$_SESSION['header'] .= "<meta name=\"robots\" content=\"noindex, nofollow\">\n";
+$_SESSION['header'] .= "<meta http-equiv=\"content-type\" content=\"text/html; charset=" . $encoding . "\">\n";
+$_SESSION['header'] .= "<meta http-equiv=\"pragma\" content=\"no-cache\">\n		<meta http-equiv=\"cache-control\" content=\"no-cache\">";
+$manifestBaseUrl = getCallingURL();
+if (str_contains($manifestBaseUrl, '/templates/login.php')) {
+	$manifestBaseUrl = substr($manifestBaseUrl, 0, strpos($manifestBaseUrl, '/templates/login.php'));
+	$urlMatches = [];
+	if (preg_match('/^http(s)?:\\/\\/[^\\/]+(\\/.*)$/m', $manifestBaseUrl, $urlMatches)) {
+		$manifestBaseUrl = htmlspecialchars($urlMatches[2]);
+		$_SESSION['header'] .= '<link rel="manifest" href="' . $manifestBaseUrl . '/templates/manifest.php" crossorigin="use-credentials">';
+	}
+}
+
+setlanguage(); // setting correct language
+
+/**
+ * Displays the login window.
+ *
+ * @param LAMLicenseValidator|null $licenseValidator license validator
+ * @param string|null $error_message error message to display
+ * @param string|null $errorDetails error details
+ * @param string|null $extraMessage extra message that is shown as info
+ * @throws LAMException error rendering login page
+ */
+function display_LoginPage(?LAMLicenseValidator $licenseValidator, ?string $error_message, ?string $errorDetails = null, ?string $extraMessage = null): void {
+	$config_object = $_SESSION['config'] ?? null;
+	$cfgMain = $_SESSION["cfgMain"];
+    if (!($cfgMain instanceof LAMCfgMain)) {
+        die();
+    }
+	logNewMessage(LOG_DEBUG, "Display login page");
+	// generate 256 bit key and initialization vector for user/passwd-encryption
+	$key = openssl_random_pseudo_bytes(32);
+	$iv = openssl_random_pseudo_bytes(16);
+	// save both in cookie
+	$cookieOptions = lamDefaultCookieOptions();
+	$cookieOptions['expires'] = 0;
+	setcookie("Key", base64_encode($key), $cookieOptions);
+	setcookie("IV", base64_encode($iv), $cookieOptions);
+
+	$serverProfilePersistenceManager = new ServerProfilePersistenceManager();
+	$profiles = $serverProfilePersistenceManager->getProfiles();
+
+	echo $_SESSION["header"];
+	printHeaderContents('LDAP Account Manager', '..');
+	?>
+    </head>
+    <body>
+	<?php
+	// include all JavaScript files
+	printJsIncludes('..');
+
+	if (isLAMProVersion() && ($licenseValidator !== null) && $licenseValidator->isEvaluationLicense()) {
+		StatusMessage('INFO', _('Evaluation Licence'));
+	}
+	displayLoginHeader();
+
+	if (!empty($config_object)) {
+		// check extensions
+		$extList = getRequiredExtensions();
+		foreach ($extList as $extension) {
+			if (!extension_loaded($extension)) {
+				StatusMessage("ERROR", "A required PHP extension is missing!", $extension);
+				echo "<br>";
+			}
+		}
+		// check TLS
+		$useTLS = $config_object->getUseTLS();
+		if (isset($useTLS) && ($useTLS == "yes") && !function_exists('ldap_start_tls')) {
+			StatusMessage("ERROR", "Your PHP installation does not support TLS encryption!");
+			echo "<br>";
+		}
+	}
+    elseif ($error_message !== null) {
+        StatusMessage("ERROR", $error_message);
+    }
+	else {
+		StatusMessage('WARN', _('Please enter the configuration and create a server profile.'));
+	}
+	// check if session expired
+	if (isset($_GET['expired'])) {
+		StatusMessage("ERROR", _("Your session expired, please log in again."));
+		echo "<br>";
+	}
+	if (!empty($config_object)) {
+		?>
+        <br><br><br>
+        <div class="centeredTable">
+            <div class="roundedShadowBox limitWidth" style="position:relative; z-index:5;">
+                <table border="0" rules="none" bgcolor="white">
+                    <tr>
+                        <td style="border-style:none">
+                            <form action="login.php" method="post">
+								<?php
+								$row = new htmlResponsiveRow();
+								// user name
+								$row->addLabel(new htmlLabel('username', _("User name")));
+								if ($config_object->getLoginMethod() == LAMConfig::LOGIN_LIST) {
+									$admins = $config_object->get_Admins();
+									$adminList = [];
+									foreach ($admins as $admin) {
+										$text = explode(",", (string) $admin);
+										$text = explode("=", $text[0]);
+										if (isset($text[1])) {
+											$adminList[$text[1]] = $admin;
+										}
+										else {
+											$adminList[$text[0]] = $admin;
+										}
+									}
+									$selectedAdmin = [];
+									if (isset($_POST['username']) && in_array($_POST['username'], $adminList)) {
+										$selectedAdmin = [$_POST['username']];
+									}
+									$userSelect = new htmlSelect('username', $adminList, $selectedAdmin);
+									$userSelect->setHasDescriptiveElements(true);
+									$userSelect->setTransformSingleSelect(false);
+									if (empty($_COOKIE['lam_login_name'])) {
+										$userSelect->setCSSClasses(['lam-initial-focus']);
+									}
+									$row->addField(new htmlDiv(null, $userSelect));
+								}
+                                elseif ($config_object->getHttpAuthentication() == 'true') {
+									$httpAuth = new htmlDiv(null, new htmlOutputText($_SERVER['PHP_AUTH_USER'] . '&nbsp;', false));
+									$httpAuth->setCSSClasses(['text-left', 'margin3']);
+									$row->addField($httpAuth);
+								}
+								else {
+									$user = '';
+									if (isset($_COOKIE["lam_login_name"])) {
+										$user = (string) $_COOKIE["lam_login_name"];
+									}
+									$userNameInput = new htmlInputField('username', $user);
+									if (empty($_COOKIE['lam_login_name'])) {
+										$userNameInput->setCSSClasses(['lam-initial-focus']);
+									}
+									$userInput = new htmlDiv(null, $userNameInput);
+									$row->addField($userInput);
+								}
+								// password
+								$row->addLabel(new htmlLabel('passwd', _("Password")));
+								if (($config_object->getLoginMethod() == LAMConfig::LOGIN_SEARCH) && ($config_object->getHttpAuthentication() == 'true')) {
+									$passwordInputFake = new htmlDiv(null, new htmlOutputText('**********'));
+									$passwordInputFake->setCSSClasses(['text-left', 'margin3']);
+									$row->addField($passwordInputFake);
+								}
+								else {
+									$passwordInput = new htmlInputField('passwd');
+									$passwordInput->setIsPassword(true);
+									if (($config_object->getLoginMethod() == LAMConfig::LOGIN_SEARCH) && !empty($_COOKIE['lam_login_name'])) {
+										$passwordInput->setCSSClasses(['lam-initial-focus']);
+									}
+									$row->addField($passwordInput);
+								}
+								// language
+								$row->addLabel(new htmlLabel('language', _("Language")));
+								$possibleLanguages = getLanguages();
+								$languageList = [];
+								$defaultLanguage = [];
+								foreach ($possibleLanguages as $lang) {
+									$languageList[$lang->description] = $lang->code;
+									if (str_starts_with(trim((string) $_SESSION["language"]), $lang->code)) {
+										$defaultLanguage[] = $lang->code;
+									}
+								}
+								$languageSelect = new htmlSelect('language', $languageList, $defaultLanguage);
+								$languageSelect->setHasDescriptiveElements(true);
+								$row->addField($languageSelect);
+								// remember login user
+								if (($config_object->getLoginMethod() == LAMConfig::LOGIN_SEARCH) && ($config_object->getHttpAuthentication() != 'true')) {
+									$row->add(new htmlOutputText('&nbsp;', false), 0, 6, 6);
+									$rememberGroup = new htmlGroup();
+									$doRemember = false;
+									if (isset($_COOKIE["lam_login_name"])) {
+										$doRemember = true;
+									}
+									$rememberGroup->addElement(new htmlInputCheckbox('rememberLogin', $doRemember));
+									$rememberGroup->addElement(new htmlSpacer('1px', null));
+									$rememberGroup->addElement(new htmlOutputText(_('Remember user name')));
+									$rememberDiv = new htmlDiv(null, $rememberGroup);
+									$rememberDiv->setCSSClasses(['text-left', 'margin3']);
+									$row->add($rememberDiv, 12, 6, 6);
+								}
+								// login button
+								$row->add(new htmlSpacer(null, '20px'));
+								$loginButton = new htmlButton('checklogin', _("Login"));
+								$loginButton->setCSSClasses(['lam-primary']);
+								$row->add($loginButton);
+
+								parseHtml(null, $row, [], false, 'user');
+								?>
+                            </form>
+                        </td>
+                        <td class="loginRightBox hide-for-small" style="border-style:none">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="border-style:none;">
+							<?php
+							$row = new htmlResponsiveRow();
+							// error message
+							if (!empty($error_message)) {
+								$row->add(new htmlSpacer(null, '5px'));
+								$message = new htmlStatusMessage('ERROR', $error_message, $errorDetails);
+								$row->add($message);
+							}
+							if (!empty($extraMessage)) {
+								$extraMessage = new htmlStatusMessage('INFO', $extraMessage);
+								$row->add($extraMessage);
+							}
+							parseHtml(null, $row, [], false, 'user');
+							?>
+                            <hr class="margin20">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="border-style:none;">
+                            <form action="login.php" method="post">
+								<?php
+								$row = new htmlResponsiveRow();
+								$row->addLabel(new htmlOutputText(_("LDAP server")));
+								$serverUrl = new htmlOutputText($config_object->getServerDisplayNameGUI());
+								$serverUrlDiv = new htmlDiv(null, $serverUrl);
+								$serverUrlDiv->setCSSClasses(['text-left', 'margin3']);
+								$row->addField($serverUrlDiv);
+								$profileSelect = new htmlResponsiveSelect('profile', $profiles, [$_SESSION['config']->getName()], _("Server profile"));
+								$profileSelect->setOnchangeEvent('loginProfileChanged(this)');
+								$row->add($profileSelect);
+
+								parseHtml(null, $row, [], true, 'user');
+								?>
+                            </form>
+                        </td>
+                        <td class="loginRightBox hide-for-small" style="border-style:none">
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+		<?php
+	}
+	?>
+    <br><br>
+	<?php
+	if (isLAMProVersion() && ($licenseValidator !== null)
+		&& ($licenseValidator->getLicense() !== null) && $licenseValidator->isExpiringSoon()) {
+		$expirationDate = $licenseValidator->getLicense()->getExpirationDate()->format('Y-m-d');
+		$expirationTimeStamp = $licenseValidator->getLicense()->getExpirationDate()->getTimestamp();
+		if ($cfgMain->showLicenseWarningOnScreen()) {
+			$licenseMessage = sprintf(_('Your licence expires on %s. You need to purchase a new licence to be able to use LAM Pro after this date.'), $expirationDate);
+			StatusMessage('WARN', $licenseMessage);
+		}
+		if ($cfgMain->sendLicenseWarningByEmail() && !$cfgMain->wasLicenseWarningSent($expirationTimeStamp)) {
+			$cfgMain->licenseEmailDateSent = $expirationTimeStamp;
+			$cfgMain->save();
+			$mailer = new LicenseWarningMailer($cfgMain);
+			$mailer->sendMail($expirationDate);
+		}
+	}
+	?>
+    <br><br>
+    </body>
+    </html>
+	<?php
+}
+
+/**
+ * Displays the header on the login page.
+ */
+function displayLoginHeader(): void {
+	?>
+    <div id="lam-topnav" class="lam-header">
+        <div class="lam-header-left lam-menu-stay">
+            <a href="https://www.ldap-account-manager.org/" target="new_window">
+                <img class="align-middle" width="24" height="24" alt="help" src="../graphics/logo24.png">
+                <span class="hide-on-mobile">
+                        <?php
+						echo getLAMVersionText();
+						?>
+                </span>
+            </a>
+			<?php
+			if (!isLAMProVersion()) {
+				?>
+                <span class="hide-on-mobile lam-margin-small">
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+			    <a href="http://www.ldap-account-manager.org/lamcms/lamPro"><?php echo _("Want more features? Get LAM Pro!"); ?></a>
+			</span>
+				<?php
+			}
+			?>
+        </div>
+        <a class="lam-header-right lam-menu-icon hide-on-tablet" href="javascript:void(0);" class="icon"
+           onclick="window.lam.topmenu.toggle();">
+            <img class="align-middle" width="16" height="16" alt="menu" src="../graphics/menu.svg">
+            <span class="padding0"></span>
+        </a>
+        <div class="lam-header-right lam-header-menublock">
+            <a class="lam-menu-entry" href="config/index.php" target="_top">
+                <span class="padding0"><?php echo _("LAM configuration") ?></span>
+            </a>
+			<?php
+			if (is_dir(__DIR__ . '/../docs/manual')) {
+				?>
+                <a class="lam-menu-entry" target="_blank" href="../docs/manual/index.html">
+                    <span class="padding0"><?php echo _("Help") ?></span>
+                </a>
+				<?php
+			}
+			?>
+        </div>
+
+    </div>
+    <br>
+	<?php
+}
+
+// checking if the submitted username/password is correct.
+if (isset($_POST['checklogin'])) {
+	include_once(__DIR__ . "/../lib/ldap.inc"); // Include ldap.php which provides Ldap class
+
+	$_SESSION['ldap'] = new Ldap($_SESSION['config']); // Create new Ldap object
+
+	$clientSource = $_SERVER['REMOTE_ADDR'];
+	if (isset($_SERVER['REMOTE_HOST'])) {
+		$clientSource .= '/' . $_SERVER['REMOTE_HOST'];
+	}
+	if (($_SESSION['config']->getLoginMethod() == LAMConfig::LOGIN_SEARCH) && ($_SESSION['config']->getHttpAuthentication() == 'true')) {
+		$username = $_SERVER['PHP_AUTH_USER'];
+		$password = $_SERVER['PHP_AUTH_PW'];
+	}
+	else {
+		$cookieOptions = lamDefaultCookieOptions();
+		$cookieOptions['expires'] = time() + (60 * 60 * 24 * 365);
+		if (isset($_POST['rememberLogin']) && ($_POST['rememberLogin'] == 'on')) {
+			setcookie('lam_login_name', (string) $_POST['username'], $cookieOptions);
+		}
+        elseif (isset($_COOKIE['lam_login_name']) && ($_SESSION['config']->getLoginMethod() == LAMConfig::LOGIN_SEARCH)) {
+			setcookie('lam_login_name', '', $cookieOptions);
+		}
+		if ($_POST['passwd'] == "") {
+			logNewMessage(LOG_DEBUG, "Empty password for login");
+			$error_message = _("Empty password submitted. Please try again.");
+			header("HTTP/1.1 403 Forbidden");
+			display_LoginPage($licenseValidator, $error_message); // Empty password submitted. Return to login page.
+			exit();
+		}
+		$username = $_POST['username'];
+		$password = $_POST['passwd'];
+	}
+	// search user in LDAP if needed
+	$searchLDAP = null;
+	if ($_SESSION['config']->getLoginMethod() == LAMConfig::LOGIN_SEARCH) {
+		$searchFilter = $_SESSION['config']->getLoginSearchFilter();
+		$searchFilter = str_replace('%USER%', ldap_escape($username, '', LDAP_ESCAPE_FILTER), $searchFilter);
+		$searchDN = '';
+		$searchPassword = '';
+		$configLoginSearchDn = $_SESSION['config']->getLoginSearchDN();
+		if (!empty($configLoginSearchDn)) {
+			$searchDN = $configLoginSearchDn;
+			$searchPassword = $_SESSION['config']->getLoginSearchPassword();
+		}
+		$searchSuccess = true;
+		$searchError = '';
+		$searchLDAP = new Ldap($_SESSION['config']);
+		try {
+			$searchLDAP->connect($searchDN, $searchPassword, true);
+			$searchResult = ldap_search($searchLDAP->server(), $_SESSION['config']->getLoginSearchSuffix(), $searchFilter, ['dn'], 0, 0, 0, LDAP_DEREF_NEVER);
+			if ($searchResult) {
+				$searchInfo = ldap_get_entries($searchLDAP->server(), $searchResult);
+				if ($searchInfo !== false) {
+					cleanLDAPResult($searchInfo);
+					if (empty($searchInfo)) {
+						$searchSuccess = false;
+						if ($cfgMain->isHideLoginErrorDetails()) {
+							$searchError = _('Wrong password/user name combination. Please try again.');
+						}
+						else {
+							$searchError = _('Unable to find the user name in LDAP.');
+						}
+						logNewMessage(LOG_ERR, 'User ' . $username . ' (' . $clientSource . ') failed to log in. Unable to find the user name in LDAP.');
+						header("HTTP/1.1 403 Forbidden");
+					}
+                    elseif (count($searchInfo) > 1) {
+						$searchSuccess = false;
+						if ($cfgMain->isHideLoginErrorDetails()) {
+							$searchError = _('Wrong password/user name combination. Please try again.');
+						}
+						else {
+							$searchError = _('The given user name matches multiple LDAP entries.');
+						}
+						logNewMessage(LOG_ERR, 'User ' . $username . ' (' . $clientSource . ') failed to log in. The given user name matches multiple LDAP entries.');
+						header("HTTP/1.1 403 Forbidden");
+					}
+					else {
+						$username = $searchInfo[0]['dn'];
+					}
+				}
+				else {
+					$searchSuccess = false;
+					if ($cfgMain->isHideLoginErrorDetails()) {
+						$searchError = _('Wrong password/user name combination. Please try again.');
+					}
+					else {
+						$searchError = _('Unable to find the user name in LDAP.');
+					}
+					header("HTTP/1.1 403 Forbidden");
+					if (ldap_errno($searchLDAP->server()) !== 0) {
+						$searchError .= ' ' . getDefaultLDAPErrorString($searchLDAP->server());
+					}
+					logNewMessage(LOG_ERR, 'User ' . $username . ' (' . $clientSource . ') failed to log in. Unable to find the user name in LDAP.');
+				}
+			}
+			else {
+				$searchSuccess = false;
+				if ($cfgMain->isHideLoginErrorDetails()) {
+					$searchError = _('Wrong password/user name combination. Please try again.');
+				}
+				else {
+					$searchError = _('Unable to find the user name in LDAP.');
+				}
+				logNewMessage(LOG_ERR, 'User ' . $username . ' (' . $clientSource . ') failed to log in. Unable to find the user name in LDAP.');
+				header("HTTP/1.1 403 Forbidden");
+				if (ldap_errno($searchLDAP->server()) !== 0) {
+					$searchError .= ' ' . getDefaultLDAPErrorString($searchLDAP->server());
+				}
+			}
+			if (!$searchSuccess) {
+				$error_message = $searchError;
+				$searchLDAP->close();
+				display_LoginPage($licenseValidator, $error_message);
+				exit();
+			}
+			$searchLDAP->close();
+		}
+		catch (LAMException $e) {
+			$searchLDAP->close();
+			display_LoginPage($licenseValidator, $e->getTitle(), $e->getMessage());
+			exit();
+		}
+	}
+	// try to connect to LDAP
+	try {
+		$_SESSION['ldap']->connect($username, $password); // Connect to LDAP server for verifying username/password
+		$_SESSION['loggedIn'] = true;
+		// set security settings for session
+		$_SESSION['sec_session_id'] = session_id();
+		$_SESSION['sec_client_ip'] = $_SERVER['REMOTE_ADDR'];
+		$_SESSION['sec_sessionTime'] = time();
+		addSecurityTokenToSession();
+		// logging
+		logNewMessage(LOG_NOTICE, 'User ' . $username . ' (' . $clientSource . ') successfully logged in.');
+		// Load main frame or 2 factor page
+		if ($_SESSION['config']->getTwoFactorAuthentication() == TwoFactorProviderService::TWO_FACTOR_NONE) {
+			metaRefresh("./main.php");
+		}
+		else {
+			$_SESSION['2factorRequired'] = true;
+			metaRefresh("./login2Factor.php");
+		}
+		die();
+	}
+	catch (LAMException $e) {
+		header("HTTP/1.1 403 Forbidden");
+		$extraMessage = null;
+		if (($searchLDAP !== null) && ($e->getLdapErrorCode() == 49)) {
+			if (!$cfgMain->isHideLoginErrorDetails()) {
+				$extraMessage = getExtraInvalidCredentialsMessage($searchLDAP->server(), $username);
+			}
+			$searchLDAP->close();
+		}
+		$message = $e->getMessage();
+		if ($cfgMain->isHideLoginErrorDetails()) {
+			$message = null;
+		}
+		display_LoginPage($licenseValidator, $e->getTitle(), $message, $extraMessage);
+		exit();
+	}
+}
+
+//displays the login window
+try {
+	display_LoginPage($licenseValidator, $error_message);
+}
+catch (LAMException $e) {
+	logNewMessage(LOG_ERR, 'Unable to render login page: ' . $e->getTitle());
+}

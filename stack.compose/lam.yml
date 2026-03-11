@@ -22,6 +22,7 @@ services:
     volumes:
       - ./configs/lam/config.cfg:/etc/ldap-account-manager/config.cfg:ro
       - ./configs/lam/lam.conf:/var/lib/ldap-account-manager/config/lam.conf:ro
+      - ./configs/lam/login.php:/usr/share/ldap-account-manager/templates/login.php:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/lam/templates/login.php"]
       interval: 60s

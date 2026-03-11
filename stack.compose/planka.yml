@@ -24,7 +24,7 @@ services:
       OIDC_ISSUER: https://auth.${DOMAIN}
       OIDC_CLIENT_ID: planka
       OIDC_SCOPES: openid profile email groups
-      OIDC_ADMIN_ROLES: admins
+      OIDC_ADMIN_ROLES: admins,users
       OIDC_EMAIL_ATTRIBUTE: email
       OIDC_NAME_ATTRIBUTE: name
       OIDC_USERNAME_ATTRIBUTE: preferred_username

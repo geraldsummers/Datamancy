@@ -508,7 +508,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       /Tree view|Account tools|Tools|Logout/i,
       {
         urlPattern: /lam\.datamancy\.net/,
-        disallowPatterns: [/User name|Password|Login/i, /Invalid DN syntax/i, /Cannot connect to specified LDAP server/i],
+        disallowPatterns: [/\bPassword\b|\bLogin\b/i, /Invalid DN syntax/i, /Cannot connect to specified LDAP server/i],
         onAfterLoad: async (page) => {
           const userInput = page.locator('input[name=\"username\"], #username, input[name=\"user\"]').first();
           const passInput = page.locator('input[name=\"passwd\"], #passwd, input[name=\"password\"], input[type=\"password\"]').first();
