@@ -1,3 +1,18 @@
 # Note: seafile-memcached service removed - Seafile now uses Valkey for caching
-# Memcached service can be re-enabled if needed for other services
-services: {}
+# Memcached service is used by SOGo for caching
+services:
+  memcached:
+    image: memcached:1.6-alpine
+    container_name: memcached
+    restart: unless-stopped
+    networks:
+      - memcached
+    command:
+      - memcached
+      - -m
+      - "256"
+    healthcheck:
+      test: ["CMD-SHELL", "printf 'version\\n' | nc -w 2 localhost 11211 | grep -q 'VERSION'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5

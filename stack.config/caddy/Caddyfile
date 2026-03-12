@@ -93,6 +93,11 @@ roundcube.{$DOMAIN} {
 	}
 }
 
+# SOGo groupware (OIDC handled by SOGo itself)
+sogo.{$DOMAIN} {
+	reverse_proxy sogo:20000
+}
+
 # Radicale CalDAV/CardDAV Server
 calendar.{$DOMAIN}, radicale.{$DOMAIN} {
 	import authelia_auth

@@ -16,6 +16,7 @@ POSTGRES_PIPELINE_PASSWORD="${POSTGRES_PIPELINE_PASSWORD:?ERROR: POSTGRES_PIPELI
 POSTGRES_SEARCH_SERVICE_PASSWORD="${POSTGRES_SEARCH_SERVICE_PASSWORD:?ERROR: POSTGRES_SEARCH_SERVICE_PASSWORD not set}"
 POSTGRES_TEST_RUNNER_PASSWORD="${POSTGRES_TEST_RUNNER_PASSWORD:?ERROR: POSTGRES_TEST_RUNNER_PASSWORD not set}"
 POSTGRES_TXGATEWAY_PASSWORD="${POSTGRES_TXGATEWAY_PASSWORD:?ERROR: POSTGRES_TXGATEWAY_PASSWORD not set}"
+POSTGRES_SOGO_PASSWORD="${POSTGRES_SOGO_PASSWORD:?ERROR: POSTGRES_SOGO_PASSWORD not set}"
 # PGPASSWORD already set by docker-compose environment
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create users with passwords from environment (must be created before databases for ownership)
@@ -66,6 +67,11 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             CREATE USER roundcube WITH PASSWORD \$pwd\$$POSTGRES_ROUNDCUBE_PASSWORD\$pwd\$;
         ELSE
             ALTER USER roundcube WITH PASSWORD \$pwd\$$POSTGRES_ROUNDCUBE_PASSWORD\$pwd\$;
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'sogo') THEN
+            CREATE USER sogo WITH PASSWORD \$pwd\$$POSTGRES_SOGO_PASSWORD\$pwd\$;
+        ELSE
+            ALTER USER sogo WITH PASSWORD \$pwd\$$POSTGRES_SOGO_PASSWORD\$pwd\$;
         END IF;
         -- Create homeassistant user if password is set (HA may use SQLite instead)
         IF LENGTH('$POSTGRES_HOMEASSISTANT_PASSWORD') > 0 THEN
@@ -132,6 +138,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'forgejo')\gexec
     SELECT 'CREATE DATABASE roundcube OWNER roundcube'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'roundcube')\gexec
+    SELECT 'CREATE DATABASE sogo OWNER sogo'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sogo')\gexec
     SELECT 'CREATE DATABASE datamancy OWNER pipeline_user'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'datamancy')\gexec
     SELECT 'CREATE DATABASE txgateway OWNER txgateway'
@@ -159,6 +167,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
     GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
     GRANT ALL PRIVILEGES ON DATABASE roundcube TO roundcube;
+    GRANT ALL PRIVILEGES ON DATABASE sogo TO sogo;
     GRANT ALL PRIVILEGES ON DATABASE datamancy TO pipeline_user;
     GRANT CONNECT ON DATABASE datamancy TO search_service_user;
     GRANT CONNECT ON DATABASE datamancy TO test_runner_user;
@@ -187,6 +196,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRA
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT ALL ON SCHEMA public TO forgejo;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "roundcube" -c "GRANT ALL ON SCHEMA public TO roundcube;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" -c "GRANT ALL ON SCHEMA public TO sogo;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT ALL ON SCHEMA public TO pipeline_user;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT USAGE ON SCHEMA public TO search_service_user;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT USAGE ON SCHEMA public TO test_runner_user;"

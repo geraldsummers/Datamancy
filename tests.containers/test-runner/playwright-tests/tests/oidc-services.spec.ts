@@ -697,6 +697,61 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
     );
   });
 
+  test('SOGo - OIDC login flow', async ({ page }) => {
+    const domain = process.env.DOMAIN || 'datamancy.net';
+    const sogoUrl = `https://sogo.${domain}/`;
+
+    setupNetworkLogging(page, 'SOGo');
+
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await page.goto(sogoUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        break;
+      } catch (error: any) {
+        if (error.message?.includes('SSL') || error.message?.includes('ERR_SSL_PROTOCOL_ERROR')) {
+          retries--;
+          await page.waitForTimeout(2000);
+          if (retries === 0) throw error;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    const oidcTrigger = page
+      .getByRole('button', { name: /openid|open id|sso|single sign-on/i })
+      .or(page.getByRole('link', { name: /openid|open id|sso|single sign-on/i }))
+      .first();
+    if (await oidcTrigger.isVisible().catch(() => false)) {
+      await oidcTrigger.click({ force: true });
+      await page.waitForTimeout(1500);
+    }
+
+    if (page.url().includes('authelia') || page.url().includes('auth.')) {
+      const loginPage = new AutheliaLoginPage(page);
+      await loginPage.login(testUser.username, testUser.password);
+    }
+
+    await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+    await logPageTelemetry(page, 'SOGo Post-Login');
+
+    const bodyText = await page.textContent('body').catch(() => '');
+    const pageTitle = await page.title().catch(() => '');
+    const combined = `${pageTitle}\n${bodyText}`;
+
+    expect(combined).toMatch(/SOGo|Mail/i);
+    expect(combined).toMatch(/Calendar/i);
+    expect(combined).toMatch(/Contacts|Address Book|Addressbook/i);
+
+    await page.screenshot({
+      path: '/app/test-results/screenshots/sogo-authenticated.jpeg',
+      type: 'jpeg',
+      quality: 85,
+      fullPage: true
+    });
+  });
+
   test('Element (Matrix Web) - OIDC login flow', async ({ page }) => {
     const domain = process.env.DOMAIN || 'datamancy.net';
     const homeserverUrl = `https://matrix.${domain}`;

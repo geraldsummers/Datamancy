@@ -1,0 +1,33 @@
+services:
+  sogo:
+    image: sogo/sogo:5.12.2
+    container_name: sogo
+    restart: unless-stopped
+    networks:
+      - caddy
+      - mailserver
+      - ldap
+      - postgres
+      - memcached
+    depends_on:
+      caddy:
+        condition: service_started
+      mailserver:
+        condition: service_started
+      ldap:
+        condition: service_started
+      postgres:
+        condition: service_started
+      memcached:
+        condition: service_started
+    environment:
+      TZ: UTC
+    volumes:
+      - sogo_data:/var/lib/sogo
+      - ./configs/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:20000/SOGo/ | grep -q -i sogo"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s

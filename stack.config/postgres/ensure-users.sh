@@ -9,6 +9,7 @@ POSTGRES_PLANKA_PASSWORD="${POSTGRES_PLANKA_PASSWORD:?ERROR: POSTGRES_PLANKA_PAS
 POSTGRES_SYNAPSE_PASSWORD="${POSTGRES_SYNAPSE_PASSWORD:?ERROR: POSTGRES_SYNAPSE_PASSWORD not set}"
 POSTGRES_AUTHELIA_PASSWORD="${POSTGRES_AUTHELIA_PASSWORD:?ERROR: POSTGRES_AUTHELIA_PASSWORD not set}"
 MARIADB_BOOKSTACK_PASSWORD="${MARIADB_BOOKSTACK_PASSWORD:?ERROR: MARIADB_BOOKSTACK_PASSWORD not set}"
+POSTGRES_SOGO_PASSWORD="${POSTGRES_SOGO_PASSWORD:?ERROR: POSTGRES_SOGO_PASSWORD not set}"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create or update users with passwords
     DO \$\$
@@ -33,6 +34,11 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         ELSE
             ALTER USER bookstack WITH PASSWORD '$MARIADB_BOOKSTACK_PASSWORD';
         END IF;
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'sogo') THEN
+            CREATE USER sogo WITH PASSWORD '$POSTGRES_SOGO_PASSWORD';
+        ELSE
+            ALTER USER sogo WITH PASSWORD '$POSTGRES_SOGO_PASSWORD';
+        END IF;
     END
     \$\$;
     -- Create databases if they don't exist
@@ -48,6 +54,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'authelia')\gexec
     SELECT 'CREATE DATABASE bookstack OWNER bookstack'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'bookstack')\gexec
+    SELECT 'CREATE DATABASE sogo OWNER sogo'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sogo')\gexec
     -- Grant privileges (idempotent)
     GRANT ALL PRIVILEGES ON DATABASE planka TO planka;
     GRANT ALL PRIVILEGES ON DATABASE langgraph TO postgres;
@@ -55,8 +63,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE synapse TO synapse;
     GRANT ALL PRIVILEGES ON DATABASE authelia TO authelia;
     GRANT ALL PRIVILEGES ON DATABASE bookstack TO bookstack;
+    GRANT ALL PRIVILEGES ON DATABASE sogo TO sogo;
 EOSQL
-for db in planka synapse authelia bookstack; do
+for db in planka synapse authelia bookstack sogo; do
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" -c "GRANT ALL ON SCHEMA public TO $db;" 2>/dev/null || true
 done
 echo "✅ PostgreSQL users and databases verified"

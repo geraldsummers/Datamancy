@@ -257,6 +257,23 @@ identity_providers:
         response_types:
           - code
 
+      - client_id: sogo
+        client_name: SOGo
+        client_secret: '{{SOGO_OAUTH_SECRET_HASH}}'
+        public: false
+        authorization_policy: one_factor
+        token_endpoint_auth_method: client_secret_basic
+        redirect_uris:
+          - https://sogo.{{DOMAIN}}/SOGo/oidc/callback
+        scopes:
+          - openid
+          - profile
+          - email
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+
       - client_id: mastodon
         client_name: Mastodon
         client_secret: '{{MASTODON_OAUTH_SECRET_HASH}}'

@@ -52,6 +52,8 @@ services:
       DOVECOT_PASS_FILTER: (&(objectClass=inetOrgPerson)(mail=%u))
       DOVECOT_PASS_ATTRS: mail=user,userPassword=password
       DOVECOT_USER_ATTRS: =home=/var/mail/%Ln,=mail=maildir:~/Maildir,=uid=5000,=gid=5000
+      ENABLE_OAUTH2: 1
+      OAUTH2_INTROSPECTION_URL: http://authelia:9091/api/oidc/userinfo
       ENABLE_QUOTAS: 1
       ENABLE_AMAVIS: 0
       POSTFIX_MESSAGE_SIZE_LIMIT: 50000000

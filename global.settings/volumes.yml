@@ -19,6 +19,7 @@ volumes:
   radicale_data:
   redis_data:
   roundcube_data:
+  sogo_data:
   vaultwarden_data:
   vaultwarden_caddy_ca:
   authelia_data:
