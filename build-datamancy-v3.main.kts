@@ -255,7 +255,8 @@ fun validateTemplateEnvVars(credentials: Map<String, String>, includeTests: Bool
         }
     }
 
-    val varRegex = Regex("""\$\{([^}]+)}""")
+    // Ignore docker-compose escape sequences like $${VAR}
+    val varRegex = Regex("""(?<!\$)\$\{([^}]+)}""")
     val required = mutableSetOf<String>()
 
     dirs.filter { it.exists() }.forEach { dir ->
@@ -604,6 +605,12 @@ fun suitesNeedingTests(registry: TestRegistry): List<TestRegistrySuite> {
 }
 
 fun checkGitClean(workDir: File) {
+    val allowDirty = System.getenv("ALLOW_DIRTY")?.trim()?.lowercase() in setOf("1", "true", "yes")
+    if (allowDirty) {
+        warn("Skipping git clean check (ALLOW_DIRTY enabled).")
+        return
+    }
+
     try {
         val statusProcess = ProcessBuilder("git", "status", "--porcelain")
             .directory(workDir)
@@ -878,6 +885,8 @@ fun generateCredentials(
     credentials.putIfAbsent("LDAP_BASE_DN", sanitized.ldapBaseDn)
     credentials.putIfAbsent("STACK_ADMIN_EMAIL", sanitized.adminEmail)
     credentials.putIfAbsent("STACK_ADMIN_USER", sanitized.adminUser)
+    credentials.putIfAbsent("VAULTWARDEN_ORG_NAME", sanitized.vaultwardenOrgName)
+    credentials.putIfAbsent("VAULTWARDEN_ORG_IDENTIFIER", sanitized.vaultwardenOrgIdentifier)
     credentials.putIfAbsent("VAULTWARDEN_ORG_ID", sanitized.vaultwardenOrgId)
     config.runtime.isolated_docker_vm_host?.let {
         credentials.putIfAbsent("ISOLATED_DOCKER_VM_HOST", it)
