@@ -12,6 +12,7 @@ x-test-base: &test_runner_base
     DOMAIN: ${DOMAIN}
     BASE_URL: https://${DOMAIN}
     AUTHELIA_URL: https://auth.${DOMAIN}
+    DISABLE_TLS_VALIDATION: "true"
     LDAP_URL: ldap://ldap:389
     LDAP_BASE_DN: ${LDAP_BASE_DN}
     LDAP_ADMIN_DN: ${LDAP_ADMIN_USER}
