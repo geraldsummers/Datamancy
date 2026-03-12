@@ -220,7 +220,7 @@ async function testForwardAuthService(
 
     for (let i = 0; i < maxPatternRetries; i++) {
       pageTitle = await page.title();
-      pageText = await page.textContent('body').catch(() => '');
+      pageText = (await page.textContent('body').catch(() => null)) ?? '';
       bodyHTML = await body.innerHTML();
       const combinedContent = [pageTitle, pageText, bodyHTML].filter(Boolean).join('\n');
       matchesPattern = uiPattern.test(combinedContent);
