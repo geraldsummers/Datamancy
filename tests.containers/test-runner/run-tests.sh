@@ -40,7 +40,11 @@ print_usage() {
     echo -e "${GREEN}TypeScript Tests:${NC}"
     echo "  ts                 Run all TypeScript tests (unit + e2e)"
     echo "  ts-unit            Run Jest unit tests only"
+    echo "  ts-unit-one <path> Run a single Jest test file"
+    echo "  ts-unit-name <pat> Run a single Jest test by name pattern"
     echo "  ts-e2e             Run Playwright E2E tests only"
+    echo "  ts-e2e-one <path>  Run a single Playwright test file"
+    echo "  ts-e2e-name <pat>  Run a single Playwright test by name pattern"
     echo "  ts-ui              Run Playwright in UI mode"
     echo "  ts-headed          Run Playwright in headed mode (browser visible)"
     echo "  ts-debug           Run Playwright in debug mode"
@@ -60,7 +64,11 @@ print_usage() {
     echo "  $0 kt foundation            # Run foundation test suite"
     echo "  $0 kt all                   # Run all Kotlin integration tests"
     echo "  $0 ts-unit                  # Run Jest unit tests"
+    echo "  $0 ts-unit-one tests/unit/ldap-client.test.ts"
+    echo "  $0 ts-unit-name \"health endpoint\""
     echo "  $0 ts-e2e                   # Run Playwright E2E tests"
+    echo "  $0 ts-e2e-one tests/e2e/grafana.spec.ts"
+    echo "  $0 ts-e2e-name \"Grafana login\""
     echo "  $0 shell playwright-e2e     # Open shell in Playwright container"
     echo "  $0 smart                    # Run only suites needing retest"
     echo ""
@@ -367,12 +375,64 @@ case "${1:-help}" in
         docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:unit
         ;;
 
+    ts-unit-one)
+        if [ -z "$2" ]; then
+            echo -e "${RED}Error:${NC} Test path required"
+            echo "Usage: $0 ts-unit-one <path>"
+            exit 1
+        fi
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
+        echo -e "${BLUE}Running Jest test file: $2${NC}"
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:unit:one -- "$2"
+        ;;
+
+    ts-unit-name)
+        if [ -z "$2" ]; then
+            echo -e "${RED}Error:${NC} Test name pattern required"
+            echo "Usage: $0 ts-unit-name <pattern>"
+            exit 1
+        fi
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
+        echo -e "${BLUE}Running Jest test name pattern: $2${NC}"
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:unit:name -- "$2"
+        ;;
+
     ts-e2e)
         container_name=$(suite_container "playwright-e2e")
         check_container_running "$container_name"
         ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Running Playwright E2E tests...${NC}"
         docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:e2e
+        ;;
+
+    ts-e2e-one)
+        if [ -z "$2" ]; then
+            echo -e "${RED}Error:${NC} Test path required"
+            echo "Usage: $0 ts-e2e-one <path>"
+            exit 1
+        fi
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
+        echo -e "${BLUE}Running Playwright test file: $2${NC}"
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:e2e:one -- "$2"
+        ;;
+
+    ts-e2e-name)
+        if [ -z "$2" ]; then
+            echo -e "${RED}Error:${NC} Test name pattern required"
+            echo "Usage: $0 ts-e2e-name <pattern>"
+            exit 1
+        fi
+        container_name=$(suite_container "playwright-e2e")
+        check_container_running "$container_name"
+        ensure_caddy_ca_trusted "$container_name"
+        echo -e "${BLUE}Running Playwright test name pattern: $2${NC}"
+        docker compose exec "$container_name" npm run --prefix $PLAYWRIGHT_DIR test:e2e:one -- --grep "$2"
         ;;
 
     ts-ui)

@@ -66,6 +66,8 @@ venv/
 # Test artifacts
 htmlReport/.gradle-container/
 test-results/
+test-results-*/
+playwright-test-results-latest/
 
 .kotlin/
 

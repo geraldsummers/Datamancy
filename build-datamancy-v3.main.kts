@@ -605,12 +605,6 @@ fun suitesNeedingTests(registry: TestRegistry): List<TestRegistrySuite> {
 }
 
 fun checkGitClean(workDir: File) {
-    val allowDirty = System.getenv("ALLOW_DIRTY")?.trim()?.lowercase() in setOf("1", "true", "yes")
-    if (allowDirty) {
-        warn("Skipping git clean check (ALLOW_DIRTY enabled).")
-        return
-    }
-
     try {
         val statusProcess = ProcessBuilder("git", "status", "--porcelain")
             .directory(workDir)

@@ -5,7 +5,10 @@
   "scripts": {
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "jest --coverage",
+    "test:unit:one": "jest --runTestsByPath",
+    "test:unit:name": "jest --testNamePattern",
     "test:e2e": "playwright test",
+    "test:e2e:one": "playwright test",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "test:headed": "playwright test --headed",
