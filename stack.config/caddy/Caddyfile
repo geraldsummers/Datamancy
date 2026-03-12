@@ -23,7 +23,7 @@
 	storage file_system /certs
 
 	# DEVELOPMENT: Use self-signed certificates via Caddy's internal CA
-	# local_certs
+	local_certs
 
 	# PRODUCTION: ZeroSSL as primary CA (better rate limits)
 	# email {$STACK_ADMIN_EMAIL}

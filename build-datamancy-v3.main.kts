@@ -443,6 +443,7 @@ fun generateTestRunnersCompose(
         appendLine("    DOMAIN: \${DOMAIN}")
         appendLine("    BASE_URL: https://\${DOMAIN}")
         appendLine("    AUTHELIA_URL: https://auth.\${DOMAIN}")
+        appendLine("    DISABLE_TLS_VALIDATION: \"true\"")
         appendLine("    LDAP_URL: ldap://ldap:389")
         appendLine("    LDAP_BASE_DN: \${LDAP_BASE_DN}")
         appendLine("    LDAP_ADMIN_DN: \${LDAP_ADMIN_USER}")
