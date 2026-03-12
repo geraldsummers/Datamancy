@@ -36,9 +36,11 @@ services:
       GF_AUTH_PROXY_HEADER_PROPERTY: username
       GF_AUTH_PROXY_AUTO_SIGN_UP: true
       GF_AUTH_PROXY_HEADERS: "Email:Remote-Email Name:Remote-Name"
-      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/logs.json
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/market-data.json
       GF_ALERTING_ENABLED: false
       GF_UNIFIED_ALERTING_ENABLED: false
+      POSTGRES_PIPELINE_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PIPELINE_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./configs/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro

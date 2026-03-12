@@ -152,7 +152,7 @@ class MarketDataSink(
         val sql = """
             INSERT INTO market_data (time, symbol, exchange, data_type, open, high, low, close, volume, num_trades)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (time, symbol, exchange, data_type) DO UPDATE SET
+            ON CONFLICT (time, symbol, exchange, data_type) WHERE data_type LIKE 'candle_%' DO UPDATE SET
                 open = EXCLUDED.open,
                 high = EXCLUDED.high,
                 low = EXCLUDED.low,

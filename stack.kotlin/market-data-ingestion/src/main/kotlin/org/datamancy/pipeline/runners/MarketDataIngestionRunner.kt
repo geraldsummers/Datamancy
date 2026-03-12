@@ -52,12 +52,15 @@ class MarketDataIngestionRunner {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var statsJob: Job? = null
     private var ingestionJob: Job? = null
+    private var flushJob: Job? = null
 
     private val postgresHost = System.getenv("POSTGRES_HOST") ?: "postgres"
     private val postgresPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
     private val postgresDb = System.getenv("POSTGRES_DB") ?: "datamancy"
     private val postgresUser = System.getenv("POSTGRES_USER") ?: "pipeline"
     private val postgresPassword = System.getenv("POSTGRES_PASSWORD") ?: ""
+    private val batchSize = System.getenv("MARKET_DATA_BATCH_SIZE")?.toIntOrNull() ?: 250
+    private val flushIntervalSeconds = System.getenv("MARKET_DATA_FLUSH_SECONDS")?.toLongOrNull() ?: 10
 
     private val symbols = System.getenv("HYPERLIQUID_SYMBOLS")?.split(",")?.map { it.trim() }
         ?: listOf("BTC", "ETH")
@@ -91,7 +94,7 @@ class MarketDataIngestionRunner {
         )
 
         val dataSource = createDataSource()
-        sink = MarketDataSink(dataSource, batchSize = 1000)
+        sink = MarketDataSink(dataSource, batchSize = batchSize)
 
         // Health check
         scope.launch {
@@ -113,6 +116,18 @@ class MarketDataIngestionRunner {
             while (isActive) {
                 delay(60.seconds)
                 logStats()
+            }
+        }
+
+        // Periodic flush to avoid long-lived pending batches during low activity
+        flushJob = scope.launch {
+            while (isActive) {
+                delay(flushIntervalSeconds.seconds)
+                try {
+                    sink.flush()
+                } catch (e: Exception) {
+                    logger.error(e) { "Periodic flush failed: ${e.message}" }
+                }
             }
         }
 
@@ -198,6 +213,7 @@ class MarketDataIngestionRunner {
         // Cancel jobs
         statsJob?.cancel()
         ingestionJob?.cancel()
+        flushJob?.cancel()
 
         // Flush remaining data
         runBlocking {
@@ -258,4 +274,3 @@ private fun Long.format(separator: Char = ','): String {
 // Helper extension property for formatting
 private val Long.Companion.format: (Long) -> String
     get() = { it.format() }
-

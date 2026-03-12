@@ -22,9 +22,7 @@ CREATE TABLE IF NOT EXISTS market_data (
     price DOUBLE PRECISION,
     size DOUBLE PRECISION,
     side TEXT,  -- 'buy' or 'sell'
-    is_liquidation BOOLEAN DEFAULT FALSE,
-
-    PRIMARY KEY (time, symbol, exchange, data_type)
+    is_liquidation BOOLEAN DEFAULT FALSE
 );
 
 -- Create index for efficient time-based queries
@@ -32,6 +30,15 @@ CREATE INDEX IF NOT EXISTS idx_market_data_time ON market_data (time DESC);
 
 -- Create index for symbol lookups
 CREATE INDEX IF NOT EXISTS idx_market_data_symbol ON market_data (symbol, exchange, data_type, time DESC);
+
+-- Enforce uniqueness for trade rows without blocking multiple trades at the same timestamp
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_trade_unique
+    ON market_data (time, symbol, exchange, data_type, trade_id);
+
+-- Enforce uniqueness for candle rows only
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_candle_unique
+    ON market_data (time, symbol, exchange, data_type)
+    WHERE data_type LIKE 'candle_%';
 
 -- Create orderbook_data table
 CREATE TABLE IF NOT EXISTS orderbook_data (

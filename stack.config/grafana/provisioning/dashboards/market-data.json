@@ -1,0 +1,71 @@
+{
+  "uid": "market-data-home",
+  "title": "Market Data",
+  "tags": ["market", "timescale"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "BTC/USD (1m close)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", close AS \"BTC/USD\"\nFROM market_data\nWHERE $__timeFilter(time)\n  AND symbol = 'BTC'\n  AND exchange = 'hyperliquid'\n  AND data_type = 'candle_1m'\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "ETH/USD (1m close)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", close AS \"ETH/USD\"\nFROM market_data\nWHERE $__timeFilter(time)\n  AND symbol = 'ETH'\n  AND exchange = 'hyperliquid'\n  AND data_type = 'candle_1m'\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      }
+    }
+  ]
+}
