@@ -68,6 +68,8 @@ htmlReport/.gradle-container/
 test-results/
 test-results-*/
 playwright-test-results-latest/
+playwright-test-results/
+playwright-test-results-full/
 
 .kotlin/
 

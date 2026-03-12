@@ -212,6 +212,7 @@ async function testForwardAuthService(
     // Retry pattern matching to handle slow-loading SPAs
     let matchesPattern = false;
     let pageTitle = '';
+    let pageText = '';
     const maxPatternRetries = options.maxPatternRetries ?? 5;
     const retryDelayMs = options.retryDelayMs ?? 2000;
     let disallowedMatch: RegExp | null = null;

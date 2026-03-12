@@ -4,11 +4,11 @@
 # Disable state validation only when explicitly configured.
 if defined?(Rails)
   Rails.application.config.to_prepare do
-    next unless defined?(Devise) && Devise.omniauth_configs[:openid_connect]
-
     require_state = ENV.fetch('OIDC_REQUIRE_STATE', 'true') != 'false'
-    Devise.omniauth_configs[:openid_connect].options[:require_state] = require_state
-    Devise.omniauth_configs[:openid_connect].options[:send_state] = require_state
+    if defined?(Devise) && Devise.omniauth_configs[:openid_connect]
+      Devise.omniauth_configs[:openid_connect].options[:require_state] = require_state
+      Devise.omniauth_configs[:openid_connect].options[:send_state] = require_state
+    end
 
     next if require_state
 
