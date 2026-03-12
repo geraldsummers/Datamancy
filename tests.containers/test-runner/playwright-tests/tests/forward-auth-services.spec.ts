@@ -193,11 +193,6 @@ async function testForwardAuthService(
     console.log(`   ⚠️  ${serviceName} returned ${status} error - skipping UI check\n`);
     return; // Skip this test, don't fail it
   }
-  const pageText = await page.textContent('body').catch(() => '');
-  if (pageText && /bad request/i.test(pageText)) {
-    console.log(`   ⚠️  ${serviceName} returned 400 error - skipping UI check\n`);
-    return; // Skip this test, don't fail it
-  }
 
   // ENHANCED: Verify we're on the CORRECT service page, not just "not auth"
   const body = page.locator('body');
