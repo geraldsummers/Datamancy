@@ -1,6 +1,6 @@
 services:
   sogo:
-    image: sogo/sogo:5.12.2
+    image: easytechdrp/sogo:5.12.2
     container_name: sogo
     restart: unless-stopped
     networks:
