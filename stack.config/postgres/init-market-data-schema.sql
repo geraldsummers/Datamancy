@@ -65,6 +65,10 @@ BEGIN
         GRANT SELECT, INSERT ON market_data TO test_runner_user;
         GRANT SELECT, INSERT ON orderbook_data TO test_runner_user;
     END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
+        GRANT SELECT, INSERT, UPDATE ON market_data TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON orderbook_data TO pipeline_user;
+    END IF;
 END $$;
 
 -- Enable TimescaleDB extension
