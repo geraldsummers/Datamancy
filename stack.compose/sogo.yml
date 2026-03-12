@@ -1,6 +1,9 @@
 services:
   sogo:
-    image: easytechdrp/sogo:5.12.2
+    image: datamancy/sogo:5.12.2
+    build:
+      context: .
+      dockerfile: stack.containers/sogo/Dockerfile
     container_name: sogo
     restart: unless-stopped
     networks:
