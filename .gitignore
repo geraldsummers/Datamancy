@@ -74,5 +74,11 @@ playwright-test-results-latest/
 *.tar.*
 *.tar
 
+# Local screenshot exports
+mastodon-test-failed-*.png
+mastodon-test-failed-*.b64
+mastodon-oidc-authenticated.*
+grafana-forward-authenticated.*
+
 # Heap dumps from OutOfMemoryError
 *.hprof

@@ -5,6 +5,7 @@ http:
   trusted_proxies:
     - 172.16.0.0/12
     - 192.168.64.0/24
+    - 192.168.48.0/24
     - 127.0.0.1
     - ::1
   ip_ban_enabled: false
@@ -28,6 +29,7 @@ homeassistant:
       trusted_networks:
         - 172.26.0.0/24
         - 172.16.0.0/12
+        - 192.168.48.0/24
       allow_bypass_login: true
 
     - type: homeassistant
