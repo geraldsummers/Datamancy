@@ -30,8 +30,7 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': 'redis://valkey:6379/0',
         'OPTIONS': {
-            'username': 'seafile',
-            'password': '{{VALKEY_SEAFILE_PASSWORD}}',
+            'password': '{{VALKEY_ADMIN_PASSWORD}}',
         }
     }
 }

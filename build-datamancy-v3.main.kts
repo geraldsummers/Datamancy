@@ -77,7 +77,8 @@ data class RuntimeConfig(
 
 data class VaultwardenConfig(
     val org_name: String? = null,
-    val org_identifier: String? = null
+    val org_identifier: String? = null,
+    val org_id: String? = null
 )
 
 data class DatamancyConfig(
@@ -94,7 +95,8 @@ data class SanitizedConfig(
     val adminEmail: String,
     val adminUser: String,
     val vaultwardenOrgName: String,
-    val vaultwardenOrgIdentifier: String
+    val vaultwardenOrgIdentifier: String,
+    val vaultwardenOrgId: String
 )
 
 data class TestSuiteDef(
@@ -291,6 +293,10 @@ fun sanitizedConfigFrom(config: DatamancyConfig): SanitizedConfig {
     val user = sanitizeUsername(config.runtime.admin_user)
     val vwOrgName = (config.vaultwarden?.org_name ?: "Datamancy").trim().ifBlank { "Datamancy" }
     val vwOrgIdentifier = (config.vaultwarden?.org_identifier ?: domain).trim().ifBlank { domain }
+    val vwOrgId = (config.vaultwarden?.org_id ?: "").trim()
+    if (vwOrgId.isBlank()) {
+        throw IllegalArgumentException("Vaultwarden org_id is required (vaultwarden.org_id).")
+    }
 
     return SanitizedConfig(
         domain = domain,
@@ -300,7 +306,8 @@ fun sanitizedConfigFrom(config: DatamancyConfig): SanitizedConfig {
         adminEmail = email,
         adminUser = user,
         vaultwardenOrgName = vwOrgName,
-        vaultwardenOrgIdentifier = vwOrgIdentifier
+        vaultwardenOrgIdentifier = vwOrgIdentifier,
+        vaultwardenOrgId = vwOrgId
     )
 }
 
@@ -871,6 +878,7 @@ fun generateCredentials(
     credentials.putIfAbsent("LDAP_BASE_DN", sanitized.ldapBaseDn)
     credentials.putIfAbsent("STACK_ADMIN_EMAIL", sanitized.adminEmail)
     credentials.putIfAbsent("STACK_ADMIN_USER", sanitized.adminUser)
+    credentials.putIfAbsent("VAULTWARDEN_ORG_ID", sanitized.vaultwardenOrgId)
     config.runtime.isolated_docker_vm_host?.let {
         credentials.putIfAbsent("ISOLATED_DOCKER_VM_HOST", it)
     }

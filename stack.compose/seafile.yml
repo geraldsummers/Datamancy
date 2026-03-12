@@ -38,13 +38,14 @@ services:
       CACHE_PROVIDER: redis
       REDIS_HOST: valkey
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
       # Fix seafile-mc bug: explicitly set seahub database name
       # (otherwise it tries to use SQLite path '/opt/seafile/.../seahub.db' as MySQL DB name)
       SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: seahub_db
     volumes:
       - seafile_files:/shared
       - seafile_media:/shared/seafile/library-template
-      - ./configs/seafile/seahub_settings.py:/shared/seafile/conf/seahub_settings.py:ro
+      - ./configs/seafile/seahub_settings.py:/shared/seafile/conf/seahub_settings.py:rw
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
       interval: 60s

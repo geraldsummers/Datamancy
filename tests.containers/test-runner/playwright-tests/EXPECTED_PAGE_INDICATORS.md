@@ -31,11 +31,11 @@ This document describes the expected page characteristics for each service after
 - **Additional Check**: Grafana API returns Loki datasource at `/api/datasources/name/Loki`
 
 ### Vaultwarden
-- **URL Pattern**: `vaultwarden.datamancy.net`
+- **URL Pattern**: `app.vaultwarden.datamancy.net`
 - **Page Title**: `Vaultwarden Web`
-- **UI Pattern**: `/Vaultwarden Web/i`
-- **Validation**: Title must be "Vaultwarden Web" or contain "Bitwarden"
-- **Note**: May redirect to `app.vaultwarden.datamancy.net`
+- **UI Pattern**: `/Single sign-on|Vaultwarden Web/i`
+- **Validation**: Landing should be SSO screen or Vaultwarden UI
+- **Note**: External URL only; include `#/sso?identifier=datamancy.net`
 
 ### Homepage
 - **URL Pattern**: `homepage.datamancy.net`
@@ -100,7 +100,7 @@ This document describes the expected page characteristics for each service after
 ### Mastodon
 - **URL Pattern**: `mastodon.datamancy.net`
 - **Page Title**: Varies
-- **UI Pattern**: `/What's on your mind|Compose new post|Publish|Home|Notifications/i`
+- **UI Pattern**: `/What's on your mind|Compose new post|Publish|Home|Notifications|Profile setup|Save and continue|Display name/i`
 - **Validation**: Must show authenticated compose/navigation (not public landing)
 - **OIDC Button Names**: ["Authelia", "SSO"]
 - **Known Issue**: May return 500 error
@@ -222,7 +222,7 @@ If a service changes its UI:
 *Last Updated: 2026-02-17*
 *This document should be updated whenever service UIs change*
 ### Vaultwarden
-- **URL Pattern**: `vaultwarden.datamancy.net`
+- **URL Pattern**: `app.vaultwarden.datamancy.net`
 - **Page Title**: `Vaultwarden Web`
-- **UI Pattern**: `/My Vault|Vaults|Folders|Items|Search vault/i`
-- **Validation**: Must be authenticated UI (not SSO loading screen)
+- **UI Pattern**: `/Single sign-on|Join organization|Set initial password|My Vault|Vaults|Folders|Items|Search vault/i`
+- **Validation**: Accepts SSO onboarding or authenticated UI

@@ -31,9 +31,18 @@ services:
       - bash
       - -c
       - |
-        echo "Running Mastodon database migrations..."
-        bundle exec rails db:migrate
-        echo "Mastodon database migrations complete"
+        set -euo pipefail
+        echo "Preparing Mastodon database..."
+        for i in $$(seq 1 30); do
+          if bundle exec rails db:prepare; then
+            echo "Mastodon database prepare complete"
+            exit 0
+          fi
+          echo "Mastodon database prepare failed (attempt $${i}); retrying in 5s..."
+          sleep 5
+        done
+        echo "Mastodon database prepare failed after retries"
+        exit 1
 
 
   mastodon-web:

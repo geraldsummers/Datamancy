@@ -9,6 +9,7 @@
 # - DOMAIN                     (e.g. example.com)
 # - API_LITELLM_ALLOWLIST     (space-separated CIDRs)
 # - STACK_ADMIN_EMAIL          (e.g. admin@example.com)
+# - VAULTWARDEN_ORG_ID         (vaultwarden org UUID for SSO policy resolution)
 # - ZEROSSL_API_KEY            (optional, for ZeroSSL ACME)
 #
 # TLS Configuration:
@@ -96,10 +97,30 @@ roundcube.{$DOMAIN} {
 calendar.{$DOMAIN}, radicale.{$DOMAIN} {
 	import authelia_auth
 
-	reverse_proxy radicale:5232 {
-		# Pass authentication headers to Radicale
-		header_up X-Remote-User {header.Remote-User}
-		header_up X-Remote-Email {header.Remote-Email}
+	@radicale_web path /.web*
+	handle @radicale_web {
+		root * /srv/radicale
+		file_server
+	}
+
+	@radicale_root path /
+	handle @radicale_root {
+		root * /srv/radicale
+		file_server
+	}
+
+	@html header Accept *text/html*
+	handle @html {
+		root * /srv/radicale
+		file_server
+	}
+
+	handle {
+		reverse_proxy radicale:5232 {
+			# Pass authentication headers to Radicale
+			header_up X-Remote-User {header.Remote-User}
+			header_up X-Remote-Email {header.Remote-Email}
+		}
 	}
 }
 
@@ -158,12 +179,32 @@ vaultwarden.{$DOMAIN} {
 	reverse_proxy @api vaultwarden:80
 
 	# Browser requests -> redirect to app with SSO landing page
-	redir https://app.vaultwarden.{$DOMAIN}/#/sso temporary
+	redir https://app.vaultwarden.{$DOMAIN}/#/sso?identifier={$VAULTWARDEN_ORG_IDENTIFIER} temporary
 }
 
 # Vaultwarden app (OIDC SSO endpoint)
 app.vaultwarden.{$DOMAIN} {
-	reverse_proxy vaultwarden:80
+	@vw_auto_enroll path_regexp vw_auto_enroll ^/api/organizations/[^/]+/auto-enroll-status$
+	handle @vw_auto_enroll {
+		header Content-Type application/json
+		respond "{\"autoEnrollEnabled\":true,\"resetPasswordEnabled\":true}" 200
+	}
+
+	@vw_org_undefined path_regexp vw_org_undefined ^/api/organizations/undefined/(.*)$
+	handle @vw_org_undefined {
+		rewrite * /api/organizations/{$VAULTWARDEN_ORG_ID}/{re.vw_org_undefined.1}
+		reverse_proxy vaultwarden:80
+	}
+
+	@vw_org_empty path_regexp vw_org_empty ^/api/organizations//(.*)$
+	handle @vw_org_empty {
+		rewrite * /api/organizations/{$VAULTWARDEN_ORG_ID}/{re.vw_org_empty.1}
+		reverse_proxy vaultwarden:80
+	}
+
+	handle {
+		reverse_proxy vaultwarden:80
+	}
 }
 
 # Planka (uses OIDC)

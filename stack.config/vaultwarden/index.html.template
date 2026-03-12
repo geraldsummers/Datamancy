@@ -63,14 +63,14 @@
         <div class="spinner"></div>
         <div class="manual-link">
             <p>Not redirected automatically?</p>
-            <p><a href="https://app.vaultwarden.{{DOMAIN}}/#/sso" id="manual-link">Click here to login with SSO</a></p>
+            <p><a href="https://app.vaultwarden.{{DOMAIN}}/#/sso?identifier={{VAULTWARDEN_ORG_IDENTIFIER}}" id="manual-link">Click here to login with SSO</a></p>
         </div>
     </div>
 
     <script>
         // Automatic redirect to Vaultwarden SSO page with pre-filled identifier
         (function() {
-            const ssoUrl = 'https://app.vaultwarden.{{DOMAIN}}/#/sso';
+            const ssoUrl = 'https://app.vaultwarden.{{DOMAIN}}/#/sso?identifier={{VAULTWARDEN_ORG_IDENTIFIER}}';
 
             // Redirect after a brief delay to show the loading state
             setTimeout(function() {

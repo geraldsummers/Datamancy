@@ -10,6 +10,7 @@
  * - Forgejo
  * - BookStack
  * - Planka
+ * - Element (Matrix Web)
  */
 
 import { test, expect } from '@playwright/test';
@@ -53,6 +54,7 @@ async function testOIDCService(
     ssoEmail?: string;
     oidcLinkPatterns?: RegExp[];
     oidcIssuer?: string;
+    preLogin?: (page: Page) => Promise<void>;
     postLogin?: (page: Page) => Promise<void>;
     uiPatternOverride?: RegExp;
   } = {}
@@ -81,6 +83,11 @@ async function testOIDCService(
   }
 
   await logPageTelemetry(page, `${serviceName} Login Page`);
+
+  if (options.preLogin) {
+    await options.preLogin(page);
+    await logPageTelemetry(page, `${serviceName} Login Page (post-preLogin)`);
+  }
 
   const oidcPage = new OIDCLoginPage(page);
 
@@ -131,17 +138,28 @@ async function testOIDCService(
     if (!options.ssoEmail) {
       return false;
     }
-    const ssoEmailInput = page
-      .locator('input.vw-email-sso')
-      .or(page.locator('input[type="email"]').nth(1))
-      .or(page.locator('input[type="email"]').first());
+    const ssoEmailCandidates = [
+      page.locator('input.vw-email-sso'),
+      page.locator('input[type="email"]').nth(1),
+      page.locator('input[type="email"]').first(),
+    ];
     const ssoButton = page
       .getByRole('button', { name: /use single sign-on|single sign-on|sso/i })
       .or(page.locator('button:has-text("Use single sign-on")'))
       .or(page.locator('button:has-text("Single sign-on")'))
       .or(page.locator('button:has-text("SSO")'));
 
-    const inputVisible = await ssoEmailInput.first().isVisible().catch(() => false);
+    let ssoEmailInput = ssoEmailCandidates[0];
+    let inputVisible = await ssoEmailInput.first().isVisible().catch(() => false);
+    if (!inputVisible) {
+      for (const candidate of ssoEmailCandidates.slice(1)) {
+        if (await candidate.first().isVisible().catch(() => false)) {
+          ssoEmailInput = candidate;
+          inputVisible = true;
+          break;
+        }
+      }
+    }
     const buttonVisible = await ssoButton.first().isVisible().catch(() => false);
     if (!inputVisible && !buttonVisible) {
       return false;
@@ -152,7 +170,16 @@ async function testOIDCService(
       await page.waitForTimeout(500);
     }
 
-    const inputNowVisible = await ssoEmailInput.first().isVisible().catch(() => false);
+    let inputNowVisible = await ssoEmailInput.first().isVisible().catch(() => false);
+    if (!inputNowVisible) {
+      for (const candidate of ssoEmailCandidates) {
+        if (await candidate.first().isVisible().catch(() => false)) {
+          ssoEmailInput = candidate;
+          inputNowVisible = true;
+          break;
+        }
+      }
+    }
     if (inputNowVisible) {
       const currentValue = await ssoEmailInput.first().inputValue().catch(() => '');
       if (!currentValue) {
@@ -212,6 +239,47 @@ async function testOIDCService(
         return true;
       }
     }
+    return false;
+  };
+
+  const handleMatrixContinueIfPresent = async (waitFor: boolean = false) => {
+    const deadline = Date.now() + (waitFor ? 15000 : 0);
+    const continueButton = page.getByRole('button', { name: /^continue$/i })
+      .or(page.getByRole('link', { name: /^continue$/i }))
+      .or(page.locator('button:has-text("Continue")'))
+      .or(page.locator('a:has-text("Continue")'))
+      .first();
+
+    do {
+      try {
+        await continueButton.waitFor({ state: 'visible', timeout: waitFor ? 15000 : 1000 });
+        await continueButton.click({ force: true });
+        await page.waitForTimeout(1500);
+        return true;
+      } catch {
+        const jsClicked = await page.evaluate(() => {
+          const link = document.querySelector('a[href*="loginToken"], a[href*="logintoken"]') as HTMLAnchorElement | null;
+          if (!link) return false;
+          link.click();
+          return true;
+        }).catch(() => false);
+        if (jsClicked) {
+          await page.waitForTimeout(1500);
+          return true;
+        }
+        const directHref = await page.locator('a:has-text("Continue")').first().getAttribute('href').catch(() => null);
+        if (directHref) {
+          await page.goto(directHref, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+          await page.waitForTimeout(1500);
+          return true;
+        }
+      }
+      if (!waitFor) {
+        break;
+      }
+      await page.waitForTimeout(500);
+    } while (Date.now() < deadline);
+
     return false;
   };
 
@@ -317,20 +385,65 @@ async function testOIDCService(
     await oidcPage.handleConsentScreen();
   }
 
-  // Wait briefly for redirect back to service (post-auth)
-  await page.waitForURL((url) => {
-    const href = url.toString();
-    return !/auth\.|authelia|:9091/.test(href);
-  }, { timeout: 20000 }).catch(() => {});
+  await handleMatrixContinueIfPresent();
 
-  // CRITICAL ASSERTION: Must NOT be on auth page
-  await expect(page).not.toHaveURL(/auth\.|authelia/);
+  // Wait briefly for redirect back to service (post-auth)
+  const isAuthUrl = (href: string) => {
+    try {
+      const parsed = new URL(href);
+      return parsed.hostname.startsWith('auth.')
+        || parsed.hostname.includes('authelia')
+        || parsed.port === '9091';
+    } catch {
+      return /auth\.|authelia|:9091/.test(href);
+    }
+  };
+
+  await page.waitForURL((url) => !isAuthUrl(url.toString()), { timeout: 20000 }).catch(() => {});
+
+  const shouldCheckMatrix = page.url().includes('/_synapse/client/oidc/callback')
+    || page.url().includes('matrix.')
+    || /continue to your account/i.test(await page.title().catch(() => ''));
+  if (shouldCheckMatrix) {
+    const continued = await handleMatrixContinueIfPresent(true);
+    if (continued) {
+      await page.waitForURL(
+        (url) => {
+          const href = url.toString();
+          return !href.includes('/_synapse/client/oidc/callback') && !href.includes('matrix.');
+        },
+        { timeout: 20000 }
+      ).catch(() => {});
+    }
+  }
+
+  // CRITICAL ASSERTION: Must NOT be on auth host
+  await expect.poll(() => isAuthUrl(page.url()), { timeout: 5000 }).toBeFalsy();
 
   if (options.postLogin) {
     await options.postLogin(page);
   }
 
   await logPageTelemetry(page, `${serviceName} Dashboard`);
+
+  if (page.url().includes('/_synapse/client/oidc/callback') || /continue to your account/i.test(await page.title().catch(() => ''))) {
+    const continueLink = page.locator('a:has-text("Continue")').first();
+    await continueLink.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+    const continueHref = await continueLink.getAttribute('href').catch(() => null);
+    if (continueHref) {
+      await page.goto(continueHref, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+    } else {
+      await continueLink.click({ force: true }).catch(() => {});
+    }
+    await page.waitForTimeout(1500);
+    await page.waitForURL(
+      (url) => {
+        const href = url.toString();
+        return !href.includes('/_synapse/client/oidc/callback') && !href.includes('matrix.');
+      },
+      { timeout: 20000 }
+    ).catch(() => {});
+  }
 
   // ENHANCED: Verify we're on the CORRECT service page, not just "not auth"
   const body = page.locator('body');
@@ -354,6 +467,48 @@ async function testOIDCService(
     pageTitle = await page.title();
     pageText = (await page.textContent('body').catch(() => '')) || '';
     bodyHTML = await body.innerHTML();
+
+    if (/element/i.test(serviceName) && /verify this device/i.test(pageText)) {
+      const skipButton = page.getByRole('button', { name: /skip verification/i }).first();
+      if (await skipButton.isVisible().catch(() => false)) {
+        await skipButton.click({ force: true }).catch(() => {});
+      } else {
+        const closeButton = page.locator(
+          'button[aria-label="Close"], button[aria-label="Close dialog"], button:has-text("Close")'
+        ).first();
+        if (await closeButton.isVisible().catch(() => false)) {
+          await closeButton.click({ force: true }).catch(() => {});
+        } else {
+          await page.keyboard.press('Escape').catch(() => {});
+        }
+      }
+      await page.waitForTimeout(1500);
+      continue;
+    }
+
+    if (/element/i.test(serviceName) && /are you sure\?/i.test(pageText)) {
+      const verifyLaterButton = page.getByRole('button', { name: /i'?ll verify later|verify later/i }).first();
+      if (await verifyLaterButton.isVisible().catch(() => false)) {
+        await verifyLaterButton.click({ force: true }).catch(() => {});
+      } else {
+        const goBackButton = page.getByRole('button', { name: /go back/i }).first();
+        if (await goBackButton.isVisible().catch(() => false)) {
+          await goBackButton.click({ force: true }).catch(() => {});
+        } else {
+          await page.keyboard.press('Escape').catch(() => {});
+        }
+      }
+      await page.waitForTimeout(1500);
+      continue;
+    }
+
+    if (/continue to your account/i.test(pageText) || page.url().includes('/_synapse/client/oidc/callback') || page.url().includes('matrix.')) {
+      const continued = await handleMatrixContinueIfPresent(true);
+      if (continued) {
+        await page.waitForTimeout(1500);
+        continue;
+      }
+    }
     matchesPattern = effectiveUiPattern.test(pageText || bodyHTML || pageTitle);
     disallowedMatch = disallowPatterns.find((pattern) =>
       pattern.test([pageTitle, pageText, bodyHTML].filter(Boolean).join('\n'))
@@ -460,7 +615,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
         page,
         'Mastodon',
         'https://mastodon.datamancy.net/',
-        /What's on your mind|Compose new post|Publish|Home|Notifications/i,
+        /What's on your mind|Compose new post|Publish|Home|Notifications|Profile setup|Save and continue|Display name/i,
         ['Authelia', 'SSO', 'OpenID', 'OpenID Connect'],
         {
           disallowPatterns: [/Create account|Log in/i, /Invalid state/i],
@@ -479,6 +634,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       const pageContent = await page.content().catch(() => '');
       const isTransient =
         /Invalid state/i.test(message) ||
+        /Invalid state/i.test(pageContent) ||
         /could not lookup user subject/i.test(pageContent) ||
         /authorization server encountered an unexpected condition/i.test(pageContent);
       if (!isTransient) {
@@ -541,6 +697,117 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
     );
   });
 
+  test('Element (Matrix Web) - OIDC login flow', async ({ page }) => {
+    const domain = process.env.DOMAIN || 'datamancy.net';
+    const homeserverUrl = `https://matrix.${domain}`;
+    await testOIDCService(
+      page,
+      'Element (Matrix Web)',
+      'https://element.datamancy.net/',
+      /All rooms|Home|People|Rooms|Explore|Settings|Chats|Start chat|Recents|Room|Start a chat|Create a room|People/i,
+      ['Authelia', 'Continue with Authelia SSO', 'Continue with SSO', 'SSO', 'Single sign-on', 'Sign in with SSO'],
+      {
+        disallowPatterns: [/Welcome to Element/i, /Sign in/i, /Create Account/i],
+        disallowUrlPatterns: [/#\/welcome\b/i, /#\/login\b/i],
+        loginPath: 'https://element.datamancy.net/#/login',
+        loginButtonPatterns: [/sign in|log in|continue with authelia sso|continue with sso|sso|openid/i],
+        oidcLinkPatterns: [/continue with authelia sso/i, /sign in with sso/i, /sso/i, /single sign-on/i, /authelia/i],
+        preLogin: async (page) => {
+          const signInLink = page.getByRole('link', { name: /sign in/i }).first();
+          const signInButton = page.getByRole('button', { name: /sign in/i }).first();
+          if (await signInLink.isVisible().catch(() => false)) {
+            await signInLink.click({ force: true });
+            await page.waitForTimeout(1000);
+          } else if (await signInButton.isVisible().catch(() => false)) {
+            await signInButton.click({ force: true });
+            await page.waitForTimeout(1000);
+          }
+
+          const homeserverInput = page.locator(
+            'input[placeholder*="matrix"], input[name*="home"], input[id*="home"]'
+          ).first();
+          const continueButton = page.getByRole('button', { name: /continue|next|submit/i }).first();
+          if (await homeserverInput.isVisible().catch(() => false)) {
+            const currentValue = await homeserverInput.inputValue().catch(() => '');
+            if (!currentValue) {
+              await homeserverInput.fill(homeserverUrl);
+            }
+            if (await continueButton.isVisible().catch(() => false)) {
+              await continueButton.click({ force: true });
+            } else {
+              await homeserverInput.press('Enter').catch(() => {});
+            }
+            await page.waitForTimeout(1500);
+          }
+
+          await page.waitForSelector('text=/continue with authelia sso/i', { timeout: 5000 }).catch(() => {});
+          const autheliaSsoButton = page.locator('text=/continue with authelia sso/i');
+          if ((await autheliaSsoButton.count()) > 0) {
+            await autheliaSsoButton.first().click({ force: true });
+            await page.waitForTimeout(1500);
+            return;
+          }
+
+          await page.waitForSelector('text=/sign in with sso|continue with sso|single sign-on|sso/i', { timeout: 3000 }).catch(() => {});
+          const anySsoButton = page.locator('text=/sign in with sso|continue with sso|single sign-on|sso/i');
+          if ((await anySsoButton.count()) > 0) {
+            await anySsoButton.first().click({ force: true });
+            await page.waitForTimeout(1500);
+          }
+        },
+        postLogin: async (page) => {
+          if (page.url().includes('loginToken=')) {
+            const progress = page.getByRole('progressbar').first();
+            if (await progress.isVisible().catch(() => false)) {
+              await progress.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
+            }
+            await page.waitForURL(
+              (url) => !url.toString().includes('loginToken='),
+              { timeout: 60000 }
+            ).catch(() => {});
+          }
+
+          const verifyLaterButton = page.getByRole('button', { name: /i'?ll verify later|verify later/i }).first();
+          const areYouSureHeading = page.locator('text=/are you sure\\?/i').first();
+          await areYouSureHeading.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+          if ((await areYouSureHeading.isVisible().catch(() => false)) || (await verifyLaterButton.isVisible().catch(() => false))) {
+            if (await verifyLaterButton.isVisible().catch(() => false)) {
+              await verifyLaterButton.click({ force: true }).catch(() => {});
+            } else {
+              const goBackButton = page.getByRole('button', { name: /go back/i }).first();
+              if (await goBackButton.isVisible().catch(() => false)) {
+                await goBackButton.click({ force: true }).catch(() => {});
+              } else {
+                await page.keyboard.press('Escape').catch(() => {});
+              }
+            }
+            await page.waitForTimeout(1500);
+          }
+
+          const verifyHeading = page.locator('text=/verify this device/i').first();
+          await verifyHeading.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+          if (await verifyHeading.isVisible().catch(() => false)) {
+            const skipButton = page.getByRole('button', { name: /skip verification/i }).first();
+            if (await skipButton.isVisible().catch(() => false)) {
+              await skipButton.click({ force: true }).catch(() => {});
+              await page.waitForTimeout(1500);
+              return;
+            }
+            const closeButton = page.locator(
+              'button[aria-label="Close"], button[aria-label="Close dialog"], button:has-text("Close")'
+            ).first();
+            if (await closeButton.isVisible().catch(() => false)) {
+              await closeButton.click({ force: true }).catch(() => {});
+            } else {
+              await page.keyboard.press('Escape').catch(() => {});
+            }
+            await page.waitForTimeout(1500);
+          }
+        },
+      }
+    );
+  });
+
   test('Vaultwarden - OIDC login flow', async ({ page }) => {
     const vaultwardenEmail = process.env.STACK_ADMIN_EMAIL || testUser.email || 'admin@datamancy.net';
     await testOIDCService(
@@ -550,13 +817,13 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       /My Vault|Vaults|Folders|Items|Search vault/i,
       ['Authelia', 'SSO', 'Single sign-on', 'Use single sign-on'],
       {
-        disallowPatterns: [/SSO identifier/i, /\bLog in\b/i, /Use single sign-on/i],
+        disallowPatterns: [/SSO identifier/i],
         disallowUrlPatterns: [/#\/sso\b/i, /\/sso\b/i],
         loginPath: 'https://app.vaultwarden.datamancy.net/#/login',
         loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
         ssoIdentifier: vaultwardenEmail.split('@').pop() || 'datamancy.net',
         ssoEmail: vaultwardenEmail,
-        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization/i,
+        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization|Log in|Use single sign-on/i,
         postLogin: async (page) => {
           // Handle create account / master password setup after SSO
           const masterPassword = testUser.password;

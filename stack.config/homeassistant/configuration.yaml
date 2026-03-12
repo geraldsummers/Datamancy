@@ -4,6 +4,7 @@ http:
   use_x_forwarded_for: true
   trusted_proxies:
     - 172.16.0.0/12
+    - 192.168.64.0/24
     - 127.0.0.1
     - ::1
   ip_ban_enabled: false
@@ -16,6 +17,10 @@ recorder:
   db_url: !env_var HOMEASSISTANT_DB_URL
   auto_purge: true
   purge_keep_days: 30
+
+history:
+
+logbook:
 
 homeassistant:
   auth_providers:

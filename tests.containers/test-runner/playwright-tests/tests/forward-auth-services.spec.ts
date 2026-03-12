@@ -29,7 +29,13 @@ import { AutheliaLoginPage } from '../pages/AutheliaLoginPage';
 import { logPageTelemetry, setupNetworkLogging } from '../utils/telemetry';
 
 // Load test user credentials with fallback if auth artifacts were cleaned up
-const testUserPath = path.join(__dirname, '../.auth/test-user.json');
+const authDir = path.join(__dirname, '../.auth');
+const testUserPath = path.join(authDir, 'test-user.json');
+const autheliaSessionPath = path.join(authDir, 'authelia-session.json');
+const autheliaSessionState = fs.existsSync(autheliaSessionPath) ? autheliaSessionPath : undefined;
+if (!autheliaSessionState) {
+  console.warn('⚠️  Authelia session state missing; forward-auth tests will re-authenticate interactively.');
+}
 const testUser = fs.existsSync(testUserPath)
   ? JSON.parse(fs.readFileSync(testUserPath, 'utf-8'))
   : {
@@ -302,10 +308,14 @@ async function testForwardAuthService(
 }
 
 test.describe('Forward Auth Services - SSO Flow', () => {
-  test.use({
-    // Use saved auth state from global setup
-    storageState: path.join(__dirname, '../.auth/authelia-session.json'),
-  });
+  test.use(
+    autheliaSessionState
+      ? {
+          // Use saved auth state from global setup
+          storageState: autheliaSessionState,
+        }
+      : {}
+  );
 
   test('JupyterHub - Access with forward auth', async ({ page }) => {
     test.setTimeout(180000);
@@ -548,11 +558,12 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Radicale',
       'https://radicale.datamancy.net/',
-      /Radicale|Calendar|Address book|WebDAV|CalDAV|CardDAV/i,
+      /Radicale CalDAV\/CardDAV|CalDAV|CardDAV/i,
       {
         urlPattern: /radicale\.datamancy\.net/,
         maxPatternRetries: 4,
         retryDelayMs: 2000,
+        disallowPatterns: [/Sign in/i],
       }
     );
   });
@@ -562,10 +573,10 @@ test.describe('Forward Auth Services - SSO Flow', () => {
     await testForwardAuthService(
       page,
       'Vault (Vaultwarden UI)',
-      'https://vaultwarden.datamancy.net/',
+      'https://app.vaultwarden.datamancy.net/#/sso?identifier=datamancy.net',
       /Single sign-on|Use single sign-on|SSO|Log in|Vaultwarden|Bitwarden|Join organization|Master password/i,
       {
-        urlPattern: /vaultwarden\.datamancy\.net/,
+        urlPattern: /app\.vaultwarden\.datamancy\.net/,
         disallowPatterns: [/My Vault|Search vault/i],
         disallowUrlPatterns: [/#\/vault\b/i],
         maxPatternRetries: 4,
@@ -576,9 +587,13 @@ test.describe('Forward Auth Services - SSO Flow', () => {
 });
 
 test.describe('Forward Auth - Session Persistence', () => {
-  test.use({
-    storageState: path.join(__dirname, '../.auth/authelia-session.json'),
-  });
+  test.use(
+    autheliaSessionState
+      ? {
+          storageState: autheliaSessionState,
+        }
+      : {}
+  );
 
   test('Session works across multiple forward-auth services', async ({ page }) => {
     test.setTimeout(120000);

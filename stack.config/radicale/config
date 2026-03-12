@@ -9,7 +9,7 @@ type = http_x_remote_user
 filesystem_folder = /data/collections
 
 [web]
-type = internal
+type = none
 
 [logging]
 level = info

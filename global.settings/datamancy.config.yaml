@@ -19,3 +19,4 @@ runtime:
 vaultwarden:
   org_name: "Datamancy"
   org_identifier: "datamancy.net"
+  org_id: "acf9f5a5-4e64-4d8b-8e03-aa53c9505c3d"

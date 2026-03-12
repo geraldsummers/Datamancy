@@ -34,11 +34,13 @@ export class OIDCLoginPage {
       this.page.locator(`button:has-text("${buttonText}")`).first()
     ).or(
       this.page.locator(`a:has-text("${buttonText}")`).first()
+    ).or(
+      this.page.getByText(nameRegex).first()
     );
 
     let clicked = false;
     if (await oidcButtonByText.first().isVisible().catch(() => false)) {
-      await oidcButtonByText.first().click();
+      await oidcButtonByText.first().click({ force: true });
       clicked = true;
       console.log(`   ✓ Clicked OIDC button: ${buttonText}`);
     } else {

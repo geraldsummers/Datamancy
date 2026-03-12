@@ -83,12 +83,15 @@ services:
       STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
       API_LITELLM_ALLOWLIST: ${API_LITELLM_ALLOWLIST}
       MAIL_DOMAIN: ${MAIL_DOMAIN}
+      VAULTWARDEN_ORG_IDENTIFIER: ${VAULTWARDEN_ORG_IDENTIFIER}
+      VAULTWARDEN_ORG_ID: ${VAULTWARDEN_ORG_ID}
     volumes:
       - caddy_data:/data
       - caddy_config:/config
       - caddy_certs:/certs
       - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./configs/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
+      - ./configs/radicale/index.html:/srv/radicale/index.html:ro
     entrypoint:
       - /bin/sh
       - -c

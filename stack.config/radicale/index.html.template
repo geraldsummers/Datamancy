@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Radicale CalDAV/CardDAV</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 40px;
+        color: #1f2933;
+        background: #ffffff;
+      }
+      h1 {
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+      p {
+        margin: 8px 0 16px;
+        line-height: 1.4;
+      }
+      code {
+        background: #f1f3f5;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .panel {
+        border: 1px solid #d9e2ec;
+        border-radius: 8px;
+        padding: 16px;
+        max-width: 720px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="panel">
+      <h1>Radicale CalDAV/CardDAV</h1>
+      <p>This endpoint provides CalDAV and CardDAV for Datamancy. Use a CalDAV/CardDAV client to connect.</p>
+      <p>Base URL: <code>https://radicale.{{DOMAIN}}/</code></p>
+      <p>Calendar URL: <code>https://calendar.{{DOMAIN}}/</code></p>
+    </div>
+  </body>
+</html>
