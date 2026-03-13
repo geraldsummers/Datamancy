@@ -2,15 +2,57 @@ package org.datamancy.testrunner.suites
 
 import org.datamancy.testrunner.framework.*
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.*
 
 suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
-    suspend fun callLlmWithRetry(payload: Map<String, Any>, attempts: Int = 8, delayMs: Long = 5000): ToolResult {
+    fun isLlmErrorPayload(text: String): Boolean {
+        return try {
+            fun hasErrorKey(element: JsonElement): Boolean = when (element) {
+                is JsonObject -> {
+                    element.containsKey("error") ||
+                        element["status_code"]?.jsonPrimitive?.intOrNull?.let { it >= 400 } == true ||
+                        element.values.any { hasErrorKey(it) }
+                }
+                is JsonArray -> element.any { hasErrorKey(it) }
+                else -> false
+            }
+            hasErrorKey(Json.parseToJsonElement(text))
+        } catch (_: Exception) {
+            val lowered = text.lowercase()
+            lowered.contains("llm_http_error") ||
+                lowered.contains("internalservererror") ||
+                lowered.contains("connection error")
+        }
+    }
+
+    suspend fun waitForLlmReady(maxAttempts: Int = 24, delayMs: Long = 5000) {
+        repeat(maxAttempts) { attempt ->
+            val health = client.getRawResponse("${env.endpoints.liteLLM}/health")
+            val models = client.getRawResponse("${env.endpoints.liteLLM}/v1/models")
+            val modelsBody = models.bodyAsText()
+            val healthy = health.status.value in 200..299
+            val modelAvailable = models.status.value in 200..299 && modelsBody.contains("qwen2.5-7b-instruct")
+
+            if (healthy && modelAvailable) {
+                return
+            }
+
+            if (attempt < maxAttempts - 1) {
+                delay(delayMs)
+            }
+        }
+    }
+
+    suspend fun callLlmWithRetry(payload: Map<String, Any>, attempts: Int = 24, delayMs: Long = 5000): ToolResult {
         var last: ToolResult = ToolResult.Error(0, "LLM call did not execute")
         repeat(attempts) { index ->
             val result = client.callTool("llm_chat_completion", payload)
-            val isToolSuccess = result is ToolResult.Success
-            val hasInlineError = isToolSuccess && (result as ToolResult.Success).extractAgentContent().contains("\"error\"")
-            if (isToolSuccess && !hasInlineError) {
+            if (result is ToolResult.Success) {
+                val content = result.extractAgentContent()
+                if (!isLlmErrorPayload(content)) {
+                    return result
+                }
+            } else if (result is ToolResult.Error && result.statusCode !in 500..599) {
                 return result
             }
             last = result
@@ -22,6 +64,7 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
     }
 
     test("LLM chat completion generates response") {
+        waitForLlmReady()
         val result = callLlmWithRetry(mapOf(
             "model" to "qwen2.5-7b-instruct",
             "messages" to listOf(
@@ -35,7 +78,7 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
         val output = (result as ToolResult.Success).extractAgentContent()
 
 
-        require(!output.contains("\"error\"", ignoreCase = false)) {
+        require(!isLlmErrorPayload(output)) {
             "LLM call returned error response: $output"
         }
 
@@ -43,6 +86,7 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
     }
 
     test("LLM completion handles system prompts") {
+        waitForLlmReady()
         val result = callLlmWithRetry(mapOf(
             "model" to "qwen2.5-7b-instruct",
             "messages" to listOf(
@@ -55,6 +99,7 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
 
         require(result is ToolResult.Success, "LLM completion failed")
         val output = (result as ToolResult.Success).extractAgentContent()
+        require(!isLlmErrorPayload(output)) { "LLM call returned error response: $output" }
         require(output.contains("fun") || output.contains("function"), "Expected function definition, got: $output")
     }
 

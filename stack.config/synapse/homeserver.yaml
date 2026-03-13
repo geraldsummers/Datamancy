@@ -67,7 +67,7 @@ oidc_providers:
   - idp_id: authelia
     idp_name: "Authelia SSO"
     idp_brand: "authelia"
-    discover: true
+    discover: false
     skip_verification: true
     issuer: "https://auth.{{DOMAIN}}"
     client_id: "matrix"
@@ -79,8 +79,9 @@ oidc_providers:
       - "email"
       - "groups"
     authorization_endpoint: "https://auth.{{DOMAIN}}/api/oidc/authorization"
-    token_endpoint: "https://auth.{{DOMAIN}}/api/oidc/token"
-    userinfo_endpoint: "https://auth.{{DOMAIN}}/api/oidc/userinfo"
+    token_endpoint: "http://authelia:9091/api/oidc/token"
+    userinfo_endpoint: "http://authelia:9091/api/oidc/userinfo"
+    jwks_uri: "http://authelia:9091/jwks.json"
     user_mapping_provider:
       config:
         localpart_template: '{{ user.preferred_username|default(user.sub, true)|lower }}'
