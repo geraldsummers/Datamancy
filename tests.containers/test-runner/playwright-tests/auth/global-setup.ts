@@ -187,10 +187,10 @@ async function globalSetup(config: FullConfig) {
       page.locator('input[type="password"]').first()
     ).first();
 
-    await usernameField.fill(username);
-    console.log(`   ✓ Username entered: ${username}`);
+    await usernameField.fill(testUser.username);
+    console.log(`   ✓ Username entered: ${testUser.username}`);
 
-    await passwordField.fill(password);
+    await passwordField.fill(testUser.password);
     console.log('   ✓ Password entered');
 
     // Find and click submit button
