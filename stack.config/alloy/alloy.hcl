@@ -35,6 +35,7 @@ discovery.relabel "containers" {
 }
 
 loki.source.docker "containers" {
+  host       = "tcp://docker-socket-proxy:2375"
   targets    = discovery.relabel.containers.output
   forward_to = [loki.write.local.receiver]
 }
