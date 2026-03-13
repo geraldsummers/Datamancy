@@ -18,9 +18,9 @@ if [ ! -d "${CONFIG_DIR}/.storage" ]; then
 fi
 create_admin_user() {
     if [ -f "${AUTH_FILE}" ]; then
-        USER_COUNT=$(python3 -c "import json; print(len(json.load(open('${AUTH_FILE}'))['data']['users']))" 2>/dev/null || echo "0")
-        if [ "${USER_COUNT}" -gt "0" ]; then
-            echo "Users already exist, skipping admin creation."
+        REAL_USER_COUNT=$(python3 -c "import json; d=json.load(open('${AUTH_FILE}')); users=d.get('data',{}).get('users',[]); print(sum(1 for u in users if u.get('is_active') and not u.get('system_generated')))" 2>/dev/null || echo "0")
+        if [ "${REAL_USER_COUNT}" -gt "0" ]; then
+            echo "Real users already exist, skipping admin creation."
             return
         fi
     fi
