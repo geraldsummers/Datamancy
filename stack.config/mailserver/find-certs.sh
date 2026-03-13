@@ -27,6 +27,32 @@ for key in "${KEY_LOCATIONS[@]}"; do
         break
     fi
 done
+
+if [ -z "${SSL_CERT_PATH:-}" ] || [ -z "${SSL_KEY_PATH:-}" ]; then
+    FALLBACK_CERT="/caddy-certs/certificates/local/${DOMAIN}/${DOMAIN}.crt"
+    FALLBACK_KEY="/caddy-certs/certificates/local/${DOMAIN}/${DOMAIN}.key"
+    if [ -f "$FALLBACK_CERT" ] && [ -f "$FALLBACK_KEY" ]; then
+        SSL_CERT_PATH="$FALLBACK_CERT"
+        SSL_KEY_PATH="$FALLBACK_KEY"
+        export SSL_CERT_PATH SSL_KEY_PATH
+        echo "[mailserver] Using fallback certificate for ${DOMAIN} (mail cert missing)"
+    fi
+fi
+
+if [ -z "${SSL_CERT_PATH:-}" ] || [ -z "${SSL_KEY_PATH:-}" ]; then
+    SELF_SIGNED_DIR="/tmp/docker-mailserver/self-signed"
+    mkdir -p "$SELF_SIGNED_DIR"
+    SSL_CERT_PATH="${SELF_SIGNED_DIR}/${MAIL_DOMAIN}.crt"
+    SSL_KEY_PATH="${SELF_SIGNED_DIR}/${MAIL_DOMAIN}.key"
+    export SSL_CERT_PATH SSL_KEY_PATH
+    echo "[mailserver] Generating temporary self-signed certificate for ${MAIL_DOMAIN}"
+    openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 365 \
+        -subj "/CN=${MAIL_DOMAIN}" \
+        -addext "subjectAltName=DNS:${MAIL_DOMAIN},DNS:${DOMAIN}" \
+        -keyout "$SSL_KEY_PATH" \
+        -out "$SSL_CERT_PATH" >/dev/null 2>&1
+fi
+
 if [ -z "$SSL_CERT_PATH" ] || [ -z "$SSL_KEY_PATH" ]; then
     echo "[mailserver] ERROR: Could not find SSL certificate or key!"
     echo "[mailserver] Checked locations:"
