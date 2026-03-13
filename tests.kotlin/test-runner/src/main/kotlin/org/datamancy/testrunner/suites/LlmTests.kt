@@ -5,7 +5,7 @@ import kotlinx.coroutines.delay
 
 suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
     suspend fun callLlmWithRetry(payload: Map<String, Any>, attempts: Int = 8, delayMs: Long = 5000): ToolResult {
-        var last: ToolResult = ToolResult.Error("LLM call did not execute")
+        var last: ToolResult = ToolResult.Error(0, "LLM call did not execute")
         repeat(attempts) { index ->
             val result = client.callTool("llm_chat_completion", payload)
             val isToolSuccess = result is ToolResult.Success
