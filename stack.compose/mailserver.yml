@@ -21,9 +21,9 @@ services:
           - mail.${DOMAIN}
     depends_on:
       ldap:
-        condition: service_started
+        condition: service_healthy
       caddy:
-        condition: service_started
+        condition: service_healthy
     environment:
       ENABLE_RSPAMD: 1
       ENABLE_CLAMAV: 1

@@ -15,9 +15,10 @@ services:
           - planka.${DOMAIN}
     depends_on:
       caddy:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
+        restart: true
     environment:
       BASE_URL: https://planka.${DOMAIN}
       DATABASE_URL: postgresql://planka:${POSTGRES_PLANKA_PASSWORD}@postgres:5432/planka
