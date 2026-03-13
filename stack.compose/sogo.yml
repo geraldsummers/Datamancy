@@ -28,6 +28,7 @@ services:
     volumes:
       - sogo_data:/var/lib/sogo
       - ./configs/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
+      - ./configs/sogo/sogo-vhost.conf:/etc/apache2/sites-enabled/sogo-vhost.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/80'"]
       interval: 30s
