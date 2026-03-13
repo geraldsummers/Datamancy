@@ -23,18 +23,7 @@ homeassistant:
         - 172.26.0.0/24
         - 172.16.0.0/12
         - 192.168.48.0/24
-      trusted_users:
-        172.16.0.0/12:
-          - group:
-              - system-admin
       allow_bypass_login: true
-
-    - type: homeassistant
-
-    - type: command_line
-      command: /config/auth_ldap.py
-      args: ["--username", "{{ username }}", "--password", "{{ password }}"]
-      meta: true
 
 automation: !include automations.yaml
 script: !include scripts.yaml

@@ -115,11 +115,7 @@ PYEOF
     echo "Admin user created."
 }
 mark_onboarding_user_complete() {
-    if [ -f "${ONBOARDING_FILE}" ]; then
-        echo "Onboarding already configured."
-        return
-    fi
-    echo "Marking user creation step as complete..."
+    echo "Ensuring onboarding steps are marked complete..."
     cat > "${ONBOARDING_FILE}" << 'EOF'
 {
   "version": 3,
@@ -128,12 +124,14 @@ mark_onboarding_user_complete() {
   "data": {
     "done": [
       "user",
+      "core_config",
+      "integration",
       "analytics"
     ]
   }
 }
 EOF
-    echo "User creation step marked complete. Home configuration will be shown on first login."
+    echo "Onboarding marked complete."
 }
 echo "Starting Home Assistant initialization..."
 create_admin_user
@@ -142,5 +140,4 @@ echo "Home Assistant initialization complete."
 if [ -n "${STACK_ADMIN_USER:-}" ]; then
     echo "Admin user: ${STACK_ADMIN_USER}"
 fi
-echo "User will be prompted to create or restore home on first login."
-echo "LDAP users can login via the mobile app or API using their LDAP credentials."
+echo "Home Assistant will load directly to the main UI after authentication."
