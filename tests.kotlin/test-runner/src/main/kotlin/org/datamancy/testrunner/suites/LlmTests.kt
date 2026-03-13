@@ -2,7 +2,6 @@ package org.datamancy.testrunner.suites
 
 import org.datamancy.testrunner.framework.*
 import kotlinx.coroutines.delay
-import io.ktor.client.statement.*
 import kotlinx.serialization.json.*
 
 suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
@@ -28,13 +27,22 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
 
     suspend fun waitForLlmReady(maxAttempts: Int = 24, delayMs: Long = 5000) {
         repeat(maxAttempts) { attempt ->
-            val health = client.getRawResponse("${env.endpoints.liteLLM}/health")
-            val models = client.getRawResponse("${env.endpoints.liteLLM}/v1/models")
-            val modelsBody = models.bodyAsText()
-            val healthy = health.status.value in 200..299
-            val modelAvailable = models.status.value in 200..299 && modelsBody.contains("qwen2.5-7b-instruct")
+            val probe = client.callTool("llm_chat_completion", mapOf(
+                "model" to "qwen2.5-7b-instruct",
+                "messages" to listOf(
+                    mapOf("role" to "user", "content" to "Reply with READY only.")
+                ),
+                "temperature" to 0.0,
+                "max_tokens" to 8
+            ))
+            val ready = if (probe is ToolResult.Success) {
+                val content = probe.extractAgentContent()
+                !isLlmErrorPayload(content) && content.contains("READY")
+            } else {
+                false
+            }
 
-            if (healthy && modelAvailable) {
+            if (ready) {
                 return
             }
 
@@ -44,13 +52,18 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
         }
     }
 
-    suspend fun callLlmWithRetry(payload: Map<String, Any>, attempts: Int = 24, delayMs: Long = 5000): ToolResult {
+    suspend fun callLlmWithRetry(
+        payload: Map<String, Any>,
+        attempts: Int = 24,
+        delayMs: Long = 5000,
+        isAcceptable: (String) -> Boolean
+    ): ToolResult {
         var last: ToolResult = ToolResult.Error(0, "LLM call did not execute")
         repeat(attempts) { index ->
             val result = client.callTool("llm_chat_completion", payload)
             if (result is ToolResult.Success) {
                 val content = result.extractAgentContent()
-                if (!isLlmErrorPayload(content)) {
+                if (!isLlmErrorPayload(content) && isAcceptable(content)) {
                     return result
                 }
             } else if (result is ToolResult.Error && result.statusCode !in 500..599) {
@@ -73,7 +86,9 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
             ),
             "temperature" to 0.1,
             "max_tokens" to 10
-        ))
+        )) { content ->
+            content.contains("4")
+        }
 
         require(result is ToolResult.Success, "LLM completion failed: ${(result as? ToolResult.Error)?.message}")
         val output = (result as ToolResult.Success).extractAgentContent()
@@ -96,7 +111,9 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
             ),
             "temperature" to 0.7,
             "max_tokens" to 100
-        ))
+        )) { content ->
+            content.contains("fun") || content.contains("function")
+        }
 
         require(result is ToolResult.Success, "LLM completion failed")
         val output = (result as ToolResult.Success).extractAgentContent()
