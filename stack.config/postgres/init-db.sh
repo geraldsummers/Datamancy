@@ -10,7 +10,6 @@ POSTGRES_OPENWEBUI_PASSWORD="${POSTGRES_OPENWEBUI_PASSWORD:?ERROR: POSTGRES_OPEN
 POSTGRES_MASTODON_PASSWORD="${POSTGRES_MASTODON_PASSWORD:?ERROR: POSTGRES_MASTODON_PASSWORD not set}"
 POSTGRES_FORGEJO_PASSWORD="${POSTGRES_FORGEJO_PASSWORD:?ERROR: POSTGRES_FORGEJO_PASSWORD not set}"
 POSTGRES_HOMEASSISTANT_PASSWORD="${POSTGRES_HOMEASSISTANT_PASSWORD:-}"
-POSTGRES_ROUNDCUBE_PASSWORD="${POSTGRES_ROUNDCUBE_PASSWORD:?ERROR: POSTGRES_ROUNDCUBE_PASSWORD not set}"
 POSTGRES_AGENT_PASSWORD="${POSTGRES_AGENT_PASSWORD:?ERROR: POSTGRES_AGENT_PASSWORD not set}"
 POSTGRES_PIPELINE_PASSWORD="${POSTGRES_PIPELINE_PASSWORD:?ERROR: POSTGRES_PIPELINE_PASSWORD not set}"
 POSTGRES_SEARCH_SERVICE_PASSWORD="${POSTGRES_SEARCH_SERVICE_PASSWORD:?ERROR: POSTGRES_SEARCH_SERVICE_PASSWORD not set}"
@@ -62,11 +61,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             CREATE USER forgejo WITH PASSWORD \$pwd\$$POSTGRES_FORGEJO_PASSWORD\$pwd\$;
         ELSE
             ALTER USER forgejo WITH PASSWORD \$pwd\$$POSTGRES_FORGEJO_PASSWORD\$pwd\$;
-        END IF;
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'roundcube') THEN
-            CREATE USER roundcube WITH PASSWORD \$pwd\$$POSTGRES_ROUNDCUBE_PASSWORD\$pwd\$;
-        ELSE
-            ALTER USER roundcube WITH PASSWORD \$pwd\$$POSTGRES_ROUNDCUBE_PASSWORD\$pwd\$;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'sogo') THEN
             CREATE USER sogo WITH PASSWORD \$pwd\$$POSTGRES_SOGO_PASSWORD\$pwd\$;
@@ -136,8 +130,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mastodon')\gexec
     SELECT 'CREATE DATABASE forgejo OWNER forgejo'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'forgejo')\gexec
-    SELECT 'CREATE DATABASE roundcube OWNER roundcube'
-    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'roundcube')\gexec
     SELECT 'CREATE DATABASE sogo OWNER sogo'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sogo')\gexec
     SELECT 'CREATE DATABASE datamancy OWNER pipeline_user'
@@ -166,7 +158,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE openwebui TO openwebui;
     GRANT ALL PRIVILEGES ON DATABASE mastodon TO mastodon;
     GRANT ALL PRIVILEGES ON DATABASE forgejo TO forgejo;
-    GRANT ALL PRIVILEGES ON DATABASE roundcube TO roundcube;
     GRANT ALL PRIVILEGES ON DATABASE sogo TO sogo;
     GRANT ALL PRIVILEGES ON DATABASE datamancy TO pipeline_user;
     GRANT CONNECT ON DATABASE datamancy TO search_service_user;
@@ -195,7 +186,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "vaultwarden" -c "G
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "openwebui" -c "GRANT ALL ON SCHEMA public TO openwebui;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "mastodon" -c "GRANT ALL ON SCHEMA public TO mastodon;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgejo" -c "GRANT ALL ON SCHEMA public TO forgejo;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "roundcube" -c "GRANT ALL ON SCHEMA public TO roundcube;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" -c "GRANT ALL ON SCHEMA public TO sogo;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT ALL ON SCHEMA public TO pipeline_user;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT USAGE ON SCHEMA public TO search_service_user;"

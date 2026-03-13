@@ -88,7 +88,6 @@ class AllTestSuitesTest {
 
         assertEquals("http://mastodon-web:3000", endpoints.mastodon)
         assertEquals("http://mastodon-streaming:4000", endpoints.mastodonStreaming)
-        assertEquals("http://roundcube:80", endpoints.roundcube)
     }
 
     @Test
@@ -102,7 +101,7 @@ class AllTestSuitesTest {
         val summary = runner.summary()
 
         
-        assertEquals(6, summary.total)
+        assertEquals(4, summary.total)
     }
 
     
@@ -244,7 +243,7 @@ class AllTestSuitesTest {
 
         val testCounts = mapOf(
             "communication" to 9,
-            "collaboration" to 6,
+            "collaboration" to 4,
             "productivity" to 8,
             "file-management" to 5,
             "security" to 3,
@@ -290,7 +289,6 @@ class AllTestSuitesTest {
         
         assertEquals("http://localhost:3000", endpoints.mastodon)
         assertEquals("http://localhost:4000", endpoints.mastodonStreaming)
-        assertEquals("http://localhost:8010", endpoints.roundcube)
 
         
         assertEquals("http://localhost:3001", endpoints.forgejo)

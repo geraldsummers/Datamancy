@@ -66,7 +66,6 @@ class TestFrameworkTest {
         
         assertNotNull(endpoints.mastodon)
         assertNotNull(endpoints.mastodonStreaming)
-        assertNotNull(endpoints.roundcube)
 
         
         assertNotNull(endpoints.bookstack)
@@ -142,7 +141,7 @@ class TestFrameworkTest {
             "user-interface" to 5,
             
             "communication" to 9,
-            "collaboration" to 6,
+            "collaboration" to 4,
             "productivity" to 8,
             "file-management" to 5,
             "security" to 3,
@@ -153,7 +152,7 @@ class TestFrameworkTest {
         val totalExpected = testCounts.values.sum()
 
         
-        assertEquals(213, totalExpected, "Total test count should be 213")
+        assertEquals(211, totalExpected, "Total test count should be 211")
         println("✅ Total test coverage: $totalExpected tests across ${testCounts.size} suites")
     }
 
@@ -238,7 +237,7 @@ class TestFrameworkTest {
             "caddy", "authelia", "ldap", "open-webui", "jupyterhub",
             
             "mailserver", "synapse", "element", "mastodon",
-            "roundcube", "forgejo", "planka", "seafile", "onlyoffice",
+            "forgejo", "planka", "seafile", "onlyoffice",
             "vaultwarden", "prometheus", "grafana", "kopia",
             "valkey", "mariadb"
         )

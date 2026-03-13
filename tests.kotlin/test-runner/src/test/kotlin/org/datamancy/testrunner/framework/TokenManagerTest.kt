@@ -70,7 +70,6 @@ class TokenManagerTest {
         element = "http://element:80",
         mastodon = "http://mastodon:3000",
         mastodonStreaming = "http://mastodon-streaming:4000",
-        roundcube = "http://roundcube:80",
         forgejo = "http://forgejo:3000",
         planka = "http://planka:1337",
         seafile = "http://seafile:80",

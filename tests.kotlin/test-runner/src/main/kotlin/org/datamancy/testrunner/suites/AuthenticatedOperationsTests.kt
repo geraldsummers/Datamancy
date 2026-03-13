@@ -423,35 +423,6 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
     
 
-    test("Roundcube: Authenticate and access webmail") {
-        val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
-        val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"
-
-        val autheliaResult = auth.login(ldapUsername, ldapPassword)
-        require(autheliaResult is AuthResult.Success) {
-            "Authelia authentication failed: ${(autheliaResult as? AuthResult.Error)?.message}"
-        }
-        println("      ✓ Authenticated with Authelia")
-
-        
-        val directResponse = client.getRawResponse("http://roundcube:80/")
-        require(directResponse.status == HttpStatusCode.OK || directResponse.status == HttpStatusCode.Found) {
-            "Roundcube container not responding: ${directResponse.status}"
-        }
-        println("      ✓ Roundcube container accessible")
-
-        
-        val proxiedResponse = auth.authenticatedGet("http://caddy:80/")
-        require(proxiedResponse.status == HttpStatusCode.OK || proxiedResponse.status.value in 200..399) {
-            "Failed to access through authenticated proxy: ${proxiedResponse.status}"
-        }
-        println("      ✓ Successfully accessed Roundcube through authenticated proxy")
-    }
-
-    
-    
-    
-
     test("Search Service: Authenticate and access API") {
         val ldapUsername = System.getenv("STACK_ADMIN_USER") ?: "sysadmin"
         val ldapPassword = System.getenv("STACK_ADMIN_PASSWORD") ?: System.getenv("LDAP_ADMIN_PASSWORD") ?: "changeme"

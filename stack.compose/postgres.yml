@@ -11,7 +11,6 @@ services:
     volumes:
       - ${NOCOW_DB_DIR}/postgres:/var/lib/postgresql/data
       - ./configs/postgres/init-db.sh:/docker-entrypoint-initdb.d/01-init-db.sh:ro
-      - ./configs/postgres/roundcube-schema.sql:/docker-entrypoint-initdb.d/02-roundcube-schema.sql:ro
       - ./configs/postgres/init-market-data-schema.sql:/docker-entrypoint-initdb.d/init-market-data-schema.sql:ro
     command: postgres -c 'max_connections=300' -c 'shared_buffers=1GB' -c 'max_worker_processes=16' -c 'max_parallel_workers=8'
     healthcheck:

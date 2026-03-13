@@ -12,7 +12,6 @@
  * - Homepage
  * - Ntfy
  * - qBittorrent
- * - Roundcube (Webmail)
  * - Home Assistant
  * - Kopia (Backup)
  * - LDAP Account Manager
@@ -46,7 +45,6 @@ const testUser = fs.existsSync(testUserPath)
     };
 const stackAdminUser = process.env.STACK_ADMIN_USER || testUser.username;
 const stackAdminPassword = process.env.STACK_ADMIN_PASSWORD || testUser.password;
-const stackAdminEmail = process.env.STACK_ADMIN_EMAIL || testUser.email || stackAdminUser;
 
 /**
  * Helper function to test forward auth service access with proper assertions
@@ -445,41 +443,6 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       'https://qbittorrent.datamancy.net/',
       /qBittorrent|Add Torrent|Transfers/i, // Look for qBittorrent UI elements
       { urlPattern: /qbittorrent\.datamancy\.net/ }
-    );
-  });
-
-  test('Roundcube - Access with forward auth', async ({ page }) => {
-    await testForwardAuthService(
-      page,
-      'Roundcube',
-      'https://roundcube.datamancy.net/',
-      /Inbox|Compose|Mailbox|Folders|Settings|Mail/i,
-      {
-        urlPattern: /roundcube\.datamancy\.net/,
-        disallowUrlPatterns: [/_task=login/i],
-        waitForUrlNotMatch: /_task=login/i,
-        onAfterLoad: async (page) => {
-          const roundcubeUser = testUser.email || stackAdminEmail;
-          const roundcubePass = testUser.password || stackAdminPassword;
-          const userInput = page.locator(
-            '#rcmloginuser, input[name=\"_user\"], input[name=\"user\"], input[type=\"text\"], input[type=\"email\"]'
-          ).first();
-          const passInput = page.locator(
-            '#rcmloginpwd, input[name=\"_pass\"], input[name=\"pass\"], input[type=\"password\"]'
-          ).first();
-          const loginButton = page.locator(
-            '#rcmloginsubmit, button:has-text(\"Login\"), button[type=\"submit\"], input[type=\"submit\"]'
-          ).first();
-          if (await userInput.isVisible().catch(() => false)) {
-            await userInput.fill(roundcubeUser);
-            await passInput.fill(roundcubePass);
-            await loginButton.click().catch(() => {});
-            await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
-          }
-          await page.waitForURL((url) => !/_task=login/i.test(url.toString()), { timeout: 30000 }).catch(() => {});
-          await page.waitForSelector('#taskbar, #mailboxlist, #messagelist', { state: 'visible', timeout: 30000 });
-        }
-      }
     );
   });
 

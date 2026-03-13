@@ -37,7 +37,6 @@ services:
           - lam.${DOMAIN}
           - forgejo.${DOMAIN}
           - qbittorrent.${DOMAIN}
-          - roundcube.${DOMAIN}
       authelia:
       postgres:
       mariadb:
@@ -66,7 +65,6 @@ services:
           - homeassistant.${DOMAIN}
           - lam.${DOMAIN}
           - mail.${DOMAIN}
-          - roundcube.${DOMAIN}
           - vault.${DOMAIN}
           - element.${DOMAIN}
           - search.${DOMAIN}

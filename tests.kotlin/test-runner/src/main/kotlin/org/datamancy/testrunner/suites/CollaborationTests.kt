@@ -30,15 +30,4 @@ suspend fun TestRunner.collaborationTests() = suite("Collaboration Tests") {
     }
 
     
-    test("Roundcube webmail loads") {
-        val response = client.getRawResponse("${env.endpoints.roundcube}/")
-        response.status shouldBe HttpStatusCode.OK
-        val body = response.bodyAsText()
-        body.uppercase() shouldContain "<!DOCTYPE HTML>"
-    }
-
-    test("Roundcube login page is accessible") {
-        val response = client.getRawResponse("${env.endpoints.roundcube}/")
-        response.status shouldBe HttpStatusCode.OK
-    }
 }

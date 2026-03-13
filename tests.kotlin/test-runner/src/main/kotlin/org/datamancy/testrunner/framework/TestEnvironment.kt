@@ -45,7 +45,6 @@ import java.io.File
  * @property element Element Matrix web client endpoint
  * @property mastodon Mastodon social network web endpoint
  * @property mastodonStreaming Mastodon streaming API endpoint
- * @property roundcube Roundcube webmail client endpoint
  * @property forgejo Forgejo Git hosting endpoint
  * @property planka Planka project management endpoint
  * @property seafile Seafile file sync and share endpoint
@@ -96,7 +95,6 @@ data class ServiceEndpoints(
 
     val mastodon: String,
     val mastodonStreaming: String,
-    val roundcube: String,
 
     val forgejo: String,
     val planka: String,
@@ -180,7 +178,6 @@ data class ServiceEndpoints(
             
             mastodon = env("MASTODON_URL") ?: "http://mastodon-web:3000",
             mastodonStreaming = env("MASTODON_STREAMING_URL") ?: "http://mastodon-streaming:4000",
-            roundcube = env("ROUNDCUBE_URL") ?: "http://roundcube:80",
             
             forgejo = env("FORGEJO_URL") ?: "http://forgejo:3000",
             planka = env("PLANKA_URL") ?: "http://planka:1337",
@@ -251,7 +248,6 @@ data class ServiceEndpoints(
             
             mastodon = "http://localhost:3000",
             mastodonStreaming = "http://localhost:4000",
-            roundcube = "http://localhost:8010",
             
             forgejo = "http://localhost:3001",
             planka = "http://localhost:1337",

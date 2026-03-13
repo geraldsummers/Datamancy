@@ -239,24 +239,6 @@ identity_providers:
           - code
         token_endpoint_auth_method: client_secret_basic
 
-      - client_id: roundcube
-        client_name: Roundcube
-        client_secret: '{{ROUNDCUBE_OAUTH_SECRET_HASH}}'
-        public: false
-        authorization_policy: one_factor
-        token_endpoint_auth_method: client_secret_basic
-        redirect_uris:
-          - https://roundcube.{{DOMAIN}}/?_task=login&_action=oauth
-          - https://mail.{{DOMAIN}}/?_task=login&_action=oauth
-        scopes:
-          - openid
-          - profile
-          - email
-        grant_types:
-          - authorization_code
-        response_types:
-          - code
-
       - client_id: sogo
         client_name: SOGo
         client_secret: '{{SOGO_OAUTH_SECRET_HASH}}'

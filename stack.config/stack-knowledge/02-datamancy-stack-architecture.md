@@ -43,7 +43,7 @@ Datamancy is a comprehensive self-hosted stack with 50+ services organized into 
 
 ### 2. Data Layer
 - **PostgreSQL**: Relational data (port 5432)
-  - Multiple databases: grafana, bookstack, roundcube, market_data
+  - Multiple databases: grafana, bookstack, market_data
   - Per-service users with limited permissions
 - **MariaDB**: MySQL-compatible storage
   - Used by: BookStack, Mastodon

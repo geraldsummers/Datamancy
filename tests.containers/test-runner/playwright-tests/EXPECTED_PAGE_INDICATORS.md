@@ -58,13 +58,6 @@ This document describes the expected page characteristics for each service after
 - **Validation**: Title is "qBittorrent WebUI"
 - **Key Elements**: Torrent filter input, search pattern field
 
-### Roundcube
-- **URL Pattern**: `roundcube.datamancy.net`
-- **Page Title**: Varies (webmail interface)
-- **UI Pattern**: `/Roundcube Webmail|Inbox|Compose|Mailbox|Folders|Settings/i`
-- **Validation**: Login form is currently accepted (forward-auth only; app-level login still required)
-- **Known Issue**: May return 525 SSL handshake error (Cloudflare)
-
 ### Home Assistant
 - **URL Pattern**: `homeassistant.datamancy.net`
 - **Page Title**: Varies

@@ -23,15 +23,6 @@ class EmailStackTestsTest {
     }
 
     @Test
-    fun `test roundcube endpoint configuration`() {
-        val endpoints = ServiceEndpoints.fromEnvironment()
-
-        assertNotNull(endpoints.roundcube)
-        assertTrue(endpoints.roundcube.contains("roundcube"))
-        assertTrue(endpoints.roundcube.startsWith("http://") || endpoints.roundcube.startsWith("https://"))
-    }
-
-    @Test
     fun `test mailserver URL parsing`() {
         val mailserverUrl = "mailserver:25"
         val parts = mailserverUrl.split(":")
@@ -42,10 +33,9 @@ class EmailStackTestsTest {
     }
 
     @Test
-    fun `test roundcube for localhost`() {
+    fun `test email endpoints for localhost`() {
         val endpoints = ServiceEndpoints.forLocalhost()
 
-        assertEquals("http://localhost:8010", endpoints.roundcube)
         assertEquals("localhost:25", endpoints.mailserver)
     }
 
@@ -57,16 +47,7 @@ class EmailStackTestsTest {
             }
             engine {
                 addHandler { request ->
-                    when {
-                        request.url.toString().contains("roundcube") -> {
-                            respond(
-                                content = ByteReadChannel("<html><body>Roundcube</body></html>"),
-                                status = HttpStatusCode.OK,
-                                headers = headersOf(HttpHeaders.ContentType, "text/html")
-                            )
-                        }
-                        else -> respondOk("OK")
-                    }
+                    respondOk("OK")
                 }
             }
         }
@@ -82,7 +63,7 @@ class EmailStackTestsTest {
         }
 
         val summary = runner.summary()
-        assertEquals(15, summary.total, "Should have 15 email stack tests")
+        assertEquals(9, summary.total, "Should have 9 email stack tests")
     }
 
     @Test
@@ -110,10 +91,8 @@ class EmailStackTestsTest {
     fun `test email endpoints in test environment`() {
         val containerEnv = TestEnvironment.Container
         assertTrue(containerEnv.endpoints.mailserver.isNotEmpty())
-        assertTrue(containerEnv.endpoints.roundcube.isNotEmpty())
 
         val localhostEnv = TestEnvironment.Localhost
         assertTrue(localhostEnv.endpoints.mailserver.isNotEmpty())
-        assertTrue(localhostEnv.endpoints.roundcube.isNotEmpty())
     }
 }
