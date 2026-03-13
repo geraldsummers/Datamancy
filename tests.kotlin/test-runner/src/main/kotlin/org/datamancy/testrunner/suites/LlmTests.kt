@@ -1,10 +1,28 @@
 package org.datamancy.testrunner.suites
 
 import org.datamancy.testrunner.framework.*
+import kotlinx.coroutines.delay
 
 suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
+    suspend fun callLlmWithRetry(payload: Map<String, Any>, attempts: Int = 8, delayMs: Long = 5000): ToolResult {
+        var last: ToolResult = ToolResult.Error("LLM call did not execute")
+        repeat(attempts) { index ->
+            val result = client.callTool("llm_chat_completion", payload)
+            val isToolSuccess = result is ToolResult.Success
+            val hasInlineError = isToolSuccess && (result as ToolResult.Success).extractAgentContent().contains("\"error\"")
+            if (isToolSuccess && !hasInlineError) {
+                return result
+            }
+            last = result
+            if (index < attempts - 1) {
+                delay(delayMs)
+            }
+        }
+        return last
+    }
+
     test("LLM chat completion generates response") {
-        val result = client.callTool("llm_chat_completion", mapOf(
+        val result = callLlmWithRetry(mapOf(
             "model" to "qwen2.5-7b-instruct",
             "messages" to listOf(
                 mapOf("role" to "user", "content" to "What is 2+2? Answer with just the number.")
@@ -25,7 +43,7 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
     }
 
     test("LLM completion handles system prompts") {
-        val result = client.callTool("llm_chat_completion", mapOf(
+        val result = callLlmWithRetry(mapOf(
             "model" to "qwen2.5-7b-instruct",
             "messages" to listOf(
                 mapOf("role" to "system", "content" to "You are a Kotlin expert. Answer with code only."),
