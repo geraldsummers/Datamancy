@@ -1,6 +1,6 @@
 services:
   autoheal:
-    image: willfarrell/autoheal:1.2.0
+    image: willfarrell/autoheal:latest
     container_name: autoheal
     restart: unless-stopped
     networks:
@@ -14,7 +14,7 @@ services:
       ntfy:
         condition: service_started
     environment:
-      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      DOCKER_SOCK: tcp://docker-socket-proxy:2375
       AUTOHEAL_CONTAINER_LABEL: "autoheal"
       AUTOHEAL_INTERVAL: 30
       AUTOHEAL_START_PERIOD: 0

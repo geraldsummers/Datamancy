@@ -4,7 +4,7 @@ logging {
 }
 
 discovery.docker "containers" {
-  host = env("ALLOY_DOCKER_HOST", "tcp://docker-socket-proxy:2375")
+  host = "tcp://docker-socket-proxy:2375"
 }
 
 discovery.relabel "containers" {
@@ -23,13 +23,13 @@ discovery.relabel "containers" {
 
   rule {
     source_labels = ["container"]
-    regex         = env("ALLOY_LOG_INCLUDE", ".*")
+    regex         = ".*"
     action        = "keep"
   }
 
   rule {
     source_labels = ["container"]
-    regex         = env("ALLOY_LOG_EXCLUDE", "^$")
+    regex         = "^$"
     action        = "drop"
   }
 }

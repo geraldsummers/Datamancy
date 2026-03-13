@@ -83,6 +83,7 @@ mastodon-oidc-authenticated.*
 grafana-forward-authenticated.*
 .tmp-screenshots/
 .tmp-test-screens/
+.tmp-server-screenshots/
 
 # Heap dumps from OutOfMemoryError
 *.hprof
