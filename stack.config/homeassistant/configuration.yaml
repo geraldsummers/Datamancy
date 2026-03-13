@@ -1,13 +1,10 @@
 default_config:
 
 http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 172.16.0.0/12
-    - 192.168.64.0/24
-    - 192.168.48.0/24
-    - 127.0.0.1
-    - ::1
+  # trusted_networks auth cannot operate when requests are marked as coming
+  # from a trusted proxy. Keep proxy forwarding disabled so HA sees Caddy's
+  # container IP directly and can apply trusted_networks bypass.
+  use_x_forwarded_for: false
   ip_ban_enabled: false
   login_attempts_threshold: 5
 

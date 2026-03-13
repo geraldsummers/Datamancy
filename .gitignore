@@ -82,6 +82,7 @@ mastodon-test-failed-*.b64
 mastodon-oidc-authenticated.*
 grafana-forward-authenticated.*
 .tmp-screenshots/
+.tmp-test-screens/
 
 # Heap dumps from OutOfMemoryError
 *.hprof
