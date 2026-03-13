@@ -212,7 +212,6 @@ async function testForwardAuthService(
     // Retry pattern matching to handle slow-loading SPAs
     let matchesPattern = false;
     let pageTitle = '';
-    let pageText = '';
     const maxPatternRetries = options.maxPatternRetries ?? 5;
     const retryDelayMs = options.retryDelayMs ?? 2000;
     let disallowedMatch: RegExp | null = null;
@@ -220,12 +219,12 @@ async function testForwardAuthService(
 
     for (let i = 0; i < maxPatternRetries; i++) {
       pageTitle = await page.title();
-      pageText = (await page.textContent('body').catch(() => null)) ?? '';
+      const currentPageText = (await page.textContent('body').catch(() => null)) ?? '';
       bodyHTML = await body.innerHTML();
-      const combinedContent = [pageTitle, pageText, bodyHTML].filter(Boolean).join('\n');
+      const combinedContent = [pageTitle, currentPageText, bodyHTML].filter(Boolean).join('\n');
       matchesPattern = uiPattern.test(combinedContent);
       disallowedMatch = disallowPatterns.find((pattern) =>
-        pattern.test([pageTitle, pageText, bodyHTML].filter(Boolean).join('\n'))
+        pattern.test([pageTitle, currentPageText, bodyHTML].filter(Boolean).join('\n'))
       ) ?? null;
       disallowedUrl = disallowUrlPatterns.find((pattern) => pattern.test(page.url())) ?? null;
 
