@@ -122,7 +122,6 @@ notifier:
 
 identity_providers:
   oidc:
-    issuer: https://auth.{{DOMAIN}}
     hmac_secret: {{AUTHELIA_OIDC_HMAC_SECRET}}
     lifespans:
       access_token: 1h
