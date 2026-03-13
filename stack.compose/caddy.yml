@@ -32,6 +32,7 @@ services:
           - auth.${DOMAIN}
           - kopia.${DOMAIN}
           - mail.${DOMAIN}
+          - sogo.${DOMAIN}
           - agent-tool-server.${DOMAIN}
           - lam.${DOMAIN}
           - forgejo.${DOMAIN}

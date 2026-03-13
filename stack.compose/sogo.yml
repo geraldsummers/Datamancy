@@ -1,9 +1,6 @@
 services:
   sogo:
-    image: datamancy/sogo:5.12.2
-    build:
-      context: .
-      dockerfile: stack.containers/sogo/Dockerfile
+    image: sonroyaalmerol/docker-sogo:5.12.5-1
     container_name: sogo
     restart: unless-stopped
     networks:
@@ -28,7 +25,7 @@ services:
     volumes:
       - sogo_data:/var/lib/sogo
       - ./configs/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
-      - ./configs/sogo/sogo-vhost.conf:/etc/apache2/sites-enabled/sogo-vhost.conf:ro
+      - ./configs/sogo/sogo-vhost.conf:/etc/apache2/conf-enabled/SOGo.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/80'"]
       interval: 30s
