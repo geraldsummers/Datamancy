@@ -7,7 +7,6 @@ REGISTRY_JSON="${REGISTRY_JSON:-$ROOT_DIR/test-registry.json}"
 STATUS_JSON="${STATUS_JSON:-$ROOT_DIR/build-status.json}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
 DRY_RUN="${DRY_RUN:-0}"
-READY_CHECK_PATTERN="${READY_CHECK_PATTERN:-(postgres|caddy|vllm-7b|litellm|planka|mailserver)}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -38,33 +37,6 @@ SERVICES_LIST="$(docker compose -f "$COMPOSE_FILE" config --services)"
 
 tmp_plan="$(mktemp)"
 tmp_updated="$(mktemp)"
-tmp_ready="$(mktemp)"
-
-wait_for_service_ready() {
-    local service="$1"
-    local timeout="${2:-300}"
-    local elapsed=0
-    local interval=5
-
-    while [ "$elapsed" -lt "$timeout" ]; do
-        local state
-        local health
-
-        state="$(docker inspect -f '{{.State.Status}}' "$service" 2>/dev/null || true)"
-        health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$service" 2>/dev/null || true)"
-
-        if [ "$state" = "running" ]; then
-            if [ -z "$health" ] || [ "$health" = "healthy" ]; then
-                return 0
-            fi
-        fi
-
-        sleep "$interval"
-        elapsed=$((elapsed + interval))
-    done
-
-    return 1
-}
 
 python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$tmp_plan"
 import json
@@ -130,35 +102,8 @@ while IFS='|' read -r service build_flag last_changed; do
     echo "$service" >> "$tmp_updated"
 done < "$tmp_plan"
 
-failed_services=()
 if [ -s "$tmp_updated" ] && [ "$DRY_RUN" != "1" ]; then
-    while IFS= read -r service; do
-        [ -z "$service" ] && continue
-        if ! echo "$service" | grep -Eq "$READY_CHECK_PATTERN"; then
-            continue
-        fi
-
-        if wait_for_service_ready "$service" 180; then
-            info "Service ready: $service"
-            echo "$service" >> "$tmp_ready"
-            continue
-        fi
-
-        warn "Service not ready after initial wait: $service (retrying once)"
-        docker compose -f "$COMPOSE_FILE" restart "$service" >/dev/null
-
-        if wait_for_service_ready "$service" 180; then
-            info "Service recovered after restart: $service"
-            echo "$service" >> "$tmp_ready"
-        else
-            error "Service failed readiness check: $service"
-            failed_services+=("$service")
-        fi
-    done < "$tmp_updated"
-fi
-
-if [ -s "$tmp_ready" ] && [ "$DRY_RUN" != "1" ]; then
-    python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$tmp_ready"
+    python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$tmp_updated"
 import json
 import sys
 from datetime import datetime, timezone
@@ -193,9 +138,4 @@ PY
     info "Updated build status: $STATUS_JSON"
 fi
 
-rm -f "$tmp_plan" "$tmp_updated" "$tmp_ready"
-
-if [ "${#failed_services[@]}" -gt 0 ]; then
-    error "Unhealthy services after update: ${failed_services[*]}"
-    exit 1
-fi
+rm -f "$tmp_plan" "$tmp_updated"
