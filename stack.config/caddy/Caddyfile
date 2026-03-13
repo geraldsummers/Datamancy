@@ -322,6 +322,7 @@ homeassistant.{$DOMAIN} {
 	route {
 		import authelia_auth
 		reverse_proxy homeassistant:8123 {
+			header_up -X-Forwarded-For
 			header_up X-Real-IP {remote_host}
 		}
 	}
@@ -334,6 +335,7 @@ api.homeassistant.{$DOMAIN} {
 	@api path /api/*
 	handle @api {
 		reverse_proxy homeassistant:8123 {
+			header_up -X-Forwarded-For
 			header_up X-Real-IP {remote_host}
 		}
 	}
@@ -348,6 +350,7 @@ api.homeassistant.{$DOMAIN} {
 	@websocket path /api/websocket
 	handle @websocket {
 		reverse_proxy homeassistant:8123 {
+			header_up -X-Forwarded-For
 			header_up X-Real-IP {remote_host}
 		}
 	}
