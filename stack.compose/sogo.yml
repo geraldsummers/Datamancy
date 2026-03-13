@@ -29,7 +29,7 @@ services:
       - sogo_data:/var/lib/sogo
       - ./configs/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/20000'"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/80'"]
       interval: 30s
       timeout: 10s
       retries: 10
