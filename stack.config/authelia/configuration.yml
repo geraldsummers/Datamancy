@@ -244,7 +244,7 @@ identity_providers:
         client_secret: '{{SOGO_OAUTH_SECRET_HASH}}'
         public: false
         authorization_policy: one_factor
-        token_endpoint_auth_method: client_secret_basic
+        token_endpoint_auth_method: client_secret_post
         redirect_uris:
           - https://sogo.{{DOMAIN}}/SOGo/
           - https://sogo.{{DOMAIN}}/SOGo/oidc/callback
