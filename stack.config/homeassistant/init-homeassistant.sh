@@ -133,9 +133,34 @@ mark_onboarding_user_complete() {
 EOF
     echo "Onboarding marked complete."
 }
+
+ensure_core_config() {
+    if [ -f "${CORE_FILE}" ]; then
+        return
+    fi
+    cat > "${CORE_FILE}" << 'EOF'
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "core.config",
+  "data": {
+    "latitude": -42.8821,
+    "longitude": 147.3272,
+    "elevation": 30,
+    "unit_system": "metric",
+    "location_name": "Datamancy",
+    "time_zone": "Australia/Hobart",
+    "currency": "USD",
+    "language": "en"
+  }
+}
+EOF
+    echo "Core config written."
+}
 echo "Starting Home Assistant initialization..."
 create_admin_user
 mark_onboarding_user_complete
+ensure_core_config
 echo "Home Assistant initialization complete."
 if [ -n "${STACK_ADMIN_USER:-}" ]; then
     echo "Admin user: ${STACK_ADMIN_USER}"
