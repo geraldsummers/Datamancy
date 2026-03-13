@@ -25,7 +25,8 @@ homeassistant:
         - 192.168.48.0/24
       trusted_users:
         172.16.0.0/12:
-          - group: system-admin
+          - group:
+              - system-admin
       allow_bypass_login: true
 
     - type: homeassistant
