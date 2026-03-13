@@ -2,6 +2,7 @@ package org.datamancy.testrunner.suites
 
 import org.datamancy.testrunner.framework.*
 import kotlinx.coroutines.delay
+import io.ktor.client.statement.*
 import kotlinx.serialization.json.*
 
 suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
