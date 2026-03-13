@@ -37,7 +37,9 @@ services:
       test:
         - CMD-SHELL
         - |
-          python -c "import urllib.request; urllib.request.urlopen('http://localhost:4000/openapi.json', timeout=5)"
+          curl -sf -m 5 http://localhost:4000/openapi.json >/dev/null && \
+          curl -sf -m 5 http://vllm-7b:8000/health >/dev/null && \
+          curl -sf -m 5 http://vllm-7b:8000/v1/models | grep -q qwen
       interval: 15s
       timeout: 10s
       retries: 12
