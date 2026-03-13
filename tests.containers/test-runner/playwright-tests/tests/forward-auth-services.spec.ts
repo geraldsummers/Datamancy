@@ -46,6 +46,15 @@ const testUser = fs.existsSync(testUserPath)
 const stackAdminUser = process.env.STACK_ADMIN_USER || testUser.username;
 const stackAdminPassword = process.env.STACK_ADMIN_PASSWORD || testUser.password;
 
+async function waitForGrafanaShell(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const text = document.body?.innerText ?? '';
+    const hasShell = /Grafana|Last 24 hours|Refresh/i.test(text);
+    const stillLoading = /Loading plugin panel/i.test(text);
+    return hasShell && !stillLoading;
+  }, { timeout: 45000 });
+}
+
 /**
  * Helper function to test forward auth service access with proper assertions
  */
@@ -379,8 +388,12 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       /Grafana|Dashboards|Explore|Connections|Data sources|Loki/i,
       {
         urlPattern: /grafana\.datamancy\.net/,
-        waitForSelectorVisible: 'text=Logs',
-        waitForSelectorTimeoutMs: 30000,
+        onAfterLoad: async (page) => {
+          await waitForGrafanaShell(page);
+        },
+        screenshotDelayMs: 2000,
+        screenshotFullPage: false,
+        screenshotViewport: { width: 1280, height: 360 },
       }
     );
 

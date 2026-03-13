@@ -36,6 +36,15 @@ const guessBaseDomain = (hostname: string) => {
   return parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
 };
 
+async function waitForGrafanaShell(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const text = document.body?.innerText ?? '';
+    const hasShell = /Grafana|Last 24 hours|Refresh/i.test(text);
+    const stillLoading = /Loading plugin panel/i.test(text);
+    return hasShell && !stillLoading;
+  }, { timeout: 45000 });
+}
+
 /**
  * Helper function to test OIDC service access with proper assertions
  */
@@ -608,12 +617,14 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
     if (!grafanaPattern.test(combined)) {
       throw new Error('Expected Grafana UI after forward-auth, but UI pattern not found.');
     }
+    await waitForGrafanaShell(page);
+    await page.setViewportSize({ width: 1280, height: 360 });
 
     await page.screenshot({
       path: '/app/test-results/screenshots/grafana-forward-authenticated.jpg',
       type: 'jpeg',
       quality: 85,
-      fullPage: true
+      fullPage: false
     });
   });
 
