@@ -163,10 +163,10 @@ services:
       - caddy
       - ldap
       - mailserver
-      - postgres
       - authelia
       - internet
       - matrix-internal
+      - postgres
       - valkey
       - mastodon-internal
   test-data-pipeline:
@@ -193,7 +193,6 @@ services:
       - caddy
       - ldap
       - mailserver
-      - postgres
   test-enhanced-auth:
     <<: *test_runner_base
     container_name: test-enhanced-auth
@@ -211,10 +210,10 @@ services:
       - caddy
       - ldap
       - mailserver
-      - postgres
       - authelia
       - internet
       - matrix-internal
+      - postgres
       - valkey
       - mastodon-internal
   test-extended-productivity:
@@ -410,7 +409,6 @@ services:
       - litellm
       - postgres
       - matrix-internal
-      - mailserver
   test-utility:
     <<: *test_runner_base
     container_name: test-utility
