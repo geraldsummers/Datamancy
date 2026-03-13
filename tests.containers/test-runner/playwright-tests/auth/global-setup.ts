@@ -100,13 +100,7 @@ async function globalSetup(config: FullConfig) {
   // Perform initial authentication with Authelia to get session
   console.log('🔐 Authenticating with Authelia...\n');
 
-  const browser = await chromium.launch({
-    args: [
-      '--ignore-certificate-errors',
-      '--ignore-certificate-errors-spki-list',
-      '--disable-features=IsolateOrigins,site-per-process'
-    ]
-  });
+  const browser = await launchChromiumWithRetry();
   const context = await browser.newContext({
     ignoreHTTPSErrors: true,  // Trust self-signed certificates
     bypassCSP: true,  // Bypass Content Security Policy
@@ -154,12 +148,30 @@ async function globalSetup(config: FullConfig) {
     // Fill in login form
     console.log('   📝 Filling login form...');
 
-    // Wait for username field to be visible
-    await page.locator('#username-textfield, input[name="username"], input[type="text"]').first().waitFor({ state: 'visible', timeout: 5000 });
+    // Wait for username field to be visible (Authelia can briefly sit on a loading shell)
+    const usernameLocator = page.locator(
+      '#username-textfield, input[name="username"], input[id="username"], input[autocomplete="username"], input[type="text"]'
+    ).first();
+    const usernameVisible = await usernameLocator
+      .waitFor({ state: 'visible', timeout: 20000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!usernameVisible) {
+      const bodyText = await page.textContent('body').catch(() => '') || '';
+      if (/loading/i.test(bodyText)) {
+        console.log('   ⚠️  Authelia still loading, reloading page once...');
+        await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+      }
+      await usernameLocator.waitFor({ state: 'visible', timeout: 20000 });
+    }
 
     // Try multiple selector strategies for username
     const usernameField = page.locator('#username-textfield').or(
       page.locator('input[name="username"]')
+    ).or(
+      page.locator('input[id="username"]')
+    ).or(
+      page.locator('input[autocomplete="username"]')
     ).or(
       page.locator('input[type="text"]').first()
     ).first();
@@ -167,6 +179,10 @@ async function globalSetup(config: FullConfig) {
     // Try multiple selector strategies for password
     const passwordField = page.locator('#password-textfield').or(
       page.locator('input[name="password"]')
+    ).or(
+      page.locator('input[id="password"]')
+    ).or(
+      page.locator('input[autocomplete="current-password"]')
     ).or(
       page.locator('input[type="password"]').first()
     ).first();
@@ -221,6 +237,40 @@ async function globalSetup(config: FullConfig) {
   }
 
   console.log('✅ Global setup complete!\n');
+}
+
+async function launchChromiumWithRetry() {
+  const launchArgs = {
+    args: [
+      '--ignore-certificate-errors',
+      '--ignore-certificate-errors-spki-list',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-gpu',
+    ]
+  };
+
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      if (attempt > 1) {
+        console.log(`   ⚠️  Chromium launch retry ${attempt}/2...`);
+      }
+      return await chromium.launch(launchArgs);
+    } catch (error) {
+      lastError = error;
+      const message = String((error as Error)?.message || error);
+      const recoverable =
+        message.includes('Target page, context or browser has been closed') ||
+        message.includes('SIGSEGV') ||
+        message.includes('browserType.launch');
+      if (!recoverable || attempt === 2) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+
+  throw lastError;
 }
 
 /**

@@ -29,6 +29,8 @@ export class AutheliaLoginPage {
     ).or(
       page.locator('input[id="username"]')
     ).or(
+      page.locator('input[autocomplete="username"]')
+    ).or(
       page.locator('input[placeholder*="username" i]')
     ).or(
       page.locator('input[type="text"]').first()
@@ -38,6 +40,8 @@ export class AutheliaLoginPage {
       page.locator('input[name="password"]')
     ).or(
       page.locator('input[id="password"]')
+    ).or(
+      page.locator('input[autocomplete="current-password"]')
     ).or(
       page.locator('input[type="password"]').first()
     );
@@ -57,6 +61,25 @@ export class AutheliaLoginPage {
 
     // Log page structure before interacting
     await logPageTelemetry(this.page, 'Authelia Login Page');
+
+    // Allow Authelia SPA to finish rendering before interacting with form fields.
+    const usernameReady = await this.usernameInput
+      .first()
+      .waitFor({ state: 'visible', timeout: 20000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!usernameReady) {
+      const bodyText = await this.page.textContent('body').catch(() => '') || '';
+      if (/loading/i.test(bodyText)) {
+        await this.page.waitForTimeout(3000);
+        await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+      }
+      await this.usernameInput.first().waitFor({ state: 'visible', timeout: 20000 });
+    }
+
+    await this.passwordInput.first().waitFor({ state: 'visible', timeout: 20000 });
+    await this.submitButton.waitFor({ state: 'visible', timeout: 20000 });
 
     // Fill credentials
     await this.usernameInput.fill(username);
