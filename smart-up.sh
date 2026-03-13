@@ -7,6 +7,7 @@ REGISTRY_JSON="${REGISTRY_JSON:-$ROOT_DIR/test-registry.json}"
 STATUS_JSON="${STATUS_JSON:-$ROOT_DIR/build-status.json}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
 DRY_RUN="${DRY_RUN:-0}"
+READY_CHECK_PATTERN="${READY_CHECK_PATTERN:-(postgres|caddy|vllm-7b|litellm|planka|mailserver)}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -133,8 +134,11 @@ failed_services=()
 if [ -s "$tmp_updated" ] && [ "$DRY_RUN" != "1" ]; then
     while IFS= read -r service; do
         [ -z "$service" ] && continue
+        if ! echo "$service" | grep -Eq "$READY_CHECK_PATTERN"; then
+            continue
+        fi
 
-        if wait_for_service_ready "$service" 300; then
+        if wait_for_service_ready "$service" 180; then
             info "Service ready: $service"
             echo "$service" >> "$tmp_ready"
             continue
@@ -143,7 +147,7 @@ if [ -s "$tmp_updated" ] && [ "$DRY_RUN" != "1" ]; then
         warn "Service not ready after initial wait: $service (retrying once)"
         docker compose -f "$COMPOSE_FILE" restart "$service" >/dev/null
 
-        if wait_for_service_ready "$service" 300; then
+        if wait_for_service_ready "$service" 180; then
             info "Service recovered after restart: $service"
             echo "$service" >> "$tmp_ready"
         else
