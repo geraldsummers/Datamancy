@@ -167,7 +167,8 @@ app.vaultwarden.{$DOMAIN} {
 	@vw_auto_enroll path_regexp vw_auto_enroll ^/api/organizations/[^/]+/auto-enroll-status$
 	handle @vw_auto_enroll {
 		header Content-Type application/json
-		respond "{\"autoEnrollEnabled\":true,\"resetPasswordEnabled\":true}" 200
+		# Avoid forcing org auto-enrollment for every fresh OIDC user.
+		respond "{\"autoEnrollEnabled\":false,\"resetPasswordEnabled\":false}" 200
 	}
 
 	@vw_org_undefined path_regexp vw_org_undefined ^/api/organizations/undefined/(.*)$
