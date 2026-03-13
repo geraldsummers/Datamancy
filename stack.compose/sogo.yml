@@ -22,10 +22,13 @@ services:
         condition: service_started
     environment:
       TZ: UTC
+      SSL_CERT_FILE: /ca/caddy-ca.crt
+      CURL_CA_BUNDLE: /ca/caddy-ca.crt
     volumes:
       - sogo_data:/var/lib/sogo
       - ./configs/sogo/sogo.conf:/etc/sogo/sogo.conf:ro
       - ./configs/sogo/sogo-vhost.conf:/etc/apache2/conf-enabled/SOGo.conf:ro
+      - caddy_ca:/ca:ro
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/80'"]
       interval: 30s
