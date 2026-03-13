@@ -19,7 +19,7 @@ services:
       - run
       - /etc/alloy/alloy.hcl
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:12345/-/healthy"]
+      test: ["CMD", "alloy", "--version"]
       interval: 30s
       timeout: 5s
       retries: 3
