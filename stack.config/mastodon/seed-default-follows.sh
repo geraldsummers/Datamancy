@@ -15,7 +15,16 @@ for i in $(seq 1 30); do
 done
 
 echo "Applying default follows to local users..."
-mapfile -t users < <(bundle exec rails runner "puts Account.where(domain: nil).where.not(username: 'mastodon.internal').where('following_count < 10').order(created_at: :desc).pluck(:username)")
+mapfile -t users < <(bundle exec rails runner '
+  candidates = Account.where(domain: nil).where.not(username: "mastodon.internal").order(created_at: :desc).limit(50)
+  selected =
+    if candidates.first&.respond_to?(:following_count)
+      candidates.select { |account| account.following_count.to_i < 10 }
+    else
+      candidates
+    end
+  puts selected.map(&:username)
+')
 if [ -n "${MASTODON_ADMIN_USERNAME:-}" ]; then
   users+=("${MASTODON_ADMIN_USERNAME}")
 fi
