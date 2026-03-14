@@ -268,6 +268,51 @@ suspend fun TestRunner.bookStackIntegrationTests() {
             }
         }
 
+        test("BookStack: Pages render structured content without raw markdown artifacts") {
+            val pagesResponse = client.getRawResponse("${endpoints.bookstack}/api/pages?count=10")
+
+            if (pagesResponse.status == HttpStatusCode.Unauthorized) {
+                println("      ℹ️  BookStack authentication required - skipping")
+                return@test
+            }
+
+            val pagesJson = Json.parseToJsonElement(pagesResponse.bodyAsText()).jsonObject
+            val pages = pagesJson["data"]?.jsonArray ?: emptyList<JsonElement>()
+            if (pages.isEmpty()) {
+                println("      ℹ️  No pages found in BookStack")
+                return@test
+            }
+
+            var checkedPages = 0
+            var structuredPages = 0
+
+            for (page in pages.take(5)) {
+                val pageId = page.jsonObject["id"]?.jsonPrimitive?.int ?: continue
+                val pageDetailResponse = client.getRawResponse("${endpoints.bookstack}/api/pages/$pageId")
+                if (pageDetailResponse.status != HttpStatusCode.OK) continue
+
+                val pageDetail = Json.parseToJsonElement(pageDetailResponse.bodyAsText()).jsonObject
+                val html = pageDetail["html"]?.jsonPrimitive?.content ?: continue
+                checkedPages++
+
+                require(!html.contains("```")) { "Page contains raw markdown code fences" }
+                require(!Regex("(?m)^#\\s+").containsMatchIn(html)) { "Page contains raw markdown headings" }
+
+                val hasStructure = html.contains("<h2>") || html.contains("<h3>") || html.contains("<ul>") || html.contains("<pre")
+                if (hasStructure) {
+                    structuredPages++
+                }
+            }
+
+            if (checkedPages == 0) {
+                println("      ℹ️  Could not inspect any page details")
+                return@test
+            }
+
+            require(structuredPages > 0) { "No inspected pages contained structured HTML sections" }
+            println("      ✓ $structuredPages/$checkedPages inspected pages contain structured HTML content")
+        }
+
         test("BookStack: Pages have proper tags") {
             val pagesResponse = client.getRawResponse("${endpoints.bookstack}/api/pages?count=5")
 

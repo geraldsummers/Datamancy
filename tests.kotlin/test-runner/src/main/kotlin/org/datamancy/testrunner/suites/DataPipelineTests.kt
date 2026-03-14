@@ -51,10 +51,6 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     suspend fun getSourceStatus(sourceName: String): JsonObject? {
         return try {
             val pipelineUrl = endpoints.pipeline
-            if (pipelineUrl.contains("pipeline:")) {
-
-                return null
-            }
             val response = client.getRawResponse("$pipelineUrl/status")
             if (response.status == HttpStatusCode.OK) {
                 val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
@@ -66,6 +62,48 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         } catch (e: Exception) {
             null
         }
+    }
+
+    test("Pipeline monitoring server: health endpoint is reachable") {
+        val response = client.getRawResponse("${endpoints.pipeline}/health")
+        response.status shouldBe HttpStatusCode.OK
+
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        json["status"]?.jsonPrimitive?.content shouldBe "ok"
+        println("      ✓ Pipeline monitoring health endpoint is healthy")
+    }
+
+    test("Pipeline monitoring server: status endpoint exposes sources") {
+        val response = client.getRawResponse("${endpoints.pipeline}/status")
+        response.status shouldBe HttpStatusCode.OK
+
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val sources = json["sources"]?.jsonArray ?: emptyList<JsonElement>()
+        require(sources.isNotEmpty()) { "Pipeline status returned no sources" }
+
+        val sourceNames = sources.mapNotNull { it.jsonObject["source"]?.jsonPrimitive?.content }.toSet()
+        require("cve" in sourceNames) { "Expected cve source in pipeline status" }
+        require("rss" in sourceNames) { "Expected rss source in pipeline status" }
+        println("      ✓ Pipeline status exposes ${sourceNames.size} sources")
+    }
+
+    test("Pipeline monitoring server: sources catalog endpoint is reachable") {
+        val response = client.getRawResponse("${endpoints.pipeline}/sources")
+        response.status shouldBe HttpStatusCode.OK
+
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val sources = json["sources"]?.jsonArray ?: emptyList<JsonElement>()
+        require(sources.isNotEmpty()) { "Pipeline sources endpoint returned no sources" }
+        println("      ✓ Pipeline sources endpoint returned ${sources.size} source definitions")
+    }
+
+    test("Pipeline monitoring server: queue endpoint responds") {
+        val response = client.getRawResponse("${endpoints.pipeline}/queue")
+        response.status shouldBe HttpStatusCode.OK
+
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        require(json.containsKey("available")) { "Queue response missing 'available'" }
+        println("      ✓ Pipeline queue endpoint is reachable")
     }
 
     test("Qdrant has expected pipeline collections") {

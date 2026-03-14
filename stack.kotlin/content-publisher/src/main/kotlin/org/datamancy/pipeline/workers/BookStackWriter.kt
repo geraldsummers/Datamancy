@@ -467,11 +467,110 @@ class BookStackWriter(
 
     private fun formatParagraphs(text: String): String {
         if (text.isBlank()) return ""
-        val safe = BookStackHtmlHelper.sanitizeForHtml(text)
-        return safe.split(Regex("\\n\\s*\\n"))
-            .map { it.trim().replace(Regex("\\s*\\n\\s*"), " ") }
-            .filter { it.isNotBlank() }
-            .joinToString("\n") { "<p>$it</p>" }
+        val lines = text.lines()
+        val output = mutableListOf<String>()
+        val paragraph = mutableListOf<String>()
+        val listItems = mutableListOf<String>()
+        val codeBlock = mutableListOf<String>()
+        var inCodeBlock = false
+
+        fun flushParagraph() {
+            if (paragraph.isEmpty()) return
+            val content = paragraph.joinToString(" ").trim()
+            if (content.isNotBlank()) {
+                output.add("<p>${BookStackHtmlHelper.sanitizeForHtml(content)}</p>")
+            }
+            paragraph.clear()
+        }
+
+        fun flushList() {
+            if (listItems.isEmpty()) return
+            output.add(
+                buildString {
+                    append("<ul>")
+                    listItems.forEach { append("<li>$it</li>") }
+                    append("</ul>")
+                }
+            )
+            listItems.clear()
+        }
+
+        fun flushCodeBlock() {
+            if (codeBlock.isEmpty()) return
+            output.add(formatPre(codeBlock.joinToString("\n")))
+            codeBlock.clear()
+        }
+
+        val bulletRegex = Regex("""^[-*]\s+(.+)$""")
+        val numberedRegex = Regex("""^\d+\.\s+(.+)$""")
+
+        for (rawLine in lines) {
+            val line = rawLine.trimEnd()
+            val trimmed = line.trim()
+
+            if (trimmed.startsWith("```")) {
+                if (inCodeBlock) {
+                    flushCodeBlock()
+                    inCodeBlock = false
+                } else {
+                    flushParagraph()
+                    flushList()
+                    inCodeBlock = true
+                }
+                continue
+            }
+
+            if (inCodeBlock) {
+                codeBlock.add(line)
+                continue
+            }
+
+            if (trimmed.isBlank()) {
+                flushParagraph()
+                flushList()
+                continue
+            }
+
+            when {
+                trimmed.startsWith("### ") -> {
+                    flushParagraph()
+                    flushList()
+                    output.add("<h4>${BookStackHtmlHelper.sanitizeForHtml(trimmed.removePrefix("### ").trim())}</h4>")
+                }
+                trimmed.startsWith("## ") -> {
+                    flushParagraph()
+                    flushList()
+                    output.add("<h3>${BookStackHtmlHelper.sanitizeForHtml(trimmed.removePrefix("## ").trim())}</h3>")
+                }
+                trimmed.startsWith("# ") -> {
+                    flushParagraph()
+                    flushList()
+                    output.add("<h2>${BookStackHtmlHelper.sanitizeForHtml(trimmed.removePrefix("# ").trim())}</h2>")
+                }
+                bulletRegex.matches(trimmed) -> {
+                    flushParagraph()
+                    val item = bulletRegex.find(trimmed)?.groupValues?.get(1).orEmpty()
+                    listItems.add(BookStackHtmlHelper.sanitizeForHtml(item))
+                }
+                numberedRegex.matches(trimmed) -> {
+                    flushParagraph()
+                    val item = numberedRegex.find(trimmed)?.groupValues?.get(1).orEmpty()
+                    listItems.add(BookStackHtmlHelper.sanitizeForHtml(item))
+                }
+                else -> {
+                    flushList()
+                    paragraph.add(trimmed)
+                }
+            }
+        }
+
+        flushParagraph()
+        flushList()
+        if (inCodeBlock) {
+            flushCodeBlock()
+        }
+
+        return output.joinToString("\n")
     }
 
     private fun formatPre(text: String): String {
