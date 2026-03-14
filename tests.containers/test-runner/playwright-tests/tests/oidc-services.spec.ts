@@ -657,14 +657,26 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             }).catch(() => {});
             await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
-            const followingCards = page.locator('article, .account, .account__wrapper, .directory__card');
-            const followingCount = await followingCards.count().catch(() => 0);
-            const pageText = await page.textContent('body').catch(() => '') || '';
-            const hasSeededHandle = /wikimediafoundation|internetarchive|creativecommons|natgeo|tomscott|financialtimes/i.test(pageText);
-            if (followingCount < 1 && !hasSeededHandle) {
-              throw new Error('Mastodon following view did not show seeded follows.');
+            const maxAttempts = 16;
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+              const pageText = await page.textContent('body').catch(() => '') || '';
+              const hasSeededHandle = /wikimediafoundation|internetarchive|creativecommons|natgeo|tomscott|financialtimes/i.test(pageText);
+              const isEmptyFollowing = /doesn.?t follow anyone yet/i.test(pageText);
+              const followingCountFromProfile = Number((pageText.match(/(\d+)\s+following/i) || [])[1] || 0);
+
+              if ((followingCountFromProfile > 0 || hasSeededHandle) && !isEmptyFollowing) {
+                expect(followingCountFromProfile > 0 || hasSeededHandle).toBeTruthy();
+                return;
+              }
+
+              if (attempt < maxAttempts) {
+                await page.waitForTimeout(10000);
+                await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+                await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+              }
             }
-            expect(followingCount > 0 || hasSeededHandle).toBeTruthy();
+
+            throw new Error('Mastodon following view stayed empty after waiting for default-follow seeding.');
           },
         }
       );
