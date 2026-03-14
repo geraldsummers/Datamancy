@@ -396,8 +396,24 @@ test.describe('Forward Auth Services - SSO Flow', () => {
               nbformat_minor: 5,
             },
           };
-          const createResponse = await page.request.put(`${userBase}/api/contents/${notebookName}`, { data: notebookPayload });
-          expect(createResponse.ok()).toBeTruthy();
+
+          const xsrfCookie = (await page.context().cookies())
+            .find((cookie) => cookie.name === '_xsrf');
+          const requestHeaders: Record<string, string> = {
+            Referer: page.url(),
+          };
+          if (xsrfCookie?.value) {
+            requestHeaders['X-XSRFToken'] = decodeURIComponent(xsrfCookie.value);
+          }
+
+          const createResponse = await page.request.put(`${userBase}/api/contents/${notebookName}`, {
+            data: notebookPayload,
+            headers: requestHeaders,
+          });
+          if (!createResponse.ok()) {
+            const body = await createResponse.text().catch(() => '');
+            throw new Error(`Notebook create failed (${createResponse.status()}): ${body.slice(0, 500)}`);
+          }
           const verifyNotebook = await page.request.get(`${userBase}/api/contents/${notebookName}`);
           expect(verifyNotebook.ok()).toBeTruthy();
         },
@@ -416,26 +432,38 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         waitForSelectorVisible: 'text=New Chat',
         waitForSelectorTimeoutMs: 20000,
         onAfterLoad: async (page) => {
-          const whatsNewDialog = page.locator("text=/What\\u2019?s New in Open WebUI|What's New in Open WebUI/i").first();
-          if (await whatsNewDialog.isVisible().catch(() => false)) {
-            await page.waitForTimeout(500);
-          }
-          const dismissSelectors = [
-            'button:has-text("Okay, Let\'s Go!")',
-            'button:has-text("Okay, Let’s Go!")',
-            'button:has-text("Got it")',
-            'button:has-text("Dismiss")',
-            'button[aria-label="Close"]',
-          ];
-          for (const selector of dismissSelectors) {
-            const dismissButton = page.locator(selector).first();
-            if (await dismissButton.isVisible().catch(() => false)) {
-              await dismissButton.click({ force: true }).catch(() => {});
-              await page.waitForTimeout(400);
-              await expect(page.locator("text=/What\\u2019?s New in Open WebUI|What's New in Open WebUI/i").first()).not.toBeVisible({ timeout: 5000 }).catch(() => {});
+          const whatsNewText = page.locator("text=/What\\u2019?s New in Open WebUI|What\\s*'?s New in Open WebUI/i").first();
+          for (let i = 0; i < 8; i++) {
+            const dialog = page.locator('[role="dialog"], .modal, [data-state="open"]').filter({
+              hasText: /What\\s*'?s New in Open WebUI/i,
+            }).first();
+            const dialogVisible = await dialog.isVisible().catch(() => false);
+            const textVisible = await whatsNewText.isVisible().catch(() => false);
+            if (!(dialogVisible || textVisible)) {
               break;
             }
+
+            const dismissCandidates = [
+              dialog.getByRole('button', { name: /Okay,? Let'?s Go!?/i }).first(),
+              dialog.getByRole('button', { name: /Got it|Dismiss|Close/i }).first(),
+              dialog.locator('button[aria-label*="close" i], button[title*="close" i]').first(),
+              page.getByRole('button', { name: /Okay,? Let'?s Go!?|Got it|Dismiss|Close/i }).first(),
+            ];
+
+            let clicked = false;
+            for (const button of dismissCandidates) {
+              if (await button.isVisible().catch(() => false)) {
+                await button.click({ force: true }).catch(() => {});
+                clicked = true;
+                break;
+              }
+            }
+            if (!clicked) {
+              await page.keyboard.press('Escape').catch(() => {});
+            }
+            await page.waitForTimeout(600);
           }
+          await expect(whatsNewText).not.toBeVisible({ timeout: 10000 }).catch(() => {});
         },
       }
     );

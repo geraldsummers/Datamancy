@@ -66,6 +66,7 @@ async function testOIDCService(
     preLogin?: (page: Page) => Promise<void>;
     postLogin?: (page: Page) => Promise<void>;
     uiPatternOverride?: RegExp;
+    skipScreenshot?: boolean;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} OIDC login`);
@@ -565,16 +566,18 @@ async function testOIDCService(
     throw new Error(`Expected ${serviceName} page but UI pattern not found. Pattern: ${effectiveUiPattern}, Title: "${pageTitle}"`);
   }
 
-  // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
-  const screenshotName = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-oidc-authenticated.jpg`;
-  await page.screenshot({
-    path: `/app/test-results/screenshots/${screenshotName}`,
-    type: 'jpeg',
-    quality: 85,
-    fullPage: true
-  });
-  console.log(`   📸 Screenshot saved: ${screenshotName}`);
-  console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
+  if (!options.skipScreenshot) {
+    // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
+    const screenshotName = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-oidc-authenticated.jpg`;
+    await page.screenshot({
+      path: `/app/test-results/screenshots/${screenshotName}`,
+      type: 'jpeg',
+      quality: 85,
+      fullPage: true
+    });
+    console.log(`   📸 Screenshot saved: ${screenshotName}`);
+    console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
+  }
 
   console.log(`   ✅ ${serviceName} OIDC login successful\n`);
 }
@@ -636,6 +639,28 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           loginPath: 'https://mastodon.datamancy.net/auth/sign_in',
           loginButtonPatterns: [/log in|sign in|continue with sso|sso|openid/i],
           oidcLinkPatterns: [/sign in with.*(openid|sso)/i, /openid/i, /sso/i],
+          postLogin: async (page) => {
+            await page.goto('https://mastodon.datamancy.net/following', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+
+            const verifyResponse = await page.request.get('https://mastodon.datamancy.net/api/v1/accounts/verify_credentials');
+            if (!verifyResponse.ok()) {
+              throw new Error(`Mastodon verify_credentials failed (${verifyResponse.status()})`);
+            }
+            const profile = await verifyResponse.json();
+            if (!profile?.id) {
+              throw new Error('Mastodon verify_credentials did not return an account id.');
+            }
+
+            const followingResponse = await page.request.get(
+              `https://mastodon.datamancy.net/api/v1/accounts/${profile.id}/following?limit=1`
+            );
+            if (!followingResponse.ok()) {
+              throw new Error(`Mastodon following API failed (${followingResponse.status()})`);
+            }
+            const following = await followingResponse.json();
+            expect(Array.isArray(following) ? following.length : 0).toBeGreaterThan(0);
+          },
         }
       );
     };
@@ -741,9 +766,12 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           const baseUrl = page.url().split('#')[0];
           await page.goto(`${baseUrl}#!/Mail/0/folderINBOX`, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
           await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+          await page.goto(`${baseUrl}#!/Mail/0/folderINBOX/view`, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+          await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
 
           // Ensure a mailbox row is selected before screenshot capture.
           const mailboxSelectors = [
+            'a[href*="folderINBOX"]',
             'a:has-text("INBOX"), a:has-text("Inbox")',
             'div:has-text("@datamancy")',
             '.mailboxListView .listItem:not(.selected)',
@@ -767,6 +795,13 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           if (await noMailboxLabel.isVisible().catch(() => false)) {
             await page.keyboard.press('i').catch(() => {});
             await page.waitForTimeout(1000);
+          }
+          if (await noMailboxLabel.isVisible().catch(() => false)) {
+            await page.evaluate(() => {
+              const inboxLink = document.querySelector('a[href*="folderINBOX"], a[href*="/Mail/0/folder"]') as HTMLElement | null;
+              inboxLink?.click();
+            }).catch(() => {});
+            await page.waitForTimeout(1200);
           }
           if (await noMailboxLabel.isVisible().catch(() => false)) {
             throw new Error('SOGo mailbox was not selected before screenshot.');
@@ -902,6 +937,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
         loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
         ssoIdentifier: vaultwardenEmail.split('@').pop() || 'datamancy.net',
         ssoEmail: vaultwardenEmail,
+        skipScreenshot: true,
         uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization|Log in|Use single sign-on/i,
         postLogin: async (page) => {
           // Handle create account / master password setup after SSO
