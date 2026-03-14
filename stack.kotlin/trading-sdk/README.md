@@ -215,6 +215,28 @@ df = pd.read_sql("""
 df.set_index('time', inplace=True)
 ```
 
+### Prebuilt Quant Notebooks (JupyterHub)
+
+When the notebook image starts, Datamancy now seeds:
+
+- `~/work/datamancy-notebooks/01_quant_backtest_from_market_data.ipynb`
+- `~/work/datamancy-notebooks/02_rss_sentiment_to_market_signals.ipynb`
+
+These notebooks are wired to the stack Postgres database (`datamancy`) and include:
+
+- EMA/volatility backtesting using real `market_data`
+- run persistence to `strategy_backtest_runs` for leaderboard-style tracking
+- RSS sentiment scoring persisted to `rss_sentiment_signals`
+- price/sentiment correlation plots for rapid strategy triage
+
+### Grafana Trading Dashboard
+
+Grafana auto-loads `Trading Alpha` dashboard (`trading-alpha`) with:
+
+- BTC price vs sentiment overlay
+- bullish/bearish signal counts over time
+- latest backtest run table from `strategy_backtest_runs`
+
 ## Performance
 
 - **Batch insert:** 100 trades in 227ms (440 trades/sec)

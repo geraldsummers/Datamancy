@@ -58,16 +58,61 @@ CREATE INDEX IF NOT EXISTS idx_orderbook_data_time ON orderbook_data (time DESC)
 -- Create index for symbol lookups
 CREATE INDEX IF NOT EXISTS idx_orderbook_data_symbol ON orderbook_data (symbol, exchange, time DESC);
 
+-- Quantified RSS sentiment scores that can be correlated with market moves
+CREATE TABLE IF NOT EXISTS rss_sentiment_signals (
+    id BIGSERIAL PRIMARY KEY,
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    symbol TEXT NOT NULL,
+    source TEXT NOT NULL,
+    article_title TEXT,
+    article_url TEXT,
+    sentiment_score DOUBLE PRECISION NOT NULL, -- normalized to [-1, 1]
+    confidence DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    model_name TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_rss_sentiment_time ON rss_sentiment_signals (observed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rss_sentiment_symbol_time ON rss_sentiment_signals (symbol, observed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rss_sentiment_source_time ON rss_sentiment_signals (source, observed_at DESC);
+
+-- Backtest runs written by notebooks/services to compare strategy variants over time
+CREATE TABLE IF NOT EXISTS strategy_backtest_runs (
+    id BIGSERIAL PRIMARY KEY,
+    run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    strategy_name TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    trades INTEGER NOT NULL DEFAULT 0,
+    win_rate DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    net_return_pct DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    max_drawdown_pct DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    sharpe DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    notes TEXT,
+    metrics JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_strategy_backtest_run_at ON strategy_backtest_runs (run_at DESC);
+CREATE INDEX IF NOT EXISTS idx_strategy_backtest_symbol_time ON strategy_backtest_runs (symbol, timeframe, run_at DESC);
+
 -- Grant permissions to test runner
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'test_runner_user') THEN
         GRANT SELECT, INSERT ON market_data TO test_runner_user;
         GRANT SELECT, INSERT ON orderbook_data TO test_runner_user;
+        GRANT SELECT, INSERT ON rss_sentiment_signals TO test_runner_user;
+        GRANT SELECT, INSERT ON strategy_backtest_runs TO test_runner_user;
+        GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO test_runner_user;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
         GRANT SELECT, INSERT, UPDATE ON market_data TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON orderbook_data TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON rss_sentiment_signals TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON strategy_backtest_runs TO pipeline_user;
+        GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pipeline_user;
     END IF;
 END $$;
 

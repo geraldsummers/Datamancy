@@ -20,7 +20,7 @@ services:
         condition: service_started
     environment:
       RSS_SCHEDULE_MINUTES: "60"
-      RSS_FEED_URLS: "https://hnrss.org/frontpage,https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml,https://www.reddit.com/r/programming/.rss,https://feeds.arstechnica.com/arstechnica/index"
+      RSS_FEED_URLS: "https://www.coindesk.com/arc/outboundfeeds/rss/,https://cointelegraph.com/rss,https://www.marketwatch.com/rss/topstories,https://hnrss.org/frontpage,https://feeds.arstechnica.com/arstechnica/index,https://rss.nytimes.com/services/xml/rss/nyt/Business.xml,https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"
 
       CVE_API_KEY: "${CVE_API_KEY:-}"
       CVE_SCHEDULE_MINUTES: "1440"
@@ -155,8 +155,8 @@ services:
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
 
-      HYPERLIQUID_SYMBOLS: "BTC,ETH"
-      CANDLE_INTERVALS: "1m,5m,15m,1h"
+      HYPERLIQUID_SYMBOLS: "BTC,ETH,SOL,AVAX,LINK"
+      CANDLE_INTERVALS: "1m,5m,15m,1h,4h"
       ENABLE_ORDERBOOK: "false"
       MARKET_DATA_BATCH_SIZE: "250"
       MARKET_DATA_FLUSH_SECONDS: "10"

@@ -39,6 +39,36 @@ for i in {1..30}; do
     fi
     sleep 2
 done
+echo "Applying legacy schema compatibility fixes (if needed)..."
+mariadb -h "$DB_HOST" -u "$DB_USERNAME" -p"$DB_PASSWORD" --protocol=TCP "$DB_DATABASE" <<'EOF' >/dev/null 2>&1
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS system_name VARCHAR(191) NULL AFTER id;
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS hidden TINYINT(1) NOT NULL DEFAULT 0 AFTER system_name;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS system_name VARCHAR(191) NULL;
+CREATE INDEX IF NOT EXISTS users_system_name_index ON users(system_name);
+UPDATE roles SET system_name = name WHERE system_name IS NULL OR system_name = '';
+SET @perm_exists := (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'permissions');
+SET @role_perm_exists := (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'role_permissions');
+SET @rename_perm_sql := IF(@perm_exists = 1 AND @role_perm_exists = 0, 'RENAME TABLE permissions TO role_permissions', 'SELECT 1');
+PREPARE rename_perm_stmt FROM @rename_perm_sql;
+EXECUTE rename_perm_stmt;
+DEALLOCATE PREPARE rename_perm_stmt;
+SET @restr_exists := (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'restrictions');
+SET @entity_perm_exists := (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'entity_permissions');
+SET @rename_restr_sql := IF(@restr_exists = 1 AND @entity_perm_exists = 0, 'RENAME TABLE restrictions TO entity_permissions', 'SELECT 1');
+PREPARE rename_restr_stmt FROM @rename_restr_sql;
+EXECUTE rename_restr_stmt;
+DEALLOCATE PREPARE rename_restr_stmt;
+INSERT IGNORE INTO roles (name, display_name, description, system_name, hidden, created_at, updated_at)
+VALUES ('public', 'Public', 'Public guest access', 'public', 1, NOW(), NOW());
+INSERT IGNORE INTO users (name, email, password, remember_token, created_at, updated_at, email_confirmed, image_id, external_auth_id, slug, system_name)
+VALUES ('Guest', 'guest@example.com', '', NULL, NOW(), NOW(), 1, 0, '', 'guest', 'public');
+INSERT IGNORE INTO role_user (user_id, role_id)
+SELECT u.id, r.id FROM users u JOIN roles r ON r.system_name = 'public'
+WHERE u.system_name = 'public';
+EOF
+if [ -f "/app/www/artisan" ]; then
+    (cd /app/www && php artisan migrate --force >/dev/null 2>&1) || true
+fi
 CONFIGURED=$(mariadb -h "$DB_HOST" -u "$DB_USERNAME" -p"$DB_PASSWORD" --protocol=TCP "$DB_DATABASE" -sN -e "SELECT COUNT(*) FROM settings WHERE setting_key='permissions_configured'" 2>/dev/null || echo "0")
 if [ "$CONFIGURED" != "0" ]; then
     echo "Permissions already configured, skipping..."

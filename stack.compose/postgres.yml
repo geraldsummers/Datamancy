@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     networks:
       - postgres
+      - litellm
     environment:
       POSTGRES_USER: ${POSTGRES_ADMIN_USER}
       POSTGRES_DB: postgres

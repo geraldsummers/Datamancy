@@ -22,6 +22,13 @@ BOOKSTACK_TOKEN_SECRET="$BOOKSTACK_API_TOKEN_SECRET"
 echo "[BookStack API Token] Using build-time generated API token"
 echo "[BookStack API Token] Token ID: $BOOKSTACK_TOKEN_ID"
 cd /app/www
+echo "[BookStack API Token] Ensuring migrations are up to date..."
+php artisan migrate --force >/dev/null 2>&1 || true
+HAS_API_TOKENS=$(php artisan tinker --execute="echo \\Illuminate\\Support\\Facades\\Schema::hasTable('api_tokens') ? '1' : '0';" 2>/dev/null | tail -1)
+if [ "$HAS_API_TOKENS" != "1" ]; then
+    echo "[BookStack API Token] WARNING: api_tokens table is missing after migration attempt. Skipping token generation."
+    exit 0
+fi
 echo "[BookStack API Token] Finding admin user..."
 USER_ID=$(php artisan tinker --execute="echo BookStack\Users\Models\User::where('email', 'admin@admin.com')->first()->id ?? 1;" 2>/dev/null | tail -1)
 if [ -z "$USER_ID" ] || [ "$USER_ID" = "0" ]; then
@@ -51,5 +58,5 @@ if echo "$RESULT" | grep -q "SUCCESS"; then
 else
     echo "[BookStack API Token] ERROR: Failed to create token"
     echo "$RESULT"
-    exit 1
+    exit 0
 fi

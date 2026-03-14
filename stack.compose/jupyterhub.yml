@@ -14,6 +14,9 @@ services:
       litellm:
         aliases:
           - jupyterhub.${DOMAIN}
+      postgres:
+        aliases:
+          - jupyterhub.${DOMAIN}
       docker-proxy:
         aliases:
           - jupyterhub.${DOMAIN}
@@ -28,6 +31,11 @@ services:
       DOCKER_NETWORK_NAME: datamancy_litellm
       JUPYTER_NOTEBOOK_IMAGE: ${JUPYTER_NOTEBOOK_IMAGE:-datamancy-jupyter-notebook:5.4.3}
       DOCKER_HOST: tcp://docker-socket-proxy:2375
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
     volumes:
       - jupyterhub_data:/srv/jupyterhub
       - ./configs/jupyterhub/jupyterhub_config.py:/config/jupyterhub_config.py:ro

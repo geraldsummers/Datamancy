@@ -5,6 +5,14 @@ wiki:
 
 rss:
   feeds:
+    - url: "https://www.coindesk.com/arc/outboundfeeds/rss/"
+      category: "crypto_news"
+    - url: "https://cointelegraph.com/rss"
+      category: "crypto_analysis"
+    - url: "https://www.marketwatch.com/rss/topstories"
+      category: "macro_markets"
+    - url: "https://www.investing.com/rss/news_25.rss"
+      category: "global_markets"
     - url: "https://lobste.rs/rss"
       category: "tech"
 
@@ -23,6 +31,8 @@ marketData:
     - "BTC"
     - "ETH"
     - "SOL"
+    - "AVAX"
+    - "LINK"
     - "AAPL"
     - "GOOGL"
     - "MSFT"

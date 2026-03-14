@@ -1,0 +1,141 @@
+{
+  "uid": "trading-alpha",
+  "title": "Trading Alpha",
+  "tags": ["trading", "sentiment", "backtest"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "BTC Price vs Sentiment",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', time) AS \"time\", AVG(close) AS \"BTC Price\"\nFROM market_data\nWHERE $__timeFilter(time)\n  AND symbol = 'BTC'\n  AND exchange = 'hyperliquid'\n  AND data_type = 'candle_1m'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", AVG(sentiment_score) AS \"BTC Sentiment\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND symbol = 'BTC'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 4
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "BTC Price"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "BTC Sentiment"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Sentiment Signal Counts (15m)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", COUNT(*)::double precision AS \"Bullish\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND sentiment_score >= 0.2\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", COUNT(*)::double precision AS \"Bearish\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND sentiment_score <= -0.2\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Latest Backtest Runs",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT run_at, strategy_name, symbol, timeframe, trades, ROUND((win_rate * 100)::numeric, 2) AS win_rate_pct, ROUND(net_return_pct::numeric, 2) AS net_return_pct, ROUND(max_drawdown_pct::numeric, 2) AS max_drawdown_pct, ROUND(sharpe::numeric, 3) AS sharpe\nFROM strategy_backtest_runs\nWHERE $__timeFilter(run_at)\nORDER BY run_at DESC\nLIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      }
+    }
+  ]
+}

@@ -43,6 +43,11 @@ c.Spawner.environment = {
     'LITELLM_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
     'OPENAI_API_BASE': 'http://litellm:4000/v1',
     'OPENAI_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
+    'POSTGRES_HOST': os.environ.get('POSTGRES_HOST', 'postgres'),
+    'POSTGRES_PORT': os.environ.get('POSTGRES_PORT', '5432'),
+    'POSTGRES_DB': os.environ.get('POSTGRES_DB', 'datamancy'),
+    'POSTGRES_USER': os.environ.get('POSTGRES_USER', 'pipeline_user'),
+    'POSTGRES_PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
     # Ensure mounted home/work volume is writable for jovyan
     'CHOWN_HOME': 'yes',
     'CHOWN_HOME_OPTS': '-R',

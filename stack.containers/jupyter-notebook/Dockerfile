@@ -37,7 +37,14 @@ RUN pip install --no-cache-dir \
     'httpx>=0.27.0' \
     'pydantic>=2.0.0' \
     'tiktoken>=0.7.0' \
-    'jupyterhub==5.4.3'
+    'jupyterhub==5.4.3' \
+    'pandas>=2.2.0' \
+    'numpy>=1.26.0' \
+    'sqlalchemy>=2.0.0' \
+    'psycopg2-binary>=2.9.0' \
+    'matplotlib>=3.8.0' \
+    'seaborn>=0.13.0' \
+    'scipy>=1.11.0'
 
 RUN pip install --no-cache-dir \
     'langchain>=0.3.0' \
