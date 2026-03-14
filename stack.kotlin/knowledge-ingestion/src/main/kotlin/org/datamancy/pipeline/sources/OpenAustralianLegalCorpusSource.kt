@@ -85,7 +85,8 @@ class OpenAustralianLegalCorpusSource(
             }
 
             val conf = Configuration()
-            val path = Path("file://${parquetFile.absolutePath}")
+            // Use raw absolute path to ensure Hadoop resolves local FS correctly inside containers.
+            val path = Path(parquetFile.absolutePath)
             val reader = withContext(Dispatchers.IO) {
                 ParquetReader.builder(GroupReadSupport(), path).withConf(conf).build()
             }

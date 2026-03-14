@@ -460,6 +460,123 @@ write_notebook(
         )
     ]
 )
+
+write_notebook(
+    "04_alpha_signal_ranking.ipynb",
+    [
+        markdown_cell(
+            "# Alpha Signal Ranking (Market + Sentiment)\n\n"
+            "This notebook ranks symbols by combining short-term momentum, volatility normalization,\n"
+            "and RSS sentiment regime. It is designed for quick daily triage of tradable setups.\n\n"
+            "Outputs:\n"
+            "- per-symbol alpha score table\n"
+            "- candidate long/short watchlist\n"
+            "- optional persistence to `strategy_backtest_runs`\n"
+        ),
+        code_cell(
+            "import os\n"
+            "import numpy as np\n"
+            "import pandas as pd\n"
+            "from sqlalchemy import create_engine, text\n"
+            "\n"
+            "pg_host = os.getenv('POSTGRES_HOST', 'postgres')\n"
+            "pg_port = os.getenv('POSTGRES_PORT', '5432')\n"
+            "pg_db = os.getenv('POSTGRES_DB', 'datamancy')\n"
+            "pg_user = os.getenv('POSTGRES_USER', 'pipeline_user')\n"
+            "pg_password = os.getenv('POSTGRES_PASSWORD', '')\n"
+            "engine = create_engine(f'postgresql+psycopg2://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}')\n"
+        ),
+        code_cell(
+            "symbols = ['BTC', 'ETH', 'SOL', 'AVAX', 'LINK']\n"
+            "\n"
+            "px = pd.read_sql(text('''\n"
+            "SELECT time, symbol, close\n"
+            "FROM market_data\n"
+            "WHERE exchange = 'hyperliquid'\n"
+            "  AND data_type = 'candle_1m'\n"
+            "  AND symbol = ANY(:symbols)\n"
+            "  AND time >= NOW() - INTERVAL '7 days'\n"
+            "ORDER BY symbol, time\n"
+            "'''), engine, params={'symbols': symbols}, parse_dates=['time'])\n"
+            "\n"
+            "ss = pd.read_sql(text('''\n"
+            "SELECT observed_at, symbol, sentiment_score\n"
+            "FROM rss_sentiment_signals\n"
+            "WHERE symbol = ANY(:symbols)\n"
+            "  AND observed_at >= NOW() - INTERVAL '7 days'\n"
+            "ORDER BY symbol, observed_at\n"
+            "'''), engine, params={'symbols': symbols}, parse_dates=['observed_at'])\n"
+            "px.head(), len(px), ss.head(), len(ss)\n"
+        ),
+        code_cell(
+            "rows = []\n"
+            "for sym in symbols:\n"
+            "    p = px[px.symbol == sym].copy()\n"
+            "    if len(p) < 120:\n"
+            "        continue\n"
+            "    p['ret_1m'] = p['close'].pct_change().fillna(0)\n"
+            "    p['mom_30m'] = p['close'].pct_change(30)\n"
+            "    p['mom_4h'] = p['close'].pct_change(240)\n"
+            "    p['vol_4h'] = p['ret_1m'].rolling(240).std()\n"
+            "    latest = p.iloc[-1]\n"
+            "\n"
+            "    s = ss[ss.symbol == sym].copy()\n"
+            "    if len(s) > 0:\n"
+            "        s['roll_sent'] = s['sentiment_score'].rolling(20, min_periods=1).mean()\n"
+            "        sent = float(s['roll_sent'].iloc[-1])\n"
+            "    else:\n"
+            "        sent = 0.0\n"
+            "\n"
+            "    vol = float(latest['vol_4h']) if pd.notna(latest['vol_4h']) and latest['vol_4h'] > 0 else 1e-6\n"
+            "    momentum_component = (float(latest['mom_30m']) * 0.4 + float(latest['mom_4h']) * 0.6) / vol\n"
+            "    alpha_score = momentum_component + (sent * 0.75)\n"
+            "\n"
+            "    rows.append({\n"
+            "        'symbol': sym,\n"
+            "        'price': float(latest['close']),\n"
+            "        'mom_30m_pct': float(latest['mom_30m'] * 100),\n"
+            "        'mom_4h_pct': float(latest['mom_4h'] * 100),\n"
+            "        'vol_4h_pct': float(vol * 100),\n"
+            "        'sentiment': sent,\n"
+            "        'alpha_score': alpha_score\n"
+            "    })\n"
+            "\n"
+            "ranked = pd.DataFrame(rows).sort_values('alpha_score', ascending=False)\n"
+            "ranked\n"
+        ),
+        code_cell(
+            "longs = ranked.head(2).copy()\n"
+            "shorts = ranked.tail(2).sort_values('alpha_score').copy()\n"
+            "print('Long candidates:')\n"
+            "display(longs[['symbol', 'alpha_score', 'sentiment', 'mom_30m_pct', 'mom_4h_pct']])\n"
+            "print('Short candidates:')\n"
+            "display(shorts[['symbol', 'alpha_score', 'sentiment', 'mom_30m_pct', 'mom_4h_pct']])\n"
+        ),
+        code_cell(
+            "top = ranked.iloc[0] if len(ranked) > 0 else None\n"
+            "if top is not None:\n"
+            "    with engine.begin() as conn:\n"
+            "        conn.execute(text('''\n"
+            "            INSERT INTO strategy_backtest_runs (\n"
+            "                strategy_name, symbol, timeframe, start_time, end_time,\n"
+            "                trades, win_rate, net_return_pct, max_drawdown_pct, sharpe, notes, metrics\n"
+            "            ) VALUES (\n"
+            "                :strategy_name, :symbol, :timeframe, NOW() - INTERVAL '7 days', NOW(),\n"
+            "                0, 0.0, 0.0, 0.0, 0.0, :notes, CAST(:metrics AS jsonb)\n"
+            "            )\n"
+            "        '''), {\n"
+            "            'strategy_name': 'alpha_signal_ranking',\n"
+            "            'symbol': str(top['symbol']),\n"
+            "            'timeframe': '1m/4h hybrid',\n"
+            "            'notes': 'Signal ranking snapshot; execute with discretionary risk controls',\n"
+            "            'metrics': ranked.to_json(orient='records')\n"
+            "        })\n"
+            "    print('Saved alpha ranking snapshot to strategy_backtest_runs')\n"
+            "else:\n"
+            "    print('No ranked candidates available')\n"
+        )
+    ]
+)
 PY
 
 chown -R ${NB_UID:-1000}:${NB_GID:-100} /home/jovyan/work/datamancy-notebooks 2>/dev/null || true

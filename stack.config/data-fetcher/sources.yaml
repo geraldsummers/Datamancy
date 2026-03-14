@@ -5,8 +5,6 @@ wiki:
 
 rss:
   feeds:
-    - url: "https://www.coindesk.com/arc/outboundfeeds/rss/"
-      category: "crypto_news"
     - url: "https://cointelegraph.com/rss"
       category: "crypto_analysis"
     - url: "https://www.marketwatch.com/rss/topstories"
@@ -25,6 +23,8 @@ rss:
       category: "news_au"
     - url: "https://feeds.bbci.co.uk/news/world/rss.xml"
       category: "news_world"
+    - url: "https://feeds.reuters.com/reuters/businessNews"
+      category: "macro_markets"
 
 marketData:
   symbols:

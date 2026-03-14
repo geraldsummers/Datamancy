@@ -20,7 +20,7 @@ services:
         condition: service_started
     environment:
       RSS_SCHEDULE_MINUTES: "60"
-      RSS_FEED_URLS: "https://www.coindesk.com/arc/outboundfeeds/rss/,https://cointelegraph.com/rss,https://www.marketwatch.com/rss/topstories,https://hnrss.org/frontpage,https://feeds.arstechnica.com/arstechnica/index,https://rss.nytimes.com/services/xml/rss/nyt/Business.xml,https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"
+      RSS_FEED_URLS: "https://cointelegraph.com/rss,https://www.marketwatch.com/rss/topstories,https://hnrss.org/frontpage,https://feeds.arstechnica.com/arstechnica/index,https://rss.nytimes.com/services/xml/rss/nyt/Business.xml,https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml,https://feeds.reuters.com/reuters/businessNews"
 
       CVE_API_KEY: "${CVE_API_KEY:-}"
       CVE_SCHEDULE_MINUTES: "1440"
