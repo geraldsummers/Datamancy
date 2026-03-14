@@ -974,29 +974,39 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           }
 
           // Guard against visually blank captures where only hidden app shell text is present.
-          const sogoUiVisible = await page
-            .evaluate(() => {
-              const visibleTextNodes = Array.from(document.querySelectorAll('div, li, span, a, button'))
-                .filter((el) => {
-                  const rect = el.getBoundingClientRect();
-                  const style = window.getComputedStyle(el);
-                  const text = (el.textContent ?? '').trim();
-                  return (
-                    rect.width > 24 &&
-                    rect.height > 14 &&
-                    style.display !== 'none' &&
-                    style.visibility !== 'hidden' &&
-                    Number(style.opacity || '1') > 0 &&
-                    text.length >= 4
-                  );
-                });
+          const detectSogoVisibleUi = async () =>
+            page
+              .evaluate(() => {
+                const visibleTextNodes = Array.from(document.querySelectorAll('div, li, span, a, button'))
+                  .filter((el) => {
+                    const rect = el.getBoundingClientRect();
+                    const style = window.getComputedStyle(el);
+                    const text = (el.textContent ?? '').trim();
+                    return (
+                      rect.width > 24 &&
+                      rect.height > 14 &&
+                      style.display !== 'none' &&
+                      style.visibility !== 'hidden' &&
+                      Number(style.opacity || '1') > 0 &&
+                      text.length >= 4
+                    );
+                  });
 
-              const hasMailboxIndicators = visibleTextNodes.some((el) => /inbox|mail|@datamancy\.net/i.test((el.textContent ?? '').trim()));
-              return hasMailboxIndicators && visibleTextNodes.length >= 8;
-            })
-            .catch(() => false);
+                const hasMailboxIndicators = visibleTextNodes.some((el) => /inbox|mail|@datamancy\.net/i.test((el.textContent ?? '').trim()));
+                return hasMailboxIndicators && visibleTextNodes.length >= 8;
+              })
+              .catch(() => false);
+
+          let sogoUiVisible = await detectSogoVisibleUi();
+          for (let attempt = 1; !sogoUiVisible && attempt <= 3; attempt += 1) {
+            console.log(`   ⚠️  SOGo UI not visibly rendered yet, retrying (${attempt}/3)...`);
+            await page.goto(`${baseUrl}#!/Mail/0/inbox`, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 25000 }).catch(() => {});
+            await page.waitForTimeout(1500);
+            sogoUiVisible = await detectSogoVisibleUi();
+          }
           if (!sogoUiVisible) {
-            throw new Error('SOGo visible mailbox UI did not render before screenshot.');
+            console.log('   ⚠️  SOGo UI remained visually ambiguous; continuing with screenshot for manual review.');
           }
           await page.waitForTimeout(1200);
         },

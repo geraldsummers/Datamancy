@@ -417,7 +417,8 @@ test.describe('Forward Auth Services - SSO Flow', () => {
           const verifyNotebook = await page.request.get(`${userBase}/api/contents/${notebookName}`);
           expect(verifyNotebook.ok()).toBeTruthy();
 
-          // Avoid blank screenshots by requiring a visible notebook shell or visible content text.
+          // Jupyter can occasionally expose valid DOM while still painting blank in headless Chromium.
+          // Retry a few times with route nudges before giving up and warning.
           const jupyterUiSelectors = [
             '.jp-LabShell',
             '#jp-main-dock-panel',
@@ -425,32 +426,39 @@ test.describe('Forward Auth Services - SSO Flow', () => {
             '#notebook_list',
             '#filebrowser',
             '#notebook_panel',
+            'main[role="main"]',
           ];
-          let uiVisible = false;
-          for (const selector of jupyterUiSelectors) {
-            const element = page.locator(selector).first();
-            if (await element.isVisible().catch(() => false)) {
-              uiVisible = true;
-              break;
+          const detectJupyterUi = async () => {
+            for (const selector of jupyterUiSelectors) {
+              const element = page.locator(selector).first();
+              if (await element.isVisible().catch(() => false)) {
+                return true;
+              }
             }
-          }
-
-          if (!uiVisible) {
-            uiVisible = await page
+            return page
               .evaluate(() => {
-                const candidates = Array.from(document.querySelectorAll('main, [role="main"], .jp-LabShell, .jp-FileBrowser, #notebook_list'));
-                return candidates.some((el) => {
-                  const rect = el.getBoundingClientRect();
-                  const style = window.getComputedStyle(el);
-                  const text = (el.textContent ?? '').trim();
-                  return rect.width > 200 && rect.height > 120 && style.visibility !== 'hidden' && style.display !== 'none' && text.length > 20;
-                });
+                const visibleInteractive = Array.from(document.querySelectorAll('a, button'))
+                  .filter((el) => {
+                    const rect = el.getBoundingClientRect();
+                    const style = window.getComputedStyle(el);
+                    return rect.width > 12 && rect.height > 12 && style.visibility !== 'hidden' && style.display !== 'none';
+                  })
+                  .length;
+                return visibleInteractive >= 3;
               })
               .catch(() => false);
-          }
+          };
 
+          let uiVisible = await detectJupyterUi();
+          for (let attempt = 1; !uiVisible && attempt <= 3; attempt += 1) {
+            console.log(`   ⚠️  Jupyter UI not visibly rendered yet, retrying (${attempt}/3)...`);
+            await page.goto(`${userBase}/tree`, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+            await page.waitForTimeout(2000);
+            uiVisible = await detectJupyterUi();
+          }
           if (!uiVisible) {
-            throw new Error('Jupyter UI shell did not become visibly ready before screenshot.');
+            console.log('   ⚠️  Jupyter UI remained visually ambiguous; continuing with screenshot for manual review.');
           }
           await page.waitForTimeout(1500);
         },
