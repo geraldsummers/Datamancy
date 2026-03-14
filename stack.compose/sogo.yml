@@ -3,6 +3,8 @@ services:
     image: sonroyaalmerol/docker-sogo:5.12.5-1
     container_name: sogo
     restart: unless-stopped
+    labels:
+      autoheal: "true"
     networks:
       - caddy
       - mailserver

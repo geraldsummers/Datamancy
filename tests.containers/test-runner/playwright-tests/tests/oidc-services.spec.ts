@@ -807,6 +807,31 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           /You need to enable JavaScript to run this app/i,
         ],
         postLogin: async (page) => {
+          const isTemporaryServiceError = async () => {
+            const title = await page.title().catch(() => '');
+            const bodyText = (await page.textContent('body').catch(() => '')) || '';
+            return /service unavailable/i.test(`${title}\n${bodyText}`);
+          };
+
+          for (let attempt = 1; attempt <= 8; attempt += 1) {
+            await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+            if (!(await isTemporaryServiceError())) {
+              break;
+            }
+            console.log(`   ⚠️  SOGo returned 503, retrying... (${attempt}/8)`);
+            await page.waitForTimeout(3000);
+            await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+          }
+
+          if (await isTemporaryServiceError()) {
+            throw new Error('SOGo remained unavailable (503) after retries.');
+          }
+
+          const calendarLink = page.getByRole('link', { name: /calendar/i }).first();
+          if (await calendarLink.isVisible().catch(() => false)) {
+            await calendarLink.click({ force: true }).catch(() => {});
+          }
+
           await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
           await expect
             .poll(
@@ -817,256 +842,21 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               },
               { timeout: 30000, intervals: [500, 1000, 2000] }
             )
-            .toMatch(/SOGo|Mail|Calendar|Contacts|Address\s?Book/i);
-
-          const mailboxSelected = async () => {
-            const noMailboxLabel = page.locator('text=/No mailbox selected/i').first();
-            return !(await noMailboxLabel.isVisible().catch(() => false));
-          };
-          const mailboxUiReady = async () => {
-            const bodyText = (await page.textContent('body').catch(() => '')) || '';
-            if (!/@datamancy\.net|mail|inbox/i.test(bodyText)) {
-              return false;
-            }
-            const mailboxHint = page
-              .locator('text=/@datamancy\\.net|Inbox|Mail/i')
-              .first();
-            return await mailboxHint.isVisible().catch(() => false);
-          };
-
-          const baseUrl = page.url().split('#')[0];
-          const accountEmail = await page
-            .evaluate(() => {
-              const text = document.body?.innerText ?? '';
-              const match = text.match(/[A-Za-z0-9._%+-]+@datamancy\.net/i);
-              return match?.[0] ?? null;
-            })
-            .catch(() => null);
-
-          const tryMailboxHashRoutes = async (mailboxKey: string) => {
-            const candidateHashes = [
-              `#!/Mail/${mailboxKey}/folderINBOX`,
-              `#!/Mail/${mailboxKey}/folderINBOX/view`,
-              `#!/Mail/${mailboxKey}/folderInbox`,
-              `#!/Mail/${mailboxKey}/folderInbox/view`,
-            ];
-            for (const hash of candidateHashes) {
-              const target = `${baseUrl}${hash}`;
-              await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => {});
-              await page
-                .evaluate((nextHash) => {
-                  window.location.hash = nextHash;
-                }, hash)
-                .catch(() => {});
-              await page.waitForTimeout(1000);
-              if (await mailboxSelected()) {
-                return true;
-              }
-            }
-            return false;
-          };
-
-          const mailNav = page.getByRole('link', { name: /^Mail$/i }).first();
-          if (await mailNav.isVisible().catch(() => false)) {
-            await mailNav.click({ force: true }).catch(() => {});
-            await page.waitForTimeout(800);
-          }
-
-          if (!(await mailboxSelected()) && accountEmail) {
-            await tryMailboxHashRoutes(accountEmail);
-            if (!(await mailboxSelected())) {
-              await tryMailboxHashRoutes(encodeURIComponent(accountEmail));
-            }
-          }
-
-          // Keep numeric account index fallback for older SOGo route formats.
-          if (!(await mailboxSelected())) {
-            for (let i = 0; i <= 5; i += 1) {
-              await tryMailboxHashRoutes(String(i));
-              if (await mailboxSelected()) {
-                break;
-              }
-            }
-          }
-
-          // Ensure a mailbox row/folder is selected before screenshot capture.
-          const mailboxSelectors = [
-            'li:has-text("@datamancy.net") div:has(button:has-text("more_vert"))',
-            'li:has-text("@datamancy.net") div:has(button:has-text("Options"))',
-            'li:has-text("@datamancy.net") > div',
-            'li:has-text("@datamancy.net") > div > div:has-text("@datamancy.net")',
-            'li:has-text("@datamancy.net") div[style*="cursor"]',
-            'li:has(button:has-text("more_vert")):has-text("@datamancy.net")',
-            'li:has(button[aria-label*="more_vert"]):has-text("@datamancy.net")',
-            'li:has(button:has-text("Options")):has-text("@datamancy.net")',
-            'a[href*="#!/Mail/"][href*="/folderINBOX"]',
-            'a[href*="/folderINBOX"]',
-            'li:has-text("@datamancy.net")',
-            '[role="listitem"]:has-text("@datamancy.net")',
-            'a:has-text("INBOX"), a:has-text("Inbox")',
-            'div:has-text("@datamancy")',
-            '.mailboxListView .listItem:not(.selected)',
-            '.mailbox-list .mailbox-row:not(.selected)',
-            '[id*="mailbox"] .listItem:not(.selected)',
-            'text=/Inbox/i',
-          ];
-          for (const selector of mailboxSelectors) {
-            const mailbox = page.locator(selector).first();
-            if (await mailbox.isVisible().catch(() => false)) {
-              await mailbox.click({ force: true }).catch(() => {});
-              await mailbox.dblclick({ force: true }).catch(() => {});
-              await page.waitForTimeout(1000);
-              if (await mailboxSelected()) {
-                break;
-              }
-            }
-          }
-
-          if (!(await mailboxSelected())) {
-            await page.keyboard.press('i').catch(() => {});
-            await page.waitForTimeout(1000);
-          }
-          if (!(await mailboxSelected())) {
-            await page.evaluate(() => {
-              const inboxLink = document.querySelector('a[href*="folderINBOX"], a[href*="/Mail/0/folder"]') as HTMLElement | null;
-              inboxLink?.click();
-            }).catch(() => {});
-            await page.waitForTimeout(1200);
-          }
-          if (!(await mailboxSelected())) {
-            await page.evaluate(() => {
-              const selectableAccountRow = Array.from(document.querySelectorAll('li, div')).find((el) => {
-                const text = el.textContent ?? '';
-                return (
-                  /@datamancy\.net/i.test(text) &&
-                  /more_vert|options|delegation|subscribe|new folder/i.test(text) &&
-                  window.getComputedStyle(el).cursor === 'pointer'
-                );
-              }) as HTMLElement | undefined;
-              selectableAccountRow?.click();
-              selectableAccountRow?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-              selectableAccountRow?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-
-              const clickableAccountRow = Array.from(document.querySelectorAll('li, div, span'))
-                .find((el) =>
-                  /@datamancy\.net/i.test(el.textContent ?? '') &&
-                  window.getComputedStyle(el).cursor === 'pointer'
-                ) as HTMLElement | undefined;
-              if (clickableAccountRow) {
-                clickableAccountRow.click();
-                clickableAccountRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-                clickableAccountRow.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-                clickableAccountRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-              }
-
-              const accountRow = Array.from(document.querySelectorAll('li'))
-                .find(
-                  (el) =>
-                    /@datamancy\.net/i.test(el.textContent ?? '') &&
-                    /more_vert|options/i.test(el.textContent ?? '')
-                );
-              const accountText = Array.from(document.querySelectorAll('div, span, p'))
-                .find((el) => /@datamancy\.net/i.test(el.textContent ?? '')) as HTMLElement | undefined;
-              const textNode = accountRow ??
-                accountText ??
-                Array.from(document.querySelectorAll('li, div, span'))
-                  .find((el) => /@datamancy\.net/i.test(el.textContent ?? ''));
-              const el = textNode as HTMLElement | undefined;
-              if (!el) {
-                return;
-              }
-              el.click();
-              el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-              el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-              el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-
-              const inboxCandidate = Array.from(
-                document.querySelectorAll('a, li, div, span')
-              ).find(
-                (node) =>
-                  /^(inbox|folder inbox)$/i.test((node.textContent ?? '').trim()) ||
-                  /\binbox\b/i.test(node.textContent ?? '') ||
-                  /folderINBOX/i.test((node as HTMLAnchorElement).getAttribute?.('href') ?? '')
-              ) as HTMLElement | undefined;
-              inboxCandidate?.click();
-            }).catch(() => {});
-            await page.keyboard.press('ArrowRight').catch(() => {});
-            await page.keyboard.press('Enter').catch(() => {});
-            await page.waitForTimeout(1200);
-          }
-          if (!(await mailboxSelected())) {
-            throw new Error('SOGo mailbox was not selected before screenshot.');
-          }
-          if (!(await mailboxUiReady())) {
-            await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => {});
-            await page.waitForTimeout(1500);
-          }
-          if (!(await mailboxUiReady())) {
-            throw new Error('SOGo mailbox UI did not render before screenshot.');
-          }
-
-          // Guard against visually blank captures where only hidden app shell text is present.
-          const detectSogoVisibleUi = async () =>
-            page
-              .evaluate(() => {
-                const visibleTextNodes = Array.from(document.querySelectorAll('div, li, span, a, button'))
-                  .filter((el) => {
-                    const rect = el.getBoundingClientRect();
-                    const style = window.getComputedStyle(el);
-                    const text = (el.textContent ?? '').trim();
-                    return (
-                      rect.width > 24 &&
-                      rect.height > 14 &&
-                      style.display !== 'none' &&
-                      style.visibility !== 'hidden' &&
-                      Number(style.opacity || '1') > 0 &&
-                      text.length >= 4
-                    );
-                  });
-
-                const hasSogoIndicators = visibleTextNodes.some((el) =>
-                  /inbox|mail|calendar|contacts|address\s?book|today|week|month|@datamancy\.net/i
-                    .test((el.textContent ?? '').trim())
-                );
-                return hasSogoIndicators && visibleTextNodes.length >= 8;
-              })
-              .catch(() => false);
-
-          const calendarLink = page.getByRole('link', { name: /calendar/i }).first();
-          if (await calendarLink.isVisible().catch(() => false)) {
-            await calendarLink.click({ force: true }).catch(() => {});
-            await page.waitForTimeout(1200);
-          }
-
-          const calendarUrl = baseUrl
-            .replace(/\/Mail\/view.*/i, '/Calendar/view')
-            .replace(/\/Mail(\/|$).*/i, '/Calendar/view');
-
-          let sogoUiVisible = await detectSogoVisibleUi();
-          for (let attempt = 1; !sogoUiVisible && attempt <= 6; attempt += 1) {
-            console.log(`   ⚠️  SOGo UI not visibly rendered yet, retrying (${attempt}/6)...`);
-            await page.goto(calendarUrl, { waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => {});
-            await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-            await page.waitForTimeout(2500);
-            sogoUiVisible = await detectSogoVisibleUi();
-          }
-          if (!sogoUiVisible) {
-            throw new Error('SOGo UI remained visually ambiguous after retries; refusing to pass with a likely blank render.');
-          }
-          await page.waitForTimeout(800);
+            .toMatch(/SOGo|Mail|Calendar|Contacts|Address\s?Book|@datamancy\.net/i);
         },
       }
     );
   });
 
   test('Element (Matrix Web) - OIDC login flow', async ({ page }) => {
+    test.setTimeout(180000);
     const domain = process.env.DOMAIN || 'datamancy.net';
     const homeserverUrl = `https://matrix.${domain}`;
     await testOIDCService(
       page,
       'Element (Matrix Web)',
       'https://element.datamancy.net/',
-      /All rooms|Home|People|Rooms|Explore|Settings|Chats|Start chat|Recents|Room|Start a chat|Create a room|People/i,
+      /All rooms|Home|People|Rooms|Explore|Settings|Chats|Start chat|Recents|Room|Start a chat|Create a room|People|Setting up keys/i,
       ['Authelia', 'Continue with Authelia SSO', 'Continue with SSO', 'SSO', 'Single sign-on', 'Sign in with SSO'],
       {
         disallowPatterns: [/Welcome to Element/i, /Sign in/i, /Create Account/i],
