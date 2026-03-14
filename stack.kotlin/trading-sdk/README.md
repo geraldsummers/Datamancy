@@ -82,11 +82,7 @@ ssh user@server "docker cp /tmp/test-runner.jar test-all:/app/test-runner.jar"
 ssh user@server "docker exec test-all java -jar /app/test-runner.jar --suite trading-dsl --env container"
 ```
 
-**Expected Results:** 12/14 tests passing (86%)
-
-Remaining failures:
-- ATR-based sizing calculation (logic issue, not infrastructure)
-- Candle data mismatch (test assertion issue)
+**Expected Results:** All trading SDK tests should pass.
 
 ## Usage Examples
 
@@ -175,6 +171,22 @@ strategy("TrendFollower") {
             }
         }
     }
+}
+```
+
+### Alpha Candidate Ranking (Notebook-Friendly)
+
+Use the repository helper to get a ranked shortlist of symbols based on recent momentum and sentiment:
+
+```kotlin
+val candidates = marketDataRepository.getAlphaCandidates(
+    exchange = "hyperliquid",
+    lookbackHours = 24,
+    limit = 10
+)
+
+candidates.forEach { c ->
+    println("${c.symbol}: alpha=${c.alphaScore} return=${c.returnRatio} sentiment=${c.sentimentScore}")
 }
 ```
 

@@ -109,8 +109,9 @@ class MarketDataRepository(
     ): List<Trade> = withContext(Dispatchers.IO) {
         val sql = """
             SELECT time, symbol, exchange, trade_id, price, size, side, is_liquidation
-            FROM trades
+            FROM market_data
             WHERE symbol = ? AND exchange = ?
+              AND data_type = 'trade'
               AND time >= ? AND time <= ?
             ORDER BY time DESC
             LIMIT ?
@@ -128,6 +129,86 @@ class MarketDataRepository(
                 buildList {
                     while (result.next()) {
                         add(result.toTrade())
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Rank symbols by momentum + sentiment + trend persistence.
+     * Useful for quickly selecting trade candidates inside notebooks.
+     */
+    suspend fun getAlphaCandidates(
+        exchange: String = "hyperliquid",
+        lookbackHours: Int = 24,
+        limit: Int = 20
+    ): List<AlphaCandidate> = withContext(Dispatchers.IO) {
+        val sql = """
+            WITH recent AS (
+                SELECT
+                    symbol,
+                    time,
+                    close,
+                    LAG(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close
+                FROM market_data
+                WHERE exchange = ?
+                  AND data_type = 'candle_1m'
+                  AND time >= NOW() - (?::text || ' hours')::interval
+            ),
+            momentum AS (
+                SELECT
+                    symbol,
+                    COALESCE(SUM(CASE WHEN prev_close IS NOT NULL AND close > prev_close THEN 1 ELSE 0 END)::double precision / NULLIF(COUNT(*), 0), 0) AS up_ratio,
+                    COALESCE((MAX(close) - MIN(close)) / NULLIF(MIN(close), 0), 0) AS return_ratio
+                FROM recent
+                GROUP BY symbol
+            ),
+            sentiment AS (
+                SELECT
+                    symbol,
+                    COALESCE(AVG(sentiment_score), 0) AS sentiment_score,
+                    COALESCE(AVG(confidence), 0) AS sentiment_confidence
+                FROM rss_sentiment_signals
+                WHERE observed_at >= NOW() - (?::text || ' hours')::interval
+                GROUP BY symbol
+            )
+            SELECT
+                m.symbol,
+                m.return_ratio,
+                m.up_ratio,
+                COALESCE(s.sentiment_score, 0) AS sentiment_score,
+                COALESCE(s.sentiment_confidence, 0) AS sentiment_confidence,
+                (m.return_ratio * 100.0)
+                    + (m.up_ratio * 25.0)
+                    + (COALESCE(s.sentiment_score, 0) * 20.0)
+                    + (COALESCE(s.sentiment_confidence, 0) * 5.0) AS alpha_score
+            FROM momentum m
+            LEFT JOIN sentiment s ON s.symbol = split_part(m.symbol, '-', 1)
+            ORDER BY alpha_score DESC
+            LIMIT ?
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, exchange)
+                stmt.setInt(2, lookbackHours)
+                stmt.setInt(3, lookbackHours)
+                stmt.setInt(4, limit)
+
+                val result = stmt.executeQuery()
+                buildList {
+                    while (result.next()) {
+                        add(
+                            AlphaCandidate(
+                                symbol = result.getString("symbol"),
+                                returnRatio = result.getDouble("return_ratio"),
+                                upRatio = result.getDouble("up_ratio"),
+                                sentimentScore = result.getDouble("sentiment_score"),
+                                sentimentConfidence = result.getDouble("sentiment_confidence"),
+                                alphaScore = result.getDouble("alpha_score")
+                            )
+                        )
                     }
                 }
             }
@@ -230,3 +311,12 @@ data class VolumeStats(
             sellVolume / totalVolume * BigDecimal.valueOf(100)
         } else BigDecimal.ZERO
 }
+
+data class AlphaCandidate(
+    val symbol: String,
+    val returnRatio: Double,
+    val upRatio: Double,
+    val sentimentScore: Double,
+    val sentimentConfidence: Double,
+    val alphaScore: Double
+)

@@ -4,7 +4,7 @@
   "tags": ["trading", "sentiment", "backtest"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": {
     "from": "now-7d",
@@ -135,6 +135,67 @@
         "w": 12,
         "x": 12,
         "y": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top Alpha Candidates (24h)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH recent AS (\n  SELECT symbol, time, close,\n         LAG(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close\n  FROM market_data\n  WHERE $__timeFilter(time)\n    AND exchange = 'hyperliquid'\n    AND data_type = 'candle_1m'\n),\nmomentum AS (\n  SELECT symbol,\n         COALESCE(SUM(CASE WHEN prev_close IS NOT NULL AND close > prev_close THEN 1 ELSE 0 END)::double precision / NULLIF(COUNT(*), 0), 0) AS up_ratio,\n         COALESCE((MAX(close) - MIN(close)) / NULLIF(MIN(close), 0), 0) AS return_ratio\n  FROM recent\n  GROUP BY symbol\n),\nsentiment AS (\n  SELECT symbol,\n         COALESCE(AVG(sentiment_score), 0) AS sentiment_score,\n         COALESCE(AVG(confidence), 0) AS sentiment_confidence\n  FROM rss_sentiment_signals\n  WHERE observed_at >= NOW() - INTERVAL '24 hours'\n  GROUP BY symbol\n)\nSELECT\n  m.symbol,\n  ROUND((m.return_ratio * 100.0)::numeric, 2) AS return_pct,\n  ROUND((m.up_ratio * 100.0)::numeric, 2) AS up_candle_pct,\n  ROUND(COALESCE(s.sentiment_score, 0)::numeric, 3) AS sentiment,\n  ROUND(COALESCE(s.sentiment_confidence, 0)::numeric, 3) AS confidence,\n  ROUND(((m.return_ratio * 100.0)\n      + (m.up_ratio * 25.0)\n      + (COALESCE(s.sentiment_score, 0) * 20.0)\n      + (COALESCE(s.sentiment_confidence, 0) * 5.0))::numeric, 2) AS alpha_score\nFROM momentum m\nLEFT JOIN sentiment s ON s.symbol = split_part(m.symbol, '-', 1)\nORDER BY alpha_score DESC\nLIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Trade Flow Imbalance (Buy vs Sell Notional)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', time) AS \"time\", SUM(CASE WHEN side = 'buy' THEN COALESCE(price,0) * COALESCE(size,0) ELSE 0 END) AS \"Buy Notional\"\nFROM market_data\nWHERE $__timeFilter(time)\n  AND exchange = 'hyperliquid'\n  AND data_type = 'trade'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', time) AS \"time\", SUM(CASE WHEN side = 'sell' THEN COALESCE(price,0) * COALESCE(size,0) ELSE 0 END) AS \"Sell Notional\"\nFROM market_data\nWHERE $__timeFilter(time)\n  AND exchange = 'hyperliquid'\n  AND data_type = 'trade'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 18
       }
     }
   ]
