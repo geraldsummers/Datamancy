@@ -48,21 +48,6 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
 
-    suspend fun getSourceStatus(sourceName: String): JsonObject? {
-        return try {
-            val response = getPipelineResponse("/status") ?: return null
-            if (response.status == HttpStatusCode.OK) {
-                val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-                val sources = json["sources"]?.jsonArray
-                sources?.find {
-                    it.jsonObject["source"]?.jsonPrimitive?.content == sourceName
-                }?.jsonObject
-            } else null
-        } catch (e: Exception) {
-            null
-        }
-    }
-
     suspend fun getPipelineResponse(path: String): HttpResponse? {
         val suffix = if (path.startsWith("/")) path else "/$path"
         val candidateBases = buildList {
@@ -77,6 +62,21 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
             }
         }
         return null
+    }
+
+    suspend fun getSourceStatus(sourceName: String): JsonObject? {
+        return try {
+            val response = getPipelineResponse("/status") ?: return null
+            if (response.status == HttpStatusCode.OK) {
+                val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+                val sources = json["sources"]?.jsonArray
+                sources?.find {
+                    it.jsonObject["source"]?.jsonPrimitive?.content == sourceName
+                }?.jsonObject
+            } else null
+        } catch (e: Exception) {
+            null
+        }
     }
 
     test("Pipeline monitoring server: health endpoint is reachable") {
