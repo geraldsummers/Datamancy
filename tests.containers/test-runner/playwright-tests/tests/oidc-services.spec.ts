@@ -772,6 +772,16 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             const noMailboxLabel = page.locator('text=/No mailbox selected/i').first();
             return !(await noMailboxLabel.isVisible().catch(() => false));
           };
+          const mailboxUiReady = async () => {
+            const bodyText = (await page.textContent('body').catch(() => '')) || '';
+            if (!/@datamancy\.net|mail|inbox/i.test(bodyText)) {
+              return false;
+            }
+            const mailboxHint = page
+              .locator('text=/@datamancy\\.net|Inbox|Mail/i')
+              .first();
+            return await mailboxHint.isVisible().catch(() => false);
+          };
 
           const baseUrl = page.url().split('#')[0];
           const accountEmail = await page
@@ -935,6 +945,13 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           }
           if (!(await mailboxSelected())) {
             throw new Error('SOGo mailbox was not selected before screenshot.');
+          }
+          if (!(await mailboxUiReady())) {
+            await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => {});
+            await page.waitForTimeout(1500);
+          }
+          if (!(await mailboxUiReady())) {
+            throw new Error('SOGo mailbox UI did not render before screenshot.');
           }
         },
       }
