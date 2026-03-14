@@ -9,7 +9,10 @@ import org.datamancy.pipeline.monitoring.ProgressReporter
 import org.datamancy.pipeline.sources.standardized.*
 import org.datamancy.pipeline.storage.DeduplicationStore
 import org.datamancy.pipeline.storage.DocumentStagingStore
+import org.datamancy.pipeline.storage.StagedDocument
 import org.datamancy.pipeline.storage.SourceMetadataStore
+import org.datamancy.pipeline.trading.RssSentimentAnalyzer
+import org.datamancy.pipeline.trading.RssSentimentSignalStore
 
 private val logger = KotlinLogging.logger {}
 
@@ -26,11 +29,18 @@ fun main() {
         user = config.postgres.user,
         dbPassword = config.postgres.password
     )
+    val rssSentimentSignalStore = RssSentimentSignalStore(
+        jdbcUrl = config.postgres.jdbcUrl,
+        user = config.postgres.user,
+        password = config.postgres.password
+    )
+    val rssSentimentAnalyzer = RssSentimentAnalyzer()
 
     Runtime.getRuntime().addShutdownHook(Thread {
         try {
             dedupStore.flush()
             stagingStore.close()
+            rssSentimentSignalStore.close()
         } catch (e: Exception) {
             logger.error(e) { "Error during shutdown: ${e.message}" }
         }
@@ -57,7 +67,16 @@ fun main() {
 
         if (config.rss.enabled) {
             launch {
-                runStandardizedSource(config.qdrant.rssCollection, stagingStore, dedupStore, metadataStore) {
+                runStandardizedSource(
+                    collectionName = config.qdrant.rssCollection,
+                    stagingStore = stagingStore,
+                    dedupStore = dedupStore,
+                    metadataStore = metadataStore,
+                    onDocumentsStaged = { stagedDocs ->
+                        val signals = stagedDocs.flatMap(rssSentimentAnalyzer::analyze)
+                        rssSentimentSignalStore.persistBatch(signals)
+                    }
+                ) {
                     RssStandardizedSource(
                         feedUrls = config.rss.feedUrls,
                         backfillDays = 7
@@ -160,6 +179,7 @@ suspend fun <T : org.datamancy.pipeline.core.Chunkable> runStandardizedSource(
     stagingStore: DocumentStagingStore,
     dedupStore: DeduplicationStore,
     metadataStore: SourceMetadataStore,
+    onDocumentsStaged: (suspend (List<StagedDocument>) -> Unit)? = null,
     sourceFactory: () -> org.datamancy.pipeline.core.StandardizedSource<T>
 ) {
     val source = sourceFactory()
@@ -169,7 +189,8 @@ suspend fun <T : org.datamancy.pipeline.core.Chunkable> runStandardizedSource(
         collectionName = collectionName,
         stagingStore = stagingStore,
         dedupStore = dedupStore,
-        metadataStore = metadataStore
+        metadataStore = metadataStore,
+        onDocumentsStaged = onDocumentsStaged
     )
 
     runner.run()

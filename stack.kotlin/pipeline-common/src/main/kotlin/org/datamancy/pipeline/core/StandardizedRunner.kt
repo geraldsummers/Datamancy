@@ -45,7 +45,8 @@ class StandardizedRunner<T : Chunkable>(
     private val stagingStore: DocumentStagingStore,
     private val dedupStore: DeduplicationStore,
     private val metadataStore: SourceMetadataStore,
-    private val scheduler: SourceScheduler? = null
+    private val scheduler: SourceScheduler? = null,
+    private val onDocumentsStaged: (suspend (List<StagedDocument>) -> Unit)? = null
 ) {
     private val sourceName = source.name
 
@@ -106,8 +107,10 @@ class StandardizedRunner<T : Chunkable>(
 
                             
                             if (batch.size >= batchSize) {
-                                stagingStore.stageBatch(batch)
-                                processed += batch.size
+                                val docsToStage = batch.toList()
+                                stagingStore.stageBatch(docsToStage)
+                                onDocumentsStaged?.invoke(docsToStage)
+                                processed += docsToStage.size
                                 batch.clear()
                             }
 
@@ -119,8 +122,10 @@ class StandardizedRunner<T : Chunkable>(
 
                 
                 if (batch.isNotEmpty()) {
-                    stagingStore.stageBatch(batch)
-                    processed += batch.size
+                    val docsToStage = batch.toList()
+                    stagingStore.stageBatch(docsToStage)
+                    onDocumentsStaged?.invoke(docsToStage)
+                    processed += docsToStage.size
                 }
 
                 val durationMs = System.currentTimeMillis() - startTime
