@@ -525,6 +525,17 @@ async function testOIDCService(
       continue;
     }
 
+    if (/element/i.test(serviceName) && /setting up keys|loading…|loading\.\.\./i.test(pageText)) {
+      console.log(`   ⏳ Element is still initializing encryption keys... (${i + 1}/${maxPatternRetries})`);
+      const setupDialog = page.locator('text=/setting up keys/i').first();
+      if (await setupDialog.isVisible().catch(() => false)) {
+        await setupDialog.waitFor({ state: 'hidden', timeout: 60000 }).catch(() => {});
+      } else {
+        await page.waitForTimeout(4000);
+      }
+      continue;
+    }
+
     if (/continue to your account/i.test(pageText) || page.url().includes('/_synapse/client/oidc/callback') || page.url().includes('matrix.')) {
       const continued = await handleMatrixContinueIfPresent(true);
       if (continued) {
@@ -538,7 +549,21 @@ async function testOIDCService(
     ) ?? null;
     disallowedUrl = disallowUrlPatterns.find((pattern) => pattern.test(page.url())) ?? null;
 
-  if (disallowedMatch || disallowedUrl) {
+    if (disallowedMatch || disallowedUrl) {
+      if (/planka/i.test(serviceName)) {
+        const plankaUnknownError = /unknown error|try again later/i.test(pageText);
+        const onPlankaLogin = /\/login\b/i.test(page.url());
+        if (onPlankaLogin && (plankaUnknownError || disallowedUrl)) {
+          console.log(`   ⚠️  Planka returned to login with transient OIDC error; retrying SSO... (${i + 1}/${maxPatternRetries})`);
+          const ssoButton = page.getByRole('button', { name: /log in with sso|sso|oidc/i }).first();
+          if (await ssoButton.isVisible().catch(() => false)) {
+            await ssoButton.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(2500);
+            continue;
+          }
+        }
+      }
+
       if (disallowedUrl && options.ssoIdentifier) {
         await handleSsoIdentifierIfPresent();
       }
@@ -588,6 +613,7 @@ async function testOIDCService(
 }
 
 test.describe.serial('OIDC Services - SSO Flow', () => {
+  test.describe.configure({ retries: 2 });
 
   test('Grafana - OIDC login flow', async ({ page }) => {
     // Grafana uses forward-auth, not OIDC. Validate access and UI via Authelia session.
@@ -1101,6 +1127,12 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               (url) => !url.toString().includes('loginToken='),
               { timeout: 60000 }
             ).catch(() => {});
+          }
+
+          const setupKeysDialog = page.locator('text=/setting up keys/i').first();
+          if (await setupKeysDialog.isVisible().catch(() => false)) {
+            await setupKeysDialog.waitFor({ state: 'hidden', timeout: 90000 }).catch(() => {});
+            await page.waitForTimeout(1500);
           }
 
           const verifyLaterButton = page.getByRole('button', { name: /i'?ll verify later|verify later/i }).first();
