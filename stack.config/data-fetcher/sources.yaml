@@ -23,7 +23,7 @@ rss:
       category: "news_au"
     - url: "https://feeds.bbci.co.uk/news/world/rss.xml"
       category: "news_world"
-    - url: "https://feeds.reuters.com/reuters/businessNews"
+    - url: "https://feeds.bbci.co.uk/news/business/rss.xml"
       category: "macro_markets"
 
 marketData:

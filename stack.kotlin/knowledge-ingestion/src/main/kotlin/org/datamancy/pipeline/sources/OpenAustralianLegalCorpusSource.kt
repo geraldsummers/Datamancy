@@ -84,7 +84,12 @@ class OpenAustralianLegalCorpusSource(
                 }
             }
 
-            val conf = Configuration()
+            val conf = Configuration().apply {
+                // Ensure local filesystem support is available inside the shaded runtime.
+                set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
+                set("fs.local.impl", "org.apache.hadoop.fs.LocalFileSystem")
+                set("fs.AbstractFileSystem.file.impl", "org.apache.hadoop.fs.local.LocalFs")
+            }
             // Use raw absolute path to ensure Hadoop resolves local FS correctly inside containers.
             val path = Path(parquetFile.absolutePath)
             val reader = withContext(Dispatchers.IO) {
