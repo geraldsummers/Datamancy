@@ -4,7 +4,7 @@
   "tags": ["trading", "sentiment", "backtest"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "30s",
   "time": {
     "from": "now-7d",
@@ -28,6 +28,11 @@
           "refId": "B",
           "format": "time_series",
           "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", AVG(sentiment_score) AS \"BTC Sentiment\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND symbol = 'BTC'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", AVG(sentiment_score) AS \"Global Crypto Risk\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND symbol = 'CRYPTO_GLOBAL'\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -66,11 +71,27 @@
                 "value": "right"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Global Crypto Risk"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
           }
         ]
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 24,
         "x": 0,
         "y": 0
@@ -78,7 +99,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Sentiment Signal Counts (15m)",
+      "title": "ETH Price vs Sentiment",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -87,26 +108,122 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", COUNT(*)::double precision AS \"Bullish\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND sentiment_score >= 0.2\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "SELECT time_bucket('15 minutes', time) AS \"time\", AVG(close) AS \"ETH Price\"\nFROM market_data\nWHERE $__timeFilter(time)\n  AND symbol = 'ETH'\n  AND exchange = 'hyperliquid'\n  AND data_type = 'candle_1m'\nGROUP BY 1\nORDER BY 1"
         },
         {
           "refId": "B",
           "format": "time_series",
-          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", COUNT(*)::double precision AS \"Bearish\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND sentiment_score <= -0.2\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", AVG(sentiment_score) AS \"ETH Sentiment\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND symbol = 'ETH'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", AVG(sentiment_score) AS \"Global Crypto Risk\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND symbol = 'CRYPTO_GLOBAL'\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "decimals": 0
+          "decimals": 4
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ETH Price"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ETH Sentiment"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Global Crypto Risk"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Crypto Risk Sentiment by Region (15m)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", AVG(sentiment_score) AS \"Global\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND symbol = 'CRYPTO_GLOBAL'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", AVG(sentiment_score) AS \"North America\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND symbol = 'CRYPTO_NA'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", AVG(sentiment_score) AS \"Europe\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND symbol = 'CRYPTO_EU'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', observed_at) AS \"time\", AVG(sentiment_score) AS \"APAC\"\nFROM rss_sentiment_signals\nWHERE $__timeFilter(observed_at)\n  AND symbol = 'CRYPTO_APAC'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 3
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 16
       }
     },
     {
@@ -131,10 +248,10 @@
         "showHeader": true
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 16
       }
     },
     {
@@ -162,7 +279,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 24
       }
     },
     {
@@ -195,7 +312,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 24
       }
     }
   ]

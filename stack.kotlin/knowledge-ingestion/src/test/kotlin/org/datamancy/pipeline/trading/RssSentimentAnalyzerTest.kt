@@ -24,8 +24,9 @@ class RssSentimentAnalyzerTest {
 
         val signals = analyzer.analyze(doc)
         assertTrue(signals.isNotEmpty())
-        assertEquals("BTC", signals.first().symbol)
-        assertTrue(signals.first().sentimentScore > 0.0)
+        assertTrue(signals.any { it.symbol == "BTC" })
+        assertTrue(signals.any { it.symbol == "CRYPTO_GLOBAL" })
+        assertTrue(signals.all { it.sentimentScore > 0.0 })
     }
 
     @Test
@@ -43,8 +44,26 @@ class RssSentimentAnalyzerTest {
 
         val signals = analyzer.analyze(doc)
         assertTrue(signals.isNotEmpty())
-        assertEquals("ETH", signals.first().symbol)
-        assertTrue(signals.first().sentimentScore < 0.0)
+        assertTrue(signals.any { it.symbol == "ETH" })
+        assertTrue(signals.all { it.sentimentScore < 0.0 })
+    }
+
+    @Test
+    fun `analyze emits regional risk sentiment for regional crypto context`() {
+        val doc = stagedDoc(
+            id = "rss-4",
+            text = "Crypto markets in Asia are rallying while Europe remains cautious.",
+            metadata = mapOf(
+                "title" to "Asia leads crypto recovery",
+                "link" to "https://example.com/asia-crypto",
+                "feed_title" to "Macro Crypto"
+            )
+        )
+
+        val signals = analyzer.analyze(doc)
+        assertTrue(signals.any { it.symbol == "CRYPTO_GLOBAL" })
+        assertTrue(signals.any { it.symbol == "CRYPTO_APAC" })
+        assertTrue(signals.any { it.symbol == "CRYPTO_EU" })
     }
 
     @Test

@@ -21,7 +21,7 @@ data class RssSentimentSignal(
 )
 
 class RssSentimentAnalyzer(
-    private val modelName: String = "rule-based-rss-v1"
+    private val modelName: String = "rule-based-rss-v2"
 ) {
     private val positiveKeywords = setOf(
         "surge", "rally", "bullish", "uptrend", "breakout", "adoption", "approval", "beat", "growth",
@@ -37,14 +37,21 @@ class RssSentimentAnalyzer(
         "bitcoin" to "BTC",
         "ethereum" to "ETH",
         "ether" to "ETH",
-        "solana" to "SOL",
-        "dogecoin" to "DOGE",
-        "cardano" to "ADA",
-        "ripple" to "XRP",
-        "litecoin" to "LTC",
-        "binance coin" to "BNB",
-        "bnb" to "BNB",
-        "xrp" to "XRP"
+        "btc" to "BTC",
+        "eth" to "ETH"
+    )
+
+    private val cryptoContextKeywords = setOf(
+        "crypto", "cryptocurrency", "digital asset", "token", "blockchain",
+        "bitcoin", "ethereum", "btc", "eth", "defi", "stablecoin", "altcoin"
+    )
+
+    private val regionalKeywords = mapOf(
+        "CRYPTO_NA" to setOf("united states", "u.s.", "usa", "north america", "canada"),
+        "CRYPTO_EU" to setOf("europe", "european union", "eu", "ecb", "france", "germany", "uk"),
+        "CRYPTO_APAC" to setOf("asia", "apac", "china", "japan", "korea", "singapore", "hong kong"),
+        "CRYPTO_LATAM" to setOf("latam", "latin america", "brazil", "argentina", "mexico"),
+        "CRYPTO_MENA" to setOf("middle east", "mena", "uae", "saudi", "qatar")
     )
 
     fun analyze(document: StagedDocument): List<RssSentimentSignal> {
@@ -90,12 +97,13 @@ class RssSentimentAnalyzer(
         val symbols = linkedSetOf<String>()
 
         "\\$([A-Z]{2,10})".toRegex().findAll(text).forEach { match ->
-            symbols += match.groupValues[1]
+            val token = match.groupValues[1]
+            if (token == "BTC" || token == "ETH") symbols += token
         }
 
         "(^|\\s)([A-Z]{2,6})(\\s|$)".toRegex().findAll(title).forEach { match ->
             val token = match.groupValues[2]
-            if (token !in setOf("USD", "USDT", "USDC", "ETF")) {
+            if (token in setOf("BTC", "ETH")) {
                 symbols += token
             }
         }
@@ -104,7 +112,20 @@ class RssSentimentAnalyzer(
             if (lower.contains(alias)) symbols += symbol
         }
 
-        return symbols.take(5).toSet()
+        if (hasCryptoContext(lower)) {
+            symbols += "CRYPTO_GLOBAL"
+            regionalKeywords.forEach { (symbol, keywords) ->
+                if (keywords.any { lower.contains(it) }) {
+                    symbols += symbol
+                }
+            }
+        }
+
+        return symbols.take(8).toSet()
+    }
+
+    private fun hasCryptoContext(text: String): Boolean {
+        return cryptoContextKeywords.any { text.contains(it) }
     }
 
     private fun scoreSentiment(text: String): Double {
