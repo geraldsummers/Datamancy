@@ -773,9 +773,17 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
           await page.goto(`${baseUrl}#!/Mail/0/folderINBOX/view`, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
           await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+          const mailNav = page.getByRole('link', { name: /^Mail$/i }).first();
+          if (await mailNav.isVisible().catch(() => false)) {
+            await mailNav.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(800);
+          }
 
           // Ensure a mailbox row is selected before screenshot capture.
           const mailboxSelectors = [
+            'li:has-text("@datamancy.net")',
+            '[role="listitem"]:has-text("@datamancy.net")',
+            'text=/[a-z0-9._%+-]+@datamancy\\.net/i',
             'a[href*="folderINBOX"]',
             'a:has-text("INBOX"), a:has-text("Inbox")',
             'div:has-text("@datamancy")',
@@ -788,6 +796,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             const mailbox = page.locator(selector).first();
             if (await mailbox.isVisible().catch(() => false)) {
               await mailbox.click({ force: true }).catch(() => {});
+              await mailbox.dblclick({ force: true }).catch(() => {});
               await page.waitForTimeout(1000);
               const noMailboxLabel = page.locator('text=/No mailbox selected/i').first();
               if (!(await noMailboxLabel.isVisible().catch(() => false))) {
@@ -805,6 +814,14 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             await page.evaluate(() => {
               const inboxLink = document.querySelector('a[href*="folderINBOX"], a[href*="/Mail/0/folder"]') as HTMLElement | null;
               inboxLink?.click();
+            }).catch(() => {});
+            await page.waitForTimeout(1200);
+          }
+          if (await noMailboxLabel.isVisible().catch(() => false)) {
+            await page.evaluate(() => {
+              const textNode = Array.from(document.querySelectorAll('li, div, span'))
+                .find((el) => /@datamancy\.net/i.test(el.textContent ?? ''));
+              (textNode as HTMLElement | undefined)?.click();
             }).catch(() => {});
             await page.waitForTimeout(1200);
           }
