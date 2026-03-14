@@ -774,37 +774,64 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           };
 
           const baseUrl = page.url().split('#')[0];
+          const accountEmail = await page
+            .evaluate(() => {
+              const text = document.body?.innerText ?? '';
+              const match = text.match(/[A-Za-z0-9._%+-]+@datamancy\.net/i);
+              return match?.[0] ?? null;
+            })
+            .catch(() => null);
+
+          const tryMailboxHashRoutes = async (mailboxKey: string) => {
+            const candidateHashes = [
+              `#!/Mail/${mailboxKey}/folderINBOX`,
+              `#!/Mail/${mailboxKey}/folderINBOX/view`,
+              `#!/Mail/${mailboxKey}/folderInbox`,
+              `#!/Mail/${mailboxKey}/folderInbox/view`,
+            ];
+            for (const hash of candidateHashes) {
+              const target = `${baseUrl}${hash}`;
+              await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => {});
+              await page
+                .evaluate((nextHash) => {
+                  window.location.hash = nextHash;
+                }, hash)
+                .catch(() => {});
+              await page.waitForTimeout(1000);
+              if (await mailboxSelected()) {
+                return true;
+              }
+            }
+            return false;
+          };
+
           const mailNav = page.getByRole('link', { name: /^Mail$/i }).first();
           if (await mailNav.isVisible().catch(() => false)) {
             await mailNav.click({ force: true }).catch(() => {});
             await page.waitForTimeout(800);
           }
 
-          // Try direct mailbox routes first; account index can vary and is not always 0.
-          for (let i = 0; i <= 5; i += 1) {
-            const candidateRoutes = [
-              `${baseUrl}#!/Mail/${i}/folderINBOX`,
-              `${baseUrl}#!/Mail/${i}/folderINBOX/view`,
-            ];
-            for (const route of candidateRoutes) {
-              await page
-                .goto(route, {
-                  waitUntil: 'domcontentloaded',
-                  timeout: 12000,
-                })
-                .catch(() => {});
-              await page.waitForTimeout(900);
+          if (!(await mailboxSelected()) && accountEmail) {
+            await tryMailboxHashRoutes(accountEmail);
+            if (!(await mailboxSelected())) {
+              await tryMailboxHashRoutes(encodeURIComponent(accountEmail));
+            }
+          }
+
+          // Keep numeric account index fallback for older SOGo route formats.
+          if (!(await mailboxSelected())) {
+            for (let i = 0; i <= 5; i += 1) {
+              await tryMailboxHashRoutes(String(i));
               if (await mailboxSelected()) {
                 break;
               }
-            }
-            if (await mailboxSelected()) {
-              break;
             }
           }
 
           // Ensure a mailbox row/folder is selected before screenshot capture.
           const mailboxSelectors = [
+            'li:has-text("@datamancy.net") div:has(button:has-text("more_vert"))',
+            'li:has-text("@datamancy.net") div:has(button:has-text("Options"))',
             'li:has-text("@datamancy.net") > div',
             'li:has-text("@datamancy.net") > div > div:has-text("@datamancy.net")',
             'li:has-text("@datamancy.net") div[style*="cursor"]',
@@ -847,6 +874,18 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           }
           if (!(await mailboxSelected())) {
             await page.evaluate(() => {
+              const selectableAccountRow = Array.from(document.querySelectorAll('li, div')).find((el) => {
+                const text = el.textContent ?? '';
+                return (
+                  /@datamancy\.net/i.test(text) &&
+                  /more_vert|options|delegation|subscribe|new folder/i.test(text) &&
+                  window.getComputedStyle(el).cursor === 'pointer'
+                );
+              }) as HTMLElement | undefined;
+              selectableAccountRow?.click();
+              selectableAccountRow?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+              selectableAccountRow?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
               const clickableAccountRow = Array.from(document.querySelectorAll('li, div, span'))
                 .find((el) =>
                   /@datamancy\.net/i.test(el.textContent ?? '') &&
@@ -884,7 +923,8 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
                 document.querySelectorAll('a, li, div, span')
               ).find(
                 (node) =>
-                  /inbox/i.test(node.textContent ?? '') ||
+                  /^(inbox|folder inbox)$/i.test((node.textContent ?? '').trim()) ||
+                  /\binbox\b/i.test(node.textContent ?? '') ||
                   /folderINBOX/i.test((node as HTMLAnchorElement).getAttribute?.('href') ?? '')
               ) as HTMLElement | undefined;
               inboxCandidate?.click();
