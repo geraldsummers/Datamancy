@@ -657,15 +657,26 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             }).catch(() => {});
             await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
+            const api = page.context().request;
+            const meResponse = await api.get('https://mastodon.datamancy.net/api/v1/accounts/verify_credentials');
+            if (!meResponse.ok()) {
+              throw new Error(`Mastodon verify_credentials failed with HTTP ${meResponse.status()}`);
+            }
+            const me = await meResponse.json() as { id?: string };
+            if (!me?.id) {
+              throw new Error('Mastodon verify_credentials did not return account id.');
+            }
+
             const maxAttempts = 16;
             for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-              const pageText = await page.textContent('body').catch(() => '') || '';
-              const isEmptyFollowing = /doesn.?t follow anyone yet/i.test(pageText);
-              const pageHtml = await page.content().catch(() => '');
-              const followingCountFromMeta = Number((pageHtml.match(/,\s*(\d+)\s+Following,\s*\d+\s+Followers/i) || [])[1] || 0);
+              const followingResponse = await api.get(`https://mastodon.datamancy.net/api/v1/accounts/${me.id}/following?limit=80`);
+              const following = followingResponse.ok() ? await followingResponse.json().catch(() => []) : [];
+              const followingCount = Array.isArray(following) ? following.length : 0;
 
-              if (followingCountFromMeta > 0 && !isEmptyFollowing) {
-                expect(followingCountFromMeta).toBeGreaterThan(0);
+              if (followingCount > 0) {
+                await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+                await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+                expect(followingCount).toBeGreaterThan(0);
                 return;
               }
 
