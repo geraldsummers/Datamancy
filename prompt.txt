@@ -40,3 +40,4 @@ the easier you can make it for me to make money with this lib the better,
 add premade analysis notebooks for back testing and quantifying profitable strategies based upon real data from our market data ingestion pipeline/db
 a bunch of different relevant rss sources parsed into bookstack and quantified sentiment analysis via the lm and represented in grafana
 a bunch of different relevant market data pipelined in and wired into grafana charts
+thorough testing is essential to ensure that the stack works as expected
