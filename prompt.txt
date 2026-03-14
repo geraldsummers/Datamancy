@@ -24,7 +24,7 @@ do not use -v in rsync
 
 run the tests and report back, analyze the screenshots the test runner generates
 experimentally diagnose all issues by experimenting on the server
-run ALL tests
+run ALL tests - no need to update first i've just updated the server!
 
 take initiative in your fixing
 be humble
@@ -36,3 +36,7 @@ i'm not able to reply for like 6 hours so dont stop for questions unless you abs
 in that stack.kotlin dir is trading-sdk and a few other trading related things that should all be available on the server
 i want you to intelligently audit and experiment and improve the trading stuff so it provides easy options to make money
 it's primarily meant to be deployed in jupyter notebooks because so much of it is going to depend on server infra
+the easier you can make it for me to make money with this lib the better,
+add premade analysis notebooks for back testing and quantifying profitable strategies based upon real data from our market data ingestion pipeline/db
+a bunch of different relevant rss sources parsed into bookstack and quantified sentiment analysis via the lm and represented in grafana
+a bunch of different relevant market data pipelined in and wired into grafana charts
