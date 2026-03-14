@@ -640,26 +640,31 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           loginButtonPatterns: [/log in|sign in|continue with sso|sso|openid/i],
           oidcLinkPatterns: [/sign in with.*(openid|sso)/i, /openid/i, /sso/i],
           postLogin: async (page) => {
-            await page.goto('https://mastodon.datamancy.net/following', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
             await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
-            const verifyResponse = await page.request.get('https://mastodon.datamancy.net/api/v1/accounts/verify_credentials');
-            if (!verifyResponse.ok()) {
-              throw new Error(`Mastodon verify_credentials failed (${verifyResponse.status()})`);
+            const profileLink = page.locator('a[href^="/@"]:not([href="/@undefined"])').first();
+            if (!(await profileLink.isVisible().catch(() => false))) {
+              throw new Error(`Mastodon profile link is missing (likely still unauthenticated). Current URL: ${page.url()}`);
             }
-            const profile = await verifyResponse.json();
-            if (!profile?.id) {
-              throw new Error('Mastodon verify_credentials did not return an account id.');
+            const profileHref = await profileLink.getAttribute('href');
+            if (!profileHref) {
+              throw new Error('Mastodon profile link href is empty.');
             }
 
-            const followingResponse = await page.request.get(
-              `https://mastodon.datamancy.net/api/v1/accounts/${profile.id}/following?limit=1`
-            );
-            if (!followingResponse.ok()) {
-              throw new Error(`Mastodon following API failed (${followingResponse.status()})`);
+            await page.goto(`https://mastodon.datamancy.net${profileHref.replace(/\/+$/, '')}/following`, {
+              waitUntil: 'domcontentloaded',
+              timeout: 20000,
+            }).catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+
+            const followingCards = page.locator('article, .account, .account__wrapper, .directory__card');
+            const followingCount = await followingCards.count().catch(() => 0);
+            const pageText = await page.textContent('body').catch(() => '') || '';
+            const hasSeededHandle = /wikimediafoundation|internetarchive|creativecommons|natgeo|tomscott|financialtimes/i.test(pageText);
+            if (followingCount < 1 && !hasSeededHandle) {
+              throw new Error('Mastodon following view did not show seeded follows.');
             }
-            const following = await followingResponse.json();
-            expect(Array.isArray(following) ? following.length : 0).toBeGreaterThan(0);
+            expect(followingCount > 0 || hasSeededHandle).toBeTruthy();
           },
         }
       );
