@@ -768,23 +768,39 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             )
             .toMatch(/SOGo|Mail|Calendar|Contacts|Address\s?Book/i);
 
+          const mailboxSelected = async () => {
+            const noMailboxLabel = page.locator('text=/No mailbox selected/i').first();
+            return !(await noMailboxLabel.isVisible().catch(() => false));
+          };
+
           const baseUrl = page.url().split('#')[0];
-          await page.goto(`${baseUrl}#!/Mail/0/folderINBOX`, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
-          await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-          await page.goto(`${baseUrl}#!/Mail/0/folderINBOX/view`, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
-          await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
           const mailNav = page.getByRole('link', { name: /^Mail$/i }).first();
           if (await mailNav.isVisible().catch(() => false)) {
             await mailNav.click({ force: true }).catch(() => {});
             await page.waitForTimeout(800);
           }
 
-          // Ensure a mailbox row is selected before screenshot capture.
+          // Try direct mailbox routes first; account index can vary and is not always 0.
+          for (let i = 0; i <= 5; i += 1) {
+            await page
+              .goto(`${baseUrl}#!/Mail/${i}/folderINBOX/view`, {
+                waitUntil: 'domcontentloaded',
+                timeout: 12000,
+              })
+              .catch(() => {});
+            await page.waitForTimeout(900);
+            if (await mailboxSelected()) {
+              break;
+            }
+          }
+
+          // Ensure a mailbox row/folder is selected before screenshot capture.
           const mailboxSelectors = [
+            'a[href*="#!/Mail/"][href*="/folderINBOX"]',
+            'a[href*="/folderINBOX"]',
             'li:has-text("@datamancy.net")',
             '[role="listitem"]:has-text("@datamancy.net")',
             'text=/[a-z0-9._%+-]+@datamancy\\.net/i',
-            'a[href*="folderINBOX"]',
             'a:has-text("INBOX"), a:has-text("Inbox")',
             'div:has-text("@datamancy")',
             '.mailboxListView .listItem:not(.selected)',
@@ -798,34 +814,39 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               await mailbox.click({ force: true }).catch(() => {});
               await mailbox.dblclick({ force: true }).catch(() => {});
               await page.waitForTimeout(1000);
-              const noMailboxLabel = page.locator('text=/No mailbox selected/i').first();
-              if (!(await noMailboxLabel.isVisible().catch(() => false))) {
+              if (await mailboxSelected()) {
                 break;
               }
             }
           }
 
-          const noMailboxLabel = page.locator('text=/No mailbox selected/i').first();
-          if (await noMailboxLabel.isVisible().catch(() => false)) {
+          if (!(await mailboxSelected())) {
             await page.keyboard.press('i').catch(() => {});
             await page.waitForTimeout(1000);
           }
-          if (await noMailboxLabel.isVisible().catch(() => false)) {
+          if (!(await mailboxSelected())) {
             await page.evaluate(() => {
               const inboxLink = document.querySelector('a[href*="folderINBOX"], a[href*="/Mail/0/folder"]') as HTMLElement | null;
               inboxLink?.click();
             }).catch(() => {});
             await page.waitForTimeout(1200);
           }
-          if (await noMailboxLabel.isVisible().catch(() => false)) {
+          if (!(await mailboxSelected())) {
             await page.evaluate(() => {
               const textNode = Array.from(document.querySelectorAll('li, div, span'))
                 .find((el) => /@datamancy\.net/i.test(el.textContent ?? ''));
-              (textNode as HTMLElement | undefined)?.click();
+              const el = textNode as HTMLElement | undefined;
+              if (!el) {
+                return;
+              }
+              el.click();
+              el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+              el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+              el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
             }).catch(() => {});
             await page.waitForTimeout(1200);
           }
-          if (await noMailboxLabel.isVisible().catch(() => false)) {
+          if (!(await mailboxSelected())) {
             throw new Error('SOGo mailbox was not selected before screenshot.');
           }
         },
