@@ -88,7 +88,13 @@ SEED_USERS="$users_csv" SEED_FOLLOWS="$follow_accounts_csv" bundle exec rails ru
         puts "warn #{username}: local seed follow failed: #{e.class} #{e.message}"
       end
     end
+  end
 
+  remote_user_limit = ENV.fetch("MASTODON_REMOTE_FOLLOW_USER_LIMIT", "2").to_i
+  remote_users = remote_user_limit <= 0 ? [] : users.first(remote_user_limit)
+  remote_users.each do |username|
+    source = local_accounts[username]
+    next unless source
     follows.each do |handle|
       attempts = 0
       begin
