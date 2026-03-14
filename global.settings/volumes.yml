@@ -16,7 +16,6 @@ volumes:
   planka_caddy_ca:
   postgres_data:
   prometheus_data:
-  radicale_data:
   redis_data:
   sogo_data:
   vaultwarden_data:

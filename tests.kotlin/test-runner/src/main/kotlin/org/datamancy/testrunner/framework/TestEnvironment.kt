@@ -193,7 +193,7 @@ data class ServiceEndpoints(
             kopia = env("KOPIA_URL") ?: "http://kopia:51515",
             
             homepage = env("HOMEPAGE_URL") ?: "http://homepage:3000",
-            radicale = env("RADICALE_URL") ?: "http://radicale:5232",
+            radicale = env("RADICALE_URL"),
             ntfy = env("NTFY_URL") ?: "http://ntfy:80",
             qbittorrent = env("QBITTORRENT_URL") ?: "http://qbittorrent:8080",
 
@@ -263,7 +263,7 @@ data class ServiceEndpoints(
             kopia = "http://localhost:51515",
             
             homepage = "http://localhost:3003",
-            radicale = "http://localhost:5232",
+            radicale = env("RADICALE_URL"),
             ntfy = "http://localhost:8081",
             qbittorrent = "http://localhost:8082",
 

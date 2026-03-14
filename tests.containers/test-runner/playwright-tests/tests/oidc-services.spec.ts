@@ -620,12 +620,6 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
     await waitForGrafanaShell(page);
     await page.setViewportSize({ width: 1280, height: 360 });
 
-    await page.screenshot({
-      path: '/app/test-results/screenshots/grafana-forward-authenticated.jpg',
-      type: 'jpeg',
-      quality: 85,
-      fullPage: false
-    });
   });
 
   test('Mastodon - OIDC login flow', async ({ page }) => {
@@ -743,17 +737,26 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               { timeout: 30000, intervals: [500, 1000, 2000] }
             )
             .toMatch(/SOGo|Mail|Calendar|Contacts|Address\s?Book/i);
+
+          // Ensure a mailbox row is selected before screenshot capture.
+          const mailboxSelectors = [
+            '.mailboxListView .listItem:not(.selected)',
+            '.mailbox-list .mailbox-row:not(.selected)',
+            '[id*="mailbox"] .listItem:not(.selected)',
+            'a:has-text("INBOX")',
+            'text=/Inbox/i',
+          ];
+          for (const selector of mailboxSelectors) {
+            const mailbox = page.locator(selector).first();
+            if (await mailbox.isVisible().catch(() => false)) {
+              await mailbox.click({ force: true }).catch(() => {});
+              await page.waitForTimeout(1000);
+              break;
+            }
+          }
         },
       }
     );
-
-    await logPageTelemetry(page, 'SOGo Post-Login');
-    await page.screenshot({
-      path: '/app/test-results/screenshots/sogo-authenticated.jpeg',
-      type: 'jpeg',
-      quality: 85,
-      fullPage: true,
-    });
   });
 
   test('Element (Matrix Web) - OIDC login flow', async ({ page }) => {

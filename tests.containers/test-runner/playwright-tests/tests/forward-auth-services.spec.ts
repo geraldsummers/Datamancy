@@ -15,8 +15,6 @@
  * - Home Assistant
  * - Kopia (Backup)
  * - LDAP Account Manager
- * - LiteLLM
- * - Radicale (Calendar/Contacts)
  * - Vault
  */
 
@@ -84,6 +82,7 @@ async function testForwardAuthService(
     screenshotDelayMs?: number;
     screenshotUsePage?: boolean;
     screenshotViewport?: { width: number; height: number };
+    skipScreenshot?: boolean;
     onAfterLoad?: (page: Page) => Promise<void>;
   } = {}
 ) {
@@ -271,29 +270,38 @@ async function testForwardAuthService(
     await expect(page).toHaveURL(options.urlPattern);
   }
 
-  // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
-  const screenshotBase = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-authenticated`;
-  const screenshotType = options.screenshotType ?? 'jpeg';
-  const screenshotName = `${screenshotBase}.${screenshotType}`;
-  const screenshotPath = `/app/test-results/screenshots/${screenshotName}`;
-  if (options.screenshotUsePage) {
-    await page.screenshot({
-      path: screenshotPath,
-      type: screenshotType,
-      quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined,
-      fullPage: options.screenshotFullPage ?? true
-    });
-  } else if (options.screenshotSelector) {
-    const target = page.locator(options.screenshotSelector).first();
-    const visible = await target.isVisible().catch(() => false);
-    if (visible) {
-      await target.screenshot({
+  if (!options.skipScreenshot) {
+    // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
+    const screenshotBase = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-authenticated`;
+    const screenshotType = options.screenshotType ?? 'jpeg';
+    const screenshotName = `${screenshotBase}.${screenshotType}`;
+    const screenshotPath = `/app/test-results/screenshots/${screenshotName}`;
+    if (options.screenshotUsePage) {
+      await page.screenshot({
         path: screenshotPath,
         type: screenshotType,
-        quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined
+        quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined,
+        fullPage: options.screenshotFullPage ?? true
       });
+    } else if (options.screenshotSelector) {
+      const target = page.locator(options.screenshotSelector).first();
+      const visible = await target.isVisible().catch(() => false);
+      if (visible) {
+        await target.screenshot({
+          path: screenshotPath,
+          type: screenshotType,
+          quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined
+        });
+      } else {
+        console.log(`   ⚠️  Screenshot selector not visible (${options.screenshotSelector}); falling back to full page.`);
+        await page.screenshot({
+          path: screenshotPath,
+          type: screenshotType,
+          quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined,
+          fullPage: options.screenshotFullPage ?? true
+        });
+      }
     } else {
-      console.log(`   ⚠️  Screenshot selector not visible (${options.screenshotSelector}); falling back to full page.`);
       await page.screenshot({
         path: screenshotPath,
         type: screenshotType,
@@ -301,16 +309,9 @@ async function testForwardAuthService(
         fullPage: options.screenshotFullPage ?? true
       });
     }
-  } else {
-    await page.screenshot({
-      path: screenshotPath,
-      type: screenshotType,
-      quality: screenshotType === 'jpeg' ? (options.screenshotQuality ?? 85) : undefined,
-      fullPage: options.screenshotFullPage ?? true
-    });
+    console.log(`   📸 Screenshot saved: ${screenshotName}`);
+    console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
   }
-  console.log(`   📸 Screenshot saved: ${screenshotName}`);
-  console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
 
   console.log(`   ✅ ${serviceName} accessed successfully\n`);
 }
@@ -325,7 +326,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       : {}
   );
 
-  test('JupyterHub - Access with forward auth', async ({ page }) => {
+  test('JupyterHub - Spawn notebook with forward auth', async ({ page }) => {
     test.setTimeout(180000);
     await testForwardAuthService(
       page,
@@ -347,10 +348,44 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         screenshotType: 'png',
         screenshotDelayMs: 4000,
         onAfterLoad: async (page) => {
-          if (/\/user\//.test(page.url())) {
-            await page.goto('https://jupyterhub.datamancy.net/hub/home', { waitUntil: 'domcontentloaded' }).catch(() => {});
+          const startButton = page.locator('#start, button:has-text("Start My Server"), a:has-text("Start My Server")').first();
+          if (await startButton.isVisible().catch(() => false)) {
+            await startButton.click().catch(() => {});
+            await page.waitForURL((url) => !url.toString().includes('/spawn-pending/'), { timeout: 120000 }).catch(() => {});
           }
-          await page.waitForSelector('#start, #stop', { state: 'visible', timeout: 30000 }).catch(() => {});
+
+          if (/\/hub\/home/.test(page.url())) {
+            const myServerLink = page.locator('a[href*="/user/"], a:has-text("My Server"), a:has-text("Launch Server")').first();
+            if (await myServerLink.isVisible().catch(() => false)) {
+              await myServerLink.click().catch(() => {});
+            } else {
+              await page.goto('https://jupyterhub.datamancy.net/user-redirect/lab', { waitUntil: 'domcontentloaded' }).catch(() => {});
+            }
+          }
+
+          await page.waitForURL(/\/user\/[^/]+\/(lab|tree)/, { timeout: 120000 }).catch(() => {});
+          await page.waitForSelector('.jp-LabShell, .jp-Launcher, .jp-FileBrowser', { state: 'visible', timeout: 60000 });
+
+          const launcherNotebook = page.locator('.jp-LauncherCard[title*="Notebook"], .jp-LauncherCard:has-text("Python 3"), text=Python 3').first();
+          if (await launcherNotebook.isVisible().catch(() => false)) {
+            await launcherNotebook.click().catch(() => {});
+          } else {
+            await page.keyboard.press('Control+Shift+N').catch(() => {});
+            const fileMenu = page.locator('.lm-MenuBar-itemLabel:has-text("File"), [aria-label="File"]').first();
+            if (await fileMenu.isVisible().catch(() => false)) {
+              await fileMenu.click().catch(() => {});
+              const newMenuItem = page.locator('text=New').first();
+              if (await newMenuItem.isVisible().catch(() => false)) {
+                await newMenuItem.hover().catch(() => {});
+              }
+              const notebookMenuItem = page.locator('text=/Notebook|Python 3/i').first();
+              if (await notebookMenuItem.isVisible().catch(() => false)) {
+                await notebookMenuItem.click().catch(() => {});
+              }
+            }
+          }
+
+          await page.waitForSelector('.jp-Notebook, .jp-InputArea-editor, .jp-CodeCell', { state: 'visible', timeout: 60000 });
         },
       }
     );
@@ -366,6 +401,23 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         urlPattern: /open-webui\.datamancy\.net/,
         waitForSelectorVisible: 'text=New Chat',
         waitForSelectorTimeoutMs: 20000,
+        onAfterLoad: async (page) => {
+          const dismissSelectors = [
+            'button:has-text("Okay, Let\'s Go!")',
+            'button:has-text("Okay, Let’s Go!")',
+            'button:has-text("Got it")',
+            'button:has-text("Dismiss")',
+            'button[aria-label="Close"]',
+          ];
+          for (const selector of dismissSelectors) {
+            const dismissButton = page.locator(selector).first();
+            if (await dismissButton.isVisible().catch(() => false)) {
+              await dismissButton.click({ force: true }).catch(() => {});
+              await page.waitForTimeout(400);
+              break;
+            }
+          }
+        },
       }
     );
   });
@@ -425,6 +477,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         disallowUrlPatterns: [/#\/vault\b/i],
         maxPatternRetries: 4,
         retryDelayMs: 2000,
+        skipScreenshot: true,
       }
     );
   });
@@ -512,39 +565,6 @@ test.describe('Forward Auth Services - SSO Flow', () => {
     );
   });
 
-  test('LiteLLM - Access with forward auth', async ({ page }) => {
-    await testForwardAuthService(
-      page,
-      'LiteLLM',
-      'https://litellm.datamancy.net/',
-      /LiteLLM API|Swagger UI/i, // Title is "LiteLLM API - Swagger UI"
-      {
-        urlPattern: /litellm\.datamancy\.net/,
-        waitForSelectorVisible: '.swagger-ui',
-        waitForSelectorTimeoutMs: 20000,
-        requireSelectorVisible: true,
-        screenshotViewport: { width: 1280, height: 720 },
-        // Avoid huge full-page screenshots from long Swagger UI.
-        screenshotFullPage: false,
-      }
-    );
-  });
-
-  test('Radicale - Access with forward auth', async ({ page }) => {
-    await testForwardAuthService(
-      page,
-      'Radicale',
-      'https://radicale.datamancy.net/',
-      /Radicale CalDAV\/CardDAV|CalDAV|CardDAV/i,
-      {
-        urlPattern: /radicale\.datamancy\.net/,
-        maxPatternRetries: 4,
-        retryDelayMs: 2000,
-        disallowPatterns: [/Sign in/i],
-      }
-    );
-  });
-
   test('Vault - Access with forward auth', async ({ page }) => {
     // This endpoint should remain protected by Vaultwarden's OIDC flow.
     await testForwardAuthService(
@@ -558,6 +578,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         disallowUrlPatterns: [/#\/vault\b/i],
         maxPatternRetries: 4,
         retryDelayMs: 2000,
+        skipScreenshot: true,
       }
     );
   });

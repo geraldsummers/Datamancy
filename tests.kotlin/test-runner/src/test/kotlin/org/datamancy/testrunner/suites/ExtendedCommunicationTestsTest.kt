@@ -31,14 +31,6 @@ class ExtendedCommunicationTestsTest {
     }
 
     @Test
-    fun `test radicale endpoint configuration`() {
-        val endpoints = ServiceEndpoints.fromEnvironment()
-
-        assertNotNull(endpoints.radicale)
-        assertTrue(endpoints.radicale!!.contains("radicale"))
-    }
-
-    @Test
     fun `test ntfy endpoint configuration`() {
         val endpoints = ServiceEndpoints.fromEnvironment()
 
@@ -62,13 +54,6 @@ class ExtendedCommunicationTestsTest {
                                 headers = headersOf(HttpHeaders.ContentType, "application/json")
                             )
                         }
-                        request.url.toString().contains("radicale") -> {
-                            respond(
-                                content = ByteReadChannel(""),
-                                status = HttpStatusCode.Unauthorized,
-                                headers = headersOf("DAV", "1, 2, calendar-access, addressbook")
-                            )
-                        }
                         request.url.toString().contains("ntfy") -> {
                             respondOk("OK")
                         }
@@ -89,7 +74,7 @@ class ExtendedCommunicationTestsTest {
         }
 
         val summary = runner.summary()
-        assertEquals(19, summary.total, "Should have 19 extended communication tests")
+        assertEquals(13, summary.total, "Should have 13 extended communication tests")
     }
 
     @Test
@@ -107,17 +92,6 @@ class ExtendedCommunicationTestsTest {
     }
 
     @Test
-    fun `test radicale CalDAV discovery`() {
-        val baseUrl = "http://radicale:5232"
-
-        val caldavDiscovery = "$baseUrl/.well-known/caldav"
-        assertTrue(caldavDiscovery.contains("/.well-known/caldav"))
-
-        val carddavDiscovery = "$baseUrl/.well-known/carddav"
-        assertTrue(carddavDiscovery.contains("/.well-known/carddav"))
-    }
-
-    @Test
     fun `test ntfy topic naming`() {
         val testTopic = "test-topic-${System.currentTimeMillis()}"
         assertTrue(testTopic.startsWith("test-topic-"))
@@ -132,7 +106,7 @@ class ExtendedCommunicationTestsTest {
 
         assertEquals("http://localhost:3000", endpoints.mastodon)
         assertEquals("http://localhost:4000", endpoints.mastodonStreaming)
-        assertEquals("http://localhost:5232", endpoints.radicale)
+        assertNull(endpoints.radicale)
         assertEquals("http://localhost:8081", endpoints.ntfy)
     }
 

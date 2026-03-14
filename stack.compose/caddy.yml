@@ -27,7 +27,6 @@ services:
           - element.${DOMAIN}
           - homeassistant.${DOMAIN}
           - api.homeassistant.${DOMAIN}
-          - litellm.${DOMAIN}
           - api.litellm.${DOMAIN}
           - auth.${DOMAIN}
           - kopia.${DOMAIN}
@@ -61,14 +60,13 @@ services:
           - bookstack.${DOMAIN}
           - planka.${DOMAIN}
           - kopia.${DOMAIN}
-          - radicale.${DOMAIN}
           - homeassistant.${DOMAIN}
           - lam.${DOMAIN}
           - mail.${DOMAIN}
           - vault.${DOMAIN}
           - element.${DOMAIN}
           - search.${DOMAIN}
-          - litellm.${DOMAIN}
+          - api.litellm.${DOMAIN}
       mailserver:
       memcached:
       matrix-internal:
@@ -90,7 +88,6 @@ services:
       - caddy_certs:/certs
       - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./configs/vaultwarden/index.html:/srv/vaultwarden/index.html:ro
-      - ./configs/radicale/index.html:/srv/radicale/index.html:ro
     entrypoint:
       - /bin/sh
       - -c

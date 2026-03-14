@@ -252,7 +252,6 @@ suites:
     targets:
       - ntfy
       - qbittorrent
-      - radicale
   - name: web3-wallet
     type: kotlin
     targets:

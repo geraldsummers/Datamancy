@@ -73,37 +73,6 @@ sogo.{$DOMAIN} {
 	reverse_proxy sogo:80
 }
 
-# Radicale CalDAV/CardDAV Server
-calendar.{$DOMAIN}, radicale.{$DOMAIN} {
-	import authelia_auth
-
-	@radicale_web path /.web*
-	handle @radicale_web {
-		root * /srv/radicale
-		file_server
-	}
-
-	@radicale_root path /
-	handle @radicale_root {
-		root * /srv/radicale
-		file_server
-	}
-
-	@html header Accept *text/html*
-	handle @html {
-		root * /srv/radicale
-		file_server
-	}
-
-	handle {
-		reverse_proxy radicale:5232 {
-			# Pass authentication headers to Radicale
-			header_up X-Remote-User {header.Remote-User}
-			header_up X-Remote-Email {header.Remote-Email}
-		}
-	}
-}
-
 # Vault Web UI (official HashiCorp UI - protected with forward_auth - admin only)
 vault.{$DOMAIN} {
 	route {
@@ -355,14 +324,6 @@ api.homeassistant.{$DOMAIN} {
 
 	# Return 404 for non-API paths
 	respond 404
-}
-
-# LiteLLM (protected)
-litellm.{$DOMAIN} {
-	route {
-		import authelia_auth
-		reverse_proxy litellm:4000
-	}
 }
 
 # Ntfy (protected)
