@@ -33,5 +33,5 @@ commit or .gitignore, the buildscript uses git for versioning so its important t
 
 i'm not able to reply for like 6 hours so dont stop for questions unless you absolutely have to
 
-in that stack.kotlin dir is trading-sdk and a few other trading related things
+in that stack.kotlin dir is trading-sdk and a few other trading related things that should all be available on the server
 i want you to intelligently audit and experiment and improve the trading stuff so it provides easy options to make money
