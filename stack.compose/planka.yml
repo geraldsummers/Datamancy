@@ -3,6 +3,8 @@ services:
     image: ghcr.io/plankanban/planka:1.26.3
     container_name: planka
     restart: unless-stopped
+    labels:
+      autoheal: "true"
     networks:
       caddy:
         aliases:
