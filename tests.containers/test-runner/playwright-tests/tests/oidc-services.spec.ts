@@ -796,11 +796,13 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
 
           // Ensure a mailbox row/folder is selected before screenshot capture.
           const mailboxSelectors = [
+            'li:has(button:has-text("more_vert")):has-text("@datamancy.net")',
+            'li:has(button[aria-label*="more_vert"]):has-text("@datamancy.net")',
+            'li:has(button:has-text("Options")):has-text("@datamancy.net")',
             'a[href*="#!/Mail/"][href*="/folderINBOX"]',
             'a[href*="/folderINBOX"]',
             'li:has-text("@datamancy.net")',
             '[role="listitem"]:has-text("@datamancy.net")',
-            'text=/[a-z0-9._%+-]+@datamancy\\.net/i',
             'a:has-text("INBOX"), a:has-text("Inbox")',
             'div:has-text("@datamancy")',
             '.mailboxListView .listItem:not(.selected)',
@@ -833,8 +835,15 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           }
           if (!(await mailboxSelected())) {
             await page.evaluate(() => {
-              const textNode = Array.from(document.querySelectorAll('li, div, span'))
-                .find((el) => /@datamancy\.net/i.test(el.textContent ?? ''));
+              const accountRow = Array.from(document.querySelectorAll('li'))
+                .find(
+                  (el) =>
+                    /@datamancy\.net/i.test(el.textContent ?? '') &&
+                    /more_vert|options/i.test(el.textContent ?? '')
+                );
+              const textNode = accountRow ??
+                Array.from(document.querySelectorAll('li, div, span'))
+                  .find((el) => /@datamancy\.net/i.test(el.textContent ?? ''));
               const el = textNode as HTMLElement | undefined;
               if (!el) {
                 return;
@@ -844,6 +853,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
               el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
             }).catch(() => {});
+            await page.keyboard.press('Enter').catch(() => {});
             await page.waitForTimeout(1200);
           }
           if (!(await mailboxSelected())) {
