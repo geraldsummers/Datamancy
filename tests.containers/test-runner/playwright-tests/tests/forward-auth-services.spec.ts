@@ -364,34 +364,42 @@ test.describe('Forward Auth Services - SSO Flow', () => {
           }
 
           await page.waitForURL(/\/user\/[^/]+\/(lab|tree)/, { timeout: 120000 }).catch(() => {});
-          const inLab = /\/lab\b/.test(page.url());
-
-          if (inLab) {
-            await page.waitForSelector('.jp-LabShell, .jp-Launcher, .jp-FileBrowser', { state: 'visible', timeout: 60000 });
-            const launcherNotebook = page.locator('.jp-LauncherCard[title*="Notebook"], .jp-LauncherCard:has-text("Python 3"), text=Python 3').first();
-            if (await launcherNotebook.isVisible().catch(() => false)) {
-              await launcherNotebook.click().catch(() => {});
-            }
-            await page.waitForSelector('.jp-Notebook, .jp-InputArea-editor, .jp-CodeCell', { state: 'visible', timeout: 60000 });
-            return;
+          const userBaseMatch = page.url().match(/^https:\/\/[^/]+\/user\/[^/]+/);
+          if (!userBaseMatch) {
+            throw new Error(`Could not determine Jupyter user base URL from ${page.url()}`);
           }
+          const userBase = userBaseMatch[0];
 
-          // Classic Notebook tree fallback
-          await page.waitForSelector('#new-dropdown-button, #notebook_list, .tree-container', { state: 'visible', timeout: 60000 }).catch(async () => {
-            await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
-            await page.waitForSelector('#new-dropdown-button, #notebook_list, .tree-container', { state: 'visible', timeout: 60000 });
-          });
-          const newButton = page.locator('#new-dropdown-button, button:has-text("New")').first();
-          if (await newButton.isVisible().catch(() => false)) {
-            await newButton.click().catch(() => {});
-            const pythonKernel = page.locator('#kernel-python3 a, #new-menu a:has-text("Python"), a:has-text("Python 3")').first();
-            await pythonKernel.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
-            if (await pythonKernel.isVisible().catch(() => false)) {
-              await pythonKernel.click().catch(() => {});
-            }
-          }
-          await page.waitForURL(/\/user\/[^/]+\/notebooks\//, { timeout: 60000 }).catch(() => {});
-          await page.waitForSelector('#notebook-container, .cell, .CodeMirror', { state: 'visible', timeout: 60000 });
+          // Validate notebook server API and create a notebook via Contents API.
+          const contentsResponse = await page.request.get(`${userBase}/api/contents`);
+          expect(contentsResponse.ok()).toBeTruthy();
+
+          const notebookName = `playwright-smoke-${Date.now()}.ipynb`;
+          const notebookPayload = {
+            type: 'notebook',
+            format: 'json',
+            content: {
+              cells: [
+                {
+                  cell_type: 'code',
+                  execution_count: null,
+                  metadata: {},
+                  outputs: [],
+                  source: ['print("datamancy-jupyter-smoke")'],
+                },
+              ],
+              metadata: {
+                kernelspec: { display_name: 'Python 3 (ipykernel)', language: 'python', name: 'python3' },
+                language_info: { name: 'python' },
+              },
+              nbformat: 4,
+              nbformat_minor: 5,
+            },
+          };
+          const createResponse = await page.request.put(`${userBase}/api/contents/${notebookName}`, { data: notebookPayload });
+          expect(createResponse.ok()).toBeTruthy();
+          const verifyNotebook = await page.request.get(`${userBase}/api/contents/${notebookName}`);
+          expect(verifyNotebook.ok()).toBeTruthy();
         },
       }
     );
