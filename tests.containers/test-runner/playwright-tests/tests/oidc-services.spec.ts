@@ -997,18 +997,11 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               })
               .catch(() => false);
 
-          let sogoUiVisible = await detectSogoVisibleUi();
-          for (let attempt = 1; !sogoUiVisible && attempt <= 3; attempt += 1) {
-            console.log(`   ⚠️  SOGo UI not visibly rendered yet, retrying (${attempt}/3)...`);
-            await page.goto(`${baseUrl}#!/Mail/0/inbox`, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
-            await page.waitForLoadState('networkidle', { timeout: 25000 }).catch(() => {});
-            await page.waitForTimeout(1500);
-            sogoUiVisible = await detectSogoVisibleUi();
-          }
+          const sogoUiVisible = await detectSogoVisibleUi();
           if (!sogoUiVisible) {
             console.log('   ⚠️  SOGo UI remained visually ambiguous; continuing with screenshot for manual review.');
           }
-          await page.waitForTimeout(1200);
+          await page.waitForTimeout(800);
         },
       }
     );
