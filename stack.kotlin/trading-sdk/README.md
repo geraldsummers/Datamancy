@@ -190,6 +190,23 @@ candidates.forEach { c ->
 }
 ```
 
+### Liquidity-Aware Setup Ranking
+
+Use `getTradeSetups` to rank symbols by momentum, sentiment, volatility, and spread in one query:
+
+```kotlin
+val setups = marketDataRepository.getTradeSetups(
+    exchange = "hyperliquid",
+    lookbackHours = 24,
+    minTrades = 100,
+    limit = 5
+)
+
+setups.forEach { s ->
+    println("${s.symbol} ${s.suggestedSide} score=${s.setupScore} regime=${s.regime}")
+}
+```
+
 ## Grafana Integration
 
 See [docs/grafana-queries.md](../../docs/grafana-queries.md) for 12+ pre-built queries:
@@ -235,12 +252,14 @@ When the notebook image starts, Datamancy now seeds:
 - `~/work/datamancy-notebooks/02_rss_sentiment_to_market_signals.ipynb`
 - `~/work/datamancy-notebooks/03_strategy_parameter_sweep_and_robustness.ipynb`
 - `~/work/datamancy-notebooks/04_alpha_signal_ranking.ipynb`
+- `~/work/datamancy-notebooks/05_llm_rss_sentiment_backfill.ipynb`
 
 These notebooks are wired to the stack Postgres database (`datamancy`) and include:
 
 - EMA/volatility backtesting using real `market_data`
 - run persistence to `strategy_backtest_runs` for leaderboard-style tracking
 - RSS sentiment scoring persisted to `rss_sentiment_signals`
+- LLM-based RSS sentiment extraction through LiteLLM/OpenAI-compatible endpoint
 - walk-forward parameter sweep for robustness against overfitting
 - price/sentiment correlation plots for rapid strategy triage
 - ranked long/short candidates from momentum + sentiment alpha scoring

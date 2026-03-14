@@ -75,6 +75,14 @@ CREATE TABLE IF NOT EXISTS rss_sentiment_signals (
 CREATE INDEX IF NOT EXISTS idx_rss_sentiment_time ON rss_sentiment_signals (observed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_rss_sentiment_symbol_time ON rss_sentiment_signals (symbol, observed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_rss_sentiment_source_time ON rss_sentiment_signals (source, observed_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rss_sentiment_dedupe
+    ON rss_sentiment_signals (
+        source,
+        symbol,
+        COALESCE(article_url, ''),
+        COALESCE(article_title, ''),
+        observed_at
+    );
 
 -- Backtest runs written by notebooks/services to compare strategy variants over time
 CREATE TABLE IF NOT EXISTS strategy_backtest_runs (
@@ -96,6 +104,8 @@ CREATE TABLE IF NOT EXISTS strategy_backtest_runs (
 
 CREATE INDEX IF NOT EXISTS idx_strategy_backtest_run_at ON strategy_backtest_runs (run_at DESC);
 CREATE INDEX IF NOT EXISTS idx_strategy_backtest_symbol_time ON strategy_backtest_runs (symbol, timeframe, run_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_strategy_backtest_dedupe
+    ON strategy_backtest_runs (strategy_name, symbol, timeframe, start_time, end_time);
 
 -- Grant permissions to test runner
 DO $$

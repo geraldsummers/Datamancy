@@ -68,4 +68,12 @@ EOSQL
 for db in planka synapse authelia bookstack sogo; do
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" -c "GRANT ALL ON SCHEMA public TO $db;" 2>/dev/null || true
 done
+
+# Ensure market/trading analytics schema exists for already-initialized clusters.
+# initdb scripts only run on first boot, so we re-apply this idempotent schema on startup.
+if [[ -f /docker-entrypoint-initdb.d/init-market-data-schema.sql ]]; then
+    echo "Ensuring market data and trading analytics schema in datamancy..."
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" < /docker-entrypoint-initdb.d/init-market-data-schema.sql
+fi
+
 echo "✅ PostgreSQL users and databases verified"

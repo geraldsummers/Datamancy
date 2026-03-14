@@ -258,6 +258,141 @@ class MarketDataRepository(
         }
     }
 
+    /**
+     * Build liquidity-aware trade setups ranked for notebook triage.
+     *
+     * This is a pragmatic shortlist helper:
+     * - rewards momentum + positive sentiment
+     * - penalizes volatility + wide spread
+     * - surfaces a suggested side and regime label
+     */
+    suspend fun getTradeSetups(
+        exchange: String = "hyperliquid",
+        lookbackHours: Int = 24,
+        minTrades: Int = 50,
+        limit: Int = 10
+    ): List<TradeSetup> = withContext(Dispatchers.IO) {
+        val sql = """
+            WITH candle_base AS (
+                SELECT
+                    symbol,
+                    time,
+                    close,
+                    LAG(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close
+                FROM market_data
+                WHERE exchange = ?
+                  AND data_type = 'candle_1m'
+                  AND time >= NOW() - (?::text || ' hours')::interval
+            ),
+            candle_stats AS (
+                SELECT
+                    symbol,
+                    COALESCE((MAX(close) - MIN(close)) / NULLIF(MIN(close), 0), 0) AS return_ratio,
+                    COALESCE(SUM(CASE WHEN prev_close IS NOT NULL AND close > prev_close THEN 1 ELSE 0 END)::double precision / NULLIF(COUNT(*), 0), 0) AS up_ratio,
+                    COALESCE(STDDEV_POP(CASE WHEN prev_close IS NOT NULL THEN (close - prev_close) / NULLIF(prev_close, 0) ELSE 0 END), 0) AS realized_vol
+                FROM candle_base
+                GROUP BY symbol
+            ),
+            trade_stats AS (
+                SELECT
+                    symbol,
+                    COUNT(*)::int AS trade_count,
+                    COALESCE(AVG(size), 0) AS avg_trade_size
+                FROM market_data
+                WHERE exchange = ?
+                  AND data_type = 'trade'
+                  AND time >= NOW() - (?::text || ' hours')::interval
+                GROUP BY symbol
+            ),
+            spread_stats AS (
+                SELECT
+                    symbol,
+                    COALESCE(AVG(spread_pct), 0) AS avg_spread_pct
+                FROM orderbook_data
+                WHERE exchange = ?
+                  AND time >= NOW() - (?::text || ' hours')::interval
+                GROUP BY symbol
+            ),
+            sentiment AS (
+                SELECT
+                    symbol,
+                    COALESCE(AVG(sentiment_score), 0) AS sentiment_score,
+                    COALESCE(AVG(confidence), 0) AS sentiment_confidence
+                FROM rss_sentiment_signals
+                WHERE observed_at >= NOW() - (?::text || ' hours')::interval
+                GROUP BY symbol
+            )
+            SELECT
+                c.symbol,
+                c.return_ratio,
+                c.up_ratio,
+                c.realized_vol,
+                t.trade_count,
+                t.avg_trade_size,
+                COALESCE(sp.avg_spread_pct, 0) AS avg_spread_pct,
+                COALESCE(s.sentiment_score, 0) AS sentiment_score,
+                COALESCE(s.sentiment_confidence, 0) AS sentiment_confidence,
+                (
+                    (c.return_ratio * 100.0)
+                    + (c.up_ratio * 20.0)
+                    + (COALESCE(s.sentiment_score, 0) * 20.0)
+                    + (COALESCE(s.sentiment_confidence, 0) * 5.0)
+                    - (c.realized_vol * 300.0)
+                    - (COALESCE(sp.avg_spread_pct, 0) * 0.75)
+                ) AS setup_score
+            FROM candle_stats c
+            JOIN trade_stats t ON t.symbol = c.symbol
+            LEFT JOIN spread_stats sp ON sp.symbol = c.symbol
+            LEFT JOIN sentiment s ON s.symbol = c.symbol
+            WHERE t.trade_count >= ?
+            ORDER BY setup_score DESC
+            LIMIT ?
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, exchange)
+                stmt.setInt(2, lookbackHours)
+                stmt.setString(3, exchange)
+                stmt.setInt(4, lookbackHours)
+                stmt.setString(5, exchange)
+                stmt.setInt(6, lookbackHours)
+                stmt.setInt(7, lookbackHours)
+                stmt.setInt(8, minTrades)
+                stmt.setInt(9, limit)
+
+                val result = stmt.executeQuery()
+                buildList {
+                    while (result.next()) {
+                        val returnRatio = result.getDouble("return_ratio")
+                        val upRatio = result.getDouble("up_ratio")
+                        val setupScore = result.getDouble("setup_score")
+                        add(
+                            TradeSetup(
+                                symbol = result.getString("symbol"),
+                                returnRatio = returnRatio,
+                                upRatio = upRatio,
+                                realizedVol = result.getDouble("realized_vol"),
+                                tradeCount = result.getInt("trade_count"),
+                                avgTradeSize = result.getBigDecimal("avg_trade_size") ?: BigDecimal.ZERO,
+                                avgSpreadPct = result.getDouble("avg_spread_pct"),
+                                sentimentScore = result.getDouble("sentiment_score"),
+                                sentimentConfidence = result.getDouble("sentiment_confidence"),
+                                setupScore = setupScore,
+                                suggestedSide = if (setupScore >= 0.0) Side.BUY else Side.SELL,
+                                regime = when {
+                                    returnRatio >= 0.01 && upRatio >= 0.55 -> "BULL_TREND"
+                                    returnRatio <= -0.01 && upRatio <= 0.45 -> "BEAR_TREND"
+                                    else -> "RANGE"
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     // ========================================================================
     // Helper Functions
     // ========================================================================
@@ -319,4 +454,19 @@ data class AlphaCandidate(
     val sentimentScore: Double,
     val sentimentConfidence: Double,
     val alphaScore: Double
+)
+
+data class TradeSetup(
+    val symbol: String,
+    val returnRatio: Double,
+    val upRatio: Double,
+    val realizedVol: Double,
+    val tradeCount: Int,
+    val avgTradeSize: BigDecimal,
+    val avgSpreadPct: Double,
+    val sentimentScore: Double,
+    val sentimentConfidence: Double,
+    val setupScore: Double,
+    val suggestedSide: Side,
+    val regime: String
 )
