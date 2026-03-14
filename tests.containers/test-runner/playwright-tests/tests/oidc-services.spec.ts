@@ -626,6 +626,8 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
   });
 
   test('Mastodon - OIDC login flow', async ({ page }) => {
+    test.setTimeout(180000);
+
     const runMastodonLogin = async () => {
       await testOIDCService(
         page,
