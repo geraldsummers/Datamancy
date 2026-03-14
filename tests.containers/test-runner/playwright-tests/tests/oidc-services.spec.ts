@@ -782,13 +782,22 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
 
           // Try direct mailbox routes first; account index can vary and is not always 0.
           for (let i = 0; i <= 5; i += 1) {
-            await page
-              .goto(`${baseUrl}#!/Mail/${i}/folderINBOX/view`, {
-                waitUntil: 'domcontentloaded',
-                timeout: 12000,
-              })
-              .catch(() => {});
-            await page.waitForTimeout(900);
+            const candidateRoutes = [
+              `${baseUrl}#!/Mail/${i}/folderINBOX`,
+              `${baseUrl}#!/Mail/${i}/folderINBOX/view`,
+            ];
+            for (const route of candidateRoutes) {
+              await page
+                .goto(route, {
+                  waitUntil: 'domcontentloaded',
+                  timeout: 12000,
+                })
+                .catch(() => {});
+              await page.waitForTimeout(900);
+              if (await mailboxSelected()) {
+                break;
+              }
+            }
             if (await mailboxSelected()) {
               break;
             }
@@ -835,6 +844,18 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           }
           if (!(await mailboxSelected())) {
             await page.evaluate(() => {
+              const clickableAccountRow = Array.from(document.querySelectorAll('li, div, span'))
+                .find((el) =>
+                  /@datamancy\.net/i.test(el.textContent ?? '') &&
+                  window.getComputedStyle(el).cursor === 'pointer'
+                ) as HTMLElement | undefined;
+              if (clickableAccountRow) {
+                clickableAccountRow.click();
+                clickableAccountRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                clickableAccountRow.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                clickableAccountRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+              }
+
               const accountRow = Array.from(document.querySelectorAll('li'))
                 .find(
                   (el) =>
@@ -852,7 +873,17 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
               el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
               el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+
+              const inboxCandidate = Array.from(
+                document.querySelectorAll('a, li, div, span')
+              ).find(
+                (node) =>
+                  /inbox/i.test(node.textContent ?? '') ||
+                  /folderINBOX/i.test((node as HTMLAnchorElement).getAttribute?.('href') ?? '')
+              ) as HTMLElement | undefined;
+              inboxCandidate?.click();
             }).catch(() => {});
+            await page.keyboard.press('ArrowRight').catch(() => {});
             await page.keyboard.press('Enter').catch(() => {});
             await page.waitForTimeout(1200);
           }

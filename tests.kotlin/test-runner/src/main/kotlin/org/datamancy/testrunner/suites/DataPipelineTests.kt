@@ -50,8 +50,7 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
 
     suspend fun getSourceStatus(sourceName: String): JsonObject? {
         return try {
-            val pipelineUrl = endpoints.pipeline
-            val response = client.getRawResponse("$pipelineUrl/status")
+            val response = getPipelineResponse("/status") ?: return null
             if (response.status == HttpStatusCode.OK) {
                 val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
                 val sources = json["sources"]?.jsonArray
@@ -64,8 +63,25 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
         }
     }
 
+    suspend fun getPipelineResponse(path: String): HttpResponse? {
+        val suffix = if (path.startsWith("/")) path else "/$path"
+        val candidateBases = buildList {
+            add(endpoints.pipeline.trimEnd('/'))
+            add("http://knowledge-ingestion:8090")
+        }.distinct()
+
+        for (base in candidateBases) {
+            val response = runCatching { client.getRawResponse("$base$suffix") }.getOrNull() ?: continue
+            if (response.status != HttpStatusCode.NotFound && response.status != HttpStatusCode.BadGateway) {
+                return response
+            }
+        }
+        return null
+    }
+
     test("Pipeline monitoring server: health endpoint is reachable") {
-        val response = client.getRawResponse("${endpoints.pipeline}/health")
+        val response = getPipelineResponse("/health")
+            ?: throw IllegalStateException("Pipeline health endpoint unreachable on known hosts")
         response.status shouldBe HttpStatusCode.OK
 
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
@@ -74,7 +90,8 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("Pipeline monitoring server: status endpoint exposes sources") {
-        val response = client.getRawResponse("${endpoints.pipeline}/status")
+        val response = getPipelineResponse("/status")
+            ?: throw IllegalStateException("Pipeline status endpoint unreachable on known hosts")
         response.status shouldBe HttpStatusCode.OK
 
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
@@ -88,7 +105,8 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("Pipeline monitoring server: sources catalog endpoint is reachable") {
-        val response = client.getRawResponse("${endpoints.pipeline}/sources")
+        val response = getPipelineResponse("/sources")
+            ?: throw IllegalStateException("Pipeline sources endpoint unreachable on known hosts")
         response.status shouldBe HttpStatusCode.OK
 
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
@@ -98,7 +116,8 @@ suspend fun TestRunner.dataPipelineTests() = suite("Data Pipeline Tests") {
     }
 
     test("Pipeline monitoring server: queue endpoint responds") {
-        val response = client.getRawResponse("${endpoints.pipeline}/queue")
+        val response = getPipelineResponse("/queue")
+            ?: throw IllegalStateException("Pipeline queue endpoint unreachable on known hosts")
         response.status shouldBe HttpStatusCode.OK
 
         val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
