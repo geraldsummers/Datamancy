@@ -253,5 +253,5 @@ services:
         set -euo pipefail
         while true; do
           bash /opt/mastodon/bin/seed-default-follows.sh || true
-          sleep 120
+          sleep ${MASTODON_FOLLOW_SEED_INTERVAL_SECONDS:-30}
         done

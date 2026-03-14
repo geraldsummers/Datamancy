@@ -15,7 +15,7 @@ for i in $(seq 1 30); do
 done
 
 echo "Applying default follows to local users..."
-mapfile -t users < <(bundle exec rails runner "puts Account.where(domain: nil).where.not(username: 'mastodon.internal').pluck(:username)")
+mapfile -t users < <(bundle exec rails runner "puts Account.where(domain: nil).where.not(username: 'mastodon.internal').where('following_count < 10').order(created_at: :desc).pluck(:username)")
 if [ -n "${MASTODON_ADMIN_USERNAME:-}" ]; then
   users+=("${MASTODON_ADMIN_USERNAME}")
 fi
@@ -59,12 +59,27 @@ SEED_USERS="$users_csv" SEED_FOLLOWS="$follow_accounts_csv" bundle exec rails ru
   users = ENV.fetch("SEED_USERS", "").split(",").reject(&:empty?)
   follows = ENV.fetch("SEED_FOLLOWS", "").split(",").reject(&:empty?)
   local_accounts = Account.where(domain: nil, username: users).index_by(&:username)
+  local_seed_target =
+    Account.find_by(domain: nil, username: "mastodon.internal") ||
+    Account.where(domain: nil).where.not(username: users).order(created_at: :asc).first
   users.each do |username|
     source = local_accounts[username]
     unless source
       puts "skip user #{username}: not found"
       next
     end
+
+    if local_seed_target && local_seed_target.id != source.id
+      begin
+        unless source.following?(local_seed_target)
+          FollowService.new.call(source, local_seed_target, bypass_limit: true)
+          puts "ok #{username}: followed local seed account @#{local_seed_target.username}"
+        end
+      rescue => e
+        puts "warn #{username}: local seed follow failed: #{e.class} #{e.message}"
+      end
+    end
+
     follows.each do |handle|
       attempts = 0
       begin
