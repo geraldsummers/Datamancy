@@ -364,28 +364,34 @@ test.describe('Forward Auth Services - SSO Flow', () => {
           }
 
           await page.waitForURL(/\/user\/[^/]+\/(lab|tree)/, { timeout: 120000 }).catch(() => {});
-          await page.waitForSelector('.jp-LabShell, .jp-Launcher, .jp-FileBrowser', { state: 'visible', timeout: 60000 });
+          const inLab = /\/lab\b/.test(page.url());
 
-          const launcherNotebook = page.locator('.jp-LauncherCard[title*="Notebook"], .jp-LauncherCard:has-text("Python 3"), text=Python 3').first();
-          if (await launcherNotebook.isVisible().catch(() => false)) {
-            await launcherNotebook.click().catch(() => {});
-          } else {
-            await page.keyboard.press('Control+Shift+N').catch(() => {});
-            const fileMenu = page.locator('.lm-MenuBar-itemLabel:has-text("File"), [aria-label="File"]').first();
-            if (await fileMenu.isVisible().catch(() => false)) {
-              await fileMenu.click().catch(() => {});
-              const newMenuItem = page.locator('text=New').first();
-              if (await newMenuItem.isVisible().catch(() => false)) {
-                await newMenuItem.hover().catch(() => {});
-              }
-              const notebookMenuItem = page.locator('text=/Notebook|Python 3/i').first();
-              if (await notebookMenuItem.isVisible().catch(() => false)) {
-                await notebookMenuItem.click().catch(() => {});
-              }
+          if (inLab) {
+            await page.waitForSelector('.jp-LabShell, .jp-Launcher, .jp-FileBrowser', { state: 'visible', timeout: 60000 });
+            const launcherNotebook = page.locator('.jp-LauncherCard[title*="Notebook"], .jp-LauncherCard:has-text("Python 3"), text=Python 3').first();
+            if (await launcherNotebook.isVisible().catch(() => false)) {
+              await launcherNotebook.click().catch(() => {});
             }
+            await page.waitForSelector('.jp-Notebook, .jp-InputArea-editor, .jp-CodeCell', { state: 'visible', timeout: 60000 });
+            return;
           }
 
-          await page.waitForSelector('.jp-Notebook, .jp-InputArea-editor, .jp-CodeCell', { state: 'visible', timeout: 60000 });
+          // Classic Notebook tree fallback
+          await page.waitForSelector('#new-dropdown-button, #notebook_list, .tree-container', { state: 'visible', timeout: 60000 }).catch(async () => {
+            await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+            await page.waitForSelector('#new-dropdown-button, #notebook_list, .tree-container', { state: 'visible', timeout: 60000 });
+          });
+          const newButton = page.locator('#new-dropdown-button, button:has-text("New")').first();
+          if (await newButton.isVisible().catch(() => false)) {
+            await newButton.click().catch(() => {});
+            const pythonKernel = page.locator('#kernel-python3 a, #new-menu a:has-text("Python"), a:has-text("Python 3")').first();
+            await pythonKernel.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+            if (await pythonKernel.isVisible().catch(() => false)) {
+              await pythonKernel.click().catch(() => {});
+            }
+          }
+          await page.waitForURL(/\/user\/[^/]+\/notebooks\//, { timeout: 60000 }).catch(() => {});
+          await page.waitForSelector('#notebook-container, .cell, .CodeMirror', { state: 'visible', timeout: 60000 });
         },
       }
     );
@@ -402,6 +408,10 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         waitForSelectorVisible: 'text=New Chat',
         waitForSelectorTimeoutMs: 20000,
         onAfterLoad: async (page) => {
+          const whatsNewDialog = page.locator("text=/What\\u2019?s New in Open WebUI|What's New in Open WebUI/i").first();
+          if (await whatsNewDialog.isVisible().catch(() => false)) {
+            await page.waitForTimeout(500);
+          }
           const dismissSelectors = [
             'button:has-text("Okay, Let\'s Go!")',
             'button:has-text("Okay, Let’s Go!")',
@@ -414,6 +424,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
             if (await dismissButton.isVisible().catch(() => false)) {
               await dismissButton.click({ force: true }).catch(() => {});
               await page.waitForTimeout(400);
+              await expect(page.locator("text=/What\\u2019?s New in Open WebUI|What's New in Open WebUI/i").first()).not.toBeVisible({ timeout: 5000 }).catch(() => {});
               break;
             }
           }

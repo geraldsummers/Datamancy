@@ -738,12 +738,17 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             )
             .toMatch(/SOGo|Mail|Calendar|Contacts|Address\s?Book/i);
 
+          const baseUrl = page.url().split('#')[0];
+          await page.goto(`${baseUrl}#!/Mail/0/folderINBOX`, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+          await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+
           // Ensure a mailbox row is selected before screenshot capture.
           const mailboxSelectors = [
+            'a:has-text("INBOX"), a:has-text("Inbox")',
+            'div:has-text("@datamancy")',
             '.mailboxListView .listItem:not(.selected)',
             '.mailbox-list .mailbox-row:not(.selected)',
             '[id*="mailbox"] .listItem:not(.selected)',
-            'a:has-text("INBOX")',
             'text=/Inbox/i',
           ];
           for (const selector of mailboxSelectors) {
@@ -751,8 +756,20 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             if (await mailbox.isVisible().catch(() => false)) {
               await mailbox.click({ force: true }).catch(() => {});
               await page.waitForTimeout(1000);
-              break;
+              const noMailboxLabel = page.locator('text=/No mailbox selected/i').first();
+              if (!(await noMailboxLabel.isVisible().catch(() => false))) {
+                break;
+              }
             }
+          }
+
+          const noMailboxLabel = page.locator('text=/No mailbox selected/i').first();
+          if (await noMailboxLabel.isVisible().catch(() => false)) {
+            await page.keyboard.press('i').catch(() => {});
+            await page.waitForTimeout(1000);
+          }
+          if (await noMailboxLabel.isVisible().catch(() => false)) {
+            throw new Error('SOGo mailbox was not selected before screenshot.');
           }
         },
       }
