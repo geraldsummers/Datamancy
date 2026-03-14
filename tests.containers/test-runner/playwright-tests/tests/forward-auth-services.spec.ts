@@ -416,6 +416,43 @@ test.describe('Forward Auth Services - SSO Flow', () => {
           }
           const verifyNotebook = await page.request.get(`${userBase}/api/contents/${notebookName}`);
           expect(verifyNotebook.ok()).toBeTruthy();
+
+          // Avoid blank screenshots by requiring a visible notebook shell or visible content text.
+          const jupyterUiSelectors = [
+            '.jp-LabShell',
+            '#jp-main-dock-panel',
+            '.jp-FileBrowser',
+            '#notebook_list',
+            '#filebrowser',
+            '#notebook_panel',
+          ];
+          let uiVisible = false;
+          for (const selector of jupyterUiSelectors) {
+            const element = page.locator(selector).first();
+            if (await element.isVisible().catch(() => false)) {
+              uiVisible = true;
+              break;
+            }
+          }
+
+          if (!uiVisible) {
+            uiVisible = await page
+              .evaluate(() => {
+                const candidates = Array.from(document.querySelectorAll('main, [role="main"], .jp-LabShell, .jp-FileBrowser, #notebook_list'));
+                return candidates.some((el) => {
+                  const rect = el.getBoundingClientRect();
+                  const style = window.getComputedStyle(el);
+                  const text = (el.textContent ?? '').trim();
+                  return rect.width > 200 && rect.height > 120 && style.visibility !== 'hidden' && style.display !== 'none' && text.length > 20;
+                });
+              })
+              .catch(() => false);
+          }
+
+          if (!uiVisible) {
+            throw new Error('Jupyter UI shell did not become visibly ready before screenshot.');
+          }
+          await page.waitForTimeout(1500);
         },
       }
     );

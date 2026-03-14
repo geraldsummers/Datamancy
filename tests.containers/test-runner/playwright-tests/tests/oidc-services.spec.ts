@@ -972,6 +972,33 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           if (!(await mailboxUiReady())) {
             throw new Error('SOGo mailbox UI did not render before screenshot.');
           }
+
+          // Guard against visually blank captures where only hidden app shell text is present.
+          const sogoUiVisible = await page
+            .evaluate(() => {
+              const visibleTextNodes = Array.from(document.querySelectorAll('div, li, span, a, button'))
+                .filter((el) => {
+                  const rect = el.getBoundingClientRect();
+                  const style = window.getComputedStyle(el);
+                  const text = (el.textContent ?? '').trim();
+                  return (
+                    rect.width > 24 &&
+                    rect.height > 14 &&
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    Number(style.opacity || '1') > 0 &&
+                    text.length >= 4
+                  );
+                });
+
+              const hasMailboxIndicators = visibleTextNodes.some((el) => /inbox|mail|@datamancy\.net/i.test((el.textContent ?? '').trim()));
+              return hasMailboxIndicators && visibleTextNodes.length >= 8;
+            })
+            .catch(() => false);
+          if (!sogoUiVisible) {
+            throw new Error('SOGo visible mailbox UI did not render before screenshot.');
+          }
+          await page.waitForTimeout(1200);
         },
       }
     );
