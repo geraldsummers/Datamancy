@@ -107,6 +107,7 @@ services:
               next
             end
             follows.each do |handle|
+              attempts = 0
               begin
                 target = ResolveAccountService.new.call(handle, skip_cache: true)
                 if target.nil?
@@ -120,6 +121,15 @@ services:
                 FollowService.new.call(source, target, bypass_limit: true)
                 puts "ok #{username}: followed #{handle}"
               rescue => e
+                attempts += 1
+                transient = e.is_a?(ActiveRecord::ConnectionNotEstablished) ||
+                            e.message.include?("database system is shutting down") ||
+                            e.message.include?("Redis::CannotConnectError")
+                if transient && attempts < 8
+                  puts "retry #{username}: #{handle} after transient error (#{e.class})"
+                  sleep 3
+                  retry
+                end
                 puts "warn #{username}: follow #{handle} failed: #{e.class} #{e.message}"
               end
             end
