@@ -10,6 +10,7 @@ services:
     networks:
       - postgres
       - valkey
+      - internet
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,13 +37,58 @@ services:
         for i in $$(seq 1 30); do
           if bundle exec rails db:prepare; then
             echo "Mastodon database prepare complete"
-            exit 0
+            break
           fi
           echo "Mastodon database prepare failed (attempt $${i}); retrying in 5s..."
           sleep 5
         done
-        echo "Mastodon database prepare failed after retries"
-        exit 1
+        if ! bundle exec rails db:version >/dev/null 2>&1; then
+          echo "Mastodon database prepare failed after retries"
+          exit 1
+        fi
+        echo "Applying default follows to local users..."
+        mapfile -t users < <(bundle exec rails runner "puts Account.where(domain: nil).where.not(username: 'mastodon.internal').pluck(:username)")
+        if [ -n "$${MASTODON_ADMIN_USERNAME:-}" ]; then
+          users+=("$${MASTODON_ADMIN_USERNAME}")
+        fi
+        mapfile -t users < <(printf "%s\n" "$${users[@]}" | awk 'NF && !seen[$$0]++')
+        if [ "$${#users[@]}" -eq 0 ]; then
+          echo "No local Mastodon users found yet; skipping default follows."
+          exit 0
+        fi
+        mapfile -t follow_accounts <<'EOF'
+        wikimediafoundation@wikimedia.social
+        internetarchive@mastodon.archive.org
+        creativecommons@mastodon.social
+        openstreetmap@en.osm.town
+        ProPublica@newsie.social
+        edyong209@mastodon.xyz
+        marynmck@mastodon.social
+        briankrebs@infosec.exchange
+        NASA@mstdn.social
+        ourworldindata@mas.to
+        AdamMGrant@mastodon.social
+        calnewport@mastodon.social
+        b0rk@jvns.ca
+        simon@fedi.simonwillison.net
+        prusaresearch@mastodon.social
+        VoronDesign@fosstodon.org
+        natgeo@mastodon.social
+        philosophybites@mastodon.social
+        tomscott@mastodon.social
+        standupmaths@mastodon.social
+        financialtimes@mastodon.social
+        EOF
+        for user in "$${users[@]}"; do
+          echo "Seeding follows for $$user..."
+          for account in "$${follow_accounts[@]}"; do
+            if bundle exec tootctl accounts follow "$$user" "$$account"; then
+              echo "  followed $$account"
+            else
+              echo "  warning: could not follow $$account for $$user"
+            fi
+          done
+        done
 
 
   mastodon-web:
