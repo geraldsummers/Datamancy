@@ -221,12 +221,14 @@ When the notebook image starts, Datamancy now seeds:
 
 - `~/work/datamancy-notebooks/01_quant_backtest_from_market_data.ipynb`
 - `~/work/datamancy-notebooks/02_rss_sentiment_to_market_signals.ipynb`
+- `~/work/datamancy-notebooks/03_strategy_parameter_sweep_and_robustness.ipynb`
 
 These notebooks are wired to the stack Postgres database (`datamancy`) and include:
 
 - EMA/volatility backtesting using real `market_data`
 - run persistence to `strategy_backtest_runs` for leaderboard-style tracking
 - RSS sentiment scoring persisted to `rss_sentiment_signals`
+- walk-forward parameter sweep for robustness against overfitting
 - price/sentiment correlation plots for rapid strategy triage
 
 ### Grafana Trading Dashboard

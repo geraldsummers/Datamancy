@@ -73,18 +73,23 @@ async function testOIDCService(
 
   setupNetworkLogging(page, serviceName);
 
-  // Retry logic for SSL errors
-  let retries = 3;
+  // Retry logic for transient connectivity/edge-proxy startup errors.
+  let retries = 5;
 
   while (retries > 0) {
     try {
       await page.goto(servicePath, { waitUntil: 'domcontentloaded', timeout: 15000 });
       break; // Success
     } catch (error: any) {
-      if (error.message?.includes('SSL') || error.message?.includes('ERR_SSL_PROTOCOL_ERROR')) {
-        console.log(`   ⚠️  SSL error, retrying... (${4 - retries}/3)`);
+      const message = String(error?.message || error);
+      const isTransient =
+        /SSL|ERR_SSL_PROTOCOL_ERROR/i.test(message) ||
+        /Timeout|timed out|Navigation timeout/i.test(message) ||
+        /ERR_CONNECTION|ERR_ABORTED|ERR_HTTP2_PROTOCOL_ERROR/i.test(message);
+      if (isTransient) {
+        console.log(`   ⚠️  Transient navigation error, retrying... (${6 - retries}/5)`);
         retries--;
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(3000);
         if (retries === 0) throw error;
       } else {
         throw error;
@@ -760,6 +765,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
   });
 
   test('SOGo - OIDC login flow', async ({ page }) => {
+    test.setTimeout(180000);
     const domain = process.env.DOMAIN || 'datamancy.net';
     const sogoUrl = `https://sogo.${domain}/`;
 
@@ -992,14 +998,34 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
                     );
                   });
 
-                const hasMailboxIndicators = visibleTextNodes.some((el) => /inbox|mail|@datamancy\.net/i.test((el.textContent ?? '').trim()));
-                return hasMailboxIndicators && visibleTextNodes.length >= 8;
+                const hasSogoIndicators = visibleTextNodes.some((el) =>
+                  /inbox|mail|calendar|contacts|address\s?book|today|week|month|@datamancy\.net/i
+                    .test((el.textContent ?? '').trim())
+                );
+                return hasSogoIndicators && visibleTextNodes.length >= 8;
               })
               .catch(() => false);
 
-          const sogoUiVisible = await detectSogoVisibleUi();
+          const calendarLink = page.getByRole('link', { name: /calendar/i }).first();
+          if (await calendarLink.isVisible().catch(() => false)) {
+            await calendarLink.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(1200);
+          }
+
+          const calendarUrl = baseUrl
+            .replace(/\/Mail\/view.*/i, '/Calendar/view')
+            .replace(/\/Mail(\/|$).*/i, '/Calendar/view');
+
+          let sogoUiVisible = await detectSogoVisibleUi();
+          for (let attempt = 1; !sogoUiVisible && attempt <= 6; attempt += 1) {
+            console.log(`   ⚠️  SOGo UI not visibly rendered yet, retrying (${attempt}/6)...`);
+            await page.goto(calendarUrl, { waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+            await page.waitForTimeout(2500);
+            sogoUiVisible = await detectSogoVisibleUi();
+          }
           if (!sogoUiVisible) {
-            console.log('   ⚠️  SOGo UI remained visually ambiguous; continuing with screenshot for manual review.');
+            throw new Error('SOGo UI remained visually ambiguous after retries; refusing to pass with a likely blank render.');
           }
           await page.waitForTimeout(800);
         },

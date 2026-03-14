@@ -338,6 +338,128 @@ write_notebook(
         )
     ]
 )
+
+write_notebook(
+    "03_strategy_parameter_sweep_and_robustness.ipynb",
+    [
+        markdown_cell(
+            "# Strategy Parameter Sweep And Robustness\n\n"
+            "This notebook runs a fast parameter sweep over EMA crossover settings using real Datamancy market data,\n"
+            "then performs a simple walk-forward split to reduce overfitting risk.\n\n"
+            "Outputs:\n"
+            "- ranked parameter table by risk-adjusted return\n"
+            "- in-sample vs out-of-sample comparison\n"
+            "- optional persistence into `strategy_backtest_runs`\n"
+        ),
+        code_cell(
+            "import os\n"
+            "import numpy as np\n"
+            "import pandas as pd\n"
+            "from itertools import product\n"
+            "from sqlalchemy import create_engine, text\n"
+            "\n"
+            "pg_host = os.getenv('POSTGRES_HOST', 'postgres')\n"
+            "pg_port = os.getenv('POSTGRES_PORT', '5432')\n"
+            "pg_db = os.getenv('POSTGRES_DB', 'datamancy')\n"
+            "pg_user = os.getenv('POSTGRES_USER', 'pipeline_user')\n"
+            "pg_password = os.getenv('POSTGRES_PASSWORD', '')\n"
+            "engine = create_engine(f'postgresql+psycopg2://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}')\n"
+        ),
+        code_cell(
+            "symbol = 'BTC'\n"
+            "interval = 'candle_1m'\n"
+            "lookback = '60 days'\n"
+            "\n"
+            "prices = pd.read_sql(text('''\n"
+            "SELECT time, close\n"
+            "FROM market_data\n"
+            "WHERE symbol=:symbol\n"
+            "  AND exchange='hyperliquid'\n"
+            "  AND data_type=:interval\n"
+            "  AND time >= NOW() - CAST(:lookback AS interval)\n"
+            "ORDER BY time ASC\n"
+            "'''), engine, params={'symbol': symbol, 'interval': interval, 'lookback': lookback}, parse_dates=['time'])\n"
+            "prices = prices.dropna().reset_index(drop=True)\n"
+            "prices.head(), len(prices)\n"
+        ),
+        code_cell(
+            "def backtest(df, fast, slow, fee_bps=4, slip_bps=2):\n"
+            "    data = df.copy()\n"
+            "    data['ret'] = data['close'].pct_change().fillna(0)\n"
+            "    data['fast'] = data['close'].ewm(span=fast, adjust=False).mean()\n"
+            "    data['slow'] = data['close'].ewm(span=slow, adjust=False).mean()\n"
+            "    data['pos'] = (data['fast'] > data['slow']).astype(float).shift(1).fillna(0)\n"
+            "    turnover = data['pos'].diff().abs().fillna(0)\n"
+            "    cost = turnover * (fee_bps + slip_bps) / 10000.0\n"
+            "    data['strat_ret'] = data['pos'] * data['ret'] - cost\n"
+            "    eq = (1 + data['strat_ret']).cumprod()\n"
+            "    net = float(eq.iloc[-1] - 1)\n"
+            "    vol = float(data['strat_ret'].std())\n"
+            "    sharpe = float((data['strat_ret'].mean() / (vol + 1e-12)) * np.sqrt(60 * 24 * 365))\n"
+            "    peak = eq.cummax()\n"
+            "    mdd = float((eq / peak - 1).min())\n"
+            "    trades = int((data['pos'].diff().abs() > 0).sum())\n"
+            "    score = net / (abs(mdd) + 1e-9)\n"
+            "    return {'fast': fast, 'slow': slow, 'net_return': net, 'sharpe': sharpe, 'max_drawdown': mdd, 'trades': trades, 'score': score}\n"
+        ),
+        code_cell(
+            "fast_grid = [8, 13, 21, 34]\n"
+            "slow_grid = [34, 55, 89, 144]\n"
+            "grid = [(f, s) for f, s in product(fast_grid, slow_grid) if f < s]\n"
+            "\n"
+            "split = int(len(prices) * 0.7)\n"
+            "train = prices.iloc[:split].copy()\n"
+            "test = prices.iloc[split:].copy()\n"
+            "\n"
+            "train_results = pd.DataFrame([backtest(train, f, s) for f, s in grid]).sort_values('score', ascending=False)\n"
+            "best = train_results.head(5).copy()\n"
+            "best\n"
+        ),
+        code_cell(
+            "oos_rows = []\n"
+            "for _, row in best.iterrows():\n"
+            "    oos = backtest(test, int(row.fast), int(row.slow))\n"
+            "    oos_rows.append({\n"
+            "        'fast': int(row.fast),\n"
+            "        'slow': int(row.slow),\n"
+            "        'train_score': float(row.score),\n"
+            "        'train_return_pct': float(row.net_return * 100),\n"
+            "        'test_return_pct': float(oos['net_return'] * 100),\n"
+            "        'test_sharpe': float(oos['sharpe']),\n"
+            "        'test_drawdown_pct': float(oos['max_drawdown'] * 100),\n"
+            "    })\n"
+            "oos_df = pd.DataFrame(oos_rows).sort_values('test_return_pct', ascending=False)\n"
+            "oos_df\n"
+        ),
+        code_cell(
+            "best_row = oos_df.iloc[0]\n"
+            "with engine.begin() as conn:\n"
+            "    conn.execute(text('''\n"
+            "        INSERT INTO strategy_backtest_runs (\n"
+            "            strategy_name, symbol, timeframe, start_time, end_time,\n"
+            "            trades, win_rate, net_return_pct, max_drawdown_pct, sharpe, notes, metrics\n"
+            "        ) VALUES (\n"
+            "            :strategy_name, :symbol, :timeframe, :start_time, :end_time,\n"
+            "            :trades, :win_rate, :net_return_pct, :max_drawdown_pct, :sharpe, :notes, CAST(:metrics AS jsonb)\n"
+            "        )\n"
+            "    '''), {\n"
+            "        'strategy_name': 'ema_sweep_walk_forward',\n"
+            "        'symbol': symbol,\n"
+            "        'timeframe': interval,\n"
+            "        'start_time': prices['time'].min().to_pydatetime(),\n"
+            "        'end_time': prices['time'].max().to_pydatetime(),\n"
+            "        'trades': 0,\n"
+            "        'win_rate': 0.0,\n"
+            "        'net_return_pct': float(best_row.test_return_pct),\n"
+            "        'max_drawdown_pct': float(best_row.test_drawdown_pct),\n"
+            "        'sharpe': float(best_row.test_sharpe),\n"
+            "        'notes': 'Top walk-forward parameter set from preset notebook',\n"
+            "        'metrics': '{\"method\":\"ema_grid_walk_forward\"}'\n"
+            "    })\n"
+            "print('Saved best walk-forward run to strategy_backtest_runs')\n"
+        )
+    ]
+)
 PY
 
 chown -R ${NB_UID:-1000}:${NB_GID:-100} /home/jovyan/work/datamancy-notebooks 2>/dev/null || true

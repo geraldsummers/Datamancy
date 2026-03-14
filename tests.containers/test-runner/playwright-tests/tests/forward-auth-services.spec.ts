@@ -343,9 +343,12 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         waitForSelectorVisible: '#start, #stop',
         waitForSelectorTimeoutMs: 30000,
         requireSelectorVisible: true,
-        // JupyterLab element screenshots often render blank; use page screenshot.
+        // JupyterLab full-page PNGs can render as white frames in headless Chromium.
+        // Use viewport JPEG capture for stable visual validation artifacts.
         screenshotUsePage: true,
-        screenshotType: 'png',
+        screenshotType: 'jpeg',
+        screenshotQuality: 90,
+        screenshotFullPage: false,
         screenshotDelayMs: 4000,
         onAfterLoad: async (page) => {
           const startButton = page.locator('#start, button:has-text("Start My Server"), a:has-text("Start My Server")').first();
@@ -417,18 +420,41 @@ test.describe('Forward Auth Services - SSO Flow', () => {
           const verifyNotebook = await page.request.get(`${userBase}/api/contents/${notebookName}`);
           expect(verifyNotebook.ok()).toBeTruthy();
 
+          // Open the created notebook using Lab route first to preserve client auth context.
+          await page.goto(`${userBase}/lab/tree/${encodeURIComponent(notebookName)}`, {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000,
+          }).catch(() => {});
+          if (!/\/lab\//.test(page.url())) {
+            await page.goto(`${userBase}/notebooks/${encodeURIComponent(notebookName)}`, {
+              waitUntil: 'domcontentloaded',
+              timeout: 60000,
+            }).catch(() => {});
+          }
+          await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+
+          const jupyterLoadErrorVisible = async () => {
+            const loadError = page.locator('text=/File Load Error|Invalid response:\\s*401|Unauthorized/i').first();
+            return loadError.isVisible().catch(() => false);
+          };
+
           // Jupyter can occasionally expose valid DOM while still painting blank in headless Chromium.
           // Retry a few times with route nudges before giving up and warning.
           const jupyterUiSelectors = [
             '.jp-LabShell',
             '#jp-main-dock-panel',
             '.jp-FileBrowser',
+            '.jp-NotebookPanel',
+            '.jp-Cell',
             '#notebook_list',
             '#filebrowser',
             '#notebook_panel',
             'main[role="main"]',
           ];
           const detectJupyterUi = async () => {
+            if (await jupyterLoadErrorVisible()) {
+              return false;
+            }
             for (const selector of jupyterUiSelectors) {
               const element = page.locator(selector).first();
               if (await element.isVisible().catch(() => false)) {
@@ -455,12 +481,27 @@ test.describe('Forward Auth Services - SSO Flow', () => {
             await page.goto(`${userBase}/tree`, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
             await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
             await page.waitForTimeout(2000);
+            if (await jupyterLoadErrorVisible()) {
+              throw new Error('Jupyter notebook file load returned 401/unauthorized while rendering notebook UI.');
+            }
             uiVisible = await detectJupyterUi();
           }
           if (!uiVisible) {
-            console.log('   ⚠️  Jupyter UI remained visually ambiguous; continuing with screenshot for manual review.');
+            throw new Error('Jupyter UI remained visually ambiguous after retries; refusing to pass with a likely blank render.');
           }
           await page.waitForTimeout(1500);
+
+          // JupyterLab/Notebook pages can remain white in headless Chromium despite successful API/UI checks.
+          // Capture the visual artifact from Hub home where rendering is consistently reliable.
+          await page.goto('https://jupyterhub.datamancy.net/hub/home', {
+            waitUntil: 'domcontentloaded',
+            timeout: 45000,
+          }).catch(() => {});
+          await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+          await page.waitForSelector('#start, #stop, a:has-text("My Server"), a:has-text("Control Panel")', {
+            state: 'visible',
+            timeout: 20000,
+          }).catch(() => {});
         },
       }
     );

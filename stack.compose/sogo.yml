@@ -30,7 +30,7 @@ services:
       - ./configs/sogo/sogo-vhost.conf:/etc/apache2/conf-enabled/SOGo.conf:ro
       - caddy_ca:/ca:ro
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/80'"]
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null --max-time 8 http://localhost/SOGo/"]
       interval: 30s
       timeout: 10s
       retries: 10
