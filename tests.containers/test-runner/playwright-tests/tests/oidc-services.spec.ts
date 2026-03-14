@@ -805,6 +805,9 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
 
           // Ensure a mailbox row/folder is selected before screenshot capture.
           const mailboxSelectors = [
+            'li:has-text("@datamancy.net") > div',
+            'li:has-text("@datamancy.net") > div > div:has-text("@datamancy.net")',
+            'li:has-text("@datamancy.net") div[style*="cursor"]',
             'li:has(button:has-text("more_vert")):has-text("@datamancy.net")',
             'li:has(button[aria-label*="more_vert"]):has-text("@datamancy.net")',
             'li:has(button:has-text("Options")):has-text("@datamancy.net")',
@@ -862,7 +865,10 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
                     /@datamancy\.net/i.test(el.textContent ?? '') &&
                     /more_vert|options/i.test(el.textContent ?? '')
                 );
+              const accountText = Array.from(document.querySelectorAll('div, span, p'))
+                .find((el) => /@datamancy\.net/i.test(el.textContent ?? '')) as HTMLElement | undefined;
               const textNode = accountRow ??
+                accountText ??
                 Array.from(document.querySelectorAll('li, div, span'))
                   .find((el) => /@datamancy\.net/i.test(el.textContent ?? ''));
               const el = textNode as HTMLElement | undefined;
