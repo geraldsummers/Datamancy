@@ -46,6 +46,18 @@ services:
           echo "Mastodon database prepare failed after retries"
           exit 1
         fi
+        echo "Waiting for Redis availability before follow seeding..."
+        for i in $$(seq 1 30); do
+          if (echo > /dev/tcp/valkey/6379) >/dev/null 2>&1; then
+            echo "Redis is reachable"
+            break
+          fi
+          if [ "$$i" -eq 30 ]; then
+            echo "Redis is not reachable after retries; skipping follow seeding."
+            exit 0
+          fi
+          sleep 2
+        done
         echo "Applying default follows to local users..."
         mapfile -t users < <(bundle exec rails runner "puts Account.where(domain: nil).where.not(username: 'mastodon.internal').pluck(:username)")
         if [ -n "$${MASTODON_ADMIN_USERNAME:-}" ]; then
@@ -80,15 +92,39 @@ services:
         financialtimes@mastodon.social
         EOF
         for user in "$${users[@]}"; do
-          echo "Seeding follows for $$user..."
-          for account in "$${follow_accounts[@]}"; do
-            if bundle exec tootctl accounts follow "$$user" "$$account"; then
-              echo "  followed $$account"
-            else
-              echo "  warning: could not follow $$account for $$user"
-            fi
-          done
+          echo "Will seed follows for $$user"
         done
+        users_csv="$$(IFS=,; echo "$${users[*]}")"
+        follow_accounts_csv="$$(IFS=,; echo "$${follow_accounts[*]}")"
+        SEED_USERS="$$users_csv" SEED_FOLLOWS="$$follow_accounts_csv" bundle exec rails runner '
+          users = ENV.fetch("SEED_USERS", "").split(",").reject(&:empty?)
+          follows = ENV.fetch("SEED_FOLLOWS", "").split(",").reject(&:empty?)
+          local_accounts = Account.where(domain: nil, username: users).index_by(&:username)
+          users.each do |username|
+            source = local_accounts[username]
+            unless source
+              puts "skip user #{username}: not found"
+              next
+            end
+            follows.each do |handle|
+              begin
+                target = ResolveAccountService.new.call(handle, skip_cache: true)
+                if target.nil?
+                  puts "warn #{username}: could not resolve #{handle}"
+                  next
+                end
+                if source.following?(target)
+                  puts "ok #{username}: already follows #{handle}"
+                  next
+                end
+                FollowService.new.call(source, target, bypass_limit: true)
+                puts "ok #{username}: followed #{handle}"
+              rescue => e
+                puts "warn #{username}: follow #{handle} failed: #{e.class} #{e.message}"
+              end
+            end
+          end
+        '
 
 
   mastodon-web:
