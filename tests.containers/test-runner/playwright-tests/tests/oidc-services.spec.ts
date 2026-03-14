@@ -672,8 +672,10 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               const followingResponse = await api.get(`https://mastodon.datamancy.net/api/v1/accounts/${me.id}/following?limit=80`);
               const following = followingResponse.ok() ? await followingResponse.json().catch(() => []) : [];
               const followingCount = Array.isArray(following) ? following.length : 0;
+              const pageText = await page.textContent('body').catch(() => '') || '';
+              const isEmptyFollowingUi = /doesn.?t follow anyone yet/i.test(pageText) || /\b0\s+following\b/i.test(pageText);
 
-              if (followingCount > 0) {
+              if (followingCount > 0 && !isEmptyFollowingUi) {
                 await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
                 await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
                 expect(followingCount).toBeGreaterThan(0);
