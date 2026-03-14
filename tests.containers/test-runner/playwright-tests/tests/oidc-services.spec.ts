@@ -660,12 +660,12 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             const maxAttempts = 16;
             for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
               const pageText = await page.textContent('body').catch(() => '') || '';
-              const hasSeededHandle = /wikimediafoundation|internetarchive|creativecommons|natgeo|tomscott|financialtimes/i.test(pageText);
               const isEmptyFollowing = /doesn.?t follow anyone yet/i.test(pageText);
-              const followingCountFromProfile = Number((pageText.match(/(\d+)\s+following/i) || [])[1] || 0);
+              const pageHtml = await page.content().catch(() => '');
+              const followingCountFromMeta = Number((pageHtml.match(/,\s*(\d+)\s+Following,\s*\d+\s+Followers/i) || [])[1] || 0);
 
-              if ((followingCountFromProfile > 0 || hasSeededHandle) && !isEmptyFollowing) {
-                expect(followingCountFromProfile > 0 || hasSeededHandle).toBeTruthy();
+              if (followingCountFromMeta > 0 && !isEmptyFollowing) {
+                expect(followingCountFromMeta).toBeGreaterThan(0);
                 return;
               }
 
