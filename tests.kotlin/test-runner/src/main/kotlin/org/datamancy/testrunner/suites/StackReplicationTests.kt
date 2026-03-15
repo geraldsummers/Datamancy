@@ -101,9 +101,8 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
         println("      ℹ️  Stack deployed, waiting for services to be healthy...")
 
-        
         var healthy = false
-        repeat(60) { attempt ->
+        for (attempt in 1..60) {
             val (checkExit, checkOutput) = execIsolatedDockerVmDocker(
                 isolatedDockerVmDockerHost,
                 "ps",
@@ -113,14 +112,42 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
 
             if (checkExit == 0 && checkOutput.contains("Up")) {
                 healthy = true
-                println("      ✓ Services healthy after ${attempt + 1} seconds")
-                return@repeat
+                println("      ✓ Test service running after ${attempt}s")
+                break
             }
 
             Thread.sleep(1000)
         }
 
         healthy shouldBe true
+
+        waitForIsolatedDockerVmCommand(
+            description = "PostgreSQL readiness",
+            maxAttempts = 30,
+            delayMs = 2000
+        ) {
+            execIsolatedDockerVmDocker(
+                isolatedDockerVmDockerHost,
+                "run", "--rm",
+                "--network", networkName,
+                "postgres:16.11",
+                "pg_isready", "-h", "postgres", "-U", "test_admin", "-d", "postgres"
+            )
+        }
+
+        waitForIsolatedDockerVmCommand(
+            description = "Valkey readiness",
+            maxAttempts = 30,
+            delayMs = 1000
+        ) {
+            execIsolatedDockerVmDocker(
+                isolatedDockerVmDockerHost,
+                "run", "--rm",
+                "--network", networkName,
+                "valkey/valkey:8.1.5",
+                "valkey-cli", "-h", "valkey", "PING"
+            )
+        }
     }
 
     test("Verify isolated-docker-vm stack isolation from production") {
@@ -167,9 +194,14 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
             "--network", networkName,
             "-e", "PGPASSWORD=test_password",
             "postgres:16.11",
-            "psql", "-h", "postgres", "-U", "test_admin", "-d", "postgres", "-c", "SELECT version();"
+            "psql", "-w", "-v", "ON_ERROR_STOP=1",
+            "-h", "postgres", "-U", "test_admin", "-d", "postgres",
+            "-c", "SELECT version();"
         )
 
+        if (exitCode != 0) {
+            println("      ❌ PostgreSQL query failed (exit=$exitCode): $output")
+        }
         exitCode shouldBe 0
         output shouldContain "PostgreSQL"
         println("      ✓ PostgreSQL query successful")
@@ -195,9 +227,12 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
             "run", "--rm",
             "--network", networkName,
             "alpine:3.21",
-            "sh", "-c", "apk add --no-cache busybox-extras >/dev/null && nc -z postgres 5432 && nc -z valkey 6379"
+            "sh", "-c", "nc -z postgres 5432 && nc -z valkey 6379"
         )
 
+        if (exitCode != 0) {
+            println("      ❌ Connectivity check failed (exit=$exitCode): $output")
+        }
         exitCode shouldBe 0
         println("      ✓ Network connectivity verified")
     }
@@ -211,8 +246,12 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
             "-e", "PGPASSWORD=test_password",
             "postgres:16.11",
             "psql", "-h", "postgres", "-U", "test_admin", "-d", "postgres",
+            "-v", "ON_ERROR_STOP=1",
             "-c", "CREATE TABLE IF NOT EXISTS test_replication (id INT PRIMARY KEY, data TEXT); INSERT INTO test_replication VALUES (1, 'replication-test') ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data;"
         )
+        if (writeExit != 0) {
+            println("      ❌ Persistence write failed (exit=$writeExit)")
+        }
         writeExit shouldBe 0
 
         
@@ -223,9 +262,13 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
             "-e", "PGPASSWORD=test_password",
             "postgres:16.11",
             "psql", "-h", "postgres", "-U", "test_admin", "-d", "postgres",
+            "-v", "ON_ERROR_STOP=1",
             "-c", "SELECT data FROM test_replication WHERE id = 1;"
         )
 
+        if (readExit != 0) {
+            println("      ❌ Persistence read failed (exit=$readExit): $readOutput")
+        }
         readExit shouldBe 0
         readOutput shouldContain "replication-test"
         println("      ✓ Data persistence verified")
@@ -282,9 +325,13 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
             "-e", "PGPASSWORD=test_password",
             "postgres:16.11",
             "psql", "-h", "postgres", "-U", "test_admin", "-d", "postgres",
+            "-v", "ON_ERROR_STOP=1",
             "-c", "SELECT data FROM test_replication WHERE id = 1;"
         )
 
+        if (readExit != 0) {
+            println("      ❌ Post-restart persistence read failed (exit=$readExit): $readOutput")
+        }
         readExit shouldBe 0
         readOutput shouldContain "replication-test"
         println("      ✓ Stack restarted and data persisted")
@@ -393,6 +440,25 @@ private fun isIsolatedDockerVmDockerAvailable(dockerHost: String): Boolean {
     } catch (e: Exception) {
         false
     }
+}
+
+private fun waitForIsolatedDockerVmCommand(
+    description: String,
+    maxAttempts: Int,
+    delayMs: Long,
+    command: () -> Pair<Int, String>
+) {
+    var lastOutput = ""
+    for (attempt in 1..maxAttempts) {
+        val (exitCode, output) = command()
+        lastOutput = output
+        if (exitCode == 0) {
+            println("      ✓ $description ready after attempt $attempt")
+            return
+        }
+        Thread.sleep(delayMs)
+    }
+    throw AssertionError("$description did not become ready. Last output: $lastOutput")
 }
 
 
