@@ -163,9 +163,11 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     test("Query isolated-docker-vm PostgreSQL service") {
         val (exitCode, output) = execIsolatedDockerVmDocker(
             isolatedDockerVmDockerHost,
-            "exec",
-            "isolated-docker-vm-postgres-$testRunId",
-            "psql", "-U", "test_admin", "-d", "postgres", "-c", "SELECT version();"
+            "run", "--rm",
+            "--network", networkName,
+            "-e", "PGPASSWORD=test_password",
+            "postgres:16.11",
+            "psql", "-h", "postgres", "-U", "test_admin", "-d", "postgres", "-c", "SELECT version();"
         )
 
         exitCode shouldBe 0
@@ -176,9 +178,10 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     test("Query isolated-docker-vm Valkey service") {
         val (exitCode, output) = execIsolatedDockerVmDocker(
             isolatedDockerVmDockerHost,
-            "exec",
-            "isolated-docker-vm-valkey-$testRunId",
-            "valkey-cli", "PING"
+            "run", "--rm",
+            "--network", networkName,
+            "valkey/valkey:8.1.5",
+            "valkey-cli", "-h", "valkey", "PING"
         )
 
         exitCode shouldBe 0
@@ -189,9 +192,10 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
     test("Verify isolated-docker-vm stack network connectivity") {
         val (exitCode, output) = execIsolatedDockerVmDocker(
             isolatedDockerVmDockerHost,
-            "exec",
-            "isolated-docker-vm-test-service-$testRunId",
-            "sh", "-c", "nc -zv postgres 5432 && nc -zv valkey 6379"
+            "run", "--rm",
+            "--network", networkName,
+            "alpine:3.21",
+            "sh", "-c", "apk add --no-cache busybox-extras >/dev/null && nc -z postgres 5432 && nc -z valkey 6379"
         )
 
         exitCode shouldBe 0
@@ -202,19 +206,23 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
         
         val (writeExit, _) = execIsolatedDockerVmDocker(
             isolatedDockerVmDockerHost,
-            "exec",
-            "isolated-docker-vm-postgres-$testRunId",
-            "psql", "-U", "test_admin", "-d", "postgres",
-            "-c", "CREATE TABLE test_replication (id INT, data TEXT); INSERT INTO test_replication VALUES (1, 'replication-test');"
+            "run", "--rm",
+            "--network", networkName,
+            "-e", "PGPASSWORD=test_password",
+            "postgres:16.11",
+            "psql", "-h", "postgres", "-U", "test_admin", "-d", "postgres",
+            "-c", "CREATE TABLE IF NOT EXISTS test_replication (id INT PRIMARY KEY, data TEXT); INSERT INTO test_replication VALUES (1, 'replication-test') ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data;"
         )
         writeExit shouldBe 0
 
         
         val (readExit, readOutput) = execIsolatedDockerVmDocker(
             isolatedDockerVmDockerHost,
-            "exec",
-            "isolated-docker-vm-postgres-$testRunId",
-            "psql", "-U", "test_admin", "-d", "postgres",
+            "run", "--rm",
+            "--network", networkName,
+            "-e", "PGPASSWORD=test_password",
+            "postgres:16.11",
+            "psql", "-h", "postgres", "-U", "test_admin", "-d", "postgres",
             "-c", "SELECT data FROM test_replication WHERE id = 1;"
         )
 
@@ -269,9 +277,11 @@ suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests"
         
         val (readExit, readOutput) = execIsolatedDockerVmDocker(
             isolatedDockerVmDockerHost,
-            "exec",
-            "isolated-docker-vm-postgres-$testRunId",
-            "psql", "-U", "test_admin", "-d", "postgres",
+            "run", "--rm",
+            "--network", networkName,
+            "-e", "PGPASSWORD=test_password",
+            "postgres:16.11",
+            "psql", "-h", "postgres", "-U", "test_admin", "-d", "postgres",
             "-c", "SELECT data FROM test_replication WHERE id = 1;"
         )
 
