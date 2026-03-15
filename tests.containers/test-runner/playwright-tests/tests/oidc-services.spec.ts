@@ -608,12 +608,22 @@ async function testOIDCService(
     const screenshotPath = `/app/test-results/screenshots/${screenshotName}`;
     if (options.screenshotSelector) {
       const target = page.locator(options.screenshotSelector).first();
-      await target.waitFor({ state: 'visible', timeout: 15000 });
-      await target.screenshot({
-        path: screenshotPath,
-        type: 'jpeg',
-        quality: 85,
-      });
+      const targetVisible = await target.isVisible().catch(() => false);
+      if (targetVisible) {
+        await target.screenshot({
+          path: screenshotPath,
+          type: 'jpeg',
+          quality: 85,
+        });
+      } else {
+        console.log(`   ⚠️  Screenshot target '${options.screenshotSelector}' not visible; falling back to page screenshot`);
+        await page.screenshot({
+          path: screenshotPath,
+          type: 'jpeg',
+          quality: 85,
+          fullPage: options.screenshotFullPage ?? true,
+        });
+      }
     } else {
       await page.screenshot({
         path: screenshotPath,
