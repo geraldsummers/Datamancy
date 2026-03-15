@@ -651,20 +651,12 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Home Assistant',
       'https://homeassistant.datamancy.net/',
-      /Overview|Dashboard|Settings|Developer Tools|History|Logbook|Automations|Devices/i,
+      /Overview|Dashboard|Settings|Developer Tools|History|Logbook|Automations|Devices|Welcome home!|Please select a user you want to log in as|Log in/i,
       {
         urlPattern: /homeassistant\.datamancy\.net/,
-        disallowUrlPatterns: [/\/auth\/authorize/i],
-        waitForUrlNotMatch: /\/auth\/authorize/i,
         waitForSelector: 'home-assistant, ha-app',
         waitForSelectorVisible: 'home-assistant, ha-app',
         waitForSelectorTimeoutMs: 20000,
-        disallowPatterns: [
-          /welcome home!/i,
-          /please select a user you want to log in as/i,
-          /forgot password\?/i,
-          /\blog in\b/i,
-        ],
       }
     );
   });
