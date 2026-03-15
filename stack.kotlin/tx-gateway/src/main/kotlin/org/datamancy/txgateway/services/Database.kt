@@ -68,31 +68,49 @@ class DatabaseService(
     private val logger = LoggerFactory.getLogger(DatabaseService::class.java)
     private lateinit var dataSource: HikariDataSource
 
-    fun init() {
+    fun init(maxAttempts: Int = 60, delayMs: Long = 2000) {
         logger.info("Initializing database connection to $host:$port/$database as user $user (password: ${dbPassword.length} chars)")
-        val config = HikariConfig().apply {
-            jdbcUrl = "jdbc:postgresql://$host:$port/$database"
-            username = user
-            password = dbPassword
-            maximumPoolSize = 10
-            minimumIdle = 2
-            connectionTimeout = 30000
+        var lastError: Exception? = null
+
+        for (attempt in 1..maxAttempts) {
+            var candidateDataSource: HikariDataSource? = null
+            try {
+                val config = HikariConfig().apply {
+                    jdbcUrl = "jdbc:postgresql://$host:$port/$database"
+                    username = user
+                    password = dbPassword
+                    maximumPoolSize = 10
+                    minimumIdle = 2
+                    connectionTimeout = 30000
+                }
+
+                candidateDataSource = HikariDataSource(config)
+                Database.connect(candidateDataSource)
+
+                // Create tables
+                transaction {
+                    SchemaUtils.createMissingTablesAndColumns(
+                        TxAuditLog,
+                        EvmNonces,
+                        EvmPendingTxs,
+                        RateLimitWindows
+                    )
+                }
+
+                dataSource = candidateDataSource
+                logger.info("Database initialized successfully")
+                return
+            } catch (e: Exception) {
+                lastError = e
+                candidateDataSource?.close()
+                logger.warn("Database init failed ($attempt/$maxAttempts): ${e.message}")
+                if (attempt < maxAttempts) {
+                    Thread.sleep(delayMs)
+                }
+            }
         }
 
-        dataSource = HikariDataSource(config)
-        Database.connect(dataSource)
-
-        // Create tables
-        transaction {
-            SchemaUtils.createMissingTablesAndColumns(
-                TxAuditLog,
-                EvmNonces,
-                EvmPendingTxs,
-                RateLimitWindows
-            )
-        }
-
-        logger.info("Database initialized successfully")
+        throw IllegalStateException("Failed to initialize database after $maxAttempts attempts", lastError)
     }
 
     fun logTransaction(

@@ -16,6 +16,8 @@ import org.datamancy.txgateway.services.*
 import org.slf4j.LoggerFactory
 
 private val logger = LoggerFactory.getLogger("Application")
+private const val INIT_MAX_ATTEMPTS = 60
+private const val INIT_DELAY_MS = 2000L
 
 fun main() {
     val port = System.getenv("PORT")?.toInt() ?: 8080
@@ -26,12 +28,11 @@ fun main() {
     val workerClient = WorkerClient()
     val dbService = DatabaseService()
 
-    try {
+    initializeWithRetry("LDAP service", INIT_MAX_ATTEMPTS, INIT_DELAY_MS) {
         ldapService.init()
+    }
+    initializeWithRetry("Database service", INIT_MAX_ATTEMPTS, INIT_DELAY_MS) {
         dbService.init()
-    } catch (e: Exception) {
-        logger.error("Failed to initialize services", e)
-        throw e
     }
 
     embeddedServer(Netty, port = port) {
@@ -141,4 +142,29 @@ fun Application.configureApp(
     }
 
     logger.info("tx-gateway started on port ${environment.config.propertyOrNull("ktor.deployment.port")?.getString() ?: "8080"}")
+}
+
+private fun initializeWithRetry(
+    label: String,
+    maxAttempts: Int,
+    delayMs: Long,
+    block: () -> Unit
+) {
+    var lastError: Exception? = null
+    for (attempt in 1..maxAttempts) {
+        try {
+            if (attempt > 1) {
+                logger.info("Retrying $label initialization ($attempt/$maxAttempts)")
+            }
+            block()
+            return
+        } catch (e: Exception) {
+            lastError = e
+            logger.warn("$label initialization failed ($attempt/$maxAttempts): ${e.message}")
+            if (attempt < maxAttempts) {
+                Thread.sleep(delayMs)
+            }
+        }
+    }
+    throw IllegalStateException("Failed to initialize $label after $maxAttempts attempts", lastError)
 }

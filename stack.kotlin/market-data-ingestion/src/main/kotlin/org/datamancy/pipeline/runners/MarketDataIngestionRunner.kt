@@ -96,15 +96,12 @@ class MarketDataIngestionRunner {
         val dataSource = createDataSource()
         sink = MarketDataSink(dataSource, batchSize = batchSize)
 
-        // Health check
-        scope.launch {
-            if (!sink.healthCheck()) {
-                logger.error { "TimescaleDB health check failed! Shutting down." }
-                stop()
-                return@launch
-            }
-            logger.info { "✓ TimescaleDB connection healthy" }
+        // Block startup until TimescaleDB is reachable instead of shutting down on first race.
+        if (!waitForTimescaleDb()) {
+            logger.error { "TimescaleDB did not become ready within timeout. Exiting startup." }
+            return
         }
+        logger.info { "✓ TimescaleDB connection healthy" }
 
         // Start ingestion
         ingestionJob = scope.launch {
@@ -132,6 +129,21 @@ class MarketDataIngestionRunner {
         }
 
         logger.info { "Pipeline started successfully" }
+    }
+
+    private fun waitForTimescaleDb(maxAttempts: Int = 90, delayMs: Long = 2000): Boolean {
+        for (attempt in 1..maxAttempts) {
+            val healthy = runBlocking { sink.healthCheck() }
+            if (healthy) {
+                if (attempt > 1) {
+                    logger.info { "TimescaleDB became reachable on attempt $attempt/$maxAttempts" }
+                }
+                return true
+            }
+            logger.warn { "TimescaleDB not ready ($attempt/$maxAttempts), retrying in ${delayMs}ms" }
+            Thread.sleep(delayMs)
+        }
+        return false
     }
 
     /**

@@ -17,7 +17,7 @@ services:
       caddy:
         condition: service_started
       postgres:
-        condition: service_started
+        condition: service_healthy
     environment:
       RSS_SCHEDULE_MINUTES: "60"
       RSS_FEED_URLS: "https://cointelegraph.com/rss,https://www.marketwatch.com/rss/topstories,https://hnrss.org/frontpage,https://feeds.arstechnica.com/arstechnica/index,https://rss.nytimes.com/services/xml/rss/nyt/Business.xml,https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml,https://feeds.bbci.co.uk/news/business/rss.xml"
@@ -86,7 +86,7 @@ services:
       qdrant:
         condition: service_started
       postgres:
-        condition: service_started
+        condition: service_healthy
       embedding-service:
         condition: service_started
     environment:
@@ -122,7 +122,7 @@ services:
       - internet
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       bookstack:
         condition: service_started
     environment:
@@ -147,7 +147,7 @@ services:
       - internet
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"

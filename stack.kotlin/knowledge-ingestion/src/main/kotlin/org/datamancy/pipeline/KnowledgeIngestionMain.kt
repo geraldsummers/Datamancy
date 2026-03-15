@@ -15,6 +15,8 @@ import org.datamancy.pipeline.trading.RssSentimentAnalyzer
 import org.datamancy.pipeline.trading.RssSentimentSignalStore
 
 private val logger = KotlinLogging.logger {}
+private const val DB_INIT_MAX_ATTEMPTS = 60
+private const val DB_INIT_DELAY_MS = 2000L
 
 fun main() {
     logger.info { "🔥 Knowledge ingestion starting" }
@@ -24,16 +26,28 @@ fun main() {
     val dedupStore = DeduplicationStore()
     val metadataStore = SourceMetadataStore()
 
-    val stagingStore = DocumentStagingStore(
-        jdbcUrl = config.postgres.jdbcUrl,
-        user = config.postgres.user,
-        dbPassword = config.postgres.password
-    )
-    val rssSentimentSignalStore = RssSentimentSignalStore(
-        jdbcUrl = config.postgres.jdbcUrl,
-        user = config.postgres.user,
-        password = config.postgres.password
-    )
+    val stagingStore = withRetry(
+        label = "DocumentStagingStore",
+        maxAttempts = DB_INIT_MAX_ATTEMPTS,
+        delayMs = DB_INIT_DELAY_MS
+    ) {
+        DocumentStagingStore(
+            jdbcUrl = config.postgres.jdbcUrl,
+            user = config.postgres.user,
+            dbPassword = config.postgres.password
+        )
+    }
+    val rssSentimentSignalStore = withRetry(
+        label = "RssSentimentSignalStore",
+        maxAttempts = DB_INIT_MAX_ATTEMPTS,
+        delayMs = DB_INIT_DELAY_MS
+    ) {
+        RssSentimentSignalStore(
+            jdbcUrl = config.postgres.jdbcUrl,
+            user = config.postgres.user,
+            password = config.postgres.password
+        )
+    }
     val rssSentimentAnalyzer = RssSentimentAnalyzer()
 
     Runtime.getRuntime().addShutdownHook(Thread {
@@ -172,6 +186,30 @@ fun main() {
 
         awaitCancellation()
     }
+}
+
+private fun <T> withRetry(
+    label: String,
+    maxAttempts: Int,
+    delayMs: Long,
+    block: () -> T
+): T {
+    var lastError: Exception? = null
+    for (attempt in 1..maxAttempts) {
+        try {
+            if (attempt > 1) {
+                logger.info { "$label init retry $attempt/$maxAttempts" }
+            }
+            return block()
+        } catch (e: Exception) {
+            lastError = e
+            logger.warn { "$label init failed ($attempt/$maxAttempts): ${e.message}" }
+            if (attempt < maxAttempts) {
+                Thread.sleep(delayMs)
+            }
+        }
+    }
+    throw IllegalStateException("$label failed to initialize after $maxAttempts attempts", lastError)
 }
 
 suspend fun <T : org.datamancy.pipeline.core.Chunkable> runStandardizedSource(

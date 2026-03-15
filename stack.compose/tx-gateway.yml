@@ -15,7 +15,7 @@ services:
       - caddy
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       ldap:
         condition: service_started
       authelia:

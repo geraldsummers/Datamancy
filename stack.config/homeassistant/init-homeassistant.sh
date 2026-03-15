@@ -1,122 +1,67 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
 CONFIG_DIR="/config"
 AUTH_FILE="${CONFIG_DIR}/.storage/auth"
 ONBOARDING_FILE="${CONFIG_DIR}/.storage/onboarding"
 CORE_FILE="${CONFIG_DIR}/.storage/core.config"
-echo "Waiting for Home Assistant storage directory..."
-for i in {1..30}; do
-    if [ -d "${CONFIG_DIR}/.storage" ]; then
-        echo "Storage directory found."
-        break
+
+echo "Starting Home Assistant pre-init..."
+mkdir -p "${CONFIG_DIR}/.storage"
+
+has_real_user() {
+    if [ ! -f "${AUTH_FILE}" ]; then
+        return 1
     fi
-    sleep 2
-done
-if [ ! -d "${CONFIG_DIR}/.storage" ]; then
-    echo "Error: Storage directory not created after waiting."
-    exit 1
-fi
-create_admin_user() {
-    if [ -f "${AUTH_FILE}" ]; then
-        REAL_USER_COUNT=$(python3 -c "import json; d=json.load(open('${AUTH_FILE}')); users=d.get('data',{}).get('users',[]); print(sum(1 for u in users if u.get('is_active') and not u.get('system_generated')))" 2>/dev/null || echo "0")
-        if [ "${REAL_USER_COUNT}" -gt "0" ]; then
-            echo "Real users already exist, skipping admin creation."
-            return
-        fi
-    fi
-    echo "Creating admin user..."
-    python3 << 'PYEOF'
+    python3 - "$AUTH_FILE" <<'PY'
 import json
-import os
-import hashlib
-import secrets
-from pathlib import Path
-CONFIG_DIR = Path("/config")
-AUTH_FILE = CONFIG_DIR / ".storage" / "auth"
-PERSON_FILE = CONFIG_DIR / ".storage" / "person"
-admin_username = os.environ.get("STACK_ADMIN_USER")
-admin_password = os.environ.get("STACK_ADMIN_PASSWORD")
-admin_email = os.environ.get("STACK_ADMIN_EMAIL", "{{STACK_ADMIN_EMAIL}}")
-if not admin_username or not admin_password:
-    print("ERROR: STACK_ADMIN_USER and STACK_ADMIN_PASSWORD must be set")
-    exit(1)
-user_id = secrets.token_hex(16)
-person_id = secrets.token_hex(16)
-import bcrypt
-password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-auth_data = {
-    "version": 1,
-    "minor_version": 3,
-    "key": "auth",
-    "data": {
-        "users": [
-            {
-                "id": user_id,
-                "group_ids": ["system-admin"],
-                "is_owner": True,
-                "is_active": True,
-                "name": admin_username,
-                "system_generated": False,
-                "local_only": False
-            }
-        ],
-        "credentials": [
-            {
-                "id": secrets.token_hex(16),
-                "user_id": user_id,
-                "auth_provider_type": "homeassistant",
-                "auth_provider_id": None,
-                "data": {
-                    "username": admin_username,
-                    "password": password_hash
-                }
-            }
-        ],
-        "refresh_tokens": [],
-        "groups": [
-            {
-                "id": "system-admin",
-                "name": "Administrators"
-            },
-            {
-                "id": "system-users",
-                "name": "Users"
-            },
-            {
-                "id": "system-read-only",
-                "name": "Read Only"
-            }
-        ]
-    }
+import sys
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+except Exception:
+    print(0)
+    raise SystemExit(0)
+
+users = data.get("data", {}).get("users", [])
+real_users = sum(1 for u in users if u.get("is_active") and not u.get("system_generated"))
+print(real_users)
+PY
 }
-AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
-with open(AUTH_FILE, 'w') as f:
-    json.dump(auth_data, f, indent=2)
-print(f"Admin user '{admin_username}' created successfully.")
-person_data = {
-    "version": 1,
-    "minor_version": 2,
-    "key": "person",
-    "data": {
-        "persons": [
-            {
-                "id": person_id,
-                "name": admin_username,
-                "user_id": user_id,
-                "device_trackers": []
-            }
-        ]
-    }
+
+create_admin_user() {
+    local admin_username="${STACK_ADMIN_USER:-}"
+    local admin_password="${STACK_ADMIN_PASSWORD:-}"
+
+    if [ -z "${admin_username}" ] || [ -z "${admin_password}" ]; then
+        echo "STACK_ADMIN_USER/STACK_ADMIN_PASSWORD missing; skipping user bootstrap"
+        return
+    fi
+
+    local real_users
+    real_users="$(has_real_user || true)"
+    if [ "${real_users:-0}" -gt 0 ]; then
+        echo "Real Home Assistant user already exists (${real_users}), skipping bootstrap user creation"
+        return
+    fi
+
+    echo "Creating Home Assistant bootstrap admin user via supported auth script..."
+    if python3 -m homeassistant --script auth -c "${CONFIG_DIR}" add "${admin_username}" "${admin_password}"; then
+        echo "Bootstrap admin user created: ${admin_username}"
+    else
+        echo "Auth script add failed, checking if user now exists before failing..."
+    fi
+
+    real_users="$(has_real_user || true)"
+    if [ "${real_users:-0}" -le 0 ]; then
+        echo "Failed to create a real Home Assistant user"
+        exit 1
+    fi
 }
-with open(PERSON_FILE, 'w') as f:
-    json.dump(person_data, f, indent=2)
-print(f"Person '{admin_username}' created successfully.")
-PYEOF
-    echo "Admin user created."
-}
-mark_onboarding_user_complete() {
-    echo "Ensuring onboarding steps are marked complete..."
-    cat > "${ONBOARDING_FILE}" << 'EOF'
+
+mark_onboarding_complete() {
+    cat > "${ONBOARDING_FILE}" <<'EOF'
 {
   "version": 3,
   "minor_version": 1,
@@ -131,14 +76,14 @@ mark_onboarding_user_complete() {
   }
 }
 EOF
-    echo "Onboarding marked complete."
+    echo "Onboarding state set to complete"
 }
 
 ensure_core_config() {
     if [ -f "${CORE_FILE}" ]; then
         return
     fi
-    cat > "${CORE_FILE}" << 'EOF'
+    cat > "${CORE_FILE}" <<'EOF'
 {
   "version": 1,
   "minor_version": 1,
@@ -155,14 +100,11 @@ ensure_core_config() {
   }
 }
 EOF
-    echo "Core config written."
+    echo "Core config written"
 }
-echo "Starting Home Assistant initialization..."
+
 create_admin_user
-mark_onboarding_user_complete
+mark_onboarding_complete
 ensure_core_config
-echo "Home Assistant initialization complete."
-if [ -n "${STACK_ADMIN_USER:-}" ]; then
-    echo "Admin user: ${STACK_ADMIN_USER}"
-fi
-echo "Home Assistant will load directly to the main UI after authentication."
+
+echo "Home Assistant pre-init complete"
