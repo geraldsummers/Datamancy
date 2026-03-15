@@ -297,7 +297,7 @@ private class CallToolHandler(private val tools: ToolRegistry) : HttpHandler {
                 // CORS preflight response for browser-based clients
                 val h = exchange.responseHeaders
                 h.add("Access-Control-Allow-Origin", "*")
-                h.add("Access-Control-Allow-Headers", "content-type")
+                h.add("Access-Control-Allow-Headers", "content-type, x-user-context, x-user-roles, remote-user, remote-groups, x-auth-request-user, x-auth-request-groups, x-forwarded-user, x-forwarded-groups")
                 h.add("Access-Control-Allow-Methods", "POST, OPTIONS")
                 exchange.sendResponseHeaders(204, -1)
                 exchange.close()
@@ -356,6 +356,7 @@ private class McpHandler(private val tools: ToolRegistry) : HttpHandler {
     private val bodyMaxBytes: Long = 1_000_000L
     private val bodyReadTimeoutMs: Long = 5_000L
     private val callTimeoutMs: Long = 300_000L
+    private val authz = McpRoleAuthorizer()
 
     override fun handle(exchange: HttpExchange) {
         var jsonRpcId: Any? = null
@@ -377,7 +378,10 @@ private class McpHandler(private val tools: ToolRegistry) : HttpHandler {
             }
             val method = node["method"]?.asText()?.trim().orEmpty()
             val params = node["params"] ?: Json.mapper.createObjectNode()
-            val userContext = exchange.requestHeaders.getFirst("X-User-Context")?.takeIf { it.isNotBlank() }
+            val identity = authz.extractIdentity(exchange.requestHeaders)
+            val userContext = exchange.requestHeaders.getFirst("X-User-Context")
+                ?.takeIf { it.isNotBlank() }
+                ?: identity.user
 
             if (method.isBlank()) {
                 respond(exchange, 400, mapOf("error" to "Missing JSON-RPC method"))
@@ -398,6 +402,7 @@ private class McpHandler(private val tools: ToolRegistry) : HttpHandler {
                 "notifications/initialized" -> mapOf()
                 "ping" -> mapOf()
                 "tools/list" -> {
+                    authz.ensureAuthorized(identity, method = method, toolName = null)
                     val mcpTools = tools.listTools().map { def ->
                         mapOf(
                             "name" to def.name,
@@ -412,6 +417,7 @@ private class McpHandler(private val tools: ToolRegistry) : HttpHandler {
                     if (toolName.isEmpty()) {
                         throw IllegalArgumentException("Missing params.name for tools/call")
                     }
+                    authz.ensureAuthorized(identity, method = method, toolName = toolName)
                     val args = params["arguments"] ?: Json.mapper.createObjectNode()
                     val toolResult = invokeWithTimeout({ tools.invoke(toolName, args, userContext) }, callTimeoutMs)
                     val serialized = Json.mapper.writeValueAsString(toolResult)
@@ -445,6 +451,8 @@ private class McpHandler(private val tools: ToolRegistry) : HttpHandler {
             mcpError(exchange, jsonRpcId, -32602, nf.message ?: "Tool not found")
         } catch (iae: IllegalArgumentException) {
             mcpError(exchange, jsonRpcId, -32602, iae.message ?: "Invalid params")
+        } catch (sec: SecurityException) {
+            mcpError(exchange, jsonRpcId, -32003, sec.message ?: "Unauthorized")
         } catch (e: Exception) {
             mcpError(exchange, jsonRpcId, -32603, e.message ?: "Internal error")
         }
@@ -473,6 +481,123 @@ private class McpHandler(private val tools: ToolRegistry) : HttpHandler {
     }
 }
 
+private data class McpIdentity(
+    val user: String?,
+    val roles: Set<String>
+)
+
+/**
+ * Optional LDAP role-based authorization for MCP endpoint methods.
+ *
+ * Auth is controlled with:
+ * - MCP_AUTH_REQUIRED=true|false
+ * - MCP_LIST_ALLOWED_ROLES=role1,role2
+ * - MCP_DEFAULT_TOOL_ALLOWED_ROLES=role1,role2
+ * - MCP_TOOL_ROLE_RULES=tool=role1|role2;prefix*=role3
+ */
+private class McpRoleAuthorizer {
+    private val authRequired = envOrPropBoolean("MCP_AUTH_REQUIRED", false)
+    private val listAllowedRoles = envOrPropCsv("MCP_LIST_ALLOWED_ROLES")
+    private val defaultToolAllowedRoles = envOrPropCsv("MCP_DEFAULT_TOOL_ALLOWED_ROLES")
+    private val toolRoleRules = parseRoleRules(envOrProp("MCP_TOOL_ROLE_RULES"))
+
+    fun extractIdentity(headers: com.sun.net.httpserver.Headers): McpIdentity {
+        val user = firstHeader(headers, "X-User-Context", "Remote-User", "X-Auth-Request-User", "X-Forwarded-User")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+
+        val roles = sequenceOf(
+            headerValues(headers, "Remote-Groups"),
+            headerValues(headers, "X-User-Roles"),
+            headerValues(headers, "X-Auth-Request-Groups"),
+            headerValues(headers, "X-Forwarded-Groups")
+        )
+            .flatten()
+            .flatMap { splitRoles(it).asSequence() }
+            .map { it.lowercase() }
+            .toSet()
+
+        return McpIdentity(user = user, roles = roles)
+    }
+
+    fun ensureAuthorized(identity: McpIdentity, method: String, toolName: String?) {
+        if (!authRequired) return
+        if (method == "initialize" || method == "ping" || method == "notifications/initialized") return
+        if (identity.user.isNullOrBlank()) {
+            throw SecurityException("MCP authentication required: missing user identity headers")
+        }
+
+        val requiredRoles = when (method) {
+            "tools/list" -> listAllowedRoles
+            "tools/call" -> {
+                if (toolName.isNullOrBlank()) emptySet()
+                else requiredRolesForTool(toolName).ifEmpty { defaultToolAllowedRoles }
+            }
+            else -> emptySet()
+        }
+
+        if (requiredRoles.isNotEmpty() && identity.roles.intersect(requiredRoles).isEmpty()) {
+            throw SecurityException("MCP authorization failed for ${method}${toolName?.let { " ($it)" } ?: ""}")
+        }
+    }
+
+    private fun requiredRolesForTool(toolName: String): Set<String> {
+        val lowerToolName = toolName.lowercase()
+        return toolRoleRules.firstOrNull { (pattern, _) ->
+            if (pattern.endsWith("*")) {
+                val prefix = pattern.removeSuffix("*")
+                lowerToolName.startsWith(prefix)
+            } else {
+                lowerToolName == pattern
+            }
+        }?.second ?: emptySet()
+    }
+
+    private fun parseRoleRules(raw: String?): List<Pair<String, Set<String>>> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw.split(';')
+            .mapNotNull { rule ->
+                val trimmed = rule.trim()
+                if (trimmed.isEmpty() || !trimmed.contains("=")) return@mapNotNull null
+                val idx = trimmed.indexOf('=')
+                val pattern = trimmed.substring(0, idx).trim().lowercase()
+                val roles = splitRoles(trimmed.substring(idx + 1)).map { it.lowercase() }.toSet()
+                if (pattern.isEmpty() || roles.isEmpty()) null else pattern to roles
+            }
+    }
+
+    private fun splitRoles(raw: String): List<String> =
+        raw.split(',', ';', '|', ' ')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+    private fun envOrProp(key: String): String? =
+        System.getProperty(key)?.takeIf { it.isNotBlank() }
+            ?: System.getenv(key)?.takeIf { it.isNotBlank() }
+
+    private fun envOrPropBoolean(key: String, default: Boolean): Boolean {
+        return when ((envOrProp(key) ?: "").trim().lowercase()) {
+            "1", "true", "yes", "on" -> true
+            "0", "false", "no", "off" -> false
+            else -> default
+        }
+    }
+
+    private fun envOrPropCsv(key: String): Set<String> =
+        splitRoles(envOrProp(key).orEmpty()).map { it.lowercase() }.toSet()
+
+    private fun firstHeader(headers: com.sun.net.httpserver.Headers, vararg names: String): String? {
+        names.forEach { name ->
+            headers.getFirst(name)?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return null
+    }
+
+    private fun headerValues(headers: com.sun.net.httpserver.Headers, name: String): List<String> {
+        return headers[name]?.filter { it.isNotBlank() } ?: emptyList()
+    }
+}
+
 /**
  * Sends a JSON response with CORS headers.
  *
@@ -486,7 +611,7 @@ private fun respond(exchange: HttpExchange, status: Int, payload: Any) {
     headers.add("Connection", "close")
     // CORS headers for browser-based clients
     headers.add("Access-Control-Allow-Origin", "*")
-    headers.add("Access-Control-Allow-Headers", "content-type")
+    headers.add("Access-Control-Allow-Headers", "content-type, x-user-context, x-user-roles, remote-user, remote-groups, x-auth-request-user, x-auth-request-groups, x-forwarded-user, x-forwarded-groups")
     headers.add("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
     headers.add("Access-Control-Max-Age", "600")
     exchange.sendResponseHeaders(status, bytes.size.toLong())
@@ -502,7 +627,7 @@ private fun respondHead(exchange: HttpExchange, status: Int) {
     headers.add("Connection", "close")
     // CORS headers for browser-based clients
     headers.add("Access-Control-Allow-Origin", "*")
-    headers.add("Access-Control-Allow-Headers", "content-type")
+    headers.add("Access-Control-Allow-Headers", "content-type, x-user-context, x-user-roles, remote-user, remote-groups, x-auth-request-user, x-auth-request-groups, x-forwarded-user, x-forwarded-groups")
     headers.add("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
     headers.add("Access-Control-Max-Age", "600")
     exchange.sendResponseHeaders(status, -1)

@@ -46,6 +46,10 @@ services:
       LDAP_PORT: 389
       LDAP_BASE_DN: ${LDAP_BASE_DN}
       SEARCH_SERVICE_URL: http://search-service:8098
+      # MCP authn/authz: require LDAP-backed identity headers for tool methods.
+      MCP_AUTH_REQUIRED: "true"
+      MCP_LIST_ALLOWED_ROLES: "users,admins,agents"
+      MCP_DEFAULT_TOOL_ALLOWED_ROLES: "users,admins,agents"
       MCP_GRANT_HOST_NETWORK_HTTP: "true"
       MCP_GRANT_HOST_NETWORK_SSH: "true"
       TOOLSERVER_SSH_HOST: ${STACK_SSH_HOST:-latium.local}
