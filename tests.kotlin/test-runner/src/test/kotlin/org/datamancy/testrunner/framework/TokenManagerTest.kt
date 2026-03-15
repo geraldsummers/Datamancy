@@ -53,7 +53,7 @@ class TokenManagerTest {
     }
 
     private fun createTestEndpoints() = ServiceEndpoints(
-        agentToolServer = "http://agent-tool-server:8081",
+        modelContextServer = "http://model-context-server:8081",
         dataFetcher = "http://data-fetcher:8095",
         searchService = "http://search-service:8098",
         pipeline = "http://pipeline:8090",

@@ -4,7 +4,7 @@ import org.example.manifest.PluginManifest
 import org.example.host.ToolRegistry
 
 /**
- * Core plugin interface enabling JAR-based extensibility for the agent-tool-server.
+ * Core plugin interface enabling JAR-based extensibility for the model-context-server.
  *
  * Plugins expose LLM-callable tools that integrate with the broader Datamancy stack
  * (PostgreSQL, Qdrant, Search-Service, Docker, etc.) via OpenAI function calling format.
@@ -107,7 +107,7 @@ interface Plugin {
  * Provides version information for compatibility checking and configuration
  * for external service endpoints (database URLs, API keys, etc.).
  *
- * @property hostVersion SemVer version of agent-tool-server host (e.g., "1.0.0")
+ * @property hostVersion SemVer version of model-context-server host (e.g., "1.0.0")
  * @property apiVersion SemVer version of Plugin API (e.g., "1.0.0")
  * @property config Configuration map from host (database URLs, service endpoints, etc.)
  */

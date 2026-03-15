@@ -73,7 +73,7 @@ private fun String.toDeterministicUUID(): UUID {
  *
  * **Downstream Consumers:**
  * - search-service module queries these vectors for semantic search (via cosine similarity)
- * - agent-tool-server provides search_qdrant tool for LLM agents to query vectors
+ * - model-context-server provides search_qdrant tool for LLM agents to query vectors
  *
  * @param qdrantHost The Qdrant hostname (e.g., "qdrant")
  * @param qdrantPort The Qdrant gRPC port (default: 6334)

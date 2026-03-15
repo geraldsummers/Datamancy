@@ -267,21 +267,21 @@ curl http://litellm:4000/health
    docker compose restart vllm
    ```
 
-### Agent Tool Server Issues
+### Model Context Server Issues
 
 **Diagnostic**:
 ```bash
-# Check if agent-tool-server is running
-docker compose ps agent-tool-server
+# Check if model-context-server is running
+docker compose ps model-context-server
 
 # Check logs
-docker compose logs agent-tool-server | tail -100
+docker compose logs model-context-server | tail -100
 
 # Test health
-curl http://agent-tool-server:8081/health
+curl http://model-context-server:8081/health
 
 # List available tools
-curl http://agent-tool-server:8081/tools
+curl http://model-context-server:8081/tools
 ```
 
 **Common issues**:

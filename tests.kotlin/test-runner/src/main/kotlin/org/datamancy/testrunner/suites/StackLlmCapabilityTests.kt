@@ -54,7 +54,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
                   - "8080:80"
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -91,7 +91,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
                   - backend
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -131,7 +131,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
                   POSTGRES_PASSWORD: secret123
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -167,7 +167,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Output ONLY the YAML, no explanation.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -207,7 +207,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
                   - 8080:443
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -246,7 +246,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Should it use 'depends_on' in Docker Compose? Answer yes or no and why briefly.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -281,7 +281,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Answer yes or no, then explain in one sentence.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -316,7 +316,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Output only the healthcheck YAML section.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -354,7 +354,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             what URL format would it typically use? Answer with just the URL pattern.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -387,7 +387,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Answer yes or no, and state the alternative in one sentence.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -426,7 +426,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Output only the code, no explanation.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -459,7 +459,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Output only the code.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -493,7 +493,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Answer with just the library name.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -527,7 +527,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Output only the code.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -564,7 +564,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Answer in one sentence.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -598,7 +598,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Answer briefly in 1-2 sentences.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -632,7 +632,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Answer with a number or range.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -668,7 +668,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Answer in one sentence.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -707,7 +707,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Output only the JSON.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -741,7 +741,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             List 3-5 common fields.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -775,7 +775,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Answer with the search type.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -809,7 +809,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
             Answer yes or no and explain briefly.
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -844,7 +844,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
         maxP95Latency = 15000      // 15s p95
     ) {
         measureTimeMillis {
-            httpClient.post("${endpoints.agentToolServer}/call-tool") {
+            httpClient.post("${endpoints.modelContextServer}/call-tool") {
                 contentType(ContentType.Application.Json)
                 setBody("""
                     {
@@ -868,7 +868,7 @@ suspend fun TestRunner.stackLlmCapabilityTests() {
         maxP95Latency = 20000      // 20s p95
     ) {
         measureTimeMillis {
-            httpClient.post("${endpoints.agentToolServer}/call-tool") {
+            httpClient.post("${endpoints.modelContextServer}/call-tool") {
                 contentType(ContentType.Application.Json)
                 setBody("""
                     {

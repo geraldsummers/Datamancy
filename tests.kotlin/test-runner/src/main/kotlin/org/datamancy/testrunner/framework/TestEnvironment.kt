@@ -21,7 +21,7 @@ import java.io.File
  * - **Integration Scope**: Includes every service that tests might interact with, from core
  *   infrastructure (PostgreSQL, LDAP) to end-user applications (Grafana, BookStack, Mastodon)
  *
- * @property agentToolServer Agent-Tool-Server endpoint for LLM tool execution
+ * @property modelContextServer Agent-Tool-Server endpoint for LLM tool execution
  * @property dataFetcher Data fetcher service for triggering pipeline ingestion
  * @property searchService Hybrid search service (vector + BM25) endpoint
  * @property pipeline Pipeline monitoring and control endpoint
@@ -32,8 +32,8 @@ import java.io.File
  * @property qdrant Qdrant vector database HTTP endpoint
  * @property valkey Valkey (Redis-compatible) cache endpoint
  * @property ldap OpenLDAP server endpoint for user management
- * @property userContext Default user context header for agent-tool-server requests
- * @property apiKey Optional API key for agent-tool-server authorization
+ * @property userContext Default user context header for model-context-server requests
+ * @property apiKey Optional API key for model-context-server authorization
  * @property bookstackTokenId BookStack API token ID for authenticated requests
  * @property bookstackTokenSecret BookStack API token secret
  * @property caddy Caddy reverse proxy endpoint (forward-auth enforcement)
@@ -65,7 +65,7 @@ import java.io.File
  * @property hyperliquidWorker Hyperliquid worker for perpetual futures trading
  */
 data class ServiceEndpoints(
-    val agentToolServer: String,
+    val modelContextServer: String,
     val dataFetcher: String,
     val searchService: String,
     val pipeline: String,
@@ -127,7 +127,7 @@ data class ServiceEndpoints(
          * Creates service endpoints from environment variables (Docker container network mode).
          *
          * This factory method reads service URLs from environment variables with fallbacks to
-         * internal Docker network hostnames (e.g., `http://agent-tool-server:8081`). This is
+         * internal Docker network hostnames (e.g., `http://model-context-server:8081`). This is
          * the default configuration when tests run inside the Docker stack.
          *
          * Tests running in containers can directly access services via Docker's DNS resolution,
@@ -136,7 +136,7 @@ data class ServiceEndpoints(
          * @return ServiceEndpoints configured for Docker container network access
          */
         fun fromEnvironment(): ServiceEndpoints = ServiceEndpoints(
-            agentToolServer = env("AGENT_TOOL_SERVER_URL") ?: "http://agent-tool-server:8081",
+            modelContextServer = env("MODEL_CONTEXT_SERVER_URL") ?: "http://model-context-server:8081",
             dataFetcher = env("DATA_FETCHER_URL") ?: "http://data-fetcher:8095",
             searchService = env("SEARCH_SERVICE_URL") ?: "http://search-service:8098",
             pipeline = env("PIPELINE_URL") ?: "http://pipeline:8090",
@@ -219,7 +219,7 @@ data class ServiceEndpoints(
          * @return ServiceEndpoints configured for localhost port-mapped access
          */
         fun forLocalhost(): ServiceEndpoints = ServiceEndpoints(
-            agentToolServer = "http://localhost:18091",
+            modelContextServer = "http://localhost:18091",
             dataFetcher = "http://localhost:18095",
             searchService = "http://localhost:18098",
             pipeline = "http://localhost:18080",

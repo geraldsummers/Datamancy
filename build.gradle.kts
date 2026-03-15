@@ -49,7 +49,7 @@ subprojects {
 // Root-level test task runs unit tests only (no Docker required)
 tasks.register("test") {
     dependsOn(
-        ":agent-tool-server:test",
+        ":model-context-server:test",
         ":search-service:test",
         ":test-runner:test"  // Now includes unit tests for the integration test suites!
     )

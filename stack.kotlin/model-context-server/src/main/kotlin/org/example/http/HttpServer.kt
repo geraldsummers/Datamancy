@@ -853,17 +853,17 @@ private class MetricsHandler(private val tools: ToolRegistry) : HttpHandler {
  *
  * Exports metrics in Prometheus text format for scraping by Prometheus server.
  * Includes:
- * - agent_tool_server_uptime_seconds
- * - agent_tool_server_memory_used_bytes
- * - agent_tool_server_tools_registered_total
- * - agent_tool_server_http_requests_total (if available from agent)
+ * - model_context_server_uptime_seconds
+ * - model_context_server_memory_used_bytes
+ * - model_context_server_tools_registered_total
+ * - model_context_server_http_requests_total (if available from agent)
  *
  * Example Prometheus scrape config:
  * ```yaml
  * scrape_configs:
- *   - job_name: 'agent-tool-server'
+ *   - job_name: 'model-context-server'
  *     static_configs:
- *       - targets: ['agent-tool-server:8081']
+ *       - targets: ['model-context-server:8081']
  * ```
  */
 private class PrometheusMetricsHandler(private val tools: ToolRegistry) : HttpHandler {
@@ -880,30 +880,30 @@ private class PrometheusMetricsHandler(private val tools: ToolRegistry) : HttpHa
 
                     val prometheusText = buildString {
                         // System metrics
-                        appendLine("# HELP agent_tool_server_uptime_seconds Time since server started")
-                        appendLine("# TYPE agent_tool_server_uptime_seconds gauge")
-                        appendLine("agent_tool_server_uptime_seconds $uptime")
+                        appendLine("# HELP model_context_server_uptime_seconds Time since server started")
+                        appendLine("# TYPE model_context_server_uptime_seconds gauge")
+                        appendLine("model_context_server_uptime_seconds $uptime")
                         appendLine()
 
-                        appendLine("# HELP agent_tool_server_memory_used_bytes Memory usage in bytes")
-                        appendLine("# TYPE agent_tool_server_memory_used_bytes gauge")
-                        appendLine("agent_tool_server_memory_used_bytes $memoryUsed")
+                        appendLine("# HELP model_context_server_memory_used_bytes Memory usage in bytes")
+                        appendLine("# TYPE model_context_server_memory_used_bytes gauge")
+                        appendLine("model_context_server_memory_used_bytes $memoryUsed")
                         appendLine()
 
-                        appendLine("# HELP agent_tool_server_memory_total_bytes Total memory available")
-                        appendLine("# TYPE agent_tool_server_memory_total_bytes gauge")
-                        appendLine("agent_tool_server_memory_total_bytes ${runtime.totalMemory()}")
+                        appendLine("# HELP model_context_server_memory_total_bytes Total memory available")
+                        appendLine("# TYPE model_context_server_memory_total_bytes gauge")
+                        appendLine("model_context_server_memory_total_bytes ${runtime.totalMemory()}")
                         appendLine()
 
-                        appendLine("# HELP agent_tool_server_threads_active Active thread count")
-                        appendLine("# TYPE agent_tool_server_threads_active gauge")
-                        appendLine("agent_tool_server_threads_active ${Thread.activeCount()}")
+                        appendLine("# HELP model_context_server_threads_active Active thread count")
+                        appendLine("# TYPE model_context_server_threads_active gauge")
+                        appendLine("model_context_server_threads_active ${Thread.activeCount()}")
                         appendLine()
 
                         // Tool registry metrics
-                        appendLine("# HELP agent_tool_server_tools_registered_total Number of registered tools")
-                        appendLine("# TYPE agent_tool_server_tools_registered_total gauge")
-                        appendLine("agent_tool_server_tools_registered_total $toolsCount")
+                        appendLine("# HELP model_context_server_tools_registered_total Number of registered tools")
+                        appendLine("# TYPE model_context_server_tools_registered_total gauge")
+                        appendLine("model_context_server_tools_registered_total $toolsCount")
                         appendLine()
                     }
 

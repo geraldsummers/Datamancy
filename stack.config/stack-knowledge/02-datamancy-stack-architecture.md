@@ -57,14 +57,14 @@ Datamancy is a comprehensive self-hosted stack with 50+ services organized into 
 - **LiteLLM**: LLM gateway (port 4000)
   - Models: qwen2.5-7b-instruct, qwen-7b (vLLM)
 - **Embedding Service**: Text embeddings (bge-m3, bge-base-en-v1.5)
-- **Agent Tool Server**: Tool execution for LLM agents (port 8081)
+- **Model Context Server**: Tool execution for LLM agents (port 8081)
 - **Search Service**: RAG provider with hybrid search (port 8098)
 
 **Networks**: `ai`
 
 **Key URLs**:
 - LiteLLM: `http://litellm:4000`
-- Agent Tool Server: `http://agent-tool-server:8081`
+- Model Context Server: `http://model-context-server:8081`
 - Search Service: `http://search-service:8098`
 - Embedding: `http://embedding-service:8080`
 

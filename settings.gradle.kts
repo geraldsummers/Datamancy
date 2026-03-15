@@ -1,7 +1,7 @@
 rootProject.name = "Datamancy"
 
 // Include all Kotlin subprojects (standardized module IDs)
-include(":agent-tool-server")
+include(":model-context-server")
 //include(":speech-gateway")
 //include(":vllm-router")
 //include(":stack-discovery")
@@ -12,7 +12,7 @@ include(":agent-tool-server")
 // Removed: include(":config-generator")
 
 // Map subproject directories (standardized directories)
-project(":agent-tool-server").projectDir = file("stack.kotlin/agent-tool-server")
+project(":model-context-server").projectDir = file("stack.kotlin/model-context-server")
 //project(":speech-gateway").projectDir = file("stack.kotlin/speech-gateway")
 //project(":vllm-router").projectDir = file("stack.kotlin/vllm-router")
 //project(":stack-discovery").projectDir = file("stack.kotlin/stack-discovery")

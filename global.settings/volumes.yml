@@ -67,8 +67,8 @@ volumes:
       device: ${SEAFILE_MEDIA_ROOT}
 
   datafetcher_data:
-  agent_tool_server_known_hosts:
-  agent_tool_server_scripts:
+  model_context_server_known_hosts:
+  model_context_server_scripts:
   web3signer_data:
   vault_data:
   vault_logs:

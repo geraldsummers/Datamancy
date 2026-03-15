@@ -43,7 +43,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         )
 
         val question = questions.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -70,7 +70,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         trials = 15,
         acceptableFailureRate = 0.3  
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -106,7 +106,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
 
         val responses = mutableSetOf<String>()
         repeat(3) {
-            val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+            val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
                 contentType(ContentType.Application.Json)
                 setBody("""
                     {
@@ -135,7 +135,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         maxP95Latency = 15000      
     ) {
         measureTimeMillis {
-            httpClient.post("${endpoints.agentToolServer}/call-tool") {
+            httpClient.post("${endpoints.modelContextServer}/call-tool") {
                 contentType(ContentType.Application.Json)
                 setBody("""
                     {
@@ -155,7 +155,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         trials = 15,
         acceptableFailureRate = 0.2
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -191,7 +191,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         )
 
         val (tool, input, expectedSubstring) = testCases.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"$tool","input":$input}""")
         }
@@ -212,7 +212,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         )
 
         val (tool, input, expected) = testCases.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"$tool","input":$input}""")
         }
@@ -235,7 +235,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         )
 
         val (tool, input, expected) = testCases.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"$tool","input":$input}""")
         }
@@ -257,7 +257,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         )
 
         val (tool, input, expected) = edgeCases.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"$tool","input":$input}""")
         }
@@ -280,7 +280,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         )
 
         val (tool, input, expected) = testCases.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"$tool","input":$input}""")
         }
@@ -296,7 +296,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         trials = 20,
         acceptableFailureRate = 0.1
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"now_utc_iso","input":{}}""")
         }
@@ -321,7 +321,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         )
 
         val (tool, input, expected) = testCases.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"$tool","input":$input}""")
         }
@@ -338,7 +338,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         acceptableFailureRate = 0.1
     ) {
         val jsonData = """{"user":{"name":"Alice","age":30}}"""
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"json_get_path","input":{"json":$jsonData,"path":"user.name"}}""")
         }
@@ -354,7 +354,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         trials = 30,
         acceptableFailureRate = 0.0
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"uuid_generate","input":{}}""")
         }
@@ -379,7 +379,7 @@ suspend fun TestRunner.agentLlmQualityTests() {
         )
 
         val (tool, input, expected) = testCases.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"$tool","input":$input}""")
         }

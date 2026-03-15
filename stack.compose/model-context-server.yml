@@ -1,33 +1,28 @@
 services:
-  agent-tool-server:
-    image: datamancy/agent-tool-server:local-build
+  model-context-server:
+    image: datamancy/model-context-server:local-build
     build:
       context: .
-      dockerfile: ./stack.containers/agent-tool-server/Dockerfile
-    container_name: agent-tool-server
+      dockerfile: ./stack.containers/model-context-server/Dockerfile
+    container_name: model-context-server
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
     networks:
       ai:
         aliases:
-          - agent-tool-server.${DOMAIN}
           - model-context-server.${DOMAIN}
       mariadb:
         aliases:
-          - agent-tool-server.${DOMAIN}
           - model-context-server.${DOMAIN}
       qdrant:
         aliases:
-          - agent-tool-server.${DOMAIN}
           - model-context-server.${DOMAIN}
       ldap:
         aliases:
-          - agent-tool-server.${DOMAIN}
           - model-context-server.${DOMAIN}
       docker-proxy:
         aliases:
-          - agent-tool-server.${DOMAIN}
           - model-context-server.${DOMAIN}
     depends_on:
       litellm:
@@ -60,8 +55,8 @@ services:
       TOOLSERVER_ALLOW_CAPS: "host.network.http,host.network.ssh,host.shell.read,host.docker.inspect,host.docker.write,docker.container.create,docker.container.manage,ssh.keymanagement"
       DOCKER_HOST: tcp://docker-socket-proxy:2375
     volumes:
-      - agent_tool_server_known_hosts:/app/known_hosts_data:ro
-      - agent_tool_server_scripts:/app/scripts:ro
+      - model_context_server_known_hosts:/app/known_hosts_data:ro
+      - model_context_server_scripts:/app/scripts:ro
     group_add:
       - "988"
     healthcheck:

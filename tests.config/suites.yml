@@ -2,7 +2,7 @@ suites:
   - name: agent-capability
     type: kotlin
     targets:
-      - agent-tool-server
+      - model-context-server
   - name: agent-llm-quality
     type: kotlin
     targets:
@@ -13,7 +13,7 @@ suites:
   - name: agent-orchestration
     type: kotlin
     targets:
-      - agent-tool-server
+      - model-context-server
       - litellm
   - name: agent-security
     type: kotlin
@@ -176,7 +176,7 @@ suites:
   - name: microservices
     type: kotlin
     targets:
-      - agent-tool-server
+      - model-context-server
       - search-service
       - tx-gateway
       - evm-broadcaster

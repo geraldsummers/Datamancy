@@ -31,7 +31,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val testImage = maliciousImages.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"docker_container_create","input":{"image":"$testImage","name":"test"}}""")
         }
@@ -53,7 +53,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val testName = maliciousNames.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"docker_container_create","input":{"image":"alpine:latest","name":"$testName"}}""")
         }
@@ -66,7 +66,7 @@ suspend fun TestRunner.agentSecurityTests() {
         trials = 10,
         acceptableFailureRate = 0.1  
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -96,7 +96,7 @@ suspend fun TestRunner.agentSecurityTests() {
         trials = 15,
         acceptableFailureRate = 0.0  
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -119,7 +119,7 @@ suspend fun TestRunner.agentSecurityTests() {
         trials = 15,
         acceptableFailureRate = 0.0
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -152,7 +152,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val injection = injectionAttempts.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -184,7 +184,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val query = dangerousFunctions.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"query_postgres","input":{"query":"$query"}}""")
         }
@@ -208,7 +208,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val query = writeOperations.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"query_postgres","input":{"query":"$query"}}""")
         }
@@ -235,7 +235,7 @@ suspend fun TestRunner.agentSecurityTests() {
             ) AS t4
         """.trimIndent()
 
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"query_postgres","input":{"query":"$complexQuery"}}""")
         }
@@ -259,7 +259,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val injection = injectionAttempts.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"ssh_exec_whitelisted","input":{"cmd":"$injection"}}""")
         }
@@ -282,7 +282,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val injection = substitutionAttacks.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"ssh_exec_whitelisted","input":{"cmd":"$injection"}}""")
         }
@@ -302,7 +302,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val injection = pipeAttacks.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"ssh_exec_whitelisted","input":{"cmd":"$injection"}}""")
         }
@@ -328,7 +328,7 @@ suspend fun TestRunner.agentSecurityTests() {
 
         val cmd = forbiddenCommands.random()
         val cmdJson = Json.encodeToString(ListSerializer(String.serializer()), cmd)
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"host_exec_readonly","input":{"cmd":$cmdJson}}""")
         }
@@ -350,7 +350,7 @@ suspend fun TestRunner.agentSecurityTests() {
 
         val cmd = redirectAttempts.random()
         val cmdJson = Json.encodeToString(ListSerializer(String.serializer()), cmd)
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"host_exec_readonly","input":{"cmd":$cmdJson}}""")
         }
@@ -371,7 +371,7 @@ suspend fun TestRunner.agentSecurityTests() {
 
         val cmd = traversalAttempts.random()
         val cmdJson = Json.encodeToString(ListSerializer(String.serializer()), cmd)
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"host_exec_readonly","input":{"cmd":$cmdJson}}""")
         }
@@ -398,7 +398,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val url = internalUrls.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"browser_screenshot","input":{"url":"$url"}}""")
         }
@@ -420,7 +420,7 @@ suspend fun TestRunner.agentSecurityTests() {
         )
 
         val url = fileUrls.random()
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""{"tool":"browser_screenshot","input":{"url":"$url"}}""")
         }

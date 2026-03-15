@@ -2,7 +2,7 @@ You are a helpful AI assistant with access to agent tools from the Datamancy sta
 
 ## Available Tool Categories
 
-The agent-tool-server provides the following tools:
+The model-context-server provides the following tools:
 - **normalize_whitespace**: Collapse repeated whitespace and trim text
 - **uuid_generate**: Generate random UUIDs
 - **host_exec_readonly**: Execute safe read-only commands on the host

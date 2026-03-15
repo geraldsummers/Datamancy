@@ -28,7 +28,7 @@ private val logger = KotlinLogging.logger {}
  * 2. PostgreSQL (JDBC:5432) - document_staging table for full-text search
  * 3. Embedding Service (HTTP:8000) - BGE-M3 model for query vectorization
  *
- * Used by agent-tool-server's semantic_search tool to provide LLMs with contextual knowledge
+ * Used by model-context-server's semantic_search tool to provide LLMs with contextual knowledge
  * from the entire Datamancy knowledge base (RSS, CVE, Wikipedia, legal docs, etc.).
  */
 fun main() {

@@ -341,15 +341,15 @@ api.litellm.{$DOMAIN} {
 	reverse_proxy litellm:4000
 }
 
-# agent-tool-server - INTERNAL ONLY (not exposed externally)
+# model-context-server - INTERNAL ONLY (not exposed externally)
 # Access via: Open WebUI, JupyterHub, or SSH tunnel
-# For debugging: ssh -L 8081:agent-tool-server:8081 latium.local
+# For debugging: ssh -L 8081:model-context-server:8081 latium.local
 
 # prompts server (public - serves tool schemas and system prompts)
 prompts.{$DOMAIN} {
-	# Serve tools.json directly from agent-tool-server
+	# Serve tools.json directly from model-context-server
 	route /tools.json {
-		reverse_proxy agent-tool-server:8081
+		reverse_proxy model-context-server:8081
 	}
 
 	# Serve static prompt files from prompt-server

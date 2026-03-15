@@ -38,7 +38,7 @@ class TestFrameworkTest {
         val endpoints = ServiceEndpoints.fromEnvironment()
 
         
-        assertNotNull(endpoints.agentToolServer)
+        assertNotNull(endpoints.modelContextServer)
         assertNotNull(endpoints.searchService)
         assertNotNull(endpoints.pipeline)
         assertNotNull(endpoints.liteLLM)
@@ -230,7 +230,7 @@ class TestFrameworkTest {
         
         val coveredServices = setOf(
             
-            "agent-tool-server", "search-service", "pipeline", "vllm-7b",
+            "model-context-server", "search-service", "pipeline", "vllm-7b",
             "embedding-service", "postgres", "qdrant",
             "dind", "litellm", "bookstack",
             

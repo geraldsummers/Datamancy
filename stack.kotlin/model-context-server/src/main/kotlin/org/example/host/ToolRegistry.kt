@@ -52,7 +52,7 @@ data class ToolParam(
  * - LLM receives user query: "Find Kubernetes documentation"
  * - LLM analyzes available tools and selects `semantic_search`
  * - LLM returns tool call: `{"name": "semantic_search", "arguments": "{\"query\":\"kubernetes\"}"}`
- * - Agent-tool-server invokes tool via ToolRegistry
+ * - Model-context-server invokes tool via ToolRegistry
  * - Result is injected back into conversation for LLM to synthesize answer
  *
  * @property name Unique tool identifier (e.g., "semantic_search", "query_postgres")
@@ -119,7 +119,7 @@ fun interface ToolHandler {
 /**
  * Central registry bridging LLMs and plugin tool implementations.
  *
- * ToolRegistry is the heart of the agent-tool-server's function calling system.
+ * ToolRegistry is the heart of the model-context-server's function calling system.
  * It receives tool registrations from plugins during initialization, exposes tool
  * definitions to LLMs via HTTP API, and routes tool invocations to plugin handlers.
  *

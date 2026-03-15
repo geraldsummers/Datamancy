@@ -10,7 +10,7 @@ RUN apt-get update \
     && chown -R appuser:root /app \
     && usermod -aG docker appuser
 
-COPY stack.kotlin/agent-tool-server/build/libs/agent-tool-server-1.0-SNAPSHOT-all.jar /app/app.jar
+COPY stack.kotlin/model-context-server/build/libs/model-context-server-1.0-SNAPSHOT-all.jar /app/app.jar
 
 EXPOSE 8081
 CMD ["sh", "-lc", "exec java -jar /app/app.jar"]

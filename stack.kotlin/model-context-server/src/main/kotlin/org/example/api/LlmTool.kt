@@ -50,7 +50,7 @@ annotation class LlmToolParamDoc(
  * }
  * ```
  *
- * The agent-tool-server's OpenAIProxyHandler intercepts this, calls `/call-tool`, and
+ * The model-context-server's OpenAIProxyHandler intercepts this, calls `/call-tool`, and
  * injects the result back into the conversation as a "tool" role message.
  *
  * ## Parameter Schema Format

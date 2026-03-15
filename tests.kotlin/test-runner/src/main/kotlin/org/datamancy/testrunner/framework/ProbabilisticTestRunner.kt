@@ -34,7 +34,7 @@ import kotlin.system.measureTimeMillis
  * 3. **Throughput Testing** (`throughputTest`):
  *    - Measure operations per second over time window
  *    - Use case: Validating agent tools can handle concurrent requests
- *    - Example: "Agent-tool-server handles 10+ requests/second"
+ *    - Example: "Model-context-server handles 10+ requests/second"
  *
  * ## Integration with Broader Stack
  * Probabilistic tests validate:
@@ -252,7 +252,7 @@ class ProbabilisticTestRunner(
      * Measures throughput (operations per second) over a time window.
      *
      * Throughput tests validate that services can handle sustained load and concurrent
-     * requests. This is critical for services like agent-tool-server that may receive
+     * requests. This is critical for services like model-context-server that may receive
      * bursts of concurrent LLM requests or pipeline components processing high volumes.
      *
      * ## Use Cases
@@ -264,7 +264,7 @@ class ProbabilisticTestRunner(
      * ## Example
      * ```kotlin
      * throughputTest(
-     *     name = "Agent-tool-server call-tool throughput",
+     *     name = "Model-context-server call-tool throughput",
      *     durationSeconds = 30,
      *     minOpsPerSecond = 10.0
      * ) {

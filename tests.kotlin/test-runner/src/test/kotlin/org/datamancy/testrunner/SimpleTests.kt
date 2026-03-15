@@ -13,12 +13,12 @@ class SimpleTests {
     fun `ServiceEndpoints fromEnvironment creates valid configuration`() {
         val endpoints = ServiceEndpoints.fromEnvironment()
 
-        assertNotNull(endpoints.agentToolServer)
+        assertNotNull(endpoints.modelContextServer)
         assertNotNull(endpoints.pipeline)
         assertNotNull(endpoints.qdrant)
         assertNotNull(endpoints.postgres)
 
-        assertTrue(endpoints.agentToolServer.startsWith("http://"))
+        assertTrue(endpoints.modelContextServer.startsWith("http://"))
         assertTrue(endpoints.pipeline.contains("pipeline"))
         assertTrue(endpoints.qdrant.contains("6333"))
         assertTrue(endpoints.postgres.jdbcUrl.contains("postgresql"))
@@ -28,7 +28,7 @@ class SimpleTests {
     fun `ServiceEndpoints forLocalhost uses localhost addresses`() {
         val endpoints = ServiceEndpoints.forLocalhost()
 
-        assertTrue(endpoints.agentToolServer.contains("localhost"))
+        assertTrue(endpoints.modelContextServer.contains("localhost"))
         assertTrue(endpoints.pipeline.contains("localhost:18080"))
         assertTrue(endpoints.qdrant.contains("localhost:16333"))
         assertTrue(endpoints.postgres.host.contains("localhost"))

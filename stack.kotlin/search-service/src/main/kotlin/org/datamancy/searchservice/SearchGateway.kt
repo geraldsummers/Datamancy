@@ -53,7 +53,7 @@ private val logger = KotlinLogging.logger {}
  * - **Query Vectorization**: Embedding Service (BGE-M3 model on HTTP:8000)
  * - **Vector Search**: Qdrant (gRPC:6334) with collections: rss_feeds, cve, wikipedia, etc.
  * - **Full-Text Search**: PostgreSQL (JDBC:5432) using ts_rank on tsvector
- * - **RAG Consumer**: Agent-tool-server's semantic_search tool uses this for LLM context retrieval
+ * - **RAG Consumer**: Model-context-server's semantic_search tool uses this for LLM context retrieval
  *
  * ## Why Hybrid Search?
  * - Vector search alone misses exact technical terms (e.g., error codes, version numbers)

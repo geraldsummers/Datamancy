@@ -21,7 +21,7 @@ import kotlinx.serialization.json.*
  * - **Data Pipeline**: Triggers ingestion (`triggerFetch`) to test document flow
  * - **Search-Service**: Performs hybrid search (`search`) to validate vector + BM25 fusion
  * - **BookStack**: Queries knowledge base API to verify pipeline publishing
- * - **MariaDB**: Executes database queries via agent-tool-server to test tool chain
+ * - **MariaDB**: Executes database queries via model-context-server to test tool chain
  *
  * ## Why This Abstraction Exists
  * - **Test Clarity**: Tests focus on behavior, not HTTP mechanics
@@ -43,12 +43,12 @@ class ServiceClient(
      * the foundation for all integration tests - if health checks fail, the stack is
      * not ready for testing.
      *
-     * @param service Service name ("agent-tool-server", "pipeline", "search-service", "data-fetcher")
+     * @param service Service name ("model-context-server", "pipeline", "search-service", "data-fetcher")
      * @return HealthStatus indicating whether the service is healthy and its HTTP status code
      */
     suspend fun healthCheck(service: String): HealthStatus {
         val url = when (service) {
-            "agent-tool-server" -> "${endpoints.agentToolServer}/healthz"
+            "model-context-server" -> "${endpoints.modelContextServer}/healthz"
             "pipeline" -> "${endpoints.pipeline}/health"
             "search-service" -> "${endpoints.searchService}/health"
             
@@ -65,10 +65,10 @@ class ServiceClient(
     }
 
     /**
-     * Calls an agent tool via agent-tool-server to test LLM-agent integration.
+     * Calls an agent tool via model-context-server to test LLM-agent integration.
      *
      * This method validates the full agent tool execution chain:
-     * 1. HTTP request to agent-tool-server `/call-tool` endpoint
+     * 1. HTTP request to model-context-server `/call-tool` endpoint
      * 2. Plugin routing and capability enforcement
      * 3. Tool execution (e.g., querying PostgreSQL, searching Qdrant, executing Docker commands)
      * 4. Response formatting for LLM consumption
@@ -84,7 +84,7 @@ class ServiceClient(
      */
     suspend fun callTool(name: String, args: Map<String, Any>): ToolResult {
         return try {
-            val response = client.post("${endpoints.agentToolServer}/call-tool") {
+            val response = client.post("${endpoints.modelContextServer}/call-tool") {
                 contentType(ContentType.Application.Json)
                 endpoints.userContext?.let { header("X-User-Context", it) }
                 endpoints.apiKey?.let { bearerAuth(it) }
@@ -251,11 +251,11 @@ class ServiceClient(
     }
 
     /**
-     * Executes a SQL query against MariaDB via agent-tool-server's query_mariadb tool.
+     * Executes a SQL query against MariaDB via model-context-server's query_mariadb tool.
      *
      * This tests the agent tool chain for database access:
-     * 1. Test sends query to agent-tool-server via /call-tool
-     * 2. Agent-tool-server routes to DataSourceQueryPlugin
+     * 1. Test sends query to model-context-server via /call-tool
+     * 2. Model-context-server routes to DataSourceQueryPlugin
      * 3. Plugin establishes JDBC connection to MariaDB
      * 4. Query executes with validation (SELECT only, no dangerous functions)
      * 5. Results formatted as text table and returned
@@ -271,7 +271,7 @@ class ServiceClient(
      */
     suspend fun queryMariaDB(query: String): MariaDbResult {
         return try {
-            val response = client.post("${endpoints.agentToolServer}/call-tool") {
+            val response = client.post("${endpoints.modelContextServer}/call-tool") {
                 contentType(ContentType.Application.Json)
                 endpoints.userContext?.let { header("X-User-Context", it) }
                 setBody(buildJsonObject {

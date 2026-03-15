@@ -33,8 +33,8 @@ mariadb -h mariadb -u root -p"$MYSQL_ROOT_PASSWORD" --ssl=0 <<-EOSQL
     GRANT ALL PRIVILEGES ON seafile.* TO 'seafile'@'%';
     GRANT ALL PRIVILEGES ON ccnet.* TO 'seafile'@'%';
     GRANT ALL PRIVILEGES ON seahub.* TO 'seafile'@'%';
-    -- Agent Tool Server Observer Account
-    -- Global read-only account for agent-tool-server to query application databases
+    -- Model Context Server Observer Account
+    -- Global read-only account for model-context-server to query application databases
     CREATE USER IF NOT EXISTS 'agent_observer'@'%' IDENTIFIED BY '$MARIADB_AGENT_PASSWORD';
     GRANT SELECT ON bookstack.* TO 'agent_observer'@'%';
     GRANT SELECT ON seafile.* TO 'agent_observer'@'%';

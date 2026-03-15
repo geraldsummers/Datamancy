@@ -93,7 +93,7 @@
 
 ### MCP / agent integration
 
-- `agent-tool-server` should be:
+- `model-context-server` should be:
     - renamed to **model-context-server**
     - rewired to conform to the **Model Context Protocol**
 - Any language model using the MCP server should be able to:

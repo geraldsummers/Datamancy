@@ -48,7 +48,7 @@ suspend fun TestRunner.agentOrchestrationTests() {
         trials = 3,
         acceptableFailureRate = 0.4
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -84,7 +84,7 @@ suspend fun TestRunner.agentOrchestrationTests() {
         trials = 2,
         acceptableFailureRate = 0.2
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -124,7 +124,7 @@ suspend fun TestRunner.agentOrchestrationTests() {
         trials = 2,
         acceptableFailureRate = 0.3
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -160,7 +160,7 @@ suspend fun TestRunner.agentOrchestrationTests() {
         trials = 2,
         acceptableFailureRate = 0.1
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -195,7 +195,7 @@ suspend fun TestRunner.agentOrchestrationTests() {
         trials = 2,
         acceptableFailureRate = 0.2
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -234,7 +234,7 @@ suspend fun TestRunner.agentOrchestrationTests() {
         trials = 3,
         acceptableFailureRate = 0.1
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -275,7 +275,7 @@ suspend fun TestRunner.agentOrchestrationTests() {
         trials = 2,
         acceptableFailureRate = 0.2
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {
@@ -314,7 +314,7 @@ suspend fun TestRunner.agentOrchestrationTests() {
         trials = 2,
         acceptableFailureRate = 0.3
     ) {
-        val response = httpClient.post("${endpoints.agentToolServer}/call-tool") {
+        val response = httpClient.post("${endpoints.modelContextServer}/call-tool") {
             contentType(ContentType.Application.Json)
             setBody("""
                 {

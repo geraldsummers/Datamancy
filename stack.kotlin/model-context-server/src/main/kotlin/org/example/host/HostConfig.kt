@@ -1,7 +1,7 @@
 package org.example.host
 
 /**
- * Configuration for the agent-tool-server host managing plugin lifecycle and security.
+ * Configuration for the model-context-server host managing plugin lifecycle and security.
  *
  * This configuration defines how plugins are discovered, loaded, and secured via
  * capability-based access control. It's instantiated at startup and passed to
@@ -41,7 +41,7 @@ package org.example.host
  * )
  * ```
  *
- * @property hostVersion SemVer version of agent-tool-server (used for plugin compatibility)
+ * @property hostVersion SemVer version of model-context-server (used for plugin compatibility)
  * @property apiVersion SemVer version of Plugin API (must match plugin's apiVersion exactly)
  * @property pluginsDir Directory path for plugin JAR discovery (default: "plugins")
  * @property capabilityPolicy Security policy defining allowed capabilities (default: allow-all)
