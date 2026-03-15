@@ -50,6 +50,7 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
         srv.createContext("/tools", ToolsHandler(tools))
         srv.createContext("/tools.json", ToolsSchemaHandler(tools))
         srv.createContext("/call-tool", CallToolHandler(tools))
+        srv.createContext("/mcp", McpHandler(tools))
         val healthHandler = HealthHandler()
         srv.createContext("/health", healthHandler)
         srv.createContext("/healthz", healthHandler)
@@ -339,6 +340,136 @@ private class CallToolHandler(private val tools: ToolRegistry) : HttpHandler {
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
         }
+    }
+}
+
+/**
+ * MCP-compatible JSON-RPC handler for tool discovery and execution.
+ *
+ * Supports:
+ * - initialize
+ * - ping
+ * - tools/list
+ * - tools/call
+ */
+private class McpHandler(private val tools: ToolRegistry) : HttpHandler {
+    private val bodyMaxBytes: Long = 1_000_000L
+    private val bodyReadTimeoutMs: Long = 5_000L
+    private val callTimeoutMs: Long = 300_000L
+
+    override fun handle(exchange: HttpExchange) {
+        var jsonRpcId: Any? = null
+        try {
+            if (exchange.requestMethod == "OPTIONS") {
+                respond(exchange, 204, emptyMap<String, Any>())
+                return
+            }
+            if (exchange.requestMethod != "POST") {
+                respond(exchange, 405, mapOf("error" to "Method not allowed"))
+                return
+            }
+
+            val raw = readBodyLimited(exchange, bodyMaxBytes, bodyReadTimeoutMs)
+            val node = Json.mapper.readTree(raw)
+            val idNode = node["id"]
+            if (idNode != null && !idNode.isNull) {
+                jsonRpcId = Json.mapper.treeToValue(idNode, Any::class.java)
+            }
+            val method = node["method"]?.asText()?.trim().orEmpty()
+            val params = node["params"] ?: Json.mapper.createObjectNode()
+            val userContext = exchange.requestHeaders.getFirst("X-User-Context")?.takeIf { it.isNotBlank() }
+
+            if (method.isBlank()) {
+                respond(exchange, 400, mapOf("error" to "Missing JSON-RPC method"))
+                return
+            }
+
+            val result: Any = when (method) {
+                "initialize" -> mapOf(
+                    "protocolVersion" to "2024-11-05",
+                    "capabilities" to mapOf(
+                        "tools" to mapOf("listChanged" to false)
+                    ),
+                    "serverInfo" to mapOf(
+                        "name" to "model-context-server",
+                        "version" to "1.0.0"
+                    )
+                )
+                "notifications/initialized" -> mapOf()
+                "ping" -> mapOf()
+                "tools/list" -> {
+                    val mcpTools = tools.listTools().map { def ->
+                        mapOf(
+                            "name" to def.name,
+                            "description" to def.description,
+                            "inputSchema" to parseInputSchema(def.paramsSpec)
+                        )
+                    }
+                    mapOf("tools" to mcpTools)
+                }
+                "tools/call" -> {
+                    val toolName = params["name"]?.asText()?.trim().orEmpty()
+                    if (toolName.isEmpty()) {
+                        throw IllegalArgumentException("Missing params.name for tools/call")
+                    }
+                    val args = params["arguments"] ?: Json.mapper.createObjectNode()
+                    val toolResult = invokeWithTimeout({ tools.invoke(toolName, args, userContext) }, callTimeoutMs)
+                    val serialized = Json.mapper.writeValueAsString(toolResult)
+                    mapOf(
+                        "content" to listOf(
+                            mapOf("type" to "text", "text" to serialized)
+                        ),
+                        "isError" to false
+                    )
+                }
+                else -> throw IllegalArgumentException("Method not found: $method")
+            }
+
+            if (idNode == null || idNode.isNull) {
+                respond(exchange, 200, mapOf("jsonrpc" to "2.0", "result" to result))
+                return
+            }
+
+            respond(
+                exchange,
+                200,
+                mapOf(
+                    "jsonrpc" to "2.0",
+                    "id" to jsonRpcId,
+                    "result" to result
+                )
+            )
+        } catch (to: java.util.concurrent.TimeoutException) {
+            mcpError(exchange, jsonRpcId, -32001, "Tool execution timeout")
+        } catch (nf: NoSuchElementException) {
+            mcpError(exchange, jsonRpcId, -32602, nf.message ?: "Tool not found")
+        } catch (iae: IllegalArgumentException) {
+            mcpError(exchange, jsonRpcId, -32602, iae.message ?: "Invalid params")
+        } catch (e: Exception) {
+            mcpError(exchange, jsonRpcId, -32603, e.message ?: "Internal error")
+        }
+    }
+
+    private fun parseInputSchema(raw: String): Any {
+        return runCatching { Json.mapper.readTree(raw) }
+            .getOrElse {
+                mapOf(
+                    "type" to "object",
+                    "properties" to emptyMap<String, Any>(),
+                    "required" to emptyList<String>()
+                )
+            }
+    }
+
+    private fun mcpError(exchange: HttpExchange, id: Any?, code: Int, message: String) {
+        val payload = mutableMapOf<String, Any>(
+            "jsonrpc" to "2.0",
+            "error" to mapOf("code" to code, "message" to message)
+        )
+        if (id != null) {
+            payload["id"] = id
+        }
+        respond(exchange, 200, payload)
     }
 }
 

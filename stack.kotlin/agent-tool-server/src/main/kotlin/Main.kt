@@ -120,5 +120,10 @@ fun main() {
         loadedPlugins.forEach { it.shutdown() }
     })
 
-    println("Host started. HTTP endpoints:\n - GET  http://agent-tool-server:$port/tools\n - POST http://agent-tool-server:$port/call-tool")
+    println(
+        "Host started. HTTP endpoints:\n" +
+            " - GET  http://model-context-server:$port/tools\n" +
+            " - POST http://model-context-server:$port/call-tool\n" +
+            " - POST http://model-context-server:$port/mcp"
+    )
 }

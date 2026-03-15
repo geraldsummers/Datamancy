@@ -65,7 +65,10 @@ services:
         - CMD-SHELL
         - |
           wget --quiet --tries=1 --timeout=3 --spider http://localhost:8081/tools && \
-          wget --quiet --tries=1 --timeout=3 -O- http://localhost:8081/tools | grep -q tools
+          wget --quiet --tries=1 --timeout=3 -O- http://localhost:8081/tools | grep -q tools && \
+          wget --quiet --tries=1 --timeout=3 --header='Content-Type: application/json' \
+            --post-data='{"jsonrpc":"2.0","id":"health","method":"ping","params":{}}' \
+            -O- http://localhost:8081/mcp | grep -q '"jsonrpc":"2.0"'
       interval: 10s
       timeout: 5s
       retries: 5

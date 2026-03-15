@@ -403,4 +403,65 @@ class HttpServerTest {
             newServer.stop()
         }
     }
+
+    @Nested
+    @DisplayName("MCP Endpoint Tests")
+    inner class McpEndpointTests {
+
+        @Test
+        fun `MCP initialize returns protocol and server info`() {
+            val requestBody = """{"jsonrpc":"2.0","id":"1","method":"initialize","params":{}}"""
+
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:$port/mcp"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build()
+
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            assertEquals(200, response.statusCode())
+            val body = response.body()
+            assertTrue(body.contains("\"jsonrpc\":\"2.0\""))
+            assertTrue(body.contains("\"protocolVersion\""))
+            assertTrue(body.contains("\"model-context-server\""))
+        }
+
+        @Test
+        fun `MCP tools_list returns registered tools`() {
+            val requestBody = """{"jsonrpc":"2.0","id":"2","method":"tools/list","params":{}}"""
+
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:$port/mcp"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build()
+
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            assertEquals(200, response.statusCode())
+            val body = response.body()
+            assertTrue(body.contains("\"tools\""))
+            assertTrue(body.contains("\"test_tool\""))
+            assertTrue(body.contains("\"inputSchema\""))
+        }
+
+        @Test
+        fun `MCP tools_call executes tool and returns content`() {
+            val requestBody = """
+                {"jsonrpc":"2.0","id":"3","method":"tools/call","params":{"name":"test_tool","arguments":{"input":"mcp"}}}
+            """.trimIndent()
+
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:$port/mcp"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build()
+
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            assertEquals(200, response.statusCode())
+            val body = response.body()
+            assertTrue(body.contains("\"content\""))
+            assertTrue(body.contains("echo: mcp"))
+            assertTrue(body.contains("\"isError\":false"))
+        }
+    }
 }
