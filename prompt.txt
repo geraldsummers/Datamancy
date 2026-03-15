@@ -53,3 +53,5 @@ a heap of different internal systems should have easy modular wiring into grafan
 consider which services should be easily visualizble in grafana and configure this
 
 account addition removal and role control need to be centralized and tested
+
+document all problems identified and solutions
