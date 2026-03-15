@@ -41,3 +41,13 @@ add premade analysis notebooks for back testing and quantifying profitable strat
 a bunch of different relevant rss sources parsed into bookstack and quantified sentiment analysis via the lm and represented in grafana
 a bunch of different relevant market data pipelined in and wired into grafana charts
 thorough testing is essential to ensure that the stack works as expected
+
+another key feature that needs thorough testing is stack self awareness and introspection
+the stack bundles it's own source code in a forgejo repository
+the stack provides a containerized workspace via a virtualized docker socket and a llm server
+the llm should be able to get context from agent-tool-server, agent-tool-server should be rewired to conform to model context protocol and renamed to model context server
+any lm collecting context from the mcp server should be able to perform introspection on the stack and call all the stack tools
+mcp auth should be managed via each agent needing an ldap account which determines what it gets access too
+
+a heap of different internal systems should have easy modular wiring into grafana, home assistant for example
+consider which services should be easily visualizble in grafana and configure this
