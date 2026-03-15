@@ -33,8 +33,8 @@ This document describes the expected page characteristics for each service after
 ### Vaultwarden
 - **URL Pattern**: `app.vaultwarden.datamancy.net`
 - **Page Title**: `Vaultwarden Web`
-- **UI Pattern**: `/Single sign-on|Vaultwarden Web/i`
-- **Validation**: Landing should be SSO screen or Vaultwarden UI
+- **UI Pattern**: `/My Vault|Vaults|Folders|Items|Search vault|Join organization|Create account|Set initial password/i`
+- **Validation**: OIDC flow must not end on `#/login` or `#/sso`
 - **Note**: External URL only; include `#/sso?identifier=datamancy.net`
 
 ### Homepage
@@ -61,8 +61,8 @@ This document describes the expected page characteristics for each service after
 ### Home Assistant
 - **URL Pattern**: `homeassistant.datamancy.net`
 - **Page Title**: Varies
-- **UI Pattern**: `/Overview|Map|Energy|Settings|Developer Tools|History|Logbook/i`
-- **Validation**: Must be fully loaded (not onboarding)
+- **UI Pattern**: `/Overview|Developer Tools|History|Logbook|Automations|Devices|Areas|Integrations|Energy/i`
+- **Validation**: Must not remain on user-selection login (`Welcome home!` / `Please select a user...`) and must not stay on `/auth/authorize` or `/auth/login_flow`
 
 ### Kopia
 - **URL Pattern**: `kopia.datamancy.net`
@@ -212,10 +212,5 @@ If a service changes its UI:
 
 ---
 
-*Last Updated: 2026-02-17*
+*Last Updated: 2026-03-15*
 *This document should be updated whenever service UIs change*
-### Vaultwarden
-- **URL Pattern**: `app.vaultwarden.datamancy.net`
-- **Page Title**: `Vaultwarden Web`
-- **UI Pattern**: `/Single sign-on|Join organization|Set initial password|My Vault|Vaults|Folders|Items|Search vault/i`
-- **Validation**: Accepts SSO onboarding or authenticated UI

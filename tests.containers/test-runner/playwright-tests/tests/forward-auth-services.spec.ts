@@ -651,12 +651,31 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Home Assistant',
       'https://homeassistant.datamancy.net/',
-      /Overview|Dashboard|Settings|Developer Tools|History|Logbook|Automations|Devices|Welcome home!|Please select a user you want to log in as|Log in/i,
+      /Overview|Developer Tools|History|Logbook|Automations|Devices|Areas|Integrations|Energy|Devices & services/i,
       {
         urlPattern: /homeassistant\.datamancy\.net/,
         waitForSelector: 'home-assistant, ha-app',
         waitForSelectorVisible: 'home-assistant, ha-app',
         waitForSelectorTimeoutMs: 20000,
+        disallowPatterns: [/Please select a user you want to log in as|Welcome home!|Forgot password\?|Log in/i],
+        disallowUrlPatterns: [/\/auth\/authorize\b/i, /\/auth\/login_flow\b/i],
+        onAfterLoad: async (page) => {
+          const loginButton = page.getByRole('button', { name: /^log in$/i }).first();
+          if (await loginButton.isVisible().catch(() => false)) {
+            await loginButton.click({ force: true }).catch(() => {});
+          }
+          await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+          await page.waitForTimeout(1500);
+
+          await page.waitForFunction(() => {
+            const text = (document.body?.innerText || '').toLowerCase();
+            const onLoginPage = window.location.pathname.startsWith('/auth/');
+            const loginTextVisible = text.includes('welcome home!') || text.includes('please select a user');
+            return !onLoginPage && !loginTextVisible;
+          }, undefined, { timeout: 30000 });
+
+          await page.waitForSelector('ha-sidebar, ha-drawer, ha-menu-button', { state: 'visible', timeout: 30000 });
+        },
       }
     );
   });

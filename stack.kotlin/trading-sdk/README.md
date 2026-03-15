@@ -248,6 +248,7 @@ df.set_index('time', inplace=True)
 
 When the notebook image starts, Datamancy now seeds:
 
+- `~/work/datamancy-notebooks/00_profit_workflow_index.ipynb`
 - `~/work/datamancy-notebooks/01_quant_backtest_from_market_data.ipynb`
 - `~/work/datamancy-notebooks/02_rss_sentiment_to_market_signals.ipynb`
 - `~/work/datamancy-notebooks/03_strategy_parameter_sweep_and_robustness.ipynb`

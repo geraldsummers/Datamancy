@@ -57,6 +57,81 @@ def write_notebook(name: str, cells):
         json.dump(notebook, f, indent=1)
 
 write_notebook(
+    "00_profit_workflow_index.ipynb",
+    [
+        markdown_cell(
+            "# Datamancy Profit Workflow Index\n\n"
+            "Fast path to turn live stack data into decision-ready trade setups.\n\n"
+            "Recommended daily loop:\n"
+            "1. Run `01_quant_backtest_from_market_data.ipynb` to validate baseline edge.\n"
+            "2. Run `03_strategy_parameter_sweep_and_robustness.ipynb` to avoid overfit params.\n"
+            "3. Run `04_alpha_signal_ranking.ipynb` to build long/short watchlists.\n"
+            "4. Run `05_llm_rss_sentiment_backfill.ipynb` to refresh sentiment features.\n"
+            "5. Push only top-ranked symbols into execution workflows.\n"
+        ),
+        code_cell(
+            "import os\n"
+            "import pandas as pd\n"
+            "from sqlalchemy import create_engine, text\n"
+            "\n"
+            "pg_host = os.getenv('POSTGRES_HOST', 'postgres')\n"
+            "pg_port = os.getenv('POSTGRES_PORT', '5432')\n"
+            "pg_db = os.getenv('POSTGRES_DB', 'datamancy')\n"
+            "pg_user = os.getenv('POSTGRES_USER', 'pipeline_user')\n"
+            "pg_password = os.getenv('POSTGRES_PASSWORD', '')\n"
+            "engine = create_engine(f'postgresql+psycopg2://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}')\n"
+        ),
+        code_cell(
+            "setup_sql = text('''\n"
+            "WITH px AS (\n"
+            "  SELECT\n"
+            "    symbol,\n"
+            "    MAX(close) FILTER (WHERE time >= NOW() - INTERVAL '15 minutes') AS close_now,\n"
+            "    MIN(close) FILTER (WHERE time >= NOW() - INTERVAL '15 minutes') AS close_15m_ago,\n"
+            "    MAX(close) FILTER (WHERE time >= NOW() - INTERVAL '4 hours') AS close_4h_now,\n"
+            "    MIN(close) FILTER (WHERE time >= NOW() - INTERVAL '4 hours') AS close_4h_ago\n"
+            "  FROM market_data\n"
+            "  WHERE exchange = 'hyperliquid'\n"
+            "    AND data_type = 'candle_1m'\n"
+            "    AND time >= NOW() - INTERVAL '4 hours'\n"
+            "  GROUP BY symbol\n"
+            "), ss AS (\n"
+            "  SELECT symbol, AVG(sentiment_score) AS sentiment\n"
+            "  FROM rss_sentiment_signals\n"
+            "  WHERE observed_at >= NOW() - INTERVAL '24 hours'\n"
+            "  GROUP BY symbol\n"
+            ")\n"
+            "SELECT\n"
+            "  px.symbol,\n"
+            "  COALESCE((px.close_now - px.close_15m_ago) / NULLIF(px.close_15m_ago, 0), 0) AS ret_15m,\n"
+            "  COALESCE((px.close_4h_now - px.close_4h_ago) / NULLIF(px.close_4h_ago, 0), 0) AS ret_4h,\n"
+            "  COALESCE(ss.sentiment, 0) AS sentiment,\n"
+            "  (\n"
+            "    COALESCE((px.close_now - px.close_15m_ago) / NULLIF(px.close_15m_ago, 0), 0) * 30.0\n"
+            "    + COALESCE((px.close_4h_now - px.close_4h_ago) / NULLIF(px.close_4h_ago, 0), 0) * 70.0\n"
+            "    + COALESCE(ss.sentiment, 0) * 15.0\n"
+            "  ) AS setup_score\n"
+            "FROM px\n"
+            "LEFT JOIN ss ON ss.symbol = split_part(px.symbol, '-', 1)\n"
+            "ORDER BY setup_score DESC\n"
+            "LIMIT 20\n"
+            "''')\n"
+            "\n"
+            "setups = pd.read_sql(setup_sql, engine)\n"
+            "setups\n"
+        ),
+        code_cell(
+            "longs = setups.head(5).copy()\n"
+            "shorts = setups.tail(5).sort_values('setup_score').copy()\n"
+            "print('Top long candidates:')\n"
+            "display(longs[['symbol', 'ret_15m', 'ret_4h', 'sentiment', 'setup_score']])\n"
+            "print('Top short candidates:')\n"
+            "display(shorts[['symbol', 'ret_15m', 'ret_4h', 'sentiment', 'setup_score']])\n"
+        ),
+    ]
+)
+
+write_notebook(
     "01_quant_backtest_from_market_data.ipynb",
     [
         markdown_cell(

@@ -1088,17 +1088,17 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       page,
       'Vaultwarden',
       'https://vaultwarden.datamancy.net/',
-      /My Vault|Vaults|Folders|Items|Search vault/i,
+      /My Vault|Vaults|Folders|Items|Search vault|Join organization|Create account|Set initial password/i,
       ['Authelia', 'SSO', 'Single sign-on', 'Use single sign-on'],
       {
-        disallowPatterns: [/SSO identifier/i],
-        disallowUrlPatterns: [/#\/sso\b/i, /\/sso\b/i],
+        disallowPatterns: [/SSO identifier/i, /Use single sign-on/i],
+        disallowUrlPatterns: [/#\/sso\b/i, /\/sso\b/i, /#\/login\b/i],
         loginPath: 'https://app.vaultwarden.datamancy.net/#/login',
         loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
         ssoIdentifier: vaultwardenEmail.split('@').pop() || 'datamancy.net',
         ssoEmail: vaultwardenEmail,
         skipScreenshot: true,
-        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization|Log in|Use single sign-on/i,
+        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization|Set initial password/i,
         postLogin: async (page) => {
           // Handle create account / master password setup after SSO
           const masterPassword = testUser.password;
@@ -1180,6 +1180,21 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           }
 
           await page.waitForURL((url) => !/#\/sso\b/i.test(url.toString()), { timeout: 20000 }).catch(() => {});
+
+          // Hard guard against false positives: landing on /login means OIDC did not actually complete.
+          const finalUrl = page.url();
+          if (/#\/login\b/i.test(finalUrl)) {
+            const snippet = await page.textContent('body').catch(() => '');
+            throw new Error(
+              `Vaultwarden remained on login page after OIDC flow. URL=${finalUrl}, bodySnippet=${(snippet || '').slice(0, 300)}`
+            );
+          }
+
+          const finalBody = (await page.textContent('body').catch(() => '')) || '';
+          const hasAuthenticatedUi = /My Vault|Vaults|Folders|Items|Search vault|Join organization|Create account|Set initial password/i.test(finalBody);
+          if (!hasAuthenticatedUi) {
+            throw new Error(`Vaultwarden did not present authenticated/onboarding UI after OIDC. URL=${finalUrl}`);
+          }
         },
         oidcLinkPatterns: [/single sign-on/i, /sso/i],
       }
