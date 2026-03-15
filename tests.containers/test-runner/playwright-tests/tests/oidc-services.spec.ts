@@ -67,6 +67,10 @@ async function testOIDCService(
     postLogin?: (page: Page) => Promise<void>;
     uiPatternOverride?: RegExp;
     skipScreenshot?: boolean;
+    screenshotSelector?: string;
+    screenshotFullPage?: boolean;
+    authUsername?: string;
+    authPassword?: string;
   } = {}
 ) {
   console.log(`\n🧪 Testing ${serviceName} OIDC login`);
@@ -393,8 +397,10 @@ async function testOIDCService(
 
   // If on Authelia, login
   if (page.url().includes('authelia') || page.url().includes('auth.') || page.url().includes(':9091')) {
+    const authUsername = options.authUsername ?? testUser.username;
+    const authPassword = options.authPassword ?? testUser.password;
     const autheliaPage = new AutheliaLoginPage(page);
-    await autheliaPage.login(testUser.username, testUser.password);
+    await autheliaPage.login(authUsername, authPassword);
 
     // Handle consent if shown
     await oidcPage.handleConsentScreen();
@@ -599,12 +605,23 @@ async function testOIDCService(
   if (!options.skipScreenshot) {
     // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
     const screenshotName = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-oidc-authenticated.jpg`;
-    await page.screenshot({
-      path: `/app/test-results/screenshots/${screenshotName}`,
-      type: 'jpeg',
-      quality: 85,
-      fullPage: true
-    });
+    const screenshotPath = `/app/test-results/screenshots/${screenshotName}`;
+    if (options.screenshotSelector) {
+      const target = page.locator(options.screenshotSelector).first();
+      await target.waitFor({ state: 'visible', timeout: 15000 });
+      await target.screenshot({
+        path: screenshotPath,
+        type: 'jpeg',
+        quality: 85,
+      });
+    } else {
+      await page.screenshot({
+        path: screenshotPath,
+        type: 'jpeg',
+        quality: 85,
+        fullPage: options.screenshotFullPage ?? true,
+      });
+    }
     console.log(`   📸 Screenshot saved: ${screenshotName}`);
     console.log(`   👀 REVIEW SCREENSHOT to verify correct page loaded`);
   }
@@ -794,6 +811,8 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
     test.setTimeout(180000);
     const domain = process.env.DOMAIN || 'datamancy.net';
     const sogoUrl = `https://sogo.${domain}/`;
+    const sogoAuthUser = process.env.STACK_ADMIN_USER || 'sysadmin';
+    const sogoAuthPassword = process.env.STACK_ADMIN_PASSWORD || 'admin';
 
     await testOIDCService(
       page,
@@ -807,6 +826,17 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           /You need to enable JavaScript to run this app/i,
         ],
         postLogin: async (page) => {
+          const waitForSogoFrame = async () => {
+            return expect
+              .poll(
+                () => page.frames().find((frame) => /\/SOGo\/so\//i.test(frame.url()))?.url() ?? '',
+                { timeout: 30000, intervals: [500, 1000, 2000] }
+              )
+              .toMatch(/\/SOGo\/so\//i);
+          };
+
+          const getSogoFrame = () => page.frames().find((frame) => /\/SOGo\/so\//i.test(frame.url()));
+
           const isTemporaryServiceError = async () => {
             const title = await page.title().catch(() => '');
             const bodyText = (await page.textContent('body').catch(() => '')) || '';
@@ -827,23 +857,34 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             throw new Error('SOGo remained unavailable (503) after retries.');
           }
 
-          const calendarLink = page.getByRole('link', { name: /calendar/i }).first();
+          await waitForSogoFrame();
+          const sogoFrame = getSogoFrame();
+          if (!sogoFrame) {
+            throw new Error('SOGo app frame did not become available after OIDC login.');
+          }
+
+          await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+
+          const calendarLink = sogoFrame.getByRole('link', { name: /calendar/i }).first();
           if (await calendarLink.isVisible().catch(() => false)) {
             await calendarLink.click({ force: true }).catch(() => {});
           }
 
-          await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
           await expect
             .poll(
               async () => {
-                const bodyText = await page.textContent('body').catch(() => '') || '';
-                const pageTitle = await page.title().catch(() => '');
-                return `${pageTitle}\n${bodyText}`;
+                const frame = getSogoFrame();
+                const frameText = (await frame?.textContent('body').catch(() => '')) || '';
+                const frameTitle = await frame?.title().catch(() => '') || '';
+                return `${frameTitle}\n${frameText}`;
               },
               { timeout: 30000, intervals: [500, 1000, 2000] }
             )
-            .toMatch(/SOGo|Mail|Calendar|Contacts|Address\s?Book|@datamancy\.net/i);
+            .toMatch(/Mail|Calendar|Contacts|Address\s?Book|Inbox|Drafts|Sent|Trash/i);
         },
+        screenshotSelector: 'iframe',
+        authUsername: sogoAuthUser,
+        authPassword: sogoAuthPassword,
       }
     );
   });
