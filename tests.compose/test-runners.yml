@@ -139,6 +139,7 @@ services:
     container_name: test-caching-layer
     networks:
       - valkey
+      - memcached
   test-cicd:
     <<: *test_runner_base
     container_name: test-cicd
@@ -163,10 +164,11 @@ services:
       - caddy
       - ldap
       - mailserver
+      - memcached
+      - postgres
       - authelia
       - internet
       - matrix-internal
-      - postgres
       - valkey
       - mastodon-internal
   test-data-pipeline:
