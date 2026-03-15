@@ -47,12 +47,25 @@ fun main() {
         tokenSecret = config.bookstack.tokenSecret
     )
 
+    val allowedSources = System.getenv("BOOKSTACK_ALLOWED_SOURCES")
+        ?.split(',')
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        ?.toSet()
+        ?: emptySet()
+    if (allowedSources.isEmpty()) {
+        logger.info { "BookStack source filter disabled; publishing all embedded sources" }
+    } else {
+        logger.info { "BookStack source filter enabled: ${allowedSources.joinToString(",")}" }
+    }
+
     runBlocking {
         val bookStackWriter = BookStackWriter(
             stagingStore = stagingStore,
             bookStackSink = bookStackSink,
             pollIntervalSeconds = 5,
-            batchSize = 50
+            batchSize = 50,
+            allowedSources = allowedSources
         )
 
         bookStackWriter.start()

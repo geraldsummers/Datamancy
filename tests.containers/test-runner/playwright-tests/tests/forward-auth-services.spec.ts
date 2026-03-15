@@ -647,18 +647,24 @@ test.describe('Forward Auth Services - SSO Flow', () => {
 
   test('Home Assistant - Access with forward auth', async ({ page }) => {
     test.setTimeout(120000);
-    // NOTE: Home Assistant requires onboarding on first run
-    // Forward auth works, but HA shows setup wizard if not configured
-    // This test validates HA is fully loaded (not onboarding)
     await testForwardAuthService(
       page,
       'Home Assistant',
       'https://homeassistant.datamancy.net/',
-      /Overview|Map|Energy|Settings|Developer Tools|History|Logbook/i,
+      /Overview|Dashboard|Settings|Developer Tools|History|Logbook|Automations|Devices/i,
       {
         urlPattern: /homeassistant\.datamancy\.net/,
+        disallowUrlPatterns: [/\/auth\/authorize/i],
+        waitForUrlNotMatch: /\/auth\/authorize/i,
         waitForSelector: 'home-assistant, ha-app',
-        requireUI: false,
+        waitForSelectorVisible: 'home-assistant, ha-app',
+        waitForSelectorTimeoutMs: 20000,
+        disallowPatterns: [
+          /welcome home!/i,
+          /please select a user you want to log in as/i,
+          /forgot password\?/i,
+          /\blog in\b/i,
+        ],
       }
     );
   });

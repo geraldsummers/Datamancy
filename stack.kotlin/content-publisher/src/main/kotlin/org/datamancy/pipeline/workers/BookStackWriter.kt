@@ -21,7 +21,8 @@ class BookStackWriter(
     private val bookStackSink: BookStackSink,
     private val pollIntervalSeconds: Long = 5,
     private val batchSize: Int = 200,
-    private val maxRetries: Int = 3
+    private val maxRetries: Int = 3,
+    private val allowedSources: Set<String> = emptySet()
 ) {
     
     suspend fun start() {
@@ -38,9 +39,24 @@ class BookStackWriter(
                     continue
                 }
 
+                val allowedDocs = pendingDocs.filter { isSourceAllowed(it.source) }
+                val skippedDocs = pendingDocs - allowedDocs
+                if (skippedDocs.isNotEmpty()) {
+                    skippedDocs.forEach { doc ->
+                        stagingStore.updateBookStackUrl(doc.id, "skipped://source-filter/${doc.source}")
+                        stagingStore.markBookStackComplete(doc.id)
+                    }
+                    logger.info { "Skipped ${skippedDocs.size} docs due to BOOKSTACK_ALLOWED_SOURCES source filter" }
+                }
+
+                if (allowedDocs.isEmpty()) {
+                    delay(pollIntervalSeconds.seconds)
+                    continue
+                }
+
 
                 coroutineScope {
-                    pendingDocs.map { doc ->
+                    allowedDocs.map { doc ->
                         async {
                             try {
                                 // Check if document has exceeded retry limit
@@ -92,6 +108,11 @@ class BookStackWriter(
             
             delay(pollIntervalSeconds.seconds)
         }
+    }
+
+    private fun isSourceAllowed(source: String): Boolean {
+        if (allowedSources.isEmpty()) return true
+        return source in allowedSources
     }
 
     

@@ -128,6 +128,7 @@ services:
     environment:
       BOOKSTACK_ENABLED: "true"
       BOOKSTACK_URL: "http://bookstack:80"
+      BOOKSTACK_ALLOWED_SOURCES: "rss,cve,wikipedia,australian_laws,linux_docs,debian_wiki,arch_wiki"
 
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
