@@ -12,18 +12,23 @@ services:
       ai:
         aliases:
           - agent-tool-server.${DOMAIN}
+          - model-context-server.${DOMAIN}
       mariadb:
         aliases:
           - agent-tool-server.${DOMAIN}
+          - model-context-server.${DOMAIN}
       qdrant:
         aliases:
           - agent-tool-server.${DOMAIN}
+          - model-context-server.${DOMAIN}
       ldap:
         aliases:
           - agent-tool-server.${DOMAIN}
+          - model-context-server.${DOMAIN}
       docker-proxy:
         aliases:
           - agent-tool-server.${DOMAIN}
+          - model-context-server.${DOMAIN}
     depends_on:
       litellm:
         condition: service_started
