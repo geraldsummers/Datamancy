@@ -51,3 +51,5 @@ mcp auth should be managed via each agent needing an ldap account which determin
 
 a heap of different internal systems should have easy modular wiring into grafana, home assistant for example
 consider which services should be easily visualizble in grafana and configure this
+
+account addition removal and role control need to be centralized and tested
