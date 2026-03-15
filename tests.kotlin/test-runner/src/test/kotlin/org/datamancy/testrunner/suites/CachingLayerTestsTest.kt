@@ -59,7 +59,7 @@ class CachingLayerTestsTest {
         }
 
         val summary = runner.summary()
-        assertEquals(13, summary.total, "Should have 13 caching layer tests")
+        assertEquals(15, summary.total, "Should have 15 caching layer tests")
     }
 
     @Test

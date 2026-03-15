@@ -56,4 +56,36 @@ suspend fun TestRunner.productivityTests() = suite("Productivity Tests") {
         val body = response.bodyAsText()
         body.uppercase() shouldContain "<!DOCTYPE HTML>"
     }
+
+    test("Jupyter notebook image is present for JupyterHub spawns") {
+        val imageName = System.getenv("JUPYTER_NOTEBOOK_IMAGE") ?: "datamancy-jupyter-notebook:5.4.3"
+        val process = ProcessBuilder("docker", "image", "inspect", imageName)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText()
+        val exit = process.waitFor()
+        require(exit == 0) {
+            "Jupyter notebook image '$imageName' not found: ${output.trim()}"
+        }
+        println("      ✓ Jupyter notebook image available: $imageName")
+    }
+
+    test("jupyter-notebook-build service completed successfully") {
+        val process = ProcessBuilder(
+            "docker", "inspect", "-f", "{{.State.Status}}|{{.State.ExitCode}}", "jupyter-notebook-build"
+        ).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText().trim()
+        val exit = process.waitFor()
+        require(exit == 0) {
+            "Unable to inspect jupyter-notebook-build container: $output"
+        }
+
+        val parts = output.split("|")
+        val status = parts.getOrNull(0)?.trim().orEmpty()
+        val exitCode = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: -1
+        require(status == "exited" && exitCode == 0) {
+            "jupyter-notebook-build should exit successfully, got status='$status' exitCode=$exitCode"
+        }
+        println("      ✓ jupyter-notebook-build completed successfully")
+    }
 }

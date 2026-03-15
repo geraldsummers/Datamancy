@@ -132,6 +132,15 @@ data class TestStatusFile(
     val suites: Map<String, TestStatusEntry> = emptyMap()
 )
 
+data class BuildStatusEntry(
+    val last_built_commit: String? = null,
+    val last_built_at: String? = null
+)
+
+data class BuildStatusFile(
+    val components: Map<String, BuildStatusEntry> = emptyMap()
+)
+
 data class TestRegistryComponent(
     val name: String,
     val compose_files: List<String> = emptyList(),
@@ -397,6 +406,17 @@ fun buildDistTestStatus(
         }
     }
     return TestStatusFile(suites = updated)
+}
+
+fun buildDistBuildStatus(registry: TestRegistry): BuildStatusFile {
+    val builtAt = Instant.now().toString()
+    val components = registry.components.mapValues { (_, component) ->
+        BuildStatusEntry(
+            last_built_commit = component.last_changed_commit,
+            last_built_at = builtAt
+        )
+    }
+    return BuildStatusFile(components = components)
 }
 
 fun extractServiceNetworks(serviceSpec: Any?): Set<String> {
@@ -1781,6 +1801,10 @@ fun main(args: Array<String>) {
             distDir.resolve("test-status.json").writeText(
                 jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distStatus)
             )
+            val distBuildStatus = buildDistBuildStatus(registry)
+            distDir.resolve("build-status.json").writeText(
+                jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distBuildStatus)
+            )
             suitesNeedingTests(registry).forEach { suite ->
                 println("${suite.name}|${suite.type}")
             }
@@ -1883,6 +1907,10 @@ ${CYAN}╔═══════════════════════�
     val distStatus = buildDistTestStatus(testRegistry, testStatus)
     distDir.resolve("test-status.json").writeText(
         jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distStatus)
+    )
+    val distBuildStatus = buildDistBuildStatus(testRegistry)
+    distDir.resolve("build-status.json").writeText(
+        jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distBuildStatus)
     )
 
     // Load or generate credentials

@@ -55,4 +55,25 @@ suspend fun TestRunner.communicationTests() = suite("Communication Tests") {
         
         response.status.value shouldBeOneOf listOf(200, 404, 401, 403)
     }
+
+    test("SOGo endpoint serves login or app content") {
+        val response = client.getRawResponse("http://sogo/")
+        response.status.value shouldBeOneOf listOf(200, 302, 401, 403)
+        println("      ✓ SOGo endpoint responded with ${response.status}")
+    }
+
+    test("Mastodon follow seeder container is running") {
+        val process = ProcessBuilder(
+            "docker", "inspect", "-f", "{{.State.Status}}", "mastodon-follow-seeder"
+        ).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText().trim()
+        val exit = process.waitFor()
+        require(exit == 0) {
+            "Unable to inspect mastodon-follow-seeder container: $output"
+        }
+        require(output == "running") {
+            "mastodon-follow-seeder should be running, got: $output"
+        }
+        println("      ✓ mastodon-follow-seeder container running")
+    }
 }

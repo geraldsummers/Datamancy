@@ -75,7 +75,7 @@ class AllTestSuitesTest {
         val summary = runner.summary()
 
         
-        assertEquals(9, summary.total)
+        assertEquals(11, summary.total)
     }
 
     
@@ -128,7 +128,7 @@ class AllTestSuitesTest {
         val summary = runner.summary()
 
         
-        assertEquals(8, summary.total)
+        assertEquals(10, summary.total)
     }
 
     
@@ -242,9 +242,9 @@ class AllTestSuitesTest {
         val serviceClient = ServiceClient(endpoints, mockClient)
 
         val testCounts = mapOf(
-            "communication" to 9,
+            "communication" to 11,
             "collaboration" to 4,
-            "productivity" to 8,
+            "productivity" to 10,
             "file-management" to 5,
             "security" to 3,
             "monitoring" to 13,

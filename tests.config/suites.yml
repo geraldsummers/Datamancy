@@ -53,6 +53,8 @@ suites:
     targets:
       - authelia
       - ldap
+      - ldap-account-manager
+      - ldap-ensure-suffixes
   - name: backup
     type: kotlin
     targets:
@@ -63,6 +65,7 @@ suites:
     type: kotlin
     targets:
       - valkey
+      - memcached
   - name: cicd
     type: kotlin
     targets:
@@ -78,12 +81,14 @@ suites:
     type: kotlin
     targets:
       - mailserver
+      - sogo
       - synapse
       - element
       - ntfy
       - mastodon-web
       - mastodon-streaming
       - mastodon-sidekiq
+      - mastodon-follow-seeder
   - name: data-pipeline
     type: kotlin
     targets:
@@ -133,6 +138,7 @@ suites:
     type: kotlin
     targets:
       - caddy
+      - caddy-ca-export
       - postgres
       - mariadb
       - qdrant
@@ -194,6 +200,7 @@ suites:
     targets:
       - onlyoffice
       - jupyterhub
+      - jupyter-notebook-build
   - name: search-service
     type: kotlin
   - name: security
