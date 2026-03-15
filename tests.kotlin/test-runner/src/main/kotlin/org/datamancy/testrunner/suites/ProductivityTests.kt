@@ -59,28 +59,22 @@ suspend fun TestRunner.productivityTests() = suite("Productivity Tests") {
 
     test("Jupyter notebook image is present for JupyterHub spawns") {
         val imageName = System.getenv("JUPYTER_NOTEBOOK_IMAGE") ?: "datamancy-jupyter-notebook:5.4.3"
-        val process = ProcessBuilder("docker", "image", "inspect", imageName)
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText()
-        val exit = process.waitFor()
-        require(exit == 0) {
-            "Jupyter notebook image '$imageName' not found: ${output.trim()}"
+        val result = DockerCli.run("image", "inspect", imageName)
+        require(result.exitCode == 0) {
+            "Jupyter notebook image '$imageName' not found: ${result.output.trim()}"
         }
         println("      ✓ Jupyter notebook image available: $imageName")
     }
 
     test("jupyter-notebook-build service completed successfully") {
-        val process = ProcessBuilder(
-            "docker", "inspect", "-f", "{{.State.Status}}|{{.State.ExitCode}}", "jupyter-notebook-build"
-        ).redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader().readText().trim()
-        val exit = process.waitFor()
-        require(exit == 0) {
-            "Unable to inspect jupyter-notebook-build container: $output"
+        val result = DockerCli.run(
+            "inspect", "-f", "{{.State.Status}}|{{.State.ExitCode}}", "jupyter-notebook-build"
+        )
+        require(result.exitCode == 0) {
+            "Unable to inspect jupyter-notebook-build container: ${result.output}"
         }
 
-        val parts = output.split("|")
+        val parts = result.output.split("|")
         val status = parts.getOrNull(0)?.trim().orEmpty()
         val exitCode = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: -1
         require(status == "exited" && exitCode == 0) {

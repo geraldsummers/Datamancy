@@ -82,6 +82,7 @@ mastodon-test-failed-*.b64
 mastodon-oidc-authenticated.*
 grafana-forward-authenticated.*
 .tmp-screenshots/
+.tmp_screenshots/
 .tmp-test-screens/
 .tmp-server-screenshots/
 test-artifacts/

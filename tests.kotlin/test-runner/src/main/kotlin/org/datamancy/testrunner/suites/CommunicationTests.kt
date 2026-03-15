@@ -63,16 +63,14 @@ suspend fun TestRunner.communicationTests() = suite("Communication Tests") {
     }
 
     test("Mastodon follow seeder container is running") {
-        val process = ProcessBuilder(
-            "docker", "inspect", "-f", "{{.State.Status}}", "mastodon-follow-seeder"
-        ).redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader().readText().trim()
-        val exit = process.waitFor()
-        require(exit == 0) {
-            "Unable to inspect mastodon-follow-seeder container: $output"
+        val result = DockerCli.run(
+            "inspect", "-f", "{{.State.Status}}", "mastodon-follow-seeder"
+        )
+        require(result.exitCode == 0) {
+            "Unable to inspect mastodon-follow-seeder container: ${result.output}"
         }
-        require(output == "running") {
-            "mastodon-follow-seeder should be running, got: $output"
+        require(result.output == "running") {
+            "mastodon-follow-seeder should be running, got: ${result.output}"
         }
         println("      ✓ mastodon-follow-seeder container running")
     }

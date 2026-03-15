@@ -90,16 +90,14 @@ suspend fun TestRunner.authenticationTests() = suite("Authentication & Authoriza
     }
 
     test("ldap-ensure-suffixes init container completed successfully") {
-        val process = ProcessBuilder(
-            "docker", "inspect", "-f", "{{.State.Status}}|{{.State.ExitCode}}", "ldap-ensure-suffixes"
-        ).redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader().readText().trim()
-        val exit = process.waitFor()
-        require(exit == 0) {
-            "Unable to inspect ldap-ensure-suffixes container: $output"
+        val result = DockerCli.run(
+            "inspect", "-f", "{{.State.Status}}|{{.State.ExitCode}}", "ldap-ensure-suffixes"
+        )
+        require(result.exitCode == 0) {
+            "Unable to inspect ldap-ensure-suffixes container: ${result.output}"
         }
 
-        val parts = output.split("|")
+        val parts = result.output.split("|")
         val status = parts.getOrNull(0)?.trim().orEmpty()
         val exitCode = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: -1
         require((status == "exited" || status == "running") && exitCode == 0) {
