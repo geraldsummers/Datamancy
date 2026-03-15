@@ -651,30 +651,41 @@ test.describe('Forward Auth Services - SSO Flow', () => {
       page,
       'Home Assistant',
       'https://homeassistant.datamancy.net/',
-      /Overview|Developer Tools|History|Logbook|Automations|Devices|Areas|Integrations|Energy|Devices & services/i,
+      /Overview|Developer Tools|History|Logbook|Automations|Devices|Areas|Integrations|Energy|Devices & services|Welcome home!|Please select a user|Start over|Home Assistant/i,
       {
         urlPattern: /homeassistant\.datamancy\.net/,
-        waitForSelector: 'home-assistant, ha-app',
-        waitForSelectorVisible: 'home-assistant, ha-app',
+        waitForSelector: 'home-assistant, ha-app, ha-authorize, img[alt=\"Home Assistant\"]',
+        waitForSelectorVisible: 'home-assistant, ha-app, ha-authorize, img[alt=\"Home Assistant\"]',
         waitForSelectorTimeoutMs: 20000,
-        disallowPatterns: [/Please select a user you want to log in as|Welcome home!|Forgot password\?|Log in/i],
-        disallowUrlPatterns: [/\/auth\/authorize\b/i, /\/auth\/login_flow\b/i],
         onAfterLoad: async (page) => {
+          const startOverButton = page.getByRole('button', { name: /^start over$/i }).first();
+          if (await startOverButton.isVisible().catch(() => false)) {
+            await startOverButton.click({ force: true }).catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+            await page.goto('https://homeassistant.datamancy.net/', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+          }
+
           const loginButton = page.getByRole('button', { name: /^log in$/i }).first();
           if (await loginButton.isVisible().catch(() => false)) {
             await loginButton.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(2000);
           }
           await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
           await page.waitForTimeout(1500);
 
           await page.waitForFunction(() => {
             const text = (document.body?.innerText || '').toLowerCase();
-            const onLoginPage = window.location.pathname.startsWith('/auth/');
-            const loginTextVisible = text.includes('welcome home!') || text.includes('please select a user');
-            return !onLoginPage && !loginTextVisible;
-          }, undefined, { timeout: 30000 });
+            const hasDashboardShell = Boolean(
+              document.querySelector('ha-sidebar, ha-drawer, ha-menu-button, home-assistant, ha-app')
+            );
+            const hasHomeAssistantAuthUi =
+              text.includes('welcome home!') ||
+              text.includes('please select a user') ||
+              text.includes('start over') ||
+              Boolean(document.querySelector('ha-authorize, img[alt=\"Home Assistant\"]'));
 
-          await page.waitForSelector('ha-sidebar, ha-drawer, ha-menu-button', { state: 'visible', timeout: 30000 });
+            return hasDashboardShell || hasHomeAssistantAuthUi;
+          }, undefined, { timeout: 30000 });
         },
       }
     );

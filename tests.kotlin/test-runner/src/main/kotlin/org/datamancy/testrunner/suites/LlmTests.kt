@@ -122,10 +122,35 @@ suspend fun TestRunner.llmTests() = suite("LLM Integration Tests") {
     }
 
     test("LLM embed text returns vector") {
-        val result = client.callTool("llm_embed_text", mapOf(
-            "text" to "This is a test sentence for embedding.",
-            "model" to "bge-m3"
-        ))
+        suspend fun callEmbeddingWithRetry(attempts: Int = 12, delayMs: Long = 5000): ToolResult {
+            var last: ToolResult = ToolResult.Error(0, "Embedding request did not execute")
+            repeat(attempts) { index ->
+                val result = client.callTool("llm_embed_text", mapOf(
+                    "text" to "This is a test sentence for embedding.",
+                    "model" to "bge-m3"
+                ))
+
+                if (result is ToolResult.Success) {
+                    return result
+                }
+
+                last = result
+                val message = (result as? ToolResult.Error)?.message?.lowercase() ?: ""
+                val retryable = message.contains("timed out") ||
+                    message.contains("timeout") ||
+                    message.contains("connection error") ||
+                    message.contains("service unavailable")
+
+                if (!retryable || index == attempts - 1) {
+                    return result
+                }
+
+                delay(delayMs)
+            }
+            return last
+        }
+
+        val result = callEmbeddingWithRetry()
 
         require(result is ToolResult.Success, "Embedding failed")
         val output = (result as ToolResult.Success).output

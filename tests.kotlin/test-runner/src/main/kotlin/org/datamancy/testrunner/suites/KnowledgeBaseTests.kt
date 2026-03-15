@@ -1,9 +1,55 @@
 package org.datamancy.testrunner.suites
 
 import org.datamancy.testrunner.framework.*
+import kotlinx.coroutines.delay
 
 suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
     val userContext = env.endpoints.userContext
+
+    suspend fun searchWithRetry(
+        query: String,
+        collections: List<String> = listOf("*"),
+        limit: Int = 5,
+        attempts: Int = 10,
+        delayMs: Long = 4000
+    ): SearchResult {
+        var last = client.search(query = query, collections = collections, limit = limit)
+        repeat(attempts - 1) {
+            if (last.success) return last
+            delay(delayMs)
+            last = client.search(query = query, collections = collections, limit = limit)
+        }
+        return last
+    }
+
+    suspend fun embedWithRetry(
+        text: String,
+        attempts: Int = 12,
+        delayMs: Long = 5000
+    ): ToolResult {
+        var last: ToolResult = ToolResult.Error(0, "Embedding request did not execute")
+        repeat(attempts) { index ->
+            val result = client.callTool("llm_embed_text", mapOf(
+                "text" to text,
+                "model" to "bge-m3"
+            ))
+            if (result is ToolResult.Success) {
+                return result
+            }
+
+            last = result
+            val message = (result as? ToolResult.Error)?.message?.lowercase() ?: ""
+            val retryable = message.contains("timed out") ||
+                message.contains("timeout") ||
+                message.contains("connection error") ||
+                message.contains("service unavailable")
+            if (!retryable || index == attempts - 1) {
+                return result
+            }
+            delay(delayMs)
+        }
+        return last
+    }
 
     if (userContext == null) {
         skip("MariaDB query test", "No user context configured")
@@ -72,7 +118,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
     }
 
     test("Semantic search executes") {
-        val result = client.search(
+        val result = searchWithRetry(
             query = "kubernetes deployment",
             collections = listOf("*"),
             limit = 5
@@ -91,10 +137,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
         val testText = "Datamancy integration test vector ${System.currentTimeMillis()}"
         println("\n      Generating embedding for: '$testText'")
 
-        val embedResult = client.callTool("llm_embed_text", mapOf(
-            "text" to testText,
-            "model" to "bge-m3"
-        ))
+        val embedResult = embedWithRetry(testText)
 
         require(embedResult is ToolResult.Success) {
             "Embedding generation failed: ${(embedResult as? ToolResult.Error)?.message}"
@@ -113,7 +156,7 @@ suspend fun TestRunner.knowledgeBaseTests() = suite("Knowledge Base Tests") {
         
         
         println("      Testing semantic search with query...")
-        val searchResult = client.search(
+        val searchResult = searchWithRetry(
             query = "integration test",
             collections = listOf("*"),
             limit = 10
