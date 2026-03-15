@@ -875,6 +875,15 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
 
           await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
+          const currentSogoFrameUrl = sogoFrame.url();
+          const calendarViewUrl = currentSogoFrameUrl
+            .replace(/\/Mail(\/view)?(?:[?#].*)?$/i, '/Calendar/view')
+            .replace(/\/Mail\/0\/view(?:[?#].*)?$/i, '/Calendar/view');
+          if (calendarViewUrl !== currentSogoFrameUrl) {
+            await page.goto(calendarViewUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+          }
+
           const calendarLink = sogoFrame.getByRole('link', { name: /calendar/i }).first();
           if (await calendarLink.isVisible().catch(() => false)) {
             await calendarLink.click({ force: true }).catch(() => {});
@@ -891,8 +900,64 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               { timeout: 30000, intervals: [500, 1000, 2000] }
             )
             .toMatch(/Mail|Calendar|Contacts|Address\s?Book|Inbox|Drafts|Sent|Trash/i);
+
+          const screenshotPath = '/app/test-results/screenshots/sogo-oidc-authenticated.jpg';
+          await page.waitForTimeout(2500);
+          const minUsefulScreenshotBytes = 12_000;
+          const screenshotCandidates: Array<{ label: string; buffer: Buffer }> = [];
+          const addScreenshotCandidate = async (label: string, capture: () => Promise<Buffer>) => {
+            const buffer = await capture().catch(() => null);
+            if (buffer && buffer.length > 0) {
+              screenshotCandidates.push({ label, buffer });
+            }
+          };
+
+          const candidateFrames = page.frames().filter((frame) => frame !== page.mainFrame());
+          for (const frame of candidateFrames) {
+            const frameUrl = frame.url();
+            if (!/sogo|\/SOGo\//i.test(frameUrl)) {
+              continue;
+            }
+            const frameRoot = frame.locator('html');
+            if (await frameRoot.isVisible().catch(() => false)) {
+              await addScreenshotCandidate(`frame-html:${frameUrl}`, () =>
+                frameRoot.screenshot({ type: 'jpeg', quality: 85 })
+              );
+            }
+            const frameBody = frame.locator('body');
+            if (await frameBody.isVisible().catch(() => false)) {
+              await addScreenshotCandidate(`frame-body:${frameUrl}`, () =>
+                frameBody.screenshot({ type: 'jpeg', quality: 85 })
+              );
+            }
+          }
+
+          await addScreenshotCandidate('page-viewport', () =>
+            page.screenshot({ type: 'jpeg', quality: 85 })
+          );
+          await addScreenshotCandidate('page-full', () =>
+            page.screenshot({ type: 'jpeg', quality: 85, fullPage: true })
+          );
+
+          if (screenshotCandidates.length === 0) {
+            throw new Error('No screenshot candidates were captured for SOGo.');
+          }
+
+          screenshotCandidates.sort((a, b) => b.buffer.length - a.buffer.length);
+          const bestCandidate = screenshotCandidates[0];
+          fs.writeFileSync(screenshotPath, bestCandidate.buffer);
+          console.log(
+            `   📸 Screenshot candidate selected: ${bestCandidate.label} (${bestCandidate.buffer.length} bytes)`
+          );
+          if (bestCandidate.buffer.length < minUsefulScreenshotBytes) {
+            throw new Error(
+              `SOGo screenshot appears blank (${bestCandidate.buffer.length} bytes < ${minUsefulScreenshotBytes}).`
+            );
+          }
+          console.log('   📸 Screenshot saved: sogo-oidc-authenticated.jpg');
+          console.log('   👀 REVIEW SCREENSHOT to verify correct page loaded');
         },
-        screenshotSelector: 'iframe',
+        skipScreenshot: true,
         authUsername: sogoAuthUser,
         authPassword: sogoAuthPassword,
       }
