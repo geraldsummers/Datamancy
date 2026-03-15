@@ -89,8 +89,14 @@ data class PipelineConfig(
                 rss = RssConfig(
                     enabled = getEnvOrPropertyBoolean("RSS_ENABLED", true),
                     feedUrls = getEnvOrProperty("RSS_FEED_URLS")?.split(",")?.filter { it.isNotBlank() } ?: listOf(
-                        "https://hnrss.org/frontpage",
-                        "https://arxiv.org/rss/cs.AI"
+                        "https://cointelegraph.com/rss",
+                        "https://www.coindesk.com/arc/outboundfeeds/rss/",
+                        "https://decrypt.co/feed",
+                        "https://www.theblock.co/rss.xml",
+                        "https://www.marketwatch.com/rss/topstories",
+                        "https://feeds.reuters.com/reuters/businessNews",
+                        "https://feeds.bbci.co.uk/news/business/rss.xml",
+                        "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"
                     ),
                     scheduleMinutes = getEnvOrPropertyInt("RSS_SCHEDULE_MINUTES", 15, min = 1, max = 10080)
                 ),
@@ -188,8 +194,14 @@ data class PipelineConfig(
 data class RssConfig(
     val enabled: Boolean = true,
     val feedUrls: List<String> = listOf(
-        "https://hnrss.org/frontpage",
-        "https://arxiv.org/rss/cs.AI"
+        "https://cointelegraph.com/rss",
+        "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "https://decrypt.co/feed",
+        "https://www.theblock.co/rss.xml",
+        "https://www.marketwatch.com/rss/topstories",
+        "https://feeds.reuters.com/reuters/businessNews",
+        "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"
     ),
     val scheduleMinutes: Int = 15
 )
