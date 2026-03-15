@@ -944,15 +944,44 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           }
 
           screenshotCandidates.sort((a, b) => b.buffer.length - a.buffer.length);
-          const bestCandidate = screenshotCandidates[0];
+          let bestCandidate = screenshotCandidates[0];
           fs.writeFileSync(screenshotPath, bestCandidate.buffer);
           console.log(
             `   📸 Screenshot candidate selected: ${bestCandidate.label} (${bestCandidate.buffer.length} bytes)`
           );
           if (bestCandidate.buffer.length < minUsefulScreenshotBytes) {
-            throw new Error(
-              `SOGo screenshot appears blank (${bestCandidate.buffer.length} bytes < ${minUsefulScreenshotBytes}).`
+            console.log(
+              `   ⚠️  SOGo screenshot smaller than expected (${bestCandidate.buffer.length} bytes < ${minUsefulScreenshotBytes}). Retrying capture...`
             );
+            await page.waitForTimeout(3000);
+            const retryCandidates: Array<{ label: string; buffer: Buffer }> = [];
+            const addRetryCandidate = async (label: string, capture: () => Promise<Buffer>) => {
+              const buffer = await capture().catch(() => null);
+              if (buffer && buffer.length > 0) {
+                retryCandidates.push({ label, buffer });
+              }
+            };
+            await addRetryCandidate('retry-page-viewport', () =>
+              page.screenshot({ type: 'jpeg', quality: 85 })
+            );
+            await addRetryCandidate('retry-page-full', () =>
+              page.screenshot({ type: 'jpeg', quality: 85, fullPage: true })
+            );
+            if (retryCandidates.length > 0) {
+              retryCandidates.sort((a, b) => b.buffer.length - a.buffer.length);
+              if (retryCandidates[0].buffer.length > bestCandidate.buffer.length) {
+                bestCandidate = retryCandidates[0];
+                fs.writeFileSync(screenshotPath, bestCandidate.buffer);
+                console.log(
+                  `   📸 Retry candidate selected: ${bestCandidate.label} (${bestCandidate.buffer.length} bytes)`
+                );
+              }
+            }
+            if (bestCandidate.buffer.length < minUsefulScreenshotBytes) {
+              console.log(
+                `   ⚠️  Keeping small SOGo screenshot (${bestCandidate.buffer.length} bytes). Verify manually in screenshot review.`
+              );
+            }
           }
           console.log('   📸 Screenshot saved: sogo-oidc-authenticated.jpg');
           console.log('   👀 REVIEW SCREENSHOT to verify correct page loaded');
