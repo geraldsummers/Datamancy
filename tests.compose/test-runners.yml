@@ -25,6 +25,7 @@ x-test-base: &test_runner_base
     POSTGRES_DB: datamancy
     POSTGRES_USER: test_runner_user
     POSTGRES_PASSWORD: ${POSTGRES_TEST_RUNNER_PASSWORD}
+    DOCKER_HOST: tcp://docker-socket-proxy:2375
     MARIADB_HOST: mariadb
     MARIADB_PORT: 3306
     MARIADB_USER: bookstack
