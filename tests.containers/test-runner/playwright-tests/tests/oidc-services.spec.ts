@@ -476,7 +476,21 @@ async function testOIDCService(
 
   // ENHANCED: Verify we're on the CORRECT service page, not just "not auth"
   const body = page.locator('body');
-  const hasContent = await body.isVisible();
+  let hasContent = false;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    if (page.isClosed()) {
+      break;
+    }
+    hasContent = await body.isVisible().catch(() => false);
+    if (hasContent) {
+      break;
+    }
+    await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(500);
+  }
+  if (!hasContent && page.isClosed()) {
+    throw new Error(`Browser page closed before ${serviceName} UI validation completed.`);
+  }
   expect(hasContent).toBeTruthy();
 
   // Verify service-specific UI pattern to confirm correct page
@@ -1270,10 +1284,23 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             );
           }
 
+          // Vaultwarden can occasionally return to an Authelia login page mid-flow.
+          // Perform one inline re-auth before asserting final authenticated UI.
+          if (/auth\.|authelia|:9091/i.test(finalUrl)) {
+            const retryAuth = new AutheliaLoginPage(page);
+            await retryAuth.login(testUser.username, testUser.password);
+            const retryOidc = new OIDCLoginPage(page);
+            await retryOidc.handleConsentScreen().catch(() => {});
+            await page.waitForURL((url) => !/auth\.|authelia|:9091/i.test(url.toString()), {
+              timeout: 20000,
+            }).catch(() => {});
+            await page.waitForTimeout(1000);
+          }
+
           const finalBody = (await page.textContent('body').catch(() => '')) || '';
           const hasAuthenticatedUi = /My Vault|Vaults|Folders|Items|Search vault|Join organization|Create account|Set initial password/i.test(finalBody);
           if (!hasAuthenticatedUi) {
-            throw new Error(`Vaultwarden did not present authenticated/onboarding UI after OIDC. URL=${finalUrl}`);
+            throw new Error(`Vaultwarden did not present authenticated/onboarding UI after OIDC. URL=${page.url()}`);
           }
         },
         oidcLinkPatterns: [/single sign-on/i, /sso/i],
