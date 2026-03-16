@@ -267,9 +267,9 @@ case "${1:-help}" in
     smart)
         cd "$ROOT_DIR"
         use_build_script=0
-        if [ -x "./build-datamancy-v3.main.kts" ]; then
+        if [ -x "./build-datamancy-v4.main.kts" ]; then
             use_build_script=1
-            plan_output=$(./build-datamancy-v3.main.kts --test-plan)
+            plan_output=$(./build-datamancy-v4.main.kts --test-plan)
         else
             plan_output=$(smart_plan_from_registry)
         fi
@@ -299,7 +299,7 @@ case "${1:-help}" in
             esac
 
             if [ "$use_build_script" -eq 1 ]; then
-                ./build-datamancy-v3.main.kts --record-test "$suite"
+                ./build-datamancy-v4.main.kts --record-test "$suite"
             else
                 record_test_status "$suite"
             fi

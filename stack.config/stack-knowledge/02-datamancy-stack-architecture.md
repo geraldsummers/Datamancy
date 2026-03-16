@@ -212,7 +212,7 @@ healthcheck:
 ## Deployment Workflow
 
 1. Edit configuration in local repo
-2. Run `./build-datamancy-v3.main.kts` to build
+2. Run `./build-datamancy-v4.main.kts` to build
 3. Build creates `dist/` with:
    - `docker-compose.yml`
    - `configs/` (processed templates)

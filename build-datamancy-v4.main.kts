@@ -5,7 +5,7 @@
 @file:DependsOn("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.2")
 @file:DependsOn("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
 
-// Datamancy Build System V3 - Simplified & Fast
+// Datamancy Build System V4 - Simplified
 // Strategy: Load/generate credentials once → Simple compose merge → Process templates → Validate
 
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -117,10 +117,6 @@ data class ComponentOverride(
 
 data class ComponentsConfig(
     val components: List<ComponentOverride> = emptyList()
-)
-
-data class ComposeSecretEnvConfig(
-    val services: Map<String, Map<String, String>> = emptyMap()
 )
 
 data class TestStatusEntry(
@@ -331,13 +327,6 @@ fun loadTestSuitesConfig(mapper: ObjectMapper, file: File): TestSuitesConfig {
 fun loadComponentsConfig(mapper: ObjectMapper, file: File): ComponentsConfig {
     if (!file.exists()) {
         return ComponentsConfig()
-    }
-    return mapper.readValue(file)
-}
-
-fun loadComposeSecretEnvConfig(mapper: ObjectMapper, file: File): ComposeSecretEnvConfig {
-    if (!file.exists()) {
-        return ComposeSecretEnvConfig()
     }
     return mapper.readValue(file)
 }
@@ -1441,113 +1430,6 @@ fun mergeComposeFiles(
     info("Created docker-compose.yml with ${serviceFiles.size} services")
 }
 
-fun injectSecretEnvIntoCompose(
-    composeFile: File,
-    secretEnv: ComposeSecretEnvConfig
-) {
-    if (!composeFile.exists() || secretEnv.services.isEmpty()) return
-
-    fun indentLen(line: String): Int = line.takeWhile { it == ' ' }.length
-
-    fun injectIntoServiceLines(
-        lines: List<String>,
-        envMap: Map<String, String>
-    ): List<String> {
-        if (envMap.isEmpty() || lines.isEmpty()) return lines
-
-        val sortedEnv = envMap.toSortedMap()
-        val envHeaderRegex = Regex("^ {4}environment:\\s*$")
-        val envEntryRegex = Regex("^ {6}([A-Z0-9_]+):")
-
-        val envStart = lines.indexOfFirst { envHeaderRegex.matches(it) }
-        if (envStart >= 0) {
-            val existingKeys = mutableSetOf<String>()
-            var i = envStart + 1
-            while (i < lines.size) {
-                val line = lines[i]
-                if (line.isNotBlank() && indentLen(line) <= 4) break
-                val match = envEntryRegex.find(line)
-                if (match != null) {
-                    existingKeys.add(match.groupValues[1])
-                }
-                i++
-            }
-            val inserts = sortedEnv.entries
-                .filter { !existingKeys.contains(it.key) }
-                .map { "      ${it.key}: \${${it.value}}" }
-            if (inserts.isEmpty()) return lines
-            return lines.subList(0, i) + inserts + lines.subList(i, lines.size)
-        }
-
-        val inserted = mutableListOf<String>()
-        inserted.add(lines.first())
-        inserted.add("    environment:")
-        sortedEnv.forEach { (key, value) ->
-            inserted.add("      $key: \${$value}")
-        }
-        if (lines.size > 1) {
-            inserted.addAll(lines.subList(1, lines.size))
-        }
-        return inserted
-    }
-
-    val content = composeFile.readText()
-    val trailingNewline = content.endsWith("\n")
-    val lines = content.split("\n")
-
-    val out = StringBuilder()
-    var inServices = false
-    var currentService: String? = null
-    val serviceLines = mutableListOf<String>()
-
-    fun flushService() {
-        val serviceName = currentService ?: return
-        val updated = injectIntoServiceLines(serviceLines, secretEnv.services[serviceName].orEmpty())
-        updated.forEach { out.append(it).append("\n") }
-        serviceLines.clear()
-        currentService = null
-    }
-
-    for (line in lines) {
-        if (!inServices) {
-            if (line == "services:") {
-                inServices = true
-                out.append(line).append("\n")
-                continue
-            }
-            out.append(line).append("\n")
-            continue
-        }
-
-        if (line.isNotBlank() && indentLen(line) == 0) {
-            flushService()
-            inServices = false
-            out.append(line).append("\n")
-            continue
-        }
-
-        val serviceMatch = Regex("^ {2}([A-Za-z0-9_.-]+):\\s*$").matchEntire(line)
-        if (serviceMatch != null) {
-            flushService()
-            currentService = serviceMatch.groupValues[1]
-            serviceLines.add(line)
-            continue
-        }
-
-        if (currentService != null) {
-            serviceLines.add(line)
-        } else {
-            out.append(line).append("\n")
-        }
-    }
-
-    flushService()
-
-    val finalText = if (trailingNewline) out.toString() else out.toString().removeSuffix("\n")
-    composeFile.writeText(finalText)
-    info("Injected secret environment variables into docker-compose.yml")
-}
-
 fun processConfigTemplates(
     outputDir: File,
     schema: CredentialsSchema,
@@ -1677,7 +1559,7 @@ fun bundleSourceToRepos(distDir: File, workDir: File, version: String) {
     reposDir.mkdirs()
 
     val sourceFiles = listOf(
-        "build-datamancy-v3.main.kts",
+        "build-datamancy-v4.main.kts",
         "global.settings/",
         "stack.compose/",
         "stack.config/",
@@ -1727,7 +1609,7 @@ Complete source code for the Datamancy stack, bundled for:
 ## Build
 
 ```bash
-./build-datamancy-v3.main.kts
+./build-datamancy-v4.main.kts
 ```
 """.trimIndent())
 
@@ -1783,7 +1665,6 @@ fun main(args: Array<String>) {
     val suitesFile = File("tests.config/suites.yml")
     val componentsFile = File("tests.config/components.yml")
     val statusFile = File("tests.config/test-status.yml")
-    val composeSecretEnvFile = File("global.settings/compose.secret-env.yml")
 
     when (args.firstOrNull()) {
         "--test-plan" -> {
@@ -1852,7 +1733,7 @@ fun main(args: Array<String>) {
 
     println("""
 ${CYAN}╔════════════════════════════════════════╗
-║  Datamancy Build System V3             ║
+║  Datamancy Build System V4             ║
 ║  Simplified & Fast                     ║
 ╚════════════════════════════════════════╝${RESET}
 """)
@@ -1934,9 +1815,6 @@ ${CYAN}╔═══════════════════════�
     val version = getGitVersion(workDir)
 
     mergeComposeFiles(distDir, credentials, config)
-    val composeSecretEnv = loadComposeSecretEnvConfig(mapper, composeSecretEnvFile)
-    val composeFile = distDir.resolve("docker-compose.yml")
-    injectSecretEnvIntoCompose(composeFile, composeSecretEnv)
 
     // Write Authelia RSA key
     val autheliaRSAKey = credentials["AUTHELIA_OIDC_PRIVATE_KEY"]
