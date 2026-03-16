@@ -469,6 +469,8 @@ fun generateTestRunnersCompose(
         appendLine("    POSTGRES_USER: test_runner_user")
         appendLine("    POSTGRES_PASSWORD: \${POSTGRES_TEST_RUNNER_PASSWORD}")
         appendLine("    DOCKER_HOST: tcp://docker-socket-proxy:2375")
+        appendLine("    ISOLATED_DOCKER_VM_DOCKER_HOST: tcp://docker-vm-socket-proxy:2375")
+        appendLine("    DOCKER_HOST_ISOLATED: tcp://docker-vm-socket-proxy:2375")
         appendLine("    MARIADB_HOST: mariadb")
         appendLine("    MARIADB_PORT: 3306")
         appendLine("    MARIADB_USER: bookstack")

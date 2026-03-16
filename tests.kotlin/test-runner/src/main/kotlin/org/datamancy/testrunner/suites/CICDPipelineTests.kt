@@ -40,15 +40,12 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
             val (exitCode, output) = execCICDDocker(isolatedDockerVmDockerHost, "build", "--load", "-t", imageName, tempDir.absolutePath)
             if (exitCode != 0) {
-                println("      ℹ️  Docker build output: $output")
-                println("      ℹ️  Build may require --load flag for buildx or direct socket access")
-                return@test
+                throw AssertionError("Docker build failed on isolated Docker host: $output")
             }
 
             val (listExitCode, listOutput) = execCICDDocker(isolatedDockerVmDockerHost, "images", imageName, "-q")
             if (listExitCode != 0 || listOutput.trim().isEmpty()) {
-                println("      ℹ️  Image not visible after build (buildx cache issue)")
-                return@test
+                throw AssertionError("Built image is not visible on isolated Docker host")
             }
 
             
@@ -77,8 +74,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
             val (buildExitCode, buildOutput) = execCICDDocker(isolatedDockerVmDockerHost, "build", "--load", "-t", localImageName, tempDir.absolutePath)
             if (buildExitCode != 0) {
-                println("      ℹ️  Docker build failed: $buildOutput")
-                return@test
+                throw AssertionError("Docker build failed before isolated registry push: $buildOutput")
             }
 
             execCICDDocker(isolatedDockerVmDockerHost, "tag", localImageName, registryImageName)
@@ -120,8 +116,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
             val (buildExitCode, buildOutput) = execCICDDocker(isolatedDockerVmDockerHost, "build", "--load", "-t", localImageName, tempDir.absolutePath)
             if (buildExitCode != 0) {
-                println("      ℹ️  Docker build failed: $buildOutput")
-                return@test
+                throw AssertionError("Docker build failed before production registry isolation check: $buildOutput")
             }
 
             execCICDDocker(isolatedDockerVmDockerHost, "tag", localImageName, prodRegistryImageName)
@@ -214,15 +209,13 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
             val (buildExitCode, buildOutput) = execCICDDocker(isolatedDockerVmDockerHost, "build", "--load", "-t", imageName, tempDir.absolutePath)
             if (buildExitCode != 0) {
-                println("      ℹ️  Multi-stage build failed: $buildOutput")
-                return@test
+                throw AssertionError("Multi-stage build failed on isolated Docker host: $buildOutput")
             }
 
             val (runExitCode, runOutput) = execCICDDocker(isolatedDockerVmDockerHost, "run", "--rm", imageName)
             if (runExitCode != 0 || !runOutput.contains("Building artifact")) {
-                println("      ℹ️  Multi-stage container output unexpected (exitCode: $runExitCode)")
                 execCICDDocker(isolatedDockerVmDockerHost, "rmi", "-f", imageName)
-                return@test
+                throw AssertionError("Multi-stage runtime verification failed: exit=$runExitCode output=$runOutput")
             }
 
             
