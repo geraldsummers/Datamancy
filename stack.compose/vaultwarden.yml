@@ -48,6 +48,7 @@ services:
       SMTP_PORT: 587
       SMTP_SECURITY: starttls
       SMTP_USERNAME: vaultwarden@${MAIL_DOMAIN}
+      SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD}
       SSL_CERT_FILE: /certs/pki/authorities/local/root.crt
       ROCKET_TLS_INSECURE_SKIP_VERIFICATION: "true"
     volumes:
