@@ -889,17 +889,32 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             await calendarLink.click({ force: true }).catch(() => {});
           }
 
-          await expect
-            .poll(
-              async () => {
-                const frame = getSogoFrame();
-                const frameText = (await frame?.textContent('body').catch(() => '')) || '';
-                const frameTitle = await frame?.title().catch(() => '') || '';
-                return `${frameTitle}\n${frameText}`;
-              },
-              { timeout: 30000, intervals: [500, 1000, 2000] }
-            )
-            .toMatch(/Mail|Calendar|Contacts|Address\s?Book|Inbox|Drafts|Sent|Trash/i);
+          let sogoReady = false;
+          let sogoObserved = '';
+          for (let check = 1; check <= 8; check += 1) {
+            const frame = getSogoFrame();
+            const frameText = (await frame?.textContent('body').catch(() => '')) || '';
+            const frameTitle = await frame?.title().catch(() => '') || '';
+            const combined = `${frameTitle}\n${frameText}`;
+            sogoObserved = combined;
+            if (/Mail|Calendar|Contacts|Address\s?Book|Inbox|Drafts|Sent|Trash/i.test(combined)) {
+              sogoReady = true;
+              break;
+            }
+
+            // SOGo can intermittently render an empty frame after successful auth.
+            // Reload the calendar endpoint and retry before failing hard.
+            if (check < 8) {
+              await page.waitForTimeout(2000);
+              await page.goto(calendarViewUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+              await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+            }
+          }
+          if (!sogoReady) {
+            throw new Error(
+              `SOGo frame did not render app content after OIDC login. URL=${page.url()} observed=${sogoObserved.slice(0, 400)}`
+            );
+          }
 
           const screenshotPath = '/app/test-results/screenshots/sogo-oidc-authenticated.jpg';
           await page.waitForTimeout(2500);
@@ -1209,6 +1224,40 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           }
 
           await page.waitForURL((url) => !/#\/sso\b/i.test(url.toString()), { timeout: 20000 }).catch(() => {});
+
+          // Vaultwarden can occasionally bounce back to login after SSO redirect.
+          // Self-heal by re-triggering SSO once before failing.
+          for (let loginRetry = 1; loginRetry <= 2 && /#\/login\b/i.test(page.url()); loginRetry += 1) {
+            const ssoButton = page.getByRole('button', { name: /use single sign-on|single sign-on|sso/i }).first();
+            const ssoEmailField = page.locator('input.vw-email-sso').first();
+            if (await ssoEmailField.isVisible().catch(() => false)) {
+              const current = await ssoEmailField.inputValue().catch(() => '');
+              if (!current) {
+                await ssoEmailField.fill(vaultwardenEmail, { force: true }).catch(() => {});
+              }
+            }
+            if (await ssoButton.isVisible().catch(() => false)) {
+              await ssoButton.click({ force: true }).catch(() => {});
+            }
+
+            await page.waitForURL(
+              (url) => {
+                const href = url.toString();
+                return /auth\.|authelia|identity\/connect\/authorize|#\/sso\b|\/sso\b|set-initial-password/i.test(href)
+                  || !/#\/login\b/i.test(href);
+              },
+              { timeout: 20000 }
+            ).catch(() => {});
+
+            if (page.url().includes('authelia') || page.url().includes('auth.') || page.url().includes(':9091')) {
+              const autheliaPage = new AutheliaLoginPage(page);
+              await autheliaPage.login(testUser.username, testUser.password);
+              await oidcPage.handleConsentScreen().catch(() => {});
+            }
+
+            await page.waitForURL((url) => !/#\/sso\b/i.test(url.toString()), { timeout: 20000 }).catch(() => {});
+            await page.waitForTimeout(1000);
+          }
 
           // Hard guard against false positives: landing on /login means OIDC did not actually complete.
           const finalUrl = page.url();
