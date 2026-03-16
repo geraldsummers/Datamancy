@@ -26,6 +26,7 @@ services:
       DB_USERNAME: bookstack
       DB_PASSWORD: ${MARIADB_BOOKSTACK_PASSWORD}
       DB_DATABASE: bookstack
+      BOOKSTACK_OAUTH_SECRET: ${BOOKSTACK_OAUTH_SECRET}
       SSL_CERT_FILE: /ca/caddy-ca.crt
       CURL_CA_BUNDLE: /ca/caddy-ca.crt
     volumes:

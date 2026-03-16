@@ -39,6 +39,7 @@ services:
       FORGEJO__openid__ENABLE_OPENID_SIGNUP: true
       FORGEJO__actions__ENABLED: true
       FORGEJO__actions__DEFAULT_ACTIONS_URL: https://code.forgejo.org
+      FORGEJO_OAUTH_SECRET: ${FORGEJO_OAUTH_SECRET}
       DOMAIN: ${DOMAIN}
       STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
       SSL_CERT_FILE: /ca/caddy-ca.crt
