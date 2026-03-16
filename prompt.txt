@@ -57,3 +57,215 @@ document all problems identified and solutions
 
 i'm not able to reply for like 6 hours so dont stop for questions unless you absolutely have to - take as much initiative as you need, rerun tests until perfection
 we've just upgraded the build script to v4 so i'd check there for problem causes first
+
+empirical trading strategies have an implementation in a notebook, trading strategy research:
+
+Empirically Supported Intraday Cryptocurrency Trading Strategies
+Executive summary
+Facts. The strongest empirical support for intraday crypto strategies clusters around (a) microstructure signals derived from the limit order book and order flow (especially imbalance/flow-to-price relations), (b) intraday momentum and reversal effects that vary by liquidity and event regimes, and (c) derivatives “carry/basis/funding” effects that can be monetised intraday but are constrained by costs, reversals, margin, and venue segmentation.
+
+Facts. A recurring reason “good backtests” fail in live crypto is execution realism: a large-scale live experiment placing millions of market/marketable-limit orders shows a systematic disadvantage to takers (profitable signals suffer worse-than-expected execution; unprofitable ones get filled “as expected”), and that discrepancies are strongly linked to volatility, latency, and LOB liquidity. This directly impacts scalps, order-flow alphas, and any ML trained on mid-price labels while ignoring fill mechanics.
+
+Facts. Several apparently “obvious” arbitrage ideas are empirically present but often not exploitable net of costs and depth. A high-frequency triangular arbitrage study finds thousands of apparent opportunities, yet transaction costs and limited order-book volume eliminate profitability. Cross-exchange arbitrage is further limited by settlement latency and default risk; observed price differences align with settlement congestion and risk frictions, and arbitrage can persist longer when higher-risk venues trade rich because capital is cautious/slow to move.
+
+Facts. Fees and fee regimes are not a nuisance parameter in crypto—some exchanges update volume tiers intraday and use complex maker–taker and rebate structures. A 2024 open-access execution paper shows that, under realistic fee schedules and execution probabilities across book levels, an exponentially decaying allocation into deeper price levels can reduce execution costs by >60% in their setting, and the results are validated empirically (including calibration to a real BTC/USD LOB).
+
+Take. If you can genuinely simulate queueing/partial fills and inject measured latency distributions, the highest-upside intraday research agenda is microstructure-first: (1) imbalance/OFI/microprice-style flow alpha (often seconds), (2) adversarially cost-aware market making (seconds–minutes) with toxicity gating, and (3) basis/funding carry overlays (hours) to diversify. The lowest-return-on-research-time ideas are “pure” triangular/cross-exchange arbitrage unless you already have structural advantages (internal inventory, privileged connectivity, or on-venue optionality).
+
+What would change the decision. If (i) your measured end-to-end latency (data → decision → ack) plus jitter is not stable enough to model, or (ii) your historical order-book data cannot support queue-position simulation at the granularity you trade, then you should bias away from sub-second scalps and towards slower intraday strategies (minutes–hours) where predictability survives cost/latency. This follows directly from empirical evidence that taker execution deteriorates precisely when volatility rises and liquidity thins.
+
+Evidence quality and what counts as empirical proof
+Facts. “Empirically proven” in intraday crypto tends to mean one (or more) of the following, in descending credibility:
+
+Live trading evidence at scale that isolates execution error mechanisms (rare, but exists).
+Peer-reviewed studies using high-frequency data and reporting robustness tests that consider costs/market quality frictions (increasingly common).
+Large-panel empirical work that demonstrates systematic frictions (latency, default risk, fragmented funding) consistent with limits-to-arbitrage, even if not presenting an executable strategy PnL.
+Preprints/backtests that show statistical and “economic significance” under conservative execution assumptions, but may omit latency and venue micro-details, so should be treated as an upper bound.
+Facts. The main statistical failure mode is label leakage / target mis-specification: if the prediction target embeds past information (or is constructed inconsistently with tradable prices), high classification scores can be meaningless. Recent work explicitly warns that an inadequately defined target can “incorporate past information,” and that directional predictability from price alone is often weak—volume imbalance materially improves direction.
+
+Take. Source incentives matter:
+
+Academic papers are rewarded for novelty, significance, and clean narratives; they can underweight transaction cost realism or operational constraints, and negative results are less likely to be published.
+Industry/exchange research is often optimised for marketing and may highlight favourable regimes or omit survivorship/selection effects; a useful exception is when the work is a natural experiment or an open-access methodology paper that is replicable.
+Regulators/central banks are typically conservative and focus on market integrity, abuse vectors, and systemic risk; they are valuable for constraints and failure modes rather than alpha discovery.
+What would change the decision. If your backtests produce high Sharpe only when using mid-price marks and optimistic fills (or when excluding realistic fee tiers), treat that as evidence the “alpha” is a simulation artefact: the empirically observed taker disadvantage and fee-schedule effects imply such backtests will not survive production.
+
+Strategy taxonomy with empirical anchors
+Below is a practical taxonomy aligned to what the literature actually measures (predictability, cost frictions, and execution reality), not just how strategies are described in trading folklore.
+
+Basic Statistics and Order Book Imbalance: The Brazilian BMF&Bovespa market  |
+Order Flow Imbalance Course
+Maker and Taker Fee – Learn the Maker vs Taker Difference
+
+Comparative table of strategy classes
+Strategy class	Core edge hypothesis	Typical holding time	Latency sensitivity	Main cost sensitivity	Evidence highlights
+Market making (MM)	Earn spread/fees; manage inventory; avoid toxic flow	Seconds → minutes	High (maker queue + adverse selection)	Very high (fees, adverse selection, cancellations)	Maker behaviour and market quality shift materially under fee regime changes; adverse selection is economically significant.
+Statistical arbitrage / pairs	Mean reversion of spreads/cointegration	Minutes → hours (often slower in practice)	Medium	Medium–high (turnover + funding/borrow on shorts if any)	Large-panel pairs trading study shows profitable cointegrating relationships; risk remains material (median max drawdown ~29%).
+Intraday momentum / reversal	Short-horizon continuation or reversal depends on liquidity/events	Tens of minutes → hours	Low–medium	Medium	Intraday predictability documented across multiple coins; regime dependence (liquidity, jumps, macro announcements) is central.
+Orderflow / flow-alpha	Order flow carries information; imbalance predicts near-term moves/costs	Sub-second → minutes	Very high (edge is tiny)	Very high (slippage/impact)	Flow has predictive power and “economic value”; high-frequency LOB work shows imbalance is predictive and can be backtested under conservative taker/maker rules (upper bound).
+Microstructure / latency arbitrage	Race to stale quotes, cross-venue price response	Milliseconds → seconds	Extreme	Extreme	Live evidence: takers face systematic adverse selection tied to latency/volatility; cross-venue arbitrage faces settlement/default frictions.
+Liquidity-taking scalps	Hit when microprice/imbalance strongly favours next tick	1–30 seconds	Very high	Very high	Conservative taker backtests and microstructure results highlight potential, but explicitly warn latency is not modelled (upper bound).
+Derivatives carry/basis and funding	Perp–spot spread and funding embed risk premia/frictions	Hours (funding cycles) → intraday rebal	Low–medium	High (fees, spread reversals, forced exits, margin)	Funding is central to perp design; cross-platform funding arbitrage shows many “big spreads” fail after costs and reversals; average carry across exchanges is economically meaningful but not frictionless.
+ML-driven ensembles	Combine weak signals; non-linear interactions; regime adaptation	Depends on base alphas	Depends on base	Depends on base	ML can add value in order-flow contexts, but performance deteriorates once costs are reflected in labels or fills are realistic.
+
+Notes on each category grounded in empirical findings
+Market making. Facts. Market-making profitability in crypto is inseparable from fee design and informed flow. A natural-experiment study around a major exchange’s zero-fee period finds that although trading activity rises, market makers widen spreads and provide shallower depth—liquidity deteriorates even when “explicit fees” are removed.
+ A separate study on information asymmetry finds adverse selection costs are statistically significant and on average around 10% of the effective spread, and they predict intraday volatility, liquidity, toxicity, and returns—directly relevant to whether you should quote tight or back away.
+
+Statistical arbitrage / pairs. Facts. A large working-paper study across 209 cryptoassets (2021–2024) finds many cointegrating relationships; its best tested approach reports an average annual Sharpe ratio per pair around 1.53 with median max drawdown around 29%; it also explicitly discusses that while higher-frequency settings can show stronger gross performance, transaction costs often push researchers to slower horizons.
+
+Momentum / mean-reversion. Facts. Intraday return predictability (both momentum and reversal) has been documented using high-frequency price data and varies with intraday jumps, liquidity, macro announcement windows, and crisis regimes. The same work reports that a timing strategy built on these predictors can outperform always-long / buy-and-hold benchmarks (economic value claim).
+
+Orderflow / microstructure. Facts. Order flow has documented explanatory and predictive power for crypto returns and can dominate “economic fundamentals” in forecasting contexts, especially with non-linear ML models.
+ Separately, a high-frequency crypto microstructure preprint reports that engineered LOB and trade features show stable cross-asset patterns and provides conservative taker and maker execution backtests (explicitly marking pessimistically and noting latency is not modelled), with typical holding times of 1–2 seconds in normal conditions.
+
+Latency and execution realism. Facts. The live trading experiment evidence is particularly consequential: it reports an adverse selection effect for taker orders where “profitable” orders tend to get worse-than-expected fills, while unprofitable ones fill as expected; marketable limits have a meaningful probability of failing to fill immediately. The discrepancies rise with volatility, latency, and reduced LOB liquidity.
+
+Arbitrage categories. Facts. Triangular arbitrage shows many apparent opportunities but can be rendered unprofitable once transaction costs and order-book depth constraints are applied.
+ Cross-exchange arbitrage is limited by exchange default risk, blockchain congestion and fees, and settlement delays; empirical evidence links longer-lasting arbitrage to higher risk on the rich-priced venue and to frictions that slow capital movement.
+
+Derivatives carry/funding. Facts. Perpetual futures funding is typically paid on an ~8-hour schedule and is designed to anchor futures to spot, but the associated arbitrage is not risk-free because there is no fixed maturity guaranteeing convergence.
+ A cross-platform funding-rate study using 35.7 million one-minute observations across 26 exchanges finds that while 17% of observations show arbitrage spreads ≥20 bps, only 40% of top opportunities remain profitable after transaction costs and spread reversals; forced exits occur in 95% of opportunities in their simulation framework.
+
+Data, features, and modelling patterns that repeatedly work
+Required data by strategy type
+Facts. The empirical literature repeatedly relies on the following data layers; strategies that omit them tend to overstate performance or misattribute “alpha” to artefacts.
+
+Trades and quotes / top-of-book (L1) and depth (L2+) at sub-second resolution for microstructure, scalping, and market making.
+Full order-book event streams (add/cancel/modify/trade) or sufficiently granular snapshots to model queue position, partial fills, and “order failure” probabilities.
+Derivatives metadata: funding rates, mark price methodology, contract specs, and open interest (when available), because perps and basis trades can dominate intraday PnL while hiding liquidation tail risk.
+Fee schedules including maker/taker tiers and rebates that can update with trading volume; these alter optimal execution and even strategy directionality (maker vs taker).
+Latency telemetry: timestamped receipt of market data, decision time, order submission, exchange ack/fill, and jitter distributions; without this you cannot reconcile backtest vs live.
+Feature engineering that is empirically connected to predictability or cost
+Facts. The feature families below appear repeatedly as either (i) predictive of returns or (ii) predictive of execution costs (which is equally decisive intraday):
+
+Imbalance / depth asymmetry: top-of-book imbalance; multi-level cumulative depth; microprice proxies. Evidence links imbalance to future moves and highlights stronger effects with larger tick sizes.
+Order flow and signed volume: order flow is found to explain and predict crypto returns and can dominate macro fundamentals for forecasting in some datasets.
+Liquidity state variables: spread (relative and absolute), depth by level, and “order book variation”/stability measures; liquidity patterns can be timed to reduce trading costs.
+Toxicity / informed trading proxies: VPIN-style measures predict jumps and exhibit time-zone and day-of-week patterns; useful as a risk gate for market making and scalps.
+Regime filters: jump indicators, volatility regime, and liquidity regime, because intraday predictability patterns change materially across these states.
+Cost-aware labels/targets: recent LOB DL work shows that when trend labels incorporate an average spread (proxying transaction costs), predictive performance deteriorates—highlighting that classification accuracy is not PnL.
+Model types aligned to intraday crypto realities
+Facts. Across recent work, the modelling choices that show up most often (and why they matter):
+
+Interpretable baselines (regularised linear/logistic, shallow trees) remain essential because many “deep” gains vanish when labels are corrected or costs are included.
+Tree ensembles are frequently used for engineered LOB features and allow cross-asset interpretability; some crypto microstructure work uses them specifically because monotonic transformations/scaling are less critical and SHAP-style explanations are stable across assets.
+Deep models for LOB (CNN/LSTM/Transformers) can improve prediction benchmarks, but multiple recent pieces emphasise generalisation, target definition, and the gap between prediction and tradable performance once spread/cost is recognised.
+Execution/fill-probability models (survival analysis / fill-time distribution) are increasingly treated as first-class models, not an afterthought, because they directly determine realised PnL under maker-style execution.
+Take. For intraday crypto, you should treat modelling as a two-model problem:
+
+Alpha model: predicts short-horizon returns or spread convergence conditional on market state.
+Execution model: predicts fill probability, slippage, and market impact conditional on the same state.
+The live evidence of systematic taker disadvantage implies you cannot safely collapse these into “just predict the mid.”
+
+What would change the decision. If your execution model can explain most backtest–live divergence (e.g., it predicts when marketable limits fail to fill and when market orders slip), then investing further in more complex alpha models is justified. If it cannot, additional ML complexity is likely wasted effort.
+
+Realistic backtesting, costs, and execution design
+Transaction cost model components you should explicitly simulate
+Facts. The empirically material costs in intraday crypto break down into:
+
+Explicit costs: maker/taker fees, rebates, and tier changes; these can be strategically optimised and are large enough to dominate thin alphas.
+Spread cost: half-spread for takers; opportunity cost for makers.
+Slippage and adverse selection: systematic and state-dependent; live evidence shows adverse execution selection against takers, correlated with volatility, latency, and liquidity.
+Market impact: particularly relevant for scaled strategies; even if you have simulation, you need impact curves per venue/instrument/regime. Indirect evidence shows liquidity and congestion slow arbitrage and alter execution.
+Funding / basis drift: for perp and carry strategies; not just the funding payment, but the spread dynamics and forced exit risk.
+Backtest design elements that are non-negotiable intraday
+Facts. Given the documented pitfalls, a robust intraday crypto backtest should include:
+
+Walk-forward / rolling re-train with strictly causal feature computation and purged splits for overlapping horizons, particularly for second-level targets. The point is to prevent leakage and regime overfitting.
+Out-of-sample by regime (volatility quartiles, liquidity states, event windows), because multiple studies show predictability and execution degrade precisely during jumps/high-vol states.
+Order-level simulation (queue position, partial fills, cancellations, order failures). The live experiment shows marketable limits can fail-to-fill-immediately; your simulator must reproduce this in-state to be credible.
+Fee-tier dynamics (including intraday tier updates in venues that implement them).
+Stress tests for liquidity withdrawal and toxicity spikes (e.g., VPIN surges predicting jumps).
+Execution algorithms and controls that the empirical record suggests matter
+Facts. Two recent strands of evidence give concrete execution guidance:
+
+Fee-aware optimal execution: Under realistic fee schedules and execution probability curves across book levels, optimal strategies mix market and limit orders across multiple price levels; an exponentially decaying allocation into deeper levels can materially reduce costs (>60% in the studied setup).
+Latency-aware order choice: Live evidence shows that market orders slip and marketable limits fail “selectively” against profitable signals; therefore an execution policy must be conditional on volatility/liquidity/latency state, not static.
+Take. Treat “execution algorithm” as part of alpha: your decision policy should output (instrument, side, size, urgency class, venue routing, order type, price schedule, cancel/replace cadence). Any strategy that decides only (side, size) and leaves the rest to a generic TWAP is unlikely to match the performance implied by the empirical microstructure papers.
+
+Mermaid workflow diagram for research and live trading
+Data ingestion\nLOB + trades + funding + fees + latency logs
+
+Data validation\nclock sync, gaps, symbol mapping
+
+Feature build\nimbalance, OFI, spreads, toxicity, regimes
+
+Alpha model\nsignals + uncertainty
+
+Execution model\nfill prob, slippage, impact
+
+Portfolio + risk\nexposure, inventory, drawdown caps
+
+Order policy\nmaker/taker mix, price ladder, cancel/replace
+
+Simulator\nqueue, partial fills, fee tiers, funding
+
+Walk-forward evaluation\nOOS + regime tests
+
+Paper trading\nshadow fills + latency replay
+
+Production\nkill-switch, monitoring, audits
+
+
+
+Show code
+Ranked candidate strategies and production roadmap
+Ranked list with implementation details, expected ranges, sensitivities, and failure modes
+The ranking below prioritises (i) strength of empirical evidence under realistic constraints, (ii) match to your stated capabilities (tick+LOB+simulation+ML), and (iii) robustness to known crypto market frictions.
+
+Rank	Strategy	Minimal implementation steps	Required data & compute	Expected performance range and key sensitivities	Failure modes	Monitoring and alerting metrics
+1	Flow-alpha scalp using LOB imbalance and execution-aware gating	Build imbalance/OFI + microprice features → train short-horizon directional model → train slippage/fail-to-fill models → trade only when expected edge exceeds state-conditional cost	Full-depth LOB + trades at sub-second; latency logs; CPU for live, GPU optional for training	Upper-bound evidence: conservative backtests show profitability in seconds-scale trading and typical holding times 1–2s, but explicitly note latency not modelled; performance collapses if you assume optimistic taker fills.
+Latency spikes; liquidity cliffs; adverse selection when volatility rises; manipulation-like spoof attempts (do not rely on non-bona fide orders)	Realised vs predicted slippage; marketable-limit fail rate; latency p95/p99; edge-after-cost histogram; trade duration drift; order book health (spread/depth)
+2	Adverse-selection-aware market making with toxicity gates and fee-optimised order placement	Calibrate baseline MM (reservation price + inventory skew) → add toxicity/jump gates (quote wider or pause) → optimise order placement across levels incorporating fee tiers	LOB + trades + cancellations; fee schedule and tier logic; low-latency infra; compute moderate	Evidence shows adverse selection is economically significant (~10% of effective spread), and fee regime shifts materially change spreads/depth and maker economics; expect strategy to be highly fee- and regime-sensitive.
+Inventory blow-ups during jumps; fee-tier regime changes; exchange instability/halts; toxicity spikes (VPIN-style)	Inventory VaR / liquidation distance; realised spread vs adverse selection component proxies; cancellation rate and queue position; VPIN/toxicity alarms; quote-to-trade ratio; venue health
+3	Perpetual funding/basis carry with strict exit rules and exchange-risk constraints	Model perp–spot (or perp–perp) spread dynamics → enter delta-neutral when spread exceeds costs and expected convergence is favourable → rebalance around funding times → impose time/volatility stop and margin buffers	Funding rates, perp/spot prices, order book for execution, margin/liq rules, transfer/venue risk scoring; compute low–medium	Funding arbitrage is not risk-free (no fixed maturity); cross-platform work finds many large spreads fail post-cost, with forced exits common; nonetheless carry is economically meaningful and can diversify.
+Spread reversals; liquidation cascades; venue segmentation and transfer friction; “big spread” that isn’t durable long enough	Funding PnL vs price-convergence PnL split; basis z-score and half-life; margin utilisation; forced unwind count; venue correlation/integration shifts
+4	Intraday statistical arbitrage pairs with regime-aware thresholds	Build universe filters (liquidity, fees, borrowability if needed) → cointegration/ECM or distance-based selection → trade spread with dynamic bands → neutralise factor exposures	Minute bars or higher-frequency; preferably LOB for execution; compute moderate	Empirical study shows Sharpe ~1.53 per pair with sizeable drawdowns; important insight: high-frequency gross may not survive fees, so focus on minutes–hours with cost-aware triggers.
+Regime breaks (depeg, narrative shocks); correlated crashes; liquidity decay; model drift	Pair stability metrics (cointegration p-values/rolling); spread half-life; realised vs expected transaction cost; tail correlation alarms; drawdown duration
+5	Intraday momentum–reversal timing with liquidity/jump filters	Estimate predictors on rolling windows → choose direction/flat based on signal and regime (no-trade during jump/high-toxicity windows) → trade at lower frequency (hourly or sub-hourly)	Trade/quote or candle data; compute low	Intraday momentum and reversal effects exist and are regime-dependent; slower execution reduces sensitivity to microstructure noise and live slippage selection.
+Overfitting to a specific period; signal decay when liquidity improves; performance concentration in low-liquidity windows	Regime classifier stability; PnL by time-of-week and volatility bucket; turnover and cost share; hit rate and payoff ratio
+6	Cross-venue arbitrage (selective) using internal inventory and risk-adjusted pricing	Trade only where you can avoid slow transfers (pre-positioned inventory) → add risk premia for venue default and congestion → require depth-confirmed executable size	Multi-venue LOB+trades, transfer/settlement telemetry; compute medium; operational complexity high	Empirical work shows cross-exchange arbitrage is limited by default risk, congestion, and settlement latency; opportunities can persist longer precisely because they are risky to harvest.
+Transfer halts; withdrawals blocked; sudden venue risk repricing; capital trapped	Venue risk score; transfer success rate & time; net flow indicators; arbitrage spread decay vs holding-time risk; exposure by venue
+7	Triangular arbitrage (generally deprioritise)	Only consider if you have fee/latency advantage and evidence of depth	Order books for all legs; extreme latency requirements	High-frequency empirical test finds costs and limited book volume eliminate profitability despite many nominal opportunities.
+Fees, slippage, partial fills, legging risk	Realised triangle PnL per cycle; depth at top levels; reject/partial fill rate
+
+Practical parameter starting ranges
+Facts (anchored to empirical behaviours).
+
+Seconds-scale flow alpha: horizons around 1–5 seconds appear commonly in LOB predictive work; one crypto microstructure study targets ~3-second returns and observes typical holds of 1–2 seconds under normal regimes.
+Pairs/stat-arb: empirically tested pairs frameworks often split long identification windows from shorter trade windows; a large crypto pairs study uses long identification then a multi-month out-of-sample backtest and reports meaningful drawdowns, consistent with regime risk.
+Funding/basis: funding paid on ~8-hour cycles is central; cross-platform funding-rate spreads exhibit reversals and forced exits are common under conservative rules, implying time stops and volatility stops are not optional.
+Take. Use dimensionless parameters whenever possible:
+
+Express thresholds in bps of spread or bps of average true range rather than raw ticks.
+Express inventory limits as fraction of average daily volume or margin-at-risk.
+Express aggressiveness as expected shortfall per unit edge (your simulator can estimate this).
+This makes the strategy portable across symbols and across tick-size regimes, consistent with evidence that tick size modulates imbalance-to-return mapping.
+
+Backtest and monitoring checklist
+Facts. The checklist below is directly implied by observed execution disadvantages, fee complexity, and regime dependence:
+
+Clock and timestamp integrity: align data and order timestamps to avoid inadvertent lookahead.
+Fill modelling: include marketable-limit failure probability and market-order slippage conditional on state.
+Fee-tier engine: simulate real fee schedules and intraday tier updates; optimise execution under the schedule.
+Stress gates: incorporate toxicity/jump indicators; VPIN predicts jumps and thus should trigger defensive modes.
+Arbitrage realism: treat cross-venue and funding spreads as risk premia under frictions, not free money; evidence shows reversals and forced exits dominate many opportunities.
+Regulatory and market-structure constraints relevant to implementation
+Facts. Market structure and compliance considerations influence which strategies are safely deployable:
+
+A major European regulator’s MiCA implementation materials emphasise authorisation/supervision, market integrity, and registers of compliant/non-compliant entities under the harmonised regime.
+The Australian regulator’s guidance stresses that offshore or decentralised structures do not exempt a business from local obligations when services are provided into the jurisdiction.
+The British regulator describes a phased move toward a FSMA-based regime for cryptoasset activities, with commencement explicitly in the future (expected 25 October 2027 per their update).
+US enforcement actions show spoofing prohibitions are actively enforced (with bans and penalties), which is directly relevant because some microstructure strategies can resemble abusive patterns if misused.
+A European systemic-risk report highlights concerns around governance, conduct, and market abuse in crypto markets, reinforcing that surveillance and controls are part of “production readiness.”
+Take. Even if your goal is purely alpha, treat “market abuse risk” as an engineering requirement: implement message-rate controls, self-trade prevention, audit logs, and a kill switch; do not build strategies that rely on deceptive order placement. Evidence from the live execution work also implies that non-bona fide orders can destabilise imbalance signals, making them a poor foundation even aside from legality.
+
+Show code
+What would change the ranking of top strategies
+Facts-based decision triggers.
+
+If your measured latency distribution (including jitter) is stable and you can model it accurately, seconds-scale flow alpha and aggressive market making should move up because the main empirical obstacle (execution disadvantage conditional on state) becomes modellable.
+If fee tiers are large, frequent, or discontinuous for your traded volume, fee-optimised execution and maker-heavy strategies move up because the empirical cost-reduction potential is substantial under realistic schedules.
+If your venue risk and transfer frictions are high (withdrawal risk, congestion, slow settlement), cross-venue arbitrage moves down because these frictions are precisely why arbitrage persists and why it is risky to harvest.
+If your backtest edge survives pessimistic marking, taker fees, and realistic marketable-limit failure probabilities, then the edge is more likely to be “real” rather than a mid-price artefact.
