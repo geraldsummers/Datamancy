@@ -77,7 +77,7 @@ services:
 
       # Additional operations
       BUILD: 1         # Enable docker build for CI/CD
-      SESSIONS: 1      # Required for buildx session hijack/upgrade
+      SESSION: 1       # Required for buildx session hijack/upgrade
       COMMIT: 0        # Disable container commits
       EXEC: 1          # Enable container exec for tests/diagnostics
     healthcheck:
