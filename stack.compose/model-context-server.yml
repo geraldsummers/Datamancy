@@ -32,6 +32,7 @@ services:
     environment:
       LITELLM_BASE_URL: http://litellm:4000
       MARIADB_OBSERVER_USER: agent_observer
+      MARIADB_OBSERVER_PASSWORD: ${MARIADB_AGENT_PASSWORD}
       MARIADB_HOST: mariadb
       MARIADB_PORT: 3306
       QDRANT_HOST: qdrant

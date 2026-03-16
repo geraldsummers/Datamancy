@@ -38,6 +38,7 @@ services:
       SSO_ONLY: true
       SSO_AUTHORITY: https://auth.${DOMAIN}
       SSO_CLIENT_ID: vaultwarden
+      SSO_CLIENT_SECRET: ${VAULTWARDEN_OAUTH_SECRET}
       SSO_SCOPES: openid email profile
       SSO_CALLBACK_PATH: /identity/connect/oidc-signin
       SSO_SIGNUPS_MATCH_EMAIL: true

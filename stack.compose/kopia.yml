@@ -13,6 +13,7 @@ services:
         condition: service_started
     environment:
       KOPIA_REPO_PATH: /app/repository
+      KOPIA_PASSWORD: ${KOPIA_PASSWORD}
       USER: kopia
     volumes:
       - kopia_data:/app

@@ -49,6 +49,7 @@ services:
 
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
 
       QDRANT_RSS_COLLECTION: rss_feeds
       QDRANT_CVE_COLLECTION: cve
@@ -95,6 +96,7 @@ services:
       QDRANT_PORT: 6334
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
 
       QDRANT_RSS_COLLECTION: rss_feeds
       QDRANT_CVE_COLLECTION: cve
@@ -132,6 +134,7 @@ services:
 
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/datamancy
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
 
   market-data-ingestion:
     image: datamancy/market-data-ingestion:local-build
