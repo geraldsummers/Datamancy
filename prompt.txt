@@ -54,4 +54,5 @@ account addition removal and role control need to be centralized and tested
 
 document all problems identified and solutions
 
-i'm not able to reply for like 6 hours so dont stop for questions unless you absolutely have to
+i'm not able to reply for like 6 hours so dont stop for questions unless you absolutely have to - take as much initiative as you need
+we've just upgraded the build script to v4 so i'd check there for problem causes first
