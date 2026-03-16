@@ -86,6 +86,19 @@ ssh user@server "docker exec test-all java -jar /app/test-runner.jar --suite tra
 
 ## Usage Examples
 
+## Seeded Research Notebooks
+
+The Jupyter container seeds practical trading research notebooks in `/home/jovyan/work/datamancy-notebooks`:
+
+- `00_profit_workflow_index.ipynb`
+- `01_quant_backtest_from_market_data.ipynb`
+- `03_strategy_parameter_sweep_and_robustness.ipynb`
+- `04_alpha_signal_ranking.ipynb`
+- `05_llm_rss_sentiment_backfill.ipynb`
+- `06_profitability_and_risk_attribution.ipynb`
+- `07_multi_exchange_execution_mux.ipynb`
+- `08_empirical_intraday_strategy_research.ipynb` (execution-aware intraday strategy research with LOB imbalance/OFI, regime filters, carry overlay, realistic cost/fill modelling, and walk-forward diagnostics)
+
 ### Market Data Streaming
 
 ```kotlin
