@@ -6,7 +6,7 @@ import java.util.UUID
 
 
 suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
-    val isolatedDockerVmDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
+    val isolatedDockerVmDockerHost = isolatedDockerHostFromEnv()
 
     // Air-gapped architecture: isolated environment has its own registry
     // Production registry should NOT be accessible from isolated environment
@@ -18,7 +18,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
     if (!isIsolatedDockerVmDockerAvailable(isolatedDockerVmDockerHost)) {
         println("      ⚠️  IsolatedDockerVm Docker host not accessible at $isolatedDockerVmDockerHost - skipping CI/CD tests")
-        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-isolatedDockerVmhost and configure SSH keys")
+        println("      ℹ️  To enable: Set ISOLATED_DOCKER_VM_DOCKER_HOST=ssh://your-isolatedDockerVmhost and configure SSH keys")
         return@suite
     }
 
@@ -278,7 +278,7 @@ private fun isIsolatedDockerVmDockerAvailable(dockerHost: String): Boolean {
 
 object CICDPipelineTests {
 
-    val ISOLATED_DOCKER_VM_DOCKER_HOST = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
+    val ISOLATED_DOCKER_VM_DOCKER_HOST = isolatedDockerHostFromEnv()
     const val REGISTRY_HOST = "registry:5000"
     const val TEST_IMAGE_PREFIX = "cicd-test"
 
@@ -334,7 +334,7 @@ object CICDPipelineTests {
 
         if (!isIsolatedDockerVmDockerAvailable()) {
             println("❌ IsolatedDockerVm Docker host not accessible at $ISOLATED_DOCKER_VM_DOCKER_HOST")
-            println("These tests must be run with DOCKER_HOST set and SSH keys configured.")
+            println("These tests must be run with ISOLATED_DOCKER_VM_DOCKER_HOST set and SSH keys configured.")
             return
         }
 

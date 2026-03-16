@@ -7,12 +7,12 @@ import java.util.concurrent.TimeUnit
 
 
 suspend fun TestRunner.stackReplicationTests() = suite("Stack Replication Tests") {
-    val isolatedDockerVmDockerHost = System.getenv("DOCKER_HOST") ?: "ssh://isolated-docker-vm"
+    val isolatedDockerVmDockerHost = isolatedDockerHostFromEnv()
 
     
     if (!isIsolatedDockerVmDockerAvailable(isolatedDockerVmDockerHost)) {
         println("      ⚠️  IsolatedDockerVm Docker host not accessible at $isolatedDockerVmDockerHost - skipping replication tests")
-        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-isolated-docker-vm-host and configure SSH keys")
+        println("      ℹ️  To enable: Set ISOLATED_DOCKER_VM_DOCKER_HOST=ssh://your-isolated-docker-vm-host and configure SSH keys")
         return@suite
     }
 

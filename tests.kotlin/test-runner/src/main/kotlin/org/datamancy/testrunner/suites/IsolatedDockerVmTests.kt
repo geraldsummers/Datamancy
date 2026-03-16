@@ -5,12 +5,12 @@ import java.io.File
 
 
 suspend fun TestRunner.isolatedDockerVmTests() = suite("Isolated Docker VM Tests") {
-    val dockerHost = System.getenv("DOCKER_HOST") ?: "tcp://docker-proxy:2375"
+    val dockerHost = isolatedDockerHostFromEnv()
 
 
     if (!isIsolatedDockerVmAvailable(dockerHost)) {
         println("      ⚠️  Isolated Docker VM not accessible at $dockerHost - skipping isolated-docker-vm tests")
-        println("      ℹ️  To enable: Set DOCKER_HOST=ssh://your-isolated-docker-vm and configure SSH keys")
+        println("      ℹ️  To enable: Set ISOLATED_DOCKER_VM_DOCKER_HOST=ssh://your-isolated-docker-vm and configure SSH keys")
         return@suite
     }
 
@@ -104,7 +104,7 @@ private fun isIsolatedDockerVmAvailable(dockerHost: String): Boolean {
 
 object IsolatedDockerVmTests {
 
-    val ISOLATED_DOCKER_VM_HOST = System.getenv("DOCKER_HOST") ?: "tcp://docker-proxy:2375"
+    val ISOLATED_DOCKER_VM_HOST = isolatedDockerHostFromEnv()
 
     fun isIsolatedDockerVmAvailable(): Boolean {
         return try {
@@ -135,7 +135,7 @@ object IsolatedDockerVmTests {
 
         if (!isIsolatedDockerVmAvailable()) {
             println("❌ Isolated Docker VM not accessible at $ISOLATED_DOCKER_VM_HOST")
-            println("These tests must be run with DOCKER_HOST set and SSH keys configured.")
+            println("These tests must be run with ISOLATED_DOCKER_VM_DOCKER_HOST set and SSH keys configured.")
             return
         }
 
