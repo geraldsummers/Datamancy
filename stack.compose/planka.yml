@@ -26,6 +26,7 @@ services:
       DATABASE_URL: postgresql://planka:${POSTGRES_PLANKA_PASSWORD}@postgres:5432/planka
       OIDC_ISSUER: https://auth.${DOMAIN}
       OIDC_CLIENT_ID: planka
+      OIDC_CLIENT_SECRET: ${PLANKA_OAUTH_SECRET}
       OIDC_SCOPES: openid profile email groups
       OIDC_ADMIN_ROLES: admins,users
       OIDC_EMAIL_ATTRIBUTE: email
