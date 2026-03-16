@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     networks:
       - valkey
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
     volumes:
       - redis_data:/data
       - valkey_acl:/etc/valkey
@@ -37,6 +39,8 @@ services:
     restart: "no"
     networks:
       - valkey
+    environment:
+      VALKEY_ADMIN_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
     depends_on:
       valkey:
         condition: service_healthy

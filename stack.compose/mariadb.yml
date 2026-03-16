@@ -7,6 +7,7 @@ services:
       - mariadb
     environment:
       MYSQL_DATABASE: datamancy
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ADMIN_PASSWORD}
     volumes:
       - ${NOCOW_DB_DIR}/mariadb:/var/lib/mysql
       - ./configs/mariadb/init-template.sql:/docker-entrypoint-initdb.d/init-template.sql:ro
@@ -22,4 +23,3 @@ services:
       timeout: 10s
       retries: 20
       start_period: 60s
-
