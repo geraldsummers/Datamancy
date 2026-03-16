@@ -317,30 +317,19 @@ fun sanitizedConfigFrom(config: DatamancyConfig): SanitizedConfig {
     )
 }
 
-fun loadTestSuitesConfig(mapper: ObjectMapper, file: File): TestSuitesConfig {
-    if (!file.exists()) {
-        return TestSuitesConfig()
-    }
+inline fun <reified T> loadYamlIfExists(mapper: ObjectMapper, file: File, defaultValue: T): T {
+    if (!file.exists()) return defaultValue
     return mapper.readValue(file)
 }
 
-fun loadComponentsConfig(mapper: ObjectMapper, file: File): ComponentsConfig {
-    if (!file.exists()) {
-        return ComponentsConfig()
-    }
-    return mapper.readValue(file)
-}
-
-fun loadTestStatus(mapper: ObjectMapper, file: File): TestStatusFile {
-    if (!file.exists()) {
-        return TestStatusFile()
-    }
-    return mapper.readValue(file)
-}
-
-fun saveTestStatus(mapper: ObjectMapper, file: File, status: TestStatusFile) {
+fun saveYaml(mapper: ObjectMapper, file: File, value: Any) {
     file.parentFile?.mkdirs()
-    file.writeText(mapper.writeValueAsString(status))
+    file.writeText(mapper.writeValueAsString(value))
+}
+
+fun saveJsonPretty(mapper: ObjectMapper, file: File, value: Any) {
+    file.parentFile?.mkdirs()
+    file.writeText(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(value))
 }
 
 fun gitLastChangeCommit(paths: List<String>): String? {
@@ -406,6 +395,20 @@ fun buildDistBuildStatus(registry: TestRegistry): BuildStatusFile {
         )
     }
     return BuildStatusFile(components = components)
+}
+
+fun writeDistTestArtifacts(
+    distDir: File,
+    yamlMapper: ObjectMapper,
+    jsonMapper: ObjectMapper,
+    registry: TestRegistry,
+    status: TestStatusFile
+) {
+    saveYaml(yamlMapper, distDir.resolve("test-registry.yml"), registry)
+    saveJsonPretty(jsonMapper, distDir.resolve("test-registry.json"), registry)
+    saveYaml(yamlMapper, distDir.resolve("test-status.yml"), status)
+    saveJsonPretty(jsonMapper, distDir.resolve("test-status.json"), buildDistTestStatus(registry, status))
+    saveJsonPretty(jsonMapper, distDir.resolve("build-status.json"), buildDistBuildStatus(registry))
 }
 
 fun extractServiceNetworks(serviceSpec: Any?): Set<String> {
@@ -1034,6 +1037,18 @@ fun runTypeScriptTests() {
         "tests.containers/test-runner/playwright-tests"
     )
 
+    fun runNpmOrExit(testDir: File, vararg args: String) {
+        val exitCode = ProcessBuilder(*args)
+            .directory(testDir)
+            .inheritIO()
+            .start()
+            .waitFor()
+        if (exitCode != 0) {
+            error("Command failed: ${args.joinToString(" ")}")
+            exitProcess(1)
+        }
+    }
+
     tsTestDirs.forEach { testPath ->
         val testDir = File(testPath)
         if (testDir.exists() && testDir.resolve("package.json").exists()) {
@@ -1043,44 +1058,16 @@ fun runTypeScriptTests() {
             val nodeModules = testDir.resolve("node_modules")
             if (!nodeModules.exists()) {
                 info("Installing npm dependencies")
-                val npmInstallExitCode = ProcessBuilder("npm", "ci")
-                    .directory(testDir)
-                    .inheritIO()
-                    .start()
-                    .waitFor()
-
-                if (npmInstallExitCode != 0) {
-                    error("Failed to install npm dependencies. Ensure Node.js and npm are installed:")
-                    error("  sudo apt install nodejs npm")
-                    exitProcess(1)
-                }
+                runNpmOrExit(testDir, "npm", "ci")
             }
 
             // Run TypeScript compilation check
             info("Running TypeScript compilation check")
-            val tscExitCode = ProcessBuilder("npm", "run", "build")
-                .directory(testDir)
-                .inheritIO()
-                .start()
-                .waitFor()
-
-            if (tscExitCode != 0) {
-                error("TypeScript compilation failed")
-                exitProcess(1)
-            }
+            runNpmOrExit(testDir, "npm", "run", "build")
 
             // Run unit tests
             info("Running Jest unit tests")
-            val jestExitCode = ProcessBuilder("npm", "run", "test:unit")
-                .directory(testDir)
-                .inheritIO()
-                .start()
-                .waitFor()
-
-            if (jestExitCode != 0) {
-                error("TypeScript unit tests failed")
-                exitProcess(1)
-            }
+            runNpmOrExit(testDir, "npm", "run", "test:unit")
         }
     }
 }
@@ -1668,25 +1655,13 @@ fun main(args: Array<String>) {
 
     when (args.firstOrNull()) {
         "--test-plan" -> {
-            val suitesConfig = loadTestSuitesConfig(mapper, suitesFile)
-            val componentsConfig = loadComponentsConfig(mapper, componentsFile)
-            val status = loadTestStatus(mapper, statusFile)
+            val suitesConfig = loadYamlIfExists(mapper, suitesFile, TestSuitesConfig())
+            val componentsConfig = loadYamlIfExists(mapper, componentsFile, ComponentsConfig())
+            val status = loadYamlIfExists(mapper, statusFile, TestStatusFile())
             val registry = buildTestRegistry(mapper, suitesConfig, componentsConfig, status)
             generateTestRunnersCompose(registry.suites.values.toList(), File("tests.compose/test-runners.yml"))
             distDir.mkdirs()
-            distDir.resolve("test-registry.yml").writeText(mapper.writeValueAsString(registry))
-            distDir.resolve("test-registry.json").writeText(
-                jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(registry)
-            )
-            distDir.resolve("test-status.yml").writeText(mapper.writeValueAsString(status))
-            val distStatus = buildDistTestStatus(registry, status)
-            distDir.resolve("test-status.json").writeText(
-                jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distStatus)
-            )
-            val distBuildStatus = buildDistBuildStatus(registry)
-            distDir.resolve("build-status.json").writeText(
-                jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distBuildStatus)
-            )
+            writeDistTestArtifacts(distDir, mapper, jsonMapper, registry, status)
             suitesNeedingTests(registry).forEach { suite ->
                 println("${suite.name}|${suite.type}")
             }
@@ -1698,7 +1673,7 @@ fun main(args: Array<String>) {
                 error("Usage: --record-test <suite>")
                 exitProcess(1)
             }
-            val status = loadTestStatus(mapper, statusFile)
+            val status = loadYamlIfExists(mapper, statusFile, TestStatusFile())
             val head = execCapture("git", "rev-parse", "HEAD", ignoreError = true).ifBlank { "unknown" }
             val updated = status.suites.toMutableMap()
             updated[suite] = TestStatusEntry(
@@ -1706,14 +1681,14 @@ fun main(args: Array<String>) {
                 last_tested_at = Instant.now().toString()
             )
             val updatedStatus = TestStatusFile(suites = updated.toMap())
-            saveTestStatus(mapper, statusFile, updatedStatus)
+            saveYaml(mapper, statusFile, updatedStatus)
             val distStatusYaml = distDir.resolve("test-status.yml")
             if (distDir.exists()) {
-                distStatusYaml.writeText(mapper.writeValueAsString(updatedStatus))
+                saveYaml(mapper, distStatusYaml, updatedStatus)
                 val distRegistryJson = distDir.resolve("test-registry.json")
                 if (distRegistryJson.exists()) {
                     val distRegistry = jsonMapper.readValue<TestRegistry>(distRegistryJson)
-                    val distStatus = loadTestStatus(jsonMapper, distDir.resolve("test-status.json"))
+                    val distStatus = loadYamlIfExists(jsonMapper, distDir.resolve("test-status.json"), TestStatusFile())
                     val distUpdated = distStatus.suites.toMutableMap()
                     val suiteDef = distRegistry.suites[suite]
                     val signature = if (suiteDef == null) "" else suiteSignature(distRegistry, suiteDef)
@@ -1722,9 +1697,7 @@ fun main(args: Array<String>) {
                         last_tested_at = Instant.now().toString()
                     )
                     val distFinal = TestStatusFile(suites = distUpdated.toMap())
-                    distDir.resolve("test-status.json").writeText(
-                        jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distFinal)
-                    )
+                    saveJsonPretty(jsonMapper, distDir.resolve("test-status.json"), distFinal)
                 }
             }
             return
@@ -1774,26 +1747,14 @@ ${CYAN}╔═══════════════════════�
     // Create dist/
     distDir.mkdirs()
 
-    val suitesConfig = loadTestSuitesConfig(mapper, suitesFile)
-    val componentsConfig = loadComponentsConfig(mapper, componentsFile)
-    val testStatus = loadTestStatus(mapper, statusFile)
+    val suitesConfig = loadYamlIfExists(mapper, suitesFile, TestSuitesConfig())
+    val componentsConfig = loadYamlIfExists(mapper, componentsFile, ComponentsConfig())
+    val testStatus = loadYamlIfExists(mapper, statusFile, TestStatusFile())
     val testRegistry = buildTestRegistry(mapper, suitesConfig, componentsConfig, testStatus)
     if (suitesConfig.suites.isNotEmpty()) {
         generateTestRunnersCompose(testRegistry.suites.values.toList(), File("tests.compose/test-runners.yml"))
     }
-    distDir.resolve("test-registry.yml").writeText(mapper.writeValueAsString(testRegistry))
-    distDir.resolve("test-registry.json").writeText(
-        jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(testRegistry)
-    )
-    distDir.resolve("test-status.yml").writeText(mapper.writeValueAsString(testStatus))
-    val distStatus = buildDistTestStatus(testRegistry, testStatus)
-    distDir.resolve("test-status.json").writeText(
-        jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distStatus)
-    )
-    val distBuildStatus = buildDistBuildStatus(testRegistry)
-    distDir.resolve("build-status.json").writeText(
-        jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distBuildStatus)
-    )
+    writeDistTestArtifacts(distDir, mapper, jsonMapper, testRegistry, testStatus)
 
     // Load or generate credentials from dist/.env only.
     val envFile = distDir.resolve(".env")
