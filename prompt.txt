@@ -184,30 +184,6 @@ Fee-aware optimal execution: Under realistic fee schedules and execution probabi
 Latency-aware order choice: Live evidence shows that market orders slip and marketable limits fail “selectively” against profitable signals; therefore an execution policy must be conditional on volatility/liquidity/latency state, not static.
 Take. Treat “execution algorithm” as part of alpha: your decision policy should output (instrument, side, size, urgency class, venue routing, order type, price schedule, cancel/replace cadence). Any strategy that decides only (side, size) and leaves the rest to a generic TWAP is unlikely to match the performance implied by the empirical microstructure papers.
 
-Mermaid workflow diagram for research and live trading
-Data ingestion\nLOB + trades + funding + fees + latency logs
-
-Data validation\nclock sync, gaps, symbol mapping
-
-Feature build\nimbalance, OFI, spreads, toxicity, regimes
-
-Alpha model\nsignals + uncertainty
-
-Execution model\nfill prob, slippage, impact
-
-Portfolio + risk\nexposure, inventory, drawdown caps
-
-Order policy\nmaker/taker mix, price ladder, cancel/replace
-
-Simulator\nqueue, partial fills, fee tiers, funding
-
-Walk-forward evaluation\nOOS + regime tests
-
-Paper trading\nshadow fills + latency replay
-
-Production\nkill-switch, monitoring, audits
-
-
 
 Show code
 Ranked candidate strategies and production roadmap
@@ -261,11 +237,8 @@ US enforcement actions show spoofing prohibitions are actively enforced (with ba
 A European systemic-risk report highlights concerns around governance, conduct, and market abuse in crypto markets, reinforcing that surveillance and controls are part of “production readiness.”
 Take. Even if your goal is purely alpha, treat “market abuse risk” as an engineering requirement: implement message-rate controls, self-trade prevention, audit logs, and a kill switch; do not build strategies that rely on deceptive order placement. Evidence from the live execution work also implies that non-bona fide orders can destabilise imbalance signals, making them a poor foundation even aside from legality.
 
-Show code
-What would change the ranking of top strategies
-Facts-based decision triggers.
-
-If your measured latency distribution (including jitter) is stable and you can model it accurately, seconds-scale flow alpha and aggressive market making should move up because the main empirical obstacle (execution disadvantage conditional on state) becomes modellable.
-If fee tiers are large, frequent, or discontinuous for your traded volume, fee-optimised execution and maker-heavy strategies move up because the empirical cost-reduction potential is substantial under realistic schedules.
-If your venue risk and transfer frictions are high (withdrawal risk, congestion, slow settlement), cross-venue arbitrage moves down because these frictions are precisely why arbitrage persists and why it is risky to harvest.
-If your backtest edge survives pessimistic marking, taker fees, and realistic marketable-limit failure probabilities, then the edge is more likely to be “real” rather than a mid-price artefact.
+THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
+THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
+THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
+THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
+THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
