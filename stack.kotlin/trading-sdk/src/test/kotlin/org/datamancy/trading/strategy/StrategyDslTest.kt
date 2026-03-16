@@ -229,4 +229,25 @@ class StrategyDslTest {
         assertTrue(strat.marketConfig.symbols.contains("BTCUSDT" to "binance"))
         assertTrue(strat.marketConfig.symbols.contains("BTC-USD" to "dydx"))
     }
+
+    @Test
+    fun `all supported exchanges helper includes every unified venue`() {
+        val strat = strategy("AllVenues") {
+            markets {
+                allSupportedExchanges("BTC-USD")
+            }
+        }
+
+        val expected = setOf(
+            "swyftx",
+            "binance",
+            "bybit",
+            "coinbase",
+            "dydx",
+            "hyperliquid",
+            "aster"
+        )
+        val configured = strat.marketConfig.symbols.map { it.second }.toSet()
+        assertEquals(expected, configured)
+    }
 }

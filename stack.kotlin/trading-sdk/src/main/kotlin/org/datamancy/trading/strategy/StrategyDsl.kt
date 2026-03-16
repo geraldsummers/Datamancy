@@ -175,12 +175,42 @@ interface StrategyContext {
 class MarketConfig {
     val symbols = mutableListOf<Pair<String, String>>() // (symbol, exchange)
 
+    fun swyftx(vararg symbols: String) {
+        this.symbols.addAll(symbols.map { it to "swyftx" })
+    }
+
     fun hyperliquid(vararg symbols: String) {
         this.symbols.addAll(symbols.map { it to "hyperliquid" })
     }
 
     fun binance(vararg symbols: String) {
         this.symbols.addAll(symbols.map { it to "binance" })
+    }
+
+    fun bybit(vararg symbols: String) {
+        this.symbols.addAll(symbols.map { it to "bybit" })
+    }
+
+    fun coinbase(vararg symbols: String) {
+        this.symbols.addAll(symbols.map { it to "coinbase" })
+    }
+
+    fun dydx(vararg symbols: String) {
+        this.symbols.addAll(symbols.map { it to "dydx" })
+    }
+
+    fun aster(vararg symbols: String) {
+        this.symbols.addAll(symbols.map { it to "aster" })
+    }
+
+    fun allSupportedExchanges(symbol: String) {
+        swyftx(symbol)
+        binance(symbol)
+        bybit(symbol)
+        coinbase(symbol)
+        dydx(symbol)
+        hyperliquid(symbol)
+        aster(symbol)
     }
 
     fun custom(exchange: String, vararg symbols: String) {

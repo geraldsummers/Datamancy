@@ -92,12 +92,14 @@ The Jupyter container seeds practical trading research notebooks in `/home/jovya
 
 - `00_profit_workflow_index.ipynb`
 - `01_quant_backtest_from_market_data.ipynb`
+- `02_rss_sentiment_to_market_signals.ipynb`
 - `03_strategy_parameter_sweep_and_robustness.ipynb`
 - `04_alpha_signal_ranking.ipynb`
 - `05_llm_rss_sentiment_backfill.ipynb`
 - `06_profitability_and_risk_attribution.ipynb`
 - `07_multi_exchange_execution_mux.ipynb`
 - `08_empirical_intraday_strategy_research.ipynb` (execution-aware intraday strategy research with LOB imbalance/OFI, regime filters, carry overlay, realistic cost/fill modelling, and walk-forward diagnostics)
+- `09_cross_venue_paper_execution_playbook.ipynb` (safe multi-exchange paper order routing and history validation via tx-gateway)
 
 ### Market Data Streaming
 
@@ -225,6 +227,10 @@ setups.forEach { s ->
 The SDK now exposes a unified exchange surface for:
 `swyftx`, `binance`, `bybit`, `coinbase`, `dydx`, `hyperliquid`, `aster`.
 
+Order routing behavior:
+- `hyperliquid`: live worker-backed execution
+- all other venues: gateway-backed paper execution (quote-aware) for safe dry-runs
+
 ```kotlin
 val tx = TxGateway.create(url = "http://tx-gateway:8080", token = authToken)
 val venues = tx.exchanges.supportedExchanges()
@@ -293,6 +299,8 @@ When the notebook image starts, Datamancy now seeds:
 - `~/work/datamancy-notebooks/05_llm_rss_sentiment_backfill.ipynb`
 - `~/work/datamancy-notebooks/06_profitability_and_risk_attribution.ipynb`
 - `~/work/datamancy-notebooks/07_multi_exchange_execution_mux.ipynb`
+- `~/work/datamancy-notebooks/08_empirical_intraday_strategy_research.ipynb`
+- `~/work/datamancy-notebooks/09_cross_venue_paper_execution_playbook.ipynb`
 
 These notebooks are wired to the stack Postgres database (`datamancy`) and include:
 

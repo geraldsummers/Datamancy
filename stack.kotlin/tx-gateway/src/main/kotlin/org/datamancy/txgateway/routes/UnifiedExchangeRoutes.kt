@@ -14,8 +14,12 @@ import org.datamancy.txgateway.models.OrderRequest
 import org.datamancy.txgateway.services.AuthService
 import org.datamancy.txgateway.services.DatabaseService
 import org.datamancy.txgateway.services.LdapService
+import org.datamancy.txgateway.services.LatestQuote
 import org.datamancy.txgateway.services.WorkerClient
 import org.slf4j.LoggerFactory
+import java.math.BigDecimal
+import java.time.Instant
+import java.util.UUID
 
 private val logger = LoggerFactory.getLogger("UnifiedExchangeRoutes")
 
@@ -91,6 +95,31 @@ private data class BestQuoteResponse(
     val selectedExchange: String,
     val quote: QuoteResponse,
     val comparedExchanges: List<String>
+)
+
+@Serializable
+private data class PaperQuoteSnapshot(
+    val bid: Double,
+    val ask: Double,
+    val last: Double,
+    val timestamp: String,
+    val source: String
+)
+
+@Serializable
+private data class PaperOrderResponse(
+    val orderId: String,
+    val status: String,
+    val filledSize: String,
+    val fillPrice: String? = null,
+    val exchange: String,
+    val symbol: String,
+    val side: String,
+    val type: String,
+    val simulated: Boolean,
+    val executionMode: String,
+    val quote: PaperQuoteSnapshot,
+    val receivedAt: String
 )
 
 fun Route.unifiedExchangeRoutes(
@@ -334,15 +363,45 @@ fun Route.unifiedExchangeRoutes(
                 }
 
                 val orderRequest = call.receive<OrderRequest>()
+                val requestLog = mapOf(
+                    "exchange" to exchange,
+                    "symbol" to orderRequest.symbol,
+                    "side" to orderRequest.side,
+                    "type" to orderRequest.type,
+                    "size" to orderRequest.size,
+                    "price" to orderRequest.price
+                )
 
                 if (exchange != "hyperliquid") {
-                    call.respond(
-                        HttpStatusCode.NotImplemented,
-                        mapOf(
-                            "error" to "Live order adapter not configured for $exchange",
-                            "supportedLiveOrderExchanges" to liveOrderExchanges.toList()
+                    val quote = dbService.fetchLatestQuote(exchange = exchange, symbol = orderRequest.symbol)
+                    if (quote == null) {
+                        call.respond(
+                            HttpStatusCode.NotFound,
+                            mapOf(
+                                "error" to "Quote unavailable",
+                                "exchange" to exchange,
+                                "symbol" to orderRequest.symbol
+                            )
                         )
+                        return@post
+                    }
+
+                    val paperResult = runCatching {
+                        buildPaperOrderResponse(exchange = exchange, orderRequest = orderRequest, quote = quote)
+                    }.getOrElse { error ->
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to (error.message ?: "invalid order payload")))
+                        return@post
+                    }
+
+                    dbService.logTransaction(
+                        username = username,
+                        txType = "exchange_order_$exchange",
+                        request = requestLog.toString(),
+                        response = paperResult.toString(),
+                        status = "success"
                     )
+
+                    call.respond(HttpStatusCode.OK, paperResult)
                     return@post
                 }
 
@@ -369,14 +428,7 @@ fun Route.unifiedExchangeRoutes(
                     dbService.logTransaction(
                         username = username,
                         txType = "exchange_order_$exchange",
-                        request = mapOf(
-                            "exchange" to exchange,
-                            "symbol" to orderRequest.symbol,
-                            "side" to orderRequest.side,
-                            "type" to orderRequest.type,
-                            "size" to orderRequest.size,
-                            "price" to orderRequest.price
-                        ).toString(),
+                        request = requestLog.toString(),
                         response = result.toString(),
                         status = "success"
                     )
@@ -387,14 +439,7 @@ fun Route.unifiedExchangeRoutes(
                     dbService.logTransaction(
                         username = username,
                         txType = "exchange_order_$exchange",
-                        request = mapOf(
-                            "exchange" to exchange,
-                            "symbol" to orderRequest.symbol,
-                            "side" to orderRequest.side,
-                            "type" to orderRequest.type,
-                            "size" to orderRequest.size,
-                            "price" to orderRequest.price
-                        ).toString(),
+                        request = requestLog.toString(),
                         response = null,
                         status = "error",
                         errorMessage = e.message ?: "unified order failed"
@@ -407,6 +452,62 @@ fun Route.unifiedExchangeRoutes(
             }
         }
     }
+}
+
+private fun buildPaperOrderResponse(
+    exchange: String,
+    orderRequest: OrderRequest,
+    quote: LatestQuote
+): PaperOrderResponse {
+    val side = orderRequest.side.trim().uppercase()
+    require(side == "BUY" || side == "SELL") { "Unsupported side: ${orderRequest.side}" }
+
+    val type = orderRequest.type.trim().uppercase()
+    require(type == "MARKET" || type == "LIMIT") { "Unsupported order type: ${orderRequest.type}" }
+
+    val size = orderRequest.size.trim().toBigDecimalOrNull()
+        ?: throw IllegalArgumentException("Invalid size: ${orderRequest.size}")
+    require(size > BigDecimal.ZERO) { "Order size must be > 0" }
+
+    val limitPrice = orderRequest.price?.trim()?.takeIf { it.isNotBlank() }?.toBigDecimalOrNull()
+    if (type == "LIMIT" && (limitPrice == null || limitPrice <= BigDecimal.ZERO)) {
+        throw IllegalArgumentException("Limit orders require a positive price")
+    }
+
+    val marketFillPrice = if (side == "BUY") quote.ask.toBigDecimal() else quote.bid.toBigDecimal()
+    val targetPrice = limitPrice ?: marketFillPrice
+    val canFillLimit = when (side) {
+        "BUY" -> targetPrice >= quote.ask.toBigDecimal()
+        else -> targetPrice <= quote.bid.toBigDecimal()
+    }
+
+    val isFilled = type == "MARKET" || canFillLimit
+    val fillPrice = when {
+        !isFilled -> null
+        type == "MARKET" -> marketFillPrice
+        else -> targetPrice
+    }
+
+    return PaperOrderResponse(
+        orderId = "paper-$exchange-${UUID.randomUUID().toString().take(12)}",
+        status = if (isFilled) "FILLED" else "PENDING",
+        filledSize = if (isFilled) size.toPlainString() else "0",
+        fillPrice = fillPrice?.toPlainString(),
+        exchange = exchange,
+        symbol = orderRequest.symbol,
+        side = side,
+        type = type,
+        simulated = true,
+        executionMode = "paper",
+        quote = PaperQuoteSnapshot(
+            bid = quote.bid,
+            ask = quote.ask,
+            last = quote.last,
+            timestamp = quote.timestamp.toString(),
+            source = quote.source
+        ),
+        receivedAt = Instant.now().toString()
+    )
 }
 
 private suspend fun extractAuthenticatedUsername(

@@ -1,5 +1,6 @@
 package org.datamancy.txgateway
 
+import com.auth0.jwt.interfaces.DecodedJWT
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -147,5 +148,101 @@ class ApplicationTest {
         val sellBody = sellResponse.bodyAsText()
         assertTrue(sellBody.contains("\"selectedExchange\": \"binance\""))
         assertTrue(sellBody.contains("\"side\": \"sell\""))
+    }
+
+    @Test
+    fun testPaperOrderEndpointForNonLiveExchange() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance", "hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 10000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(Regex("\"simulated\"\\s*:\\s*true").containsMatchIn(body), body)
+        assertTrue(Regex("\"executionMode\"\\s*:\\s*\"paper\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"status\"\\s*:\\s*\"FILLED\"").containsMatchIn(body), body)
+    }
+
+    @Test
+    fun testPaperLimitOrderCanRemainPending() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("coinbase"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 10000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("coinbase", "BTC") } returns LatestQuote(
+                exchange = "coinbase",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/coinbase/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"LIMIT","size":"0.25","price":"72000"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(Regex("\"status\"\\s*:\\s*\"PENDING\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"filledSize\"\\s*:\\s*\"0\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"executionMode\"\\s*:\\s*\"paper\"").containsMatchIn(body), body)
     }
 }

@@ -69,7 +69,8 @@ write_notebook(
             "4. Run `05_llm_rss_sentiment_backfill.ipynb` to refresh sentiment features.\n"
             "5. Run `06_profitability_and_risk_attribution.ipynb` to quantify net profitability drivers.\n"
             "6. Run `08_empirical_intraday_strategy_research.ipynb` for execution-aware intraday research.\n"
-            "7. Push only top-ranked symbols into execution workflows.\n"
+            "7. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
+            "8. Push only top-ranked symbols into live execution workflows.\n"
         ),
         code_cell(
             "import os\n"
@@ -1443,6 +1444,132 @@ write_notebook(
         )
     ]
 )
+
+write_notebook(
+    "09_cross_venue_paper_execution_playbook.ipynb",
+    [
+        markdown_cell(
+            "# Cross-Venue Paper Execution Playbook\n\n"
+            "This notebook uses the tx-gateway unified exchange API to execute **paper** orders across\n"
+            "`swyftx`, `binance`, `bybit`, `coinbase`, `dydx`, `hyperliquid`, and `aster`.\n\n"
+            "Use this to quickly test routing and sizing logic before enabling live capital.\n\n"
+            "Workflow:\n"
+            "1. Pull top candidates from `strategy_backtest_runs`.\n"
+            "2. Ask the gateway for best quote routing.\n"
+            "3. Submit paper market/limit orders to venue-specific endpoints.\n"
+            "4. Persist and inspect outcomes from `/api/v1/history`.\n"
+        ),
+        code_cell(
+            "import os\n"
+            "import json\n"
+            "import requests\n"
+            "import pandas as pd\n"
+            "from sqlalchemy import create_engine, text\n"
+            "\n"
+            "pg_host = os.getenv('POSTGRES_HOST', 'postgres')\n"
+            "pg_port = os.getenv('POSTGRES_PORT', '5432')\n"
+            "pg_db = os.getenv('POSTGRES_DB', 'datamancy')\n"
+            "pg_user = os.getenv('POSTGRES_USER', 'pipeline_user')\n"
+            "pg_password = os.getenv('POSTGRES_PASSWORD', '')\n"
+            "engine = create_engine(f'postgresql+psycopg2://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}')\n"
+            "\n"
+            "tx_base = os.getenv('TX_GATEWAY_URL', 'http://tx-gateway:8080').rstrip('/')\n"
+            "tx_token = os.getenv('TX_AUTH_TOKEN', '').strip()\n"
+            "default_exchanges = ['swyftx','binance','bybit','coinbase','dydx','hyperliquid','aster']\n"
+            "\n"
+            "if not tx_token:\n"
+            "    print('Set TX_AUTH_TOKEN in your notebook env before placing orders.')\n"
+            "    print('Example in notebook: %env TX_AUTH_TOKEN=<your-jwt>')\n"
+        ),
+        code_cell(
+            "def auth_headers():\n"
+            "    if not tx_token:\n"
+            "        raise RuntimeError('TX_AUTH_TOKEN is required')\n"
+            "    return {'Authorization': f'Bearer {tx_token}', 'Content-Type': 'application/json'}\n"
+            "\n"
+            "def best_quote(symbol, side='buy', exchanges=None):\n"
+            "    ex = exchanges or default_exchanges\n"
+            "    params = {\n"
+            "        'symbol': symbol,\n"
+            "        'side': side,\n"
+            "        'exchanges': ','.join(ex)\n"
+            "    }\n"
+            "    r = requests.get(f'{tx_base}/api/v1/exchanges/best-quote', params=params, headers=auth_headers(), timeout=20)\n"
+            "    r.raise_for_status()\n"
+            "    return r.json()\n"
+            "\n"
+            "def place_paper_order(exchange, symbol, side='BUY', order_type='MARKET', size='0.01', price=None):\n"
+            "    payload = {\n"
+            "        'symbol': symbol,\n"
+            "        'side': side,\n"
+            "        'type': order_type,\n"
+            "        'size': str(size),\n"
+            "        'price': None if price is None else str(price),\n"
+            "        'reduceOnly': False,\n"
+            "        'postOnly': False\n"
+            "    }\n"
+            "    r = requests.post(f'{tx_base}/api/v1/exchanges/{exchange}/order', headers=auth_headers(), json=payload, timeout=20)\n"
+            "    r.raise_for_status()\n"
+            "    return r.json()\n"
+        ),
+        code_cell(
+            "candidates = pd.read_sql(text('''\n"
+            "SELECT symbol, net_return_pct, sharpe, max_drawdown_pct, run_at\n"
+            "FROM strategy_backtest_runs\n"
+            "WHERE run_at >= NOW() - INTERVAL '30 days'\n"
+            "ORDER BY net_return_pct DESC, sharpe DESC\n"
+            "LIMIT 10\n"
+            "'''), engine, parse_dates=['run_at'])\n"
+            "candidates\n"
+        ),
+        code_cell(
+            "if candidates.empty:\n"
+            "    print('No backtest candidates found. Run notebooks 01/03/08 first.')\n"
+            "else:\n"
+            "    trial_rows = []\n"
+            "    for _, row in candidates.head(5).iterrows():\n"
+            "        symbol = str(row['symbol'])\n"
+            "        side = 'buy' if float(row['net_return_pct']) >= 0 else 'sell'\n"
+            "        try:\n"
+            "            q = best_quote(symbol=symbol, side=side)\n"
+            "            selected = q.get('selectedExchange')\n"
+            "            quote = q.get('quote', {})\n"
+            "            order = place_paper_order(\n"
+            "                exchange=selected,\n"
+            "                symbol=q.get('normalizedSymbol', symbol),\n"
+            "                side=side.upper(),\n"
+            "                order_type='MARKET',\n"
+            "                size='0.01'\n"
+            "            )\n"
+            "            trial_rows.append({\n"
+            "                'symbol': symbol,\n"
+            "                'side': side,\n"
+            "                'selected_exchange': selected,\n"
+            "                'bid': quote.get('bid'),\n"
+            "                'ask': quote.get('ask'),\n"
+            "                'order_id': order.get('orderId'),\n"
+            "                'status': order.get('status'),\n"
+            "                'execution_mode': order.get('executionMode'),\n"
+            "                'simulated': order.get('simulated', False)\n"
+            "            })\n"
+            "        except Exception as e:\n"
+            "            trial_rows.append({'symbol': symbol, 'side': side, 'error': str(e)})\n"
+            "\n"
+            "trial = pd.DataFrame(trial_rows)\n"
+            "trial\n"
+        ),
+        code_cell(
+            "if tx_token:\n"
+            "    hist = requests.get(f'{tx_base}/api/v1/history', headers=auth_headers(), params={'days': 7}, timeout=20)\n"
+            "    hist.raise_for_status()\n"
+            "    history_df = pd.DataFrame(hist.json())\n"
+            "    display(history_df.head(30))\n"
+            "else:\n"
+            "    print('Set TX_AUTH_TOKEN to fetch trade history.')\n"
+        )
+    ]
+)
+
 PY
 
 chown -R ${NB_UID:-1000}:${NB_GID:-100} /home/jovyan/work/datamancy-notebooks 2>/dev/null || true
