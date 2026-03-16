@@ -459,7 +459,7 @@ class StackLlmCapabilityTestsTest {
     }
 
     @Test
-    fun `test agent tool server endpoint is configured`() {
+    fun `test model context server endpoint is configured`() {
         val endpoints = ServiceEndpoints.fromEnvironment()
         assertNotNull(endpoints.modelContextServer)
         assertTrue(endpoints.modelContextServer.contains("model-context-server"))
