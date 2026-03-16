@@ -26,6 +26,8 @@ x-test-base: &test_runner_base
     POSTGRES_USER: test_runner_user
     POSTGRES_PASSWORD: ${POSTGRES_TEST_RUNNER_PASSWORD}
     DOCKER_HOST: tcp://docker-socket-proxy:2375
+    ISOLATED_DOCKER_VM_DOCKER_HOST: tcp://docker-vm-socket-proxy:2375
+    DOCKER_HOST_ISOLATED: tcp://docker-vm-socket-proxy:2375
     MARIADB_HOST: mariadb
     MARIADB_PORT: 3306
     MARIADB_USER: bookstack
