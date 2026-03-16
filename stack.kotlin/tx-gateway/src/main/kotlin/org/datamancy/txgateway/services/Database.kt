@@ -7,11 +7,33 @@ import org.jetbrains.exposed.sql.javatime.timestamp
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
 import java.time.Instant
+import java.sql.Timestamp
 
 data class SchemaOverview(
     val tables: List<String>,
     val rawTables: List<String>,
     val aliases: List<String>
+)
+
+data class LatestQuote(
+    val exchange: String,
+    val symbol: String,
+    val bid: Double,
+    val ask: Double,
+    val last: Double,
+    val timestamp: Instant,
+    val source: String
+)
+
+data class TxHistoryRecord(
+    val id: Long,
+    val username: String,
+    val txType: String,
+    val status: String,
+    val request: String,
+    val response: String?,
+    val errorMessage: String?,
+    val timestamp: Instant
 )
 
 object TxAuditLog : Table("tx_audit_log") {
@@ -210,6 +232,184 @@ class DatabaseService(
         transaction {
             exec("SELECT 1") {}
         }
+    }
+
+    /**
+     * Fetch the latest quote for an exchange/symbol pair.
+     *
+     * Resolution order:
+     * 1. Latest orderbook snapshot (best bid/ask + mid)
+     * 2. Latest candle close (synthetic tight spread)
+     * 3. Latest trade (synthetic tight spread)
+     */
+    fun fetchLatestQuote(exchange: String, symbol: String): LatestQuote? {
+        val normalizedExchange = exchange.lowercase()
+        val candidates = symbolCandidates(symbol)
+
+        for (candidate in candidates) {
+            queryOrderbookQuote(normalizedExchange, candidate)?.let { return it }
+        }
+
+        for (candidate in candidates) {
+            queryMarketDataQuote(normalizedExchange, candidate)?.let { return it }
+        }
+
+        return null
+    }
+
+    fun getTransactionHistory(
+        username: String,
+        days: Int = 7,
+        limit: Int = 200
+    ): List<TxHistoryRecord> {
+        val effectiveDays = days.coerceIn(1, 365)
+        val effectiveLimit = limit.coerceIn(1, 1000)
+        val sql = """
+            SELECT id, username, tx_type, status, request, response, error_message, timestamp
+            FROM tx_audit_log
+            WHERE username = ?
+              AND timestamp >= NOW() - (?::text || ' days')::interval
+            ORDER BY timestamp DESC
+            LIMIT ?
+        """.trimIndent()
+
+        val records = mutableListOf<TxHistoryRecord>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, username)
+                stmt.setInt(2, effectiveDays)
+                stmt.setInt(3, effectiveLimit)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        records += TxHistoryRecord(
+                            id = rs.getLong("id"),
+                            username = rs.getString("username"),
+                            txType = rs.getString("tx_type"),
+                            status = rs.getString("status"),
+                            request = rs.getString("request") ?: "{}",
+                            response = rs.getString("response"),
+                            errorMessage = rs.getString("error_message"),
+                            timestamp = rs.getTimestamp("timestamp").toInstant()
+                        )
+                    }
+                }
+            }
+        }
+        return records
+    }
+
+    private fun queryOrderbookQuote(exchange: String, symbol: String): LatestQuote? {
+        val sql = """
+            SELECT symbol, best_bid, best_ask, mid_price, time
+            FROM orderbook_data
+            WHERE exchange = ?
+              AND symbol = ?
+              AND best_bid IS NOT NULL
+              AND best_ask IS NOT NULL
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, exchange)
+                stmt.setString(2, symbol)
+                stmt.executeQuery().use { rs ->
+                    if (!rs.next()) return null
+                    val bid = rs.getBigDecimal("best_bid")?.toDouble() ?: return null
+                    val ask = rs.getBigDecimal("best_ask")?.toDouble() ?: return null
+                    if (bid <= 0.0 || ask <= 0.0) return null
+                    val mid = rs.getBigDecimal("mid_price")?.toDouble()
+                        ?: ((bid + ask) / 2.0)
+                    val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
+                    return LatestQuote(
+                        exchange = exchange,
+                        symbol = rs.getString("symbol"),
+                        bid = bid,
+                        ask = ask,
+                        last = mid,
+                        timestamp = ts,
+                        source = "orderbook_data"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun queryMarketDataQuote(exchange: String, symbol: String): LatestQuote? {
+        val candleSql = """
+            SELECT symbol, close AS px, time
+            FROM market_data
+            WHERE exchange = ?
+              AND symbol = ?
+              AND data_type = 'candle_1m'
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
+
+        val tradeSql = """
+            SELECT symbol, price AS px, time
+            FROM market_data
+            WHERE exchange = ?
+              AND symbol = ?
+              AND data_type = 'trade'
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
+
+        fun fromSql(sql: String): LatestQuote? {
+            dataSource.connection.use { conn ->
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, exchange)
+                    stmt.setString(2, symbol)
+                    stmt.executeQuery().use { rs ->
+                        if (!rs.next()) return null
+                        val last = rs.getBigDecimal("px")?.toDouble() ?: return null
+                        if (last <= 0.0) return null
+                        val syntheticHalfSpread = last * 0.0002 // 2 bps proxy
+                        val bid = (last - syntheticHalfSpread).coerceAtLeast(0.0)
+                        val ask = last + syntheticHalfSpread
+                        val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
+                        return LatestQuote(
+                            exchange = exchange,
+                            symbol = rs.getString("symbol"),
+                            bid = bid,
+                            ask = ask,
+                            last = last,
+                            timestamp = ts,
+                            source = if (sql == candleSql) "market_data:candle_1m" else "market_data:trade"
+                        )
+                    }
+                }
+            }
+        }
+
+        return fromSql(candleSql) ?: fromSql(tradeSql)
+    }
+
+    private fun symbolCandidates(symbol: String): List<String> {
+        val raw = symbol.trim().uppercase()
+        if (raw.isBlank()) return emptyList()
+
+        val base = raw.substringBefore("-").substringBefore("/")
+        val stripPerp = raw.removeSuffix("-PERP")
+        val stripQuoteSuffixes = listOf("USDT", "USD", "PERP")
+            .fold(stripPerp) { acc, suffix ->
+                if (acc.endsWith(suffix) && acc.length > suffix.length) {
+                    acc.removeSuffix(suffix)
+                } else {
+                    acc
+                }
+            }
+
+        return listOf(
+            raw,
+            stripPerp,
+            base,
+            stripQuoteSuffixes
+        ).map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
     }
 
     /**

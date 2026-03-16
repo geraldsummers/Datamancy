@@ -158,6 +158,58 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
         println("      ✓ TX Gateway service healthy")
     }
 
+    test("TX Gateway: API v1 health alias") {
+        val response = client.getRawResponse("${endpoints.txGateway}/api/v1/health")
+        response.status shouldBe HttpStatusCode.OK
+
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val status = json["status"]?.jsonPrimitive?.content
+        status shouldBe "healthy"
+
+        println("      ✓ TX Gateway API v1 health endpoint healthy")
+    }
+
+    test("TX Gateway: Unified exchange catalog endpoint") {
+        val response = client.getRawResponse("${endpoints.txGateway}/api/v1/exchanges")
+        response.status shouldBe HttpStatusCode.OK
+
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val exchanges = json["exchanges"]?.jsonArray ?: error("Missing exchanges array")
+        val names = exchanges.mapNotNull { it.jsonObject["apiName"]?.jsonPrimitive?.content }.toSet()
+
+        val expected = setOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster")
+        require(expected.all { it in names }) {
+            "Missing exchanges. Expected=$expected actual=$names"
+        }
+
+        println("      ✓ Unified exchange catalog includes all expected venues")
+    }
+
+    test("TX Gateway: Unified quote endpoint returns executable quote") {
+        val symbols = listOf("BTC", "BTC-PERP", "BTCUSDT")
+        val statuses = mutableListOf<String>()
+        var success = false
+
+        for (symbol in symbols) {
+            val response = client.getRawResponse("${endpoints.txGateway}/api/v1/exchanges/hyperliquid/quote?symbol=$symbol")
+            statuses += "$symbol:${response.status.value}"
+            if (response.status == HttpStatusCode.OK) {
+                val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+                val bid = json["bid"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                val ask = json["ask"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                require(bid > 0.0 && ask > 0.0) { "Invalid bid/ask from quote endpoint: bid=$bid ask=$ask" }
+                require(ask >= bid) { "Ask must be >= bid: bid=$bid ask=$ask" }
+                success = true
+                println("      ✓ Unified quote: $symbol bid=$bid ask=$ask")
+                break
+            }
+        }
+
+        require(success) {
+            "Unified quote endpoint unavailable for tested symbols (${statuses.joinToString()})"
+        }
+    }
+
     test("TX Gateway: Database connectivity") {
         val response = client.getRawResponse("${endpoints.txGateway}/health/db")
         response.status shouldBe HttpStatusCode.OK

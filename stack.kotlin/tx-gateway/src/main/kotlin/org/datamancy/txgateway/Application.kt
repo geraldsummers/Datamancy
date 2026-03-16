@@ -14,6 +14,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.datamancy.txgateway.routes.evmRoutes
 import org.datamancy.txgateway.routes.hyperliquidRoutes
+import org.datamancy.txgateway.routes.unifiedExchangeRoutes
 import org.datamancy.txgateway.services.*
 import org.slf4j.LoggerFactory
 
@@ -200,6 +201,12 @@ fun Application.configureApp(
                   "service": "tx-gateway",
                   "version": "1.0.0",
                   "endpoints": [
+                    "/api/v1/health",
+                    "/api/v1/user",
+                    "/api/v1/history",
+                    "/api/v1/exchanges",
+                    "/api/v1/exchanges/{exchange}/quote?symbol=BTC",
+                    "/api/v1/exchanges/{exchange}/order",
                     "/api/v1/hyperliquid/order",
                     "/api/v1/hyperliquid/cancel/{orderId}",
                     "/api/v1/hyperliquid/positions",
@@ -213,6 +220,7 @@ fun Application.configureApp(
 
         hyperliquidRoutes(authService, ldapService, workerClient, dbService)
         evmRoutes(authService, ldapService, workerClient, dbService)
+        unifiedExchangeRoutes(authService, ldapService, workerClient, dbService)
     }
 
     logger.info("tx-gateway started on port ${environment.config.propertyOrNull("ktor.deployment.port")?.getString() ?: "8080"}")
