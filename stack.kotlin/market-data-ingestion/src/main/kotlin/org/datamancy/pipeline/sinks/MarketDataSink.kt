@@ -57,6 +57,7 @@ class MarketDataSink(
     private val tradeBatch = mutableListOf<HyperliquidTrade>()
     private val candleBatch = mutableListOf<HyperliquidCandle>()
     private val orderbookBatch = mutableListOf<HyperliquidOrderbook>()
+    private val batchLock = Any()
 
     private var tradeCount = 0L
     private var candleCount = 0L
@@ -71,26 +72,34 @@ class MarketDataSink(
     }
 
     override suspend fun write(item: HyperliquidMarketData) {
+        var flushTradesNow = false
+        var flushCandlesNow = false
+        var flushOrderbooksNow = false
+
         when (item) {
             is HyperliquidMarketData.Trades -> {
-                tradeBatch.addAll(item.trades)
-                if (tradeBatch.size >= batchSize) {
-                    flushTrades()
+                synchronized(batchLock) {
+                    tradeBatch.addAll(item.trades)
+                    flushTradesNow = tradeBatch.size >= batchSize
                 }
             }
             is HyperliquidMarketData.Candle -> {
-                candleBatch.add(item.candle)
-                if (candleBatch.size >= batchSize) {
-                    flushCandles()
+                synchronized(batchLock) {
+                    candleBatch.add(item.candle)
+                    flushCandlesNow = candleBatch.size >= batchSize
                 }
             }
             is HyperliquidMarketData.Orderbook -> {
-                orderbookBatch.add(item.orderbook)
-                if (orderbookBatch.size >= batchSize) {
-                    flushOrderbooks()
+                synchronized(batchLock) {
+                    orderbookBatch.add(item.orderbook)
+                    flushOrderbooksNow = orderbookBatch.size >= batchSize
                 }
             }
         }
+
+        if (flushTradesNow) flushTrades()
+        if (flushCandlesNow) flushCandles()
+        if (flushOrderbooksNow) flushOrderbooks()
     }
 
     override suspend fun writeBatch(items: List<HyperliquidMarketData>) {
@@ -102,16 +111,24 @@ class MarketDataSink(
      * Flush all pending batches to database
      */
     suspend fun flush() {
-        if (tradeBatch.isNotEmpty()) flushTrades()
-        if (candleBatch.isNotEmpty()) flushCandles()
-        if (orderbookBatch.isNotEmpty()) flushOrderbooks()
+        val (hasTrades, hasCandles, hasOrderbooks) = synchronized(batchLock) {
+            Triple(tradeBatch.isNotEmpty(), candleBatch.isNotEmpty(), orderbookBatch.isNotEmpty())
+        }
+
+        if (hasTrades) flushTrades()
+        if (hasCandles) flushCandles()
+        if (hasOrderbooks) flushOrderbooks()
     }
 
     /**
      * Write accumulated trades to market_data table
      */
     private suspend fun flushTrades() = withContext(Dispatchers.IO) {
-        if (tradeBatch.isEmpty()) return@withContext
+        val trades = synchronized(batchLock) {
+            if (tradeBatch.isEmpty()) emptyList()
+            else tradeBatch.toList().also { tradeBatch.clear() }
+        }
+        if (trades.isEmpty()) return@withContext
 
         val sql = """
             INSERT INTO market_data (time, symbol, exchange, data_type, trade_id, price, size, side, is_liquidation)
@@ -124,7 +141,7 @@ class MarketDataSink(
                 conn.autoCommit = false
                 try {
                     conn.prepareStatement(sql).use { stmt ->
-                        tradeBatch.forEach { trade ->
+                        trades.forEach { trade ->
                             stmt.setTimestamp(1, Timestamp.from(trade.time))
                             stmt.setString(2, trade.symbol)
                             stmt.setString(3, "hyperliquid")
@@ -138,16 +155,19 @@ class MarketDataSink(
                         stmt.executeBatch()
                     }
                     conn.commit()
-                    tradeCount += tradeBatch.size
-                    logger.debug { "Flushed ${tradeBatch.size} trades to market_data (total: $tradeCount)" }
+                    tradeCount += trades.size
+                    logger.debug { "Flushed ${trades.size} trades to market_data (total: $tradeCount)" }
                 } catch (e: Exception) {
                     conn.rollback()
                     logger.error(e) { "Failed to flush trades batch: ${e.message}" }
                     throw e
                 }
             }
-        } finally {
-            tradeBatch.clear()
+        } catch (e: Exception) {
+            synchronized(batchLock) {
+                tradeBatch.addAll(0, trades)
+            }
+            throw e
         }
     }
 
@@ -155,7 +175,11 @@ class MarketDataSink(
      * Write accumulated candles to market_data table
      */
     private suspend fun flushCandles() = withContext(Dispatchers.IO) {
-        if (candleBatch.isEmpty()) return@withContext
+        val candles = synchronized(batchLock) {
+            if (candleBatch.isEmpty()) emptyList()
+            else candleBatch.toList().also { candleBatch.clear() }
+        }
+        if (candles.isEmpty()) return@withContext
 
         val sql = """
             INSERT INTO market_data (time, symbol, exchange, data_type, open, high, low, close, volume, num_trades)
@@ -174,7 +198,7 @@ class MarketDataSink(
                 conn.autoCommit = false
                 try {
                     conn.prepareStatement(sql).use { stmt ->
-                        candleBatch.forEach { candle ->
+                        candles.forEach { candle ->
                             val dataType = "candle_${candle.interval}" // e.g., 'candle_1m', 'candle_5m'
                             stmt.setTimestamp(1, Timestamp.from(candle.time))
                             stmt.setString(2, candle.symbol)
@@ -191,16 +215,19 @@ class MarketDataSink(
                         stmt.executeBatch()
                     }
                     conn.commit()
-                    candleCount += candleBatch.size
-                    logger.debug { "Flushed ${candleBatch.size} candles to market_data (total: $candleCount)" }
+                    candleCount += candles.size
+                    logger.debug { "Flushed ${candles.size} candles to market_data (total: $candleCount)" }
                 } catch (e: Exception) {
                     conn.rollback()
                     logger.error(e) { "Failed to flush candles batch: ${e.message}" }
                     throw e
                 }
             }
-        } finally {
-            candleBatch.clear()
+        } catch (e: Exception) {
+            synchronized(batchLock) {
+                candleBatch.addAll(0, candles)
+            }
+            throw e
         }
     }
 
@@ -208,7 +235,11 @@ class MarketDataSink(
      * Write accumulated orderbooks to orderbook_data table
      */
     private suspend fun flushOrderbooks() = withContext(Dispatchers.IO) {
-        if (orderbookBatch.isEmpty()) return@withContext
+        val orderbooks = synchronized(batchLock) {
+            if (orderbookBatch.isEmpty()) emptyList()
+            else orderbookBatch.toList().also { orderbookBatch.clear() }
+        }
+        if (orderbooks.isEmpty()) return@withContext
 
         try {
             dataSource.connection.use { conn ->
@@ -220,21 +251,24 @@ class MarketDataSink(
                     }
 
                     when (writeMode) {
-                        OrderbookWriteMode.TOP_OF_BOOK -> flushOrderbooksTopOfBook(conn)
-                        OrderbookWriteMode.JSON_DEPTH -> flushOrderbooksJson(conn)
+                        OrderbookWriteMode.TOP_OF_BOOK -> flushOrderbooksTopOfBook(conn, orderbooks)
+                        OrderbookWriteMode.JSON_DEPTH -> flushOrderbooksJson(conn, orderbooks)
                     }
 
                     conn.commit()
-                    orderbookCount += orderbookBatch.size
-                    logger.debug { "Flushed ${orderbookBatch.size} orderbooks to orderbook_data (total: $orderbookCount)" }
+                    orderbookCount += orderbooks.size
+                    logger.debug { "Flushed ${orderbooks.size} orderbooks to orderbook_data (total: $orderbookCount)" }
                 } catch (e: Exception) {
                     conn.rollback()
                     logger.error(e) { "Failed to flush orderbooks batch: ${e.message}" }
                     throw e
                 }
             }
-        } finally {
-            orderbookBatch.clear()
+        } catch (e: Exception) {
+            synchronized(batchLock) {
+                orderbookBatch.addAll(0, orderbooks)
+            }
+            throw e
         }
     }
 
@@ -264,7 +298,7 @@ class MarketDataSink(
         }
     }
 
-    private fun flushOrderbooksTopOfBook(conn: Connection) {
+    private fun flushOrderbooksTopOfBook(conn: Connection, orderbooks: List<HyperliquidOrderbook>) {
         val sql = """
             INSERT INTO orderbook_data (time, symbol, exchange, bid_price, bid_size, ask_price, ask_size)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -276,7 +310,7 @@ class MarketDataSink(
         """.trimIndent()
 
         conn.prepareStatement(sql).use { stmt ->
-            orderbookBatch.forEach { orderbook ->
+            orderbooks.forEach { orderbook ->
                 val bestBid = orderbook.bids.maxByOrNull { it.price }
                 val bestAsk = orderbook.asks.minByOrNull { it.price }
                 if (bestBid == null || bestAsk == null) {
@@ -296,7 +330,7 @@ class MarketDataSink(
         }
     }
 
-    private fun flushOrderbooksJson(conn: Connection) {
+    private fun flushOrderbooksJson(conn: Connection, orderbooks: List<HyperliquidOrderbook>) {
         val sql = """
             INSERT INTO orderbook_data (time, symbol, exchange, bids, asks)
             VALUES (?, ?, ?, ?::jsonb, ?::jsonb)
@@ -306,7 +340,7 @@ class MarketDataSink(
         """.trimIndent()
 
         conn.prepareStatement(sql).use { stmt ->
-            orderbookBatch.forEach { orderbook ->
+            orderbooks.forEach { orderbook ->
                 val bidsJson = orderbook.bids.joinToString(
                     prefix = "[",
                     postfix = "]",
@@ -351,13 +385,16 @@ class MarketDataSink(
      * Get ingestion statistics
      */
     fun getStats(): IngestionStats {
+        val pending = synchronized(batchLock) {
+            Triple(tradeBatch.size, candleBatch.size, orderbookBatch.size)
+        }
         return IngestionStats(
             tradesIngested = tradeCount,
             candlesIngested = candleCount,
             orderbooksIngested = orderbookCount,
-            pendingTrades = tradeBatch.size,
-            pendingCandles = candleBatch.size,
-            pendingOrderbooks = orderbookBatch.size
+            pendingTrades = pending.first,
+            pendingCandles = pending.second,
+            pendingOrderbooks = pending.third
         )
     }
 

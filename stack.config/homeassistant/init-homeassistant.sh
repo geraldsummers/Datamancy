@@ -2,32 +2,26 @@
 set -euo pipefail
 
 CONFIG_DIR="/config"
-AUTH_FILE="${CONFIG_DIR}/.storage/auth"
 ONBOARDING_FILE="${CONFIG_DIR}/.storage/onboarding"
 CORE_FILE="${CONFIG_DIR}/.storage/core.config"
 
 echo "Starting Home Assistant pre-init..."
 mkdir -p "${CONFIG_DIR}/.storage"
 
-has_real_user() {
-    if [ ! -f "${AUTH_FILE}" ]; then
-        return 1
+count_users() {
+    local output
+    output="$(python3 -m homeassistant --script auth -c "${CONFIG_DIR}" list 2>/dev/null || true)"
+    if [ -z "${output}" ]; then
+        echo 0
+        return
     fi
-    python3 - "$AUTH_FILE" <<'PY'
-import json
-import sys
-path = sys.argv[1]
-try:
-    with open(path, "r", encoding="utf-8") as handle:
-        data = json.load(handle)
-except Exception:
-    print(0)
-    raise SystemExit(0)
-
-users = data.get("data", {}).get("users", [])
-real_users = sum(1 for u in users if u.get("is_active") and not u.get("system_generated"))
-print(real_users)
-PY
+    local count
+    count="$(printf '%s\n' "${output}" | awk '/^Total users:/ {print $3}' | tail -n1)"
+    if [ -z "${count}" ]; then
+        echo 0
+        return
+    fi
+    echo "${count}"
 }
 
 create_admin_user() {
@@ -39,10 +33,10 @@ create_admin_user() {
         return
     fi
 
-    local real_users
-    real_users="$(has_real_user || true)"
-    if [ "${real_users:-0}" -gt 0 ]; then
-        echo "Real Home Assistant user already exists (${real_users}), skipping bootstrap user creation"
+    local existing_users
+    existing_users="$(count_users)"
+    if [ "${existing_users:-0}" -gt 0 ]; then
+        echo "Home Assistant user already exists (${existing_users}), skipping bootstrap user creation"
         return
     fi
 
@@ -53,8 +47,8 @@ create_admin_user() {
         echo "Auth script add failed, checking if user now exists before failing..."
     fi
 
-    real_users="$(has_real_user || true)"
-    if [ "${real_users:-0}" -le 0 ]; then
+    existing_users="$(count_users)"
+    if [ "${existing_users:-0}" -le 0 ]; then
         echo "Failed to create a real Home Assistant user"
         exit 1
     fi
