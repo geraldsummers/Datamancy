@@ -1914,31 +1914,15 @@ ${CYAN}╔═══════════════════════�
         jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(distBuildStatus)
     )
 
-    // Load or generate credentials.
-    // Canonical source is project-root .env; dist/.env is a fallback for older workflows.
-    val rootEnvFile = File(".env")
-    val distEnvFile = distDir.resolve(".env")
-    val existingCredentials = when {
-        rootEnvFile.exists() -> {
-            info("Using credentials source: ${rootEnvFile.path}")
-            val root = loadEnvFile(rootEnvFile)
-            if (distEnvFile.exists()) {
-                val dist = loadEnvFile(distEnvFile)
-                if (root != dist) {
-                    warn("Credential mismatch detected between .env and dist/.env; using .env as source of truth")
-                }
-            }
-            root
-        }
-        distEnvFile.exists() -> {
-            warn("Project .env not found; falling back to dist/.env")
-            loadEnvFile(distEnvFile)
-        }
-        else -> mutableMapOf()
+    // Load or generate credentials from dist/.env only.
+    // Root .env is intentionally ignored to keep secrets contained within dist/.
+    val envFile = distDir.resolve(".env")
+    if (File(".env").exists()) {
+        warn("Root .env detected but ignored; using dist/.env as the credential source")
     }
+    val existingCredentials = loadEnvFile(envFile)
     val credentials = generateCredentials(schema, sanitized, existingCredentials, config)
-    saveEnvFile(rootEnvFile, credentials)
-    saveEnvFile(distEnvFile, credentials)
+    saveEnvFile(envFile, credentials)
     validateTemplateEnvVars(credentials, includeTestsCompose())
 
     // Run tests first
