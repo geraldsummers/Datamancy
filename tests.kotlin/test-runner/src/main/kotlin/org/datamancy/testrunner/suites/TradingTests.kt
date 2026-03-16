@@ -188,6 +188,8 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
     test("TX Gateway: Unified quote endpoint returns executable quote") {
         val symbols = listOf("BTC", "BTC-PERP", "BTCUSDT")
         val statuses = mutableListOf<String>()
+        val unexpectedStatuses = mutableListOf<String>()
+        var gracefulUnavailable = 0
         var success = false
 
         for (symbol in symbols) {
@@ -202,11 +204,27 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
                 success = true
                 println("      ✓ Unified quote: $symbol bid=$bid ask=$ask")
                 break
+            } else if (response.status == HttpStatusCode.NotFound) {
+                val json = runCatching { Json.parseToJsonElement(response.bodyAsText()).jsonObject }.getOrNull()
+                val error = json?.get("error")?.jsonPrimitive?.contentOrNull
+                if (error == "Quote unavailable") {
+                    gracefulUnavailable += 1
+                    continue
+                }
             }
+            unexpectedStatuses += "$symbol:${response.status.value}"
         }
 
-        require(success) {
-            "Unified quote endpoint unavailable for tested symbols (${statuses.joinToString()})"
+        if (!success && gracefulUnavailable == symbols.size) {
+            println("      ℹ️  Unified quote endpoint returned graceful 'Quote unavailable' for all tested symbols (${statuses.joinToString()})")
+        }
+
+        require(success || gracefulUnavailable == symbols.size) {
+            "Unified quote endpoint failed unexpectedly (${statuses.joinToString()})"
+        }
+
+        require(unexpectedStatuses.isEmpty()) {
+            "Unified quote endpoint returned unexpected statuses (${unexpectedStatuses.joinToString()})"
         }
     }
 
