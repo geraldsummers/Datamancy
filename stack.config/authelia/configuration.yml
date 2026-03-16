@@ -50,6 +50,7 @@ authentication_backend:
       mail: mail
       display_name: displayName
     user: cn=admin,{{LDAP_BASE_DN}}
+    password: {{LDAP_ADMIN_PASSWORD}}
 
 access_control:
   default_policy: deny
@@ -83,6 +84,7 @@ access_control:
         - "group:users"
 
 session:
+  secret: {{AUTHELIA_SESSION_SECRET}}
   cookies:
     - domain: {{DOMAIN}}
       name: authelia_session
@@ -95,6 +97,7 @@ session:
     host: valkey
     port: 6379
     username: authelia
+    password: {{VALKEY_AUTHELIA_PASSWORD}}
     database_index: 0
 
 regulation:
@@ -113,6 +116,7 @@ storage:
     database: authelia
     schema: public
     username: authelia
+    password: {{POSTGRES_AUTHELIA_PASSWORD}}
     timeout: 5s
 
 notifier:

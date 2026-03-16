@@ -7,7 +7,11 @@ services:
       - mariadb
     environment:
       MYSQL_DATABASE: datamancy
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ADMIN_PASSWORD}
       MARIADB_ROOT_PASSWORD: ${MARIADB_ADMIN_PASSWORD}
+      MARIADB_BOOKSTACK_PASSWORD: ${MARIADB_BOOKSTACK_PASSWORD}
+      MARIADB_SEAFILE_PASSWORD: ${MARIADB_SEAFILE_PASSWORD}
+      MARIADB_AGENT_PASSWORD: ${MARIADB_AGENT_PASSWORD}
     volumes:
       - ${NOCOW_DB_DIR}/mariadb:/var/lib/mysql
       - ./configs/mariadb/init-template.sql:/docker-entrypoint-initdb.d/init-template.sql:ro

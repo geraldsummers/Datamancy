@@ -21,6 +21,10 @@ services:
     environment:
       TZ: UTC
       DOMAIN: ${DOMAIN}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET}
+      VALKEY_AUTHELIA_PASSWORD: ${VALKEY_AUTHELIA_PASSWORD}
+      POSTGRES_AUTHELIA_PASSWORD: ${POSTGRES_AUTHELIA_PASSWORD}
     volumes:
       - authelia_data:/config
       - ./configs/authelia/configuration.yml:/config/configuration.yml:ro

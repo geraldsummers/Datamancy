@@ -41,6 +41,9 @@ services:
       - valkey
     environment:
       VALKEY_ADMIN_PASSWORD: ${VALKEY_ADMIN_PASSWORD}
+      VALKEY_AUTHELIA_PASSWORD: ${VALKEY_AUTHELIA_PASSWORD}
+      VALKEY_SEAFILE_PASSWORD: ${VALKEY_SEAFILE_PASSWORD}
+      VALKEY_MASTODON_PASSWORD: ${VALKEY_MASTODON_PASSWORD}
     depends_on:
       valkey:
         condition: service_healthy
