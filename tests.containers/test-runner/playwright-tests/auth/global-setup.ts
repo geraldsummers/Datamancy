@@ -10,6 +10,24 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { LDAPClient } from '../utils/ldap-client';
 
+function resolveAuthDir(): string {
+  const candidates = [
+    process.env.PLAYWRIGHT_AUTH_DIR,
+    '/app/playwright-tests/.auth',
+    path.resolve(process.cwd(), '.auth'),
+    path.resolve(__dirname, '../.auth'),
+  ].filter((candidate): candidate is string => Boolean(candidate && candidate.trim().length > 0));
+
+  for (const candidate of candidates) {
+    const parent = path.dirname(candidate);
+    if (fs.existsSync(candidate) || fs.existsSync(parent)) {
+      return candidate;
+    }
+  }
+
+  return path.resolve(__dirname, '../.auth');
+}
+
 async function globalSetup(config: FullConfig) {
   console.log('\n╔═══════════════════════════════════════════════════════════════════════════╗');
   console.log('║  Playwright Global Setup - LDAP User Provisioning                        ║');
@@ -85,7 +103,7 @@ async function globalSetup(config: FullConfig) {
   }
 
   // Save credentials to file for tests to use
-  const authDir = path.join(__dirname, '../.auth');
+  const authDir = resolveAuthDir();
   if (!fs.existsSync(authDir)) {
     fs.mkdirSync(authDir, { recursive: true });
   }

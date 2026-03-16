@@ -8,6 +8,24 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { LDAPClient } from '../utils/ldap-client';
 
+function resolveCredsPath(): string | null {
+  const authDirCandidates = [
+    process.env.PLAYWRIGHT_AUTH_DIR,
+    '/app/playwright-tests/.auth',
+    path.resolve(process.cwd(), '.auth'),
+    path.resolve(__dirname, '../.auth'),
+  ].filter((candidate): candidate is string => Boolean(candidate && candidate.trim().length > 0));
+
+  for (const authDir of authDirCandidates) {
+    const credsPath = path.join(authDir, 'test-user.json');
+    if (fs.existsSync(credsPath)) {
+      return credsPath;
+    }
+  }
+
+  return null;
+}
+
 async function globalTeardown() {
   console.log('\n╔═══════════════════════════════════════════════════════════════════════════╗');
   console.log('║  Playwright Global Teardown - LDAP User Cleanup                          ║');
@@ -20,9 +38,9 @@ async function globalTeardown() {
   const stackAdminUser = process.env.STACK_ADMIN_USER;
 
   // Load test user credentials
-  const credsPath = path.join(__dirname, '../.auth/test-user.json');
+  const credsPath = resolveCredsPath();
 
-  if (!fs.existsSync(credsPath)) {
+  if (!credsPath) {
     console.warn('⚠️  No test user credentials found - skipping cleanup');
     return;
   }
@@ -53,7 +71,7 @@ async function globalTeardown() {
 
   // Clean up auth files
   try {
-    const authDir = path.join(__dirname, '../.auth');
+    const authDir = path.dirname(credsPath);
     if (fs.existsSync(authDir)) {
       fs.rmSync(authDir, { recursive: true, force: true });
       console.log('🗑️  Auth files cleaned up\n');

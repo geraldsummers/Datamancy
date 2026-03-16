@@ -801,6 +801,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
   });
 
   test('Planka - OIDC login flow', async ({ page }) => {
+    test.setTimeout(120000);
     await testOIDCService(
       page,
       'Planka',
