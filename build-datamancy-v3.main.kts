@@ -1915,11 +1915,7 @@ ${CYAN}╔═══════════════════════�
     )
 
     // Load or generate credentials from dist/.env only.
-    // Root .env is intentionally ignored to keep secrets contained within dist/.
     val envFile = distDir.resolve(".env")
-    if (File(".env").exists()) {
-        warn("Root .env detected but ignored; using dist/.env as the credential source")
-    }
     val existingCredentials = loadEnvFile(envFile)
     val credentials = generateCredentials(schema, sanitized, existingCredentials, config)
     saveEnvFile(envFile, credentials)
