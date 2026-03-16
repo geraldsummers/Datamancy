@@ -1252,7 +1252,8 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             if (page.url().includes('authelia') || page.url().includes('auth.') || page.url().includes(':9091')) {
               const autheliaPage = new AutheliaLoginPage(page);
               await autheliaPage.login(testUser.username, testUser.password);
-              await oidcPage.handleConsentScreen().catch(() => {});
+              const retryOidcPage = new OIDCLoginPage(page);
+              await retryOidcPage.handleConsentScreen().catch(() => {});
             }
 
             await page.waitForURL((url) => !/#\/sso\b/i.test(url.toString()), { timeout: 20000 }).catch(() => {});
