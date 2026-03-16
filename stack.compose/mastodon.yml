@@ -7,6 +7,8 @@ services:
     image: ghcr.io/mastodon/mastodon:v4.5.4
     container_name: mastodon-init
     restart: "no"
+    env_file:
+      - ./configs/mastodon/mastodon.env
     networks:
       - postgres
       - valkey
@@ -25,6 +27,7 @@ services:
       DB_PORT: 5432
       DB_NAME: mastodon
       DB_USER: mastodon
+      DB_PASS: ${POSTGRES_MASTODON_PASSWORD}
       REDIS_HOST: valkey
       REDIS_PORT: 6379
       REDIS_USER: mastodon
