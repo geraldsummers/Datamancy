@@ -10,6 +10,7 @@ import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.datamancy.txgateway.routes.evmRoutes
 import org.datamancy.txgateway.routes.hyperliquidRoutes
@@ -144,24 +145,26 @@ fun Application.configureApp(
             val hlPerMinute = parseIntEnv("TXG_HL_RATE_LIMIT_PER_MINUTE", DEFAULT_HL_RATE_LIMIT_PER_MINUTE)
             val hlPerHour = parseIntEnv("TXG_HL_RATE_LIMIT_PER_HOUR", DEFAULT_HL_RATE_LIMIT_PER_HOUR)
 
-            call.respond(
-                HttpStatusCode.OK,
-                RateLimitResponse(
-                    limits = mapOf(
-                        "evm_transfer" to RateLimitConfig(
-                            limit = evmPerMinute,
-                            window = "minute",
-                            per_minute = evmPerMinute,
-                            per_hour = evmPerHour
-                        ),
-                        "hyperliquid_order" to RateLimitConfig(
-                            limit = hlPerMinute,
-                            window = "minute",
-                            per_minute = hlPerMinute,
-                            per_hour = hlPerHour
-                        )
+            val payload = RateLimitResponse(
+                limits = mapOf(
+                    "evm_transfer" to RateLimitConfig(
+                        limit = evmPerMinute,
+                        window = "minute",
+                        per_minute = evmPerMinute,
+                        per_hour = evmPerHour
+                    ),
+                    "hyperliquid_order" to RateLimitConfig(
+                        limit = hlPerMinute,
+                        window = "minute",
+                        per_minute = hlPerMinute,
+                        per_hour = hlPerHour
                     )
                 )
+            )
+            call.respondText(
+                Json.encodeToString(RateLimitResponse.serializer(), payload),
+                ContentType.Application.Json,
+                HttpStatusCode.OK
             )
         }
 
@@ -177,15 +180,17 @@ fun Application.configureApp(
                 return@get
             }
 
-            call.respond(
-                HttpStatusCode.OK,
-                SchemaHealthResponse(
-                    status = "ok",
-                    service = "tx-gateway",
-                    tables = overview.tables,
-                    raw_tables = overview.rawTables,
-                    aliases = overview.aliases
-                )
+            val payload = SchemaHealthResponse(
+                status = "ok",
+                service = "tx-gateway",
+                tables = overview.tables,
+                raw_tables = overview.rawTables,
+                aliases = overview.aliases
+            )
+            call.respondText(
+                Json.encodeToString(SchemaHealthResponse.serializer(), payload),
+                ContentType.Application.Json,
+                HttpStatusCode.OK
             )
         }
 
