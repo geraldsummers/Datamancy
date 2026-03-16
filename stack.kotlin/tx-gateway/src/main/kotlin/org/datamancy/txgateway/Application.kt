@@ -205,6 +205,7 @@ fun Application.configureApp(
                     "/api/v1/user",
                     "/api/v1/history",
                     "/api/v1/exchanges",
+                    "/api/v1/exchanges/best-quote?symbol=BTC&side=buy",
                     "/api/v1/exchanges/{exchange}/quote?symbol=BTC",
                     "/api/v1/exchanges/{exchange}/order",
                     "/api/v1/hyperliquid/order",

@@ -83,6 +83,16 @@ private data class QuoteResponse(
     val source: String
 )
 
+@Serializable
+private data class BestQuoteResponse(
+    val requestedSymbol: String,
+    val normalizedSymbol: String,
+    val side: String,
+    val selectedExchange: String,
+    val quote: QuoteResponse,
+    val comparedExchanges: List<String>
+)
+
 fun Route.unifiedExchangeRoutes(
     authService: AuthService,
     ldapService: LdapService,
@@ -152,6 +162,89 @@ fun Route.unifiedExchangeRoutes(
                     )
                 }
                 call.respond(HttpStatusCode.OK, ExchangeCatalogResponse(exchanges = payload))
+            }
+
+            get("/best-quote") {
+                val symbol = call.request.queryParameters["symbol"]?.trim()
+                    ?: run {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing symbol"))
+                        return@get
+                    }
+                if (symbol.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing symbol"))
+                    return@get
+                }
+
+                val sideRaw = call.request.queryParameters["side"]?.trim()?.lowercase().orEmpty()
+                val side = when (sideRaw) {
+                    "", "buy" -> "buy"
+                    "sell" -> "sell"
+                    else -> {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid side: $sideRaw"))
+                        return@get
+                    }
+                }
+
+                val requestedExchanges = call.request.queryParameters["exchanges"]
+                    ?.split(",")
+                    ?.map { it.trim().lowercase() }
+                    ?.filter { it.isNotBlank() }
+                    ?.distinct()
+                    ?.ifEmpty { null }
+
+                val exchangesToScan = requestedExchanges ?: supportedExchanges
+                val unsupported = exchangesToScan.filterNot { it in supportedExchanges }
+                if (unsupported.isNotEmpty()) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Unsupported exchange(s): ${unsupported.joinToString(", ")}")
+                    )
+                    return@get
+                }
+
+                val quotes = exchangesToScan.mapNotNull { exchange ->
+                    dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)
+                }
+
+                if (quotes.isEmpty()) {
+                    call.respond(
+                        HttpStatusCode.NotFound,
+                        mapOf(
+                            "error" to "Quote unavailable",
+                            "symbol" to symbol,
+                            "side" to side,
+                            "exchangesScanned" to exchangesToScan
+                        )
+                    )
+                    return@get
+                }
+
+                val best = if (side == "buy") {
+                    quotes.minByOrNull { it.ask }
+                } else {
+                    quotes.maxByOrNull { it.bid }
+                } ?: quotes.first()
+
+                val quotePayload = QuoteResponse(
+                    exchange = best.exchange,
+                    symbol = best.symbol,
+                    bid = best.bid,
+                    ask = best.ask,
+                    last = best.last,
+                    timestamp = best.timestamp.toString(),
+                    source = best.source
+                )
+                call.respond(
+                    HttpStatusCode.OK,
+                    BestQuoteResponse(
+                        requestedSymbol = symbol,
+                        normalizedSymbol = best.symbol,
+                        side = side,
+                        selectedExchange = best.exchange,
+                        quote = quotePayload,
+                        comparedExchanges = quotes.map { it.exchange }.distinct()
+                    )
+                )
             }
 
             get("/{exchange}/quote") {

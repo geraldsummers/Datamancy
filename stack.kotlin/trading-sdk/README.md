@@ -235,6 +235,13 @@ val bestBuy = tx.exchanges.bestQuote(
     side = Side.BUY
 )
 println(bestBuy)
+
+// One-call gateway-side venue selection (preferred when available)
+val bestSell = tx.exchanges.bestQuoteViaGateway(
+    symbol = "BTC",
+    side = Side.SELL
+)
+println(bestSell)
 ```
 
 ## Grafana Integration

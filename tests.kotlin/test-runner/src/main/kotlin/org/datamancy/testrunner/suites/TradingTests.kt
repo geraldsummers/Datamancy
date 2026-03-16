@@ -228,6 +228,25 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
         }
     }
 
+    test("TX Gateway: Best-quote mux returns actionable venue") {
+        val response = client.getRawResponse("${endpoints.txGateway}/api/v1/exchanges/best-quote?symbol=BTC&side=buy")
+        response.status shouldBe HttpStatusCode.OK
+
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        val selectedExchange = json["selectedExchange"]?.jsonPrimitive?.content
+        val quote = json["quote"]?.jsonObject ?: error("Missing quote payload")
+        val bid = quote["bid"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+        val ask = quote["ask"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+        val compared = json["comparedExchanges"]?.jsonArray ?: error("Missing comparedExchanges")
+
+        require(!selectedExchange.isNullOrBlank()) { "selectedExchange missing" }
+        require(bid > 0.0 && ask > 0.0) { "Invalid bid/ask in best quote: bid=$bid ask=$ask" }
+        require(ask >= bid) { "Ask must be >= bid in best quote: bid=$bid ask=$ask" }
+        require(compared.isNotEmpty()) { "No exchanges were compared by best-quote mux" }
+
+        println("      ✓ Best-quote mux selected $selectedExchange for BTC buy (bid=$bid ask=$ask)")
+    }
+
     test("TX Gateway: Database connectivity") {
         val response = client.getRawResponse("${endpoints.txGateway}/health/db")
         response.status shouldBe HttpStatusCode.OK

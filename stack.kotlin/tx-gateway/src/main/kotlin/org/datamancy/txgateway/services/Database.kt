@@ -95,8 +95,21 @@ class DatabaseService(
         require(it.isNotBlank()) { "POSTGRES_PASSWORD environment variable is empty" }
     } ?: error("POSTGRES_PASSWORD environment variable not set")
 ) {
+    private val marketDataHost: String = System.getenv("POSTGRES_MARKET_DATA_HOST") ?: host
+    private val marketDataPort: Int = System.getenv("POSTGRES_MARKET_DATA_PORT")?.toIntOrNull() ?: port
+    private val marketDataDatabase: String = System.getenv("POSTGRES_MARKET_DATA_DB") ?: "datamancy"
+    private val marketDataUser: String =
+        System.getenv("POSTGRES_MARKET_DATA_USER")
+            ?: System.getenv("POSTGRES_PIPELINE_USER")
+            ?: user
+    private val marketDataPassword: String =
+        System.getenv("POSTGRES_MARKET_DATA_PASSWORD")
+            ?: System.getenv("POSTGRES_PIPELINE_PASSWORD")
+            ?: dbPassword
+
     private val logger = LoggerFactory.getLogger(DatabaseService::class.java)
     private lateinit var dataSource: HikariDataSource
+    private var marketDataSource: HikariDataSource? = null
     private val missingTableWarnings = ConcurrentHashMap.newKeySet<String>()
 
     fun init(maxAttempts: Int = 60, delayMs: Long = 2000) {
@@ -106,16 +119,16 @@ class DatabaseService(
         for (attempt in 1..maxAttempts) {
             var candidateDataSource: HikariDataSource? = null
             try {
-                val config = HikariConfig().apply {
-                    jdbcUrl = "jdbc:postgresql://$host:$port/$database"
-                    username = user
-                    password = dbPassword
-                    maximumPoolSize = 10
-                    minimumIdle = 2
-                    connectionTimeout = 30000
-                }
-
-                candidateDataSource = HikariDataSource(config)
+                candidateDataSource = createDataSource(
+                    host = host,
+                    port = port,
+                    database = database,
+                    username = user,
+                    password = dbPassword,
+                    maximumPoolSize = 10,
+                    minimumIdle = 2,
+                    poolName = "tx-gateway-primary"
+                )
                 Database.connect(candidateDataSource)
 
                 // Create tables
@@ -129,6 +142,7 @@ class DatabaseService(
                 }
 
                 dataSource = candidateDataSource
+                initializeQuoteDataSource()
                 logger.info("Database initialized successfully")
                 return
             } catch (e: Exception) {
@@ -142,6 +156,78 @@ class DatabaseService(
         }
 
         throw IllegalStateException("Failed to initialize database after $maxAttempts attempts", lastError)
+    }
+
+    private fun createDataSource(
+        host: String,
+        port: Int,
+        database: String,
+        username: String,
+        password: String,
+        maximumPoolSize: Int,
+        minimumIdle: Int,
+        poolName: String
+    ): HikariDataSource {
+        val config = HikariConfig().apply {
+            jdbcUrl = "jdbc:postgresql://$host:$port/$database"
+            this.username = username
+            this.password = password
+            this.maximumPoolSize = maximumPoolSize
+            this.minimumIdle = minimumIdle
+            connectionTimeout = 30000
+            this.poolName = poolName
+        }
+        return HikariDataSource(config)
+    }
+
+    private fun initializeQuoteDataSource() {
+        marketDataSource?.close()
+        marketDataSource = null
+
+        val reusePrimary =
+            marketDataHost == host &&
+                marketDataPort == port &&
+                marketDataDatabase == database &&
+                marketDataUser == user &&
+                marketDataPassword == dbPassword
+
+        if (reusePrimary) {
+            logger.info("Using primary tx-gateway datasource for quote queries")
+            return
+        }
+
+        try {
+            val quoteDs = createDataSource(
+                host = marketDataHost,
+                port = marketDataPort,
+                database = marketDataDatabase,
+                username = marketDataUser,
+                password = marketDataPassword,
+                maximumPoolSize = 4,
+                minimumIdle = 1,
+                poolName = "tx-gateway-marketdata"
+            )
+            quoteDs.connection.use { conn ->
+                conn.prepareStatement("SELECT 1").use { stmt ->
+                    stmt.executeQuery().use { rs -> rs.next() }
+                }
+            }
+            marketDataSource = quoteDs
+            logger.info(
+                "Market-data quote datasource initialized for {}:{} / {} as {}",
+                marketDataHost,
+                marketDataPort,
+                marketDataDatabase,
+                marketDataUser
+            )
+        } catch (e: Exception) {
+            logger.warn(
+                "Failed to initialize market-data datasource for quote queries; falling back to primary DB: {}",
+                e.message
+            )
+            marketDataSource?.close()
+            marketDataSource = null
+        }
     }
 
     fun logTransaction(
@@ -260,6 +346,13 @@ class DatabaseService(
         return null
     }
 
+    private fun quoteDataSources(): List<HikariDataSource> = buildList {
+        marketDataSource?.let { add(it) }
+        if (::dataSource.isInitialized && dataSource !in this) {
+            add(dataSource)
+        }
+    }
+
     fun getTransactionHistory(
         username: String,
         days: Int = 7,
@@ -313,37 +406,39 @@ class DatabaseService(
             LIMIT 1
         """.trimIndent()
 
-        try {
-            dataSource.connection.use { conn ->
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setString(1, exchange)
-                    stmt.setString(2, symbol)
-                    stmt.executeQuery().use { rs ->
-                        if (!rs.next()) return null
-                        val bid = rs.getBigDecimal("best_bid")?.toDouble() ?: return null
-                        val ask = rs.getBigDecimal("best_ask")?.toDouble() ?: return null
-                        if (bid <= 0.0 || ask <= 0.0) return null
-                        val mid = rs.getBigDecimal("mid_price")?.toDouble()
-                            ?: ((bid + ask) / 2.0)
-                        val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
-                        return LatestQuote(
-                            exchange = exchange,
-                            symbol = rs.getString("symbol"),
-                            bid = bid,
-                            ask = ask,
-                            last = mid,
-                            timestamp = ts,
-                            source = "orderbook_data"
-                        )
+        for (quoteSource in quoteDataSources()) {
+            try {
+                quoteSource.connection.use { conn ->
+                    conn.prepareStatement(sql).use { stmt ->
+                        stmt.setString(1, exchange)
+                        stmt.setString(2, symbol)
+                        stmt.executeQuery().use { rs ->
+                            if (!rs.next()) return@use
+                            val bid = rs.getBigDecimal("best_bid")?.toDouble() ?: return@use
+                            val ask = rs.getBigDecimal("best_ask")?.toDouble() ?: return@use
+                            if (bid <= 0.0 || ask <= 0.0) return@use
+                            val mid = rs.getBigDecimal("mid_price")?.toDouble()
+                                ?: ((bid + ask) / 2.0)
+                            val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
+                            return LatestQuote(
+                                exchange = exchange,
+                                symbol = rs.getString("symbol"),
+                                bid = bid,
+                                ask = ask,
+                                last = mid,
+                                timestamp = ts,
+                                source = "orderbook_data"
+                            )
+                        }
                     }
                 }
+            } catch (e: SQLException) {
+                if (isMissingRelation(e)) {
+                    warnMissingRelationOnce("orderbook_data", e)
+                    continue
+                }
+                logger.warn("Failed querying orderbook_data for {}/{}: {}", exchange, symbol, e.message)
             }
-        } catch (e: SQLException) {
-            if (isMissingRelation(e)) {
-                warnMissingRelationOnce("orderbook_data", e)
-                return null
-            }
-            logger.warn("Failed querying orderbook_data for {}/{}: {}", exchange, symbol, e.message)
         }
         return null
     }
@@ -370,37 +465,39 @@ class DatabaseService(
         """.trimIndent()
 
         fun fromSql(sql: String): LatestQuote? {
-            try {
-                dataSource.connection.use { conn ->
-                    conn.prepareStatement(sql).use { stmt ->
-                        stmt.setString(1, exchange)
-                        stmt.setString(2, symbol)
-                        stmt.executeQuery().use { rs ->
-                            if (!rs.next()) return null
-                            val last = rs.getBigDecimal("px")?.toDouble() ?: return null
-                            if (last <= 0.0) return null
-                            val syntheticHalfSpread = last * 0.0002 // 2 bps proxy
-                            val bid = (last - syntheticHalfSpread).coerceAtLeast(0.0)
-                            val ask = last + syntheticHalfSpread
-                            val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
-                            return LatestQuote(
-                                exchange = exchange,
-                                symbol = rs.getString("symbol"),
-                                bid = bid,
-                                ask = ask,
-                                last = last,
-                                timestamp = ts,
-                                source = if (sql == candleSql) "market_data:candle_1m" else "market_data:trade"
-                            )
+            for (quoteSource in quoteDataSources()) {
+                try {
+                    quoteSource.connection.use { conn ->
+                        conn.prepareStatement(sql).use { stmt ->
+                            stmt.setString(1, exchange)
+                            stmt.setString(2, symbol)
+                            stmt.executeQuery().use { rs ->
+                                if (!rs.next()) return@use
+                                val last = rs.getBigDecimal("px")?.toDouble() ?: return@use
+                                if (last <= 0.0) return@use
+                                val syntheticHalfSpread = last * 0.0002 // 2 bps proxy
+                                val bid = (last - syntheticHalfSpread).coerceAtLeast(0.0)
+                                val ask = last + syntheticHalfSpread
+                                val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
+                                return LatestQuote(
+                                    exchange = exchange,
+                                    symbol = rs.getString("symbol"),
+                                    bid = bid,
+                                    ask = ask,
+                                    last = last,
+                                    timestamp = ts,
+                                    source = if (sql == candleSql) "market_data:candle_1m" else "market_data:trade"
+                                )
+                            }
                         }
                     }
+                } catch (e: SQLException) {
+                    if (isMissingRelation(e)) {
+                        warnMissingRelationOnce("market_data", e)
+                        continue
+                    }
+                    logger.warn("Failed querying market_data for {}/{}: {}", exchange, symbol, e.message)
                 }
-            } catch (e: SQLException) {
-                if (isMissingRelation(e)) {
-                    warnMissingRelationOnce("market_data", e)
-                    return null
-                }
-                logger.warn("Failed querying market_data for {}/{}: {}", exchange, symbol, e.message)
             }
             return null
         }
@@ -481,6 +578,8 @@ class DatabaseService(
     }
 
     fun close() {
+        marketDataSource?.close()
+        marketDataSource = null
         if (::dataSource.isInitialized) {
             dataSource.close()
         }

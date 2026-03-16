@@ -86,6 +86,28 @@ class UnifiedExchangeClient internal constructor(
         return ApiResult.Error("No executable quote for $symbol ($side): $reason")
     }
 
+    /**
+     * Ask tx-gateway to compute best venue in one request.
+     * Falls back to the local fan-out implementation if unavailable.
+     */
+    suspend fun bestQuoteViaGateway(
+        symbol: String,
+        side: Side,
+        exchanges: List<ExchangeId> = supported
+    ): ApiResult<UnifiedQuote> {
+        val exchangeCsv = exchanges.distinct().joinToString(",") { it.apiName }
+        val path =
+            "/api/v1/exchanges/best-quote?symbol=$symbol&side=${side.name.lowercase()}&exchanges=$exchangeCsv"
+
+        return when (val result = httpClient.get<Map<String, Any?>>(path)) {
+            is ApiResult.Success -> {
+                parseBestQuotePayload(result.data)
+                    ?: bestQuote(symbol = symbol, side = side, exchanges = exchanges)
+            }
+            is ApiResult.Error -> bestQuote(symbol = symbol, side = side, exchanges = exchanges)
+        }
+    }
+
     private fun parseQuote(exchange: ExchangeId, symbol: String, payload: Map<String, Any>): ApiResult<UnifiedQuote> {
         val bid = payload["bid"].toBigDecimalOrNull()
         val ask = payload["ask"].toBigDecimalOrNull()
@@ -148,6 +170,27 @@ class UnifiedExchangeClient internal constructor(
                 Side.SELL -> candidates.maxByOrNull { it.bid }
             }
         }
+    }
+
+    private fun parseBestQuotePayload(payload: Map<String, Any?>): ApiResult<UnifiedQuote>? {
+        val quoteNode = payload["quote"] as? Map<*, *> ?: return null
+        val exchangeName = quoteNode["exchange"]?.toString()?.trim()?.lowercase() ?: return null
+        val exchange = ExchangeId.entries.firstOrNull { it.apiName == exchangeName } ?: return null
+        val symbol = quoteNode["symbol"]?.toString() ?: payload["normalizedSymbol"]?.toString() ?: return null
+        val bid = quoteNode["bid"].toBigDecimalOrNull() ?: return null
+        val ask = quoteNode["ask"].toBigDecimalOrNull() ?: return null
+        if (bid <= BigDecimal.ZERO || ask <= BigDecimal.ZERO) return null
+        val last = quoteNode["last"].toBigDecimalOrNull()
+        return ApiResult.Success(
+            UnifiedQuote(
+                exchange = exchange,
+                symbol = symbol,
+                bid = bid,
+                ask = ask,
+                last = last,
+                timestamp = Instant.now()
+            )
+        )
     }
 }
 
