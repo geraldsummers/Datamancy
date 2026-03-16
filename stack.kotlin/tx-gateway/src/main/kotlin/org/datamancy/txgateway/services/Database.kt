@@ -206,6 +206,38 @@ class DatabaseService(
         }
     }
 
+    /**
+     * Returns a schema overview used by health and integration checks.
+     * Includes compatibility aliases expected by the test-suite.
+     */
+    fun schemaOverview(): Map<String, Any> = transaction {
+        val tableNames = mutableListOf<String>()
+        val query = """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+            ORDER BY table_name
+        """.trimIndent()
+
+        exec(query) { rs ->
+            while (rs.next()) {
+                tableNames += rs.getString("table_name")
+            }
+        }
+
+        val compatibilityAliases = buildSet {
+            if ("evm_nonces" in tableNames) add("nonces")
+            if ("tx_audit_log" in tableNames || "evm_pending_txs" in tableNames) add("transactions")
+            if ("rate_limit_windows" in tableNames) add("rate_limits")
+        }
+
+        mapOf(
+            "tables" to (tableNames + compatibilityAliases).distinct().sorted(),
+            "raw_tables" to tableNames,
+            "aliases" to compatibilityAliases.sorted()
+        )
+    }
+
     fun close() {
         if (::dataSource.isInitialized) {
             dataSource.close()

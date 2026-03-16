@@ -11,6 +11,19 @@ enum class OrderType {
     MARKET, LIMIT
 }
 
+enum class ExchangeId {
+    SWYFTX,
+    BINANCE,
+    BYBIT,
+    COINBASE,
+    DYDX,
+    HYPERLIQUID,
+    ASTER;
+
+    val apiName: String
+        get() = name.lowercase()
+}
+
 enum class OrderStatus {
     PENDING, FILLED, PARTIALLY_FILLED, CANCELLED, REJECTED
 }
@@ -114,6 +127,38 @@ data class TxHistory(
     val description: String,
     val status: String,
     val details: Map<String, Any>
+)
+
+data class UnifiedQuote(
+    val exchange: ExchangeId,
+    val symbol: String,
+    val bid: BigDecimal,
+    val ask: BigDecimal,
+    val last: BigDecimal? = null,
+    val timestamp: Instant = Instant.now()
+)
+
+data class UnifiedOrderRequest(
+    val exchange: ExchangeId,
+    val symbol: String,
+    val side: Side,
+    val type: OrderType,
+    val size: BigDecimal,
+    val price: BigDecimal? = null,
+    val reduceOnly: Boolean = false
+)
+
+data class UnifiedOrderResult(
+    val exchange: ExchangeId,
+    val orderId: String,
+    val symbol: String,
+    val side: Side,
+    val type: OrderType,
+    val status: OrderStatus,
+    val filledSize: BigDecimal = BigDecimal.ZERO,
+    val fillPrice: BigDecimal? = null,
+    val timestamp: Instant = Instant.now(),
+    val raw: Map<String, Any?> = emptyMap()
 )
 
 sealed class ApiResult<out T> {

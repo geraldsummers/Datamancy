@@ -1,0 +1,160 @@
+package org.datamancy.trading.client
+
+import org.datamancy.trading.models.*
+import org.slf4j.LoggerFactory
+import java.math.BigDecimal
+import java.time.Instant
+
+/**
+ * Unified exchange surface and simple muxing helpers.
+ *
+ * Endpoints are intentionally gateway-routed so exchange adapters can be added
+ * incrementally without changing notebook/client code.
+ */
+class UnifiedExchangeClient internal constructor(
+    private val httpClient: TradingHttpClient
+) {
+    private val logger = LoggerFactory.getLogger(UnifiedExchangeClient::class.java)
+
+    private val supported = listOf(
+        ExchangeId.SWYFTX,
+        ExchangeId.BINANCE,
+        ExchangeId.BYBIT,
+        ExchangeId.COINBASE,
+        ExchangeId.DYDX,
+        ExchangeId.HYPERLIQUID,
+        ExchangeId.ASTER
+    )
+
+    fun supportedExchanges(): List<ExchangeId> = supported
+
+    suspend fun quote(exchange: ExchangeId, symbol: String): ApiResult<UnifiedQuote> {
+        val path = "/api/v1/exchanges/${exchange.apiName}/quote?symbol=$symbol"
+        return when (val result = httpClient.get<Map<String, Any>>(path)) {
+            is ApiResult.Success -> parseQuote(exchange, symbol, result.data)
+            is ApiResult.Error -> ApiResult.Error(
+                "Quote unavailable for ${exchange.apiName}: ${result.message}",
+                result.code
+            )
+        }
+    }
+
+    suspend fun placeOrder(request: UnifiedOrderRequest): ApiResult<UnifiedOrderResult> {
+        val path = "/api/v1/exchanges/${request.exchange.apiName}/order"
+        val payload = mapOf(
+            "symbol" to request.symbol,
+            "side" to request.side.name,
+            "type" to request.type.name,
+            "size" to request.size.toString(),
+            "price" to request.price?.toString(),
+            "reduceOnly" to request.reduceOnly
+        )
+
+        return when (val result = httpClient.post<Map<String, Any?>, Map<String, Any?>>(path, payload)) {
+            is ApiResult.Success -> parseOrderResult(request, result.data)
+            is ApiResult.Error -> ApiResult.Error(
+                "Order failed on ${request.exchange.apiName}: ${result.message}",
+                result.code
+            )
+        }
+    }
+
+    /**
+     * Query multiple exchanges and select the best executable quote for a side.
+     */
+    suspend fun bestQuote(
+        symbol: String,
+        side: Side,
+        exchanges: List<ExchangeId> = supported
+    ): ApiResult<UnifiedQuote> {
+        val candidates = mutableListOf<UnifiedQuote>()
+        val errors = mutableListOf<String>()
+
+        for (exchange in exchanges.distinct()) {
+            when (val q = quote(exchange, symbol)) {
+                is ApiResult.Success -> candidates += q.data
+                is ApiResult.Error -> errors += "${exchange.apiName}: ${q.message}"
+            }
+        }
+
+        val best = selectBestQuote(candidates, side)
+        if (best != null) {
+            return ApiResult.Success(best)
+        }
+
+        val reason = if (errors.isNotEmpty()) errors.joinToString(" | ") else "no quote adapters returned data"
+        return ApiResult.Error("No executable quote for $symbol ($side): $reason")
+    }
+
+    private fun parseQuote(exchange: ExchangeId, symbol: String, payload: Map<String, Any>): ApiResult<UnifiedQuote> {
+        val bid = payload["bid"].toBigDecimalOrNull()
+        val ask = payload["ask"].toBigDecimalOrNull()
+        val last = payload["last"].toBigDecimalOrNull()
+
+        if (bid == null || ask == null || bid <= BigDecimal.ZERO || ask <= BigDecimal.ZERO) {
+            logger.warn("Invalid quote payload from {}: {}", exchange.apiName, payload)
+            return ApiResult.Error("Invalid quote payload from ${exchange.apiName}")
+        }
+
+        return ApiResult.Success(
+            UnifiedQuote(
+                exchange = exchange,
+                symbol = symbol,
+                bid = bid,
+                ask = ask,
+                last = last,
+                timestamp = Instant.now()
+            )
+        )
+    }
+
+    private fun parseOrderResult(
+        request: UnifiedOrderRequest,
+        payload: Map<String, Any?>
+    ): ApiResult<UnifiedOrderResult> {
+        val orderId = payload["orderId"]?.toString()
+            ?: payload["id"]?.toString()
+            ?: return ApiResult.Error("Missing orderId in response from ${request.exchange.apiName}")
+
+        val status = payload["status"]?.toString()
+            ?.uppercase()
+            ?.let { runCatching { OrderStatus.valueOf(it) }.getOrNull() }
+            ?: OrderStatus.PENDING
+
+        val filledSize = payload["filledSize"].toBigDecimalOrNull() ?: BigDecimal.ZERO
+        val fillPrice = payload["fillPrice"].toBigDecimalOrNull()
+
+        return ApiResult.Success(
+            UnifiedOrderResult(
+                exchange = request.exchange,
+                orderId = orderId,
+                symbol = request.symbol,
+                side = request.side,
+                type = request.type,
+                status = status,
+                filledSize = filledSize,
+                fillPrice = fillPrice,
+                timestamp = Instant.now(),
+                raw = payload
+            )
+        )
+    }
+
+    companion object {
+        fun selectBestQuote(candidates: List<UnifiedQuote>, side: Side): UnifiedQuote? {
+            if (candidates.isEmpty()) return null
+            return when (side) {
+                Side.BUY -> candidates.minByOrNull { it.ask }
+                Side.SELL -> candidates.maxByOrNull { it.bid }
+            }
+        }
+    }
+}
+
+private fun Any?.toBigDecimalOrNull(): BigDecimal? = when (this) {
+    null -> null
+    is BigDecimal -> this
+    is Number -> this.toString().toBigDecimalOrNull()
+    is String -> this.toBigDecimalOrNull()
+    else -> null
+}

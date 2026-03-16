@@ -207,6 +207,23 @@ setups.forEach { s ->
 }
 ```
 
+### Unified Multi-Exchange Mux
+
+The SDK now exposes a unified exchange surface for:
+`swyftx`, `binance`, `bybit`, `coinbase`, `dydx`, `hyperliquid`, `aster`.
+
+```kotlin
+val tx = TxGateway.create(url = "http://tx-gateway:8080", token = authToken)
+val venues = tx.exchanges.supportedExchanges()
+println("Venues: ${venues.joinToString { it.apiName }}")
+
+val bestBuy = tx.exchanges.bestQuote(
+    symbol = "BTC-PERP",
+    side = Side.BUY
+)
+println(bestBuy)
+```
+
 ## Grafana Integration
 
 See [docs/grafana-queries.md](../../docs/grafana-queries.md) for 12+ pre-built queries:
@@ -254,6 +271,8 @@ When the notebook image starts, Datamancy now seeds:
 - `~/work/datamancy-notebooks/03_strategy_parameter_sweep_and_robustness.ipynb`
 - `~/work/datamancy-notebooks/04_alpha_signal_ranking.ipynb`
 - `~/work/datamancy-notebooks/05_llm_rss_sentiment_backfill.ipynb`
+- `~/work/datamancy-notebooks/06_profitability_and_risk_attribution.ipynb`
+- `~/work/datamancy-notebooks/07_multi_exchange_execution_mux.ipynb`
 
 These notebooks are wired to the stack Postgres database (`datamancy`) and include:
 
@@ -264,6 +283,8 @@ These notebooks are wired to the stack Postgres database (`datamancy`) and inclu
 - walk-forward parameter sweep for robustness against overfitting
 - price/sentiment correlation plots for rapid strategy triage
 - ranked long/short candidates from momentum + sentiment alpha scoring
+- profitability/risk attribution against market regime + sentiment features
+- multi-exchange mux scoring to prioritize execution venues
 
 ### Grafana Trading Dashboard
 

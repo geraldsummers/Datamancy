@@ -3,6 +3,7 @@ package org.datamancy.trading
 import org.datamancy.trading.client.EvmClient
 import org.datamancy.trading.client.HyperliquidClient
 import org.datamancy.trading.client.TradingHttpClient
+import org.datamancy.trading.client.UnifiedExchangeClient
 import org.datamancy.trading.models.ApiResult
 import org.datamancy.trading.models.TxHistory
 import org.slf4j.LoggerFactory
@@ -46,6 +47,11 @@ class TxGateway private constructor(
      * EVM L2 transfer client
      */
     val evm = EvmClient(httpClient)
+
+    /**
+     * Unified multi-exchange client and quote mux helper.
+     */
+    val exchanges = UnifiedExchangeClient(httpClient)
 
     /**
      * Get transaction history across all services

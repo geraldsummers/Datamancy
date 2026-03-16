@@ -18,6 +18,10 @@ import org.slf4j.LoggerFactory
 private val logger = LoggerFactory.getLogger("Application")
 private const val INIT_MAX_ATTEMPTS = 60
 private const val INIT_DELAY_MS = 2000L
+private const val DEFAULT_EVM_RATE_LIMIT_PER_MINUTE = 120
+private const val DEFAULT_EVM_RATE_LIMIT_PER_HOUR = 1000
+private const val DEFAULT_HL_RATE_LIMIT_PER_MINUTE = 240
+private const val DEFAULT_HL_RATE_LIMIT_PER_HOUR = 3000
 
 fun main() {
     val port = System.getenv("PORT")?.toInt() ?: 8080
@@ -112,12 +116,51 @@ fun Application.configureApp(
         }
 
         get("/rate-limits") {
+            val evmPerMinute = parseIntEnv("TXG_EVM_RATE_LIMIT_PER_MINUTE", DEFAULT_EVM_RATE_LIMIT_PER_MINUTE)
+            val evmPerHour = parseIntEnv("TXG_EVM_RATE_LIMIT_PER_HOUR", DEFAULT_EVM_RATE_LIMIT_PER_HOUR)
+            val hlPerMinute = parseIntEnv("TXG_HL_RATE_LIMIT_PER_MINUTE", DEFAULT_HL_RATE_LIMIT_PER_MINUTE)
+            val hlPerHour = parseIntEnv("TXG_HL_RATE_LIMIT_PER_HOUR", DEFAULT_HL_RATE_LIMIT_PER_HOUR)
+
             call.respond(HttpStatusCode.OK, mapOf(
                 "limits" to mapOf(
-                    "evm_transfer" to mapOf("per_hour" to 100, "per_day" to 1000),
-                    "hyperliquid_order" to mapOf("per_minute" to 20, "per_hour" to 200)
+                    "evm_transfer" to mapOf(
+                        "limit" to evmPerMinute,
+                        "window" to "minute",
+                        "per_minute" to evmPerMinute,
+                        "per_hour" to evmPerHour
+                    ),
+                    "hyperliquid_order" to mapOf(
+                        "limit" to hlPerMinute,
+                        "window" to "minute",
+                        "per_minute" to hlPerMinute,
+                        "per_hour" to hlPerHour
+                    )
                 )
             ))
+        }
+
+        get("/health/schema") {
+            val overview = try {
+                dbService.schemaOverview()
+            } catch (e: Exception) {
+                logger.warn("Failed to compute schema overview", e)
+                call.respond(
+                    HttpStatusCode.ServiceUnavailable,
+                    mapOf("status" to "error", "message" to (e.message ?: "schema check failed"))
+                )
+                return@get
+            }
+
+            call.respond(
+                HttpStatusCode.OK,
+                mapOf(
+                    "status" to "ok",
+                    "service" to "tx-gateway",
+                    "tables" to overview["tables"],
+                    "raw_tables" to overview["raw_tables"],
+                    "aliases" to overview["aliases"]
+                )
+            )
         }
 
         get("/") {
@@ -142,6 +185,12 @@ fun Application.configureApp(
     }
 
     logger.info("tx-gateway started on port ${environment.config.propertyOrNull("ktor.deployment.port")?.getString() ?: "8080"}")
+}
+
+private fun parseIntEnv(name: String, default: Int): Int {
+    val raw = System.getenv(name)?.trim().orEmpty()
+    if (raw.isEmpty()) return default
+    return raw.toIntOrNull()?.takeIf { it > 0 } ?: default
 }
 
 private fun initializeWithRetry(
