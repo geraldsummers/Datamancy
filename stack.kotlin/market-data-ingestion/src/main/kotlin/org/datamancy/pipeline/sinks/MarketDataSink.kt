@@ -62,6 +62,14 @@ class MarketDataSink(
     private var candleCount = 0L
     private var orderbookCount = 0L
 
+    @Volatile
+    private var orderbookWriteMode: OrderbookWriteMode? = null
+
+    private enum class OrderbookWriteMode {
+        TOP_OF_BOOK,
+        JSON_DEPTH
+    }
+
     override suspend fun write(item: HyperliquidMarketData) {
         when (item) {
             is HyperliquidMarketData.Trades -> {
@@ -202,42 +210,20 @@ class MarketDataSink(
     private suspend fun flushOrderbooks() = withContext(Dispatchers.IO) {
         if (orderbookBatch.isEmpty()) return@withContext
 
-        val sql = """
-            INSERT INTO orderbook_data (time, symbol, exchange, bids, asks)
-            VALUES (?, ?, ?, ?::jsonb, ?::jsonb)
-            ON CONFLICT (time, symbol, exchange) DO UPDATE SET
-                bids = EXCLUDED.bids,
-                asks = EXCLUDED.asks
-        """.trimIndent()
-
         try {
             dataSource.connection.use { conn ->
                 conn.autoCommit = false
                 try {
-                    conn.prepareStatement(sql).use { stmt ->
-                        orderbookBatch.forEach { orderbook ->
-                            // Convert orderbook levels to JSON format
-                            val bidsJson = orderbook.bids.joinToString(
-                                prefix = "[",
-                                postfix = "]",
-                                separator = ","
-                            ) { """{"price":${it.price},"size":${it.size}}""" }
-
-                            val asksJson = orderbook.asks.joinToString(
-                                prefix = "[",
-                                postfix = "]",
-                                separator = ","
-                            ) { """{"price":${it.price},"size":${it.size}}""" }
-
-                            stmt.setTimestamp(1, Timestamp.from(orderbook.time))
-                            stmt.setString(2, orderbook.symbol)
-                            stmt.setString(3, "hyperliquid")
-                            stmt.setString(4, bidsJson)
-                            stmt.setString(5, asksJson)
-                            stmt.addBatch()
-                        }
-                        stmt.executeBatch()
+                    val writeMode = orderbookWriteMode ?: detectOrderbookWriteMode(conn).also {
+                        orderbookWriteMode = it
+                        logger.info { "Detected orderbook_data write mode: $it" }
                     }
+
+                    when (writeMode) {
+                        OrderbookWriteMode.TOP_OF_BOOK -> flushOrderbooksTopOfBook(conn)
+                        OrderbookWriteMode.JSON_DEPTH -> flushOrderbooksJson(conn)
+                    }
+
                     conn.commit()
                     orderbookCount += orderbookBatch.size
                     logger.debug { "Flushed ${orderbookBatch.size} orderbooks to orderbook_data (total: $orderbookCount)" }
@@ -249,6 +235,98 @@ class MarketDataSink(
             }
         } finally {
             orderbookBatch.clear()
+        }
+    }
+
+    private fun detectOrderbookWriteMode(conn: Connection): OrderbookWriteMode {
+        val columns = mutableSetOf<String>()
+        conn.prepareStatement(
+            """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'orderbook_data'
+            """.trimIndent()
+        ).use { stmt ->
+            stmt.executeQuery().use { rs ->
+                while (rs.next()) {
+                    columns += rs.getString("column_name")
+                }
+            }
+        }
+
+        return when {
+            columns.containsAll(listOf("bid_price", "bid_size", "ask_price", "ask_size")) ->
+                OrderbookWriteMode.TOP_OF_BOOK
+            columns.containsAll(listOf("bids", "asks")) ->
+                OrderbookWriteMode.JSON_DEPTH
+            else ->
+                error("Unsupported orderbook_data schema. Columns=${columns.sorted().joinToString(",")}")
+        }
+    }
+
+    private fun flushOrderbooksTopOfBook(conn: Connection) {
+        val sql = """
+            INSERT INTO orderbook_data (time, symbol, exchange, bid_price, bid_size, ask_price, ask_size)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (time, symbol, exchange) DO UPDATE SET
+                bid_price = EXCLUDED.bid_price,
+                bid_size = EXCLUDED.bid_size,
+                ask_price = EXCLUDED.ask_price,
+                ask_size = EXCLUDED.ask_size
+        """.trimIndent()
+
+        conn.prepareStatement(sql).use { stmt ->
+            orderbookBatch.forEach { orderbook ->
+                val bestBid = orderbook.bids.maxByOrNull { it.price }
+                val bestAsk = orderbook.asks.minByOrNull { it.price }
+                if (bestBid == null || bestAsk == null) {
+                    return@forEach
+                }
+
+                stmt.setTimestamp(1, Timestamp.from(orderbook.time))
+                stmt.setString(2, orderbook.symbol)
+                stmt.setString(3, "hyperliquid")
+                stmt.setBigDecimal(4, BigDecimal.valueOf(bestBid.price))
+                stmt.setBigDecimal(5, BigDecimal.valueOf(bestBid.size))
+                stmt.setBigDecimal(6, BigDecimal.valueOf(bestAsk.price))
+                stmt.setBigDecimal(7, BigDecimal.valueOf(bestAsk.size))
+                stmt.addBatch()
+            }
+            stmt.executeBatch()
+        }
+    }
+
+    private fun flushOrderbooksJson(conn: Connection) {
+        val sql = """
+            INSERT INTO orderbook_data (time, symbol, exchange, bids, asks)
+            VALUES (?, ?, ?, ?::jsonb, ?::jsonb)
+            ON CONFLICT (time, symbol, exchange) DO UPDATE SET
+                bids = EXCLUDED.bids,
+                asks = EXCLUDED.asks
+        """.trimIndent()
+
+        conn.prepareStatement(sql).use { stmt ->
+            orderbookBatch.forEach { orderbook ->
+                val bidsJson = orderbook.bids.joinToString(
+                    prefix = "[",
+                    postfix = "]",
+                    separator = ","
+                ) { """{"price":${it.price},"size":${it.size}}""" }
+
+                val asksJson = orderbook.asks.joinToString(
+                    prefix = "[",
+                    postfix = "]",
+                    separator = ","
+                ) { """{"price":${it.price},"size":${it.size}}""" }
+
+                stmt.setTimestamp(1, Timestamp.from(orderbook.time))
+                stmt.setString(2, orderbook.symbol)
+                stmt.setString(3, "hyperliquid")
+                stmt.setString(4, bidsJson)
+                stmt.setString(5, asksJson)
+                stmt.addBatch()
+            }
+            stmt.executeBatch()
         }
     }
 

@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.*
 import org.datamancy.pipeline.core.Source
 import java.time.Instant
-import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
 
@@ -87,9 +86,15 @@ class HyperliquidSource(
             logger.error(e) { "Hyperliquid WebSocket connection failed: ${e.message}" }
             throw e
         } finally {
-            client.close()
-            logger.info { "Hyperliquid WebSocket connection closed" }
+            logger.info { "Hyperliquid WebSocket session ended" }
         }
+    }
+
+    /**
+     * Close network resources on shutdown.
+     */
+    fun close() {
+        client.close()
     }
 
     /**
@@ -245,15 +250,12 @@ class HyperliquidSource(
         return try {
             val bookObj = data.jsonObject
             val symbol = bookObj["coin"]?.jsonPrimitive?.content ?: return null
+            val eventTime = bookObj["time"]?.jsonPrimitive?.longOrNull
+                ?: bookObj["t"]?.jsonPrimitive?.longOrNull
 
             val bids = bookObj["levels"]?.jsonArray?.get(0)?.jsonArray?.mapNotNull { level ->
                 try {
-                    val arr = level.jsonArray
-                    val priceObj = arr[0].jsonObject
-                    HyperliquidOrderbookLevel(
-                        price = priceObj["px"]?.jsonPrimitive?.content?.toDouble() ?: return@mapNotNull null,
-                        size = priceObj["sz"]?.jsonPrimitive?.content?.toDouble() ?: return@mapNotNull null
-                    )
+                    parseOrderbookLevel(level)
                 } catch (e: Exception) {
                     null
                 }
@@ -261,12 +263,7 @@ class HyperliquidSource(
 
             val asks = bookObj["levels"]?.jsonArray?.get(1)?.jsonArray?.mapNotNull { level ->
                 try {
-                    val arr = level.jsonArray
-                    val priceObj = arr[0].jsonObject
-                    HyperliquidOrderbookLevel(
-                        price = priceObj["px"]?.jsonPrimitive?.content?.toDouble() ?: return@mapNotNull null,
-                        size = priceObj["sz"]?.jsonPrimitive?.content?.toDouble() ?: return@mapNotNull null
-                    )
+                    parseOrderbookLevel(level)
                 } catch (e: Exception) {
                     null
                 }
@@ -274,7 +271,7 @@ class HyperliquidSource(
 
             HyperliquidMarketData.Orderbook(
                 HyperliquidOrderbook(
-                    time = Instant.now(),
+                    time = eventTime?.let { Instant.ofEpochMilli(it) } ?: Instant.now(),
                     symbol = symbol,
                     bids = bids,
                     asks = asks
@@ -284,6 +281,17 @@ class HyperliquidSource(
             logger.error(e) { "Error parsing orderbook" }
             null
         }
+    }
+
+    private fun parseOrderbookLevel(level: JsonElement): HyperliquidOrderbookLevel? {
+        val obj = when {
+            level is JsonObject -> level
+            level is JsonArray && level.isNotEmpty() && level[0] is JsonObject -> level[0].jsonObject
+            else -> return null
+        }
+        val price = obj["px"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return null
+        val size = obj["sz"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return null
+        return HyperliquidOrderbookLevel(price = price, size = size)
     }
 }
 

@@ -165,6 +165,7 @@ class MarketDataIngestionRunner {
                         logger.error(e) { "Error in data stream: ${e.message}" }
                         // Flush any pending data before reconnecting
                         sink.flush()
+                        throw e
                     }
                     .collect { }
 
@@ -234,6 +235,11 @@ class MarketDataIngestionRunner {
                 logger.info { "Flushed all pending data" }
             } catch (e: Exception) {
                 logger.error(e) { "Failed to flush pending data during shutdown: ${e.message}" }
+            }
+            try {
+                source.close()
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to close Hyperliquid source cleanly: ${e.message}" }
             }
         }
 

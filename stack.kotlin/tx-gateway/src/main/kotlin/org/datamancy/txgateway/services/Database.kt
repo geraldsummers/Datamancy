@@ -395,8 +395,18 @@ class DatabaseService(
     }
 
     private fun queryOrderbookQuote(exchange: String, symbol: String): LatestQuote? {
-        val sql = """
-            SELECT symbol, best_bid, best_ask, mid_price, time
+        val topOfBookSql = """
+            SELECT symbol, bid_price AS bid, ask_price AS ask, ((bid_price + ask_price) / 2.0) AS mid_price, time
+            FROM orderbook_data
+            WHERE exchange = ?
+              AND symbol = ?
+              AND bid_price IS NOT NULL
+              AND ask_price IS NOT NULL
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
+        val legacySql = """
+            SELECT symbol, best_bid AS bid, best_ask AS ask, mid_price, time
             FROM orderbook_data
             WHERE exchange = ?
               AND symbol = ?
@@ -406,6 +416,25 @@ class DatabaseService(
             LIMIT 1
         """.trimIndent()
 
+        return runOrderbookQuoteQuery(
+            exchange = exchange,
+            symbol = symbol,
+            sql = topOfBookSql,
+            sourceLabel = "orderbook_data:top_of_book"
+        ) ?: runOrderbookQuoteQuery(
+            exchange = exchange,
+            symbol = symbol,
+            sql = legacySql,
+            sourceLabel = "orderbook_data:legacy"
+        )
+    }
+
+    private fun runOrderbookQuoteQuery(
+        exchange: String,
+        symbol: String,
+        sql: String,
+        sourceLabel: String
+    ): LatestQuote? {
         for (quoteSource in quoteDataSources()) {
             try {
                 quoteSource.connection.use { conn ->
@@ -414,8 +443,8 @@ class DatabaseService(
                         stmt.setString(2, symbol)
                         stmt.executeQuery().use { rs ->
                             if (!rs.next()) return@use
-                            val bid = rs.getBigDecimal("best_bid")?.toDouble() ?: return@use
-                            val ask = rs.getBigDecimal("best_ask")?.toDouble() ?: return@use
+                            val bid = rs.getBigDecimal("bid")?.toDouble() ?: return@use
+                            val ask = rs.getBigDecimal("ask")?.toDouble() ?: return@use
                             if (bid <= 0.0 || ask <= 0.0) return@use
                             val mid = rs.getBigDecimal("mid_price")?.toDouble()
                                 ?: ((bid + ask) / 2.0)
@@ -427,14 +456,13 @@ class DatabaseService(
                                 ask = ask,
                                 last = mid,
                                 timestamp = ts,
-                                source = "orderbook_data"
+                                source = sourceLabel
                             )
                         }
                     }
                 }
             } catch (e: SQLException) {
-                if (isMissingRelation(e)) {
-                    warnMissingRelationOnce("orderbook_data", e)
+                if (isMissingRelation(e) || isMissingColumn(e)) {
                     continue
                 }
                 logger.warn("Failed querying orderbook_data for {}/{}: {}", exchange, symbol, e.message)
@@ -507,6 +535,11 @@ class DatabaseService(
 
     private fun isMissingRelation(e: SQLException): Boolean {
         return e.sqlState == "42P01" || (e.message?.contains("does not exist", ignoreCase = true) == true)
+    }
+
+    private fun isMissingColumn(e: SQLException): Boolean {
+        return e.sqlState == "42703" || (e.message?.contains("column", ignoreCase = true) == true &&
+            e.message?.contains("does not exist", ignoreCase = true) == true)
     }
 
     private fun warnMissingRelationOnce(table: String, e: SQLException) {

@@ -35,6 +35,7 @@ services:
       POSTGRES_USER: homeassistant
       LDAP_URL: ldap://ldap:389
       STACK_ADMIN_USER: ${STACK_ADMIN_USER}
+      STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
       STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
       LDAP_BASE_DN: ${LDAP_BASE_DN}
       LDAP_USER_DN: ou=users,${LDAP_BASE_DN}
