@@ -1,3 +1,4 @@
+
 this here is a docker compose stack generator
 global.settings/ contains templates for general settings for configuring the stack
 stack.compose/ contains templates for individual services
@@ -158,8 +159,6 @@ Alpha model: predicts short-horizon returns or spread convergence conditional on
 Execution model: predicts fill probability, slippage, and market impact conditional on the same state.
 The live evidence of systematic taker disadvantage implies you cannot safely collapse these into “just predict the mid.”
 
-What would change the decision. If your execution model can explain most backtest–live divergence (e.g., it predicts when marketable limits fail to fill and when market orders slip), then investing further in more complex alpha models is justified. If it cannot, additional ML complexity is likely wasted effort.
-
 Realistic backtesting, costs, and execution design
 Transaction cost model components you should explicitly simulate
 Facts. The empirically material costs in intraday crypto break down into:
@@ -184,8 +183,6 @@ Fee-aware optimal execution: Under realistic fee schedules and execution probabi
 Latency-aware order choice: Live evidence shows that market orders slip and marketable limits fail “selectively” against profitable signals; therefore an execution policy must be conditional on volatility/liquidity/latency state, not static.
 Take. Treat “execution algorithm” as part of alpha: your decision policy should output (instrument, side, size, urgency class, venue routing, order type, price schedule, cancel/replace cadence). Any strategy that decides only (side, size) and leaves the rest to a generic TWAP is unlikely to match the performance implied by the empirical microstructure papers.
 
-
-Show code
 Ranked candidate strategies and production roadmap
 Ranked list with implementation details, expected ranges, sensitivities, and failure modes
 The ranking below prioritises (i) strength of empirical evidence under realistic constraints, (ii) match to your stated capabilities (tick+LOB+simulation+ML), and (iii) robustness to known crypto market frictions.
@@ -237,8 +234,4 @@ US enforcement actions show spoofing prohibitions are actively enforced (with ba
 A European systemic-risk report highlights concerns around governance, conduct, and market abuse in crypto markets, reinforcing that surveillance and controls are part of “production readiness.”
 Take. Even if your goal is purely alpha, treat “market abuse risk” as an engineering requirement: implement message-rate controls, self-trade prevention, audit logs, and a kill switch; do not build strategies that rely on deceptive order placement. Evidence from the live execution work also implies that non-bona fide orders can destabilise imbalance signals, making them a poor foundation even aside from legality.
 
-THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
-THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
-THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
-THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
 THOROUGHLY ASSESS ALL COMPONENTS AND FEATURES FOR COMPLETEDNESS AND TESTEDNESS
