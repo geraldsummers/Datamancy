@@ -6,8 +6,10 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.javatime.timestamp
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.sql.SQLException
 import java.time.Instant
 import java.sql.Timestamp
+import java.util.concurrent.ConcurrentHashMap
 
 data class SchemaOverview(
     val tables: List<String>,
@@ -95,6 +97,7 @@ class DatabaseService(
 ) {
     private val logger = LoggerFactory.getLogger(DatabaseService::class.java)
     private lateinit var dataSource: HikariDataSource
+    private val missingTableWarnings = ConcurrentHashMap.newKeySet<String>()
 
     fun init(maxAttempts: Int = 60, delayMs: Long = 2000) {
         logger.info("Initializing database connection to $host:$port/$database as user $user (password: ${dbPassword.length} chars)")
@@ -310,30 +313,39 @@ class DatabaseService(
             LIMIT 1
         """.trimIndent()
 
-        dataSource.connection.use { conn ->
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, exchange)
-                stmt.setString(2, symbol)
-                stmt.executeQuery().use { rs ->
-                    if (!rs.next()) return null
-                    val bid = rs.getBigDecimal("best_bid")?.toDouble() ?: return null
-                    val ask = rs.getBigDecimal("best_ask")?.toDouble() ?: return null
-                    if (bid <= 0.0 || ask <= 0.0) return null
-                    val mid = rs.getBigDecimal("mid_price")?.toDouble()
-                        ?: ((bid + ask) / 2.0)
-                    val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
-                    return LatestQuote(
-                        exchange = exchange,
-                        symbol = rs.getString("symbol"),
-                        bid = bid,
-                        ask = ask,
-                        last = mid,
-                        timestamp = ts,
-                        source = "orderbook_data"
-                    )
+        try {
+            dataSource.connection.use { conn ->
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, exchange)
+                    stmt.setString(2, symbol)
+                    stmt.executeQuery().use { rs ->
+                        if (!rs.next()) return null
+                        val bid = rs.getBigDecimal("best_bid")?.toDouble() ?: return null
+                        val ask = rs.getBigDecimal("best_ask")?.toDouble() ?: return null
+                        if (bid <= 0.0 || ask <= 0.0) return null
+                        val mid = rs.getBigDecimal("mid_price")?.toDouble()
+                            ?: ((bid + ask) / 2.0)
+                        val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
+                        return LatestQuote(
+                            exchange = exchange,
+                            symbol = rs.getString("symbol"),
+                            bid = bid,
+                            ask = ask,
+                            last = mid,
+                            timestamp = ts,
+                            source = "orderbook_data"
+                        )
+                    }
                 }
             }
+        } catch (e: SQLException) {
+            if (isMissingRelation(e)) {
+                warnMissingRelationOnce("orderbook_data", e)
+                return null
+            }
+            logger.warn("Failed querying orderbook_data for {}/{}: {}", exchange, symbol, e.message)
         }
+        return null
     }
 
     private fun queryMarketDataQuote(exchange: String, symbol: String): LatestQuote? {
@@ -358,33 +370,57 @@ class DatabaseService(
         """.trimIndent()
 
         fun fromSql(sql: String): LatestQuote? {
-            dataSource.connection.use { conn ->
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setString(1, exchange)
-                    stmt.setString(2, symbol)
-                    stmt.executeQuery().use { rs ->
-                        if (!rs.next()) return null
-                        val last = rs.getBigDecimal("px")?.toDouble() ?: return null
-                        if (last <= 0.0) return null
-                        val syntheticHalfSpread = last * 0.0002 // 2 bps proxy
-                        val bid = (last - syntheticHalfSpread).coerceAtLeast(0.0)
-                        val ask = last + syntheticHalfSpread
-                        val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
-                        return LatestQuote(
-                            exchange = exchange,
-                            symbol = rs.getString("symbol"),
-                            bid = bid,
-                            ask = ask,
-                            last = last,
-                            timestamp = ts,
-                            source = if (sql == candleSql) "market_data:candle_1m" else "market_data:trade"
-                        )
+            try {
+                dataSource.connection.use { conn ->
+                    conn.prepareStatement(sql).use { stmt ->
+                        stmt.setString(1, exchange)
+                        stmt.setString(2, symbol)
+                        stmt.executeQuery().use { rs ->
+                            if (!rs.next()) return null
+                            val last = rs.getBigDecimal("px")?.toDouble() ?: return null
+                            if (last <= 0.0) return null
+                            val syntheticHalfSpread = last * 0.0002 // 2 bps proxy
+                            val bid = (last - syntheticHalfSpread).coerceAtLeast(0.0)
+                            val ask = last + syntheticHalfSpread
+                            val ts = rs.getTimestamp("time")?.toInstant() ?: Instant.now()
+                            return LatestQuote(
+                                exchange = exchange,
+                                symbol = rs.getString("symbol"),
+                                bid = bid,
+                                ask = ask,
+                                last = last,
+                                timestamp = ts,
+                                source = if (sql == candleSql) "market_data:candle_1m" else "market_data:trade"
+                            )
+                        }
                     }
                 }
+            } catch (e: SQLException) {
+                if (isMissingRelation(e)) {
+                    warnMissingRelationOnce("market_data", e)
+                    return null
+                }
+                logger.warn("Failed querying market_data for {}/{}: {}", exchange, symbol, e.message)
             }
+            return null
         }
 
         return fromSql(candleSql) ?: fromSql(tradeSql)
+    }
+
+    private fun isMissingRelation(e: SQLException): Boolean {
+        return e.sqlState == "42P01" || (e.message?.contains("does not exist", ignoreCase = true) == true)
+    }
+
+    private fun warnMissingRelationOnce(table: String, e: SQLException) {
+        if (missingTableWarnings.add(table)) {
+            logger.warn(
+                "Table '{}' is unavailable for quote lookups; falling back. sqlState={}, error={}",
+                table,
+                e.sqlState,
+                e.message
+            )
+        }
     }
 
     private fun symbolCandidates(symbol: String): List<String> {
