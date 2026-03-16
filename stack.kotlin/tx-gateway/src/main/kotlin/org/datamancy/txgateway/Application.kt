@@ -9,6 +9,7 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.datamancy.txgateway.routes.evmRoutes
 import org.datamancy.txgateway.routes.hyperliquidRoutes
@@ -22,6 +23,28 @@ private const val DEFAULT_EVM_RATE_LIMIT_PER_MINUTE = 120
 private const val DEFAULT_EVM_RATE_LIMIT_PER_HOUR = 1000
 private const val DEFAULT_HL_RATE_LIMIT_PER_MINUTE = 240
 private const val DEFAULT_HL_RATE_LIMIT_PER_HOUR = 3000
+
+@Serializable
+private data class RateLimitConfig(
+    val limit: Int,
+    val window: String,
+    val per_minute: Int,
+    val per_hour: Int
+)
+
+@Serializable
+private data class RateLimitResponse(
+    val limits: Map<String, RateLimitConfig>
+)
+
+@Serializable
+private data class SchemaHealthResponse(
+    val status: String,
+    val service: String,
+    val tables: List<String>,
+    val raw_tables: List<String>,
+    val aliases: List<String>
+)
 
 fun main() {
     val port = System.getenv("PORT")?.toInt() ?: 8080
@@ -121,22 +144,25 @@ fun Application.configureApp(
             val hlPerMinute = parseIntEnv("TXG_HL_RATE_LIMIT_PER_MINUTE", DEFAULT_HL_RATE_LIMIT_PER_MINUTE)
             val hlPerHour = parseIntEnv("TXG_HL_RATE_LIMIT_PER_HOUR", DEFAULT_HL_RATE_LIMIT_PER_HOUR)
 
-            call.respond(HttpStatusCode.OK, mapOf(
-                "limits" to mapOf(
-                    "evm_transfer" to mapOf(
-                        "limit" to evmPerMinute,
-                        "window" to "minute",
-                        "per_minute" to evmPerMinute,
-                        "per_hour" to evmPerHour
-                    ),
-                    "hyperliquid_order" to mapOf(
-                        "limit" to hlPerMinute,
-                        "window" to "minute",
-                        "per_minute" to hlPerMinute,
-                        "per_hour" to hlPerHour
+            call.respond(
+                HttpStatusCode.OK,
+                RateLimitResponse(
+                    limits = mapOf(
+                        "evm_transfer" to RateLimitConfig(
+                            limit = evmPerMinute,
+                            window = "minute",
+                            per_minute = evmPerMinute,
+                            per_hour = evmPerHour
+                        ),
+                        "hyperliquid_order" to RateLimitConfig(
+                            limit = hlPerMinute,
+                            window = "minute",
+                            per_minute = hlPerMinute,
+                            per_hour = hlPerHour
+                        )
                     )
                 )
-            ))
+            )
         }
 
         get("/health/schema") {
@@ -153,12 +179,12 @@ fun Application.configureApp(
 
             call.respond(
                 HttpStatusCode.OK,
-                mapOf(
-                    "status" to "ok",
-                    "service" to "tx-gateway",
-                    "tables" to overview["tables"],
-                    "raw_tables" to overview["raw_tables"],
-                    "aliases" to overview["aliases"]
+                SchemaHealthResponse(
+                    status = "ok",
+                    service = "tx-gateway",
+                    tables = overview.tables,
+                    raw_tables = overview.rawTables,
+                    aliases = overview.aliases
                 )
             )
         }

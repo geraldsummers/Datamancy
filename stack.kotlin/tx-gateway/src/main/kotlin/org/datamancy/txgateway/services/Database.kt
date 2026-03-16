@@ -8,6 +8,12 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
 import java.time.Instant
 
+data class SchemaOverview(
+    val tables: List<String>,
+    val rawTables: List<String>,
+    val aliases: List<String>
+)
+
 object TxAuditLog : Table("tx_audit_log") {
     val id = long("id").autoIncrement()
     val username = varchar("username", 64)
@@ -210,7 +216,7 @@ class DatabaseService(
      * Returns a schema overview used by health and integration checks.
      * Includes compatibility aliases expected by the test-suite.
      */
-    fun schemaOverview(): Map<String, Any> = transaction {
+    fun schemaOverview(): SchemaOverview = transaction {
         val tableNames = mutableListOf<String>()
         val query = """
             SELECT table_name
@@ -231,10 +237,10 @@ class DatabaseService(
             if ("rate_limit_windows" in tableNames) add("rate_limits")
         }
 
-        mapOf(
-            "tables" to (tableNames + compatibilityAliases).distinct().sorted(),
-            "raw_tables" to tableNames,
-            "aliases" to compatibilityAliases.sorted()
+        SchemaOverview(
+            tables = (tableNames + compatibilityAliases).distinct().sorted(),
+            rawTables = tableNames.sorted(),
+            aliases = compatibilityAliases.sorted()
         )
     }
 
