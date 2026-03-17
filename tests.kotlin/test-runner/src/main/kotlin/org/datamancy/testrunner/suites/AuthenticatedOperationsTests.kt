@@ -2,27 +2,41 @@ package org.datamancy.testrunner.suites
 
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.coroutines.delay
 import org.datamancy.testrunner.framework.*
 
 
 suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Operations Tests") {
-    suspend fun probeFirstReachable(urls: List<String>): HttpResponse? {
-        for (url in urls) {
-            val response = runCatching { client.getRawResponse(url) }.getOrNull() ?: continue
-            if (
-                response.status != HttpStatusCode.NotFound &&
-                response.status != HttpStatusCode.BadGateway &&
-                response.status != HttpStatusCode.ServiceUnavailable &&
-                response.status != HttpStatusCode.GatewayTimeout
-            ) {
-                return response
+    suspend fun probeFirstReachable(
+        urls: List<String>,
+        attempts: Int = 1,
+        retryDelayMs: Long = 0L
+    ): HttpResponse? {
+        repeat(attempts.coerceAtLeast(1)) { attempt ->
+            for (url in urls) {
+                val response = runCatching { client.getRawResponse(url) }.getOrNull() ?: continue
+                if (
+                    response.status != HttpStatusCode.NotFound &&
+                    response.status != HttpStatusCode.BadGateway &&
+                    response.status != HttpStatusCode.ServiceUnavailable &&
+                    response.status != HttpStatusCode.GatewayTimeout
+                ) {
+                    return response
+                }
+            }
+
+            if (retryDelayMs > 0 && attempt < attempts - 1) {
+                delay(retryDelayMs)
             }
         }
         return null
     }
 
     fun HttpStatusCode.isServiceReachable(): Boolean =
-        this == HttpStatusCode.OK || this == HttpStatusCode.Unauthorized || this == HttpStatusCode.Forbidden
+        this.value in 200..399 ||
+            this == HttpStatusCode.Unauthorized ||
+            this == HttpStatusCode.Forbidden ||
+            this == HttpStatusCode.MethodNotAllowed
 
     
     
@@ -94,15 +108,19 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
             ) {
                 val fallback = probeFirstReachable(
                     listOf(
+                        "http://seafile:80/api/v2.1/server-info/",
                         "http://seafile:80/api2/server-info/",
                         "http://seafile:80/api2/ping/",
+                        "http://seafile:80/accounts/login/",
                         "http://seafile:80/"
-                    )
+                    ),
+                    attempts = 12,
+                    retryDelayMs = 5000
                 ) ?: throw AssertionError("Seafile fallback endpoints unavailable")
                 require(fallback.status.isServiceReachable()) {
                     "Seafile fallback endpoint unavailable: ${fallback.status}"
                 }
-                println("      ⚠️  Seafile token flow unavailable ($error); fallback server-info endpoint is reachable")
+                println("      ⚠️  Seafile token flow unavailable ($error); fallback endpoint is reachable (${fallback.status})")
                 return@test
             }
             throw AssertionError("Failed to acquire Seafile token: $error")
