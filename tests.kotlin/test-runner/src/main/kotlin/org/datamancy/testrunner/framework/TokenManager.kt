@@ -184,6 +184,12 @@ class TokenManager(
     
     suspend fun acquireMastodonToken(email: String, password: String): Result<String> {
         return try {
+            val staticToken = System.getenv("MASTODON_API_TOKEN")?.takeIf { it.isNotBlank() }
+            if (staticToken != null) {
+                tokens["mastodon"] = staticToken
+                return Result.success(staticToken)
+            }
+
             
             val appResponse = client.post("${endpoints.mastodon}/api/v1/apps") {
                 applyMastodonForwardedHeaders()

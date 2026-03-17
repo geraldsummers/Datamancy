@@ -4,6 +4,7 @@ set -euo pipefail
 api_username="${MASTODON_API_USERNAME:-${STACK_ADMIN_USER:-sysadmin}}"
 api_email="${MASTODON_API_EMAIL:-${STACK_ADMIN_EMAIL:-admin@datamancy.net}}"
 api_password="${MASTODON_API_PASSWORD:-${STACK_ADMIN_PASSWORD:-}}"
+api_token="${MASTODON_API_TOKEN:-${api_password}}"
 
 if [ -z "${api_password}" ]; then
   echo "[mastodon-api-user] MASTODON_API_PASSWORD/STACK_ADMIN_PASSWORD is empty, skipping local API user bootstrap"
@@ -13,6 +14,7 @@ fi
 export DATAMANCY_API_USERNAME="${api_username}"
 export DATAMANCY_API_EMAIL="${api_email}"
 export DATAMANCY_API_PASSWORD="${api_password}"
+export DATAMANCY_API_TOKEN="${api_token}"
 
 bundle exec rails runner - <<'RUBY'
 username = ENV.fetch('DATAMANCY_API_USERNAME').downcase
@@ -44,4 +46,26 @@ user.confirmed_at ||= Time.now.utc
 user.save!
 
 puts "[mastodon-api-user] ensured local API user #{username} (#{email})"
+
+static_token = ENV.fetch('DATAMANCY_API_TOKEN', '').strip
+unless static_token.empty?
+  app = Doorkeeper::Application.find_or_create_by!(name: 'datamancy-integration-tests') do |application|
+    application.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+    application.scopes = 'read write follow'
+  end
+
+  token = Doorkeeper::AccessToken.find_or_initialize_by(token: static_token)
+  token.application_id = app.id
+  token.resource_owner_id = user.id
+  token.scopes = 'read write follow'
+  token.revoked_at = nil
+  token.expires_in = nil
+  token.save!
+
+  Doorkeeper::AccessToken.where(application_id: app.id, resource_owner_id: user.id)
+                         .where.not(id: token.id)
+                         .update_all(revoked_at: Time.now.utc)
+
+  puts "[mastodon-api-user] ensured static API token for #{username}"
+end
 RUBY

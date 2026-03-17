@@ -471,6 +471,7 @@ fun generateTestRunnersCompose(
         appendLine("    PLANKA_PASSWORD: \${STACK_ADMIN_PASSWORD}")
         appendLine("    MASTODON_EMAIL: \${STACK_ADMIN_EMAIL}")
         appendLine("    MASTODON_PASSWORD: \${STACK_ADMIN_PASSWORD}")
+        appendLine("    MASTODON_API_TOKEN: \${STACK_ADMIN_PASSWORD}")
         appendLine("    MASTODON_HOST_HEADER: mastodon.\${DOMAIN}")
         appendLine("    POSTGRES_HOST: postgres")
         appendLine("    POSTGRES_PORT: 5432")
