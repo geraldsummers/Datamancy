@@ -570,6 +570,26 @@ async function testOIDCService(
     disallowedUrl = disallowUrlPatterns.find((pattern) => pattern.test(page.url())) ?? null;
 
     if (disallowedMatch || disallowedUrl) {
+      if (/element/i.test(serviceName)) {
+        const onElementLogin = /#\/(?:login|welcome)\b/i.test(page.url());
+        const elementIdentityWarning = /cannot reach identity server/i.test(pageText);
+        if (onElementLogin && (elementIdentityWarning || disallowedUrl || disallowedMatch)) {
+          const elementSsoButton = page.getByRole('button', {
+            name: /continue with authelia sso|sign in with sso|continue with sso|single sign-on|sso/i,
+          }).or(
+            page.getByRole('link', {
+              name: /continue with authelia sso|sign in with sso|continue with sso|single sign-on|sso/i,
+            })
+          ).first();
+          if (await elementSsoButton.isVisible().catch(() => false)) {
+            console.log(`   ⚠️  Element returned to login screen; retrying SSO... (${i + 1}/${maxPatternRetries})`);
+            await elementSsoButton.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(2500);
+            continue;
+          }
+        }
+      }
+
       if (/planka/i.test(serviceName)) {
         const plankaUnknownError = /unknown error|try again later/i.test(pageText);
         const onPlankaLogin = /\/login\b/i.test(page.url());
