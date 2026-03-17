@@ -431,6 +431,7 @@ fun Route.unifiedExchangeRoutes(
                     "maxSlippageBps" to orderRequest.maxSlippageBps,
                     "cancelAfterMs" to orderRequest.cancelAfterMs
                 )
+                val maxTxValueUsd = BigDecimal.valueOf(userInfo.maxTxValueUSD.toLong())
 
                 if (exchange != "hyperliquid") {
                     val quote = dbService.fetchLatestQuote(exchange = exchange, symbol = orderRequest.symbol)
@@ -441,6 +442,26 @@ fun Route.unifiedExchangeRoutes(
                                 "error" to "Quote unavailable",
                                 "exchange" to exchange,
                                 "symbol" to orderRequest.symbol
+                            )
+                        )
+                        return@post
+                    }
+
+                    val estimatedNotionalUsd = estimateOrderNotionalUsd(orderRequest, quote)
+                        ?: run {
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                mapOf("error" to "Unable to estimate order value for risk checks")
+                            )
+                            return@post
+                        }
+                    if (estimatedNotionalUsd > maxTxValueUsd) {
+                        call.respond(
+                            HttpStatusCode.Forbidden,
+                            mapOf(
+                                "error" to "Order value exceeds maxTxValueUSD",
+                                "estimatedNotionalUsd" to estimatedNotionalUsd.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+                                "maxTxValueUSD" to userInfo.maxTxValueUSD.toString()
                             )
                         )
                         return@post
@@ -462,6 +483,27 @@ fun Route.unifiedExchangeRoutes(
                     )
 
                     call.respond(HttpStatusCode.OK, paperResult)
+                    return@post
+                }
+
+                val quoteForRisk = dbService.fetchLatestQuote(exchange = exchange, symbol = orderRequest.symbol)
+                val estimatedNotionalUsd = estimateOrderNotionalUsd(orderRequest, quoteForRisk)
+                    ?: run {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            mapOf("error" to "Unable to estimate order value for risk checks")
+                        )
+                        return@post
+                    }
+                if (estimatedNotionalUsd > maxTxValueUsd) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        mapOf(
+                            "error" to "Order value exceeds maxTxValueUSD",
+                            "estimatedNotionalUsd" to estimatedNotionalUsd.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+                            "maxTxValueUSD" to userInfo.maxTxValueUSD.toString()
+                        )
+                    )
                     return@post
                 }
 
@@ -548,6 +590,7 @@ private fun buildPaperOrderResponse(
         "BUY" -> targetPrice >= quoteAsk
         else -> targetPrice <= quoteBid
     }
+    val postOnlyWouldTakeLiquidity = type == "LIMIT" && orderRequest.postOnly && canFillLimit
 
     val notional = size.multiply(marketFillPrice)
     val sizeImpactBps = when {
@@ -578,10 +621,12 @@ private fun buildPaperOrderResponse(
     }
 
     val maxSlippageBps = orderRequest.maxSlippageBps?.let { BigDecimal.valueOf(it) }
-    val rejectionReason = if (maxSlippageBps != null && estimatedSlippageBps > maxSlippageBps) {
-        "Estimated slippage ${estimatedSlippageBps.setScale(2, RoundingMode.HALF_UP)}bps exceeds limit ${maxSlippageBps.setScale(2, RoundingMode.HALF_UP)}bps"
-    } else {
-        null
+    val rejectionReason = when {
+        postOnlyWouldTakeLiquidity ->
+            "Post-only limit order would cross the spread and remove liquidity"
+        maxSlippageBps != null && estimatedSlippageBps > maxSlippageBps ->
+            "Estimated slippage ${estimatedSlippageBps.setScale(2, RoundingMode.HALF_UP)}bps exceeds limit ${maxSlippageBps.setScale(2, RoundingMode.HALF_UP)}bps"
+        else -> null
     }
 
     var fillRatio = when {
@@ -746,6 +791,37 @@ private data class PaperFeeProfile(
     val makerFeeBps: BigDecimal,
     val takerFeeBps: BigDecimal
 )
+
+private fun estimateOrderNotionalUsd(
+    orderRequest: OrderRequest,
+    quote: LatestQuote?
+): BigDecimal? {
+    val side = orderRequest.side.trim().uppercase()
+    if (side != "BUY" && side != "SELL") return null
+
+    val type = orderRequest.type.trim().uppercase()
+    if (type != "MARKET" && type != "LIMIT") return null
+
+    val size = orderRequest.size.trim().toBigDecimalOrNull() ?: return null
+    if (size <= BigDecimal.ZERO) return null
+
+    val explicitPrice = orderRequest.price
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?.toBigDecimalOrNull()
+
+    val bookPrice = quote?.let {
+        if (side == "BUY") it.ask.toBigDecimal() else it.bid.toBigDecimal()
+    }
+
+    val executionPrice = when (type) {
+        "MARKET" -> bookPrice ?: explicitPrice
+        else -> explicitPrice ?: bookPrice
+    } ?: return null
+
+    if (executionPrice <= BigDecimal.ZERO) return null
+    return size.abs().multiply(executionPrice)
+}
 
 private fun paperFeeProfile(exchange: String): PaperFeeProfile = when (exchange.lowercase()) {
     "binance" -> PaperFeeProfile(makerFeeBps = BigDecimal("1.0"), takerFeeBps = BigDecimal("5.0"))
