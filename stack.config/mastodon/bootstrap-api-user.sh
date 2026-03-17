@@ -73,8 +73,7 @@ unless static_token.empty?
     token: static_token,
     scopes: 'read write follow',
     revoked_at: nil,
-    expires_in: nil,
-    updated_at: Time.now.utc
+    expires_in: nil
   )
 
   Doorkeeper::AccessToken.where(application_id: app.id, resource_owner_id: user.id)
