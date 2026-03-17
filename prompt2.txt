@@ -1,0 +1,129 @@
+this is a docker compose stack generator.
+
+structure:
+- global.settings/ = global templates/settings
+- stack.compose/ = service compose templates
+- stack.config/ = in-container config templates
+- stack.containers/ = dockerfile sources
+- stack.kotlin/ = kotlin services
+- tests.compose/ = test-only compose templates
+- tests.config/ = test config templates
+- tests.containers/ = test container sources
+- tests.kotlin/ = kotlin test sources
+
+build/deploy:
+- build script: build-datamancy-v4.main.kts
+- build script requires clean git working tree
+- output is dist/
+- dist/docker-compose.yml is final compose
+- prefer dist/smart-up.sh over normal full up
+- if smart-up misses an expected change, run targeted compose build/up --force-recreate for that service only
+- never put literal secrets in compose/templates, only env var refs
+
+server/test env:
+- test server: latium.local
+- ssh: ssh gerald@latium.local "command"
+- stack path on server: ~/datamancy
+- test runner script: ~/datamancy/run-tests.sh
+- do not use -v in rsync
+- if waiting, wait in 120s intervals
+
+workflow:
+- take initiative, be humble, no blocking unless truly blocked
+- i may be unavailable for ~6 hours, continue autonomously
+- keep git under control: commit frequently; ignore generated/temp noise if needed
+- no long reports; leave short practical notes: issue, fix, validation result, remaining risk
+
+test expectations:
+- run all tests:
+  - ./run-tests.sh kt all
+  - ./run-tests.sh ts
+- review playwright screenshots every run (do not rely only on pass/fail)
+- rerun until clean or until only clearly documented external blockers remain
+
+trading focus:
+- improve trading-sdk + tx-gateway + workers for practical money-making workflows in jupyter
+- add premade backtest/profitability notebooks using real postgres/qdrant market data
+- preserve strict execution realism: fees, slippage, latency, partial fills, auth/risk constraints
+
+exchange focus:
+- unified interface must cover: swyftx, binance, bybit, coinbase, dydx, hyperliquid, aster
+- tx-gateway is unified entry point
+- expand live order paths safely with tests (chain + exchange io must be thoroughly tested)
+
+data/intelligence focus:
+- verify and improve end-to-end flow:
+  rss ingestion -> sentiment extraction -> bookstack publishing -> market data ingestion -> grafana visualization
+- add useful grafana wiring for internal systems where operationally valuable
+
+stack introspection focus:
+- improve model-context-server mcp tool access and introspection safety
+- ldap-backed identity/roles must control agent/tool access scope
+- centralize and test account add/remove and role control
+
+empirical trading strategy requirements (expanded):
+- prioritize strategies with strongest real-world support under realistic execution:
+  - LOB/microstructure flow-alpha (imbalance, OFI, microprice)
+  - toxicity-aware market making
+  - perp basis/funding carry overlays
+- treat alpha and execution as separate models:
+  - alpha model predicts edge direction/magnitude
+  - execution model predicts fill probability, slippage, and impact
+- do not accept backtest results that rely on optimistic mid-price fills
+- simulate and evaluate at order level:
+  - queue position
+  - partial fills
+  - fail-to-fill behavior
+  - cancel/replace latency
+- cost model must include:
+  - maker/taker fees and rebates
+  - fee tier changes
+  - spread cost
+  - adverse selection
+  - impact
+  - funding/basis drift
+- strategy validation must be regime-aware:
+  - low/high volatility buckets
+  - liquidity stress windows
+  - jump/event periods
+- include latency telemetry in strategy fitness:
+  - data receive -> decision -> submit -> ack/fill timings
+  - p50/p95/p99 latency and jitter
+- execution policy output must be full-action, not just side/size:
+  - venue
+  - order type
+  - price levels / placement schedule
+  - urgency class
+  - cancel cadence
+- prioritize lower-latency-sensitive approaches if infra quality is insufficient for sub-second edges
+- require risk controls and hard limits:
+  - inventory bounds
+  - drawdown brakes
+  - kill switch
+  - venue risk limits
+  - margin/liquidation distance controls
+- maintain abuse-safe behavior:
+  - no spoof-like logic
+  - auditable order intent
+  - message-rate controls
+- rank implementation effort by expected practical payoff:
+  1) flow-alpha with execution gating
+  2) toxicity-aware MM
+  3) funding/basis carry
+  4) slower intraday stat-arb/momentum
+  5) only selective cross-venue arb
+  6) triangular arb only if proven net-positive after real frictions
+
+deliverables for empirical strategy work:
+- notebooks:
+  - data quality + latency diagnostics
+  - cost realism validation
+  - walk-forward backtests with regime slices
+  - sensitivity sweeps (fees/slippage/latency)
+  - live-vs-backtest drift dashboard
+- stack outputs:
+  - strategy metrics exposed to grafana
+  - per-strategy health/edge-after-cost panels
+  - alerting for degradation (fill quality, slippage drift, latency spikes)
+- acceptance bar:
+  - no strategy promoted without passing realistic cost/fill/latency stress and out-of-sample regime checks
