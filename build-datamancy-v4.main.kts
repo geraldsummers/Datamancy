@@ -739,12 +739,16 @@ fun generateSSHAHash(password: String): String {
         .start()
     val output = process.inputStream.bufferedReader().readText().trim()
     val exitCode = process.waitFor()
+    val hash = output
+        .lineSequence()
+        .map { it.trim() }
+        .firstOrNull { it.startsWith("{SSHA}") }
 
-    if (exitCode != 0 || !output.startsWith("{SSHA}")) {
+    if (exitCode != 0 || hash.isNullOrBlank()) {
         error("Failed to generate SSHA hash: $output")
         throw RuntimeException("SSHA hash generation failed")
     }
-    return output
+    return hash
 }
 
 fun generateArgon2IDHash(password: String): String {
