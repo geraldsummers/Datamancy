@@ -210,7 +210,7 @@ suspend fun TestRunner.advancedTradingIntegrationTests() = suite("Advanced Tradi
         val unrealizedPnl = position.unrealizedPnl
         val pnlPercent = position.pnlPercent
 
-        require(unrealizedPnl == BigDecimal.valueOf(5000), "PnL calculation incorrect")
+        require(unrealizedPnl.compareTo(BigDecimal.valueOf(5000)) == 0, "PnL calculation incorrect")
         require(pnlPercent.setScale(0) == BigDecimal.valueOf(10), "PnL% calculation incorrect")
 
         println("      ✓ Position PnL: \$${unrealizedPnl} (${pnlPercent}%)")
