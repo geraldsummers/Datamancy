@@ -36,6 +36,9 @@ end
 user.account ||= account
 user.password = password
 user.password_confirmation = password
+user.agreement = true if user.respond_to?(:agreement=)
+user.accepted_rules = true if user.respond_to?(:accepted_rules=)
+user.accepted_terms_at ||= Time.now.utc if user.respond_to?(:accepted_terms_at=)
 user.approved = true if user.respond_to?(:approved=)
 user.confirmed_at ||= Time.now.utc
 user.save!
