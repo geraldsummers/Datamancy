@@ -42,6 +42,16 @@ class TokenManager(
     private val tokens = mutableMapOf<String, String>()
     private val cookies = mutableMapOf<String, List<Cookie>>()
     private val json = Json { ignoreUnknownKeys = true }
+    private val mastodonHostHeader = System.getenv("MASTODON_HOST_HEADER")
+        ?: System.getenv("DOMAIN")?.let { "mastodon.$it" }
+
+    private fun HttpRequestBuilder.applyMastodonForwardedHeaders() {
+        mastodonHostHeader?.let {
+            header(HttpHeaders.Host, it)
+            header("X-Forwarded-Host", it)
+        }
+        header("X-Forwarded-Proto", "https")
+    }
 
     /**
      * Acquires a Grafana service account token for API access.
@@ -176,6 +186,7 @@ class TokenManager(
         return try {
             
             val appResponse = client.post("${endpoints.mastodon}/api/v1/apps") {
+                applyMastodonForwardedHeaders()
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody("client_name=test-client&redirect_uris=urn:ietf:wg:oauth:2.0:oob&scopes=read write")
             }
@@ -192,6 +203,7 @@ class TokenManager(
 
             
             val tokenResponse = client.post("${endpoints.mastodon}/oauth/token") {
+                applyMastodonForwardedHeaders()
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody("client_id=$clientId&client_secret=$clientSecret&grant_type=password&username=$email&password=$password&scope=read write")
             }
@@ -401,6 +413,9 @@ class TokenManager(
             when (service) {
                 "grafana", "forgejo", "mastodon", "seafile", "jupyterhub", "homeassistant" -> {
                     token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+                    if (service == "mastodon") {
+                        applyMastodonForwardedHeaders()
+                    }
                 }
                 "bookstack" -> {
                     token?.let {
@@ -426,6 +441,9 @@ class TokenManager(
             when (service) {
                 "grafana", "forgejo", "mastodon", "seafile", "jupyterhub", "homeassistant" -> {
                     token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+                    if (service == "mastodon") {
+                        applyMastodonForwardedHeaders()
+                    }
                 }
                 "bookstack" -> {
                     token?.let {

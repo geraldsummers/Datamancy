@@ -20,6 +20,31 @@ check_authelia() {
     return 1
 }
 
+ensure_forgejo_api_user() {
+    local api_username="${FORGEJO_USERNAME:-${FORGEJO_API_USERNAME:-${STACK_ADMIN_USER:-sysadmin}}}"
+    local api_email="${FORGEJO_EMAIL:-${FORGEJO_API_EMAIL:-${STACK_ADMIN_EMAIL:-admin@datamancy.net}}}"
+    local api_password="${FORGEJO_PASSWORD:-${FORGEJO_API_PASSWORD:-${STACK_ADMIN_PASSWORD:-}}}"
+
+    if [ -z "$api_password" ]; then
+        echo "STACK_ADMIN_PASSWORD/FORGEJO_PASSWORD is empty; skipping Forgejo API user bootstrap."
+        return 0
+    fi
+
+    if run_forgejo admin user list 2>/dev/null | awk 'NR>1 { print $2 }' | grep -Fxq "$api_username"; then
+        echo "Forgejo API user '$api_username' already exists, refreshing password..."
+        run_forgejo admin user change-password --username "$api_username" --password "$api_password"
+        return 0
+    fi
+
+    echo "Creating Forgejo API user '$api_username'..."
+    run_forgejo admin user create \
+        --username "$api_username" \
+        --password "$api_password" \
+        --email "$api_email" \
+        --admin \
+        --must-change-password=false
+}
+
 echo "Waiting for Forgejo to be ready..."
 for i in $(seq 1 60); do
     if run_forgejo admin auth list >/dev/null 2>&1; then
@@ -29,6 +54,8 @@ for i in $(seq 1 60); do
     echo "Forgejo not ready yet (attempt $i/60), waiting..."
     sleep 2
 done
+
+ensure_forgejo_api_user
 
 if run_forgejo admin auth list 2>/dev/null | grep -q "Authelia"; then
     echo "Authelia OIDC authentication source already exists, skipping setup."

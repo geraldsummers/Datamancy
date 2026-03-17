@@ -32,6 +32,12 @@ services:
       REDIS_PORT: 6379
       REDIS_USER: mastodon
       REDIS_PASSWORD: ${VALKEY_MASTODON_PASSWORD}
+      STACK_ADMIN_USER: ${STACK_ADMIN_USER}
+      STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
+      STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
+      MASTODON_API_USERNAME: ${STACK_ADMIN_USER}
+      MASTODON_API_EMAIL: ${STACK_ADMIN_EMAIL}
+      MASTODON_API_PASSWORD: ${STACK_ADMIN_PASSWORD}
     command:
       - bash
       - -c
@@ -50,8 +56,10 @@ services:
           echo "Mastodon database prepare failed after retries"
           exit 1
         fi
+        bash /opt/mastodon/bin/bootstrap-api-user.sh
         bash /opt/mastodon/bin/seed-default-follows.sh
     volumes:
+      - ./configs/mastodon/bootstrap-api-user.sh:/opt/mastodon/bin/bootstrap-api-user.sh:ro
       - ./configs/mastodon/seed-default-follows.sh:/opt/mastodon/bin/seed-default-follows.sh:ro
 
 

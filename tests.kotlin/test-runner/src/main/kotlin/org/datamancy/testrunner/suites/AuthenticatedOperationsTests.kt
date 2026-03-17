@@ -2,46 +2,10 @@ package org.datamancy.testrunner.suites
 
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import kotlinx.coroutines.delay
 import org.datamancy.testrunner.framework.*
 
 
 suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Operations Tests") {
-    suspend fun probeFirstReachable(
-        urls: List<String>,
-        attempts: Int = 1,
-        retryDelayMs: Long = 0L
-    ): HttpResponse? {
-        repeat(attempts.coerceAtLeast(1)) { attempt ->
-            for (url in urls) {
-                val response = runCatching { client.getRawResponse(url) }.getOrNull() ?: continue
-                if (
-                    response.status != HttpStatusCode.NotFound &&
-                    response.status != HttpStatusCode.BadGateway &&
-                    response.status != HttpStatusCode.ServiceUnavailable &&
-                    response.status != HttpStatusCode.GatewayTimeout
-                ) {
-                    return response
-                }
-            }
-
-            if (retryDelayMs > 0 && attempt < attempts - 1) {
-                delay(retryDelayMs)
-            }
-        }
-        return null
-    }
-
-    fun HttpStatusCode.isServiceReachable(): Boolean =
-        this.value in 200..399 ||
-            this == HttpStatusCode.Unauthorized ||
-            this == HttpStatusCode.Forbidden ||
-            this == HttpStatusCode.MethodNotAllowed
-
-    
-    
-    
-
     test("Grafana: Acquire API key and query datasources") {
         val grafanaPassword = System.getenv("GRAFANA_ADMIN_PASSWORD") ?: "admin"
 
@@ -94,43 +58,8 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
             ?: "changeme"
 
         val tokenResult = tokens.acquireSeafileToken(username, password)
-        if (tokenResult.isFailure) {
-            val error = tokenResult.exceptionOrNull()?.message ?: "Unknown error"
-            if (
-                error.contains("400") ||
-                error.contains("Bad Request") ||
-                error.contains("Unauthorized") ||
-                error.contains("403") ||
-                error.contains("Forbidden") ||
-                error.contains("500") ||
-                error.contains("502") ||
-                error.contains("Bad Gateway")
-            ) {
-                val fallback = probeFirstReachable(
-                    listOf(
-                        "http://seafile:80/api/v2.1/server-info/",
-                        "http://seafile:80/api2/server-info/",
-                        "http://seafile:80/api2/ping/",
-                        "http://seafile:80/accounts/login/",
-                        "http://seafile:80/"
-                    ),
-                    attempts = 12,
-                    retryDelayMs = 5000
-                )
-
-                if (fallback == null) {
-                    println("      ⚠️  Seafile token flow unavailable ($error); fallback endpoints unavailable (transient upstream race), skipping")
-                    return@test
-                }
-
-                if (!fallback.status.isServiceReachable()) {
-                    println("      ⚠️  Seafile token flow unavailable ($error); fallback status=${fallback.status}, skipping")
-                    return@test
-                }
-                println("      ⚠️  Seafile token flow unavailable ($error); fallback endpoint is reachable (${fallback.status})")
-                return@test
-            }
-            throw AssertionError("Failed to acquire Seafile token: $error")
+        require(tokenResult.isSuccess) {
+            "Failed to acquire Seafile token: ${tokenResult.exceptionOrNull()?.message}"
         }
 
         val token = tokenResult.getOrThrow()
@@ -158,23 +87,8 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
             ?: "changeme"
 
         val tokenResult = tokens.acquireForgejoToken(username, password)
-        if (tokenResult.isFailure) {
-            val error = tokenResult.exceptionOrNull()?.message ?: "Unknown error"
-            if (
-                error.contains("401") ||
-                error.contains("Unauthorized") ||
-                error.contains("403") ||
-                error.contains("Forbidden") ||
-                error.contains("Invalid credentials")
-            ) {
-                val fallback = client.getRawResponse("http://forgejo:3000/api/v1/version")
-                require(fallback.status.isServiceReachable()) {
-                    "Forgejo fallback endpoint unavailable: ${fallback.status}"
-                }
-                println("      ⚠️  Forgejo token flow unavailable ($error); fallback version endpoint is reachable")
-                return@test
-            }
-            throw AssertionError("Failed to acquire Forgejo token: $error")
+        require(tokenResult.isSuccess) {
+            "Failed to acquire Forgejo token: ${tokenResult.exceptionOrNull()?.message}"
         }
 
         val token = tokenResult.getOrThrow()
@@ -207,22 +121,8 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
             ?: "changeme"
 
         val tokenResult = tokens.acquirePlankaToken(email, password)
-        if (tokenResult.isFailure) {
-            val error = tokenResult.exceptionOrNull()?.message ?: "Unknown error"
-            if (
-                error.contains("401") ||
-                error.contains("Unauthorized") ||
-                error.contains("403") ||
-                error.contains("Forbidden")
-            ) {
-                val fallback = client.getRawResponse("http://planka:1337/api/config")
-                require(fallback.status.isServiceReachable()) {
-                    "Planka fallback endpoint unavailable: ${fallback.status}"
-                }
-                println("      ⚠️  Planka token flow unavailable ($error); fallback config endpoint is reachable")
-                return@test
-            }
-            throw AssertionError("Failed to acquire Planka token: $error")
+        require(tokenResult.isSuccess) {
+            "Failed to acquire Planka token: ${tokenResult.exceptionOrNull()?.message}"
         }
 
         val token = tokenResult.getOrThrow()
@@ -289,29 +189,15 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
             ?: "changeme"
 
         val tokenResult = tokens.acquireMastodonToken(email, password)
-        if (tokenResult.isFailure) {
-            val error = tokenResult.exceptionOrNull()?.message ?: "Unknown error"
-            if (error.contains("403") || error.contains("Forbidden") || error.contains("422") || error.contains("Unprocessable")) {
-                val fallback = probeFirstReachable(
-                    listOf(
-                        "http://mastodon-web:3000/api/v2/instance",
-                        "http://mastodon-web:3000/api/v1/instance"
-                    )
-                ) ?: throw AssertionError("Mastodon fallback instance endpoint unavailable")
-                require(fallback.status.isServiceReachable()) {
-                    "Mastodon fallback endpoint returned unexpected status: ${fallback.status}"
-                }
-                println("      ⚠️  Mastodon OAuth token flow unavailable ($error); fallback instance endpoint is reachable")
-                return@test
-            }
-            throw AssertionError("Failed to acquire Mastodon token: $error")
+        require(tokenResult.isSuccess) {
+            "Failed to acquire Mastodon token: ${tokenResult.exceptionOrNull()?.message}"
         }
 
         val token = tokenResult.getOrThrow()
         println("      ✓ Acquired Mastodon OAuth token")
 
 
-        val response = tokens.authenticatedGet("mastodon", "http://mastodon-web:3000/api/v1/accounts/verify_credentials")
+        val response = tokens.authenticatedGet("mastodon", "${env.endpoints.mastodon}/api/v1/accounts/verify_credentials")
         require(response.status == HttpStatusCode.OK) {
             "Failed to verify credentials: ${response.status}"
         }

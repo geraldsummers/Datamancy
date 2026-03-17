@@ -24,6 +24,10 @@ services:
     environment:
       BASE_URL: https://planka.${DOMAIN}
       DATABASE_URL: postgresql://planka:${POSTGRES_PLANKA_PASSWORD}@postgres:5432/planka
+      DEFAULT_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
+      DEFAULT_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
+      DEFAULT_ADMIN_NAME: ${STACK_ADMIN_USER}
+      DEFAULT_ADMIN_USERNAME: ${STACK_ADMIN_USER}
       OIDC_ISSUER: https://auth.${DOMAIN}
       OIDC_CLIENT_ID: planka
       OIDC_CLIENT_SECRET: ${PLANKA_OAUTH_SECRET}

@@ -41,7 +41,9 @@ services:
       FORGEJO__actions__DEFAULT_ACTIONS_URL: https://code.forgejo.org
       FORGEJO_OAUTH_SECRET: ${FORGEJO_OAUTH_SECRET}
       DOMAIN: ${DOMAIN}
+      STACK_ADMIN_USER: ${STACK_ADMIN_USER}
       STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
+      STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
       SSL_CERT_FILE: /ca/caddy-ca.crt
     volumes:
       - forgejo_data:/data
