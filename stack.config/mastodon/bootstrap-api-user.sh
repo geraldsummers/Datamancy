@@ -54,13 +54,28 @@ unless static_token.empty?
     application.scopes = 'read write follow'
   end
 
-  token = Doorkeeper::AccessToken.find_or_initialize_by(token: static_token)
-  token.application_id = app.id
-  token.resource_owner_id = user.id
-  token.scopes = 'read write follow'
-  token.revoked_at = nil
-  token.expires_in = nil
-  token.save!
+  token = Doorkeeper::AccessToken.where(application_id: app.id, resource_owner_id: user.id)
+                                 .order(id: :desc)
+                                 .first
+  unless token
+    token = Doorkeeper::AccessToken.create!(
+      application_id: app.id,
+      resource_owner_id: user.id,
+      scopes: 'read write follow',
+      revoked_at: nil,
+      expires_in: nil
+    )
+  end
+
+  # Doorkeeper callbacks auto-generate token values; bypass callbacks so this
+  # deterministic token remains exactly what test-runner injects.
+  token.update_columns(
+    token: static_token,
+    scopes: 'read write follow',
+    revoked_at: nil,
+    expires_in: nil,
+    updated_at: Time.now.utc
+  )
 
   Doorkeeper::AccessToken.where(application_id: app.id, resource_owner_id: user.id)
                          .where.not(id: token.id)
