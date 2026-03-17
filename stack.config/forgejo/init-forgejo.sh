@@ -32,7 +32,10 @@ ensure_forgejo_api_user() {
 
     if run_forgejo admin user list 2>/dev/null | awk 'NR>1 { print $2 }' | grep -Fxq "$api_username"; then
         echo "Forgejo API user '$api_username' already exists, refreshing password..."
-        run_forgejo admin user change-password --username "$api_username" --password "$api_password"
+        run_forgejo admin user change-password \
+            --username "$api_username" \
+            --password "$api_password" \
+            --must-change-password=false
         return 0
     fi
 
