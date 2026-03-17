@@ -228,6 +228,7 @@ suites:
     type: kotlin
     targets:
       - kopia
+      - docker-vm-socket-proxy
   - name: trading
     type: kotlin
     targets:
