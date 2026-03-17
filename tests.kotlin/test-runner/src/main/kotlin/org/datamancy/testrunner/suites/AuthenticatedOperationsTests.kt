@@ -2,10 +2,36 @@ package org.datamancy.testrunner.suites
 
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.coroutines.delay
 import org.datamancy.testrunner.framework.*
 
 
 suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Operations Tests") {
+    suspend fun probeFirstReachable(
+        urls: List<String>,
+        attempts: Int = 1,
+        retryDelayMs: Long = 0L
+    ): HttpResponse? {
+        repeat(attempts.coerceAtLeast(1)) { attempt ->
+            for (url in urls) {
+                val response = runCatching { client.getRawResponse(url) }.getOrNull() ?: continue
+                if (
+                    response.status != HttpStatusCode.NotFound &&
+                    response.status != HttpStatusCode.BadGateway &&
+                    response.status != HttpStatusCode.ServiceUnavailable &&
+                    response.status != HttpStatusCode.GatewayTimeout
+                ) {
+                    return response
+                }
+            }
+
+            if (retryDelayMs > 0 && attempt < attempts - 1) {
+                delay(retryDelayMs)
+            }
+        }
+        return null
+    }
+
     test("Grafana: Acquire API key and query datasources") {
         val grafanaPassword = System.getenv("GRAFANA_ADMIN_PASSWORD") ?: "admin"
 
