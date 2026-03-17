@@ -13,6 +13,17 @@
   '
 ) 2>&1 | tee deploy.log
 
+
+(
+  cd /home/gerald/IdeaProjects/Datamancy/ && \
+  ./build-datamancy-v4.main.kts && \
+  rsync --delete -az --progress dist/ gerald@latium.local:~/datamancy/ && \
+  ssh -t gerald@latium.local '
+    set -euxo pipefail
+    cd ~/datamancy
+    ./smart-up.sh
+  '
+) 2>&1 | tee deploy.log
 ------------------------------------------------------------------------------------------------------------------------
 
 #!/usr/bin/env bash
