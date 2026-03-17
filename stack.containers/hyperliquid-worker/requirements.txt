@@ -1,5 +1,6 @@
 flask==3.0.0
 hyperliquid-python-sdk==0.22.0
 requests==2.31.0
+eth-account==0.13.7
 pytest==7.4.3
 pytest-mock==3.12.0

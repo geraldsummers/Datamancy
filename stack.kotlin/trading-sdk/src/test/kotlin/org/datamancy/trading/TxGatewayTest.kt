@@ -193,7 +193,7 @@ class TxGatewayTest {
         val requestBody = mockServer.takeRequest().body.readUtf8()
         assertTrue(requestBody.contains(""""urgencyClass":"high""""))
         assertTrue(requestBody.contains(""""feeTier":"vip""""))
-        assertTrue(requestBody.contains(""""maxSlippageBps":"5.5""""))
+        assertTrue(requestBody.contains(""""maxSlippageBps":5.5"""))
         assertTrue(requestBody.contains(""""cancelAfterMs":750"""))
     }
 

@@ -485,6 +485,11 @@ fun Route.unifiedExchangeRoutes(
                 }
 
                 val orderRequest = call.receive<OrderRequest>()
+                val executionControlError = validateExecutionControls(orderRequest)
+                if (executionControlError != null) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to executionControlError))
+                    return@post
+                }
                 val requestLog = mapOf(
                     "exchange" to exchange,
                     "symbol" to orderRequest.symbol,
@@ -1026,6 +1031,43 @@ private fun parseFeeTier(raw: String?): FeeTier = when (raw?.trim()?.lowercase()
     "pro" -> FeeTier.PRO
     "vip" -> FeeTier.VIP
     else -> FeeTier.RETAIL
+}
+
+private fun validateExecutionControls(orderRequest: OrderRequest): String? {
+    val urgencyClass = orderRequest.urgencyClass?.trim()?.lowercase()
+    if (!urgencyClass.isNullOrBlank() && urgencyClass !in setOf("low", "normal", "high")) {
+        return "Invalid urgencyClass: ${orderRequest.urgencyClass}"
+    }
+
+    val feeTier = orderRequest.feeTier?.trim()?.lowercase()
+    if (!feeTier.isNullOrBlank() && feeTier !in setOf("retail", "pro", "vip")) {
+        return "Invalid feeTier: ${orderRequest.feeTier}"
+    }
+
+    val maxSlippageBps = orderRequest.maxSlippageBps
+    if (maxSlippageBps != null) {
+        if (!maxSlippageBps.isFinite()) {
+            return "maxSlippageBps must be finite"
+        }
+        if (maxSlippageBps < 0.0) {
+            return "maxSlippageBps must be >= 0"
+        }
+        if (maxSlippageBps > 500.0) {
+            return "maxSlippageBps is unreasonably high"
+        }
+    }
+
+    val cancelAfterMs = orderRequest.cancelAfterMs
+    if (cancelAfterMs != null) {
+        if (cancelAfterMs < 100L) {
+            return "cancelAfterMs must be >= 100"
+        }
+        if (cancelAfterMs > 600_000L) {
+            return "cancelAfterMs must be <= 600000"
+        }
+    }
+
+    return null
 }
 
 private fun applySlippage(side: String, referencePrice: BigDecimal, slippageBps: BigDecimal): BigDecimal {

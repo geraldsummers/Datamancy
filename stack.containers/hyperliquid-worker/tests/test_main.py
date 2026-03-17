@@ -37,6 +37,23 @@ class TestParseHyperliquidKey:
         assert result['address'] == "0xAddress"
         assert result['private_key'] == "privatekey:withcolon"
 
+    def test_parse_key_rejects_empty(self):
+        with pytest.raises(ValueError, match="hyperliquidKey is empty"):
+            main.parse_hyperliquid_key("  ")
+
+
+class TestAddressResolution:
+    @patch('main.Account')
+    def test_resolve_account_address_derives_from_private_key(self, mock_account):
+        mock_account.from_key.return_value = Mock(address="0xDerived")
+        creds = {"address": None, "private_key": "abcdef1234"}
+        assert main.resolve_account_address(creds) == "0xDerived"
+        mock_account.from_key.assert_called_once_with("0xabcdef1234")
+
+    def test_resolve_account_address_prefers_explicit_address(self):
+        creds = {"address": "0xExplicit", "private_key": "unused"}
+        assert main.resolve_account_address(creds) == "0xExplicit"
+
 
 class TestGetExchangeClient:
     """Test Exchange client initialization"""
@@ -135,9 +152,14 @@ class TestFlaskEndpoints:
         data = response.get_json()
         assert 'hyperliquidKey' in data['error']
 
+    @patch('main.get_info_client')
     @patch('main.get_exchange_client')
-    def test_order_market_success(self, mock_get_exchange, client):
+    def test_order_market_success(self, mock_get_exchange, mock_get_info, client):
         """Test successful market order"""
+        mock_info = Mock()
+        mock_info.all_mids.return_value = {'BTC': '50000.0'}
+        mock_get_info.return_value = mock_info
+
         mock_exchange = Mock()
         mock_exchange.market_order.return_value = {
             'status': 'ok',
@@ -356,7 +378,7 @@ class TestFlaskEndpoints:
         }
         mock_get_info.return_value = mock_info
 
-        response = client.get('/positions?user=testuser&hyperliquidKey=testkey')
+        response = client.get('/positions?user=testuser&hyperliquidKey=0xAddress:testkey')
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) == 1
@@ -378,7 +400,7 @@ class TestFlaskEndpoints:
         }
         mock_get_info.return_value = mock_info
 
-        response = client.get('/balance?user=testuser&hyperliquidKey=testkey')
+        response = client.get('/balance?user=testuser&hyperliquidKey=0xAddress:testkey')
         assert response.status_code == 200
         data = response.get_json()
         assert data['accountValue'] == '100000.0'
@@ -407,7 +429,7 @@ class TestFlaskEndpoints:
         ]
         mock_get_info.return_value = mock_info
 
-        response = client.get('/orders?user=testuser&hyperliquidKey=testkey')
+        response = client.get('/orders?user=testuser&hyperliquidKey=0xAddress:testkey')
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) == 1
@@ -441,7 +463,7 @@ class TestFlaskEndpoints:
         response = client.post('/close', json={
             'username': 'testuser',
             'symbol': 'BTC',
-            'hyperliquidKey': 'testkey'
+            'hyperliquidKey': '0xAddress:testkey'
         })
 
         assert response.status_code == 200
@@ -461,7 +483,7 @@ class TestFlaskEndpoints:
         response = client.post('/close', json={
             'username': 'testuser',
             'symbol': 'BTC',
-            'hyperliquidKey': 'testkey'
+            'hyperliquidKey': '0xAddress:testkey'
         })
 
         assert response.status_code == 404

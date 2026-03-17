@@ -34,16 +34,18 @@ if ! docker compose -f "$COMPOSE_FILE" config --services >/dev/null 2>&1; then
 fi
 
 SERVICES_LIST="$(docker compose -f "$COMPOSE_FILE" config --services)"
+EXISTING_SERVICES="$(docker compose -f "$COMPOSE_FILE" ps -a --services 2>/dev/null || true)"
 
 tmp_plan="$(mktemp)"
 tmp_updated="$(mktemp)"
 
-python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$tmp_plan"
+python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$EXISTING_SERVICES" "$tmp_plan"
 import json
 import sys
 
-reg_path, status_path, services_text, out_path = sys.argv[1:5]
+reg_path, status_path, services_text, existing_services_text, out_path = sys.argv[1:6]
 services = {s.strip() for s in services_text.splitlines() if s.strip()}
+existing_services = {s.strip() for s in existing_services_text.splitlines() if s.strip()}
 
 with open(reg_path, "r", encoding="utf-8") as f:
     registry = json.load(f)
@@ -63,22 +65,25 @@ for name, comp in registry.get("components", {}).items():
         continue
     last_changed = comp.get("last_changed_commit") or ""
     last_built = (status_components.get(name) or {}).get("last_built_commit") or ""
+    missing_container = name not in existing_services
+    source_paths = comp.get("source_paths") or []
+    needs_build = any(path.startswith("stack.containers/") for path in source_paths)
     if last_changed and last_changed != last_built:
-        source_paths = comp.get("source_paths") or []
-        needs_build = any(path.startswith("stack.containers/") for path in source_paths)
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}|{last_changed}")
+        lines.append(f"{name}|{'build' if needs_build else 'no-build'}|{last_changed}|changed")
+    elif missing_container:
+        lines.append(f"{name}|no-build|{last_changed}|missing")
 
 with open(out_path, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))
 PY
 
 if [ ! -s "$tmp_plan" ]; then
-    info "All services are up to date"
+    info "All services are up to date and no tracked containers are missing"
     rm -f "$tmp_plan" "$tmp_updated"
     exit 0
 fi
 
-while IFS='|' read -r service build_flag last_changed; do
+while IFS='|' read -r service build_flag last_changed reason; do
     if [ -z "$service" ]; then
         continue
     fi
@@ -86,7 +91,11 @@ while IFS='|' read -r service build_flag last_changed; do
         warn "Service '$service' not in compose config, skipping"
         continue
     fi
-    info "Updating $service (changed: $last_changed)"
+    if [ "$reason" = "missing" ]; then
+        info "Deploying missing container for $service"
+    else
+        info "Updating $service (changed: $last_changed)"
+    fi
     if [ "$build_flag" = "build" ]; then
         if [ "$DRY_RUN" = "1" ]; then
             echo "docker compose -f \"$COMPOSE_FILE\" build \"$service\""
@@ -99,7 +108,9 @@ while IFS='|' read -r service build_flag last_changed; do
     else
         docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate "$service"
     fi
-    echo "$service" >> "$tmp_updated"
+    if [ "$reason" = "changed" ]; then
+        echo "$service" >> "$tmp_updated"
+    fi
 done < "$tmp_plan"
 
 if [ -s "$tmp_updated" ] && [ "$DRY_RUN" != "1" ]; then

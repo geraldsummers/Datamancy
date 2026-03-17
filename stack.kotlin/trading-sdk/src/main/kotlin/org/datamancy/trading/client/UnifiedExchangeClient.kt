@@ -52,7 +52,7 @@ class UnifiedExchangeClient internal constructor(
             "reduceOnly" to request.reduceOnly,
             "urgencyClass" to request.urgencyClass,
             "feeTier" to request.feeTier,
-            "maxSlippageBps" to request.maxSlippageBps?.toString(),
+            "maxSlippageBps" to request.maxSlippageBps?.toDouble(),
             "cancelAfterMs" to request.cancelAfterMs
         )
 

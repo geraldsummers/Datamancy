@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify
 import logging
 import os
 import requests
+from eth_account import Account
 from hyperliquid.info import Info
 from hyperliquid.exchange import Exchange
 from hyperliquid.utils import constants
@@ -36,16 +37,73 @@ def parse_positive_decimal(raw_value, field_name: str):
 
 def parse_hyperliquid_key(api_key: str) -> dict:
     """Parse Hyperliquid API key into address and private key"""
-    # Hyperliquid API keys are typically the private key hex string
-    # The address is derived from the private key
-    # For now, expect format: "address:private_key" or just "private_key"
-    if ":" in api_key:
-        address, private_key = api_key.split(":", 1)
-        return {"address": address, "private_key": private_key}
+    normalized = (api_key or "").strip()
+    if not normalized:
+        raise ValueError("hyperliquidKey is empty")
+
+    if ":" in normalized:
+        address, private_key = normalized.split(":", 1)
+        parsed_address = address.strip() or None
+        parsed_private_key = private_key.strip()
     else:
-        # Just private key provided, derive address
-        # For Hyperliquid, the private key is the credential
-        return {"address": None, "private_key": api_key}
+        parsed_address = None
+        parsed_private_key = normalized
+
+    if not parsed_private_key:
+        raise ValueError("Missing private key in hyperliquidKey")
+    return {"address": parsed_address, "private_key": parsed_private_key}
+
+
+def derive_evm_address(private_key: str) -> str:
+    key = private_key.strip()
+    if not key:
+        raise ValueError("Missing private key in hyperliquidKey")
+    if not key.startswith("0x"):
+        key = f"0x{key}"
+    try:
+        return Account.from_key(key).address
+    except Exception as exc:
+        raise ValueError("Unable to derive address from hyperliquidKey private key") from exc
+
+
+def resolve_account_address(creds: dict) -> str:
+    return creds.get("address") or derive_evm_address(creds["private_key"])
+
+
+def resolve_reference_price(symbol: str, order_type: str, explicit_price: Decimal | None) -> Decimal:
+    if explicit_price is not None:
+        return explicit_price
+
+    if order_type != "MARKET":
+        raise ValueError("Price required to estimate order notional")
+
+    mids = get_info_client().all_mids() or {}
+    symbol_candidates = [
+        symbol,
+        str(symbol).upper(),
+        str(symbol).lower(),
+        str(symbol).replace("-PERP", ""),
+        str(symbol).replace("-PERP", "").upper(),
+        str(symbol).replace("-PERP", "").lower(),
+    ]
+    for candidate in symbol_candidates:
+        mid_raw = mids.get(candidate)
+        if mid_raw is None:
+            continue
+        mid_price, price_error = parse_positive_decimal(mid_raw, "marketPrice")
+        if price_error is None and mid_price is not None:
+            return mid_price
+
+    raise ValueError(f"Unable to estimate market notional for symbol '{symbol}'")
+
+
+def ensure_order_notional_within_limit(symbol: str, order_type: str, size_decimal: Decimal, price_decimal: Decimal | None):
+    reference_price = resolve_reference_price(symbol=symbol, order_type=order_type, explicit_price=price_decimal)
+    notional = size_decimal * reference_price
+    if notional > MAX_ORDER_NOTIONAL_USD:
+        raise ValueError(
+            f"Order notional exceeds max allowed (requestedNotionalUsd={notional}, maxNotionalUsd={MAX_ORDER_NOTIONAL_USD})"
+        )
 
 def get_exchange_client(hyperliquid_key: str) -> Exchange:
     """Get authenticated Exchange client using ephemeral credentials"""
@@ -80,6 +138,8 @@ def submit_order():
 
         if not hyperliquid_key:
             return jsonify({"error": "Missing hyperliquidKey in request"}), 400
+        if not symbol:
+            return jsonify({"error": "Missing symbol"}), 400
         if side not in {"BUY", "SELL"}:
             return jsonify({"error": f"Unsupported side: {side}"}), 400
         if order_type not in {"MARKET", "LIMIT"}:
@@ -94,14 +154,6 @@ def submit_order():
                 "maxSize": str(MAX_ORDER_SIZE),
                 "requestedSize": str(size_decimal)
             }), 400
-
-        logger.info(f"Order: {username} {side} {size} {symbol} @ {price} ({order_type})")
-
-        exchange = get_exchange_client(hyperliquid_key)
-
-        # Convert side to Hyperliquid format: true for buy, false for sell
-        is_buy = side == "BUY"
-        size_float = float(size_decimal)
 
         if max_slippage_bps is not None:
             slippage_decimal, slippage_error = parse_positive_decimal(max_slippage_bps, "maxSlippageBps")
@@ -118,6 +170,35 @@ def submit_order():
             if cancel_after_ms < 100:
                 return jsonify({"error": "cancelAfterMs must be >= 100"}), 400
 
+        price_decimal = None
+        if order_type == "LIMIT":
+            if not price:
+                return jsonify({"error": "Price required for limit orders"}), 400
+            price_decimal, price_error = parse_positive_decimal(price, "price")
+            if price_error:
+                return jsonify({"error": price_error}), 400
+
+        try:
+            ensure_order_notional_within_limit(
+                symbol=symbol,
+                order_type=order_type,
+                size_decimal=size_decimal,
+                price_decimal=price_decimal,
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        logger.info(f"Order: {username} {side} {size} {symbol} @ {price} ({order_type})")
+
+        try:
+            exchange = get_exchange_client(hyperliquid_key)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        # Convert side to Hyperliquid format: true for buy, false for sell
+        is_buy = side == "BUY"
+        size_float = float(size_decimal)
+
         if order_type == "MARKET":
             # Market order
             result = exchange.market_order(
@@ -127,19 +208,6 @@ def submit_order():
             )
         else:
             # Limit order
-            if not price:
-                return jsonify({"error": "Price required for limit orders"}), 400
-            price_decimal, price_error = parse_positive_decimal(price, "price")
-            if price_error:
-                return jsonify({"error": price_error}), 400
-            notional = size_decimal * price_decimal
-            if notional > MAX_ORDER_NOTIONAL_USD:
-                return jsonify({
-                    "error": "Order notional exceeds max allowed",
-                    "maxNotionalUsd": str(MAX_ORDER_NOTIONAL_USD),
-                    "requestedNotionalUsd": str(notional)
-                }), 400
-
             result = exchange.order(
                 symbol=symbol,
                 is_buy=is_buy,
@@ -193,7 +261,10 @@ def cancel_order(order_id):
 
         logger.info(f"Cancel order: {order_id} for {username}")
 
-        exchange = get_exchange_client(hyperliquid_key)
+        try:
+            exchange = get_exchange_client(hyperliquid_key)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         result = exchange.cancel(symbol=symbol, oid=int(order_id))
 
         logger.info(f"Cancel result: {result}")
@@ -222,7 +293,10 @@ def cancel_all():
 
         logger.info(f"Cancel all orders for {username} (symbol: {symbol})")
 
-        exchange = get_exchange_client(hyperliquid_key)
+        try:
+            exchange = get_exchange_client(hyperliquid_key)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         result = exchange.cancel_all_orders(symbol=symbol)
 
         return jsonify({
@@ -246,12 +320,14 @@ def get_positions():
 
         logger.info(f"Get positions for {username}")
 
-        creds = parse_hyperliquid_key(hyperliquid_key)
+        try:
+            creds = parse_hyperliquid_key(hyperliquid_key)
+            address = resolve_account_address(creds)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         info = get_info_client()
 
         # Get user state which includes positions
-        # If address not provided, derive from private key
-        address = creds.get("address") or creds["private_key"]  # TODO: proper address derivation
         user_state = info.user_state(address)
 
         positions = []
@@ -289,10 +365,13 @@ def get_balance():
 
         logger.info(f"Get balance for {username}")
 
-        creds = parse_hyperliquid_key(hyperliquid_key)
+        try:
+            creds = parse_hyperliquid_key(hyperliquid_key)
+            address = resolve_account_address(creds)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         info = get_info_client()
 
-        address = creds.get("address") or creds["private_key"]  # TODO: proper address derivation
         user_state = info.user_state(address)
 
         if user_state and 'marginSummary' in user_state:
@@ -326,10 +405,13 @@ def get_orders():
 
         logger.info(f"Get orders for {username}")
 
-        creds = parse_hyperliquid_key(hyperliquid_key)
+        try:
+            creds = parse_hyperliquid_key(hyperliquid_key)
+            address = resolve_account_address(creds)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         info = get_info_client()
 
-        address = creds.get("address") or creds["private_key"]  # TODO: proper address derivation
         open_orders = info.open_orders(address)
 
         orders = []
@@ -365,9 +447,12 @@ def close_position():
         logger.info(f"Close position for {username}: {symbol}")
 
         # Get current position to determine size
-        creds = parse_hyperliquid_key(hyperliquid_key)
+        try:
+            creds = parse_hyperliquid_key(hyperliquid_key)
+            address = resolve_account_address(creds)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         info = get_info_client()
-        address = creds.get("address") or creds["private_key"]  # TODO: proper address derivation
         user_state = info.user_state(address)
 
         position_size = None
@@ -382,7 +467,10 @@ def close_position():
             return jsonify({"error": "No position found"}), 404
 
         # Close with market order in opposite direction
-        exchange = get_exchange_client(hyperliquid_key)
+        try:
+            exchange = get_exchange_client(hyperliquid_key)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         is_buy = position_size < 0  # If short, buy to close
 
         result = exchange.market_order(
