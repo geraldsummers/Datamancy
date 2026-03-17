@@ -159,7 +159,7 @@ class TokenManager(
             val response = client.post("${endpoints.forgejo}/api/v1/users/$username/tokens") {
                 basicAuth(username, password)
                 contentType(ContentType.Application.Json)
-                setBody("""{"name":"integration-test-${System.currentTimeMillis()}"}""")
+                setBody("""{"name":"integration-test-${System.currentTimeMillis()}","scopes":["all"]}""")
             }
 
             if (response.status == HttpStatusCode.Created) {
@@ -264,10 +264,11 @@ class TokenManager(
 
             if (response.status == HttpStatusCode.OK) {
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
-                val item = body["item"]?.jsonObject
-                    ?: return Result.failure(Exception("No item in response"))
-                val token = item["token"]?.jsonPrimitive?.content
-                    ?: return Result.failure(Exception("No token in response"))
+                val token = when (val item = body["item"]) {
+                    is JsonPrimitive -> item.content
+                    is JsonObject -> item["token"]?.jsonPrimitive?.content
+                    else -> null
+                } ?: return Result.failure(Exception("No token in response"))
 
                 tokens["planka"] = token
                 Result.success(token)

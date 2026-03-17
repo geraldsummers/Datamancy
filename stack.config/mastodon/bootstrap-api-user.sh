@@ -14,7 +14,7 @@ export DATAMANCY_API_USERNAME="${api_username}"
 export DATAMANCY_API_EMAIL="${api_email}"
 export DATAMANCY_API_PASSWORD="${api_password}"
 
-bundle exec rails runner <<'RUBY'
+bundle exec rails runner - <<'RUBY'
 username = ENV.fetch('DATAMANCY_API_USERNAME').downcase
 email = ENV.fetch('DATAMANCY_API_EMAIL').downcase
 password = ENV.fetch('DATAMANCY_API_PASSWORD')
