@@ -1156,7 +1156,6 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
         loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
         ssoIdentifier: vaultwardenEmail.split('@').pop() || 'datamancy.net',
         ssoEmail: vaultwardenEmail,
-        skipScreenshot: true,
         uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization|Set initial password/i,
         postLogin: async (page) => {
           // Handle create account / master password setup after SSO

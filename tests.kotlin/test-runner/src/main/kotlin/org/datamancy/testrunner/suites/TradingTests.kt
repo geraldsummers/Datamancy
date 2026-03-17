@@ -185,6 +185,49 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
         println("      ✓ Unified exchange catalog includes all expected venues")
     }
 
+    test("TX Gateway: Per-exchange quote endpoints are wired") {
+        val expected = listOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster")
+        val outcomes = mutableListOf<String>()
+
+        for (exchange in expected) {
+            val symbolCandidates = if (exchange == "hyperliquid") listOf("BTC", "BTC-PERP", "BTCUSDT") else listOf("BTC")
+            var exchangePassed = false
+
+            for (symbol in symbolCandidates) {
+                val response = client.getRawResponse("${endpoints.txGateway}/api/v1/exchanges/$exchange/quote?symbol=$symbol")
+                if (response.status == HttpStatusCode.OK) {
+                    val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+                    val bid = json["bid"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                    val ask = json["ask"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                    require(bid > 0.0 && ask > 0.0 && ask >= bid) {
+                        "Invalid quote payload for $exchange/$symbol: bid=$bid ask=$ask"
+                    }
+                    outcomes += "$exchange:$symbol:ok"
+                    exchangePassed = true
+                    break
+                }
+
+                if (response.status == HttpStatusCode.NotFound) {
+                    val body = runCatching { Json.parseToJsonElement(response.bodyAsText()).jsonObject }.getOrNull()
+                    val error = body?.get("error")?.jsonPrimitive?.contentOrNull
+                    if (error == "Quote unavailable") {
+                        outcomes += "$exchange:$symbol:unavailable"
+                        exchangePassed = true
+                        break
+                    }
+                }
+
+                outcomes += "$exchange:$symbol:unexpected-${response.status.value}"
+            }
+
+            require(exchangePassed) {
+                "Quote endpoint did not return expected response for $exchange. Outcomes=${outcomes.joinToString()}"
+            }
+        }
+
+        println("      ✓ Per-exchange quote endpoints responded as expected (${outcomes.joinToString()})")
+    }
+
     test("TX Gateway: Unified quote endpoint returns executable quote") {
         val symbols = listOf("BTC", "BTC-PERP", "BTCUSDT")
         val statuses = mutableListOf<String>()
@@ -316,6 +359,39 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
         }
 
         println("      ✓ TX Gateway rejects unauthenticated requests")
+    }
+
+    test("TX Gateway: All exchange order routes reject unauthenticated requests") {
+        val exchanges = listOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster")
+        val unexpected = mutableListOf<String>()
+
+        for (exchange in exchanges) {
+            val response = client.postRaw("${endpoints.txGateway}/api/v1/exchanges/$exchange/order") {
+                headers {
+                    append("Content-Type", "application/json")
+                }
+                setBody(
+                    """
+                    {
+                      "symbol": "BTC",
+                      "side": "BUY",
+                      "type": "MARKET",
+                      "size": "0.01"
+                    }
+                    """.trimIndent()
+                )
+            }
+
+            if (response.status != HttpStatusCode.Unauthorized) {
+                unexpected += "$exchange:${response.status.value}"
+            }
+        }
+
+        require(unexpected.isEmpty()) {
+            "Expected unauthenticated exchange order requests to be rejected, got: ${unexpected.joinToString()}"
+        }
+
+        println("      ✓ All exchange order routes enforce authentication")
     }
 
     test("TX Gateway: Rate limit info endpoint") {

@@ -610,7 +610,6 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         disallowUrlPatterns: [/#\/vault\b/i],
         maxPatternRetries: 4,
         retryDelayMs: 2000,
-        skipScreenshot: true,
       }
     );
   });
@@ -739,7 +738,6 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         disallowUrlPatterns: [/#\/vault\b/i],
         maxPatternRetries: 4,
         retryDelayMs: 2000,
-        skipScreenshot: true,
       }
     );
   });
