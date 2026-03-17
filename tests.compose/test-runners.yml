@@ -383,6 +383,7 @@ services:
     networks:
       - caddy
       - internet
+      - docker-proxy
   test-trading:
     <<: *test_runner_base
     container_name: test-trading
