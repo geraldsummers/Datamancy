@@ -49,6 +49,7 @@ class UnifiedExchangeClient internal constructor(
             "price" to request.price?.toString(),
             "reduceOnly" to request.reduceOnly,
             "urgencyClass" to request.urgencyClass,
+            "feeTier" to request.feeTier,
             "maxSlippageBps" to request.maxSlippageBps?.toString(),
             "cancelAfterMs" to request.cancelAfterMs
         )

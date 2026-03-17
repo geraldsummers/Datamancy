@@ -100,6 +100,11 @@ The Jupyter container seeds practical trading research notebooks in `/home/jovya
 - `07_multi_exchange_execution_mux.ipynb`
 - `08_empirical_intraday_strategy_research.ipynb` (execution-aware intraday strategy research with LOB imbalance/OFI, regime filters, carry overlay, realistic cost/fill modelling, and walk-forward diagnostics)
 - `09_cross_venue_paper_execution_playbook.ipynb` (safe multi-exchange paper order routing and history validation via tx-gateway)
+- `10_data_quality_and_latency_diagnostics.ipynb`
+- `11_cost_realism_validation.ipynb`
+- `12_walk_forward_backtests_with_regime_slices.ipynb`
+- `13_sensitivity_sweeps_fees_slippage_latency.ipynb`
+- `14_live_vs_backtest_drift_dashboard.ipynb`
 
 ### Market Data Streaming
 
@@ -317,6 +322,11 @@ When the notebook image starts, Datamancy now seeds:
 - `~/work/datamancy-notebooks/07_multi_exchange_execution_mux.ipynb`
 - `~/work/datamancy-notebooks/08_empirical_intraday_strategy_research.ipynb`
 - `~/work/datamancy-notebooks/09_cross_venue_paper_execution_playbook.ipynb`
+- `~/work/datamancy-notebooks/10_data_quality_and_latency_diagnostics.ipynb`
+- `~/work/datamancy-notebooks/11_cost_realism_validation.ipynb`
+- `~/work/datamancy-notebooks/12_walk_forward_backtests_with_regime_slices.ipynb`
+- `~/work/datamancy-notebooks/13_sensitivity_sweeps_fees_slippage_latency.ipynb`
+- `~/work/datamancy-notebooks/14_live_vs_backtest_drift_dashboard.ipynb`
 
 These notebooks are wired to the stack Postgres database (`datamancy`) and include:
 

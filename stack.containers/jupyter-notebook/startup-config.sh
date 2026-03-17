@@ -1888,3 +1888,169 @@ cat > /home/jovyan/LM_Agent_Examples.ipynb <<'EOF'
 }
 EOF
 echo "Jupyter notebook environment configured for LM agent programming"
+
+python3 <<'PY'
+import json
+import os
+
+notebook_dir = "/home/jovyan/work/datamancy-notebooks"
+os.makedirs(notebook_dir, exist_ok=True)
+
+def markdown_cell(text: str):
+    return {"cell_type": "markdown", "metadata": {}, "source": text.splitlines(keepends=True)}
+
+def code_cell(text: str):
+    return {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": text.splitlines(keepends=True)}
+
+def write_notebook(name: str, cells):
+    path = os.path.join(notebook_dir, name)
+    if os.path.exists(path):
+        return
+    notebook = {
+        "cells": cells,
+        "metadata": {
+            "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+            "language_info": {"name": "python"}
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(notebook, f, indent=1)
+
+db_bootstrap = (
+    "import os\n"
+    "import pandas as pd\n"
+    "from sqlalchemy import create_engine, text\n"
+    "pg_host = os.getenv('POSTGRES_HOST', 'postgres')\n"
+    "pg_port = os.getenv('POSTGRES_PORT', '5432')\n"
+    "pg_db = os.getenv('POSTGRES_DB', 'datamancy')\n"
+    "pg_user = os.getenv('POSTGRES_USER', 'pipeline_user')\n"
+    "pg_password = os.getenv('POSTGRES_PASSWORD', '')\n"
+    "engine = create_engine(f'postgresql+psycopg2://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}')\n"
+)
+
+write_notebook(
+    "10_data_quality_and_latency_diagnostics.ipynb",
+    [
+        markdown_cell(
+            "# Data Quality + Latency Diagnostics\n\n"
+            "Checks freshness, missing bars, spread anomalies, and execution latency buckets (p50/p95/p99).\n"
+        ),
+        code_cell(db_bootstrap),
+        code_cell(
+            "dq = pd.read_sql(text('''\n"
+            "WITH candles AS (\n"
+            "  SELECT symbol, COUNT(*) AS bars, MAX(time) AS last_bar,\n"
+            "         AVG(CASE WHEN high < low THEN 1 ELSE 0 END) AS invalid_ohlc_ratio\n"
+            "  FROM market_data\n"
+            "  WHERE data_type='candle_1m' AND time >= NOW() - INTERVAL '24 hours'\n"
+            "  GROUP BY symbol\n"
+            "), ob AS (\n"
+            "  SELECT symbol, AVG(spread_pct) AS avg_spread_pct, MAX(time) AS last_ob\n"
+            "  FROM orderbook_data\n"
+            "  WHERE time >= NOW() - INTERVAL '24 hours'\n"
+            "  GROUP BY symbol\n"
+            ")\n"
+            "SELECT c.symbol, c.bars, c.last_bar, o.last_ob, o.avg_spread_pct, c.invalid_ohlc_ratio\n"
+            "FROM candles c\n"
+            "LEFT JOIN ob o USING (symbol)\n"
+            "ORDER BY c.bars DESC\n"
+            "'''), engine)\n"
+            "dq\n"
+        ),
+        code_cell(
+            "latency = pd.read_sql(text('''\n"
+            "SELECT strategy_name, observed_at, p50_ms, p95_ms, p99_ms, jitter_ms\n"
+            "FROM strategy_latency_metrics\n"
+            "WHERE observed_at >= NOW() - INTERVAL '7 days'\n"
+            "ORDER BY observed_at DESC\n"
+            "LIMIT 2000\n"
+            "'''), engine)\n"
+            "latency.head()\n"
+        ),
+    ]
+)
+
+write_notebook(
+    "11_cost_realism_validation.ipynb",
+    [
+        markdown_cell("# Cost Realism Validation\n\nValidate fee/slippage/impact realism against realized fills."),
+        code_cell(db_bootstrap),
+        code_cell(
+            "cost = pd.read_sql(text('''\n"
+            "SELECT strategy_name, venue, side, order_type,\n"
+            "       avg(sim_fee_bps) AS sim_fee_bps,\n"
+            "       avg(sim_slippage_bps) AS sim_slippage_bps,\n"
+            "       avg(realized_slippage_bps) AS realized_slippage_bps,\n"
+            "       avg(sim_impact_bps) AS sim_impact_bps,\n"
+            "       avg(realized_cost_bps) AS realized_cost_bps\n"
+            "FROM strategy_execution_costs\n"
+            "WHERE observed_at >= NOW() - INTERVAL '14 days'\n"
+            "GROUP BY strategy_name, venue, side, order_type\n"
+            "ORDER BY realized_cost_bps DESC NULLS LAST\n"
+            "'''), engine)\n"
+            "cost\n"
+        )
+    ]
+)
+
+write_notebook(
+    "12_walk_forward_backtests_with_regime_slices.ipynb",
+    [
+        markdown_cell("# Walk-Forward Backtests With Regime Slices\n\nEvaluate OOS robustness by volatility/liquidity regime."),
+        code_cell(db_bootstrap),
+        code_cell(
+            "wf = pd.read_sql(text('''\n"
+            "SELECT strategy_name, window_start, window_end, regime_bucket,\n"
+            "       net_return_pct, sharpe, max_drawdown_pct, turnover, trades\n"
+            "FROM strategy_walkforward_runs\n"
+            "WHERE window_end >= NOW() - INTERVAL '90 days'\n"
+            "ORDER BY window_end DESC\n"
+            "'''), engine)\n"
+            "wf.groupby(['strategy_name','regime_bucket'])[['net_return_pct','sharpe','max_drawdown_pct']].mean().reset_index()\n"
+        )
+    ]
+)
+
+write_notebook(
+    "13_sensitivity_sweeps_fees_slippage_latency.ipynb",
+    [
+        markdown_cell("# Sensitivity Sweeps (Fees / Slippage / Latency)\n\nStress expected edge under worsening execution frictions."),
+        code_cell(db_bootstrap),
+        code_cell(
+            "sweep = pd.read_sql(text('''\n"
+            "SELECT strategy_name, fee_bps, slippage_bps, latency_ms,\n"
+            "       avg(net_return_pct) AS avg_return_pct,\n"
+            "       avg(max_drawdown_pct) AS avg_mdd_pct\n"
+            "FROM strategy_sensitivity_sweeps\n"
+            "WHERE created_at >= NOW() - INTERVAL '30 days'\n"
+            "GROUP BY strategy_name, fee_bps, slippage_bps, latency_ms\n"
+            "ORDER BY strategy_name, fee_bps, slippage_bps, latency_ms\n"
+            "'''), engine)\n"
+            "sweep.head(50)\n"
+        )
+    ]
+)
+
+write_notebook(
+    "14_live_vs_backtest_drift_dashboard.ipynb",
+    [
+        markdown_cell("# Live vs Backtest Drift Dashboard\n\nTrack degradation in fill quality, slippage, and latency drift."),
+        code_cell(db_bootstrap),
+        code_cell(
+            "drift = pd.read_sql(text('''\n"
+            "SELECT strategy_name, observed_at,\n"
+            "       live_edge_bps, backtest_edge_bps,\n"
+            "       live_fill_ratio, backtest_fill_ratio,\n"
+            "       live_p95_ms, backtest_p95_ms,\n"
+            "       live_slippage_bps, backtest_slippage_bps\n"
+            "FROM strategy_live_backtest_drift\n"
+            "WHERE observed_at >= NOW() - INTERVAL '30 days'\n"
+            "ORDER BY observed_at DESC\n"
+            "'''), engine)\n"
+            "drift.head(200)\n"
+        )
+    ]
+)
+PY

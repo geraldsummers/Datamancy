@@ -183,6 +183,7 @@ class TxGatewayTest {
                 size = BigDecimal("0.5"),
                 price = BigDecimal("72000"),
                 urgencyClass = "high",
+                feeTier = "vip",
                 maxSlippageBps = BigDecimal("5.5"),
                 cancelAfterMs = 750
             )
@@ -191,6 +192,7 @@ class TxGatewayTest {
         assertTrue(result is ApiResult.Success)
         val requestBody = mockServer.takeRequest().body.readUtf8()
         assertTrue(requestBody.contains(""""urgencyClass":"high""""))
+        assertTrue(requestBody.contains(""""feeTier":"vip""""))
         assertTrue(requestBody.contains(""""maxSlippageBps":"5.5""""))
         assertTrue(requestBody.contains(""""cancelAfterMs":750"""))
     }

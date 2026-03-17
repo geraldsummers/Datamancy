@@ -7,6 +7,7 @@ import io.ktor.http.*
 import io.mockk.every
 import io.ktor.server.testing.*
 import io.mockk.mockk
+import io.mockk.verify
 import org.datamancy.txgateway.services.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -292,7 +293,59 @@ class ApplicationTest {
         assertTrue(Regex("\"status\"\\s*:\\s*\"PARTIALLY_FILLED\"").containsMatchIn(body), body)
         assertTrue(Regex("\"costs\"\\s*:").containsMatchIn(body), body)
         assertTrue(Regex("\"telemetry\"\\s*:").containsMatchIn(body), body)
+        assertTrue(Regex("\"p50RoundTripMs\"\\s*:\\s*\\d+").containsMatchIn(body), body)
+        assertTrue(Regex("\"p99RoundTripMs\"\\s*:\\s*\\d+").containsMatchIn(body), body)
+        assertTrue(Regex("\"simulation\"\\s*:").containsMatchIn(body), body)
+        assertTrue(Regex("\"queuePositionEstimate\"\\s*:\\s*\\d+").containsMatchIn(body), body)
+        assertTrue(Regex("\"projectedPartialFills\"\\s*:").containsMatchIn(body), body)
         assertTrue(Regex("\"cancelCadenceMs\"\\s*:\\s*1500").containsMatchIn(body), body)
+    }
+
+    @Test
+    fun testPaperOrderAppliesFeeTierAdjustments() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","feeTier":"vip"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(Regex("\"feeTier\"\\s*:\\s*\"vip\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"feeTierAdjustmentBps\"\\s*:\\s*-1\\.5").containsMatchIn(body), body)
     }
 
     @Test
@@ -341,6 +394,56 @@ class ApplicationTest {
         assertTrue(Regex("\"status\"\\s*:\\s*\"REJECTED\"").containsMatchIn(body), body)
         assertTrue(Regex("\"filledSize\"\\s*:\\s*\"0\"").containsMatchIn(body), body)
         assertTrue(Regex("\"rejectionReason\"\\s*:\\s*\"Estimated slippage").containsMatchIn(body), body)
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderBlockedWhenExecutionSafeguardsReject() = testApplication {
+        lateinit var workerClient: WorkerClient
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+            every { workerClient.submitHyperliquidOrder(any()) } returns mapOf("orderId" to "live-1")
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","maxSlippageBps":0.5}""")
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        val body = response.bodyAsText()
+        assertTrue(Regex("\"error\"\\s*:\\s*\"Estimated slippage").containsMatchIn(body), body)
+        verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
     }
 
     @Test

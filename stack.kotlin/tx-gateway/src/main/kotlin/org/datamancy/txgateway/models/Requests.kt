@@ -13,6 +13,7 @@ data class OrderRequest(
     val reduceOnly: Boolean = false,
     val postOnly: Boolean = false,
     val urgencyClass: String? = null,
+    val feeTier: String? = null,
     val maxSlippageBps: Double? = null,
     val cancelAfterMs: Long? = null
 )

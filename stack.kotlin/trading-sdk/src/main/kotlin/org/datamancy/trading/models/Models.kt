@@ -147,6 +147,7 @@ data class UnifiedOrderRequest(
     val price: BigDecimal? = null,
     val reduceOnly: Boolean = false,
     val urgencyClass: String? = null,
+    val feeTier: String? = null,
     val maxSlippageBps: BigDecimal? = null,
     val cancelAfterMs: Long? = null
 )

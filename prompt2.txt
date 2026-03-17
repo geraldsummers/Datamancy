@@ -129,3 +129,7 @@ deliverables for empirical strategy work:
   - no strategy promoted without passing realistic cost/fill/latency stress and out-of-sample regime checks
 
 do at least a dozen iterations of this - iterate until you're confident there's no problems remaining
+this is as an autonomous hardening pass on the trading stack
+no failures are acceptable - fix everything
+
+CRUCIAL NOTE: DO NOT RUN THE STACK ON THE LOCAL MACHINE, USE latium.local

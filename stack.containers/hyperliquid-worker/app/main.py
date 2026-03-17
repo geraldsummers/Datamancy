@@ -20,6 +20,19 @@ app = Flask(__name__)
 # Configuration
 # Note: Vault removed - using ephemeral user credentials
 IS_MAINNET = os.getenv('HYPERLIQUID_MAINNET', 'true').lower() == 'true'
+MAX_ORDER_SIZE = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_SIZE', '1000'))
+MAX_ORDER_NOTIONAL_USD = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_NOTIONAL_USD', '1000000'))
+
+
+def parse_positive_decimal(raw_value, field_name: str):
+    """Parse a positive decimal request field or return an error message tuple."""
+    try:
+        parsed = Decimal(str(raw_value))
+    except Exception:
+        return None, f"Invalid {field_name}"
+    if parsed <= 0:
+        return None, f"{field_name} must be > 0"
+    return parsed, None
 
 def parse_hyperliquid_key(api_key: str) -> dict:
     """Parse Hyperliquid API key into address and private key"""
@@ -57,26 +70,55 @@ def submit_order():
         data = request.json
         username = data.get('username')
         symbol = data.get('symbol')
-        side = data.get('side')  # "BUY" or "SELL"
-        order_type = data.get('type')  # "MARKET" or "LIMIT"
+        side = str(data.get('side', '')).upper()  # "BUY" or "SELL"
+        order_type = str(data.get('type', '')).upper()  # "MARKET" or "LIMIT"
         size = data.get('size')
         price = data.get('price')  # Required for LIMIT orders
+        max_slippage_bps = data.get('maxSlippageBps')
+        cancel_after_ms = data.get('cancelAfterMs')
         hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
             return jsonify({"error": "Missing hyperliquidKey in request"}), 400
+        if side not in {"BUY", "SELL"}:
+            return jsonify({"error": f"Unsupported side: {side}"}), 400
+        if order_type not in {"MARKET", "LIMIT"}:
+            return jsonify({"error": f"Unsupported order type: {order_type}"}), 400
+
+        size_decimal, size_error = parse_positive_decimal(size, "size")
+        if size_error:
+            return jsonify({"error": size_error}), 400
+        if size_decimal > MAX_ORDER_SIZE:
+            return jsonify({
+                "error": "Order size exceeds max allowed",
+                "maxSize": str(MAX_ORDER_SIZE),
+                "requestedSize": str(size_decimal)
+            }), 400
 
         logger.info(f"Order: {username} {side} {size} {symbol} @ {price} ({order_type})")
 
         exchange = get_exchange_client(hyperliquid_key)
 
         # Convert side to Hyperliquid format: true for buy, false for sell
-        is_buy = side.upper() == "BUY"
+        is_buy = side == "BUY"
+        size_float = float(size_decimal)
 
-        # Convert size to float
-        size_float = float(size)
+        if max_slippage_bps is not None:
+            slippage_decimal, slippage_error = parse_positive_decimal(max_slippage_bps, "maxSlippageBps")
+            if slippage_error:
+                return jsonify({"error": slippage_error}), 400
+            if slippage_decimal > Decimal("500"):
+                return jsonify({"error": "maxSlippageBps is unreasonably high"}), 400
 
-        if order_type.upper() == "MARKET":
+        if cancel_after_ms is not None:
+            try:
+                cancel_after_ms = int(cancel_after_ms)
+            except Exception:
+                return jsonify({"error": "Invalid cancelAfterMs"}), 400
+            if cancel_after_ms < 100:
+                return jsonify({"error": "cancelAfterMs must be >= 100"}), 400
+
+        if order_type == "MARKET":
             # Market order
             result = exchange.market_order(
                 symbol=symbol,
@@ -87,12 +129,22 @@ def submit_order():
             # Limit order
             if not price:
                 return jsonify({"error": "Price required for limit orders"}), 400
+            price_decimal, price_error = parse_positive_decimal(price, "price")
+            if price_error:
+                return jsonify({"error": price_error}), 400
+            notional = size_decimal * price_decimal
+            if notional > MAX_ORDER_NOTIONAL_USD:
+                return jsonify({
+                    "error": "Order notional exceeds max allowed",
+                    "maxNotionalUsd": str(MAX_ORDER_NOTIONAL_USD),
+                    "requestedNotionalUsd": str(notional)
+                }), 400
 
             result = exchange.order(
                 symbol=symbol,
                 is_buy=is_buy,
                 sz=size_float,
-                limit_px=float(price),
+                limit_px=float(price_decimal),
                 order_type={"limit": {"tif": "Gtc"}}  # Good-til-cancelled
             )
 

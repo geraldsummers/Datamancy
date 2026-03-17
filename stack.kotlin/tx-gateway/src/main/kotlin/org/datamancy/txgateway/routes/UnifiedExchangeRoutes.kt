@@ -129,6 +129,7 @@ private data class PaperOrderResponse(
     val policy: PaperExecutionPolicy,
     val costs: PaperCostBreakdown,
     val telemetry: PaperExecutionTelemetry,
+    val simulation: PaperExecutionSimulation,
     val receivedAt: String
 )
 
@@ -150,6 +151,8 @@ private data class PaperPlacementSlice(
 
 @Serializable
 private data class PaperCostBreakdown(
+    val feeTier: String,
+    val feeTierAdjustmentBps: Double,
     val makerFeeBps: Double,
     val takerFeeBps: Double,
     val appliedFeeBps: Double,
@@ -157,6 +160,8 @@ private data class PaperCostBreakdown(
     val slippageBps: Double,
     val impactBps: Double,
     val adverseSelectionBps: Double,
+    val fundingDriftBps: Double,
+    val basisDriftBps: Double,
     val totalCostBps: Double,
     val estimatedFeeUsd: Double,
     val estimatedCostUsd: Double
@@ -169,14 +174,39 @@ private data class PaperExecutionTelemetry(
     val submitToFirstFillMs: Long? = null,
     val submitToFinalFillMs: Long? = null,
     val cancelReplaceLatencyMs: Long,
+    val p50RoundTripMs: Long,
     val p95RoundTripMs: Long,
+    val p99RoundTripMs: Long,
     val jitterMs: Long
+)
+
+@Serializable
+private data class PaperExecutionSimulation(
+    val queuePositionEstimate: Int,
+    val expectedFillProbability: Double,
+    val projectedPartialFills: List<PaperFillSlice>,
+    val failToFillReason: String? = null,
+    val regimeBucket: String,
+    val liquidityBucket: String
+)
+
+@Serializable
+private data class PaperFillSlice(
+    val delayMs: Long,
+    val size: String,
+    val price: String
 )
 
 private enum class UrgencyClass {
     LOW,
     NORMAL,
     HIGH
+}
+
+private enum class FeeTier {
+    RETAIL,
+    PRO,
+    VIP
 }
 
 fun Route.unifiedExchangeRoutes(
@@ -428,6 +458,7 @@ fun Route.unifiedExchangeRoutes(
                     "size" to orderRequest.size,
                     "price" to orderRequest.price,
                     "urgencyClass" to orderRequest.urgencyClass,
+                    "feeTier" to orderRequest.feeTier,
                     "maxSlippageBps" to orderRequest.maxSlippageBps,
                     "cancelAfterMs" to orderRequest.cancelAfterMs
                 )
@@ -507,6 +538,23 @@ fun Route.unifiedExchangeRoutes(
                     return@post
                 }
 
+                val liveExecutionPreview = quoteForRisk?.let { quote ->
+                    runCatching {
+                        buildPaperOrderResponse(exchange = exchange, orderRequest = orderRequest, quote = quote)
+                    }.getOrNull()
+                }
+                if (liveExecutionPreview?.status == "REJECTED") {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf(
+                            "error" to (liveExecutionPreview.rejectionReason ?: "Order rejected by execution safeguards"),
+                            "exchange" to exchange,
+                            "symbol" to orderRequest.symbol
+                        )
+                    )
+                    return@post
+                }
+
                 val hyperliquidKey = call.request.headers["X-Credential-hyperliquid"]
                 if (hyperliquidKey == null) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
@@ -514,7 +562,7 @@ fun Route.unifiedExchangeRoutes(
                 }
 
                 try {
-                    val payload: Map<String, Any> = mapOf(
+                    val payload = mutableMapOf<String, Any>(
                         "username" to username,
                         "symbol" to orderRequest.symbol,
                         "side" to orderRequest.side,
@@ -525,6 +573,10 @@ fun Route.unifiedExchangeRoutes(
                         "postOnly" to orderRequest.postOnly,
                         "hyperliquidKey" to hyperliquidKey
                     )
+                    orderRequest.urgencyClass?.let { payload["urgencyClass"] = it }
+                    orderRequest.feeTier?.let { payload["feeTier"] = it }
+                    orderRequest.maxSlippageBps?.let { payload["maxSlippageBps"] = it }
+                    orderRequest.cancelAfterMs?.let { payload["cancelAfterMs"] = it }
                     val result = workerClient.submitHyperliquidOrder(payload)
 
                     dbService.logTransaction(
@@ -584,6 +636,7 @@ private fun buildPaperOrderResponse(
     val spreadBps = toBps(spread, quoteMid)
 
     val urgency = parseUrgencyClass(orderRequest.urgencyClass)
+    val feeTier = parseFeeTier(orderRequest.feeTier)
     val marketFillPrice = if (side == "BUY") quoteAsk else quoteBid
     val targetPrice = limitPrice ?: marketFillPrice
     val canFillLimit = when (side) {
@@ -619,6 +672,8 @@ private fun buildPaperOrderResponse(
     } else {
         (baseSlippageBps + sizeImpactBps + urgencySlippageAdj + spreadAdj).max(BigDecimal.ZERO)
     }
+    val regimeBucket = classifyRegimeBucket(spreadBps, estimatedSlippageBps)
+    val liquidityBucket = classifyLiquidityBucket(spreadBps, notional)
 
     val maxSlippageBps = orderRequest.maxSlippageBps?.let { BigDecimal.valueOf(it) }
     val rejectionReason = when {
@@ -660,7 +715,7 @@ private fun buildPaperOrderResponse(
         else -> applySlippage(side, quoteBid, estimatedSlippageBps).max(targetPrice)
     }
 
-    val feeProfile = paperFeeProfile(exchange)
+    val feeProfile = paperFeeProfile(exchange, feeTier)
     val appliedFeeBps = when {
         fillRatio <= BigDecimal.ZERO -> BigDecimal.ZERO
         type == "LIMIT" && !canFillLimit -> feeProfile.makerFeeBps
@@ -680,9 +735,27 @@ private fun buildPaperOrderResponse(
         type == "MARKET" -> BigDecimal("0.8")
         else -> BigDecimal("0.3")
     }
+    val fundingDriftBps = if (orderRequest.symbol.contains("PERP", ignoreCase = true)) {
+        when (regimeBucket) {
+            "high_volatility", "event_jump" -> BigDecimal("1.2")
+            "liquidity_stress" -> BigDecimal("0.8")
+            else -> BigDecimal("0.35")
+        }
+    } else {
+        BigDecimal.ZERO
+    }
+    val basisDriftBps = if (orderRequest.symbol.contains("PERP", ignoreCase = true)) {
+        when (urgency) {
+            UrgencyClass.LOW -> BigDecimal("0.20")
+            UrgencyClass.NORMAL -> BigDecimal("0.45")
+            UrgencyClass.HIGH -> BigDecimal("0.80")
+        }
+    } else {
+        BigDecimal.ZERO
+    }
 
     val totalCostBps =
-        appliedFeeBps + spreadCostBps + estimatedSlippageBps + sizeImpactBps + adverseSelectionBps
+        appliedFeeBps + spreadCostBps + estimatedSlippageBps + sizeImpactBps + adverseSelectionBps + fundingDriftBps + basisDriftBps
     val executionNotional = filledSize.multiply(fillPrice ?: marketFillPrice)
     val estimatedFeeUsd = executionNotional.multiply(appliedFeeBps).divide(BigDecimal("10000"), 8, RoundingMode.HALF_UP)
     val estimatedCostUsd = executionNotional.multiply(totalCostBps).divide(BigDecimal("10000"), 8, RoundingMode.HALF_UP)
@@ -714,7 +787,23 @@ private fun buildPaperOrderResponse(
         else -> submitToFirstFillMs?.plus(450L + tierLatencyAdj * 2L)
     }
     val jitterMs = 6L + tierLatencyAdj / 5L
+    val p50RoundTripMs = submitToAckMs + jitterMs / 2L
     val p95RoundTripMs = submitToAckMs * 2L + jitterMs
+    val p99RoundTripMs = submitToAckMs * 3L + jitterMs * 2L
+    val queuePositionEstimate = estimateQueuePosition(type, urgency, canFillLimit, liquidityBucket)
+    val expectedFillProbability = fillRatio.setScale(6, RoundingMode.HALF_UP).toDouble()
+    val projectedPartialFills = buildProjectedFills(
+        filledSize = filledSize,
+        fillPrice = fillPrice ?: marketFillPrice,
+        submitToFirstFillMs = submitToFirstFillMs,
+        submitToFinalFillMs = submitToFinalFillMs
+    )
+    val failToFillReason = when {
+        rejectionReason != null -> rejectionReason
+        fillRatio <= BigDecimal.ZERO && type == "LIMIT" -> "Queue priority too deep for immediate fill at requested limit price"
+        fillRatio <= BigDecimal.ZERO -> "No executable liquidity available at current controls"
+        else -> null
+    }
 
     val placementSchedule = buildPlacementSchedule(
         side = side,
@@ -763,6 +852,8 @@ private fun buildPaperOrderResponse(
             placementSchedule = placementSchedule
         ),
         costs = PaperCostBreakdown(
+            feeTier = feeProfile.tier.name.lowercase(),
+            feeTierAdjustmentBps = feeProfile.tierAdjustmentBps.toDouble(),
             makerFeeBps = feeProfile.makerFeeBps.toDouble(),
             takerFeeBps = feeProfile.takerFeeBps.toDouble(),
             appliedFeeBps = appliedFeeBps.toDouble(),
@@ -770,6 +861,8 @@ private fun buildPaperOrderResponse(
             slippageBps = estimatedSlippageBps.setScale(6, RoundingMode.HALF_UP).toDouble(),
             impactBps = sizeImpactBps.toDouble(),
             adverseSelectionBps = adverseSelectionBps.toDouble(),
+            fundingDriftBps = fundingDriftBps.toDouble(),
+            basisDriftBps = basisDriftBps.toDouble(),
             totalCostBps = totalCostBps.setScale(6, RoundingMode.HALF_UP).toDouble(),
             estimatedFeeUsd = estimatedFeeUsd.setScale(6, RoundingMode.HALF_UP).toDouble(),
             estimatedCostUsd = estimatedCostUsd.setScale(6, RoundingMode.HALF_UP).toDouble()
@@ -780,8 +873,18 @@ private fun buildPaperOrderResponse(
             submitToFirstFillMs = submitToFirstFillMs,
             submitToFinalFillMs = submitToFinalFillMs,
             cancelReplaceLatencyMs = cancelCadenceMs,
+            p50RoundTripMs = p50RoundTripMs,
             p95RoundTripMs = p95RoundTripMs,
+            p99RoundTripMs = p99RoundTripMs,
             jitterMs = jitterMs
+        ),
+        simulation = PaperExecutionSimulation(
+            queuePositionEstimate = queuePositionEstimate,
+            expectedFillProbability = expectedFillProbability,
+            projectedPartialFills = projectedPartialFills,
+            failToFillReason = failToFillReason,
+            regimeBucket = regimeBucket,
+            liquidityBucket = liquidityBucket
         ),
         receivedAt = now.toString()
     )
@@ -789,7 +892,9 @@ private fun buildPaperOrderResponse(
 
 private data class PaperFeeProfile(
     val makerFeeBps: BigDecimal,
-    val takerFeeBps: BigDecimal
+    val takerFeeBps: BigDecimal,
+    val tier: FeeTier,
+    val tierAdjustmentBps: BigDecimal
 )
 
 private fun estimateOrderNotionalUsd(
@@ -823,20 +928,39 @@ private fun estimateOrderNotionalUsd(
     return size.abs().multiply(executionPrice)
 }
 
-private fun paperFeeProfile(exchange: String): PaperFeeProfile = when (exchange.lowercase()) {
-    "binance" -> PaperFeeProfile(makerFeeBps = BigDecimal("1.0"), takerFeeBps = BigDecimal("5.0"))
-    "bybit" -> PaperFeeProfile(makerFeeBps = BigDecimal("1.5"), takerFeeBps = BigDecimal("5.5"))
-    "coinbase" -> PaperFeeProfile(makerFeeBps = BigDecimal("3.5"), takerFeeBps = BigDecimal("6.0"))
-    "dydx" -> PaperFeeProfile(makerFeeBps = BigDecimal("2.0"), takerFeeBps = BigDecimal("5.0"))
-    "swyftx" -> PaperFeeProfile(makerFeeBps = BigDecimal("4.0"), takerFeeBps = BigDecimal("7.0"))
-    "aster" -> PaperFeeProfile(makerFeeBps = BigDecimal("2.0"), takerFeeBps = BigDecimal("5.0"))
-    else -> PaperFeeProfile(makerFeeBps = BigDecimal("2.0"), takerFeeBps = BigDecimal("5.0"))
+private fun paperFeeProfile(exchange: String, tier: FeeTier): PaperFeeProfile {
+    val base = when (exchange.lowercase()) {
+        "binance" -> BigDecimal("1.0") to BigDecimal("5.0")
+        "bybit" -> BigDecimal("1.5") to BigDecimal("5.5")
+        "coinbase" -> BigDecimal("3.5") to BigDecimal("6.0")
+        "dydx" -> BigDecimal("2.0") to BigDecimal("5.0")
+        "swyftx" -> BigDecimal("4.0") to BigDecimal("7.0")
+        "aster" -> BigDecimal("2.0") to BigDecimal("5.0")
+        else -> BigDecimal("2.0") to BigDecimal("5.0")
+    }
+    val tierAdjustment = when (tier) {
+        FeeTier.RETAIL -> BigDecimal.ZERO
+        FeeTier.PRO -> BigDecimal("-0.5")
+        FeeTier.VIP -> BigDecimal("-1.5")
+    }
+    return PaperFeeProfile(
+        makerFeeBps = (base.first + tierAdjustment).max(BigDecimal("-2.0")),
+        takerFeeBps = (base.second + tierAdjustment).max(BigDecimal("0.4")),
+        tier = tier,
+        tierAdjustmentBps = tierAdjustment
+    )
 }
 
 private fun parseUrgencyClass(raw: String?): UrgencyClass = when (raw?.trim()?.lowercase()) {
     "low" -> UrgencyClass.LOW
     "high" -> UrgencyClass.HIGH
     else -> UrgencyClass.NORMAL
+}
+
+private fun parseFeeTier(raw: String?): FeeTier = when (raw?.trim()?.lowercase()) {
+    "pro" -> FeeTier.PRO
+    "vip" -> FeeTier.VIP
+    else -> FeeTier.RETAIL
 }
 
 private fun applySlippage(side: String, referencePrice: BigDecimal, slippageBps: BigDecimal): BigDecimal {
@@ -919,6 +1043,79 @@ private fun buildPlacementSchedule(
         }
     }
     return schedule
+}
+
+private fun estimateQueuePosition(
+    orderType: String,
+    urgency: UrgencyClass,
+    canFillLimit: Boolean,
+    liquidityBucket: String
+): Int {
+    if (orderType == "MARKET" || canFillLimit) return 1
+    val base = when (liquidityBucket) {
+        "liquidity_stress" -> 28
+        "thin" -> 18
+        else -> 10
+    }
+    val urgencyAdj = when (urgency) {
+        UrgencyClass.HIGH -> -4
+        UrgencyClass.NORMAL -> 0
+        UrgencyClass.LOW -> 5
+    }
+    return (base + urgencyAdj).coerceAtLeast(1)
+}
+
+private fun buildProjectedFills(
+    filledSize: BigDecimal,
+    fillPrice: BigDecimal,
+    submitToFirstFillMs: Long?,
+    submitToFinalFillMs: Long?
+): List<PaperFillSlice> {
+    if (filledSize <= BigDecimal.ZERO) return emptyList()
+    val firstDelay = submitToFirstFillMs ?: 0L
+    val finalDelay = submitToFinalFillMs ?: firstDelay
+    val duration = (finalDelay - firstDelay).coerceAtLeast(0L)
+    val ratios = when {
+        duration <= 80L -> listOf(BigDecimal.ONE)
+        duration <= 400L -> listOf(BigDecimal("0.6"), BigDecimal("0.4"))
+        else -> listOf(BigDecimal("0.5"), BigDecimal("0.3"), BigDecimal("0.2"))
+    }
+
+    val slices = mutableListOf<PaperFillSlice>()
+    var remaining = filledSize
+    ratios.forEachIndexed { index, ratio ->
+        val sliceSize = if (index == ratios.lastIndex) {
+            remaining
+        } else {
+            filledSize.multiply(ratio).setScale(8, RoundingMode.DOWN)
+        }
+        remaining = (remaining - sliceSize).max(BigDecimal.ZERO)
+        val offset = if (ratios.size == 1) {
+            0L
+        } else {
+            (duration * index.toLong()) / (ratios.lastIndex.toLong().coerceAtLeast(1L))
+        }
+        slices += PaperFillSlice(
+            delayMs = firstDelay + offset,
+            size = sliceSize.stripTrailingZeros().toPlainString(),
+            price = fillPrice.setScale(8, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+        )
+    }
+    return slices
+}
+
+private fun classifyRegimeBucket(spreadBps: BigDecimal, slippageBps: BigDecimal): String = when {
+    spreadBps >= BigDecimal("20") || slippageBps >= BigDecimal("25") -> "liquidity_stress"
+    spreadBps >= BigDecimal("8") || slippageBps >= BigDecimal("12") -> "high_volatility"
+    spreadBps >= BigDecimal("4") || slippageBps >= BigDecimal("6") -> "event_jump"
+    else -> "low_volatility"
+}
+
+private fun classifyLiquidityBucket(spreadBps: BigDecimal, notional: BigDecimal): String = when {
+    spreadBps >= BigDecimal("20") -> "liquidity_stress"
+    spreadBps >= BigDecimal("10") || notional > BigDecimal("250000") -> "thin"
+    spreadBps >= BigDecimal("4") || notional > BigDecimal("100000") -> "medium"
+    else -> "deep"
 }
 
 private fun signedOffset(side: String, value: BigDecimal): BigDecimal {

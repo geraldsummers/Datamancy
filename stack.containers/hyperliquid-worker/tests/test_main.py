@@ -5,6 +5,7 @@ import pytest
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
+from decimal import Decimal
 
 # Add app to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
@@ -219,6 +220,74 @@ class TestFlaskEndpoints:
             assert response.status_code == 400
             data = response.get_json()
             assert 'Price required' in data['error']
+
+    def test_order_rejects_invalid_side(self, client):
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'HOLD',
+            'type': 'MARKET',
+            'size': '0.1',
+            'hyperliquidKey': 'testkey'
+        })
+        assert response.status_code == 400
+        assert 'Unsupported side' in response.get_json()['error']
+
+    def test_order_rejects_non_positive_size(self, client):
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'size': '-1',
+            'hyperliquidKey': 'testkey'
+        })
+        assert response.status_code == 400
+        assert 'size must be > 0' in response.get_json()['error']
+
+    @patch('main.get_exchange_client')
+    def test_order_rejects_unreasonable_slippage(self, mock_get_exchange, client):
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'size': '0.1',
+            'maxSlippageBps': '900',
+            'hyperliquidKey': 'testkey'
+        })
+        assert response.status_code == 400
+        assert 'maxSlippageBps is unreasonably high' in response.get_json()['error']
+
+    @patch('main.get_exchange_client')
+    def test_order_rejects_too_fast_cancel(self, mock_get_exchange, client):
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'size': '0.1',
+            'cancelAfterMs': 50,
+            'hyperliquidKey': 'testkey'
+        })
+        assert response.status_code == 400
+        assert 'cancelAfterMs must be >= 100' in response.get_json()['error']
+
+    @patch('main.get_exchange_client')
+    def test_limit_order_rejects_notional_over_limit(self, mock_get_exchange, client):
+        with patch.object(main, 'MAX_ORDER_NOTIONAL_USD', Decimal('1000')):
+            response = client.post('/order', json={
+                'username': 'testuser',
+                'symbol': 'BTC',
+                'side': 'BUY',
+                'type': 'LIMIT',
+                'size': '1',
+                'price': '5000',
+                'hyperliquidKey': 'testkey'
+            })
+
+        assert response.status_code == 400
+        assert 'Order notional exceeds max allowed' in response.get_json()['error']
 
     @patch('main.get_exchange_client')
     def test_cancel_order_success(self, mock_get_exchange, client):
