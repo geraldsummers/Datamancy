@@ -160,6 +160,42 @@ class TxGatewayTest {
     }
 
     @Test
+    fun `test unified exchange order forwards execution controls`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "paper-123",
+                "status": "PENDING",
+                "filledSize": "0",
+                "exchange": "binance",
+                "symbol": "BTC",
+                "side": "BUY",
+                "type": "LIMIT"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.placeOrder(
+            UnifiedOrderRequest(
+                exchange = ExchangeId.BINANCE,
+                symbol = "BTC",
+                side = Side.BUY,
+                type = OrderType.LIMIT,
+                size = BigDecimal("0.5"),
+                price = BigDecimal("72000"),
+                urgencyClass = "high",
+                maxSlippageBps = BigDecimal("5.5"),
+                cancelAfterMs = 750
+            )
+        )
+
+        assertTrue(result is ApiResult.Success)
+        val requestBody = mockServer.takeRequest().body.readUtf8()
+        assertTrue(requestBody.contains(""""urgencyClass":"high""""))
+        assertTrue(requestBody.contains(""""maxSlippageBps":"5.5""""))
+        assertTrue(requestBody.contains(""""cancelAfterMs":750"""))
+    }
+
+    @Test
     fun `test token contract addresses`() {
         assertEquals(
             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",

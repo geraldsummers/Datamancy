@@ -248,6 +248,22 @@ val bestSell = tx.exchanges.bestQuoteViaGateway(
     side = Side.SELL
 )
 println(bestSell)
+
+// Execution realism controls for paper/live gateway paths
+val order = tx.exchanges.placeOrder(
+    UnifiedOrderRequest(
+        exchange = ExchangeId.BINANCE,
+        symbol = "BTC",
+        side = Side.BUY,
+        type = OrderType.LIMIT,
+        size = "0.5".toBigDecimal(),
+        price = "72000".toBigDecimal(),
+        urgencyClass = "normal",
+        maxSlippageBps = "8.0".toBigDecimal(),
+        cancelAfterMs = 1000
+    )
+)
+println(order)
 ```
 
 ## Grafana Integration

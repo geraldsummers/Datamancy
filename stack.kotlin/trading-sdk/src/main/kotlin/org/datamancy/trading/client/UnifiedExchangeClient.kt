@@ -47,7 +47,10 @@ class UnifiedExchangeClient internal constructor(
             "type" to request.type.name,
             "size" to request.size.toString(),
             "price" to request.price?.toString(),
-            "reduceOnly" to request.reduceOnly
+            "reduceOnly" to request.reduceOnly,
+            "urgencyClass" to request.urgencyClass,
+            "maxSlippageBps" to request.maxSlippageBps?.toString(),
+            "cancelAfterMs" to request.cancelAfterMs
         )
 
         return when (val result = httpClient.post<Map<String, Any?>, Map<String, Any?>>(path, payload)) {
@@ -197,7 +200,11 @@ class UnifiedExchangeClient internal constructor(
 private fun Any?.toBigDecimalOrNull(): BigDecimal? = when (this) {
     null -> null
     is BigDecimal -> this
-    is Number -> this.toString().toBigDecimalOrNull()
-    is String -> this.toBigDecimalOrNull()
+    is Number -> this.toString().parseBigDecimalOrNull()
+    is String -> this.parseBigDecimalOrNull()
     else -> null
 }
+
+private fun String.parseBigDecimalOrNull(): BigDecimal? = runCatching {
+    trim().takeIf { it.isNotEmpty() }?.let { BigDecimal(it) }
+}.getOrNull()
