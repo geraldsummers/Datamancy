@@ -11,7 +11,10 @@ data class OrderRequest(
     val size: String,
     val price: String? = null,
     val reduceOnly: Boolean = false,
-    val postOnly: Boolean = false
+    val postOnly: Boolean = false,
+    val urgencyClass: String? = null,
+    val maxSlippageBps: Double? = null,
+    val cancelAfterMs: Long? = null
 )
 
 @Serializable

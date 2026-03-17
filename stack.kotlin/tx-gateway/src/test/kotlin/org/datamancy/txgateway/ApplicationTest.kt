@@ -245,4 +245,101 @@ class ApplicationTest {
         assertTrue(Regex("\"filledSize\"\\s*:\\s*\"0\"").containsMatchIn(body), body)
         assertTrue(Regex("\"executionMode\"\\s*:\\s*\"paper\"").containsMatchIn(body), body)
     }
+
+    @Test
+    fun testPaperOrderCanBePartiallyFilledWithExecutionTelemetry() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 10000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"5","urgencyClass":"low","cancelAfterMs":1500}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(Regex("\"status\"\\s*:\\s*\"PARTIALLY_FILLED\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"costs\"\\s*:").containsMatchIn(body), body)
+        assertTrue(Regex("\"telemetry\"\\s*:").containsMatchIn(body), body)
+        assertTrue(Regex("\"cancelCadenceMs\"\\s*:\\s*1500").containsMatchIn(body), body)
+    }
+
+    @Test
+    fun testPaperOrderRejectsWhenEstimatedSlippageExceedsLimit() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 10000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25","maxSlippageBps":0.5}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(Regex("\"status\"\\s*:\\s*\"REJECTED\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"filledSize\"\\s*:\\s*\"0\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"rejectionReason\"\\s*:\\s*\"Estimated slippage").containsMatchIn(body), body)
+    }
 }
