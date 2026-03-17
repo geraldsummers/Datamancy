@@ -10,7 +10,7 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
     // Air-gapped architecture: isolated environment has its own registry
     // Production registry should NOT be accessible from isolated environment
-    val isolatedRegistryHost = System.getenv("ISOLATED_REGISTRY_HOST") ?: "isolated-registry:5000"
+    val configuredIsolatedRegistryHost = System.getenv("ISOLATED_REGISTRY_HOST")
     val productionRegistryHost = System.getenv("REGISTRY_HOST") ?: "registry:5000"
 
     val testImagePrefix = "cicd-test"
@@ -58,6 +58,13 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
     test("Push image to isolated registry") {
         val testId = UUID.randomUUID().toString().substring(0, 8)
         val localImageName = "$testImagePrefix-push:$testId"
+        val tempRegistry = if (configuredIsolatedRegistryHost.isNullOrBlank()) {
+            startTemporaryIsolatedRegistry(isolatedDockerVmDockerHost)
+        } else {
+            null
+        }
+        val isolatedRegistryHost = configuredIsolatedRegistryHost ?: tempRegistry?.host
+            ?: throw AssertionError("No isolated registry host configured and failed to start temporary isolated registry")
         val registryImageName = "$isolatedRegistryHost/$testImagePrefix-push:$testId"
 
         val tempDir = File.createTempFile("dockerfile-", "").apply {
@@ -92,6 +99,9 @@ suspend fun TestRunner.cicdTests() = suite("CI/CD Pipeline Tests") {
 
             execCICDDocker(isolatedDockerVmDockerHost, "rmi", "-f", localImageName, registryImageName)
         } finally {
+            if (tempRegistry != null) {
+                stopTemporaryIsolatedRegistry(isolatedDockerVmDockerHost, tempRegistry.containerName)
+            }
             tempDir.deleteRecursively()
         }
     }
@@ -257,6 +267,43 @@ private fun execCICDDocker(dockerHost: String, vararg args: String): Pair<Int, S
     val exitCode = process.waitFor()
 
     return exitCode to output
+}
+
+private data class TemporaryRegistry(
+    val containerName: String,
+    val host: String
+)
+
+private fun startTemporaryIsolatedRegistry(dockerHost: String): TemporaryRegistry? {
+    val containerName = "cicd-temp-registry-${UUID.randomUUID().toString().substring(0, 8)}"
+    val (runExitCode, runOutput) = execCICDDocker(
+        dockerHost,
+        "run", "-d", "--name", containerName, "-p", "0:5000", "registry:2"
+    )
+    if (runExitCode != 0) {
+        println("      ℹ️  Failed to start temporary registry: $runOutput")
+        return null
+    }
+
+    val (portExitCode, portOutput) = execCICDDocker(dockerHost, "port", containerName, "5000/tcp")
+    if (portExitCode != 0) {
+        println("      ℹ️  Failed to resolve temporary registry port: $portOutput")
+        stopTemporaryIsolatedRegistry(dockerHost, containerName)
+        return null
+    }
+
+    val hostPort = Regex(""":(\d+)\s*$""").find(portOutput.trim())?.groupValues?.get(1)
+    if (hostPort.isNullOrBlank()) {
+        println("      ℹ️  Failed to parse temporary registry port mapping: $portOutput")
+        stopTemporaryIsolatedRegistry(dockerHost, containerName)
+        return null
+    }
+
+    return TemporaryRegistry(containerName, "localhost:$hostPort")
+}
+
+private fun stopTemporaryIsolatedRegistry(dockerHost: String, containerName: String) {
+    execCICDDocker(dockerHost, "rm", "-f", containerName)
 }
 
 private fun isIsolatedDockerVmDockerAvailable(dockerHost: String): Boolean {
