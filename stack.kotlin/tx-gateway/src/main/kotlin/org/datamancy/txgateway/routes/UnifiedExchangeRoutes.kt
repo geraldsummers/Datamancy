@@ -319,7 +319,23 @@ fun Route.unifiedExchangeRoutes(
                 }
 
                 val quotes = exchangesToScan.mapNotNull { exchange ->
-                    dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)
+                    val quote = dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)
+                    when {
+                        quote == null -> null
+                        !quote.isValidSnapshot() -> {
+                            logger.warn(
+                                "Ignoring invalid quote snapshot for exchange={} symbol={} bid={} ask={} last={}",
+                                quote.exchange,
+                                quote.symbol,
+                                quote.bid,
+                                quote.ask,
+                                quote.last
+                            )
+                            null
+                        }
+
+                        else -> quote
+                    }
                 }
 
                 if (quotes.isEmpty()) {
@@ -329,7 +345,7 @@ fun Route.unifiedExchangeRoutes(
                             "error" to "Quote unavailable",
                             "symbol" to symbol,
                             "side" to side,
-                            "exchangesScanned" to exchangesToScan
+                            "exchangesScanned" to exchangesToScan.joinToString(",")
                         )
                     )
                     return@get
@@ -393,6 +409,25 @@ fun Route.unifiedExchangeRoutes(
                         HttpStatusCode.NotFound,
                         mapOf(
                             "error" to "Quote unavailable",
+                            "exchange" to exchange,
+                            "symbol" to symbol
+                        )
+                    )
+                    return@get
+                }
+                if (!quote.isValidSnapshot()) {
+                    logger.warn(
+                        "Rejecting invalid quote snapshot for exchange={} symbol={} bid={} ask={} last={}",
+                        quote.exchange,
+                        quote.symbol,
+                        quote.bid,
+                        quote.ask,
+                        quote.last
+                    )
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        mapOf(
+                            "error" to "Invalid quote snapshot",
                             "exchange" to exchange,
                             "symbol" to symbol
                         )
@@ -477,6 +512,25 @@ fun Route.unifiedExchangeRoutes(
                         )
                         return@post
                     }
+                    if (!quote.isValidSnapshot()) {
+                        logger.warn(
+                            "Rejecting paper order due to invalid quote snapshot for exchange={} symbol={} bid={} ask={} last={}",
+                            quote.exchange,
+                            quote.symbol,
+                            quote.bid,
+                            quote.ask,
+                            quote.last
+                        )
+                        call.respond(
+                            HttpStatusCode.ServiceUnavailable,
+                            mapOf(
+                                "error" to "Invalid quote snapshot",
+                                "exchange" to exchange,
+                                "symbol" to orderRequest.symbol
+                            )
+                        )
+                        return@post
+                    }
 
                     val estimatedNotionalUsd = estimateOrderNotionalUsd(orderRequest, quote)
                         ?: run {
@@ -517,7 +571,18 @@ fun Route.unifiedExchangeRoutes(
                     return@post
                 }
 
-                val quoteForRisk = dbService.fetchLatestQuote(exchange = exchange, symbol = orderRequest.symbol)
+                val rawRiskQuote = dbService.fetchLatestQuote(exchange = exchange, symbol = orderRequest.symbol)
+                val quoteForRisk = rawRiskQuote?.takeIf { it.isValidSnapshot() }
+                if (rawRiskQuote != null && quoteForRisk == null) {
+                    logger.warn(
+                        "Ignoring invalid live quote snapshot for exchange={} symbol={} bid={} ask={} last={}",
+                        rawRiskQuote.exchange,
+                        rawRiskQuote.symbol,
+                        rawRiskQuote.bid,
+                        rawRiskQuote.ask,
+                        rawRiskQuote.last
+                    )
+                }
                 val estimatedNotionalUsd = estimateOrderNotionalUsd(orderRequest, quoteForRisk)
                     ?: run {
                         call.respond(
@@ -1135,6 +1200,11 @@ private fun toBps(numerator: BigDecimal, denominator: BigDecimal): BigDecimal {
     return numerator
         .multiply(BigDecimal("10000"))
         .divide(denominator, 8, RoundingMode.HALF_UP)
+}
+
+private fun LatestQuote.isValidSnapshot(): Boolean {
+    if (bid <= 0.0 || ask <= 0.0 || last <= 0.0) return false
+    return ask >= bid
 }
 
 private suspend fun extractAuthenticatedUsername(

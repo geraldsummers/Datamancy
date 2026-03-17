@@ -83,6 +83,29 @@ class ApplicationTest {
     }
 
     @Test
+    fun testUnifiedExchangesEndpointIncludesRequiredVenueSet() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/exchanges")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        val expectedVenues = listOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster")
+        expectedVenues.forEach { venue ->
+            assertTrue(body.contains("\"apiName\":\"$venue\"") || body.contains("\"apiName\": \"$venue\""))
+        }
+        assertTrue(
+            Regex("\\{[^}]*\"apiName\"\\s*:\\s*\"hyperliquid\"[^}]*\"liveOrder\"\\s*:\\s*true").containsMatchIn(body),
+            body
+        )
+    }
+
+    @Test
     fun testUnifiedQuoteEndpoint() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
@@ -106,6 +129,31 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(body.contains("\"bid\""))
         assertTrue(body.contains("73000"))
+    }
+
+    @Test
+    fun testUnifiedQuoteEndpointRejectsInvalidSnapshot() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73010.0,
+                ask = 73000.0,
+                last = 73005.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "orderbook_data"
+            )
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/exchanges/hyperliquid/quote?symbol=BTC")
+        assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Invalid quote snapshot"), body)
     }
 
     @Test
@@ -149,6 +197,78 @@ class ApplicationTest {
         val sellBody = sellResponse.bodyAsText()
         assertTrue(sellBody.contains("\"selectedExchange\": \"binance\""))
         assertTrue(sellBody.contains("\"side\": \"sell\""))
+    }
+
+    @Test
+    fun testBestQuoteEndpointSkipsInvalidSnapshots() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73050.0,
+                ask = 73000.0,
+                last = 73020.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 72990.0,
+                ask = 73005.0,
+                last = 73000.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/exchanges/best-quote?symbol=BTC&side=buy&exchanges=hyperliquid,binance")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"selectedExchange\": \"binance\""), body)
+    }
+
+    @Test
+    fun testBestQuoteEndpointReturnsNotFoundWhenAllSnapshotsInvalid() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 0.0,
+                ask = 73000.0,
+                last = 73000.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 73100.0,
+                ask = 73000.0,
+                last = 73050.0,
+                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/exchanges/best-quote?symbol=BTC&side=buy&exchanges=hyperliquid,binance")
+        assertEquals(HttpStatusCode.NotFound, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Quote unavailable"), body)
     }
 
     @Test

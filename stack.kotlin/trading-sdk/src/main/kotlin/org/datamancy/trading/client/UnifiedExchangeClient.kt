@@ -3,6 +3,8 @@ package org.datamancy.trading.client
 import org.datamancy.trading.models.*
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 
 /**
@@ -29,7 +31,7 @@ class UnifiedExchangeClient internal constructor(
     fun supportedExchanges(): List<ExchangeId> = supported
 
     suspend fun quote(exchange: ExchangeId, symbol: String): ApiResult<UnifiedQuote> {
-        val path = "/api/v1/exchanges/${exchange.apiName}/quote?symbol=$symbol"
+        val path = "/api/v1/exchanges/${exchange.apiName}/quote?symbol=${symbol.encodeForQuery()}"
         return when (val result = httpClient.get<Map<String, Any>>(path)) {
             is ApiResult.Success -> parseQuote(exchange, symbol, result.data)
             is ApiResult.Error -> ApiResult.Error(
@@ -101,7 +103,7 @@ class UnifiedExchangeClient internal constructor(
     ): ApiResult<UnifiedQuote> {
         val exchangeCsv = exchanges.distinct().joinToString(",") { it.apiName }
         val path =
-            "/api/v1/exchanges/best-quote?symbol=$symbol&side=${side.name.lowercase()}&exchanges=$exchangeCsv"
+            "/api/v1/exchanges/best-quote?symbol=${symbol.encodeForQuery()}&side=${side.name.lowercase()}&exchanges=$exchangeCsv"
 
         return when (val result = httpClient.get<Map<String, Any?>>(path)) {
             is ApiResult.Success -> {
@@ -209,3 +211,5 @@ private fun Any?.toBigDecimalOrNull(): BigDecimal? = when (this) {
 private fun String.parseBigDecimalOrNull(): BigDecimal? = runCatching {
     trim().takeIf { it.isNotEmpty() }?.let { BigDecimal(it) }
 }.getOrNull()
+
+private fun String.encodeForQuery(): String = URLEncoder.encode(this, StandardCharsets.UTF_8)

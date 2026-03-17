@@ -198,6 +198,67 @@ class TxGatewayTest {
     }
 
     @Test
+    fun `test unified quote request URL-encodes symbol`() = runBlocking {
+        val mockResponse = """
+            {
+                "exchange": "binance",
+                "symbol": "BTC/USD",
+                "bid": 73000.0,
+                "ask": 73010.0,
+                "last": 73005.0,
+                "timestamp": "2026-02-07T00:00:00Z",
+                "source": "market_data:trade"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.quote(ExchangeId.BINANCE, "BTC/USD")
+        assertTrue(result is ApiResult.Success)
+
+        val requestPath = mockServer.takeRequest().path ?: ""
+        assertTrue(
+            requestPath.contains("/api/v1/exchanges/binance/quote?symbol=BTC%2FUSD"),
+            requestPath
+        )
+    }
+
+    @Test
+    fun `test best quote via gateway URL-encodes symbol`() = runBlocking {
+        val mockResponse = """
+            {
+                "requestedSymbol": "BTC/USD",
+                "normalizedSymbol": "BTC/USD",
+                "side": "buy",
+                "selectedExchange": "binance",
+                "quote": {
+                    "exchange": "binance",
+                    "symbol": "BTC/USD",
+                    "bid": 73000.0,
+                    "ask": 73010.0,
+                    "last": 73005.0,
+                    "timestamp": "2026-02-07T00:00:00Z",
+                    "source": "market_data:trade"
+                },
+                "comparedExchanges": ["binance"]
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.bestQuoteViaGateway(
+            symbol = "BTC/USD",
+            side = Side.BUY,
+            exchanges = listOf(ExchangeId.BINANCE)
+        )
+        assertTrue(result is ApiResult.Success)
+
+        val requestPath = mockServer.takeRequest().path ?: ""
+        assertTrue(
+            requestPath.contains("/api/v1/exchanges/best-quote?symbol=BTC%2FUSD&side=buy&exchanges=binance"),
+            requestPath
+        )
+    }
+
+    @Test
     fun `test token contract addresses`() {
         assertEquals(
             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
