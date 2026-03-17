@@ -127,3 +127,5 @@ deliverables for empirical strategy work:
   - alerting for degradation (fill quality, slippage drift, latency spikes)
 - acceptance bar:
   - no strategy promoted without passing realistic cost/fill/latency stress and out-of-sample regime checks
+
+do at least a dozen iterations of this - iterate until you're confident there's no problems remaining
