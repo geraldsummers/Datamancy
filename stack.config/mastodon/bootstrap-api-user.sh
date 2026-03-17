@@ -45,6 +45,15 @@ user.approved = true if user.respond_to?(:approved=)
 user.confirmed_at ||= Time.now.utc
 user.save!
 
+# Mastodon callbacks can keep moderated instances in pending state.
+# Force persisted approval fields after save to guarantee API test account usability.
+force_updates = {}
+force_updates[:approved] = true if user.has_attribute?(:approved)
+force_updates[:disabled] = false if user.has_attribute?(:disabled)
+force_updates[:confirmed_at] = user.confirmed_at || Time.now.utc if user.has_attribute?(:confirmed_at)
+user.update_columns(force_updates) unless force_updates.empty?
+user.reload
+
 puts "[mastodon-api-user] ensured local API user #{username} (#{email})"
 
 static_token = ENV.fetch('DATAMANCY_API_TOKEN', '').strip
