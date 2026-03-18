@@ -77,7 +77,7 @@ class OpsSshPlugin : Plugin {
             
             val fullCmd = listOf(
                 "ssh",
-                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "StrictHostKeyChecking=yes",
                 "-o", "UserKnownHostsFile=${cfg.knownHostsPath}",
                 "-o", "ConnectTimeout=10",
                 "-i", cfg.keyPath,

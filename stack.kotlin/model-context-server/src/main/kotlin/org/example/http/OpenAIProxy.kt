@@ -6,6 +6,9 @@ import com.sun.net.httpserver.HttpHandler
 import org.example.host.ToolRegistry
 import org.example.util.Json
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
 
 /**
  * OpenAI-compatible proxy handler that delegates to llm_chat_completion agent.
@@ -45,6 +48,17 @@ internal class OpenAIProxyHandler(
     private val tools: ToolRegistry,
     private val authorizer: RequestAuthorizer
 ) : HttpHandler {
+    private val bodyMaxBytes: Long = (
+        System.getProperty("TOOLSERVER_HTTP_BODY_MAX_BYTES")?.toLongOrNull()
+            ?: System.getenv("TOOLSERVER_HTTP_BODY_MAX_BYTES")?.toLongOrNull()
+            ?: 1_000_000L
+        ).coerceAtLeast(1024L)
+    private val bodyReadTimeoutMs: Long = (
+        System.getProperty("TOOLSERVER_HTTP_BODY_TIMEOUT_MS")?.toLongOrNull()
+            ?: System.getenv("TOOLSERVER_HTTP_BODY_TIMEOUT_MS")?.toLongOrNull()
+            ?: 5_000L
+        ).coerceAtLeast(250L)
+
     override fun handle(exchange: HttpExchange) {
         try {
             if (exchange.requestMethod != "POST") {
@@ -58,7 +72,7 @@ internal class OpenAIProxyHandler(
             }
 
             // Parse incoming OpenAI API request
-            val requestBody = exchange.requestBody.readBytes().toString(StandardCharsets.UTF_8)
+            val requestBody = readRequestBodyLimited(exchange).toString(StandardCharsets.UTF_8)
             val requestJson = Json.mapper.readTree(requestBody) as com.fasterxml.jackson.databind.node.ObjectNode
 
             // Extract parameters
@@ -147,6 +161,22 @@ internal class OpenAIProxyHandler(
             exchange.sendResponseHeaders(200, responseBytes.size.toLong())
             exchange.responseBody.use { it.write(responseBytes) }
 
+        } catch (oom: OpenAiProxyBodyTooLargeException) {
+            respond(
+                exchange,
+                413,
+                Json.mapper.createObjectNode()
+                    .put("error", "payload_too_large")
+                    .put("limitBytes", bodyMaxBytes)
+            )
+        } catch (timeout: OpenAiProxyBodyReadTimeoutException) {
+            respond(
+                exchange,
+                408,
+                Json.mapper.createObjectNode()
+                    .put("error", "request_timeout")
+                    .put("message", "request body read exceeded timeout")
+            )
         } catch (e: Exception) {
             respond(exchange, 500, Json.mapper.createObjectNode().put("error", e.message ?: "internal_error"))
         }
@@ -165,4 +195,44 @@ internal class OpenAIProxyHandler(
         exchange.sendResponseHeaders(status, bytes.size.toLong())
         exchange.responseBody.use { it.write(bytes) }
     }
+
+    private fun readRequestBodyLimited(exchange: HttpExchange): ByteArray {
+        val inStream = exchange.requestBody
+        val contentLength = exchange.requestHeaders.getFirst("Content-Length")?.toLongOrNull()
+        if (contentLength != null && contentLength > bodyMaxBytes) {
+            throw OpenAiProxyBodyTooLargeException()
+        }
+
+        val future = CompletableFuture.supplyAsync {
+            val expected = (contentLength ?: 0L).coerceAtMost(bodyMaxBytes).toInt()
+            val out = java.io.ByteArrayOutputStream(if (expected > 0) expected else 8 * 1024)
+            val buffer = ByteArray(8 * 1024)
+            var total = 0L
+
+            while (true) {
+                val read = inStream.read(buffer)
+                if (read == -1) break
+                total += read
+                if (total > bodyMaxBytes) throw OpenAiProxyBodyTooLargeException()
+                out.write(buffer, 0, read)
+            }
+
+            out.toByteArray()
+        }
+
+        return try {
+            future.get(bodyReadTimeoutMs, TimeUnit.MILLISECONDS)
+        } catch (_: java.util.concurrent.TimeoutException) {
+            runCatching { inStream.close() }
+            future.cancel(true)
+            throw OpenAiProxyBodyReadTimeoutException()
+        } catch (e: ExecutionException) {
+            val cause = e.cause
+            if (cause is OpenAiProxyBodyTooLargeException) throw cause
+            throw e
+        }
+    }
+
+    private class OpenAiProxyBodyTooLargeException : RuntimeException()
+    private class OpenAiProxyBodyReadTimeoutException : RuntimeException()
 }

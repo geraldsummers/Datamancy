@@ -308,12 +308,17 @@ def cancel_all():
         logger.error(f"Cancel all failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/positions', methods=['GET'])
+@app.route('/positions', methods=['GET', 'POST'])
 def get_positions():
     """Get user positions - uses ephemeral credentials"""
     try:
-        username = request.args.get('user')
-        hyperliquid_key = request.args.get('hyperliquidKey')
+        if request.method == 'POST':
+            data = request.json or {}
+            username = data.get('user') or data.get('username')
+            hyperliquid_key = data.get('hyperliquidKey')
+        else:
+            username = request.args.get('user')
+            hyperliquid_key = request.args.get('hyperliquidKey')
 
         if not hyperliquid_key:
             return jsonify({"error": "Missing hyperliquidKey parameter"}), 400
@@ -353,12 +358,17 @@ def get_positions():
         logger.error(f"Get positions failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/balance', methods=['GET'])
+@app.route('/balance', methods=['GET', 'POST'])
 def get_balance():
     """Get user balance - uses ephemeral credentials"""
     try:
-        username = request.args.get('user')
-        hyperliquid_key = request.args.get('hyperliquidKey')
+        if request.method == 'POST':
+            data = request.json or {}
+            username = data.get('user') or data.get('username')
+            hyperliquid_key = data.get('hyperliquidKey')
+        else:
+            username = request.args.get('user')
+            hyperliquid_key = request.args.get('hyperliquidKey')
 
         if not hyperliquid_key:
             return jsonify({"error": "Missing hyperliquidKey parameter"}), 400

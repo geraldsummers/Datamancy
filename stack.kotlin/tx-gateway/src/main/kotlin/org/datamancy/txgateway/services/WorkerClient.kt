@@ -21,10 +21,18 @@ class WorkerClient(
     private val logger = LoggerFactory.getLogger(WorkerClient::class.java)
     private val gson = Gson()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    private val sensitivePayloadKeys = setOf("evmPrivateKey", "hyperliquidKey")
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    private fun redactPayload(payload: Map<String, Any>): String {
+        val sanitized = payload.mapValues { (key, value) ->
+            if (key in sensitivePayloadKeys) "[REDACTED]" else value
+        }
+        return gson.toJson(sanitized)
+    }
 
     fun submitEvmTransfer(payload: Map<String, Any>): Map<String, Any> {
         val json = gson.toJson(payload)
@@ -35,7 +43,7 @@ class WorkerClient(
             .post(body)
             .build()
 
-        logger.info("Submitting EVM transfer: $json")
+        logger.info("Submitting EVM transfer: {}", redactPayload(payload))
 
         client.newCall(request).execute().use { response ->
             val responseBody = response.body?.string() ?: "{}"
@@ -56,7 +64,7 @@ class WorkerClient(
             .post(body)
             .build()
 
-        logger.info("Submitting Hyperliquid order: $json")
+        logger.info("Submitting Hyperliquid order: {}", redactPayload(payload))
 
         client.newCall(request).execute().use { response ->
             val responseBody = response.body?.string() ?: "{}"
@@ -68,13 +76,23 @@ class WorkerClient(
         }
     }
 
-    fun cancelHyperliquidOrder(orderId: String): Map<String, Any> {
+    fun cancelHyperliquidOrder(
+        orderId: String,
+        username: String,
+        symbol: String,
+        hyperliquidKey: String
+    ): Map<String, Any> {
+        val payload = mapOf(
+            "username" to username,
+            "symbol" to symbol,
+            "hyperliquidKey" to hyperliquidKey
+        )
         val request = Request.Builder()
             .url("$hyperliquidWorkerUrl/cancel/$orderId")
-            .post("{}".toRequestBody(jsonMediaType))
+            .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 
-        logger.info("Cancelling Hyperliquid order: $orderId")
+        logger.info("Cancelling Hyperliquid order: orderId={}, payload={}", orderId, redactPayload(payload))
 
         client.newCall(request).execute().use { response ->
             val responseBody = response.body?.string() ?: "{}"
@@ -86,11 +104,17 @@ class WorkerClient(
         }
     }
 
-    fun getHyperliquidPositions(username: String): List<Map<String, Any>> {
+    fun getHyperliquidPositions(username: String, hyperliquidKey: String): List<Map<String, Any>> {
+        val payload = mapOf(
+            "user" to username,
+            "hyperliquidKey" to hyperliquidKey
+        )
         val request = Request.Builder()
-            .url("$hyperliquidWorkerUrl/positions?user=$username")
-            .get()
+            .url("$hyperliquidWorkerUrl/positions")
+            .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
+
+        logger.info("Fetching Hyperliquid positions for user={}, payload={}", username, redactPayload(payload))
 
         client.newCall(request).execute().use { response ->
             val responseBody = response.body?.string() ?: "[]"
@@ -102,11 +126,17 @@ class WorkerClient(
         }
     }
 
-    fun getHyperliquidBalance(username: String): Map<String, Any> {
+    fun getHyperliquidBalance(username: String, hyperliquidKey: String): Map<String, Any> {
+        val payload = mapOf(
+            "user" to username,
+            "hyperliquidKey" to hyperliquidKey
+        )
         val request = Request.Builder()
-            .url("$hyperliquidWorkerUrl/balance?user=$username")
-            .get()
+            .url("$hyperliquidWorkerUrl/balance")
+            .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
+
+        logger.info("Fetching Hyperliquid balance for user={}, payload={}", username, redactPayload(payload))
 
         client.newCall(request).execute().use { response ->
             val responseBody = response.body?.string() ?: "{}"

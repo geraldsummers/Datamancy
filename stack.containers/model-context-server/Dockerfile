@@ -13,4 +13,5 @@ RUN apt-get update \
 COPY stack.kotlin/model-context-server/build/libs/model-context-server-1.0-SNAPSHOT-all.jar /app/app.jar
 
 EXPOSE 8081
+USER appuser
 CMD ["sh", "-lc", "exec java -jar /app/app.jar"]

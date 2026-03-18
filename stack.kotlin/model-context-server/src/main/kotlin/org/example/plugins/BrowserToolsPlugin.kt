@@ -10,6 +10,7 @@ import org.example.host.ToolParam
 import org.example.host.ToolRegistry
 import org.example.manifest.PluginManifest
 import org.example.manifest.Requires
+import org.example.util.UrlSafety
 import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
@@ -134,6 +135,8 @@ class BrowserToolsPlugin : Plugin {
         private val debug: Boolean
     ) {
         private val serviceNamePattern = Regex("^[a-zA-Z0-9_.-]{1,64}$")
+        private val allowedHttpHosts = UrlSafety.parseAllowedHosts(System.getenv("TOOLSERVER_HTTP_ALLOWED_HOSTS"))
+        private val allowPrivateHttpNets = UrlSafety.envFlag("TOOLSERVER_HTTP_ALLOW_PRIVATE_NETS", false)
 
         @LlmTool(
             name = "browser_screenshot",
@@ -148,8 +151,8 @@ class BrowserToolsPlugin : Plugin {
             ]
         )
         fun browser_screenshot(url: String, serviceName: String? = null, savePath: String? = null): Map<String, Any?> {
-            require(url.startsWith("http")) { "url must start with http/https" }
-            val full = "$base/screenshot?url=" + encode(url)
+            val safeUrl = validateUserUrl(url)
+            val full = "$base/screenshot?url=" + encode(safeUrl)
             val start = System.nanoTime()
             if (debug) println("[BrowserTools] GET ${'$'}full")
             return try {
@@ -165,7 +168,7 @@ class BrowserToolsPlugin : Plugin {
                 
                 var savedPath: String? = null
                 try {
-                    val finalPath = resolveScreenshotPath(serviceName, url, savePath)
+                    val finalPath = resolveScreenshotPath(serviceName, safeUrl, savePath)
                     if (finalPath != null) {
                         val file = File(finalPath)
                         file.parentFile?.mkdirs()
@@ -213,8 +216,8 @@ class BrowserToolsPlugin : Plugin {
             params = [ LlmToolParamDoc(name = "url", description = "Absolute URL (http/https)") ]
         )
         fun browser_dom(url: String): Map<String, Any?> {
-            require(url.startsWith("http")) { "url must start with http/https" }
-            val escapedUrl = url.replace("\\", "\\\\").replace("\"", "\\\"")
+            val safeUrl = validateUserUrl(url)
+            val escapedUrl = safeUrl.replace("\\", "\\\\").replace("\"", "\\\"")
             val script = """
                 module.exports = async ({ page }) => {
                   await page.goto("$escapedUrl", { waitUntil: 'networkidle0' });
@@ -271,14 +274,14 @@ class BrowserToolsPlugin : Plugin {
             ]
         )
         fun browser_login(url: String, username: String, password: String, serviceName: String? = null): Map<String, Any?> {
-            require(url.startsWith("http")) { "url must start with http/https" }
+            val safeUrl = validateUserUrl(url)
 
             
             val usernameSelector = "#username-textfield"
             val passwordSelector = "#password-textfield"
             val submitSelector = "#sign-in-button"
 
-            val escapedUrl = url.replace("\\", "\\\\").replace("\"", "\\\"")
+            val escapedUrl = safeUrl.replace("\\", "\\\\").replace("\"", "\\\"")
             val escapedUsername = username.replace("\\", "\\\\").replace("\"", "\\\"")
             val escapedPassword = password.replace("\\", "\\\\").replace("\"", "\\\"")
 
@@ -338,14 +341,14 @@ class BrowserToolsPlugin : Plugin {
                 val loginMatch = loginDetectedRegex.find(bodyText)
 
                 val imageBase64 = imageMatch?.groupValues?.get(1) ?: ""
-                val finalUrl = urlMatch?.groupValues?.get(1) ?: url
+                val finalUrl = urlMatch?.groupValues?.get(1) ?: safeUrl
                 val loginDetected = loginMatch?.groupValues?.get(1) == "true"
 
                 
                 var savedPath: String? = null
                 if (imageBase64.isNotEmpty()) {
                     try {
-                        val finalPath = resolveScreenshotPath(serviceName, url, null)
+                        val finalPath = resolveScreenshotPath(serviceName, safeUrl, null)
                         if (finalPath != null) {
                             val imageBytes = java.util.Base64.getDecoder().decode(imageBase64)
                             val file = File(finalPath)
@@ -389,6 +392,11 @@ class BrowserToolsPlugin : Plugin {
         }
 
         private fun encode(s: String): String = java.net.URLEncoder.encode(s, java.nio.charset.StandardCharsets.UTF_8)
+
+        private fun validateUserUrl(rawUrl: String): String {
+            val validated = UrlSafety.validateHttpTarget(rawUrl, allowedHttpHosts, allowPrivateHttpNets)
+            return validated.toString()
+        }
 
         private fun resolveScreenshotPath(serviceName: String?, url: String, explicitSavePath: String?): String? {
             val baseDir = File(System.getenv("TOOLSERVER_SCREENSHOTS_DIR") ?: "/app/proofs/screenshots").canonicalFile

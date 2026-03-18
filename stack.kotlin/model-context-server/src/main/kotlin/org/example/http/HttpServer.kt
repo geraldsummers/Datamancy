@@ -182,17 +182,27 @@ private class ToolsHandler(
     private val tools: ToolRegistry,
     private val authorizer: RequestAuthorizer
 ) : HttpHandler {
+    private val authz = McpRoleAuthorizer()
+
     override fun handle(exchange: HttpExchange) {
         try {
-            if (authorizer.authRequired() && authorizer.authenticate(exchange.requestHeaders) == null) {
+            val requestIdentity = authorizer.authenticate(exchange.requestHeaders)
+            if (authorizer.authRequired() && requestIdentity == null) {
                 respond(exchange, 401, mapOf("error" to "Unauthorized"))
                 return
             }
+            authz.ensureAuthorized(
+                identity = requestIdentity.toMcpIdentity(),
+                method = "tools/list",
+                toolName = null
+            )
             when (exchange.requestMethod) {
                 "GET" -> respond(exchange, 200, mapOf("tools" to tools.listTools()))
                 "HEAD" -> respondHead(exchange, 200)
                 else -> respond(exchange, 405, mapOf("error" to "Method not allowed"))
             }
+        } catch (sec: SecurityException) {
+            respond(exchange, 403, mapOf("error" to (sec.message ?: "Forbidden")))
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
         }
@@ -223,12 +233,20 @@ private class ToolsSchemaHandler(
     private val tools: ToolRegistry,
     private val authorizer: RequestAuthorizer
 ) : HttpHandler {
+    private val authz = McpRoleAuthorizer()
+
     override fun handle(exchange: HttpExchange) {
         try {
-            if (authorizer.authRequired() && authorizer.authenticate(exchange.requestHeaders) == null) {
+            val requestIdentity = authorizer.authenticate(exchange.requestHeaders)
+            if (authorizer.authRequired() && requestIdentity == null) {
                 respond(exchange, 401, mapOf("error" to "Unauthorized"))
                 return
             }
+            authz.ensureAuthorized(
+                identity = requestIdentity.toMcpIdentity(),
+                method = "tools/list",
+                toolName = null
+            )
             when (exchange.requestMethod) {
                 "GET" -> {
                     val schema = OpenWebUISchemaGenerator.generateFullSchema(tools)
@@ -237,6 +255,8 @@ private class ToolsSchemaHandler(
                 "HEAD" -> respondHead(exchange, 200)
                 else -> respond(exchange, 405, mapOf("error" to "Method not allowed"))
             }
+        } catch (sec: SecurityException) {
+            respond(exchange, 403, mapOf("error" to (sec.message ?: "Forbidden")))
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
         }
@@ -273,6 +293,7 @@ private class ToolExecutionHandler(
     private val bodyMaxBytes: Long = 1_000_000L
     private val bodyReadTimeoutMs: Long = 5_000L
     private val callTimeoutMs: Long = 300_000L
+    private val authz = McpRoleAuthorizer()
 
     override fun handle(exchange: HttpExchange) {
         try {
@@ -294,6 +315,12 @@ private class ToolExecutionHandler(
                 respond(exchange, 400, mapOf("error" to "Tool name required"))
                 return
             }
+
+            authz.ensureAuthorized(
+                identity = identity.toMcpIdentity(),
+                method = "tools/call",
+                toolName = toolName
+            )
 
             val raw = readBodyLimited(exchange, bodyMaxBytes, bodyReadTimeoutMs)
             val body = raw.toString(StandardCharsets.UTF_8)
@@ -320,6 +347,8 @@ private class ToolExecutionHandler(
             respond(exchange, 413, mapOf("error" to "payload_too_large", "limitBytes" to bodyMaxBytes))
         } catch (rt: BodyReadTimeoutException) {
             respond(exchange, 408, mapOf("error" to "request_timeout", "message" to "request body read exceeded timeout"))
+        } catch (sec: SecurityException) {
+            respond(exchange, 403, mapOf("error" to (sec.message ?: "Forbidden")))
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
         }
@@ -395,6 +424,7 @@ private class CallToolHandler(
             ?: System.getenv("TOOLSERVER_TOOL_EXEC_TIMEOUT_MS")?.toLongOrNull()
             ?: 30_000L
         ).coerceAtLeast(500L)
+    private val authz = McpRoleAuthorizer()
 
     override fun handle(exchange: HttpExchange) {
         try {
@@ -424,6 +454,11 @@ private class CallToolHandler(
             val req = Json.mapper.readValue(body, CallRequest::class.java)
             val args = req.args ?: Json.mapper.createObjectNode()
             val userContext = identity?.user
+            authz.ensureAuthorized(
+                identity = identity.toMcpIdentity(),
+                method = "tools/call",
+                toolName = req.name
+            )
             val result = invokeWithTimeout({ tools.invoke(req.name, args, userContext) }, callTimeoutMs)
             val elapsedMs = (System.nanoTime() - start) / 1_000_000
 
@@ -447,6 +482,8 @@ private class CallToolHandler(
             respond(exchange, 413, mapOf("error" to "payload_too_large", "limitBytes" to bodyMaxBytes))
         } catch (rt: BodyReadTimeoutException) {
             respond(exchange, 408, mapOf("error" to "request_timeout", "message" to "request body read exceeded timeout"))
+        } catch (sec: SecurityException) {
+            respond(exchange, 403, mapOf("error" to (sec.message ?: "Forbidden")))
         } catch (e: Exception) {
             respond(exchange, 500, mapOf("error" to (e.message ?: "internal error")))
         }
@@ -606,6 +643,14 @@ private data class McpIdentity(
     val user: String?,
     val roles: Set<String>
 )
+
+private fun RequestIdentity?.toMcpIdentity(): McpIdentity {
+    return if (this == null) {
+        McpIdentity(user = null, roles = emptySet())
+    } else {
+        McpIdentity(user = user, roles = roles)
+    }
+}
 
 /**
  * Optional LDAP role-based authorization for MCP endpoint methods.

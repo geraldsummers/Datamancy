@@ -129,8 +129,27 @@ fun Route.hyperliquidRoutes(
                 return@post
             }
 
+            val symbol = call.request.queryParameters["symbol"]?.trim()
+            if (symbol.isNullOrBlank()) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing symbol query parameter"))
+                return@post
+            }
+
+            val hyperliquidKey = call.request.headers["X-Credential-hyperliquid"]
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            if (hyperliquidKey == null) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
+                return@post
+            }
+
             try {
-                val result = workerClient.cancelHyperliquidOrder(orderId)
+                val result = workerClient.cancelHyperliquidOrder(
+                    orderId = orderId,
+                    username = username,
+                    symbol = symbol,
+                    hyperliquidKey = hyperliquidKey
+                )
                 call.respond(HttpStatusCode.OK, result)
             } catch (e: Exception) {
                 logger.error("Order cancellation failed", e)
@@ -156,8 +175,16 @@ fun Route.hyperliquidRoutes(
                 return@get
             }
 
+            val hyperliquidKey = call.request.headers["X-Credential-hyperliquid"]
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            if (hyperliquidKey == null) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
+                return@get
+            }
+
             try {
-                val positions = workerClient.getHyperliquidPositions(username)
+                val positions = workerClient.getHyperliquidPositions(username, hyperliquidKey)
                 call.respond(HttpStatusCode.OK, positions)
             } catch (e: Exception) {
                 logger.error("Failed to get positions", e)
@@ -183,8 +210,16 @@ fun Route.hyperliquidRoutes(
                 return@get
             }
 
+            val hyperliquidKey = call.request.headers["X-Credential-hyperliquid"]
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            if (hyperliquidKey == null) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
+                return@get
+            }
+
             try {
-                val balance = workerClient.getHyperliquidBalance(username)
+                val balance = workerClient.getHyperliquidBalance(username, hyperliquidKey)
                 call.respond(HttpStatusCode.OK, balance)
             } catch (e: Exception) {
                 logger.error("Failed to get balance", e)

@@ -339,7 +339,8 @@ class HostToolsPluginTest {
                 
             } catch (e: Exception) {
                 
-                assertTrue(e.message?.contains("URI") ?: e.message?.contains("Illegal") ?: true)
+                val message = e.message.orEmpty()
+                assertTrue(message.isNotBlank())
             }
         }
     }

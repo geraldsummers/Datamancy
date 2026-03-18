@@ -10,6 +10,7 @@ import org.example.host.ToolParam
 import org.example.host.ToolRegistry
 import org.example.manifest.PluginManifest
 import org.example.manifest.Requires
+import org.example.util.UrlSafety
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -109,6 +110,8 @@ class HostToolsPlugin : Plugin {
             .connectTimeout(Duration.ofSeconds(5))
             .build()
         private val dockerHost = System.getenv("DOCKER_HOST")?.trim().orEmpty()
+        private val allowedHttpHosts = UrlSafety.parseAllowedHosts(System.getenv("TOOLSERVER_HTTP_ALLOWED_HOSTS"))
+        private val allowPrivateHttpNets = UrlSafety.envFlag("TOOLSERVER_HTTP_ALLOW_PRIVATE_NETS", false)
 
         
         private fun sanitizeContainerName(name: String): String {
@@ -336,7 +339,8 @@ class HostToolsPlugin : Plugin {
             ]
         )
         fun http_get(url: String, headers: Map<String, String>? = null): Map<String, Any?> {
-            val builder = HttpRequest.newBuilder(URI.create(url))
+            val targetUri = UrlSafety.validateHttpTarget(url, allowedHttpHosts, allowPrivateHttpNets)
+            val builder = HttpRequest.newBuilder(URI.create(targetUri.toString()))
                 .timeout(Duration.ofSeconds(15))
                 .GET()
             headers?.forEach { (k, v) -> builder.header(k, v) }

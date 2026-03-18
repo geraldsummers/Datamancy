@@ -272,7 +272,7 @@ class DockerContainerPlugin : Plugin {
                     "ssh_port" to 22,
                     "ssh_user" to "root",
                     "ssh_key_path" to keyPair.privateKeyPath,
-                    "connection_command" to "ssh -i ${keyPair.privateKeyPath} -o StrictHostKeyChecking=no root@$containerIp"
+                    "connection_command" to "ssh -i ${keyPair.privateKeyPath} -o StrictHostKeyChecking=accept-new root@$containerIp"
                 )
             )
         }

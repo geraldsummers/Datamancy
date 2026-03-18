@@ -76,6 +76,7 @@ fun Application.configureApp(
     dbService: DatabaseService
 ) {
     val corsAllowedOrigins = parseCsvEnv("TXG_CORS_ALLOWED_ORIGINS")
+    val wildcardCors = corsAllowedOrigins.any { it == "*" }
 
     install(ContentNegotiation) {
         json(Json {
@@ -92,9 +93,9 @@ fun Application.configureApp(
         allowMethod(HttpMethod.Delete)
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
-        allowCredentials = true
+        allowCredentials = !wildcardCors
 
-        if (corsAllowedOrigins.any { it == "*" }) {
+        if (wildcardCors) {
             anyHost()
         } else {
             corsAllowedOrigins.forEach { rawOrigin ->

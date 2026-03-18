@@ -54,8 +54,11 @@ services:
       MCP_AUTH_REQUIRED: "true"
       MCP_LIST_ALLOWED_ROLES: "users,admins,agents"
       MCP_DEFAULT_TOOL_ALLOWED_ROLES: "users,admins,agents"
+      MCP_TOOL_ROLE_RULES: "docker*=admins|agents;host_exec_readonly=admins|agents;http_get=admins|agents;ssh_exec_whitelisted=admins|agents;browser_login=admins|agents"
       MCP_GRANT_HOST_NETWORK_HTTP: "true"
       MCP_GRANT_HOST_NETWORK_SSH: "true"
+      TOOLSERVER_HTTP_ALLOWED_HOSTS: "*.${DOMAIN},${DOMAIN},prompt-server,playwright,litellm,authelia,caddy"
+      TOOLSERVER_HTTP_ALLOW_PRIVATE_NETS: "false"
       TOOLSERVER_SSH_HOST: ${STACK_SSH_HOST:-latium.local}
       TOOLSERVER_SSH_USER: ${STACK_SSH_USER:-stackops}
       TOOLSERVER_SSH_KEY_PATH: /app/known_hosts_data/keys/stackops_ed25519

@@ -1,7 +1,7 @@
 default_config:
 
 http:
-  ip_ban_enabled: false
+  ip_ban_enabled: true
   login_attempts_threshold: 5
 
 frontend:
@@ -21,9 +21,8 @@ homeassistant:
     - type: trusted_networks
       trusted_networks:
         - 172.26.0.0/24
-        - 172.16.0.0/12
         - 192.168.48.0/24
-      allow_bypass_login: true
+      allow_bypass_login: false
 
 automation: !include automations.yaml
 script: !include scripts.yaml
