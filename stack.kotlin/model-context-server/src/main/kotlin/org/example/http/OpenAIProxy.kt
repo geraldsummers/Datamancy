@@ -48,6 +48,11 @@ internal class OpenAIProxyHandler(
     private val tools: ToolRegistry,
     private val authorizer: RequestAuthorizer
 ) : HttpHandler {
+    private val includeAgentTrace: Boolean = (
+        System.getProperty("TOOLSERVER_INCLUDE_AGENT_TRACE")
+            ?: System.getenv("TOOLSERVER_INCLUDE_AGENT_TRACE")
+            ?: "false"
+        ).trim().lowercase() in setOf("1", "true", "yes", "on")
     private val bodyMaxBytes: Long = (
         System.getProperty("TOOLSERVER_HTTP_BODY_MAX_BYTES")?.toLongOrNull()
             ?: System.getenv("TOOLSERVER_HTTP_BODY_MAX_BYTES")?.toLongOrNull()
@@ -132,9 +137,10 @@ internal class OpenAIProxyHandler(
                             put("completion_tokens", 0)  // Not tracked
                             put("total_tokens", 0)
                         }
-                        // Add agent trace as metadata
-                        set<JsonNode>("_agent_trace", Json.mapper.valueToTree(result["trace"]))
-                        put("_agent_iterations", result["iterations"] as? Int ?: 0)
+                        if (includeAgentTrace) {
+                            set<JsonNode>("_agent_trace", Json.mapper.valueToTree(result["trace"]))
+                            put("_agent_iterations", result["iterations"] as? Int ?: 0)
+                        }
                     }
                 }
             } else {

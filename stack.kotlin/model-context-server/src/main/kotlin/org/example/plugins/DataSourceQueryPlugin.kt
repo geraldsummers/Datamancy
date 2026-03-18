@@ -16,6 +16,7 @@ import org.example.host.ToolParam
 import org.example.host.ToolRegistry
 import org.example.manifest.PluginManifest
 import org.example.manifest.Requires
+import org.example.util.Json
 import java.net.HttpURLConnection
 import java.net.URI
 import java.sql.Connection
@@ -364,6 +365,9 @@ class DataSourceQueryPlugin(
         private val secretsDir = System.getenv("SHADOW_ACCOUNTS_SECRETS_DIR") ?: "/run/secrets/datamancy"
         private val userContextPattern = Regex("^[a-zA-Z0-9_.-]{1,64}$")
         private val forbiddenLdapAttributes = setOf("userpassword", "sambantpassword", "sambalmpassword")
+        private val qdrantCollectionPattern = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+        private val semanticCollectionPattern = Regex("^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+        private val allowedSemanticModes = setOf("hybrid", "vector", "bm25")
         private val defaultLdapAttributes = listOf(
             "uid", "cn", "displayName", "givenName", "sn", "mail", "memberOf", "objectClass"
         )
@@ -476,9 +480,14 @@ class DataSourceQueryPlugin(
         )
         fun search_qdrant(collection: String, vector: List<Float>, limit: Int = 10): String {
             val config = qdrantConfig ?: return "ERROR: Qdrant not configured"
+            val sanitizedCollection = collection.trim()
+            if (!qdrantCollectionPattern.matches(sanitizedCollection)) {
+                return "ERROR: Invalid collection name"
+            }
+            val safeLimit = limit.coerceIn(1, 100)
 
             return try {
-                val url = URI("http://${config.host}:${config.port}/collections/$collection/points/search").toURL()
+                val url = URI("http://${config.host}:${config.port}/collections/$sanitizedCollection/points/search").toURL()
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.doOutput = true
@@ -487,8 +496,14 @@ class DataSourceQueryPlugin(
                     conn.setRequestProperty("api-key", config.apiKey)
                 }
 
-                val payload = """{"vector":${vector},"limit":$limit,"with_payload":true}"""
-                conn.outputStream.write(payload.toByteArray())
+                val payload = JsonNodeFactory.instance.objectNode().apply {
+                    put("limit", safeLimit)
+                    put("with_payload", true)
+                    putArray("vector").apply {
+                        vector.forEach { add(it.toDouble()) }
+                    }
+                }
+                conn.outputStream.use { it.write(Json.mapper.writeValueAsBytes(payload)) }
 
                 if (conn.responseCode == 200) {
                     conn.inputStream.bufferedReader().use { it.readText() }
@@ -582,9 +597,24 @@ class DataSourceQueryPlugin(
 
         fun semantic_search(query: String, collections: List<String> = listOf("*"), mode: String = "hybrid", limit: Int = 20): String {
             val config = searchServiceConfig ?: return "ERROR: Search service not configured"
+            val queryText = query.trim()
+            if (queryText.isEmpty()) {
+                return "ERROR: query cannot be empty"
+            }
+            val safeMode = mode.trim().lowercase()
+            if (safeMode !in allowedSemanticModes) {
+                return "ERROR: mode must be one of: hybrid, vector, bm25"
+            }
+            val safeLimit = limit.coerceIn(1, 100)
+            val requestedCollections = if (collections.isEmpty()) listOf("*") else collections
+            val safeCollections = requestedCollections.map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf("*") }
+            if (safeCollections.any { it != "*" && !semanticCollectionPattern.matches(it) }) {
+                return "ERROR: one or more collection names are invalid"
+            }
 
             return try {
-                val url = URI("${config.url}/search").toURL()
+                val baseUrl = config.url.trim().removeSuffix("/")
+                val url = URI("$baseUrl/search").toURL()
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.doOutput = true
@@ -592,9 +622,15 @@ class DataSourceQueryPlugin(
                 conn.connectTimeout = 30000
                 conn.readTimeout = 30000
 
-                val collectionsJson = collections.joinToString(",", "[", "]") { "\"$it\"" }
-                val payload = """{"query":"${query.replace("\"", "\\\"")}","collections":$collectionsJson,"mode":"$mode","limit":$limit}"""
-                conn.outputStream.write(payload.toByteArray())
+                val payload = JsonNodeFactory.instance.objectNode().apply {
+                    put("query", queryText)
+                    put("mode", safeMode)
+                    put("limit", safeLimit)
+                    putArray("collections").apply {
+                        safeCollections.forEach { add(it) }
+                    }
+                }
+                conn.outputStream.use { it.write(Json.mapper.writeValueAsBytes(payload)) }
 
                 if (conn.responseCode == 200) {
                     conn.inputStream.bufferedReader().use { it.readText() }

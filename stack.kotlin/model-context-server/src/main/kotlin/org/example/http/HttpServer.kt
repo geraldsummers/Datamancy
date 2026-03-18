@@ -760,10 +760,17 @@ private fun RequestIdentity?.toMcpIdentity(): McpIdentity {
  * - MCP_TOOL_ROLE_RULES=tool=role1|role2;prefix*=role3
  */
 private class McpRoleAuthorizer {
-    private val authRequired = envOrPropBoolean("MCP_AUTH_REQUIRED", false)
+    private val authRequired = envOrPropBoolean(
+        "MCP_AUTH_REQUIRED",
+        envOrPropBoolean("TOOLSERVER_AUTH_REQUIRED", true)
+    )
     private val listAllowedRoles = envOrPropCsv("MCP_LIST_ALLOWED_ROLES")
     private val defaultToolAllowedRoles = envOrPropCsv("MCP_DEFAULT_TOOL_ALLOWED_ROLES")
     private val toolRoleRules = parseRoleRules(envOrProp("MCP_TOOL_ROLE_RULES"))
+    private val adminRoles = envOrPropCsv("TOOLSERVER_ADMIN_ROLES").ifEmpty { setOf("admins") }
+    private val adminToolPatterns = envOrPropCsv("MCP_ADMIN_TOOL_PATTERNS").ifEmpty {
+        setOf("docker_*", "host_*", "ssh_*")
+    }
 
     fun extractIdentity(headers: com.sun.net.httpserver.Headers): McpIdentity {
         val user = firstHeader(headers, "X-User-Context", "Remote-User", "X-Auth-Request-User", "X-Forwarded-User")
@@ -795,7 +802,14 @@ private class McpRoleAuthorizer {
             "tools/list" -> listAllowedRoles
             "tools/call" -> {
                 if (toolName.isNullOrBlank()) emptySet()
-                else requiredRolesForTool(toolName).ifEmpty { defaultToolAllowedRoles }
+                else {
+                    val explicitRoles = requiredRolesForTool(toolName)
+                    when {
+                        explicitRoles.isNotEmpty() -> explicitRoles
+                        isAdminTool(toolName) -> adminRoles
+                        else -> defaultToolAllowedRoles
+                    }
+                }
             }
             else -> emptySet()
         }
@@ -807,14 +821,21 @@ private class McpRoleAuthorizer {
 
     private fun requiredRolesForTool(toolName: String): Set<String> {
         val lowerToolName = toolName.lowercase()
-        return toolRoleRules.firstOrNull { (pattern, _) ->
-            if (pattern.endsWith("*")) {
-                val prefix = pattern.removeSuffix("*")
-                lowerToolName.startsWith(prefix)
-            } else {
-                lowerToolName == pattern
-            }
-        }?.second ?: emptySet()
+        return toolRoleRules.firstOrNull { (pattern, _) -> toolMatchesPattern(lowerToolName, pattern) }?.second ?: emptySet()
+    }
+
+    private fun isAdminTool(toolName: String): Boolean {
+        val lowerToolName = toolName.lowercase()
+        return adminToolPatterns.any { pattern -> toolMatchesPattern(lowerToolName, pattern) }
+    }
+
+    private fun toolMatchesPattern(toolName: String, pattern: String): Boolean {
+        return if (pattern.endsWith("*")) {
+            val prefix = pattern.removeSuffix("*")
+            toolName.startsWith(prefix)
+        } else {
+            toolName == pattern
+        }
     }
 
     private fun parseRoleRules(raw: String?): List<Pair<String, Set<String>>> {
@@ -1045,11 +1066,11 @@ private class RefreshSshKeysHandler(
     override fun handle(exchange: HttpExchange) {
         try {
             val identity = authorizer.authenticate(exchange.requestHeaders)
-            if (authorizer.authRequired() && identity == null) {
+            if (identity == null) {
                 respond(exchange, 401, mapOf("error" to "Unauthorized"))
                 return
             }
-            if (identity != null && adminRoles.isNotEmpty() && identity.roles.intersect(adminRoles).isEmpty()) {
+            if (adminRoles.isNotEmpty() && identity.roles.intersect(adminRoles).isEmpty()) {
                 respond(exchange, 403, mapOf("error" to "Admin role required"))
                 return
             }

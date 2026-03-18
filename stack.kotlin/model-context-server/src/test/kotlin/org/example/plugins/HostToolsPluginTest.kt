@@ -352,7 +352,7 @@ class HostToolsPluginTest {
         private val whitelistedCommands = setOf(
             "cat", "ls", "find", "ps", "uptime", "uname", "id",
             "whoami", "df", "du", "free", "env", "printenv", "stat",
-            "dpkg", "rpm", "ip", "ss", "netstat", "curl", "wget",
+            "dpkg", "rpm", "ip", "ss", "netstat",
             "journalctl", "dmesg"
         )
 

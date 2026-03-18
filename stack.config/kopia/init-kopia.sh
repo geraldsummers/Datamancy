@@ -2,6 +2,8 @@
 set -eu
 KOPIA_REPO_PATH="${KOPIA_REPO_PATH:-/repository}"
 KOPIA_PASSWORD="${KOPIA_PASSWORD:?ERROR: KOPIA_PASSWORD must be set}"
+KOPIA_SERVER_USERNAME="${KOPIA_SERVER_USERNAME:-kopia}"
+KOPIA_SERVER_PASSWORD="${KOPIA_SERVER_PASSWORD:-$KOPIA_PASSWORD}"
 VOLUMES_ROOT="${VOLUMES_ROOT:-/app/volumes}"
 echo "[kopia-init] Using repo path: ${KOPIA_REPO_PATH}"
 echo "[kopia-init] Volumes root: ${VOLUMES_ROOT}"
@@ -31,9 +33,10 @@ kopia policy set --global \
 echo "[kopia-init] Current global policy:"
 kopia policy show --global || true
 echo "[kopia-init] Repository ready"
-echo "[kopia-init] Starting Kopia server on :51515 (authentication via Authelia forward-auth)"
+echo "[kopia-init] Starting Kopia server on :51515 (basic auth enabled; TLS expected at reverse proxy)"
 exec kopia server start \
     --insecure \
     --address=0.0.0.0:51515 \
     --ui \
-    --without-password
+    --server-username="$KOPIA_SERVER_USERNAME" \
+    --server-password="$KOPIA_SERVER_PASSWORD"

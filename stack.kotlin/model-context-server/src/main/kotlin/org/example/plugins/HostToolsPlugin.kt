@@ -194,7 +194,7 @@ class HostToolsPlugin : Plugin {
                 
                 "dpkg", "rpm",
                 
-                "ip", "ss", "netstat", "curl", "wget",
+                "ip", "ss", "netstat",
                 
                 "journalctl", "dmesg"
             )
@@ -390,7 +390,7 @@ class HostToolsPlugin : Plugin {
 
             
             val allowedCommands = setOf(
-                "nginx", "caddy", "touch", "cat", "ls", "printenv", "id", "whoami"
+                "nginx", "caddy", "cat", "ls", "printenv", "id", "whoami"
             )
 
             val exe = cmd[0]

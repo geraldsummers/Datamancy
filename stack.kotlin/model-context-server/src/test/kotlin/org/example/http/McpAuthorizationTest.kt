@@ -99,6 +99,37 @@ class McpAuthorizationTest {
         }
     }
 
+    @Test
+    fun `default admin tool patterns require admin role`() {
+        withServer(
+            mapOf(
+                "MCP_AUTH_REQUIRED" to "true"
+            )
+        ) { port ->
+            val denied = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:$port/mcp"))
+                .header("Content-Type", "application/json")
+                .header("Remote-User", "dave")
+                .header("Remote-Groups", "users")
+                .POST(HttpRequest.BodyPublishers.ofString("""{"jsonrpc":"2.0","id":"6","method":"tools/call","params":{"name":"docker_restart","arguments":{"container":"abc"}}}"""))
+                .build()
+            val deniedResponse = client.send(denied, HttpResponse.BodyHandlers.ofString())
+            assertEquals(200, deniedResponse.statusCode())
+            assertTrue(deniedResponse.body().contains("\"code\":-32003"))
+
+            val allowed = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:$port/mcp"))
+                .header("Content-Type", "application/json")
+                .header("Remote-User", "erin")
+                .header("Remote-Groups", "admins")
+                .POST(HttpRequest.BodyPublishers.ofString("""{"jsonrpc":"2.0","id":"7","method":"tools/call","params":{"name":"docker_restart","arguments":{"container":"abc"}}}"""))
+                .build()
+            val allowedResponse = client.send(allowed, HttpResponse.BodyHandlers.ofString())
+            assertEquals(200, allowedResponse.statusCode())
+            assertTrue(allowedResponse.body().contains("admin: restart"))
+        }
+    }
+
     private fun postMcp(port: Int, body: String): HttpResponse<String> {
         val request = HttpRequest.newBuilder()
             .uri(URI.create("http://localhost:$port/mcp"))
@@ -129,6 +160,18 @@ class McpAuthorizationTest {
                         pluginId = "test.plugin"
                     ),
                     ToolHandler { args, _ -> "echo: ${args.get("input")?.asText() ?: "none"}" }
+                )
+                register(
+                    ToolDefinition(
+                        name = "docker_restart",
+                        description = "Admin tool",
+                        shortDescription = "Admin",
+                        longDescription = "Admin tool",
+                        parameters = listOf(ToolParam("container", "string", true, "Container")),
+                        paramsSpec = """{"type":"object","required":["container"],"properties":{"container":{"type":"string"}}}""",
+                        pluginId = "test.plugin"
+                    ),
+                    ToolHandler { _, _ -> "admin: restart" }
                 )
             }
             val server = LlmHttpServer(port = 0, tools = registry)
