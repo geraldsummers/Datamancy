@@ -15,7 +15,7 @@ services:
       KOPIA_REPO_PATH: /app/repository
       KOPIA_PASSWORD: ${KOPIA_PASSWORD}
       KOPIA_SERVER_USERNAME: ${KOPIA_SERVER_USERNAME:-kopia}
-      KOPIA_SERVER_PASSWORD: ${KOPIA_SERVER_PASSWORD}
+      KOPIA_SERVER_PASSWORD: ${KOPIA_PASSWORD}
       USER: kopia
     volumes:
       - kopia_data:/app
