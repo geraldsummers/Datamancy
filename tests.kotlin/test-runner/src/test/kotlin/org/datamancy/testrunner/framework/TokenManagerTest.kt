@@ -9,6 +9,7 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -226,5 +227,29 @@ class TokenManagerTest {
         assertTrue(result.isSuccess)
         assertEquals("planka-jwt-token-12345", result.getOrNull())
         assertTrue(tokenManager.hasToken("planka"))
+    }
+
+    @Test
+    fun `test Planka token acquisition blocked when OIDC enforced`() = runBlocking {
+        val endpoints = createTestEndpoints()
+
+        val mockResponses = mapOf(
+            "http://planka:1337/api/access-tokens" to Pair(
+                HttpStatusCode.Forbidden,
+                """{"error":"Local authentication is disabled"}"""
+            )
+        )
+
+        val client = createMockClient(mockResponses)
+        val tokenManager = TokenManager(client, endpoints)
+
+        val result = tokenManager.acquirePlankaToken("admin@test.com", "testpassword123")
+
+        assertTrue(result.isFailure)
+        assertContains(
+            result.exceptionOrNull()?.message.orEmpty(),
+            "OIDC enforced"
+        )
+        assertFalse(tokenManager.hasToken("planka"))
     }
 }

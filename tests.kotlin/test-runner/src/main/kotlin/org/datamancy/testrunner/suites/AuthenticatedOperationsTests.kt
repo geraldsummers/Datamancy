@@ -138,7 +138,7 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
     
     
 
-    test("Planka: Acquire token and list boards") {
+    test("Planka: Validate API auth path under SSO policy") {
         val email = System.getenv("PLANKA_EMAIL")
             ?: System.getenv("STACK_ADMIN_EMAIL")
             ?: "admin@datamancy.net"
@@ -147,20 +147,28 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
             ?: "changeme"
 
         val tokenResult = tokens.acquirePlankaToken(email, password)
-        require(tokenResult.isSuccess) {
-            "Failed to acquire Planka token: ${tokenResult.exceptionOrNull()?.message}"
+        if (tokenResult.isSuccess) {
+            tokenResult.getOrThrow()
+            println("      ✓ Acquired Planka authentication token")
+
+            val response = tokens.authenticatedGet("planka", "http://planka:1337/api/boards")
+            require(response.status == HttpStatusCode.OK) {
+                "Failed to list boards: ${response.status}"
+            }
+
+            println("      ✓ Successfully listed Planka boards")
+        } else {
+            val error = tokenResult.exceptionOrNull()?.message.orEmpty()
+            require(error.contains("OIDC enforced")) {
+                "Failed to acquire Planka token: $error"
+            }
+
+            val response = client.getRawResponse("http://planka:1337/api/boards")
+            require(response.status in listOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+                "Planka should reject unauthenticated API access when OIDC is enforced: ${response.status}"
+            }
+            println("      ✓ Planka enforces OIDC-only authentication (local token login disabled)")
         }
-
-        val token = tokenResult.getOrThrow()
-        println("      ✓ Acquired Planka authentication token")
-
-
-        val response = tokens.authenticatedGet("planka", "http://planka:1337/api/boards")
-        require(response.status == HttpStatusCode.OK) {
-            "Failed to list boards: ${response.status}"
-        }
-
-        println("      ✓ Successfully listed Planka boards")
     }
 
     

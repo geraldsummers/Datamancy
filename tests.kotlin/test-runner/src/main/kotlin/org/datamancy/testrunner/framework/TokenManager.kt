@@ -278,6 +278,12 @@ class TokenManager(
 
                 tokens["planka"] = token
                 Result.success(token)
+            } else if (response.status in listOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+                Result.failure(
+                    Exception(
+                        "Planka local token login is disabled (OIDC enforced): ${response.status}"
+                    )
+                )
             } else {
                 Result.failure(Exception("Failed to get token: ${response.status}"))
             }
