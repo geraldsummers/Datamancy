@@ -35,17 +35,19 @@ fi
 
 SERVICES_LIST="$(docker compose -f "$COMPOSE_FILE" config --services)"
 EXISTING_SERVICES="$(docker compose -f "$COMPOSE_FILE" ps -a --services 2>/dev/null || true)"
+RUNNING_SERVICES="$(docker compose -f "$COMPOSE_FILE" ps --services --status running 2>/dev/null || true)"
 
 tmp_plan="$(mktemp)"
 tmp_updated="$(mktemp)"
 
-python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$EXISTING_SERVICES" "$tmp_plan"
+python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$EXISTING_SERVICES" "$RUNNING_SERVICES" "$tmp_plan"
 import json
 import sys
 
-reg_path, status_path, services_text, existing_services_text, out_path = sys.argv[1:6]
+reg_path, status_path, services_text, existing_services_text, running_services_text, out_path = sys.argv[1:7]
 services = {s.strip() for s in services_text.splitlines() if s.strip()}
 existing_services = {s.strip() for s in existing_services_text.splitlines() if s.strip()}
+running_services = {s.strip() for s in running_services_text.splitlines() if s.strip()}
 
 with open(reg_path, "r", encoding="utf-8") as f:
     registry = json.load(f)
@@ -66,19 +68,22 @@ for name, comp in registry.get("components", {}).items():
     last_changed = comp.get("last_changed_commit") or ""
     last_built = (status_components.get(name) or {}).get("last_built_commit") or ""
     missing_container = name not in existing_services
+    stopped_container = name in existing_services and name not in running_services
     source_paths = comp.get("source_paths") or []
     needs_build = any(path.startswith("stack.containers/") for path in source_paths)
     if last_changed and last_changed != last_built:
         lines.append(f"{name}|{'build' if needs_build else 'no-build'}|{last_changed}|changed")
     elif missing_container:
         lines.append(f"{name}|no-build|{last_changed}|missing")
+    elif stopped_container:
+        lines.append(f"{name}|no-build|{last_changed}|stopped")
 
 with open(out_path, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))
 PY
 
 if [ ! -s "$tmp_plan" ]; then
-    info "All services are up to date and no tracked containers are missing"
+    info "All services are up to date and tracked containers are already running"
     rm -f "$tmp_plan" "$tmp_updated"
     exit 0
 fi
@@ -93,6 +98,8 @@ while IFS='|' read -r service build_flag last_changed reason; do
     fi
     if [ "$reason" = "missing" ]; then
         info "Deploying missing container for $service"
+    elif [ "$reason" = "stopped" ]; then
+        info "Recovering stopped container for $service"
     else
         info "Updating $service (changed: $last_changed)"
     fi
@@ -103,10 +110,18 @@ while IFS='|' read -r service build_flag last_changed reason; do
             docker compose -f "$COMPOSE_FILE" build "$service"
         fi
     fi
-    if [ "$DRY_RUN" = "1" ]; then
-        echo "docker compose -f \"$COMPOSE_FILE\" up -d --no-deps --force-recreate \"$service\""
+    if [ "$reason" = "stopped" ]; then
+        if [ "$DRY_RUN" = "1" ]; then
+            echo "docker compose -f \"$COMPOSE_FILE\" up -d --no-deps \"$service\""
+        else
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps "$service"
+        fi
     else
-        docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate "$service"
+        if [ "$DRY_RUN" = "1" ]; then
+            echo "docker compose -f \"$COMPOSE_FILE\" up -d --no-deps --force-recreate \"$service\""
+        else
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate "$service"
+        fi
     fi
     if [ "$reason" = "changed" ]; then
         echo "$service" >> "$tmp_updated"
