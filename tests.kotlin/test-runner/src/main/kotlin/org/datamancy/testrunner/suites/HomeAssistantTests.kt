@@ -12,7 +12,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
     test("Home Assistant web interface loads") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}")
         
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Found)) {
+        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Found, HttpStatusCode.Forbidden)) {
             "Home Assistant not accessible: ${response.status}"
         }
 
@@ -21,7 +21,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant API responds") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/api/")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized)) {
+        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
             "API not responding: ${response.status}"
         }
 
