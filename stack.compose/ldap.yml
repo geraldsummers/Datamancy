@@ -41,6 +41,9 @@ services:
     environment:
       LDAP_BASE_DN: ${LDAP_BASE_DN}
       LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      STACK_ADMIN_USER: ${STACK_ADMIN_USER}
+      STACK_ADMIN_EMAIL: ${STACK_ADMIN_EMAIL}
+      STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
     volumes:
       - ./configs/ldap/ensure_suffixes.ldif:/tmp/ensure_suffixes.ldif:ro
       - ./configs/ldap/ensure-suffixes.sh:/tmp/ensure-suffixes.sh:ro

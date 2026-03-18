@@ -42,6 +42,9 @@ class ServiceClient(
 ) {
     @Volatile
     private var modelContextBearerToken: String? = null
+    private val modelContextTokenLock = Any()
+    @Volatile
+    private var modelContextEphemeralUser: TestUser? = null
 
     private fun isModelContextUrl(url: String): Boolean {
         return try {
@@ -76,15 +79,12 @@ class ServiceClient(
             ?.second
     }
 
-    private suspend fun fetchModelContextBearerToken(): String? {
-        val autheliaBase = endpoints.authelia.trimEnd('/')
-        val clientId = System.getenv("MODEL_CONTEXT_OIDC_CLIENT_ID")
-            ?.takeIf { it.isNotBlank() }
-            ?: "test-runner"
-        val clientSecret = System.getenv("MODEL_CONTEXT_OIDC_CLIENT_SECRET")
-            ?.takeIf { it.isNotBlank() }
-            ?: System.getenv("TEST_RUNNER_OAUTH_SECRET")
-                ?.takeIf { it.isNotBlank() }
+    private data class OidcCredentials(
+        val username: String,
+        val password: String
+    )
+
+    private fun stackAdminOidcCredentials(): OidcCredentials? {
         val username = System.getenv("MODEL_CONTEXT_OIDC_USERNAME")
             ?.takeIf { it.isNotBlank() }
             ?: System.getenv("STACK_ADMIN_USER")
@@ -93,22 +93,65 @@ class ServiceClient(
             ?.takeIf { it.isNotBlank() }
             ?: System.getenv("STACK_ADMIN_PASSWORD")
                 ?.takeIf { it.isNotBlank() }
-        val redirectUri = System.getenv("MODEL_CONTEXT_OIDC_REDIRECT_URI")
-            ?.takeIf { it.isNotBlank() }
-            ?: "http://test-runner/callback"
-        val scope = System.getenv("MODEL_CONTEXT_OIDC_SCOPE")
-            ?.takeIf { it.isNotBlank() }
-            ?: "openid profile email groups"
 
-        if (clientSecret == null || username == null || password == null) {
+        if (username == null || password == null) {
             return null
         }
+        return OidcCredentials(username = username, password = password)
+    }
 
+    private fun ephemeralLdapOidcCredentials(): OidcCredentials? {
+        val ldapUrl = endpoints.ldap
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+        val ldapAdminPassword = System.getenv("LDAP_ADMIN_PASSWORD")
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+        val ldapBaseDn = System.getenv("LDAP_BASE_DN")
+            ?.takeIf { it.isNotBlank() }
+            ?: "dc=datamancy,dc=net"
+        val ldapAdminDn = "cn=admin,$ldapBaseDn"
+
+        modelContextEphemeralUser?.let { user ->
+            return OidcCredentials(username = user.username, password = user.password)
+        }
+
+        synchronized(modelContextTokenLock) {
+            modelContextEphemeralUser?.let { user ->
+                return OidcCredentials(username = user.username, password = user.password)
+            }
+
+            val helper = LdapHelper(
+                ldapUrl = ldapUrl,
+                adminDn = ldapAdminDn,
+                adminPassword = ldapAdminPassword
+            )
+            val created = helper.createEphemeralUser(groups = listOf("users", "admins"))
+            val user = created.getOrNull() ?: return null
+            modelContextEphemeralUser = user
+
+            Runtime.getRuntime().addShutdownHook(Thread {
+                runCatching { helper.deleteTestUser(user.username) }
+            })
+
+            println("      ℹ️  Created ephemeral LDAP user for model-context OIDC token minting: ${user.username}")
+            return OidcCredentials(username = user.username, password = user.password)
+        }
+    }
+
+    private suspend fun fetchModelContextBearerTokenForCredentials(
+        autheliaBase: String,
+        clientId: String,
+        clientSecret: String,
+        redirectUri: String,
+        scope: String,
+        credentials: OidcCredentials
+    ): String? {
         val loginResponse = client.post("$autheliaBase/api/firstfactor") {
             contentType(ContentType.Application.Json)
             setBody(buildJsonObject {
-                put("username", username)
-                put("password", password)
+                put("username", credentials.username)
+                put("password", credentials.password)
                 put("keepMeLoggedIn", false)
             })
         }
@@ -146,6 +189,53 @@ class ServiceClient(
         val json = Json.parseToJsonElement(tokenResponse.bodyAsText()).jsonObject
         return json["access_token"]?.jsonPrimitive?.content
             ?: json["id_token"]?.jsonPrimitive?.content
+    }
+
+    private suspend fun fetchModelContextBearerToken(): String? {
+        val autheliaBase = endpoints.authelia.trimEnd('/')
+        val clientId = System.getenv("MODEL_CONTEXT_OIDC_CLIENT_ID")
+            ?.takeIf { it.isNotBlank() }
+            ?: "test-runner"
+        val clientSecret = System.getenv("MODEL_CONTEXT_OIDC_CLIENT_SECRET")
+            ?.takeIf { it.isNotBlank() }
+            ?: System.getenv("TEST_RUNNER_OAUTH_SECRET")
+                ?.takeIf { it.isNotBlank() }
+        val redirectUri = System.getenv("MODEL_CONTEXT_OIDC_REDIRECT_URI")
+            ?.takeIf { it.isNotBlank() }
+            ?: "http://test-runner/callback"
+        val scope = System.getenv("MODEL_CONTEXT_OIDC_SCOPE")
+            ?.takeIf { it.isNotBlank() }
+            ?: "openid profile email groups"
+
+        if (clientSecret == null) {
+            return null
+        }
+
+        val primaryCredentials = stackAdminOidcCredentials()
+        if (primaryCredentials != null) {
+            val token = fetchModelContextBearerTokenForCredentials(
+                autheliaBase = autheliaBase,
+                clientId = clientId,
+                clientSecret = clientSecret,
+                redirectUri = redirectUri,
+                scope = scope,
+                credentials = primaryCredentials
+            )
+            if (!token.isNullOrBlank()) {
+                return token
+            }
+            println("      ⚠️  Model-context OIDC token minting failed for configured stack admin credentials; trying LDAP ephemeral user.")
+        }
+
+        val fallbackCredentials = ephemeralLdapOidcCredentials() ?: return null
+        return fetchModelContextBearerTokenForCredentials(
+            autheliaBase = autheliaBase,
+            clientId = clientId,
+            clientSecret = clientSecret,
+            redirectUri = redirectUri,
+            scope = scope,
+            credentials = fallbackCredentials
+        )
     }
 
     private suspend fun modelContextBearerToken(): String? {
