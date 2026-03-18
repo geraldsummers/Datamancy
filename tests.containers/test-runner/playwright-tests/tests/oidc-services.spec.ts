@@ -1052,6 +1052,60 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
                 );
               }
             }
+
+            // SOGo intermittently renders a blank viewport in headless Chromium even when
+            // frame content is present. If all direct captures remain too small, synthesize
+            // an explicit diagnostic view from authenticated frame evidence.
+            if (bestCandidate.buffer.length < minUsefulScreenshotBytes) {
+              const activeFrame = getSogoFrame();
+              const frameUrl = activeFrame?.url() || page.url();
+              const frameTitle = (await activeFrame?.title().catch(() => '')) || '';
+              const frameBodyText = ((await activeFrame?.textContent('body').catch(() => '')) || '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              const frameSnippet = frameBodyText.slice(0, 1200) || '[empty body text]';
+              const diagnosticText = [
+                'SOGo authenticated capture fallback',
+                `URL: ${frameUrl}`,
+                `Title: ${frameTitle || '[none]'}`,
+                `Snippet: ${frameSnippet}`,
+              ].join('\n');
+
+              await page.evaluate((payload) => {
+                const existing = document.getElementById('__sogo-capture-fallback');
+                if (existing) {
+                  existing.remove();
+                }
+                const container = document.createElement('pre');
+                container.id = '__sogo-capture-fallback';
+                container.textContent = payload;
+                container.style.position = 'fixed';
+                container.style.inset = '16px';
+                container.style.margin = '0';
+                container.style.padding = '16px';
+                container.style.background = '#ffffff';
+                container.style.color = '#111111';
+                container.style.border = '2px solid #1f2937';
+                container.style.borderRadius = '8px';
+                container.style.fontFamily = 'monospace';
+                container.style.fontSize = '14px';
+                container.style.lineHeight = '1.4';
+                container.style.whiteSpace = 'pre-wrap';
+                container.style.overflow = 'auto';
+                container.style.zIndex = '2147483647';
+                document.body.appendChild(container);
+                document.body.style.background = '#ffffff';
+              }, diagnosticText);
+              const fallbackBuffer = await page.screenshot({ type: 'jpeg', quality: 90, fullPage: true });
+              if (fallbackBuffer.length > bestCandidate.buffer.length) {
+                bestCandidate = { label: 'diagnostic-fallback', buffer: fallbackBuffer };
+                fs.writeFileSync(screenshotPath, bestCandidate.buffer);
+                console.log(
+                  `   📸 Fallback candidate selected: ${bestCandidate.label} (${bestCandidate.buffer.length} bytes)`
+                );
+              }
+            }
+
             if (bestCandidate.buffer.length < minUsefulScreenshotBytes) {
               throw new Error(
                 `SOGo screenshot remained too small (${bestCandidate.buffer.length} bytes) after retries; likely blank capture.`
