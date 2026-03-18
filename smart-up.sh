@@ -7,6 +7,7 @@ REGISTRY_JSON="${REGISTRY_JSON:-$ROOT_DIR/test-registry.json}"
 STATUS_JSON="${STATUS_JSON:-$ROOT_DIR/build-status.json}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
 DRY_RUN="${DRY_RUN:-0}"
+FORCE_REFRESH_SERVICES="${FORCE_REFRESH_SERVICES:-test-all,test-playwright-e2e}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -42,7 +43,7 @@ docker compose -f "$COMPOSE_FILE" config --format json > "$COMPOSE_CONFIG_JSON"
 tmp_plan="$(mktemp)"
 tmp_updated="$(mktemp)"
 
-python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$EXISTING_SERVICES" "$RUNNING_SERVICES" "$COMPOSE_CONFIG_JSON" "$tmp_plan"
+python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$EXISTING_SERVICES" "$RUNNING_SERVICES" "$COMPOSE_CONFIG_JSON" "$FORCE_REFRESH_SERVICES" "$tmp_plan"
 import json
 import sys
 
@@ -53,11 +54,17 @@ import sys
     existing_services_text,
     running_services_text,
     compose_json_path,
+    force_refresh_services_text,
     out_path,
-) = sys.argv[1:8]
+) = sys.argv[1:9]
 services = {s.strip() for s in services_text.splitlines() if s.strip()}
 existing_services = {s.strip() for s in existing_services_text.splitlines() if s.strip()}
 running_services = {s.strip() for s in running_services_text.splitlines() if s.strip()}
+force_refresh_services = {
+    s.strip()
+    for s in force_refresh_services_text.split(",")
+    if s.strip()
+}
 
 with open(reg_path, "r", encoding="utf-8") as f:
     registry = json.load(f)
@@ -75,6 +82,7 @@ status_components = status.get("components", {})
 compose_services = compose_config.get("services", {})
 
 lines = []
+planned = set()
 for name, comp in registry.get("components", {}).items():
     if name not in services:
         continue
@@ -88,14 +96,31 @@ for name, comp in registry.get("components", {}).items():
         name not in running_services and
         not one_shot_service
     )
-    source_paths = comp.get("source_paths") or []
-    needs_build = any(path.startswith("stack.containers/") for path in source_paths)
+    needs_build = bool((compose_services.get(name) or {}).get("build"))
     if last_changed and last_changed != last_built:
         lines.append(f"{name}|{'build' if needs_build else 'no-build'}|{last_changed}|changed")
+        planned.add(name)
     elif missing_container:
         lines.append(f"{name}|no-build|{last_changed}|missing")
+        planned.add(name)
     elif stopped_container:
         lines.append(f"{name}|no-build|{last_changed}|stopped")
+        planned.add(name)
+
+for name in sorted(force_refresh_services):
+    if name not in services or name in planned:
+        continue
+    service_def = compose_services.get(name) or {}
+    restart_policy = str(service_def.get("restart") or "").strip().lower()
+    if restart_policy == "no":
+        continue
+    needs_build = bool(service_def.get("build"))
+    if name not in existing_services:
+        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||missing")
+    elif name not in running_services:
+        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||stopped")
+    else:
+        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||refresh")
 
 with open(out_path, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))
@@ -119,6 +144,8 @@ while IFS='|' read -r service build_flag last_changed reason; do
         info "Deploying missing container for $service"
     elif [ "$reason" = "stopped" ]; then
         info "Recovering stopped container for $service"
+    elif [ "$reason" = "refresh" ]; then
+        info "Refreshing $service"
     else
         info "Updating $service (changed: $last_changed)"
     fi
