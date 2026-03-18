@@ -660,6 +660,23 @@ fun Route.unifiedExchangeRoutes(
                         )
                     }
                 }
+                if (quoteForRisk == null) {
+                    logger.warn(
+                        "Rejecting live order due to missing fresh quote snapshot for exchange={} symbol={} hasRawQuote={}",
+                        exchange,
+                        orderRequest.symbol,
+                        rawRiskQuote != null
+                    )
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        mapOf(
+                            "error" to "Fresh quote snapshot required for live order risk checks",
+                            "exchange" to exchange,
+                            "symbol" to orderRequest.symbol
+                        )
+                    )
+                    return@post
+                }
                 val estimatedNotionalUsd = estimateOrderNotionalUsd(orderRequest, quoteForRisk)
                     ?: run {
                         call.respond(
@@ -1064,8 +1081,8 @@ private fun estimateOrderNotionalUsd(
     }
 
     val executionPrice = when (type) {
-        "MARKET" -> bookPrice ?: explicitPrice
-        else -> explicitPrice ?: bookPrice
+        "MARKET" -> bookPrice
+        else -> explicitPrice
     } ?: return null
 
     if (executionPrice <= BigDecimal.ZERO) return null
@@ -1150,6 +1167,9 @@ private fun validateOrderRequest(orderRequest: OrderRequest): String? {
     }
     if (type == "LIMIT" && parsedPrice == null) {
         return "Limit orders require a positive price"
+    }
+    if (type == "MARKET" && parsedPrice != null) {
+        return "Market orders must not include price"
     }
 
     return null

@@ -266,6 +266,96 @@ class TxGatewayTest {
                 "orderId": "paper-126",
                 "status": "FILLED",
                 "filledSize": "0",
+                "fillPrice": null,
+                "exchange": "binance",
+                "symbol": "BTC",
+                "side": "BUY",
+                "type": "MARKET"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.placeOrder(
+            UnifiedOrderRequest(
+                exchange = ExchangeId.BINANCE,
+                symbol = "BTC",
+                side = Side.BUY,
+                type = OrderType.MARKET,
+                size = BigDecimal("0.5")
+            )
+        )
+
+        assertTrue(result is ApiResult.Error)
+        assertTrue((result as ApiResult.Error).message.contains("Invalid filledSize for FILLED status"))
+    }
+
+    @Test
+    fun `test unified exchange order rejects filled status with partial fill size`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "paper-127",
+                "status": "FILLED",
+                "filledSize": "0.2",
+                "fillPrice": "73100",
+                "exchange": "binance",
+                "symbol": "BTC",
+                "side": "BUY",
+                "type": "MARKET"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.placeOrder(
+            UnifiedOrderRequest(
+                exchange = ExchangeId.BINANCE,
+                symbol = "BTC",
+                side = Side.BUY,
+                type = OrderType.MARKET,
+                size = BigDecimal("0.5")
+            )
+        )
+
+        assertTrue(result is ApiResult.Error)
+        assertTrue((result as ApiResult.Error).message.contains("Invalid filledSize for FILLED status"))
+    }
+
+    @Test
+    fun `test unified exchange order rejects partial status with fully filled size`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "paper-128",
+                "status": "PARTIALLY_FILLED",
+                "filledSize": "0.5",
+                "fillPrice": "73100",
+                "exchange": "binance",
+                "symbol": "BTC",
+                "side": "BUY",
+                "type": "MARKET"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.placeOrder(
+            UnifiedOrderRequest(
+                exchange = ExchangeId.BINANCE,
+                symbol = "BTC",
+                side = Side.BUY,
+                type = OrderType.MARKET,
+                size = BigDecimal("0.5")
+            )
+        )
+
+        assertTrue(result is ApiResult.Error)
+        assertTrue((result as ApiResult.Error).message.contains("Invalid filledSize for PARTIALLY_FILLED status"))
+    }
+
+    @Test
+    fun `test unified exchange order rejects pending status with non-zero fills`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "paper-129",
+                "status": "PENDING",
+                "filledSize": "0.1",
                 "fillPrice": "73100",
                 "exchange": "binance",
                 "symbol": "BTC",
@@ -287,6 +377,36 @@ class TxGatewayTest {
 
         assertTrue(result is ApiResult.Error)
         assertTrue((result as ApiResult.Error).message.contains("Invalid status/filledSize combination"))
+    }
+
+    @Test
+    fun `test unified exchange order rejects fill price without fills`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "paper-130",
+                "status": "REJECTED",
+                "filledSize": "0",
+                "fillPrice": "73100",
+                "exchange": "binance",
+                "symbol": "BTC",
+                "side": "BUY",
+                "type": "MARKET"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.placeOrder(
+            UnifiedOrderRequest(
+                exchange = ExchangeId.BINANCE,
+                symbol = "BTC",
+                side = Side.BUY,
+                type = OrderType.MARKET,
+                size = BigDecimal("0.5")
+            )
+        )
+
+        assertTrue(result is ApiResult.Error)
+        assertTrue((result as ApiResult.Error).message.contains("fillPrice provided without fills"))
     }
 
     @Test

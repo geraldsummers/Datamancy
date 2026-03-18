@@ -155,22 +155,38 @@ class UnifiedExchangeClient internal constructor(
             ?.let { runCatching { OrderStatus.valueOf(it) }.getOrNull() }
             ?: OrderStatus.PENDING
 
+        val requestedSize = request.size.abs()
         val filledSize = payload["filledSize"].toBigDecimalOrNull() ?: BigDecimal.ZERO
         val fillPrice = payload["fillPrice"].toBigDecimalOrNull()
         if (filledSize < BigDecimal.ZERO) {
             return ApiResult.Error("Invalid filledSize in response from ${request.exchange.apiName}")
         }
-        if (filledSize > request.size.abs()) {
+        if (filledSize > requestedSize) {
             return ApiResult.Error("filledSize exceeds requested size for ${request.exchange.apiName}")
         }
         if (fillPrice != null && fillPrice <= BigDecimal.ZERO) {
             return ApiResult.Error("Invalid fillPrice in response from ${request.exchange.apiName}")
         }
+        if (fillPrice != null && filledSize <= BigDecimal.ZERO) {
+            return ApiResult.Error("fillPrice provided without fills on ${request.exchange.apiName}")
+        }
         if (filledSize > BigDecimal.ZERO && fillPrice == null) {
             return ApiResult.Error("Missing fillPrice for non-zero fill on ${request.exchange.apiName}")
         }
-        if ((status == OrderStatus.FILLED || status == OrderStatus.PARTIALLY_FILLED) && filledSize <= BigDecimal.ZERO) {
-            return ApiResult.Error("Invalid status/filledSize combination from ${request.exchange.apiName}")
+        when (status) {
+            OrderStatus.FILLED -> if (filledSize.compareTo(requestedSize) != 0) {
+                return ApiResult.Error("Invalid filledSize for FILLED status from ${request.exchange.apiName}")
+            }
+            OrderStatus.PARTIALLY_FILLED -> if (filledSize <= BigDecimal.ZERO || filledSize.compareTo(requestedSize) >= 0) {
+                return ApiResult.Error("Invalid filledSize for PARTIALLY_FILLED status from ${request.exchange.apiName}")
+            }
+            OrderStatus.PENDING,
+            OrderStatus.REJECTED -> if (filledSize > BigDecimal.ZERO) {
+                return ApiResult.Error("Invalid status/filledSize combination from ${request.exchange.apiName}")
+            }
+            OrderStatus.CANCELLED -> if (filledSize.compareTo(requestedSize) == 0 && requestedSize > BigDecimal.ZERO) {
+                return ApiResult.Error("Invalid filledSize for CANCELLED status from ${request.exchange.apiName}")
+            }
         }
 
         return ApiResult.Success(
