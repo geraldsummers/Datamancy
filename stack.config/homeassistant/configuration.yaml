@@ -18,11 +18,13 @@ logbook:
 
 homeassistant:
   auth_providers:
-    - type: trusted_networks
-      trusted_networks:
-        - 172.26.0.0/24
-        - 192.168.48.0/24
-      allow_bypass_login: false
+    - type: ldap
+      ldap_host: !env_var LDAP_HOST
+      ldap_port: 389
+      ldap_base_dn: !env_var LDAP_BASE_DN
+      ldap_bind_dn: !env_var LDAP_BIND_DN
+      ldap_bind_password: !env_var LDAP_BIND_PASSWORD
+      ldap_user_filter: !env_var LDAP_USER_FILTER
 
 automation: !include automations.yaml
 script: !include scripts.yaml

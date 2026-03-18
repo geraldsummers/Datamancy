@@ -154,7 +154,7 @@ EOF
     echo "Core config written"
 }
 
-create_admin_user
+echo "Skipping local Home Assistant user bootstrap; LDAP is the identity source."
 mark_onboarding_complete
 ensure_core_config
 

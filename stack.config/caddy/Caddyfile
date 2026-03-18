@@ -279,7 +279,7 @@ jupyterhub.{$DOMAIN} {
 	}
 }
 
-# Home Assistant - Uses trusted_networks + LDAP auth
+# Home Assistant - Uses LDAP auth
 # Webhooks must bypass auth
 homeassistant.{$DOMAIN} {
 	# Webhook paths bypass forward_auth

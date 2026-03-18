@@ -35,8 +35,8 @@ services:
       FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION: true
       FORGEJO__service__REQUIRE_SIGNIN_VIEW: true
       FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: true
-      FORGEJO__openid__ENABLE_OPENID_SIGNIN: true
-      FORGEJO__openid__ENABLE_OPENID_SIGNUP: true
+      FORGEJO__openid__ENABLE_OPENID_SIGNIN: false
+      FORGEJO__openid__ENABLE_OPENID_SIGNUP: false
       FORGEJO__actions__ENABLED: true
       FORGEJO__actions__DEFAULT_ACTIONS_URL: https://code.forgejo.org
       FORGEJO_OAUTH_SECRET: ${FORGEJO_OAUTH_SECRET}

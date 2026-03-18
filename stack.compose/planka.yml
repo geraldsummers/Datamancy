@@ -32,7 +32,7 @@ services:
       OIDC_CLIENT_ID: planka
       OIDC_CLIENT_SECRET: ${PLANKA_OAUTH_SECRET}
       OIDC_SCOPES: openid profile email groups
-      OIDC_ADMIN_ROLES: admins,users
+      OIDC_ADMIN_ROLES: admins
       OIDC_EMAIL_ATTRIBUTE: email
       OIDC_NAME_ATTRIBUTE: name
       OIDC_USERNAME_ATTRIBUTE: preferred_username
@@ -41,7 +41,7 @@ services:
       OIDC_TOKEN_ENDPOINT: https://auth.${DOMAIN}/api/oidc/token
       OIDC_USERINFO_ENDPOINT: https://auth.${DOMAIN}/api/oidc/userinfo
       OIDC_TOKEN_ENDPOINT_AUTH_METHOD: client_secret_basic
-      OIDC_ENFORCED: false
+      OIDC_ENFORCED: true
       NODE_EXTRA_CA_CERTS: /ca/caddy-ca.crt
       SSL_CERT_FILE: /ca/caddy-ca.crt
     volumes:

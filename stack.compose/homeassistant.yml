@@ -33,6 +33,8 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: homeassistant
       POSTGRES_USER: homeassistant
+      LDAP_HOST: ldap
+      LDAP_PORT: 389
       LDAP_URL: ldap://ldap:389
       STACK_ADMIN_USER: ${STACK_ADMIN_USER}
       STACK_ADMIN_PASSWORD: ${STACK_ADMIN_PASSWORD}
@@ -40,6 +42,7 @@ services:
       LDAP_BASE_DN: ${LDAP_BASE_DN}
       LDAP_USER_DN: ou=users,${LDAP_BASE_DN}
       LDAP_BIND_DN: cn=admin,${LDAP_BASE_DN}
+      LDAP_BIND_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       LDAP_USER_FILTER: (uid={username})
     volumes:
       - homeassistant_data:/config
