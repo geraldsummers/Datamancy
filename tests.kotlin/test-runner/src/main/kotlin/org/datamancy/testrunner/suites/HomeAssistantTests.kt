@@ -8,11 +8,12 @@ import org.datamancy.testrunner.framework.*
 
 
 suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
+    fun HttpStatusCode.matches(vararg codes: Int): Boolean = this.value in codes
 
     test("Home Assistant web interface loads") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}")
         
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Found, HttpStatusCode.Forbidden)) {
+        require(response.status.matches(200, 302, 403)) {
             "Home Assistant not accessible: ${response.status}"
         }
 
@@ -21,7 +22,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant API responds") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/api/")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+        require(response.status.matches(200, 401, 403)) {
             "API not responding: ${response.status}"
         }
 
@@ -37,7 +38,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant config endpoint exists") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/api/config")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+        require(response.status.matches(200, 401, 403)) {
             "Config endpoint failed: ${response.status}"
         }
 
@@ -46,7 +47,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant states endpoint exists") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/api/states")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+        require(response.status.matches(200, 401, 403)) {
             "States endpoint failed: ${response.status}"
         }
 
@@ -55,7 +56,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant services endpoint exists") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/api/services")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+        require(response.status.matches(200, 401, 403)) {
             "Services endpoint failed: ${response.status}"
         }
 
@@ -64,7 +65,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant events endpoint exists") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/api/events")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+        require(response.status.matches(200, 401, 403)) {
             "Events endpoint failed: ${response.status}"
         }
 
@@ -73,7 +74,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant error log endpoint") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/api/error_log")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+        require(response.status.matches(200, 401, 403)) {
             "Error log endpoint failed: ${response.status}"
         }
 
@@ -82,7 +83,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant history endpoint exists") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/api/history/period")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.NotFound)) {
+        require(response.status.matches(200, 401, 403, 404)) {
             "History endpoint failed: ${response.status}"
         }
 
@@ -95,7 +96,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
 
     test("Home Assistant logbook endpoint exists") {
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/api/logbook")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.NotFound)) {
+        require(response.status.matches(200, 401, 403, 404)) {
             "Logbook endpoint failed: ${response.status}"
         }
 
@@ -109,14 +110,7 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
     test("Home Assistant panel manifest") {
         
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/static/icons/favicon.ico")
-        require(
-            response.status in listOf(
-                HttpStatusCode.OK,
-                HttpStatusCode.NotFound,
-                HttpStatusCode.Unauthorized,
-                HttpStatusCode.Forbidden,
-            )
-        ) {
+        require(response.status.matches(200, 401, 403, 404)) {
             "Static assets not responding: ${response.status}"
         }
 
