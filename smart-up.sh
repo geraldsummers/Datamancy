@@ -123,7 +123,8 @@ for name in sorted(force_refresh_services):
         lines.append(f"{name}|{'build' if needs_build else 'no-build'}||refresh")
 
 with open(out_path, "w", encoding="utf-8") as f:
-    f.write("\n".join(lines))
+    if lines:
+        f.write("\n".join(lines) + "\n")
 PY
 
 if [ ! -s "$tmp_plan" ]; then
