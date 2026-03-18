@@ -36,21 +36,33 @@ fi
 SERVICES_LIST="$(docker compose -f "$COMPOSE_FILE" config --services)"
 EXISTING_SERVICES="$(docker compose -f "$COMPOSE_FILE" ps -a --services 2>/dev/null || true)"
 RUNNING_SERVICES="$(docker compose -f "$COMPOSE_FILE" ps --services --status running 2>/dev/null || true)"
+COMPOSE_CONFIG_JSON="$(mktemp)"
+docker compose -f "$COMPOSE_FILE" config --format json > "$COMPOSE_CONFIG_JSON"
 
 tmp_plan="$(mktemp)"
 tmp_updated="$(mktemp)"
 
-python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$EXISTING_SERVICES" "$RUNNING_SERVICES" "$tmp_plan"
+python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$EXISTING_SERVICES" "$RUNNING_SERVICES" "$COMPOSE_CONFIG_JSON" "$tmp_plan"
 import json
 import sys
 
-reg_path, status_path, services_text, existing_services_text, running_services_text, out_path = sys.argv[1:7]
+(
+    reg_path,
+    status_path,
+    services_text,
+    existing_services_text,
+    running_services_text,
+    compose_json_path,
+    out_path,
+) = sys.argv[1:8]
 services = {s.strip() for s in services_text.splitlines() if s.strip()}
 existing_services = {s.strip() for s in existing_services_text.splitlines() if s.strip()}
 running_services = {s.strip() for s in running_services_text.splitlines() if s.strip()}
 
 with open(reg_path, "r", encoding="utf-8") as f:
     registry = json.load(f)
+with open(compose_json_path, "r", encoding="utf-8") as f:
+    compose_config = json.load(f)
 
 status = {"components": {}}
 try:
@@ -60,6 +72,7 @@ except FileNotFoundError:
     pass
 
 status_components = status.get("components", {})
+compose_services = compose_config.get("services", {})
 
 lines = []
 for name, comp in registry.get("components", {}).items():
@@ -68,7 +81,13 @@ for name, comp in registry.get("components", {}).items():
     last_changed = comp.get("last_changed_commit") or ""
     last_built = (status_components.get(name) or {}).get("last_built_commit") or ""
     missing_container = name not in existing_services
-    stopped_container = name in existing_services and name not in running_services
+    restart_policy = str((compose_services.get(name) or {}).get("restart") or "").strip().lower()
+    one_shot_service = restart_policy == "no"
+    stopped_container = (
+        name in existing_services and
+        name not in running_services and
+        not one_shot_service
+    )
     source_paths = comp.get("source_paths") or []
     needs_build = any(path.startswith("stack.containers/") for path in source_paths)
     if last_changed and last_changed != last_built:
@@ -84,7 +103,7 @@ PY
 
 if [ ! -s "$tmp_plan" ]; then
     info "All services are up to date and tracked containers are already running"
-    rm -f "$tmp_plan" "$tmp_updated"
+    rm -f "$tmp_plan" "$tmp_updated" "$COMPOSE_CONFIG_JSON"
     exit 0
 fi
 
@@ -164,4 +183,4 @@ PY
     info "Updated build status: $STATUS_JSON"
 fi
 
-rm -f "$tmp_plan" "$tmp_updated"
+rm -f "$tmp_plan" "$tmp_updated" "$COMPOSE_CONFIG_JSON"
