@@ -166,6 +166,12 @@ class UnifiedExchangeClient internal constructor(
         if (fillPrice != null && fillPrice <= BigDecimal.ZERO) {
             return ApiResult.Error("Invalid fillPrice in response from ${request.exchange.apiName}")
         }
+        if (filledSize > BigDecimal.ZERO && fillPrice == null) {
+            return ApiResult.Error("Missing fillPrice for non-zero fill on ${request.exchange.apiName}")
+        }
+        if ((status == OrderStatus.FILLED || status == OrderStatus.PARTIALLY_FILLED) && filledSize <= BigDecimal.ZERO) {
+            return ApiResult.Error("Invalid status/filledSize combination from ${request.exchange.apiName}")
+        }
 
         return ApiResult.Success(
             UnifiedOrderResult(

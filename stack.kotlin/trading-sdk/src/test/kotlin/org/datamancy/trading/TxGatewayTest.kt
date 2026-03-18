@@ -229,6 +229,67 @@ class TxGatewayTest {
     }
 
     @Test
+    fun `test unified exchange order rejects missing fill price for non-zero fill`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "paper-125",
+                "status": "PARTIALLY_FILLED",
+                "filledSize": "0.1",
+                "fillPrice": null,
+                "exchange": "binance",
+                "symbol": "BTC",
+                "side": "BUY",
+                "type": "LIMIT"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.placeOrder(
+            UnifiedOrderRequest(
+                exchange = ExchangeId.BINANCE,
+                symbol = "BTC",
+                side = Side.BUY,
+                type = OrderType.LIMIT,
+                size = BigDecimal("0.5"),
+                price = BigDecimal("72000")
+            )
+        )
+
+        assertTrue(result is ApiResult.Error)
+        assertTrue((result as ApiResult.Error).message.contains("Missing fillPrice"))
+    }
+
+    @Test
+    fun `test unified exchange order rejects filled status without fills`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "paper-126",
+                "status": "FILLED",
+                "filledSize": "0",
+                "fillPrice": "73100",
+                "exchange": "binance",
+                "symbol": "BTC",
+                "side": "BUY",
+                "type": "MARKET"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.placeOrder(
+            UnifiedOrderRequest(
+                exchange = ExchangeId.BINANCE,
+                symbol = "BTC",
+                side = Side.BUY,
+                type = OrderType.MARKET,
+                size = BigDecimal("0.5")
+            )
+        )
+
+        assertTrue(result is ApiResult.Error)
+        assertTrue((result as ApiResult.Error).message.contains("Invalid status/filledSize combination"))
+    }
+
+    @Test
     fun `test unified quote request URL-encodes symbol`() = runBlocking {
         val mockResponse = """
             {
