@@ -223,6 +223,26 @@ class TxGatewayTest {
     }
 
     @Test
+    fun `test unified quote rejects crossed orderbook snapshot`() = runBlocking {
+        val mockResponse = """
+            {
+                "exchange": "binance",
+                "symbol": "BTC/USD",
+                "bid": 73010.0,
+                "ask": 73000.0,
+                "last": 73005.0,
+                "timestamp": "2026-02-07T00:00:00Z",
+                "source": "market_data:trade"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.quote(ExchangeId.BINANCE, "BTC/USD")
+        assertTrue(result is ApiResult.Error)
+        assertTrue((result as ApiResult.Error).message.contains("Invalid quote payload"))
+    }
+
+    @Test
     fun `test best quote via gateway URL-encodes symbol`() = runBlocking {
         val mockResponse = """
             {

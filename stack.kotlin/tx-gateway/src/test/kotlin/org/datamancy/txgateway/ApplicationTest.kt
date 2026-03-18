@@ -9,11 +9,13 @@ import io.ktor.server.testing.*
 import io.mockk.mockk
 import io.mockk.verify
 import org.datamancy.txgateway.services.*
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ApplicationTest {
+    private fun freshQuoteTimestamp(): Instant = Instant.now().minusSeconds(5)
 
     @Test
     fun testHealthEndpoint() = testApplication {
@@ -118,7 +120,7 @@ class ApplicationTest {
                 bid = 73000.0,
                 ask = 73010.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "orderbook_data"
             )
             configureApp(authService, ldapService, workerClient, dbService)
@@ -144,7 +146,7 @@ class ApplicationTest {
                 bid = 73010.0,
                 ask = 73000.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "orderbook_data"
             )
             configureApp(authService, ldapService, workerClient, dbService)
@@ -154,6 +156,31 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("Invalid quote snapshot"), body)
+    }
+
+    @Test
+    fun testUnifiedQuoteEndpointRejectsStaleSnapshot() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = Instant.now().minusSeconds(900),
+                source = "orderbook_data"
+            )
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/exchanges/hyperliquid/quote?symbol=BTC")
+        assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Stale quote snapshot"), body)
     }
 
     @Test
@@ -170,7 +197,7 @@ class ApplicationTest {
                 bid = 72990.0,
                 ask = 73000.0,
                 last = 72995.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
             every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
@@ -179,7 +206,7 @@ class ApplicationTest {
                 bid = 73010.0,
                 ask = 73020.0,
                 last = 73015.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -213,7 +240,7 @@ class ApplicationTest {
                 bid = 73050.0,
                 ask = 73000.0,
                 last = 73020.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
             every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
@@ -222,7 +249,43 @@ class ApplicationTest {
                 bid = 72990.0,
                 ask = 73005.0,
                 last = 73000.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/exchanges/best-quote?symbol=BTC&side=buy&exchanges=hyperliquid,binance")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"selectedExchange\": \"binance\""), body)
+    }
+
+    @Test
+    fun testBestQuoteEndpointSkipsStaleSnapshots() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73001.0,
+                last = 73000.5,
+                timestamp = Instant.now().minusSeconds(901),
+                source = "market_data:trade"
+            )
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 72990.0,
+                ask = 73005.0,
+                last = 73000.0,
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -249,7 +312,7 @@ class ApplicationTest {
                 bid = 0.0,
                 ask = 73000.0,
                 last = 73000.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
             every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
@@ -258,7 +321,7 @@ class ApplicationTest {
                 bid = 73100.0,
                 ask = 73000.0,
                 last = 73050.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -299,7 +362,7 @@ class ApplicationTest {
                 bid = 73000.0,
                 ask = 73010.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -347,7 +410,7 @@ class ApplicationTest {
                 bid = 73000.0,
                 ask = 73010.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -395,7 +458,7 @@ class ApplicationTest {
                 bid = 73000.0,
                 ask = 73010.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -449,7 +512,7 @@ class ApplicationTest {
                 bid = 73000.0,
                 ask = 73010.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -496,7 +559,7 @@ class ApplicationTest {
                 bid = 73000.0,
                 ask = 73010.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -545,7 +608,7 @@ class ApplicationTest {
                 bid = 73000.0,
                 ask = 73010.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
             every { workerClient.submitHyperliquidOrder(any()) } returns mapOf("orderId" to "live-1")
@@ -594,7 +657,7 @@ class ApplicationTest {
                 bid = 73000.0,
                 ask = 73010.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -641,7 +704,7 @@ class ApplicationTest {
                 bid = 73000.0,
                 ask = 73010.0,
                 last = 73005.0,
-                timestamp = java.time.Instant.parse("2026-03-16T00:00:00Z"),
+                timestamp = freshQuoteTimestamp(),
                 source = "market_data:trade"
             )
 
@@ -658,6 +721,52 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(Regex("\"status\"\\s*:\\s*\"REJECTED\"").containsMatchIn(body), body)
         assertTrue(Regex("\"rejectionReason\"\\s*:\\s*\"Post-only limit order would cross the spread").containsMatchIn(body), body)
+    }
+
+    @Test
+    fun testPaperOrderRejectsStaleQuoteSnapshot() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = Instant.now().minusSeconds(901),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
+        }
+
+        assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Stale quote snapshot"), body)
     }
 
     @Test

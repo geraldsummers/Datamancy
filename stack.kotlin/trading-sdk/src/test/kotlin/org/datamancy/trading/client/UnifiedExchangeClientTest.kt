@@ -45,4 +45,21 @@ class UnifiedExchangeClientTest {
         val expected = setOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster")
         assertTrue(expected.all { it in venues }, "Missing exchanges: ${expected - venues}")
     }
+
+    @Test
+    fun `best quote ignores crossed book snapshots`() {
+        val quotes = listOf(
+            UnifiedQuote(ExchangeId.BINANCE, "BTC", BigDecimal("73110"), BigDecimal("73100")), // invalid crossed book
+            UnifiedQuote(ExchangeId.BYBIT, "BTC", BigDecimal("73090"), BigDecimal("73100")),
+            UnifiedQuote(ExchangeId.HYPERLIQUID, "BTC", BigDecimal("73095"), BigDecimal("73105"))
+        )
+
+        val bestBuy = UnifiedExchangeClient.selectBestQuote(quotes, Side.BUY)
+        assertNotNull(bestBuy)
+        assertEquals(ExchangeId.BYBIT, bestBuy.exchange)
+
+        val bestSell = UnifiedExchangeClient.selectBestQuote(quotes, Side.SELL)
+        assertNotNull(bestSell)
+        assertEquals(ExchangeId.HYPERLIQUID, bestSell.exchange)
+    }
 }

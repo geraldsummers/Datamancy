@@ -36,6 +36,12 @@ private val supportedExchanges = listOf(
 )
 
 private val liveOrderExchanges = setOf("hyperliquid")
+private val maxQuoteAgeMs: Long = System.getenv("TX_GATEWAY_MAX_QUOTE_AGE_MS")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?.toLongOrNull()
+    ?.coerceAtLeast(1L)
+    ?: 300_000L
 
 @Serializable
 private data class UserResponse(
@@ -333,6 +339,16 @@ fun Route.unifiedExchangeRoutes(
                             )
                             null
                         }
+                        !quote.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs) -> {
+                            logger.warn(
+                                "Ignoring stale quote snapshot for exchange={} symbol={} ageMs={} maxQuoteAgeMs={}",
+                                quote.exchange,
+                                quote.symbol,
+                                quote.quoteAgeMs(),
+                                maxQuoteAgeMs
+                            )
+                            null
+                        }
 
                         else -> quote
                     }
@@ -428,6 +444,24 @@ fun Route.unifiedExchangeRoutes(
                         HttpStatusCode.ServiceUnavailable,
                         mapOf(
                             "error" to "Invalid quote snapshot",
+                            "exchange" to exchange,
+                            "symbol" to symbol
+                        )
+                    )
+                    return@get
+                }
+                if (!quote.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs)) {
+                    logger.warn(
+                        "Rejecting stale quote snapshot for exchange={} symbol={} ageMs={} maxQuoteAgeMs={}",
+                        quote.exchange,
+                        quote.symbol,
+                        quote.quoteAgeMs(),
+                        maxQuoteAgeMs
+                    )
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        mapOf(
+                            "error" to "Stale quote snapshot",
                             "exchange" to exchange,
                             "symbol" to symbol
                         )
@@ -536,6 +570,24 @@ fun Route.unifiedExchangeRoutes(
                         )
                         return@post
                     }
+                    if (!quote.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs)) {
+                        logger.warn(
+                            "Rejecting paper order due to stale quote snapshot for exchange={} symbol={} ageMs={} maxQuoteAgeMs={}",
+                            quote.exchange,
+                            quote.symbol,
+                            quote.quoteAgeMs(),
+                            maxQuoteAgeMs
+                        )
+                        call.respond(
+                            HttpStatusCode.ServiceUnavailable,
+                            mapOf(
+                                "error" to "Stale quote snapshot",
+                                "exchange" to exchange,
+                                "symbol" to orderRequest.symbol
+                            )
+                        )
+                        return@post
+                    }
 
                     val estimatedNotionalUsd = estimateOrderNotionalUsd(orderRequest, quote)
                         ?: run {
@@ -577,16 +629,28 @@ fun Route.unifiedExchangeRoutes(
                 }
 
                 val rawRiskQuote = dbService.fetchLatestQuote(exchange = exchange, symbol = orderRequest.symbol)
-                val quoteForRisk = rawRiskQuote?.takeIf { it.isValidSnapshot() }
+                val quoteForRisk = rawRiskQuote?.takeIf {
+                    it.isValidSnapshot() && it.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs)
+                }
                 if (rawRiskQuote != null && quoteForRisk == null) {
-                    logger.warn(
-                        "Ignoring invalid live quote snapshot for exchange={} symbol={} bid={} ask={} last={}",
-                        rawRiskQuote.exchange,
-                        rawRiskQuote.symbol,
-                        rawRiskQuote.bid,
-                        rawRiskQuote.ask,
-                        rawRiskQuote.last
-                    )
+                    if (!rawRiskQuote.isValidSnapshot()) {
+                        logger.warn(
+                            "Ignoring invalid live quote snapshot for exchange={} symbol={} bid={} ask={} last={}",
+                            rawRiskQuote.exchange,
+                            rawRiskQuote.symbol,
+                            rawRiskQuote.bid,
+                            rawRiskQuote.ask,
+                            rawRiskQuote.last
+                        )
+                    } else {
+                        logger.warn(
+                            "Ignoring stale live quote snapshot for exchange={} symbol={} ageMs={} maxQuoteAgeMs={}",
+                            rawRiskQuote.exchange,
+                            rawRiskQuote.symbol,
+                            rawRiskQuote.quoteAgeMs(),
+                            maxQuoteAgeMs
+                        )
+                    }
                 }
                 val estimatedNotionalUsd = estimateOrderNotionalUsd(orderRequest, quoteForRisk)
                     ?: run {
@@ -1247,6 +1311,19 @@ private fun toBps(numerator: BigDecimal, denominator: BigDecimal): BigDecimal {
 private fun LatestQuote.isValidSnapshot(): Boolean {
     if (bid <= 0.0 || ask <= 0.0 || last <= 0.0) return false
     return ask >= bid
+}
+
+private fun LatestQuote.quoteAgeMs(referenceTime: Instant = Instant.now()): Long {
+    return Duration.between(timestamp, referenceTime).toMillis()
+}
+
+private fun LatestQuote.isFreshSnapshot(
+    referenceTime: Instant = Instant.now(),
+    maxQuoteAgeMs: Long
+): Boolean {
+    val ageMs = quoteAgeMs(referenceTime)
+    if (ageMs < -5_000L) return false
+    return ageMs <= maxQuoteAgeMs
 }
 
 private suspend fun extractAuthenticatedUsername(

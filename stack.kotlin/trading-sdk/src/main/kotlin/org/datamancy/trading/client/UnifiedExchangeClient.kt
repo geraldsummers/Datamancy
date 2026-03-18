@@ -103,7 +103,7 @@ class UnifiedExchangeClient internal constructor(
     ): ApiResult<UnifiedQuote> {
         val exchangeCsv = exchanges.distinct().joinToString(",") { it.apiName }
         val path =
-            "/api/v1/exchanges/best-quote?symbol=${symbol.encodeForQuery()}&side=${side.name.lowercase()}&exchanges=$exchangeCsv"
+            "/api/v1/exchanges/best-quote?symbol=${symbol.encodeForQuery()}&side=${side.name.lowercase()}&exchanges=${exchangeCsv.encodeForQuery()}"
 
         return when (val result = httpClient.get<Map<String, Any?>>(path)) {
             is ApiResult.Success -> {
@@ -119,7 +119,7 @@ class UnifiedExchangeClient internal constructor(
         val ask = payload["ask"].toBigDecimalOrNull()
         val last = payload["last"].toBigDecimalOrNull()
 
-        if (bid == null || ask == null || bid <= BigDecimal.ZERO || ask <= BigDecimal.ZERO) {
+        if (bid == null || ask == null || bid <= BigDecimal.ZERO || ask <= BigDecimal.ZERO || ask < bid) {
             logger.warn("Invalid quote payload from {}: {}", exchange.apiName, payload)
             return ApiResult.Error("Invalid quote payload from ${exchange.apiName}")
         }
@@ -171,9 +171,11 @@ class UnifiedExchangeClient internal constructor(
     companion object {
         fun selectBestQuote(candidates: List<UnifiedQuote>, side: Side): UnifiedQuote? {
             if (candidates.isEmpty()) return null
+            val validCandidates = candidates.filter { it.bid > BigDecimal.ZERO && it.ask > BigDecimal.ZERO && it.ask >= it.bid }
+            if (validCandidates.isEmpty()) return null
             return when (side) {
-                Side.BUY -> candidates.minByOrNull { it.ask }
-                Side.SELL -> candidates.maxByOrNull { it.bid }
+                Side.BUY -> validCandidates.minByOrNull { it.ask }
+                Side.SELL -> validCandidates.maxByOrNull { it.bid }
             }
         }
     }
@@ -185,7 +187,7 @@ class UnifiedExchangeClient internal constructor(
         val symbol = quoteNode["symbol"]?.toString() ?: payload["normalizedSymbol"]?.toString() ?: return null
         val bid = quoteNode["bid"].toBigDecimalOrNull() ?: return null
         val ask = quoteNode["ask"].toBigDecimalOrNull() ?: return null
-        if (bid <= BigDecimal.ZERO || ask <= BigDecimal.ZERO) return null
+        if (bid <= BigDecimal.ZERO || ask <= BigDecimal.ZERO || ask < bid) return null
         val last = quoteNode["last"].toBigDecimalOrNull()
         return ApiResult.Success(
             UnifiedQuote(
