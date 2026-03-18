@@ -12,6 +12,10 @@ x-test-base: &test_runner_base
     DOMAIN: ${DOMAIN}
     BASE_URL: https://${DOMAIN}
     AUTHELIA_URL: https://auth.${DOMAIN}
+    TEST_RUNNER_OAUTH_SECRET: ${TEST_RUNNER_OAUTH_SECRET}
+    MODEL_CONTEXT_OIDC_CLIENT_ID: ${MODEL_CONTEXT_OIDC_CLIENT_ID:-test-runner}
+    MODEL_CONTEXT_OIDC_REDIRECT_URI: ${MODEL_CONTEXT_OIDC_REDIRECT_URI:-http://test-runner/callback}
+    MODEL_CONTEXT_OIDC_SCOPE: ${MODEL_CONTEXT_OIDC_SCOPE:-openid profile email groups}
     DISABLE_TLS_VALIDATION: "true"
     LDAP_URL: ldap://ldap:389
     LDAP_BASE_DN: ${LDAP_BASE_DN}
