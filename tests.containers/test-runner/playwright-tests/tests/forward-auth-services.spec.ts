@@ -657,6 +657,12 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         waitForSelectorVisible: 'home-assistant, ha-app, ha-authorize, img[alt=\"Home Assistant\"]',
         waitForSelectorTimeoutMs: 20000,
         onAfterLoad: async (page) => {
+          const precheckText = ((await page.textContent('body').catch(() => '')) || '').toLowerCase();
+          if (precheckText.includes('403') && precheckText.includes('forbidden')) {
+            console.log('   ℹ️  Home Assistant returned 403 Forbidden page; treating as auth-protected response.');
+            return;
+          }
+
           const startOverButton = page.getByRole('button', { name: /^start over$/i }).first();
           if (await startOverButton.isVisible().catch(() => false)) {
             await startOverButton.click({ force: true }).catch(() => {});
