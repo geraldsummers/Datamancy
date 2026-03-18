@@ -1309,6 +1309,7 @@ private fun toBps(numerator: BigDecimal, denominator: BigDecimal): BigDecimal {
 }
 
 private fun LatestQuote.isValidSnapshot(): Boolean {
+    if (!bid.isFinite() || !ask.isFinite() || !last.isFinite()) return false
     if (bid <= 0.0 || ask <= 0.0 || last <= 0.0) return false
     return ask >= bid
 }
