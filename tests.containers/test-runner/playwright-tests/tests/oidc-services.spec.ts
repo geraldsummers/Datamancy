@@ -962,6 +962,29 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             }
           };
 
+          const captureSogoIframes = async (
+            pushCandidate: (label: string, capture: () => Promise<Buffer>) => Promise<void>,
+            labelPrefix: string
+          ) => {
+            const iframeLocators = page.locator('iframe');
+            const iframeCount = await iframeLocators.count().catch(() => 0);
+            for (let i = 0; i < iframeCount; i += 1) {
+              const iframe = iframeLocators.nth(i);
+              const src = (await iframe.getAttribute('src').catch(() => '')) || '';
+              const id = (await iframe.getAttribute('id').catch(() => '')) || '';
+              const name = (await iframe.getAttribute('name').catch(() => '')) || '';
+              if (!/sogo|\/SOGo\//i.test(`${src} ${id} ${name}`)) {
+                continue;
+              }
+              if (await iframe.isVisible().catch(() => false)) {
+                await pushCandidate(
+                  `${labelPrefix}-iframe-element:${src || id || name || `index-${i}`}`,
+                  () => iframe.screenshot({ type: 'jpeg', quality: 85 })
+                );
+              }
+            }
+          };
+
           const candidateFrames = page.frames().filter((frame) => frame !== page.mainFrame());
           for (const frame of candidateFrames) {
             const frameUrl = frame.url();
@@ -981,6 +1004,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               );
             }
           }
+          await captureSogoIframes(addScreenshotCandidate, 'initial');
 
           await addScreenshotCandidate('page-viewport', () =>
             page.screenshot({ type: 'jpeg', quality: 85 })
@@ -1011,6 +1035,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
                 retryCandidates.push({ label, buffer });
               }
             };
+            await captureSogoIframes(addRetryCandidate, 'retry');
             await addRetryCandidate('retry-page-viewport', () =>
               page.screenshot({ type: 'jpeg', quality: 85 })
             );
@@ -1028,8 +1053,8 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               }
             }
             if (bestCandidate.buffer.length < minUsefulScreenshotBytes) {
-              console.log(
-                `   ⚠️  Keeping small SOGo screenshot (${bestCandidate.buffer.length} bytes). Verify manually in screenshot review.`
+              throw new Error(
+                `SOGo screenshot remained too small (${bestCandidate.buffer.length} bytes) after retries; likely blank capture.`
               );
             }
           }
