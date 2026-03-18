@@ -42,6 +42,9 @@ private val maxQuoteAgeMs: Long = System.getenv("TX_GATEWAY_MAX_QUOTE_AGE_MS")
     ?.toLongOrNull()
     ?.coerceAtLeast(1L)
     ?: 300_000L
+private val symbolPattern = Regex("^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$")
+private val maxOrderSize = BigDecimal("1000000000")
+private val maxOrderPrice = BigDecimal("1000000000")
 
 @Serializable
 private data class UserResponse(
@@ -519,6 +522,11 @@ fun Route.unifiedExchangeRoutes(
                 }
 
                 val orderRequest = call.receive<OrderRequest>()
+                val orderValidationError = validateOrderRequest(orderRequest)
+                if (orderValidationError != null) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to orderValidationError))
+                    return@post
+                }
                 val executionControlError = validateExecutionControls(orderRequest)
                 if (executionControlError != null) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to executionControlError))
@@ -690,6 +698,8 @@ fun Route.unifiedExchangeRoutes(
                 }
 
                 val hyperliquidKey = call.request.headers["X-Credential-hyperliquid"]
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
                 if (hyperliquidKey == null) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
                     return@post
@@ -1095,6 +1105,54 @@ private fun parseFeeTier(raw: String?): FeeTier = when (raw?.trim()?.lowercase()
     "pro" -> FeeTier.PRO
     "vip" -> FeeTier.VIP
     else -> FeeTier.RETAIL
+}
+
+private fun validateOrderRequest(orderRequest: OrderRequest): String? {
+    if (orderRequest.symbol != orderRequest.symbol.trim()) {
+        return "symbol must not contain leading or trailing whitespace"
+    }
+    val symbol = orderRequest.symbol.trim()
+    if (!symbolPattern.matches(symbol)) {
+        return "Invalid symbol: ${orderRequest.symbol}"
+    }
+
+    val side = orderRequest.side.trim().uppercase()
+    if (side != "BUY" && side != "SELL") {
+        return "Invalid side: ${orderRequest.side}"
+    }
+
+    val type = orderRequest.type.trim().uppercase()
+    if (type != "MARKET" && type != "LIMIT") {
+        return "Invalid type: ${orderRequest.type}"
+    }
+
+    val size = orderRequest.size.trim().toBigDecimalOrNull()
+        ?: return "Invalid size: ${orderRequest.size}"
+    if (size <= BigDecimal.ZERO) {
+        return "size must be > 0"
+    }
+    if (size > maxOrderSize) {
+        return "size exceeds safety limit"
+    }
+
+    val parsedPrice = orderRequest.price
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?.toBigDecimalOrNull()
+    if (orderRequest.price != null && parsedPrice == null) {
+        return "Invalid price: ${orderRequest.price}"
+    }
+    if (parsedPrice != null && parsedPrice <= BigDecimal.ZERO) {
+        return "price must be > 0"
+    }
+    if (parsedPrice != null && parsedPrice > maxOrderPrice) {
+        return "price exceeds safety limit"
+    }
+    if (type == "LIMIT" && parsedPrice == null) {
+        return "Limit orders require a positive price"
+    }
+
+    return null
 }
 
 private fun validateExecutionControls(orderRequest: OrderRequest): String? {

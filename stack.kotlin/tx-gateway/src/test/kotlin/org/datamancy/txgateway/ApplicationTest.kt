@@ -880,6 +880,84 @@ class ApplicationTest {
     }
 
     @Test
+    fun testUnifiedOrderRejectsInvalidSymbolEarly() = testApplication {
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC;DROP TABLE","side":"BUY","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Invalid symbol"), body)
+        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+    }
+
+    @Test
+    fun testUnifiedOrderRejectsInvalidSideEarly() = testApplication {
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"HOLD","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Invalid side"), body)
+        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+    }
+
+    @Test
     fun testUnifiedOrderRejectsOversizedCancelWindowEarly() = testApplication {
         lateinit var dbService: DatabaseService
         application {
@@ -916,5 +994,54 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(body.contains("cancelAfterMs must be <= 600000"), body)
         verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderRejectsBlankCredentialEarly() = testApplication {
+        lateinit var workerClient: WorkerClient
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "   ")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Missing Hyperliquid credentials"), body)
+        verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
     }
 }
