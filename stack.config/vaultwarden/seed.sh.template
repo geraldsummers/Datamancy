@@ -29,26 +29,51 @@ fi
 
 apk add --no-cache sqlite >/dev/null
 
+sqlite_retry() {
+  sql="$1"
+  attempts="${2:-30}"
+  delay_s="${3:-1}"
+  i=1
+  while [ "$i" -le "$attempts" ]; do
+    out="$(sqlite3 "$DB_PATH" "$sql" 2>&1)" && {
+      printf '%s\n' "$out"
+      return 0
+    }
+    rc=$?
+    if printf '%s' "$out" | grep -qi "database is locked"; then
+      echo "[vaultwarden-init] sqlite locked (attempt $i/$attempts), retrying..."
+      sleep "$delay_s"
+      i=$((i + 1))
+      continue
+    fi
+    printf '%s\n' "$out" >&2
+    return "$rc"
+  done
+  echo "[vaultwarden-init] sqlite remained locked after $attempts attempts." >&2
+  return 1
+}
+
 # Ensure identifier column exists (vaultwarden may already include it).
-if ! sqlite3 "$DB_PATH" "PRAGMA table_info(organizations);" | awk -F'|' '{print $2}' | grep -qx "identifier"; then
+TABLE_INFO="$(sqlite_retry "PRAGMA table_info(organizations);")"
+if ! printf '%s\n' "$TABLE_INFO" | awk -F'|' '{print $2}' | grep -qx "identifier"; then
   echo "[vaultwarden-init] Adding organizations.identifier column."
-  sqlite3 "$DB_PATH" "ALTER TABLE organizations ADD COLUMN identifier TEXT;"
+  sqlite_retry "ALTER TABLE organizations ADD COLUMN identifier TEXT;" >/dev/null
 fi
 
 # Resolve org UUID by identifier, then by name.
-ORG_UUID="$(sqlite3 "$DB_PATH" "SELECT uuid FROM organizations WHERE identifier = '$ORG_IDENTIFIER' LIMIT 1;")"
+ORG_UUID="$(sqlite_retry "SELECT uuid FROM organizations WHERE identifier = '$ORG_IDENTIFIER' LIMIT 1;" | head -n1)"
 if [ -z "$ORG_UUID" ]; then
-  ORG_UUID="$(sqlite3 "$DB_PATH" "SELECT uuid FROM organizations WHERE name = '$ORG_NAME' LIMIT 1;")"
+  ORG_UUID="$(sqlite_retry "SELECT uuid FROM organizations WHERE name = '$ORG_NAME' LIMIT 1;" | head -n1)"
 fi
 
 # Create org if missing.
 if [ -z "$ORG_UUID" ]; then
   ORG_UUID="$(cat /proc/sys/kernel/random/uuid)"
   echo "[vaultwarden-init] Creating org $ORG_NAME ($ORG_UUID) with identifier $ORG_IDENTIFIER."
-  sqlite3 "$DB_PATH" "INSERT INTO organizations (uuid, name, billing_email, private_key, public_key, identifier) VALUES ('$ORG_UUID', '$ORG_NAME', '$ADMIN_EMAIL', NULL, NULL, '$ORG_IDENTIFIER');"
+  sqlite_retry "INSERT INTO organizations (uuid, name, billing_email, private_key, public_key, identifier) VALUES ('$ORG_UUID', '$ORG_NAME', '$ADMIN_EMAIL', NULL, NULL, '$ORG_IDENTIFIER');" >/dev/null
 else
   echo "[vaultwarden-init] Updating org $ORG_UUID identifier to $ORG_IDENTIFIER."
-  sqlite3 "$DB_PATH" "UPDATE organizations SET identifier = '$ORG_IDENTIFIER' WHERE uuid = '$ORG_UUID';"
+  sqlite_retry "UPDATE organizations SET identifier = '$ORG_IDENTIFIER' WHERE uuid = '$ORG_UUID';" >/dev/null
 fi
 
 echo "[vaultwarden-init] Org provisioning complete."
