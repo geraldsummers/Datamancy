@@ -8,6 +8,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
+import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -244,6 +245,7 @@ class TxGatewayTest {
 
     @Test
     fun `test best quote via gateway URL-encodes symbol`() = runBlocking {
+        val freshTimestamp = Instant.now().minusSeconds(5).toString()
         val mockResponse = """
             {
                 "requestedSymbol": "BTC/USD",
@@ -256,7 +258,7 @@ class TxGatewayTest {
                     "bid": 73000.0,
                     "ask": 73010.0,
                     "last": 73005.0,
-                    "timestamp": "2026-02-07T00:00:00Z",
+                    "timestamp": "$freshTimestamp",
                     "source": "market_data:trade"
                 },
                 "comparedExchanges": ["binance"]
@@ -276,6 +278,106 @@ class TxGatewayTest {
             requestPath.contains("/api/v1/exchanges/best-quote?symbol=BTC%2FUSD&side=buy&exchanges=binance"),
             requestPath
         )
+    }
+
+    @Test
+    fun `test best quote via gateway falls back when gateway returns unexpected exchange`() = runBlocking {
+        val freshTimestamp = Instant.now().minusSeconds(5).toString()
+        val gatewayResponse = """
+            {
+                "requestedSymbol": "BTC/USD",
+                "normalizedSymbol": "BTC/USD",
+                "side": "buy",
+                "selectedExchange": "hyperliquid",
+                "quote": {
+                    "exchange": "hyperliquid",
+                    "symbol": "BTC/USD",
+                    "bid": 73000.0,
+                    "ask": 73010.0,
+                    "last": 73005.0,
+                    "timestamp": "$freshTimestamp",
+                    "source": "market_data:trade"
+                },
+                "comparedExchanges": ["hyperliquid"]
+            }
+        """.trimIndent()
+        val directQuoteResponse = """
+            {
+                "exchange": "binance",
+                "symbol": "BTC/USD",
+                "bid": 73100.0,
+                "ask": 73110.0,
+                "last": 73105.0,
+                "timestamp": "$freshTimestamp",
+                "source": "market_data:trade"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(gatewayResponse).setResponseCode(200))
+        mockServer.enqueue(MockResponse().setBody(directQuoteResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.bestQuoteViaGateway(
+            symbol = "BTC/USD",
+            side = Side.BUY,
+            exchanges = listOf(ExchangeId.BINANCE)
+        )
+        assertTrue(result is ApiResult.Success)
+        assertEquals(ExchangeId.BINANCE, (result as ApiResult.Success).data.exchange)
+
+        val firstPath = mockServer.takeRequest().path ?: ""
+        val secondPath = mockServer.takeRequest().path ?: ""
+        assertTrue(firstPath.contains("/api/v1/exchanges/best-quote"), firstPath)
+        assertTrue(secondPath.contains("/api/v1/exchanges/binance/quote"), secondPath)
+    }
+
+    @Test
+    fun `test best quote via gateway falls back when gateway quote is stale`() = runBlocking {
+        val staleTimestamp = Instant.now().minusSeconds(7200).toString()
+        val freshTimestamp = Instant.now().minusSeconds(5).toString()
+        val staleGatewayResponse = """
+            {
+                "requestedSymbol": "BTC/USD",
+                "normalizedSymbol": "BTC/USD",
+                "side": "buy",
+                "selectedExchange": "binance",
+                "quote": {
+                    "exchange": "binance",
+                    "symbol": "BTC/USD",
+                    "bid": 73000.0,
+                    "ask": 73010.0,
+                    "last": 73005.0,
+                    "timestamp": "$staleTimestamp",
+                    "source": "market_data:trade"
+                },
+                "comparedExchanges": ["binance"]
+            }
+        """.trimIndent()
+        val freshDirectQuoteResponse = """
+            {
+                "exchange": "binance",
+                "symbol": "BTC/USD",
+                "bid": 73100.0,
+                "ask": 73110.0,
+                "last": 73105.0,
+                "timestamp": "$freshTimestamp",
+                "source": "market_data:trade"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(staleGatewayResponse).setResponseCode(200))
+        mockServer.enqueue(MockResponse().setBody(freshDirectQuoteResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.bestQuoteViaGateway(
+            symbol = "BTC/USD",
+            side = Side.BUY,
+            exchanges = listOf(ExchangeId.BINANCE)
+        )
+        assertTrue(result is ApiResult.Success)
+        assertEquals(ExchangeId.BINANCE, (result as ApiResult.Success).data.exchange)
+        assertEquals(0, BigDecimal("73110").compareTo(result.data.ask))
+
+        val firstPath = mockServer.takeRequest().path ?: ""
+        val secondPath = mockServer.takeRequest().path ?: ""
+        assertTrue(firstPath.contains("/api/v1/exchanges/best-quote"), firstPath)
+        assertTrue(secondPath.contains("/api/v1/exchanges/binance/quote"), secondPath)
     }
 
     @Test

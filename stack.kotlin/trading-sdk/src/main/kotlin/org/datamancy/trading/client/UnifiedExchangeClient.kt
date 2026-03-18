@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.time.Duration
 import java.time.Instant
 
 /**
@@ -27,6 +28,8 @@ class UnifiedExchangeClient internal constructor(
         ExchangeId.HYPERLIQUID,
         ExchangeId.ASTER
     )
+    private val maxGatewayQuoteAge = Duration.ofMinutes(10)
+    private val futureQuoteSkewTolerance = Duration.ofSeconds(5)
 
     fun supportedExchanges(): List<ExchangeId> = supported
 
@@ -107,7 +110,10 @@ class UnifiedExchangeClient internal constructor(
 
         return when (val result = httpClient.get<Map<String, Any?>>(path)) {
             is ApiResult.Success -> {
-                parseBestQuotePayload(result.data)
+                parseBestQuotePayload(
+                    payload = result.data,
+                    allowedExchangeNames = exchanges.map { it.apiName }.toSet()
+                )
                     ?: bestQuote(symbol = symbol, side = side, exchanges = exchanges)
             }
             is ApiResult.Error -> bestQuote(symbol = symbol, side = side, exchanges = exchanges)
@@ -180,15 +186,24 @@ class UnifiedExchangeClient internal constructor(
         }
     }
 
-    private fun parseBestQuotePayload(payload: Map<String, Any?>): ApiResult<UnifiedQuote>? {
+    private fun parseBestQuotePayload(
+        payload: Map<String, Any?>,
+        allowedExchangeNames: Set<String>
+    ): ApiResult<UnifiedQuote>? {
         val quoteNode = payload["quote"] as? Map<*, *> ?: return null
         val exchangeName = quoteNode["exchange"]?.toString()?.trim()?.lowercase() ?: return null
         val exchange = ExchangeId.entries.firstOrNull { it.apiName == exchangeName } ?: return null
+        if (exchange.apiName !in allowedExchangeNames) return null
         val symbol = quoteNode["symbol"]?.toString() ?: payload["normalizedSymbol"]?.toString() ?: return null
         val bid = quoteNode["bid"].toBigDecimalOrNull() ?: return null
         val ask = quoteNode["ask"].toBigDecimalOrNull() ?: return null
         if (bid <= BigDecimal.ZERO || ask <= BigDecimal.ZERO || ask < bid) return null
         val last = quoteNode["last"].toBigDecimalOrNull()
+        val parsedTimestamp = quoteNode["timestamp"]?.toString()?.let { raw ->
+            runCatching { Instant.parse(raw) }.getOrNull()
+        } ?: Instant.now()
+        val quoteAge = Duration.between(parsedTimestamp, Instant.now())
+        if (quoteAge > maxGatewayQuoteAge || quoteAge < futureQuoteSkewTolerance.negated()) return null
         return ApiResult.Success(
             UnifiedQuote(
                 exchange = exchange,
@@ -196,7 +211,7 @@ class UnifiedExchangeClient internal constructor(
                 bid = bid,
                 ask = ask,
                 last = last,
-                timestamp = Instant.now()
+                timestamp = parsedTimestamp
             )
         )
     }
