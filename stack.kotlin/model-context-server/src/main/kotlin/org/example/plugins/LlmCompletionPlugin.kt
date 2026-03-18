@@ -20,6 +20,75 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
+private data class AgentIdentity(
+    val user: String?,
+    val roles: Set<String>
+)
+
+private class AgentToolAuthorizer {
+    private val authRequired = envOrPropBoolean("MCP_AUTH_REQUIRED", false)
+    private val defaultToolAllowedRoles = envOrPropCsv("MCP_DEFAULT_TOOL_ALLOWED_ROLES")
+    private val toolRoleRules = parseRoleRules(envOrProp("MCP_TOOL_ROLE_RULES"))
+
+    fun ensureAuthorized(identity: AgentIdentity, method: String, toolName: String?) {
+        if (!authRequired) return
+        if (method != "tools/call") return
+        if (identity.user.isNullOrBlank()) {
+            throw SecurityException("MCP authentication required: missing authenticated identity")
+        }
+        if (toolName.isNullOrBlank()) return
+
+        val requiredRoles = requiredRolesForTool(toolName).ifEmpty { defaultToolAllowedRoles }
+        if (requiredRoles.isNotEmpty() && identity.roles.intersect(requiredRoles).isEmpty()) {
+            throw SecurityException("MCP authorization failed for tools/call ($toolName)")
+        }
+    }
+
+    private fun requiredRolesForTool(toolName: String): Set<String> {
+        val lowerToolName = toolName.lowercase()
+        return toolRoleRules.firstOrNull { (pattern, _) ->
+            if (pattern.endsWith("*")) {
+                val prefix = pattern.removeSuffix("*")
+                lowerToolName.startsWith(prefix)
+            } else {
+                lowerToolName == pattern
+            }
+        }?.second ?: emptySet()
+    }
+
+    private fun parseRoleRules(raw: String?): List<Pair<String, Set<String>>> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw.split(';')
+            .mapNotNull { rule ->
+                val trimmed = rule.trim()
+                if (trimmed.isEmpty() || !trimmed.contains("=")) return@mapNotNull null
+                val idx = trimmed.indexOf('=')
+                val pattern = trimmed.substring(0, idx).trim().lowercase()
+                val roles = splitRoles(trimmed.substring(idx + 1)).map { it.lowercase() }.toSet()
+                if (pattern.isEmpty() || roles.isEmpty()) null else pattern to roles
+            }
+    }
+
+    private fun splitRoles(raw: String): List<String> =
+        raw.split(',', ';', '|', ' ')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+    private fun envOrProp(key: String): String? =
+        System.getProperty(key)?.takeIf { it.isNotBlank() }
+            ?: System.getenv(key)?.takeIf { it.isNotBlank() }
+
+    private fun envOrPropBoolean(key: String, default: Boolean): Boolean {
+        return when ((envOrProp(key) ?: "").trim().lowercase()) {
+            "1", "true", "yes", "on" -> true
+            "0", "false", "no", "off" -> false
+            else -> default
+        }
+    }
+
+    private fun envOrPropCsv(key: String): Set<String> =
+        splitRoles(envOrProp(key).orEmpty()).map { it.lowercase() }.toSet()
+}
 
 class LlmCompletionPlugin : Plugin {
     override fun manifest() = PluginManifest(
@@ -88,7 +157,7 @@ class LlmCompletionPlugin : Plugin {
                 """,
                 pluginId = pluginId
             ),
-            ToolHandler { args, userContext ->
+            ToolHandler { args, context ->
                 val model = args.get("model")?.asText() ?: "qwen2.5-7b-instruct"
                 val temperature = args.get("temperature")?.asDouble() ?: 0.7
                 val maxTokens = args.get("max_tokens")?.asInt() ?: 2048
@@ -109,7 +178,8 @@ class LlmCompletionPlugin : Plugin {
 
                 tools.llm_agent_chat(
                     model, messagesNode, temperature, maxTokens,
-                    requestedTools, maxIterations, mode, systemPrompt, contextBudget
+                    requestedTools, maxIterations, mode, systemPrompt, contextBudget,
+                    context.userContext, context.roles
                 )
             }
         )
@@ -137,6 +207,7 @@ class LlmCompletionPlugin : Plugin {
     }
 
     class Tools(private val registry: ToolRegistry?) {
+        private val toolAuthorizer = AgentToolAuthorizer()
         private val httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .version(HttpClient.Version.HTTP_1_1)  // Use HTTP/1.1 for better connection pooling
@@ -183,8 +254,11 @@ class LlmCompletionPlugin : Plugin {
             maxIterations: Int,
             mode: String,
             customSystemPrompt: String?,
-            contextBudget: Int
+            contextBudget: Int,
+            userContext: String?,
+            userRoles: Set<String>
         ): Map<String, Any> {
+            val callerIdentity = AgentIdentity(user = userContext, roles = userRoles)
             val messages = mapper.createArrayNode()
             if (messagesNode.isArray) {
                 messagesNode.forEach { messages.add(it) }
@@ -205,7 +279,16 @@ class LlmCompletionPlugin : Plugin {
                     allTools.filter { it.name != "llm_chat_completion" }
                 }
 
-                filtered
+                filtered.filter { definition ->
+                    runCatching {
+                        toolAuthorizer.ensureAuthorized(
+                            identity = callerIdentity,
+                            method = "tools/call",
+                            toolName = definition.name
+                        )
+                        true
+                    }.getOrElse { false }
+                }
             } else {
                 emptyList()
             }
@@ -372,7 +455,12 @@ class LlmCompletionPlugin : Plugin {
 
                                 totalToolCalls++
                                 val result = try {
-                                    registry.invoke(functionName, functionArgs)
+                                    toolAuthorizer.ensureAuthorized(
+                                        identity = callerIdentity,
+                                        method = "tools/call",
+                                        toolName = functionName
+                                    )
+                                    registry.invoke(functionName, functionArgs, userContext, userRoles)
                                 } catch (e: Exception) {
                                     totalErrors++
                                     mapOf("error" to (e.message ?: "execution_failed"), "exception" to e.javaClass.simpleName)
@@ -423,7 +511,12 @@ class LlmCompletionPlugin : Plugin {
                             // Execute tool via registry
                             totalToolCalls++
                             val result = try {
-                                registry.invoke(functionName, functionArgs)
+                                toolAuthorizer.ensureAuthorized(
+                                    identity = callerIdentity,
+                                    method = "tools/call",
+                                    toolName = functionName
+                                )
+                                registry.invoke(functionName, functionArgs, userContext, userRoles)
                             } catch (e: Exception) {
                                 totalErrors++
                                 mapOf("error" to (e.message ?: "execution_failed"), "exception" to e.javaClass.simpleName)

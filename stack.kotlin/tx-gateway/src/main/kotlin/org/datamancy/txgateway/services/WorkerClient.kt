@@ -21,6 +21,7 @@ class WorkerClient(
     private val logger = LoggerFactory.getLogger(WorkerClient::class.java)
     private val gson = Gson()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    private val workerSharedToken = System.getenv("WORKER_SHARED_TOKEN")?.trim().orEmpty()
     private val sensitivePayloadKeys = setOf("evmPrivateKey", "hyperliquidKey")
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -34,12 +35,19 @@ class WorkerClient(
         return gson.toJson(sanitized)
     }
 
+    private fun requestBuilder(url: String): Request.Builder {
+        val builder = Request.Builder().url(url)
+        if (workerSharedToken.isNotEmpty()) {
+            builder.header("X-Worker-Token", workerSharedToken)
+        }
+        return builder
+    }
+
     fun submitEvmTransfer(payload: Map<String, Any>): Map<String, Any> {
         val json = gson.toJson(payload)
         val body = json.toRequestBody(jsonMediaType)
 
-        val request = Request.Builder()
-            .url("$evmBroadcasterUrl/submit")
+        val request = requestBuilder("$evmBroadcasterUrl/submit")
             .post(body)
             .build()
 
@@ -59,8 +67,7 @@ class WorkerClient(
         val json = gson.toJson(payload)
         val body = json.toRequestBody(jsonMediaType)
 
-        val request = Request.Builder()
-            .url("$hyperliquidWorkerUrl/order")
+        val request = requestBuilder("$hyperliquidWorkerUrl/order")
             .post(body)
             .build()
 
@@ -87,8 +94,7 @@ class WorkerClient(
             "symbol" to symbol,
             "hyperliquidKey" to hyperliquidKey
         )
-        val request = Request.Builder()
-            .url("$hyperliquidWorkerUrl/cancel/$orderId")
+        val request = requestBuilder("$hyperliquidWorkerUrl/cancel/$orderId")
             .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 
@@ -109,8 +115,7 @@ class WorkerClient(
             "user" to username,
             "hyperliquidKey" to hyperliquidKey
         )
-        val request = Request.Builder()
-            .url("$hyperliquidWorkerUrl/positions")
+        val request = requestBuilder("$hyperliquidWorkerUrl/positions")
             .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 
@@ -131,8 +136,7 @@ class WorkerClient(
             "user" to username,
             "hyperliquidKey" to hyperliquidKey
         )
-        val request = Request.Builder()
-            .url("$hyperliquidWorkerUrl/balance")
+        val request = requestBuilder("$hyperliquidWorkerUrl/balance")
             .post(gson.toJson(payload).toRequestBody(jsonMediaType))
             .build()
 

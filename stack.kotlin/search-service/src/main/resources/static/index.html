@@ -146,6 +146,33 @@
     <script>
         let currentMode = 'hybrid';
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function sanitizeHref(value) {
+            if (!value) return '#';
+            try {
+                const parsed = new URL(String(value), window.location.origin);
+                if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                    return parsed.href;
+                }
+            } catch (_) {
+                // Fall through to safe placeholder.
+            }
+            return '#';
+        }
+
+        function normalizeContentType(value) {
+            const text = String(value ?? 'generic');
+            return /^[a-z0-9_-]{1,32}$/i.test(text) ? text : 'generic';
+        }
+
         function setMode(mode) {
             currentMode = mode;
             document.querySelectorAll('.mode-btn').forEach(btn => {
@@ -209,19 +236,23 @@
             }
 
             resultsDiv.innerHTML = results.map(r => {
-                const cleanSnippet = r.snippet.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                const contentType = r.contentType || 'generic';
+                const cleanSnippet = escapeHtml(r.snippet ?? '');
+                const title = escapeHtml(r.title || 'Untitled');
+                const source = escapeHtml(r.source || 'unknown');
+                const contentType = normalizeContentType(r.contentType);
+                const href = sanitizeHref(r.url);
+                const score = Number.isFinite(Number(r.score)) ? Number(r.score).toFixed(3) : '0.000';
 
                 return `
                     <div class="result" data-type="${contentType}">
                         <div class="result-header">
                             ${getTypeBadge(contentType)}
-                            <a href="${r.url}" target="_blank" class="result-title">${r.title || 'Untitled'}</a>
+                            <a href="${href}" target="_blank" rel="noopener noreferrer" class="result-title">${title}</a>
                         </div>
                         <div class="result-snippet">${cleanSnippet}</div>
                         <div class="result-meta">
-                            <span>Score: ${r.score.toFixed(3)}</span>
-                            <span>Source: ${r.source}</span>
+                            <span>Score: ${score}</span>
+                            <span>Source: ${source}</span>
                         </div>
                     </div>
                 `;

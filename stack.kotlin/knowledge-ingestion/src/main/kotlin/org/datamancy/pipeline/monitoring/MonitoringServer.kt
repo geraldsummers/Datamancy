@@ -311,14 +311,28 @@ class MonitoringServer(
                             </div>
 
                             <script>
+                                function escapeHtml(value) {
+                                    return String(value ?? '')
+                                        .replace(/&/g, '&amp;')
+                                        .replace(/</g, '&lt;')
+                                        .replace(/>/g, '&gt;')
+                                        .replace(/"/g, '&quot;')
+                                        .replace(/'/g, '&#39;');
+                                }
+
+                                function safeNumber(value) {
+                                    const num = Number(value);
+                                    return Number.isFinite(num) ? num : 0;
+                                }
+
                                 async function updateStats() {
                                     try {
                                         const response = await fetch('/status');
                                         const data = await response.json();
 
                                         // Calculate totals
-                                        const totalProcessed = data.sources.reduce((sum, s) => sum + s.totalProcessed, 0);
-                                        const totalFailed = data.sources.reduce((sum, s) => sum + s.totalFailed, 0);
+                                        const totalProcessed = data.sources.reduce((sum, s) => sum + safeNumber(s.totalProcessed), 0);
+                                        const totalFailed = data.sources.reduce((sum, s) => sum + safeNumber(s.totalFailed), 0);
                                         const healthySources = data.sources.filter(s => s.status === 'healthy').length;
 
                                         // Update stats grid
@@ -343,22 +357,27 @@ class MonitoringServer(
 
                                         // Update sources table
                                         document.getElementById('sourcesTable').innerHTML = data.sources.map(source => {
-                                            const statusClass = source.status === 'healthy' ? 'status-healthy' :
-                                                              source.status === 'degraded' ? 'status-degraded' : 'status-error';
-                                            const failureRate = source.totalProcessed + source.totalFailed > 0
-                                                ? (source.totalFailed / (source.totalProcessed + source.totalFailed) * 100).toFixed(1)
+                                            const statusValue = source.status === 'healthy'
+                                                ? 'healthy'
+                                                : (source.status === 'degraded' ? 'degraded' : 'error');
+                                            const statusClass = statusValue === 'healthy' ? 'status-healthy' :
+                                                              statusValue === 'degraded' ? 'status-degraded' : 'status-error';
+                                            const processed = safeNumber(source.totalProcessed);
+                                            const failed = safeNumber(source.totalFailed);
+                                            const failureRate = processed + failed > 0
+                                                ? (failed / (processed + failed) * 100).toFixed(1)
                                                 : 0;
 
                                             return `
                                                 <tr>
-                                                    <td><strong>${'$'}{source.source}</strong></td>
-                                                    <td><span class="status-badge ${'$'}{statusClass}">${'$'}{source.status}</span></td>
-                                                    <td><span class="metric">${'$'}{source.totalProcessed.toLocaleString()}</span></td>
+                                                    <td><strong>${'$'}{escapeHtml(source.source)}</strong></td>
+                                                    <td><span class="status-badge ${'$'}{statusClass}">${'$'}{escapeHtml(statusValue)}</span></td>
+                                                    <td><span class="metric">${'$'}{processed.toLocaleString()}</span></td>
                                                     <td>
-                                                        <span class="metric-failed">${'$'}{source.totalFailed.toLocaleString()}</span>
-                                                        ${'$'}{source.totalFailed > 0 ? `<span style="color: #888;"> (${'$'}{failureRate}%)</span>` : ''}
+                                                        <span class="metric-failed">${'$'}{failed.toLocaleString()}</span>
+                                                        ${'$'}{failed > 0 ? `<span style="color: #888;"> (${'$'}{failureRate}%)</span>` : ''}
                                                     </td>
-                                                    <td><span class="last-run">${'$'}{source.lastRunTime}</span></td>
+                                                    <td><span class="last-run">${'$'}{escapeHtml(source.lastRunTime)}</span></td>
                                                 </tr>
                                             `;
                                         }).join('');

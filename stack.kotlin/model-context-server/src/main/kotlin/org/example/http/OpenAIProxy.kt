@@ -93,7 +93,7 @@ internal class OpenAIProxyHandler(
 
             // Call llm_chat_completion agent
             val result = try {
-                tools.invoke("llm_chat_completion", toolCallArgs, identity?.user)
+                tools.invoke("llm_chat_completion", toolCallArgs, identity?.user, identity?.roles ?: emptySet())
             } catch (e: Exception) {
                 respond(exchange, 500, Json.mapper.createObjectNode().apply {
                     put("error", e.message ?: "agent_execution_failed")

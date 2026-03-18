@@ -334,7 +334,9 @@ private class ToolExecutionHandler(
             val userContext = identity?.user
 
             val start = System.nanoTime()
-            val result = invokeWithTimeout({ tools.invoke(toolName, args, userContext) }, callTimeoutMs)
+            val result = invokeWithTimeout({
+                tools.invoke(toolName, args, userContext, identity?.roles ?: emptySet())
+            }, callTimeoutMs)
             val elapsedMs = (System.nanoTime() - start) / 1_000_000
             respond(exchange, 200, mapOf("result" to result, "elapsedMs" to elapsedMs))
         } catch (to: java.util.concurrent.TimeoutException) {
@@ -459,7 +461,9 @@ private class CallToolHandler(
                 method = "tools/call",
                 toolName = req.name
             )
-            val result = invokeWithTimeout({ tools.invoke(req.name, args, userContext) }, callTimeoutMs)
+            val result = invokeWithTimeout({
+                tools.invoke(req.name, args, userContext, identity?.roles ?: emptySet())
+            }, callTimeoutMs)
             val elapsedMs = (System.nanoTime() - start) / 1_000_000
 
             // Audit log successful invocation
@@ -577,7 +581,9 @@ private class McpHandler(
                     }
                     authz.ensureAuthorized(identity, method = method, toolName = toolName)
                     val args = params["arguments"] ?: Json.mapper.createObjectNode()
-                    val toolResult = invokeWithTimeout({ tools.invoke(toolName, args, userContext) }, callTimeoutMs)
+                    val toolResult = invokeWithTimeout({
+                        tools.invoke(toolName, args, userContext, identity.roles)
+                    }, callTimeoutMs)
                     val serialized = Json.mapper.writeValueAsString(toolResult)
                     mapOf(
                         "content" to listOf(

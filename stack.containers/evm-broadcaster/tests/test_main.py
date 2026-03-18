@@ -151,7 +151,9 @@ class TestFlaskEndpoints:
     def client(self):
         """Create test client"""
         main.app.config['TESTING'] = True
+        main.WORKER_SHARED_TOKEN = "test-worker-token"
         with main.app.test_client() as client:
+            client.environ_base["HTTP_X_WORKER_TOKEN"] = "test-worker-token"
             yield client
 
     def test_health_endpoint(self, client):

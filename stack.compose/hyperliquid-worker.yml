@@ -12,6 +12,7 @@ services:
       - trading
     environment:
       HYPERLIQUID_API_URL: https://api.hyperliquid.xyz
+      WORKER_SHARED_TOKEN: ${WORKER_SHARED_TOKEN}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/health')"]
       interval: 30s

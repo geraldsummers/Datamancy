@@ -110,11 +110,17 @@ fun interface ToolHandler {
      * Executes the tool with provided arguments and user context.
      *
      * @param args Parsed JSON arguments from LLM (JsonNode for flexible access)
-     * @param userContext Optional user identifier for multi-tenancy (from X-User-Context header)
+     * @param context Invocation context derived from authenticated caller identity.
+     *                Includes optional user context and caller LDAP/Authelia roles.
      * @return Tool result (String, Map, List, or any JSON-serializable type)
      */
-    fun call(args: JsonNode, userContext: String?): Any?
+    fun call(args: JsonNode, context: ToolInvocationContext): Any?
 }
+
+data class ToolInvocationContext(
+    val userContext: String? = null,
+    val roles: Set<String> = emptySet()
+)
 
 /**
  * Central registry bridging LLMs and plugin tool implementations.
@@ -309,8 +315,20 @@ class ToolRegistry {
      * @return Tool execution result (String, Map, List, or any JSON-serializable type)
      * @throws NoSuchElementException if tool name is not registered
      */
-    fun invoke(name: String, args: JsonNode, userContext: String? = null): Any? {
+    fun invoke(name: String, args: JsonNode): Any? {
+        return invoke(name, args, ToolInvocationContext())
+    }
+
+    fun invoke(name: String, args: JsonNode, userContext: String?): Any? {
+        return invoke(name, args, ToolInvocationContext(userContext = userContext))
+    }
+
+    fun invoke(name: String, args: JsonNode, userContext: String?, roles: Set<String>): Any? {
+        return invoke(name, args, ToolInvocationContext(userContext = userContext, roles = roles))
+    }
+
+    fun invoke(name: String, args: JsonNode, context: ToolInvocationContext): Any? {
         val handler = tools[name] ?: throw NoSuchElementException("Tool not found: $name")
-        return handler.call(args, userContext)
+        return handler.call(args, context)
     }
 }

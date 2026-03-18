@@ -43,6 +43,7 @@ services:
       TXG_CORS_ALLOWED_ORIGINS: ${TXG_CORS_ALLOWED_ORIGINS:-}
       EVM_BROADCASTER_URL: http://evm-broadcaster:8081
       HYPERLIQUID_WORKER_URL: http://hyperliquid-worker:8082
+      WORKER_SHARED_TOKEN: ${WORKER_SHARED_TOKEN}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

@@ -403,7 +403,7 @@ search-indexer.{$DOMAIN} {
 search.{$DOMAIN} {
 	route {
 		import authelia_auth
-		reverse_proxy search-gateway:8097
+		reverse_proxy search-service:8098
 	}
 }
 

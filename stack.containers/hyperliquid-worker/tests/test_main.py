@@ -113,7 +113,9 @@ class TestFlaskEndpoints:
     def client(self):
         """Create test client"""
         main.app.config['TESTING'] = True
+        main.WORKER_SHARED_TOKEN = "test-worker-token"
         with main.app.test_client() as client:
+            client.environ_base["HTTP_X_WORKER_TOKEN"] = "test-worker-token"
             yield client
 
     @patch('main.get_info_client')
@@ -378,7 +380,10 @@ class TestFlaskEndpoints:
         }
         mock_get_info.return_value = mock_info
 
-        response = client.get('/positions?user=testuser&hyperliquidKey=0xAddress:testkey')
+        response = client.post('/positions', json={
+            'user': 'testuser',
+            'hyperliquidKey': '0xAddress:testkey'
+        })
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) == 1
@@ -400,7 +405,10 @@ class TestFlaskEndpoints:
         }
         mock_get_info.return_value = mock_info
 
-        response = client.get('/balance?user=testuser&hyperliquidKey=0xAddress:testkey')
+        response = client.post('/balance', json={
+            'user': 'testuser',
+            'hyperliquidKey': '0xAddress:testkey'
+        })
         assert response.status_code == 200
         data = response.get_json()
         assert data['accountValue'] == '100000.0'
@@ -408,7 +416,7 @@ class TestFlaskEndpoints:
 
     def test_get_balance_missing_key(self, client):
         """Test getting balance without API key"""
-        response = client.get('/balance?user=testuser')
+        response = client.post('/balance', json={'user': 'testuser'})
         assert response.status_code == 400
         data = response.get_json()
         assert 'hyperliquidKey' in data['error']
@@ -429,7 +437,10 @@ class TestFlaskEndpoints:
         ]
         mock_get_info.return_value = mock_info
 
-        response = client.get('/orders?user=testuser&hyperliquidKey=0xAddress:testkey')
+        response = client.post('/orders', json={
+            'user': 'testuser',
+            'hyperliquidKey': '0xAddress:testkey'
+        })
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) == 1

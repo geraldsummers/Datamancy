@@ -5,6 +5,7 @@ Handles Hyperliquid exchange operations via SDK
 from flask import Flask, request, jsonify
 import logging
 import os
+import hmac
 import requests
 from eth_account import Account
 from hyperliquid.info import Info
@@ -23,6 +24,20 @@ app = Flask(__name__)
 IS_MAINNET = os.getenv('HYPERLIQUID_MAINNET', 'true').lower() == 'true'
 MAX_ORDER_SIZE = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_SIZE', '1000'))
 MAX_ORDER_NOTIONAL_USD = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_NOTIONAL_USD', '1000000'))
+WORKER_SHARED_TOKEN = os.getenv('WORKER_SHARED_TOKEN', '').strip()
+
+if not WORKER_SHARED_TOKEN:
+    logger.warning("WORKER_SHARED_TOKEN is not set; sensitive endpoints will reject requests")
+
+
+def require_worker_auth():
+    if not WORKER_SHARED_TOKEN:
+        return jsonify({"error": "Worker auth is not configured"}), 503
+
+    provided = request.headers.get("X-Worker-Token", "")
+    if not hmac.compare_digest(provided, WORKER_SHARED_TOKEN):
+        return jsonify({"error": "Unauthorized worker request"}), 401
+    return None
 
 
 def parse_positive_decimal(raw_value, field_name: str):
@@ -125,6 +140,10 @@ def get_info_client() -> Info:
 def submit_order():
     """Submit order to Hyperliquid - uses ephemeral credentials"""
     try:
+        auth_error = require_worker_auth()
+        if auth_error:
+            return auth_error
+
         data = request.json
         username = data.get('username')
         symbol = data.get('symbol')
@@ -251,6 +270,10 @@ def submit_order():
 def cancel_order(order_id):
     """Cancel Hyperliquid order - uses ephemeral credentials"""
     try:
+        auth_error = require_worker_auth()
+        if auth_error:
+            return auth_error
+
         data = request.json
         username = data.get('username')
         symbol = data.get('symbol')  # Required for cancellation
@@ -283,6 +306,10 @@ def cancel_order(order_id):
 def cancel_all():
     """Cancel all open orders - uses ephemeral credentials"""
     try:
+        auth_error = require_worker_auth()
+        if auth_error:
+            return auth_error
+
         data = request.json
         username = data.get('username')
         symbol = data.get('symbol')  # Optional, cancels all if not provided
@@ -308,17 +335,17 @@ def cancel_all():
         logger.error(f"Cancel all failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/positions', methods=['GET', 'POST'])
+@app.route('/positions', methods=['POST'])
 def get_positions():
     """Get user positions - uses ephemeral credentials"""
     try:
-        if request.method == 'POST':
-            data = request.json or {}
-            username = data.get('user') or data.get('username')
-            hyperliquid_key = data.get('hyperliquidKey')
-        else:
-            username = request.args.get('user')
-            hyperliquid_key = request.args.get('hyperliquidKey')
+        auth_error = require_worker_auth()
+        if auth_error:
+            return auth_error
+
+        data = request.json or {}
+        username = data.get('user') or data.get('username')
+        hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
             return jsonify({"error": "Missing hyperliquidKey parameter"}), 400
@@ -358,17 +385,17 @@ def get_positions():
         logger.error(f"Get positions failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/balance', methods=['GET', 'POST'])
+@app.route('/balance', methods=['POST'])
 def get_balance():
     """Get user balance - uses ephemeral credentials"""
     try:
-        if request.method == 'POST':
-            data = request.json or {}
-            username = data.get('user') or data.get('username')
-            hyperliquid_key = data.get('hyperliquidKey')
-        else:
-            username = request.args.get('user')
-            hyperliquid_key = request.args.get('hyperliquidKey')
+        auth_error = require_worker_auth()
+        if auth_error:
+            return auth_error
+
+        data = request.json or {}
+        username = data.get('user') or data.get('username')
+        hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
             return jsonify({"error": "Missing hyperliquidKey parameter"}), 400
@@ -403,12 +430,17 @@ def get_balance():
         logger.error(f"Get balance failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/orders', methods=['GET'])
+@app.route('/orders', methods=['POST'])
 def get_orders():
     """Get open orders - uses ephemeral credentials"""
     try:
-        username = request.args.get('user')
-        hyperliquid_key = request.args.get('hyperliquidKey')
+        auth_error = require_worker_auth()
+        if auth_error:
+            return auth_error
+
+        data = request.json or {}
+        username = data.get('user') or data.get('username')
+        hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
             return jsonify({"error": "Missing hyperliquidKey parameter"}), 400
@@ -446,6 +478,10 @@ def get_orders():
 def close_position():
     """Close position by symbol - uses ephemeral credentials"""
     try:
+        auth_error = require_worker_auth()
+        if auth_error:
+            return auth_error
+
         data = request.json
         username = data.get('username')
         symbol = data.get('symbol')

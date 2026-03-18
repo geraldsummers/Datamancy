@@ -1,6 +1,6 @@
 services:
   vaultwarden:
-    image: vaultwarden/server:testing
+    image: vaultwarden/server:${VAULTWARDEN_IMAGE_TAG:-latest}
     container_name: vaultwarden
     restart: unless-stopped
     networks:
@@ -29,10 +29,10 @@ services:
         condition: service_started
     environment:
       DOMAIN: https://app.vaultwarden.${DOMAIN}
-      SIGNUPS_ALLOWED: true
-      SIGNUPS_VERIFY: false
+      SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
+      SIGNUPS_VERIFY: ${VAULTWARDEN_SIGNUPS_VERIFY:-true}
       SIGNUPS_DOMAINS_WHITELIST: ${MAIL_DOMAIN},datamancy.test
-      INVITATIONS_ALLOWED: true
+      INVITATIONS_ALLOWED: ${VAULTWARDEN_INVITATIONS_ALLOWED:-false}
       SHOW_PASSWORD_HINT: false
       SSO_ENABLED: true
       SSO_ONLY: true
@@ -50,7 +50,7 @@ services:
       SMTP_USERNAME: vaultwarden@${MAIL_DOMAIN}
       SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD}
       SSL_CERT_FILE: /certs/pki/authorities/local/root.crt
-      ROCKET_TLS_INSECURE_SKIP_VERIFICATION: "true"
+      ROCKET_TLS_INSECURE_SKIP_VERIFICATION: ${VAULTWARDEN_TLS_INSECURE_SKIP_VERIFY:-false}
     volumes:
       - vaultwarden_data:/data
       - caddy_certs:/certs:ro

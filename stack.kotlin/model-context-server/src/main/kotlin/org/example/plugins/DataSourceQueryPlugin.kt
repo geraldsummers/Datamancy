@@ -21,7 +21,6 @@ import java.net.URI
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet
-import java.util.Base64
 
 
 sealed class QueryValidationResult {
@@ -52,6 +51,8 @@ private fun validateSqlQuery(query: String, requiredSchema: String? = null): Que
         
         val queryLower = query.lowercase()
         val dangerousFunctions = listOf(
+            "sleep(", "benchmark(", "load_file(",
+            "into outfile", "into dumpfile",
             "pg_sleep", "pg_read_file", "pg_ls_dir",
             "copy ", "\\copy", "lo_import", "lo_export",
             "dblink", "pg_execute", "xmlparse"
@@ -59,6 +60,16 @@ private fun validateSqlQuery(query: String, requiredSchema: String? = null): Que
 
         if (dangerousFunctions.any { queryLower.contains(it) }) {
             return QueryValidationResult.Rejected("Query contains forbidden functions")
+        }
+
+        // Disallow SQL comment tokens to reduce bypass opportunities.
+        if (queryLower.contains("--") || queryLower.contains("/*") || queryLower.contains("#")) {
+            return QueryValidationResult.Rejected("SQL comments are not allowed")
+        }
+
+        // Disallow MySQL/MariaDB executable comments (e.g. /*!50000 ... */).
+        if (Regex("/\\*!\\d{3,5}").containsMatchIn(queryLower)) {
+            return QueryValidationResult.Rejected("Executable SQL comments are not allowed")
         }
 
         
@@ -236,10 +247,10 @@ class DataSourceQueryPlugin(
                     paramsSpec = """{"type":"object","required":["database","query"],"properties":{"database":{"type":"string"},"query":{"type":"string"}}}""",
                     pluginId = pluginId
                 ),
-                ToolHandler { args, userContext ->
+                ToolHandler { args, context ->
                     val database = args.get("database")?.asText() ?: throw IllegalArgumentException("database required")
                     val query = args.get("query")?.asText() ?: throw IllegalArgumentException("query required")
-                    tools.query_mariadb(database, query, userContext)
+                    tools.query_mariadb(database, query, context.userContext)
                 }
             )
         }
@@ -437,9 +448,13 @@ class DataSourceQueryPlugin(
                 }
 
                 connection.use { conn ->
+                    conn.isReadOnly = true
+                    conn.transactionIsolation = Connection.TRANSACTION_READ_COMMITTED
                     val startTime = System.currentTimeMillis()
                     conn.createStatement().use { stmt ->
                         stmt.maxRows = 100
+                        stmt.fetchSize = 100
+                        stmt.queryTimeout = 30
                         stmt.executeQuery(queryTrimmed).use { rs ->
                             val result = resultSetToJson(rs)
                             val elapsedMs = System.currentTimeMillis() - startTime

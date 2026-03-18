@@ -5,6 +5,7 @@ Handles L2 transfers with Web3Signer integration and nonce management
 from flask import Flask, request, jsonify
 import logging
 import os
+import hmac
 import requests
 from web3 import Web3
 import psycopg2
@@ -24,6 +25,10 @@ POSTGRES_PORT = int(os.getenv('POSTGRES_PORT', 5432))
 POSTGRES_DB = os.getenv('POSTGRES_DB', 'txgateway')
 POSTGRES_USER = os.getenv('POSTGRES_USER', 'txgateway')
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD')
+WORKER_SHARED_TOKEN = os.getenv('WORKER_SHARED_TOKEN', '').strip()
+
+if not WORKER_SHARED_TOKEN:
+    logger.warning("WORKER_SHARED_TOKEN is not set; /submit will reject requests")
 
 # Chain configurations
 CHAINS = {
@@ -63,6 +68,16 @@ def get_db_connection():
         host=POSTGRES_HOST, port=POSTGRES_PORT, database=POSTGRES_DB,
         user=POSTGRES_USER, password=POSTGRES_PASSWORD
     )
+
+
+def require_worker_auth():
+    if not WORKER_SHARED_TOKEN:
+        return jsonify({"error": "Worker auth is not configured"}), 503
+
+    provided = request.headers.get("X-Worker-Token", "")
+    if not hmac.compare_digest(provided, WORKER_SHARED_TOKEN):
+        return jsonify({"error": "Unauthorized worker request"}), 401
+    return None
 
 
 def derive_evm_address(private_key: str) -> str:
@@ -188,6 +203,10 @@ def track_pending(user: str, chain_id: int, nonce: int, from_addr: str, tx_hash:
 def submit_transfer():
     """Submit EVM transfer - uses ephemeral credentials"""
     try:
+        auth_error = require_worker_auth()
+        if auth_error:
+            return auth_error
+
         data = request.json
         username = data.get('username')
         to_address = data.get('toAddress')

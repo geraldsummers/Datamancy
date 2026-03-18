@@ -140,8 +140,8 @@ class ToolRegistryTest {
                 pluginId = "test.plugin"
             )
 
-            registry.register(definition, ToolHandler { _, userContext ->
-                "User: ${userContext ?: "anonymous"}"
+            registry.register(definition, ToolHandler { _, context ->
+                "User: ${context.userContext ?: "anonymous"}"
             })
 
             val args = JsonNodeFactory.instance.objectNode()
@@ -282,8 +282,8 @@ class ToolRegistryTest {
                 pluginId = "test.plugin"
             )
 
-            registry.register(definition, ToolHandler { _, userContext ->
-                receivedContext = userContext
+            registry.register(definition, ToolHandler { _, context ->
+                receivedContext = context.userContext
                 "ok"
             })
 
