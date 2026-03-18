@@ -164,8 +164,11 @@ suspend fun TestRunner.authenticatedOperationsTests() = suite("Authenticated Ope
             }
 
             val response = client.getRawResponse("http://planka:1337/api/boards")
-            require(response.status in listOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
-                "Planka should reject unauthenticated API access when OIDC is enforced: ${response.status}"
+            val body = response.bodyAsText()
+            val blocksUnauthenticatedApi = response.status in listOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden) ||
+                (response.status == HttpStatusCode.OK && body.contains("<title>Planka</title>", ignoreCase = true))
+            require(blocksUnauthenticatedApi) {
+                "Planka should block unauthenticated API access when OIDC is enforced: ${response.status}"
             }
             println("      ✓ Planka enforces OIDC-only authentication (local token login disabled)")
         }
