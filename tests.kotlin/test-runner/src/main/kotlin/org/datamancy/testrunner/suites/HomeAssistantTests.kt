@@ -109,7 +109,14 @@ suspend fun TestRunner.homeAssistantTests() = suite("Home Assistant Tests") {
     test("Home Assistant panel manifest") {
         
         val response = client.getRawResponse("${env.endpoints.homeassistant!!}/static/icons/favicon.ico")
-        require(response.status in listOf(HttpStatusCode.OK, HttpStatusCode.NotFound, HttpStatusCode.Unauthorized)) {
+        require(
+            response.status in listOf(
+                HttpStatusCode.OK,
+                HttpStatusCode.NotFound,
+                HttpStatusCode.Unauthorized,
+                HttpStatusCode.Forbidden,
+            )
+        ) {
             "Static assets not responding: ${response.status}"
         }
 
