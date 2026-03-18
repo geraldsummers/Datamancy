@@ -21,6 +21,8 @@ dependencies {
 
     
     implementation("com.github.jsqlparser:jsqlparser:4.9")
+    implementation("com.auth0:java-jwt:4.4.0")
+    implementation("com.auth0:jwks-rsa:0.22.1")
 
     
     testImplementation(libs.kotlin.test)
@@ -48,4 +50,3 @@ tasks.shadowJar {
 application {
     mainClass.set("org.example.MainKt")
 }
-

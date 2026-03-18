@@ -3,6 +3,7 @@
 
 # Secrets and sensitive data
 .env
+.env.server
 .env.local
 volumes/secrets/
 *.key

@@ -31,7 +31,7 @@ services:
           cpus: '2.0'
 
   vector-bootstrap:
-    image: zenika/kotlin:latest
+    image: zenika/kotlin@sha256:6aa73e11c07b361e4cf068dce3745a4bc9f8b0b7d8d0b8cbbcc385539184d46a
     container_name: vector-bootstrap
     restart: "no"
     networks:

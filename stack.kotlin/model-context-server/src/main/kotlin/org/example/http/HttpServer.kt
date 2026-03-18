@@ -1,15 +1,22 @@
 package org.example.http
 
+import com.auth0.jwk.JwkProviderBuilder
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
 import com.fasterxml.jackson.databind.JsonNode
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
+import com.sun.net.httpserver.Headers
 import com.sun.net.httpserver.HttpServer
 import org.example.host.ToolRegistry
-import org.example.util.Json
 import org.example.util.AuditLogger
 import java.net.InetSocketAddress
+import java.net.URI
 import java.nio.charset.StandardCharsets
+import java.security.interfaces.RSAPublicKey
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import org.example.util.Json
 
 /**
  * HTTP server for the Agent-Tool-Server module that exposes LLM-callable tools.
@@ -45,19 +52,23 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
      * Uses a cached thread pool executor to handle concurrent requests efficiently.
      */
     fun start() {
+        val authorizer = RequestAuthorizer()
+        val adminEndpointsEnabled = envOrPropBoolean("TOOLSERVER_ENABLE_ADMIN_ENDPOINTS", false)
         val srv = HttpServer.create(InetSocketAddress(port), 0)
-        srv.createContext("/tools/", ToolExecutionHandler(tools))
-        srv.createContext("/tools", ToolsHandler(tools))
-        srv.createContext("/tools.json", ToolsSchemaHandler(tools))
-        srv.createContext("/call-tool", CallToolHandler(tools))
-        srv.createContext("/mcp", McpHandler(tools))
+        srv.createContext("/tools/", ToolExecutionHandler(tools, authorizer))
+        srv.createContext("/tools", ToolsHandler(tools, authorizer))
+        srv.createContext("/tools.json", ToolsSchemaHandler(tools, authorizer))
+        srv.createContext("/call-tool", CallToolHandler(tools, authorizer))
+        srv.createContext("/mcp", McpHandler(tools, authorizer))
         val healthHandler = HealthHandler()
         srv.createContext("/health", healthHandler)
         srv.createContext("/healthz", healthHandler)
-        srv.createContext("/admin/refresh-ssh-keys", RefreshSshKeysHandler())
-        srv.createContext("/metrics", MetricsHandler(tools))
-        srv.createContext("/metrics/prometheus", PrometheusMetricsHandler(tools))
-        srv.createContext("/v1/chat/completions", OpenAIProxyHandler(tools))
+        if (adminEndpointsEnabled) {
+            srv.createContext("/admin/refresh-ssh-keys", RefreshSshKeysHandler(authorizer))
+        }
+        srv.createContext("/metrics", MetricsHandler(tools, authorizer))
+        srv.createContext("/metrics/prometheus", PrometheusMetricsHandler(tools, authorizer))
+        srv.createContext("/v1/chat/completions", OpenAIProxyHandler(tools, authorizer))
 
         srv.executor = Executors.newCachedThreadPool()
         srv.start()
@@ -72,6 +83,76 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
 
     
     fun boundPort(): Int? = server?.address?.port
+}
+
+internal data class RequestIdentity(
+    val user: String,
+    val roles: Set<String>
+)
+
+internal class RequestAuthorizer {
+    private val authRequired: Boolean = envOrPropBoolean("TOOLSERVER_AUTH_REQUIRED", true)
+    private val trustIdentityHeaders: Boolean = envOrPropBoolean("TOOLSERVER_TRUST_IDENTITY_HEADERS", false)
+    private val jwksUrl: String = envOrProp("AUTHELIA_JWKS_URL")
+        ?: "http://authelia:9091/.well-known/jwks.json"
+    private val issuer: String? = envOrProp("AUTHELIA_JWT_ISSUER")
+    private val audience: Set<String> = envOrPropCsv("AUTHELIA_JWT_AUDIENCE")
+    private val jwkProvider = JwkProviderBuilder(URI(jwksUrl).toURL())
+        .cached(10, 24, TimeUnit.HOURS)
+        .build()
+
+    fun authRequired(): Boolean = authRequired
+
+    fun authenticate(headers: Headers): RequestIdentity? {
+        val bearer = headers.getFirst("Authorization")
+            ?.removePrefix("Bearer ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        if (bearer != null) {
+            return decodeJwtIdentity(bearer)
+        }
+        if (trustIdentityHeaders) {
+            return extractHeaderIdentity(headers)
+        }
+        return null
+    }
+
+    private fun decodeJwtIdentity(token: String): RequestIdentity? {
+        return runCatching {
+            val decoded = JWT.decode(token)
+            val keyId = decoded.keyId ?: throw IllegalArgumentException("Missing key id in JWT")
+            val jwk = jwkProvider.get(keyId)
+            val algorithm = Algorithm.RSA256(jwk.publicKey as RSAPublicKey, null)
+            val verifierBuilder = JWT.require(algorithm)
+            issuer?.let { verifierBuilder.withIssuer(it) }
+            if (audience.isNotEmpty()) {
+                verifierBuilder.withAudience(*audience.toTypedArray())
+            }
+            val verified = verifierBuilder.build().verify(token)
+            val user = verified.getClaim("preferred_username").asString()
+                ?: verified.getClaim("sub").asString()
+                ?: throw IllegalArgumentException("Missing user claims in JWT")
+            val groups = verified.getClaim("groups").asList(String::class.java)
+                ?.mapNotNull { it?.trim()?.lowercase()?.takeIf { value -> value.isNotEmpty() } }
+                ?.toSet()
+                ?: emptySet()
+            RequestIdentity(user = user, roles = groups)
+        }.getOrNull()
+    }
+
+    private fun extractHeaderIdentity(headers: Headers): RequestIdentity? {
+        val user = sequenceOf("X-User-Context", "Remote-User", "X-Auth-Request-User", "X-Forwarded-User")
+            .mapNotNull { headers.getFirst(it) }
+            .map { it.trim() }
+            .firstOrNull { it.isNotEmpty() } ?: return null
+        val roles = sequenceOf("Remote-Groups", "X-User-Roles", "X-Auth-Request-Groups", "X-Forwarded-Groups")
+            .mapNotNull { headers.getFirst(it) }
+            .flatMap { raw -> raw.split(',', ';', '|', ' ').asSequence() }
+            .map { it.trim().lowercase() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+        return RequestIdentity(user = user, roles = roles)
+    }
 }
 
 /**
@@ -97,9 +178,16 @@ class LlmHttpServer(private val port: Int, private val tools: ToolRegistry) {
  * }
  * ```
  */
-private class ToolsHandler(private val tools: ToolRegistry) : HttpHandler {
+private class ToolsHandler(
+    private val tools: ToolRegistry,
+    private val authorizer: RequestAuthorizer
+) : HttpHandler {
     override fun handle(exchange: HttpExchange) {
         try {
+            if (authorizer.authRequired() && authorizer.authenticate(exchange.requestHeaders) == null) {
+                respond(exchange, 401, mapOf("error" to "Unauthorized"))
+                return
+            }
             when (exchange.requestMethod) {
                 "GET" -> respond(exchange, 200, mapOf("tools" to tools.listTools()))
                 "HEAD" -> respondHead(exchange, 200)
@@ -131,9 +219,16 @@ private class ToolsHandler(private val tools: ToolRegistry) : HttpHandler {
  * }
  * ```
  */
-private class ToolsSchemaHandler(private val tools: ToolRegistry) : HttpHandler {
+private class ToolsSchemaHandler(
+    private val tools: ToolRegistry,
+    private val authorizer: RequestAuthorizer
+) : HttpHandler {
     override fun handle(exchange: HttpExchange) {
         try {
+            if (authorizer.authRequired() && authorizer.authenticate(exchange.requestHeaders) == null) {
+                respond(exchange, 401, mapOf("error" to "Unauthorized"))
+                return
+            }
             when (exchange.requestMethod) {
                 "GET" -> {
                     val schema = OpenWebUISchemaGenerator.generateFullSchema(tools)
@@ -171,7 +266,10 @@ private class ToolsSchemaHandler(private val tools: ToolRegistry) : HttpHandler 
  * - Tool execution timeout: 300 seconds (5 minutes)
  * - Body size limit: 1MB
  */
-private class ToolExecutionHandler(private val tools: ToolRegistry) : HttpHandler {
+private class ToolExecutionHandler(
+    private val tools: ToolRegistry,
+    private val authorizer: RequestAuthorizer
+) : HttpHandler {
     private val bodyMaxBytes: Long = 1_000_000L
     private val bodyReadTimeoutMs: Long = 5_000L
     private val callTimeoutMs: Long = 300_000L
@@ -180,6 +278,11 @@ private class ToolExecutionHandler(private val tools: ToolRegistry) : HttpHandle
         try {
             if (exchange.requestMethod != "POST") {
                 respond(exchange, 405, mapOf("error" to "Method not allowed"))
+                return
+            }
+            val identity = authorizer.authenticate(exchange.requestHeaders)
+            if (authorizer.authRequired() && identity == null) {
+                respond(exchange, 401, mapOf("error" to "Unauthorized"))
                 return
             }
 
@@ -200,9 +303,8 @@ private class ToolExecutionHandler(private val tools: ToolRegistry) : HttpHandle
                 Json.mapper.readTree(body)
             }
 
-            // Multi-tenancy: Extract user context for per-user resource isolation
-            val userContext = exchange.requestHeaders.getFirst("X-User-Context")
-                ?.takeIf { it.isNotBlank() }
+            // Multi-tenancy: Use authenticated principal for resource isolation.
+            val userContext = identity?.user
 
             val start = System.nanoTime()
             val result = invokeWithTimeout({ tools.invoke(toolName, args, userContext) }, callTimeoutMs)
@@ -273,7 +375,10 @@ private data class CallRequest(val name: String, val args: JsonNode?)
  *
  * Supports CORS preflight requests to enable browser-based clients.
  */
-private class CallToolHandler(private val tools: ToolRegistry) : HttpHandler {
+private class CallToolHandler(
+    private val tools: ToolRegistry,
+    private val authorizer: RequestAuthorizer
+) : HttpHandler {
     private val debug: Boolean = ((System.getProperty("TOOLSERVER_DEBUG") ?: System.getenv("TOOLSERVER_DEBUG") ?: "").lowercase()) in setOf("1", "true", "yes", "on")
     private val bodyMaxBytes: Long = (
         System.getProperty("TOOLSERVER_HTTP_BODY_MAX_BYTES")?.toLongOrNull()
@@ -307,13 +412,18 @@ private class CallToolHandler(private val tools: ToolRegistry) : HttpHandler {
                 respond(exchange, 405, mapOf("error" to "Method not allowed"))
                 return
             }
+            val identity = authorizer.authenticate(exchange.requestHeaders)
+            if (authorizer.authRequired() && identity == null) {
+                respond(exchange, 401, mapOf("error" to "Unauthorized"))
+                return
+            }
             val start = System.nanoTime()
             val raw = readBodyLimited(exchange, bodyMaxBytes, bodyReadTimeoutMs)
             val body = raw.toString(StandardCharsets.UTF_8)
             if (debug) println("[/call-tool] body ${'$'}{raw.size} bytes")
             val req = Json.mapper.readValue(body, CallRequest::class.java)
             val args = req.args ?: Json.mapper.createObjectNode()
-            val userContext = exchange.requestHeaders.getFirst("X-User-Context")?.takeIf { it.isNotBlank() }
+            val userContext = identity?.user
             val result = invokeWithTimeout({ tools.invoke(req.name, args, userContext) }, callTimeoutMs)
             val elapsedMs = (System.nanoTime() - start) / 1_000_000
 
@@ -352,7 +462,10 @@ private class CallToolHandler(private val tools: ToolRegistry) : HttpHandler {
  * - tools/list
  * - tools/call
  */
-private class McpHandler(private val tools: ToolRegistry) : HttpHandler {
+private class McpHandler(
+    private val tools: ToolRegistry,
+    private val authorizer: RequestAuthorizer
+) : HttpHandler {
     private val bodyMaxBytes: Long = 1_000_000L
     private val bodyReadTimeoutMs: Long = 5_000L
     private val callTimeoutMs: Long = 300_000L
@@ -378,15 +491,23 @@ private class McpHandler(private val tools: ToolRegistry) : HttpHandler {
             }
             val method = node["method"]?.asText()?.trim().orEmpty()
             val params = node["params"] ?: Json.mapper.createObjectNode()
-            val identity = authz.extractIdentity(exchange.requestHeaders)
-            val userContext = exchange.requestHeaders.getFirst("X-User-Context")
-                ?.takeIf { it.isNotBlank() }
-                ?: identity.user
 
             if (method.isBlank()) {
                 respond(exchange, 400, mapOf("error" to "Missing JSON-RPC method"))
                 return
             }
+            val publicMethod = method == "initialize" || method == "ping" || method == "notifications/initialized"
+            val requestIdentity = authorizer.authenticate(exchange.requestHeaders)
+            if (!publicMethod && authorizer.authRequired() && requestIdentity == null) {
+                mcpError(exchange, jsonRpcId, -32003, "Unauthorized")
+                return
+            }
+            val identity = if (requestIdentity != null) {
+                McpIdentity(user = requestIdentity.user, roles = requestIdentity.roles)
+            } else {
+                McpIdentity(user = null, roles = emptySet())
+            }
+            val userContext = identity.user
 
             val result: Any = when (method) {
                 "initialize" -> mapOf(
@@ -598,6 +719,26 @@ private class McpRoleAuthorizer {
     }
 }
 
+private fun envOrProp(key: String): String? =
+    System.getProperty(key)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(key)?.takeIf { it.isNotBlank() }
+
+private fun envOrPropBoolean(key: String, default: Boolean): Boolean {
+    return when ((envOrProp(key) ?: "").trim().lowercase()) {
+        "1", "true", "yes", "on" -> true
+        "0", "false", "no", "off" -> false
+        else -> default
+    }
+}
+
+private fun envOrPropCsv(key: String): Set<String> =
+    envOrProp(key)
+        ?.split(',', ';', '|', ' ')
+        ?.map { it.trim().lowercase() }
+        ?.filter { it.isNotEmpty() }
+        ?.toSet()
+        ?: emptySet()
+
 /**
  * Sends a JSON response with CORS headers.
  *
@@ -753,12 +894,25 @@ private class HealthHandler : HttpHandler {
  * - `TOOLSERVER_SSH_HOST` - SSH host to scan (default: "host.docker.internal")
  * - `TOOLSERVER_SSH_KNOWN_HOSTS` - Path to known_hosts file (default: "/app/known_hosts")
  */
-private class RefreshSshKeysHandler : HttpHandler {
+private class RefreshSshKeysHandler(
+    private val authorizer: RequestAuthorizer
+) : HttpHandler {
+    private val adminRoles = envOrPropCsv("TOOLSERVER_ADMIN_ROLES").ifEmpty { setOf("admins") }
+
     override fun handle(exchange: HttpExchange) {
         try {
+            val identity = authorizer.authenticate(exchange.requestHeaders)
+            if (authorizer.authRequired() && identity == null) {
+                respond(exchange, 401, mapOf("error" to "Unauthorized"))
+                return
+            }
+            if (identity != null && adminRoles.isNotEmpty() && identity.roles.intersect(adminRoles).isEmpty()) {
+                respond(exchange, 403, mapOf("error" to "Admin role required"))
+                return
+            }
             // Security: Restrict to internal/localhost access only
             val remoteAddr = exchange.remoteAddress.address.hostAddress
-            if (!remoteAddr.startsWith("127.") && !remoteAddr.startsWith("172.") && !remoteAddr.startsWith("::1")) {
+            if (!remoteAddr.startsWith("127.") && remoteAddr != "::1" && remoteAddr != "0:0:0:0:0:0:0:1") {
                 respond(exchange, 403, mapOf("error" to "Admin endpoint - internal access only"))
                 return
             }
@@ -814,11 +968,18 @@ private class RefreshSshKeysHandler : HttpHandler {
  *
  * Used by monitoring dashboards and health checks.
  */
-private class MetricsHandler(private val tools: ToolRegistry) : HttpHandler {
+private class MetricsHandler(
+    private val tools: ToolRegistry,
+    private val authorizer: RequestAuthorizer
+) : HttpHandler {
     private val startTime = System.currentTimeMillis()
 
     override fun handle(exchange: HttpExchange) {
         try {
+            if (authorizer.authRequired() && authorizer.authenticate(exchange.requestHeaders) == null) {
+                respond(exchange, 401, mapOf("error" to "Unauthorized"))
+                return
+            }
             when (exchange.requestMethod) {
                 "GET" -> {
                     val runtime = Runtime.getRuntime()
@@ -866,11 +1027,18 @@ private class MetricsHandler(private val tools: ToolRegistry) : HttpHandler {
  *       - targets: ['model-context-server:8081']
  * ```
  */
-private class PrometheusMetricsHandler(private val tools: ToolRegistry) : HttpHandler {
+private class PrometheusMetricsHandler(
+    private val tools: ToolRegistry,
+    private val authorizer: RequestAuthorizer
+) : HttpHandler {
     private val startTime = System.currentTimeMillis()
 
     override fun handle(exchange: HttpExchange) {
         try {
+            if (authorizer.authRequired() && authorizer.authenticate(exchange.requestHeaders) == null) {
+                respond(exchange, 401, mapOf("error" to "Unauthorized"))
+                return
+            }
             when (exchange.requestMethod) {
                 "GET" -> {
                     val runtime = Runtime.getRuntime()

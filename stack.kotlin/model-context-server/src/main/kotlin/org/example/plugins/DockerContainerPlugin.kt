@@ -1,5 +1,6 @@
 package org.example.plugins
 
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.example.api.LlmTool
 import org.example.api.Plugin
@@ -17,12 +18,39 @@ import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.TimeUnit
 
-
 class DockerContainerPlugin : Plugin {
-    private val dockerHost = System.getenv("DOCKER_HOST") ?: "unix:///var/run/docker.sock"
-    private val dindNetwork = System.getenv("DIND_NETWORK") ?: "datamancy-stack_docker-proxy"
+    private val dockerHost = sequenceOf(
+        System.getenv("DOCKER_HOST_ISOLATED"),
+        System.getenv("ISOLATED_DOCKER_VM_DOCKER_HOST"),
+        System.getenv("DOCKER_HOST")
+    )
+        .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
+        .firstOrNull() ?: "unix:///var/run/docker.sock"
+
+    private val dindNetwork = (System.getenv("DIND_NETWORK") ?: "datamancy-stack_docker-proxy")
+        .trim()
+        .ifEmpty { "datamancy-stack_docker-proxy" }
+
     private val sshKeysDir = File("/tmp/agent-ssh-keys")
     private val objectMapper = ObjectMapper()
+    private val allowPrivateKeyExport = envFlag("TOOLSERVER_ENABLE_PRIVATE_KEY_EXPORT", false)
+
+    companion object {
+        private val containerNamePattern = Regex("^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$")
+        private val imagePattern = Regex("^[a-zA-Z0-9][a-zA-Z0-9_./:-]{0,255}(?:@sha256:[a-f0-9]{64})?$")
+        private val networkNamePattern = Regex("^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$")
+        private val envKeyPattern = Regex("^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+        private val commandTokenPattern = Regex("^[^\\u0000\\n\\r]{1,256}$")
+        private val forbiddenCommandFragments = listOf(";", "&&", "||", "|", "`", "$(", "<", ">")
+
+        private fun envFlag(name: String, defaultValue: Boolean): Boolean {
+            return when ((System.getProperty(name) ?: System.getenv(name) ?: "").trim().lowercase()) {
+                "1", "true", "yes", "on" -> true
+                "0", "false", "no", "off" -> false
+                else -> defaultValue
+            }
+        }
+    }
 
     override fun manifest() = PluginManifest(
         id = "org.example.plugins.dockercontainer",
@@ -34,9 +62,13 @@ class DockerContainerPlugin : Plugin {
     )
 
     override fun init(context: PluginContext) {
-        
         if (!sshKeysDir.exists()) {
-            sshKeysDir.mkdirs()
+            if (!sshKeysDir.mkdirs()) {
+                throw IllegalStateException("Unable to create SSH key directory at ${sshKeysDir.absolutePath}")
+            }
+        }
+        runCatching {
+            Files.setPosixFilePermissions(sshKeysDir.toPath(), PosixFilePermissions.fromString("rwx------"))
         }
     }
 
@@ -79,7 +111,9 @@ class DockerContainerPlugin : Plugin {
             ToolHandler { args, _ ->
                 val name = args.get("name")?.asText() ?: throw IllegalArgumentException("name required")
                 val image = args.get("image")?.asText() ?: "ubuntu:22.04"
-                val ports = args.get("ports")?.map { it.asInt() } ?: emptyList()
+                val ports = args.get("ports")
+                    ?.map { it.asText().toIntOrNull() ?: throw IllegalArgumentException("ports must be integers") }
+                    ?: emptyList()
                 val env = args.get("environment")?.fields()?.asSequence()
                     ?.associate { it.key to it.value.asText() } ?: emptyMap()
 
@@ -144,7 +178,7 @@ class DockerContainerPlugin : Plugin {
                 longDescription = "Executes a command inside a running container and returns the output.",
                 parameters = listOf(
                     ToolParam("name", "string", true, "Container name"),
-                    ToolParam("command", "string", true, "Command to execute")
+                    ToolParam("command", "array[string]", true, "Command argv to execute")
                 ),
                 paramsSpec = """
                     {
@@ -152,7 +186,13 @@ class DockerContainerPlugin : Plugin {
                       "required":["name","command"],
                       "properties":{
                         "name":{"type":"string","description":"Container name"},
-                        "command":{"type":"string","description":"Command to execute"}
+                        "command":{
+                          "oneOf":[
+                            {"type":"array","items":{"type":"string"}},
+                            {"type":"string"}
+                          ],
+                          "description":"Command argv array (or legacy string)"
+                        }
                       }
                     }
                 """.trimIndent(),
@@ -160,29 +200,31 @@ class DockerContainerPlugin : Plugin {
             ),
             ToolHandler { args, _ ->
                 val name = args.get("name")?.asText() ?: throw IllegalArgumentException("name required")
-                val command = args.get("command")?.asText() ?: throw IllegalArgumentException("command required")
+                val command = parseCommandArgument(args.get("command") ?: throw IllegalArgumentException("command required"))
                 tools.docker_container_exec(name, command)
             }
         )
 
-        registry.register(
-            ToolDefinition(
-                name = "docker_ssh_key_get",
-                description = "Get SSH private key for container",
-                shortDescription = "Retrieve SSH key for container access",
-                longDescription = "Returns the SSH private key for accessing a container via SSH.",
-                parameters = listOf(
-                    ToolParam("containerName", "string", true, "Container name")
+        if (allowPrivateKeyExport) {
+            registry.register(
+                ToolDefinition(
+                    name = "docker_ssh_key_get",
+                    description = "Get SSH private key for container",
+                    shortDescription = "Retrieve SSH key for container access",
+                    longDescription = "Returns the SSH private key for accessing a container via SSH.",
+                    parameters = listOf(
+                        ToolParam("containerName", "string", true, "Container name")
+                    ),
+                    paramsSpec = """{"type":"object","required":["containerName"],"properties":{"containerName":{"type":"string"}}}""",
+                    pluginId = pluginId
                 ),
-                paramsSpec = """{"type":"object","required":["containerName"],"properties":{"containerName":{"type":"string"}}}""",
-                pluginId = pluginId
-            ),
-            ToolHandler { args, _ ->
-                val containerName = args.get("containerName")?.asText()
-                    ?: throw IllegalArgumentException("containerName required")
-                tools.docker_ssh_key_get(containerName)
-            }
-        )
+                ToolHandler { args, _ ->
+                    val containerName = args.get("containerName")?.asText()
+                        ?: throw IllegalArgumentException("containerName required")
+                    tools.docker_ssh_key_get(containerName)
+                }
+            )
+        }
     }
 
     inner class Tools {
@@ -204,33 +246,35 @@ class DockerContainerPlugin : Plugin {
             ports: List<Int> = emptyList(),
             environment: Map<String, String> = emptyMap()
         ): String {
-            
-            val keyPair = generateSshKeyPair(name)
+            val sanitizedName = sanitizeContainerName(name)
+            val sanitizedImage = sanitizeImage(image)
+            val sanitizedNetwork = sanitizeNetworkName(dindNetwork)
+            val sanitizedPorts = sanitizePorts(ports)
+            val sanitizedEnv = sanitizeEnvironment(environment)
 
-            
-            val dockerfile = createSshDockerfile(image, keyPair.publicKey)
+            val keyPair = generateSshKeyPair(sanitizedName)
+            val dockerfile = createSshDockerfile(sanitizedImage, keyPair.publicKey)
 
-            
-            val imageName = "agent-container-$name"
+            val imageName = "agent-container-$sanitizedName"
             buildImage(imageName, dockerfile)
 
-            
-            val containerId = runContainer(name, imageName, ports, environment)
+            val containerId = runContainer(sanitizedName, imageName, sanitizedNetwork, sanitizedPorts, sanitizedEnv)
+            val containerIp = getContainerIp(sanitizedName)
 
-            
-            val containerIp = getContainerIp(name)
-
-            return objectMapper.writeValueAsString(mapOf(
-                "status" to "success",
-                "container_id" to containerId,
-                "container_name" to name,
-                "image" to imageName,
-                "ssh_host" to containerIp,
-                "ssh_port" to 22,
-                "ssh_user" to "root",
-                "ssh_key_path" to keyPair.privateKeyPath,
-                "connection_command" to "ssh -i ${keyPair.privateKeyPath} -o StrictHostKeyChecking=no root@$containerIp"
-            ))
+            return objectMapper.writeValueAsString(
+                mapOf(
+                    "status" to "success",
+                    "container_id" to containerId,
+                    "container_name" to sanitizedName,
+                    "image" to imageName,
+                    "docker_host" to dockerHost,
+                    "ssh_host" to containerIp,
+                    "ssh_port" to 22,
+                    "ssh_user" to "root",
+                    "ssh_key_path" to keyPair.privateKeyPath,
+                    "connection_command" to "ssh -i ${keyPair.privateKeyPath} -o StrictHostKeyChecking=no root@$containerIp"
+                )
+            )
         }
 
         @LlmTool(
@@ -239,7 +283,7 @@ class DockerContainerPlugin : Plugin {
             paramsSpec = """{"type":"object","properties":{},"additionalProperties":false}"""
         )
         fun docker_container_list(): String {
-            val output = executeDockerCommand("ps", "-a", "--format", "{{.Names}}\\t{{.Status}}\\t{{.Image}}")
+            val output = executeDockerCommand(60, "ps", "-a", "--format", "{{.Names}}\\t{{.Status}}\\t{{.Image}}")
             val containers = output.lines()
                 .filter { it.isNotBlank() }
                 .map { line ->
@@ -260,7 +304,8 @@ class DockerContainerPlugin : Plugin {
             paramsSpec = """{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}"""
         )
         fun docker_container_stop(name: String): String {
-            executeDockerCommand("stop", name)
+            val sanitizedName = sanitizeContainerName(name)
+            executeDockerCommand(60, "stop", sanitizedName)
             return objectMapper.writeValueAsString(mapOf("status" to "success", "message" to "Container stopped"))
         }
 
@@ -270,11 +315,11 @@ class DockerContainerPlugin : Plugin {
             paramsSpec = """{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}"""
         )
         fun docker_container_remove(name: String): String {
-            executeDockerCommand("rm", "-f", name)
+            val sanitizedName = sanitizeContainerName(name)
+            executeDockerCommand(60, "rm", "-f", sanitizedName)
 
-            
-            val privateKey = File(sshKeysDir, "$name")
-            val publicKey = File(sshKeysDir, "$name.pub")
+            val privateKey = privateKeyFileFor(sanitizedName)
+            val publicKey = publicKeyFileFor(sanitizedName)
             privateKey.delete()
             publicKey.delete()
 
@@ -284,10 +329,14 @@ class DockerContainerPlugin : Plugin {
         @LlmTool(
             shortDescription = "Execute command in container",
             longDescription = "Runs a command inside a container and returns output.",
-            paramsSpec = """{"type":"object","required":["name","command"],"properties":{"name":{"type":"string"},"command":{"type":"string"}}}"""
+            paramsSpec = """{"type":"object","required":["name","command"],"properties":{"name":{"type":"string"},"command":{"type":"array","items":{"type":"string"}}}}"""
         )
-        fun docker_container_exec(name: String, command: String): String {
-            val output = executeDockerCommand("exec", name, "sh", "-c", command)
+        fun docker_container_exec(name: String, command: List<String>): String {
+            val sanitizedName = sanitizeContainerName(name)
+            val sanitizedCommand = sanitizeExecCommand(command)
+            val args = mutableListOf("exec", sanitizedName)
+            args.addAll(sanitizedCommand)
+            val output = executeDockerCommand(60, *args.toTypedArray())
             return objectMapper.writeValueAsString(mapOf("status" to "success", "output" to output))
         }
 
@@ -297,37 +346,50 @@ class DockerContainerPlugin : Plugin {
             paramsSpec = """{"type":"object","required":["containerName"],"properties":{"containerName":{"type":"string"}}}"""
         )
         fun docker_ssh_key_get(containerName: String): String {
-            val privateKeyFile = File(sshKeysDir, containerName)
+            if (!allowPrivateKeyExport) {
+                throw SecurityException("Private key export is disabled (TOOLSERVER_ENABLE_PRIVATE_KEY_EXPORT=false)")
+            }
+
+            val sanitizedContainer = sanitizeContainerName(containerName)
+            val privateKeyFile = privateKeyFileFor(sanitizedContainer)
             if (!privateKeyFile.exists()) {
-                throw IllegalArgumentException("No SSH key found for container: $containerName")
+                throw IllegalArgumentException("No SSH key found for container: $sanitizedContainer")
             }
 
             val privateKey = privateKeyFile.readText()
-            return objectMapper.writeValueAsString(mapOf(
-                "status" to "success",
-                "private_key" to privateKey,
-                "key_path" to privateKeyFile.absolutePath
-            ))
+            return objectMapper.writeValueAsString(
+                mapOf(
+                    "status" to "success",
+                    "private_key" to privateKey,
+                    "key_path" to privateKeyFile.absolutePath
+                )
+            )
         }
 
-        
         private fun generateSshKeyPair(name: String): KeyPair {
-            val privateKeyFile = File(sshKeysDir, name)
-            val publicKeyFile = File(sshKeysDir, "$name.pub")
+            val sanitizedName = sanitizeContainerName(name)
+            val privateKeyFile = privateKeyFileFor(sanitizedName)
+            val publicKeyFile = publicKeyFileFor(sanitizedName)
+            privateKeyFile.delete()
+            publicKeyFile.delete()
 
-            
             val process = ProcessBuilder(
                 "ssh-keygen", "-t", "ed25519", "-f", privateKeyFile.absolutePath,
-                "-N", "", "-C", "agent-container-$name"
+                "-N", "", "-C", "agent-container-$sanitizedName", "-q"
             ).redirectErrorStream(true).start()
 
-            process.waitFor(30, TimeUnit.SECONDS)
+            val completed = process.waitFor(30, TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                throw RuntimeException("Failed to generate SSH key: timeout")
+            }
             if (process.exitValue() != 0) {
                 throw RuntimeException("Failed to generate SSH key: ${process.inputStream.bufferedReader().readText()}")
             }
 
-            
-            Files.setPosixFilePermissions(privateKeyFile.toPath(), PosixFilePermissions.fromString("rw-------"))
+            runCatching {
+                Files.setPosixFilePermissions(privateKeyFile.toPath(), PosixFilePermissions.fromString("rw-------"))
+            }
 
             return KeyPair(
                 privateKeyPath = privateKeyFile.absolutePath,
@@ -336,8 +398,10 @@ class DockerContainerPlugin : Plugin {
         }
 
         private fun createSshDockerfile(baseImage: String, publicKey: String): String {
+            val sanitizedImage = sanitizeImage(baseImage)
+            val escapedPublicKey = publicKey.replace("'", "'\"'\"'")
             return """
-                FROM $baseImage
+                FROM $sanitizedImage
 
                 # Install SSH server
                 RUN if command -v apt-get > /dev/null; then \
@@ -351,7 +415,7 @@ class DockerContainerPlugin : Plugin {
                 # Configure SSH
                 RUN mkdir -p /var/run/sshd /root/.ssh && \
                     chmod 700 /root/.ssh && \
-                    echo '$publicKey' > /root/.ssh/authorized_keys && \
+                    echo '$escapedPublicKey' > /root/.ssh/authorized_keys && \
                     chmod 600 /root/.ssh/authorized_keys && \
                     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config || true && \
                     sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config || true
@@ -365,29 +429,17 @@ class DockerContainerPlugin : Plugin {
         }
 
         private fun buildImage(imageName: String, dockerfile: String): String {
-            
             val buildDir = Files.createTempDirectory("docker-build-").toFile()
             try {
                 File(buildDir, "Dockerfile").writeText(dockerfile)
 
-                val command = mutableListOf("docker", "build", "-t", imageName, ".")
-
-                
-                if (dockerHost.startsWith("tcp://")) {
-                    command.add(1, "-H")
-                    command.add(2, dockerHost)
+                val command = dockerCliPrefix().apply {
+                    addAll(listOf("build", "-t", imageName, "."))
                 }
 
-                val process = ProcessBuilder(command)
-                    .directory(buildDir)
-                    .redirectErrorStream(true)
-                    .start()
-
-                val output = process.inputStream.bufferedReader().readText()
-                process.waitFor(300, TimeUnit.SECONDS)
-
-                if (process.exitValue() != 0) {
-                    throw RuntimeException("Failed to build image: $output")
+                val (exitCode, output) = runCommand(command, timeoutSeconds = 300, workingDirectory = buildDir)
+                if (exitCode != 0) {
+                    throw RuntimeException("Failed to build image (exit=$exitCode): $output")
                 }
 
                 return output
@@ -399,57 +451,85 @@ class DockerContainerPlugin : Plugin {
         private fun runContainer(
             name: String,
             image: String,
+            network: String,
             ports: List<Int>,
             environment: Map<String, String>
         ): String {
-            val args = mutableListOf("run", "-d", "--name", name, "--network", dindNetwork)
+            val args = mutableListOf("run", "-d", "--name", sanitizeContainerName(name), "--network", sanitizeNetworkName(network))
 
-            
-            ports.forEach { port ->
+            sanitizePorts(ports).forEach { port ->
                 args.add("-p")
                 args.add("$port:$port")
             }
 
-            
-            environment.forEach { (key, value) ->
+            sanitizeEnvironment(environment).forEach { (key, value) ->
                 args.add("-e")
                 args.add("$key=$value")
             }
 
-            args.add(image)
+            args.add(sanitizeImage(image))
 
-            return executeDockerCommand(*args.toTypedArray()).trim()
+            return executeDockerCommand(60, *args.toTypedArray()).trim()
         }
 
         private fun getContainerIp(name: String): String {
             return executeDockerCommand(
-                "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", name
+                60,
+                "inspect",
+                "-f",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                sanitizeContainerName(name)
             ).trim()
         }
 
-        private fun executeDockerCommand(vararg args: String): String {
-            val command = mutableListOf("docker")
-
-            
-            if (dockerHost.startsWith("tcp://")) {
-                command.add("-H")
-                command.add(dockerHost)
+        private fun executeDockerCommand(timeoutSeconds: Long = 60, vararg args: String): String {
+            val command = dockerCliPrefix().apply { addAll(args.toList()) }
+            val (exitCode, output) = runCommand(command, timeoutSeconds = timeoutSeconds)
+            if (exitCode != 0) {
+                throw RuntimeException("Docker command failed (exit=$exitCode): $output")
             }
+            return output
+        }
 
-            command.addAll(args)
+        private fun dockerCliPrefix(): MutableList<String> {
+            return mutableListOf("docker").apply {
+                if (dockerHost.isNotBlank()) {
+                    add("-H")
+                    add(dockerHost)
+                }
+            }
+        }
 
+        private fun runCommand(
+            command: List<String>,
+            timeoutSeconds: Long,
+            workingDirectory: File? = null
+        ): Pair<Int, String> {
             val process = ProcessBuilder(command)
-                .redirectErrorStream(true)
+                .apply {
+                    if (workingDirectory != null) {
+                        directory(workingDirectory)
+                    }
+                    redirectErrorStream(true)
+                }
                 .start()
 
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor(60, TimeUnit.SECONDS)
-
-            if (process.exitValue() != 0) {
-                throw RuntimeException("Docker command failed: $output")
+            val output = StringBuilder()
+            val readerThread = Thread {
+                BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                    reader.lines().forEach { output.append(it).append('\n') }
+                }
             }
+            readerThread.start()
 
-            return output
+            val completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                readerThread.join(1000)
+                throw RuntimeException("Command timed out after ${timeoutSeconds}s: ${command.joinToString(" ")}")
+            }
+            readerThread.join(1000)
+            return process.exitValue() to output.toString()
         }
     }
 
@@ -457,4 +537,80 @@ class DockerContainerPlugin : Plugin {
         val privateKeyPath: String,
         val publicKey: String
     )
+
+    private fun parseCommandArgument(node: JsonNode): List<String> {
+        return when {
+            node.isArray -> node.map { it.asText() }
+            node.isTextual -> splitLegacyCommand(node.asText())
+            else -> throw IllegalArgumentException("command must be array[string] or string")
+        }
+    }
+
+    private fun splitLegacyCommand(raw: String): List<String> {
+        val trimmed = raw.trim()
+        require(trimmed.isNotEmpty()) { "command cannot be blank" }
+        require(forbiddenCommandFragments.none { trimmed.contains(it) }) {
+            "legacy command strings cannot include shell control operators"
+        }
+        return trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
+    }
+
+    private fun sanitizeContainerName(name: String): String {
+        val trimmed = name.trim()
+        require(containerNamePattern.matches(trimmed)) { "Invalid container name: $name" }
+        return trimmed
+    }
+
+    private fun sanitizeImage(image: String): String {
+        val trimmed = image.trim()
+        require(imagePattern.matches(trimmed)) { "Invalid image reference: $image" }
+        require(!trimmed.contains("..")) { "Invalid image reference: path traversal sequence not allowed" }
+        return trimmed
+    }
+
+    private fun sanitizeNetworkName(network: String): String {
+        val trimmed = network.trim()
+        require(networkNamePattern.matches(trimmed)) { "Invalid docker network name: $network" }
+        return trimmed
+    }
+
+    private fun sanitizePorts(ports: List<Int>): List<Int> {
+        require(ports.size <= 32) { "Too many ports requested (${ports.size}); max 32" }
+        return ports.map { port ->
+            require(port in 1..65535) { "Port out of range: $port" }
+            port
+        }.distinct()
+    }
+
+    private fun sanitizeEnvironment(environment: Map<String, String>): Map<String, String> {
+        require(environment.size <= 64) { "Too many environment variables requested (${environment.size}); max 64" }
+        return environment.map { (rawKey, rawValue) ->
+            val key = rawKey.trim()
+            require(envKeyPattern.matches(key)) { "Invalid environment variable name: $rawKey" }
+            require(!rawValue.contains('\u0000')) { "Environment variable '$key' contains null byte" }
+            require(rawValue.length <= 2048) { "Environment variable '$key' value too long" }
+            key to rawValue
+        }.toMap()
+    }
+
+    private fun sanitizeExecCommand(command: List<String>): List<String> {
+        require(command.isNotEmpty()) { "command must not be empty" }
+        require(command.size <= 32) { "command may contain at most 32 argv entries" }
+        return command.map { token ->
+            val sanitized = token.trim()
+            require(commandTokenPattern.matches(sanitized)) { "Invalid command token: '$token'" }
+            require(forbiddenCommandFragments.none { sanitized.contains(it) }) {
+                "Command token contains forbidden shell fragment: '$token'"
+            }
+            sanitized
+        }
+    }
+
+    private fun privateKeyFileFor(containerName: String): File {
+        return File(sshKeysDir, sanitizeContainerName(containerName))
+    }
+
+    private fun publicKeyFileFor(containerName: String): File {
+        return File(sshKeysDir, "${sanitizeContainerName(containerName)}.pub")
+    }
 }

@@ -43,6 +43,13 @@ services:
       LDAP_PORT: 389
       LDAP_BASE_DN: ${LDAP_BASE_DN}
       SEARCH_SERVICE_URL: http://search-service:8098
+      AUTHELIA_JWKS_URL: http://authelia:9091/.well-known/jwks.json
+      AUTHELIA_JWT_ISSUER: ${AUTHELIA_URL}
+      AUTHELIA_JWT_AUDIENCE: ${TOOLSERVER_JWT_AUDIENCE:-model-context-server}
+      TOOLSERVER_AUTH_REQUIRED: "true"
+      TOOLSERVER_TRUST_IDENTITY_HEADERS: "false"
+      TOOLSERVER_ENABLE_ADMIN_ENDPOINTS: "false"
+      TOOLSERVER_ADMIN_ROLES: "admins"
       # MCP authn/authz: require LDAP-backed identity headers for tool methods.
       MCP_AUTH_REQUIRED: "true"
       MCP_LIST_ALLOWED_ROLES: "users,admins,agents"
@@ -56,6 +63,8 @@ services:
       TOOLSERVER_TOOL_EXEC_TIMEOUT_MS: 300000
       TOOLSERVER_ALLOW_CAPS: "host.network.http,host.network.ssh,host.shell.read,host.docker.inspect,host.docker.write,docker.container.create,docker.container.manage,ssh.keymanagement"
       DOCKER_HOST: tcp://docker-socket-proxy:2375
+      DOCKER_HOST_ISOLATED: tcp://docker-vm-socket-proxy:2375
+      ISOLATED_DOCKER_VM_DOCKER_HOST: tcp://docker-vm-socket-proxy:2375
     volumes:
       - model_context_server_known_hosts:/app/known_hosts_data:ro
       - model_context_server_scripts:/app/scripts:ro
@@ -65,8 +74,7 @@ services:
       test:
         - CMD-SHELL
         - |
-          wget --quiet --tries=1 --timeout=3 --spider http://localhost:8081/tools && \
-          wget --quiet --tries=1 --timeout=3 -O- http://localhost:8081/tools | grep -q tools && \
+          wget --quiet --tries=1 --timeout=3 --spider http://localhost:8081/health && \
           wget --quiet --tries=1 --timeout=3 --header='Content-Type: application/json' \
             --post-data='{"jsonrpc":"2.0","id":"health","method":"ping","params":{}}' \
             -O- http://localhost:8081/mcp | grep -q '"jsonrpc":"2.0"'

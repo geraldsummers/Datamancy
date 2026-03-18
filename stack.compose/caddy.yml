@@ -107,7 +107,7 @@ services:
       start_period: 15s
 
   caddy-ca-export:
-    image: alpine:latest
+    image: alpine@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
     container_name: caddy-ca-export
     restart: "no"
     depends_on:

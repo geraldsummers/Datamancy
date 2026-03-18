@@ -1,4 +1,4 @@
-FROM jupyterhub/jupyterhub:latest
+FROM jupyterhub/jupyterhub@sha256:97215fe76d3fce1261b211d67fc7cdb9c6b21369140400bb7bb308c03ba0590e
 
 RUN pip install --no-cache-dir \
     jupyterlab \

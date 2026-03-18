@@ -38,6 +38,9 @@ services:
       LDAP_BIND_DN: cn=admin,${LDAP_BASE_DN}
       LDAP_BIND_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       AUTHELIA_JWKS_URL: http://authelia:9091/.well-known/jwks.json
+      AUTHELIA_JWT_ISSUER: ${AUTHELIA_URL}
+      AUTHELIA_JWT_AUDIENCE: ${TXG_JWT_AUDIENCE:-tx-gateway}
+      TXG_CORS_ALLOWED_ORIGINS: ${TXG_CORS_ALLOWED_ORIGINS:-}
       EVM_BROADCASTER_URL: http://evm-broadcaster:8081
       HYPERLIQUID_WORKER_URL: http://hyperliquid-worker:8082
     healthcheck:

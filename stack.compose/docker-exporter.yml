@@ -1,6 +1,6 @@
 services:
   docker-health-exporter:
-    image: fviolence/docker-health-exporter:latest
+    image: fviolence/docker-health-exporter@sha256:14116e61c73c868a6c244a6729dd0e1e556988d99d1b2c1475aaa968fcddaed7
     container_name: docker-health-exporter
     restart: unless-stopped
     networks:

@@ -1,6 +1,6 @@
 services:
   autoheal:
-    image: willfarrell/autoheal:latest
+    image: willfarrell/autoheal@sha256:47d3323895a3a21e507bb4eeba912d0362b4532bb434ff40b3ae200d651aa0a5
     container_name: autoheal
     restart: unless-stopped
     networks:

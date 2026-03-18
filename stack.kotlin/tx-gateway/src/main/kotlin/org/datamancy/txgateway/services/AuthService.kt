@@ -14,6 +14,12 @@ class AuthService(
         ?: "http://authelia:9091/.well-known/jwks.json"
 ) {
     private val logger = LoggerFactory.getLogger(AuthService::class.java)
+    private val issuer: String = (
+        System.getenv("AUTHELIA_JWT_ISSUER")
+            ?: System.getenv("AUTHELIA_URL")
+            ?: ""
+        ).trim()
+    private val audiences: Set<String> = parseCsv(System.getenv("AUTHELIA_JWT_AUDIENCE") ?: "tx-gateway")
     private val jwkProvider = JwkProviderBuilder(URI(jwksUrl).toURL())
         .cached(10, 24, TimeUnit.HOURS)
         .build()
@@ -21,11 +27,15 @@ class AuthService(
     fun validateToken(token: String): DecodedJWT? {
         return try {
             val jwt = JWT.decode(token)
-            val jwk = jwkProvider.get(jwt.keyId)
+            val keyId = jwt.keyId ?: throw IllegalArgumentException("JWT missing key id")
+            val jwk = jwkProvider.get(keyId)
             val algorithm = Algorithm.RSA256(jwk.publicKey as RSAPublicKey, null)
 
-            val verifier = JWT.require(algorithm)
-                .build()
+            val verifierBuilder = JWT.require(algorithm).withIssuer(issuer)
+            if (audiences.isNotEmpty()) {
+                verifierBuilder.withAudience(*audiences.toTypedArray())
+            }
+            val verifier = verifierBuilder.build()
 
             verifier.verify(token)
         } catch (e: Exception) {
@@ -44,7 +54,15 @@ class AuthService(
     }
 
     fun healthCheck() {
-        // Verify Authelia JWKS URL is configured
         require(jwksUrl.isNotEmpty()) { "Authelia JWKS URL not configured" }
+        require(issuer.isNotEmpty()) { "Authelia JWT issuer not configured (AUTHELIA_JWT_ISSUER)" }
+        require(audiences.isNotEmpty()) { "Authelia JWT audience not configured (AUTHELIA_JWT_AUDIENCE)" }
+    }
+
+    private fun parseCsv(raw: String): Set<String> {
+        return raw.split(',', ';', '|', ' ')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
     }
 }

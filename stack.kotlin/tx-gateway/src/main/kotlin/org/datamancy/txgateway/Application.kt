@@ -75,6 +75,8 @@ fun Application.configureApp(
     workerClient: WorkerClient,
     dbService: DatabaseService
 ) {
+    val corsAllowedOrigins = parseCsvEnv("TXG_CORS_ALLOWED_ORIGINS")
+
     install(ContentNegotiation) {
         json(Json {
             prettyPrint = true
@@ -90,7 +92,23 @@ fun Application.configureApp(
         allowMethod(HttpMethod.Delete)
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
-        anyHost()
+        allowCredentials = true
+
+        if (corsAllowedOrigins.any { it == "*" }) {
+            anyHost()
+        } else {
+            corsAllowedOrigins.forEach { rawOrigin ->
+                val uri = runCatching { java.net.URI.create(rawOrigin) }.getOrNull()
+                val scheme = uri?.scheme?.takeIf { it.isNotBlank() }
+                val host = uri?.host?.takeIf { it.isNotBlank() }
+                if (scheme == null || host == null) {
+                    logger.warn("Ignoring invalid TXG_CORS_ALLOWED_ORIGINS entry: {}", rawOrigin)
+                    return@forEach
+                }
+                val hostWithPort = if (uri.port > 0) "$host:${uri.port}" else host
+                allowHost(hostWithPort, schemes = listOf(scheme))
+            }
+        }
     }
 
     routing {
@@ -231,6 +249,13 @@ private fun parseIntEnv(name: String, default: Int): Int {
     val raw = System.getenv(name)?.trim().orEmpty()
     if (raw.isEmpty()) return default
     return raw.toIntOrNull()?.takeIf { it > 0 } ?: default
+}
+
+private fun parseCsvEnv(name: String): List<String> {
+    return (System.getenv(name) ?: "")
+        .split(',', ';', '|', ' ')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
 }
 
 private fun initializeWithRetry(

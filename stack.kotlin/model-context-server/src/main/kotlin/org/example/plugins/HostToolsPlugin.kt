@@ -108,6 +108,7 @@ class HostToolsPlugin : Plugin {
         private val http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build()
+        private val dockerHost = System.getenv("DOCKER_HOST")?.trim().orEmpty()
 
         
         private fun sanitizeContainerName(name: String): String {
@@ -138,7 +139,12 @@ class HostToolsPlugin : Plugin {
         private fun runHostDockerCmd(args: List<String>, timeoutSeconds: Long = 30): Pair<Int, String> {
             validateCommandArguments(args)
 
-            val cmd = listOf("docker", "-H", "unix:///var/run/docker.sock.host") + args
+            val cmd = mutableListOf("docker")
+            if (dockerHost.isNotBlank()) {
+                cmd.add("-H")
+                cmd.add(dockerHost)
+            }
+            cmd.addAll(args)
             val pb = ProcessBuilder(cmd)
             pb.redirectErrorStream(true)
             val p = pb.start()
@@ -380,13 +386,15 @@ class HostToolsPlugin : Plugin {
 
             
             val allowedCommands = setOf(
-                "nginx", "caddy", "systemctl", "kill", "pkill",
-                "reload", "graceful", "touch", "cat", "ls", "sh", "bash"
+                "nginx", "caddy", "touch", "cat", "ls", "printenv", "id", "whoami"
             )
 
             val exe = cmd[0]
             
             val exeBasename = File(exe).name
+            require(exeBasename == exe && !exe.contains('/') && !exe.contains('\\')) {
+                "command must be executable basename only"
+            }
             require(exeBasename in allowedCommands) {
                 "command '$exeBasename' is not in whitelist"
             }

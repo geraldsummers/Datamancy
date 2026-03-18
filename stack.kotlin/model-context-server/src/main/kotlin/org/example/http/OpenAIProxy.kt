@@ -41,11 +41,19 @@ import java.nio.charset.StandardCharsets
  * Configuration via environment variables:
  * - None (delegates to llm_chat_completion which reads LITELLM_* vars)
  */
-class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
+internal class OpenAIProxyHandler(
+    private val tools: ToolRegistry,
+    private val authorizer: RequestAuthorizer
+) : HttpHandler {
     override fun handle(exchange: HttpExchange) {
         try {
             if (exchange.requestMethod != "POST") {
                 respond(exchange, 405, Json.mapper.createObjectNode().put("error", "Method not allowed"))
+                return
+            }
+            val identity = authorizer.authenticate(exchange.requestHeaders)
+            if (authorizer.authRequired() && identity == null) {
+                respond(exchange, 401, Json.mapper.createObjectNode().put("error", "Unauthorized"))
                 return
             }
 
@@ -71,7 +79,7 @@ class OpenAIProxyHandler(private val tools: ToolRegistry) : HttpHandler {
 
             // Call llm_chat_completion agent
             val result = try {
-                tools.invoke("llm_chat_completion", toolCallArgs)
+                tools.invoke("llm_chat_completion", toolCallArgs, identity?.user)
             } catch (e: Exception) {
                 respond(exchange, 500, Json.mapper.createObjectNode().apply {
                     put("error", e.message ?: "agent_execution_failed")

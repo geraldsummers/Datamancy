@@ -133,6 +133,8 @@ class BrowserToolsPlugin : Plugin {
         private val timeout: Duration,
         private val debug: Boolean
     ) {
+        private val serviceNamePattern = Regex("^[a-zA-Z0-9_.-]{1,64}$")
+
         @LlmTool(
             name = "browser_screenshot",
             shortDescription = "Navigate to a URL and return a PNG screenshot (Base64)",
@@ -163,7 +165,7 @@ class BrowserToolsPlugin : Plugin {
                 
                 var savedPath: String? = null
                 try {
-                    val finalPath = savePath ?: generateScreenshotPath(serviceName, url)
+                    val finalPath = resolveScreenshotPath(serviceName, url, savePath)
                     if (finalPath != null) {
                         val file = File(finalPath)
                         file.parentFile?.mkdirs()
@@ -343,7 +345,7 @@ class BrowserToolsPlugin : Plugin {
                 var savedPath: String? = null
                 if (imageBase64.isNotEmpty()) {
                     try {
-                        val finalPath = generateScreenshotPath(serviceName, url)
+                        val finalPath = resolveScreenshotPath(serviceName, url, null)
                         if (finalPath != null) {
                             val imageBytes = java.util.Base64.getDecoder().decode(imageBase64)
                             val file = File(finalPath)
@@ -388,20 +390,31 @@ class BrowserToolsPlugin : Plugin {
 
         private fun encode(s: String): String = java.net.URLEncoder.encode(s, java.nio.charset.StandardCharsets.UTF_8)
 
-        private fun generateScreenshotPath(serviceName: String?, url: String): String? {
-            val baseDir = System.getenv("TOOLSERVER_SCREENSHOTS_DIR") ?: "/app/proofs/screenshots"
+        private fun resolveScreenshotPath(serviceName: String?, url: String, explicitSavePath: String?): String? {
+            val baseDir = File(System.getenv("TOOLSERVER_SCREENSHOTS_DIR") ?: "/app/proofs/screenshots").canonicalFile
             val timestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")
                 .withZone(ZoneOffset.UTC)
                 .format(Instant.now())
 
-            return if (serviceName != null && serviceName.isNotBlank()) {
-                
-                "$baseDir/$serviceName/$timestamp.png"
+            val target = if (!explicitSavePath.isNullOrBlank()) {
+                val candidate = File(explicitSavePath)
+                val absoluteCandidate = if (candidate.isAbsolute) candidate else File(baseDir, explicitSavePath)
+                absoluteCandidate.canonicalFile
+            } else if (serviceName != null && serviceName.isNotBlank()) {
+                require(serviceNamePattern.matches(serviceName)) {
+                    "Invalid serviceName: must match ${serviceNamePattern.pattern}"
+                }
+                File(baseDir, "$serviceName/$timestamp.png").canonicalFile
             } else {
-                
                 val urlHash = url.hashCode().toString(16).takeLast(8)
-                "$baseDir/$timestamp" + "_$urlHash.png"
+                File(baseDir, "${timestamp}_$urlHash.png").canonicalFile
             }
+
+            val allowedPrefix = "${baseDir.path}${File.separator}"
+            require(target.path == baseDir.path || target.path.startsWith(allowedPrefix)) {
+                "Screenshot path must be inside ${baseDir.path}"
+            }
+            return target.path
         }
     }
 }

@@ -1,6 +1,6 @@
 services:
   vllm-7b:
-    image: datamancy/vllm-qwen-7b:latest
+    image: datamancy/vllm-qwen-7b:local-build
     build:
       context: ./stack.containers/vllm-qwen-7b
       dockerfile: Dockerfile

@@ -23,9 +23,13 @@ class HttpServerTest {
     private lateinit var registry: ToolRegistry
     private val client = HttpClient.newHttpClient()
     private var port: Int = 0
+    private var previousAuthRequired: String? = null
 
     @BeforeEach
     fun setup() {
+        previousAuthRequired = System.getProperty("TOOLSERVER_AUTH_REQUIRED")
+        System.setProperty("TOOLSERVER_AUTH_REQUIRED", "false")
+
         registry = ToolRegistry()
 
         
@@ -54,6 +58,11 @@ class HttpServerTest {
     @AfterEach
     fun teardown() {
         server.stop()
+        if (previousAuthRequired == null) {
+            System.clearProperty("TOOLSERVER_AUTH_REQUIRED")
+        } else {
+            System.setProperty("TOOLSERVER_AUTH_REQUIRED", previousAuthRequired)
+        }
     }
 
     @Nested

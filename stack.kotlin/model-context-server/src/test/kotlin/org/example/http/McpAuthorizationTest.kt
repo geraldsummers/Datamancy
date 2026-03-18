@@ -109,10 +109,14 @@ class McpAuthorizationTest {
     }
 
     private fun withServer(properties: Map<String, String>, block: (Int) -> Unit) {
-        val keys = properties.keys.toList()
+        val effectiveProperties = mapOf(
+            "TOOLSERVER_AUTH_REQUIRED" to "true",
+            "TOOLSERVER_TRUST_IDENTITY_HEADERS" to "true"
+        ) + properties
+        val keys = effectiveProperties.keys.toList()
         val previous = keys.associateWith { System.getProperty(it) }
         try {
-            properties.forEach { (k, v) -> System.setProperty(k, v) }
+            effectiveProperties.forEach { (k, v) -> System.setProperty(k, v) }
             val registry = ToolRegistry().apply {
                 register(
                     ToolDefinition(

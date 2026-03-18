@@ -351,15 +351,25 @@ class DataSourceQueryPlugin(
         private val mariadbPool: HikariDataSource?
     ) {
         private val secretsDir = System.getenv("SHADOW_ACCOUNTS_SECRETS_DIR") ?: "/run/secrets/datamancy"
+        private val userContextPattern = Regex("^[a-zA-Z0-9_.-]{1,64}$")
+        private val forbiddenLdapAttributes = setOf("userpassword", "sambantpassword", "sambalmpassword")
+        private val defaultLdapAttributes = listOf(
+            "uid", "cn", "displayName", "givenName", "sn", "mail", "memberOf", "objectClass"
+        )
 
-        
+        private fun sanitizeUserContext(raw: String?): String? {
+            val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            require(userContextPattern.matches(value)) { "Invalid user context format" }
+            return value
+        }
+
         private fun loadShadowCredentials(username: String): Pair<String, String>? {
             val shadowUsername = "$username-agent"
             val passwordFile = java.io.File("$secretsDir/shadow-agent-$username.pwd")
 
             return if (passwordFile.exists()) {
                 val password = passwordFile.readText().trim()
-                Pair(shadowUsername, password)
+                if (password.isBlank()) null else Pair(shadowUsername, password)
             } else {
                 null
             }
@@ -372,6 +382,11 @@ class DataSourceQueryPlugin(
         )
         fun query_mariadb(database: String, query: String, userContext: String? = null): String {
             val config = mariadbConfig ?: return "ERROR: MariaDB not configured"
+            val normalizedUserContext = try {
+                sanitizeUserContext(userContext)
+            } catch (e: Exception) {
+                return "ERROR: ${e.message}"
+            }
 
             
             val allowedDbs = listOf("bookstack")
@@ -379,45 +394,62 @@ class DataSourceQueryPlugin(
                 return "ERROR: Database '$database' not accessible. Allowed: ${allowedDbs.joinToString(", ")}"
             }
 
-            
-            val queryUpper = query.trim().uppercase()
+            val queryTrimmed = query.trim()
+            val queryUpper = queryTrimmed.uppercase()
             if (!queryUpper.startsWith("SELECT")) {
                 return "ERROR: Only SELECT queries are allowed"
+            }
+            if (queryTrimmed.contains(";")) {
+                return "ERROR: Multiple SQL statements are not allowed"
+            }
+
+            when (val validation = validateSqlQuery(queryTrimmed)) {
+                is QueryValidationResult.Rejected -> return "ERROR: ${validation.reason}"
+                is QueryValidationResult.Approved -> {
+                    // approved - continue
+                }
             }
 
             
             if (queryUpper.contains("PASSWORD") || queryUpper.contains("SECRET") || queryUpper.contains("TOKEN")) {
                 return "ERROR: Queries accessing password/secret/token fields are not allowed"
             }
+            if (queryUpper.contains("INFORMATION_SCHEMA") || queryUpper.contains("MYSQL.") || queryUpper.contains("PERFORMANCE_SCHEMA")) {
+                return "ERROR: System schema access is not allowed"
+            }
 
             
-            val username = if (userContext != null) {
-                config.user.replace("agent_observer", "${userContext}-agent")
+            val username = if (normalizedUserContext != null) {
+                "${normalizedUserContext}-agent"
             } else {
                 config.user
             }
 
             return try {
-                
-                val pool = mariadbPool ?: return "ERROR: MariaDB connection pool not initialized"
+                val connection = if (normalizedUserContext != null) {
+                    val (shadowUsername, shadowPassword) = loadShadowCredentials(normalizedUserContext)
+                        ?: return "ERROR: Missing shadow credentials for user '$normalizedUserContext'"
+                    val jdbcUrl = "jdbc:mariadb://${config.host}:${config.port}/$database"
+                    DriverManager.getConnection(jdbcUrl, shadowUsername, shadowPassword)
+                } else {
+                    val pool = mariadbPool ?: return "ERROR: MariaDB connection pool not initialized"
+                    pool.connection.also { it.catalog = database }
+                }
 
-                pool.connection.use { conn ->
-                    
-                    conn.catalog = database
-
+                connection.use { conn ->
                     val startTime = System.currentTimeMillis()
                     conn.createStatement().use { stmt ->
                         stmt.maxRows = 100
-                        stmt.executeQuery(query).use { rs ->
+                        stmt.executeQuery(queryTrimmed).use { rs ->
                             val result = resultSetToJson(rs)
                             val elapsedMs = System.currentTimeMillis() - startTime
-                            println("[AUDIT] user=${userContext ?: "anonymous"} shadow=$username database=$database query=\"${query.take(100)}\" rows=${result.lines().size - 2} elapsed_ms=$elapsedMs success=true")
+                            println("[AUDIT] user=${normalizedUserContext ?: "anonymous"} shadow=$username database=$database query=\"${queryTrimmed.take(100)}\" rows=${result.lines().size - 2} elapsed_ms=$elapsedMs success=true")
                             result
                         }
                     }
                 }
             } catch (e: Exception) {
-                println("[AUDIT] user=${userContext ?: "anonymous"} shadow=$username database=$database query=\"${query.take(100)}\" success=false error=\"${e.message}\"")
+                println("[AUDIT] user=${normalizedUserContext ?: "anonymous"} shadow=$username database=$database query=\"${queryTrimmed.take(100)}\" success=false error=\"${e.message}\"")
                 "ERROR: ${e.message}"
             }
         }
@@ -467,9 +499,18 @@ class DataSourceQueryPlugin(
             }
             
             
-            val forbiddenPatterns = listOf("userPassword", "sambaNTPassword", "sambaLMPassword")
-            if (forbiddenPatterns.any { filter.contains(it, ignoreCase = true) }) {
+            if (forbiddenLdapAttributes.any { filter.contains(it, ignoreCase = true) }) {
                 return "ERROR: Cannot query password attributes"
+            }
+            val safeLimit = limit.coerceIn(1, 250)
+            val requestedAttributes = (attributes ?: defaultLdapAttributes)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .map { it.lowercase() }
+                .filterNot { it in forbiddenLdapAttributes }
+                .distinct()
+            if (requestedAttributes.isEmpty()) {
+                return "ERROR: No safe attributes requested"
             }
             
             return try {
@@ -484,15 +525,13 @@ class DataSourceQueryPlugin(
                 val searchBase = baseDn ?: config.baseDn
                 val searchControls = javax.naming.directory.SearchControls()
                 searchControls.searchScope = javax.naming.directory.SearchControls.SUBTREE_SCOPE
-                searchControls.countLimit = limit.toLong()
-                if (attributes != null) {
-                    searchControls.returningAttributes = attributes.toTypedArray()
-                }
+                searchControls.countLimit = safeLimit.toLong()
+                searchControls.returningAttributes = requestedAttributes.toTypedArray()
                 
                 val results = ctx.search(searchBase, filter, searchControls)
                 val entries = mutableListOf<ObjectNode>()
                 
-                while (results.hasMore() && entries.size < limit) {
+                while (results.hasMore() && entries.size < safeLimit) {
                     val result = results.next()
                     val entry = JsonNodeFactory.instance.objectNode()
                     entry.put("dn", result.nameInNamespace)
@@ -501,6 +540,9 @@ class DataSourceQueryPlugin(
                     val attrIds = attrs.iDs
                     while (attrIds.hasMore()) {
                         val attrId = attrIds.next()
+                        if (attrId.lowercase() in forbiddenLdapAttributes) {
+                            continue
+                        }
                         val attr = attrs.get(attrId)
                         if (attr.size() == 1) {
                             entry.put(attrId, attr.get().toString())
