@@ -14,6 +14,8 @@ services:
     environment:
       KOPIA_REPO_PATH: /app/repository
       KOPIA_PASSWORD: ${KOPIA_PASSWORD}
+      KOPIA_SERVER_USERNAME: ${KOPIA_SERVER_USERNAME:-kopia}
+      KOPIA_SERVER_PASSWORD: ${KOPIA_SERVER_PASSWORD}
       USER: kopia
     volumes:
       - kopia_data:/app
@@ -24,7 +26,7 @@ services:
       - sh
       - /init-kopia.sh
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:51515/ || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS -u \"$${KOPIA_SERVER_USERNAME:-kopia}:$${KOPIA_SERVER_PASSWORD:-$${KOPIA_PASSWORD}}\" http://localhost:51515/ >/dev/null || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
