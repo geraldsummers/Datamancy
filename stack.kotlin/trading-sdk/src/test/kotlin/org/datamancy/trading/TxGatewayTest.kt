@@ -199,6 +199,36 @@ class TxGatewayTest {
     }
 
     @Test
+    fun `test unified exchange order rejects impossible fill payload`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "paper-124",
+                "status": "FILLED",
+                "filledSize": "-1",
+                "fillPrice": "73100",
+                "exchange": "binance",
+                "symbol": "BTC",
+                "side": "BUY",
+                "type": "MARKET"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.placeOrder(
+            UnifiedOrderRequest(
+                exchange = ExchangeId.BINANCE,
+                symbol = "BTC",
+                side = Side.BUY,
+                type = OrderType.MARKET,
+                size = BigDecimal("0.5")
+            )
+        )
+
+        assertTrue(result is ApiResult.Error)
+        assertTrue((result as ApiResult.Error).message.contains("Invalid filledSize"))
+    }
+
+    @Test
     fun `test unified quote request URL-encodes symbol`() = runBlocking {
         val mockResponse = """
             {

@@ -157,6 +157,15 @@ class UnifiedExchangeClient internal constructor(
 
         val filledSize = payload["filledSize"].toBigDecimalOrNull() ?: BigDecimal.ZERO
         val fillPrice = payload["fillPrice"].toBigDecimalOrNull()
+        if (filledSize < BigDecimal.ZERO) {
+            return ApiResult.Error("Invalid filledSize in response from ${request.exchange.apiName}")
+        }
+        if (filledSize > request.size.abs()) {
+            return ApiResult.Error("filledSize exceeds requested size for ${request.exchange.apiName}")
+        }
+        if (fillPrice != null && fillPrice <= BigDecimal.ZERO) {
+            return ApiResult.Error("Invalid fillPrice in response from ${request.exchange.apiName}")
+        }
 
         return ApiResult.Success(
             UnifiedOrderResult(
