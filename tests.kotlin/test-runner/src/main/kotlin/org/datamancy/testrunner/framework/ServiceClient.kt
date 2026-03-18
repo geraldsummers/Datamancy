@@ -7,6 +7,10 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 /**
  * HTTP client abstraction for interacting with Datamancy stack services.
@@ -36,6 +40,155 @@ class ServiceClient(
     private val endpoints: ServiceEndpoints,
     private val client: HttpClient
 ) {
+    @Volatile
+    private var modelContextBearerToken: String? = null
+
+    private fun isModelContextUrl(url: String): Boolean {
+        return try {
+            val requested = URI(url)
+            val modelContext = URI(endpoints.modelContextServer)
+            requested.host == modelContext.host && requested.port == modelContext.port
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun decodeQueryParam(value: String): String =
+        URLDecoder.decode(value, StandardCharsets.UTF_8)
+
+    private fun extractQueryParam(url: String, param: String): String? {
+        val rawQuery = try {
+            URI(url).rawQuery
+        } catch (_: Exception) {
+            null
+        } ?: return null
+
+        return rawQuery.split("&")
+            .asSequence()
+            .mapNotNull { pair ->
+                val idx = pair.indexOf("=")
+                if (idx <= 0) return@mapNotNull null
+                val key = decodeQueryParam(pair.substring(0, idx))
+                val value = decodeQueryParam(pair.substring(idx + 1))
+                key to value
+            }
+            .firstOrNull { it.first == param }
+            ?.second
+    }
+
+    private suspend fun fetchModelContextBearerToken(): String? {
+        val autheliaBase = endpoints.authelia.trimEnd('/')
+        val clientId = System.getenv("MODEL_CONTEXT_OIDC_CLIENT_ID")
+            ?.takeIf { it.isNotBlank() }
+            ?: "test-runner"
+        val clientSecret = System.getenv("MODEL_CONTEXT_OIDC_CLIENT_SECRET")
+            ?.takeIf { it.isNotBlank() }
+            ?: System.getenv("TEST_RUNNER_OAUTH_SECRET")
+                ?.takeIf { it.isNotBlank() }
+        val username = System.getenv("MODEL_CONTEXT_OIDC_USERNAME")
+            ?.takeIf { it.isNotBlank() }
+            ?: System.getenv("STACK_ADMIN_USER")
+                ?.takeIf { it.isNotBlank() }
+        val password = System.getenv("MODEL_CONTEXT_OIDC_PASSWORD")
+            ?.takeIf { it.isNotBlank() }
+            ?: System.getenv("STACK_ADMIN_PASSWORD")
+                ?.takeIf { it.isNotBlank() }
+        val redirectUri = System.getenv("MODEL_CONTEXT_OIDC_REDIRECT_URI")
+            ?.takeIf { it.isNotBlank() }
+            ?: "http://test-runner/callback"
+        val scope = System.getenv("MODEL_CONTEXT_OIDC_SCOPE")
+            ?.takeIf { it.isNotBlank() }
+            ?: "openid profile email groups"
+
+        if (clientSecret == null || username == null || password == null) {
+            return null
+        }
+
+        val loginResponse = client.post("$autheliaBase/api/firstfactor") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("username", username)
+                put("password", password)
+                put("keepMeLoggedIn", false)
+            })
+        }
+
+        if (loginResponse.status != HttpStatusCode.OK) {
+            return null
+        }
+
+        val state = UUID.randomUUID().toString().replace("-", "")
+        val authorizeResponse = client.get("$autheliaBase/api/oidc/authorization") {
+            parameter("client_id", clientId)
+            parameter("redirect_uri", redirectUri)
+            parameter("response_type", "code")
+            parameter("scope", scope)
+            parameter("state", state)
+        }
+
+        val location = authorizeResponse.headers[HttpHeaders.Location] ?: return null
+        val code = extractQueryParam(location, "code") ?: return null
+
+        val tokenResponse = client.post("$autheliaBase/api/oidc/token") {
+            contentType(ContentType.Application.FormUrlEncoded)
+            basicAuth(clientId, clientSecret)
+            setBody(buildString {
+                append("grant_type=authorization_code")
+                append("&code=${code.encodeURLParameter()}")
+                append("&redirect_uri=${redirectUri.encodeURLParameter()}")
+            })
+        }
+
+        if (tokenResponse.status != HttpStatusCode.OK) {
+            return null
+        }
+
+        val json = Json.parseToJsonElement(tokenResponse.bodyAsText()).jsonObject
+        return json["access_token"]?.jsonPrimitive?.content
+            ?: json["id_token"]?.jsonPrimitive?.content
+    }
+
+    private suspend fun modelContextBearerToken(): String? {
+        modelContextBearerToken?.let { return it }
+
+        val staticToken = System.getenv("MODEL_CONTEXT_BEARER_TOKEN")
+            ?.takeIf { it.isNotBlank() }
+        if (staticToken != null) {
+            modelContextBearerToken = staticToken
+            return staticToken
+        }
+
+        val mintedToken = fetchModelContextBearerToken()
+        if (!mintedToken.isNullOrBlank()) {
+            modelContextBearerToken = mintedToken
+            return mintedToken
+        }
+
+        return null
+    }
+
+    private fun applyAuthHeaders(url: String, builder: HttpRequestBuilder, modelContextToken: String? = null) {
+        if (isModelContextUrl(url)) {
+            modelContextToken?.let { token ->
+                builder.header(HttpHeaders.Authorization, "Bearer $token")
+            }
+        }
+
+        // Add BookStack authentication
+        if (url.contains("/api/") && endpoints.bookstackTokenId != null && endpoints.bookstackTokenSecret != null) {
+            builder.header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
+        }
+
+        // Add Qdrant authentication
+        if (url.contains(endpoints.qdrant)) {
+            if (endpoints.qdrantApiKey != null) {
+                builder.header("api-key", endpoints.qdrantApiKey)
+            } else {
+                println("      ⚠️  WARNING: Qdrant URL detected but qdrantApiKey is null!")
+            }
+        }
+    }
+
     /**
      * Performs health check for core Datamancy services.
      *
@@ -84,10 +237,15 @@ class ServiceClient(
      */
     suspend fun callTool(name: String, args: Map<String, Any>): ToolResult {
         return try {
-            val response = client.post("${endpoints.modelContextServer}/call-tool") {
+            val url = "${endpoints.modelContextServer}/call-tool"
+            val modelContextToken = if (isModelContextUrl(url)) modelContextBearerToken() else null
+            val response = client.post(url) {
                 contentType(ContentType.Application.Json)
                 endpoints.userContext?.let { header("X-User-Context", it) }
-                endpoints.apiKey?.let { bearerAuth(it) }
+                if (modelContextToken == null) {
+                    endpoints.apiKey?.let { bearerAuth(it) }
+                }
+                applyAuthHeaders(url, this, modelContextToken)
                 setBody(ToolCallRequest(name, args.toJsonObject()))
             }
 
@@ -200,54 +358,50 @@ class ServiceClient(
      * @return Raw HTTP response for custom parsing
      */
     suspend fun getRawResponse(url: String): HttpResponse {
+        val modelContextToken = if (isModelContextUrl(url)) modelContextBearerToken() else null
         return client.get(url) {
-            // Add BookStack authentication
-            if (url.contains("/api/") && endpoints.bookstackTokenId != null && endpoints.bookstackTokenSecret != null) {
-                header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
-            }
-            // Add Qdrant authentication
-            if (url.contains(endpoints.qdrant)) {
-                if (endpoints.qdrantApiKey != null) {
-                    header("api-key", endpoints.qdrantApiKey)
-                } else {
-                    println("      ⚠️  WARNING: Qdrant URL detected but qdrantApiKey is null!")
-                }
-            }
+            applyAuthHeaders(url, this, modelContextToken)
         }
     }
 
     suspend fun getRawResponse(url: String, block: HttpRequestBuilder.() -> Unit): HttpResponse {
+        val modelContextToken = if (isModelContextUrl(url)) modelContextBearerToken() else null
         return client.get(url) {
-            // Add BookStack authentication
-            if (url.contains("/api/") && endpoints.bookstackTokenId != null && endpoints.bookstackTokenSecret != null) {
-                header("Authorization", "Token ${endpoints.bookstackTokenId}:${endpoints.bookstackTokenSecret}")
-            }
-            // Add Qdrant authentication
-            if (url.contains(endpoints.qdrant)) {
-                if (endpoints.qdrantApiKey != null) {
-                    header("api-key", endpoints.qdrantApiKey)
-                } else {
-                    println("      ⚠️  WARNING: Qdrant URL detected but qdrantApiKey is null!")
-                }
-            }
+            applyAuthHeaders(url, this, modelContextToken)
             block()
         }
     }
 
     suspend fun postRaw(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
-        return client.post(url, block)
+        val modelContextToken = if (isModelContextUrl(url)) modelContextBearerToken() else null
+        return client.post(url) {
+            applyAuthHeaders(url, this, modelContextToken)
+            block()
+        }
     }
 
     suspend fun putRaw(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
-        return client.put(url, block)
+        val modelContextToken = if (isModelContextUrl(url)) modelContextBearerToken() else null
+        return client.put(url) {
+            applyAuthHeaders(url, this, modelContextToken)
+            block()
+        }
     }
 
     suspend fun deleteRaw(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
-        return client.delete(url, block)
+        val modelContextToken = if (isModelContextUrl(url)) modelContextBearerToken() else null
+        return client.delete(url) {
+            applyAuthHeaders(url, this, modelContextToken)
+            block()
+        }
     }
 
     suspend fun requestRaw(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse {
-        return client.request(url, block)
+        val modelContextToken = if (isModelContextUrl(url)) modelContextBearerToken() else null
+        return client.request(url) {
+            applyAuthHeaders(url, this, modelContextToken)
+            block()
+        }
     }
 
     /**
@@ -271,9 +425,12 @@ class ServiceClient(
      */
     suspend fun queryMariaDB(query: String): MariaDbResult {
         return try {
-            val response = client.post("${endpoints.modelContextServer}/call-tool") {
+            val url = "${endpoints.modelContextServer}/call-tool"
+            val modelContextToken = if (isModelContextUrl(url)) modelContextBearerToken() else null
+            val response = client.post(url) {
                 contentType(ContentType.Application.Json)
                 endpoints.userContext?.let { header("X-User-Context", it) }
+                applyAuthHeaders(url, this, modelContextToken)
                 setBody(buildJsonObject {
                     put("name", "query_mariadb")
                     put("args", buildJsonObject {

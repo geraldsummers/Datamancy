@@ -12,8 +12,13 @@ import org.example.host.ToolRegistry
 import org.example.util.AuditLogger
 import java.net.InetSocketAddress
 import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.security.interfaces.RSAPublicKey
+import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.example.util.Json
@@ -95,11 +100,30 @@ internal class RequestAuthorizer {
     private val trustIdentityHeaders: Boolean = envOrPropBoolean("TOOLSERVER_TRUST_IDENTITY_HEADERS", false)
     private val jwksUrl: String = envOrProp("AUTHELIA_JWKS_URL")
         ?: "http://authelia:9091/.well-known/jwks.json"
+    private val userInfoUrl: String = envOrProp("AUTHELIA_USERINFO_URL")
+        ?: "http://authelia:9091/api/oidc/userinfo"
     private val issuer: String? = envOrProp("AUTHELIA_JWT_ISSUER")
     private val audience: Set<String> = envOrPropCsv("AUTHELIA_JWT_AUDIENCE")
+    private val userInfoTimeoutMs: Long = envOrProp("AUTHELIA_USERINFO_TIMEOUT_MS")
+        ?.toLongOrNull()
+        ?.coerceIn(250L, 15_000L)
+        ?: 3_000L
+    private val userInfoCacheTtlMs: Long = envOrProp("AUTHELIA_USERINFO_CACHE_TTL_MS")
+        ?.toLongOrNull()
+        ?.coerceAtLeast(1_000L)
+        ?: 60_000L
     private val jwkProvider = JwkProviderBuilder(URI(jwksUrl).toURL())
         .cached(10, 24, TimeUnit.HOURS)
         .build()
+    private val userInfoHttpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(3))
+        .build()
+    private val opaqueTokenCache = ConcurrentHashMap<String, CachedOpaqueToken>()
+
+    private data class CachedOpaqueToken(
+        val identity: RequestIdentity,
+        val expiresAtMs: Long
+    )
 
     fun authRequired(): Boolean = authRequired
 
@@ -109,7 +133,7 @@ internal class RequestAuthorizer {
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         if (bearer != null) {
-            return decodeJwtIdentity(bearer)
+            return decodeJwtIdentity(bearer) ?: resolveOpaqueTokenIdentity(bearer)
         }
         if (trustIdentityHeaders) {
             return extractHeaderIdentity(headers)
@@ -138,6 +162,74 @@ internal class RequestAuthorizer {
                 ?: emptySet()
             RequestIdentity(user = user, roles = groups)
         }.getOrNull()
+    }
+
+    private fun resolveOpaqueTokenIdentity(token: String): RequestIdentity? {
+        val now = System.currentTimeMillis()
+        opaqueTokenCache[token]?.let { cached ->
+            if (cached.expiresAtMs > now) {
+                return cached.identity
+            }
+            opaqueTokenCache.remove(token)
+        }
+
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(userInfoUrl))
+            .timeout(Duration.ofMillis(userInfoTimeoutMs))
+            .header("Authorization", "Bearer $token")
+            .header("Accept", "application/json")
+            .GET()
+            .build()
+
+        val response = runCatching {
+            userInfoHttpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        }.getOrNull() ?: return null
+
+        if (response.statusCode() != 200) {
+            return null
+        }
+
+        val userInfo = runCatching { Json.mapper.readTree(response.body()) }.getOrNull() ?: return null
+        val user = sequenceOf("preferred_username", "sub", "email", "name")
+            .mapNotNull { claim ->
+                userInfo.get(claim)
+                    ?.asText()
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() && it.lowercase() != "null" }
+            }
+            .firstOrNull()
+            ?: return null
+        val roles = parseGroups(userInfo.get("groups"))
+
+        val expSeconds = userInfo.get("exp")?.asLong()?.takeIf { it > 0L }
+        val expiryFromTokenMs = expSeconds?.times(1000L)
+        val expiresAtMs = when {
+            expiryFromTokenMs == null -> now + userInfoCacheTtlMs
+            expiryFromTokenMs <= now -> now + 1_000L
+            else -> minOf(expiryFromTokenMs, now + userInfoCacheTtlMs)
+        }
+
+        val identity = RequestIdentity(user = user, roles = roles)
+        opaqueTokenCache[token] = CachedOpaqueToken(identity = identity, expiresAtMs = expiresAtMs)
+        return identity
+    }
+
+    private fun parseGroups(groupsNode: JsonNode?): Set<String> {
+        return when {
+            groupsNode == null || groupsNode.isNull -> emptySet()
+            groupsNode.isArray -> groupsNode.mapNotNull { node ->
+                node.asText()
+                    ?.trim()
+                    ?.lowercase()
+                    ?.takeIf { it.isNotEmpty() && it != "null" }
+            }.toSet()
+            groupsNode.isTextual -> groupsNode.asText()
+                .split(',', ';', '|', ' ')
+                .map { it.trim().lowercase() }
+                .filter { it.isNotEmpty() }
+                .toSet()
+            else -> emptySet()
+        }
     }
 
     private fun extractHeaderIdentity(headers: Headers): RequestIdentity? {
