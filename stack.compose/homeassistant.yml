@@ -53,7 +53,7 @@ services:
       - ./configs/homeassistant/scenes.yaml:/config/scenes.yaml:rw
       - ./configs/homeassistant/init-homeassistant.sh:/init-homeassistant.sh:ro
       - ./configs/homeassistant/entrypoint.sh:/entrypoint-wrapper.sh:ro
-      - ./configs/homeassistant/auth_ldap.py:/usr/src/homeassistant/homeassistant/auth/providers/auth_ldap.py:ro
+      - ./configs/homeassistant/auth_ldap.py:/usr/src/homeassistant/homeassistant/auth/providers/ldap.py:ro
     entrypoint:
       - /entrypoint-wrapper.sh
     healthcheck:
