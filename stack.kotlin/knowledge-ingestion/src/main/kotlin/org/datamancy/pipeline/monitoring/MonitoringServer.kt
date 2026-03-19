@@ -10,7 +10,7 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import org.datamancy.pipeline.storage.DocumentStagingStore
 import org.datamancy.pipeline.storage.SourceMetadataStore
@@ -26,6 +26,23 @@ class MonitoringServer(
     private val apiKey: String? = System.getenv("MONITORING_API_KEY")  
 ) {
     private val server = AtomicReference<NettyApplicationEngine?>()
+
+    private suspend fun fetchQueueStatsWithTimeout(timeoutMs: Long = 3000): Map<String, Long>? {
+        if (stagingStore == null) {
+            return null
+        }
+        return withTimeoutOrNull(timeoutMs) { stagingStore.getStats() }
+    }
+
+    private suspend fun fetchQueueStatsBySourceWithTimeout(
+        source: String,
+        timeoutMs: Long = 3000
+    ): Map<String, Long>? {
+        if (stagingStore == null) {
+            return null
+        }
+        return withTimeoutOrNull(timeoutMs) { stagingStore.getStatsBySource(source) }
+    }
 
     
     private suspend fun ApplicationCall.requireAuth(): Boolean {
@@ -130,7 +147,14 @@ class MonitoringServer(
                         return@get
                     }
 
-                    val stats = runBlocking { stagingStore.getStats() }
+                    val stats = fetchQueueStatsWithTimeout()
+                    if (stats == null) {
+                        call.respond(QueueStatusResponse(
+                            available = false,
+                            message = "Queue monitoring timed out while reading staging stats"
+                        ))
+                        return@get
+                    }
 
                     call.respond(QueueStatusResponse(
                         available = true,
@@ -159,7 +183,15 @@ class MonitoringServer(
                         return@get
                     }
 
-                    val stats = runBlocking { stagingStore.getStatsBySource(source) }
+                    val stats = fetchQueueStatsBySourceWithTimeout(source)
+                    if (stats == null) {
+                        call.respond(SourceQueueStatusResponse(
+                            source = source,
+                            available = false,
+                            message = "Queue monitoring timed out while reading source stats"
+                        ))
+                        return@get
+                    }
 
                     call.respond(SourceQueueStatusResponse(
                         source = source,
