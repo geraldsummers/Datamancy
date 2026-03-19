@@ -15,6 +15,8 @@ import org.datamancy.txgateway.services.AuthService
 import org.datamancy.txgateway.services.DatabaseService
 import org.datamancy.txgateway.services.LdapService
 import org.datamancy.txgateway.services.LatestQuote
+import org.datamancy.txgateway.services.RiskDecision
+import org.datamancy.txgateway.services.RiskEngineService
 import org.datamancy.txgateway.services.WorkerClient
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
@@ -206,6 +208,53 @@ private data class PaperFillSlice(
     val price: String
 )
 
+@Serializable
+private data class RiskRejectionResponse(
+    val error: String,
+    val risk: RiskRejectionDetails
+)
+
+@Serializable
+private data class RiskRejectionDetails(
+    val allowed: Boolean,
+    val tier: String,
+    val action: String,
+    val reason: String,
+    val policyId: String? = null,
+    val policyVersion: Int? = null,
+    val suggestedMaxOrderNotionalUsd: String? = null,
+    val unwindSliceSeconds: Int? = null,
+    val unwindMaxSlippageBps: Double? = null,
+    val metrics: RiskRejectionMetrics,
+    val sentiment: RiskRejectionSentiment? = null
+)
+
+@Serializable
+private data class RiskRejectionMetrics(
+    val currentExposureUsd: String,
+    val projectedExposureUsd: String,
+    val accountEquityUsd: String,
+    val highWaterMarkUsd: String,
+    val dailyLossUsd: String,
+    val leverage: Double,
+    val exposureUtilization: Double,
+    val drawdownPct: Double,
+    val drawdownUtilization: Double,
+    val dailyLossUtilization: Double,
+    val leverageUtilization: Double
+)
+
+@Serializable
+private data class RiskRejectionSentiment(
+    val symbol: String,
+    val sentimentScore: Double,
+    val confidence: Double,
+    val observedAt: String,
+    val modelName: String? = null,
+    val source: String? = null,
+    val label: String? = null
+)
+
 private enum class UrgencyClass {
     LOW,
     NORMAL,
@@ -224,6 +273,7 @@ fun Route.unifiedExchangeRoutes(
     workerClient: WorkerClient,
     dbService: DatabaseService
 ) {
+    val riskEngine = RiskEngineService(dbService)
     route("/api/v1") {
         get("/health") {
             call.respond(
@@ -617,6 +667,17 @@ fun Route.unifiedExchangeRoutes(
                         return@post
                     }
 
+                    val riskDecision = riskEngine.evaluateOrder(
+                        username = username,
+                        symbol = orderRequest.symbol,
+                        orderNotionalUsd = estimatedNotionalUsd,
+                        reduceOnly = orderRequest.reduceOnly
+                    )
+                    if (!riskDecision.allowed) {
+                        call.respond(HttpStatusCode.Conflict, riskDecision.toRejectionPayload())
+                        return@post
+                    }
+
                     val paperResult = runCatching {
                         buildPaperOrderResponse(exchange = exchange, orderRequest = orderRequest, quote = quote)
                     }.getOrElse { error ->
@@ -631,6 +692,15 @@ fun Route.unifiedExchangeRoutes(
                         response = paperResult.toString(),
                         status = "success"
                     )
+
+                    if (paperResult.status == "FILLED" || paperResult.status == "PARTIALLY_FILLED") {
+                        riskEngine.recordAcceptedOrder(
+                            username = username,
+                            notionalUsd = paperResult.estimatedExecutedNotionalUsd()
+                                ?: estimatedNotionalUsd,
+                            reduceOnly = orderRequest.reduceOnly
+                        )
+                    }
 
                     call.respond(HttpStatusCode.OK, paperResult)
                     return@post
@@ -697,6 +767,17 @@ fun Route.unifiedExchangeRoutes(
                     return@post
                 }
 
+                val riskDecision = riskEngine.evaluateOrder(
+                    username = username,
+                    symbol = orderRequest.symbol,
+                    orderNotionalUsd = estimatedNotionalUsd,
+                    reduceOnly = orderRequest.reduceOnly
+                )
+                if (!riskDecision.allowed) {
+                    call.respond(HttpStatusCode.Conflict, riskDecision.toRejectionPayload())
+                    return@post
+                }
+
                 val liveExecutionPreview = quoteForRisk?.let { quote ->
                     runCatching {
                         buildPaperOrderResponse(exchange = exchange, orderRequest = orderRequest, quote = quote)
@@ -746,6 +827,12 @@ fun Route.unifiedExchangeRoutes(
                         request = requestLog.toString(),
                         response = result.toString(),
                         status = "success"
+                    )
+
+                    riskEngine.recordAcceptedOrder(
+                        username = username,
+                        notionalUsd = estimatedNotionalUsd,
+                        reduceOnly = orderRequest.reduceOnly
                     )
 
                     call.respond(HttpStatusCode.OK, result)
@@ -1403,6 +1490,54 @@ private fun LatestQuote.isFreshSnapshot(
     val ageMs = quoteAgeMs(referenceTime)
     if (ageMs < -5_000L) return false
     return ageMs <= maxQuoteAgeMs
+}
+
+private fun PaperOrderResponse.estimatedExecutedNotionalUsd(): BigDecimal? {
+    val fillPx = fillPrice?.toBigDecimalOrNull() ?: return null
+    val filled = filledSize.toBigDecimalOrNull() ?: return null
+    if (fillPx <= BigDecimal.ZERO || filled <= BigDecimal.ZERO) return null
+    return fillPx.multiply(filled)
+}
+
+private fun RiskDecision.toRejectionPayload(): RiskRejectionResponse {
+    return RiskRejectionResponse(
+        error = "Order blocked by risk engine",
+        risk = RiskRejectionDetails(
+            allowed = allowed,
+            tier = tier.name.lowercase(),
+            action = action.name.lowercase(),
+            reason = reason,
+            policyId = policyId,
+            policyVersion = policyVersion,
+            suggestedMaxOrderNotionalUsd = suggestedMaxOrderNotionalUsd?.toPlainString(),
+            unwindSliceSeconds = unwindSliceSeconds,
+            unwindMaxSlippageBps = unwindMaxSlippageBps,
+            metrics = RiskRejectionMetrics(
+                currentExposureUsd = metrics.currentExposureUsd.toPlainString(),
+                projectedExposureUsd = metrics.projectedExposureUsd.toPlainString(),
+                accountEquityUsd = metrics.accountEquityUsd.toPlainString(),
+                highWaterMarkUsd = metrics.highWaterMarkUsd.toPlainString(),
+                dailyLossUsd = metrics.dailyLossUsd.toPlainString(),
+                leverage = metrics.leverage,
+                exposureUtilization = metrics.exposureUtilization,
+                drawdownPct = metrics.drawdownPct,
+                drawdownUtilization = metrics.drawdownUtilization,
+                dailyLossUtilization = metrics.dailyLossUtilization,
+                leverageUtilization = metrics.leverageUtilization
+            ),
+            sentiment = sentiment?.let {
+                RiskRejectionSentiment(
+                    symbol = it.symbol,
+                    sentimentScore = it.sentimentScore,
+                    confidence = it.confidence,
+                    observedAt = it.observedAt.toString(),
+                    modelName = it.modelName,
+                    source = it.source,
+                    label = it.sentimentLabel
+                )
+            }
+        )
+    )
 }
 
 private suspend fun extractAuthenticatedUsername(

@@ -10,6 +10,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.datamancy.txgateway.services.*
 import java.time.Instant
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -1123,5 +1124,115 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(body.contains("Fresh quote snapshot required for live order risk checks"), body)
         verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
+    }
+
+    @Test
+    fun testUnifiedOrderRejectsWhenRiskEngineBlocksNewExposure() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25_000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 99.0,
+                ask = 100.0,
+                last = 99.5,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            every { dbService.getActiveRiskPolicyForUser("trader1") } returns RiskPolicyRecord(
+                id = UUID.randomUUID(),
+                username = "trader1",
+                walletAddress = null,
+                version = 2,
+                status = "active",
+                policyJson = """
+                    {
+                      "maxExposureUsd": 1000.0,
+                      "maxLeverage": 5.0,
+                      "maxDrawdownPct": 50.0,
+                      "maxDailyLossUsd": 10000.0,
+                      "approachTrigger": 0.8,
+                      "unwindTrigger": 1.0,
+                      "hardKillTrigger": 5.0
+                    }
+                """.trimIndent(),
+                createdBy = "trader1",
+                createdAt = freshQuoteTimestamp(),
+                activatedAt = freshQuoteTimestamp(),
+                activatedByWallet = null,
+                activationSignature = null,
+                activationNonce = null,
+                activationMessage = null,
+                isBootstrap = false
+            )
+            every { dbService.getOrCreateRiskAccountState("trader1") } returns RiskAccountStateRecord(
+                username = "trader1",
+                accountEquityUsd = java.math.BigDecimal("1000"),
+                highWaterMarkUsd = java.math.BigDecimal("1000"),
+                realizedPnlUsd = java.math.BigDecimal.ZERO,
+                unrealizedPnlUsd = java.math.BigDecimal.ZERO,
+                dailyRealizedPnlUsd = java.math.BigDecimal.ZERO,
+                dailyUnrealizedPnlUsd = java.math.BigDecimal.ZERO,
+                openExposureUsd = java.math.BigDecimal("790"),
+                sentimentScore = 0.0,
+                sentimentConfidence = 1.0,
+                riskTier = "normal",
+                tierReason = null,
+                updatedAt = freshQuoteTimestamp()
+            )
+            every { dbService.getRiskKillSwitchState("trader1") } returns null
+            every { dbService.fetchLatestSentiment("BTC", any()) } returns null
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"1"}""")
+        }
+
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Order blocked by risk engine"), body)
+        assertTrue(body.contains("approaching"), body)
+    }
+
+    @Test
+    fun testLegacyHyperliquidOrderEndpointIsDeprecated() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/hyperliquid/order") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"1"}""")
+        }
+
+        assertEquals(HttpStatusCode.Gone, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Endpoint deprecated"), body)
     }
 }

@@ -32,16 +32,16 @@ class RssSentimentSignalStore(
                     """
                     INSERT INTO rss_sentiment_signals (
                         observed_at, symbol, source, article_title, article_url,
-                        sentiment_score, confidence, model_name, metadata
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)
+                        sentiment_score, confidence, sentiment_label, provider, explanation, model_name, metadata
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)
                     ON CONFLICT DO NOTHING
                     """.trimIndent()
                 } else {
                     """
                     INSERT INTO rss_sentiment_signals (
                         observed_at, symbol, source, article_title, article_url,
-                        sentiment_score, confidence, model_name, metadata
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        sentiment_score, confidence, sentiment_label, provider, explanation, model_name, metadata
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """.trimIndent()
                 }
 
@@ -54,8 +54,11 @@ class RssSentimentSignalStore(
                         statement.setString(5, signal.articleUrl)
                         statement.setDouble(6, signal.sentimentScore)
                         statement.setDouble(7, signal.confidence)
-                        statement.setString(8, signal.modelName)
-                        statement.setString(9, json.encodeToString(signal.metadata))
+                        statement.setString(8, signal.sentimentLabel)
+                        statement.setString(9, signal.provider)
+                        statement.setString(10, signal.explanation)
+                        statement.setString(11, signal.modelName)
+                        statement.setString(12, json.encodeToString(signal.metadata))
                         statement.addBatch()
                     }
                     statement.executeBatch()
@@ -83,12 +86,20 @@ class RssSentimentSignalStore(
                         article_url TEXT,
                         sentiment_score DOUBLE PRECISION NOT NULL,
                         confidence DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                        sentiment_label TEXT NOT NULL DEFAULT 'neutral',
+                        provider TEXT,
+                        explanation TEXT,
                         model_name TEXT,
                         metadata JSONB NOT NULL DEFAULT '{}'::jsonb
                     )
                     """.trimIndent(),
+                    "ALTER TABLE rss_sentiment_signals ADD COLUMN IF NOT EXISTS sentiment_label TEXT NOT NULL DEFAULT 'neutral'",
+                    "ALTER TABLE rss_sentiment_signals ADD COLUMN IF NOT EXISTS provider TEXT",
+                    "ALTER TABLE rss_sentiment_signals ADD COLUMN IF NOT EXISTS explanation TEXT",
                     "CREATE INDEX IF NOT EXISTS idx_rss_sentiment_time ON rss_sentiment_signals (observed_at DESC)",
                     "CREATE INDEX IF NOT EXISTS idx_rss_sentiment_symbol_time ON rss_sentiment_signals (symbol, observed_at DESC)",
+                    "CREATE INDEX IF NOT EXISTS idx_rss_sentiment_source_time ON rss_sentiment_signals (source, observed_at DESC)",
+                    "CREATE INDEX IF NOT EXISTS idx_rss_sentiment_label_time ON rss_sentiment_signals (sentiment_label, observed_at DESC)",
                     """
                     CREATE UNIQUE INDEX IF NOT EXISTS idx_rss_sentiment_dedupe
                     ON rss_sentiment_signals (
@@ -112,6 +123,9 @@ class RssSentimentSignalStore(
                         article_url CLOB,
                         sentiment_score DOUBLE NOT NULL,
                         confidence DOUBLE NOT NULL DEFAULT 0.0,
+                        sentiment_label VARCHAR(16) NOT NULL DEFAULT 'neutral',
+                        provider VARCHAR(128),
+                        explanation CLOB,
                         model_name VARCHAR(255),
                         metadata CLOB NOT NULL
                     )

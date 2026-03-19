@@ -14,6 +14,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.datamancy.txgateway.routes.evmRoutes
 import org.datamancy.txgateway.routes.hyperliquidRoutes
+import org.datamancy.txgateway.routes.riskRoutes
 import org.datamancy.txgateway.routes.unifiedExchangeRoutes
 import org.datamancy.txgateway.services.*
 import org.slf4j.LoggerFactory
@@ -75,6 +76,8 @@ fun Application.configureApp(
     workerClient: WorkerClient,
     dbService: DatabaseService
 ) {
+    val riskEngineService = RiskEngineService(dbService)
+    val walletSignatureService = WalletSignatureService()
     val corsAllowedOrigins = parseCsvEnv("TXG_CORS_ALLOWED_ORIGINS")
     val wildcardCors = corsAllowedOrigins.any { it == "*" }
 
@@ -227,10 +230,13 @@ fun Application.configureApp(
                     "/api/v1/exchanges/best-quote?symbol=BTC&side=buy",
                     "/api/v1/exchanges/{exchange}/quote?symbol=BTC",
                     "/api/v1/exchanges/{exchange}/order",
-                    "/api/v1/hyperliquid/order",
                     "/api/v1/hyperliquid/cancel/{orderId}",
                     "/api/v1/hyperliquid/positions",
                     "/api/v1/hyperliquid/balance",
+                    "/api/v1/risk/policy/active",
+                    "/api/v1/risk/policies",
+                    "/api/v1/risk/state",
+                    "/api/v1/risk/kill-switch",
                     "/api/v1/evm/transfer",
                     "/api/v1/evm/addressbook/{user}"
                   ]
@@ -241,6 +247,7 @@ fun Application.configureApp(
         hyperliquidRoutes(authService, ldapService, workerClient, dbService)
         evmRoutes(authService, ldapService, workerClient, dbService)
         unifiedExchangeRoutes(authService, ldapService, workerClient, dbService)
+        riskRoutes(authService, dbService, riskEngineService, walletSignatureService)
     }
 
     logger.info("tx-gateway started on port ${environment.config.propertyOrNull("ktor.deployment.port")?.getString() ?: "8080"}")

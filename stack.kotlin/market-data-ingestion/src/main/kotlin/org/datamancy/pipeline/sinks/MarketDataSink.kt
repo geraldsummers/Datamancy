@@ -7,6 +7,7 @@ import org.datamancy.pipeline.core.Sink
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidMarketData
 import org.datamancy.pipeline.sources.HyperliquidOrderbook
+import org.datamancy.pipeline.sources.HyperliquidOrderbookLevel
 import org.datamancy.pipeline.sources.HyperliquidTrade
 import java.math.BigDecimal
 import java.sql.Connection
@@ -67,8 +68,9 @@ class MarketDataSink(
     private var orderbookWriteMode: OrderbookWriteMode? = null
 
     private enum class OrderbookWriteMode {
-        TOP_OF_BOOK,
-        JSON_DEPTH
+        TOP_OF_BOOK_LEGACY,
+        JSON_DEPTH_LEGACY,
+        JSON_DEPTH_CANONICAL
     }
 
     override suspend fun write(item: HyperliquidMarketData) {
@@ -245,14 +247,16 @@ class MarketDataSink(
             dataSource.connection.use { conn ->
                 conn.autoCommit = false
                 try {
+                    ensureCanonicalOrderbookSchema(conn)
                     val writeMode = orderbookWriteMode ?: detectOrderbookWriteMode(conn).also {
                         orderbookWriteMode = it
                         logger.info { "Detected orderbook_data write mode: $it" }
                     }
 
                     when (writeMode) {
-                        OrderbookWriteMode.TOP_OF_BOOK -> flushOrderbooksTopOfBook(conn, orderbooks)
-                        OrderbookWriteMode.JSON_DEPTH -> flushOrderbooksJson(conn, orderbooks)
+                        OrderbookWriteMode.TOP_OF_BOOK_LEGACY -> flushOrderbooksTopOfBook(conn, orderbooks)
+                        OrderbookWriteMode.JSON_DEPTH_LEGACY -> flushOrderbooksJsonLegacy(conn, orderbooks)
+                        OrderbookWriteMode.JSON_DEPTH_CANONICAL -> flushOrderbooksJsonCanonical(conn, orderbooks)
                     }
 
                     conn.commit()
@@ -269,6 +273,29 @@ class MarketDataSink(
                 orderbookBatch.addAll(0, orderbooks)
             }
             throw e
+        }
+    }
+
+    private fun ensureCanonicalOrderbookSchema(conn: Connection) {
+        val statements = listOf(
+            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS bids JSONB NOT NULL DEFAULT '[]'::jsonb",
+            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS asks JSONB NOT NULL DEFAULT '[]'::jsonb",
+            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS best_bid DOUBLE PRECISION",
+            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS best_ask DOUBLE PRECISION",
+            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS spread DOUBLE PRECISION",
+            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS spread_pct DOUBLE PRECISION",
+            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS mid_price DOUBLE PRECISION",
+            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS bid_depth_10 DOUBLE PRECISION",
+            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS ask_depth_10 DOUBLE PRECISION"
+        )
+
+        conn.createStatement().use { stmt ->
+            statements.forEach { sql ->
+                runCatching { stmt.execute(sql) }
+                    .onFailure { e ->
+                        logger.debug { "Skipping optional schema upgrade statement '$sql': ${e.message}" }
+                    }
+            }
         }
     }
 
@@ -290,9 +317,23 @@ class MarketDataSink(
 
         return when {
             columns.containsAll(listOf("bid_price", "bid_size", "ask_price", "ask_size")) ->
-                OrderbookWriteMode.TOP_OF_BOOK
+                OrderbookWriteMode.TOP_OF_BOOK_LEGACY
+            columns.containsAll(
+                listOf(
+                    "bids",
+                    "asks",
+                    "best_bid",
+                    "best_ask",
+                    "spread",
+                    "spread_pct",
+                    "mid_price",
+                    "bid_depth_10",
+                    "ask_depth_10"
+                )
+            ) ->
+                OrderbookWriteMode.JSON_DEPTH_CANONICAL
             columns.containsAll(listOf("bids", "asks")) ->
-                OrderbookWriteMode.JSON_DEPTH
+                OrderbookWriteMode.JSON_DEPTH_LEGACY
             else ->
                 error("Unsupported orderbook_data schema. Columns=${columns.sorted().joinToString(",")}")
         }
@@ -330,7 +371,7 @@ class MarketDataSink(
         }
     }
 
-    private fun flushOrderbooksJson(conn: Connection, orderbooks: List<HyperliquidOrderbook>) {
+    private fun flushOrderbooksJsonLegacy(conn: Connection, orderbooks: List<HyperliquidOrderbook>) {
         val sql = """
             INSERT INTO orderbook_data (time, symbol, exchange, bids, asks)
             VALUES (?, ?, ?, ?::jsonb, ?::jsonb)
@@ -341,17 +382,8 @@ class MarketDataSink(
 
         conn.prepareStatement(sql).use { stmt ->
             orderbooks.forEach { orderbook ->
-                val bidsJson = orderbook.bids.joinToString(
-                    prefix = "[",
-                    postfix = "]",
-                    separator = ","
-                ) { """{"price":${it.price},"size":${it.size}}""" }
-
-                val asksJson = orderbook.asks.joinToString(
-                    prefix = "[",
-                    postfix = "]",
-                    separator = ","
-                ) { """{"price":${it.price},"size":${it.size}}""" }
+                val bidsJson = levelsToJson(orderbook.bids)
+                val asksJson = levelsToJson(orderbook.asks)
 
                 stmt.setTimestamp(1, Timestamp.from(orderbook.time))
                 stmt.setString(2, orderbook.symbol)
@@ -361,6 +393,85 @@ class MarketDataSink(
                 stmt.addBatch()
             }
             stmt.executeBatch()
+        }
+    }
+
+    private fun flushOrderbooksJsonCanonical(conn: Connection, orderbooks: List<HyperliquidOrderbook>) {
+        val sql = """
+            INSERT INTO orderbook_data (
+                time,
+                symbol,
+                exchange,
+                bids,
+                asks,
+                best_bid,
+                best_ask,
+                spread,
+                spread_pct,
+                mid_price,
+                bid_depth_10,
+                ask_depth_10
+            )
+            VALUES (?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (time, symbol, exchange) DO UPDATE SET
+                bids = EXCLUDED.bids,
+                asks = EXCLUDED.asks,
+                best_bid = EXCLUDED.best_bid,
+                best_ask = EXCLUDED.best_ask,
+                spread = EXCLUDED.spread,
+                spread_pct = EXCLUDED.spread_pct,
+                mid_price = EXCLUDED.mid_price,
+                bid_depth_10 = EXCLUDED.bid_depth_10,
+                ask_depth_10 = EXCLUDED.ask_depth_10
+        """.trimIndent()
+
+        conn.prepareStatement(sql).use { stmt ->
+            orderbooks.forEach { orderbook ->
+                val sortedBids = orderbook.bids.sortedByDescending { it.price }
+                val sortedAsks = orderbook.asks.sortedBy { it.price }
+                val bestBid = sortedBids.firstOrNull()
+                val bestAsk = sortedAsks.firstOrNull()
+                val spread = if (bestBid != null && bestAsk != null) {
+                    (bestAsk.price - bestBid.price).coerceAtLeast(0.0)
+                } else {
+                    0.0
+                }
+                val midPrice = if (bestBid != null && bestAsk != null) {
+                    (bestAsk.price + bestBid.price) / 2.0
+                } else {
+                    null
+                }
+                val spreadPct = if (midPrice != null && midPrice > 0.0) {
+                    (spread / midPrice) * 100.0
+                } else {
+                    null
+                }
+                val bidDepth10 = sortedBids.take(10).sumOf { it.size }
+                val askDepth10 = sortedAsks.take(10).sumOf { it.size }
+
+                stmt.setTimestamp(1, Timestamp.from(orderbook.time))
+                stmt.setString(2, orderbook.symbol)
+                stmt.setString(3, "hyperliquid")
+                stmt.setString(4, levelsToJson(sortedBids))
+                stmt.setString(5, levelsToJson(sortedAsks))
+                if (bestBid != null) stmt.setBigDecimal(6, BigDecimal.valueOf(bestBid.price)) else stmt.setNull(6, java.sql.Types.NUMERIC)
+                if (bestAsk != null) stmt.setBigDecimal(7, BigDecimal.valueOf(bestAsk.price)) else stmt.setNull(7, java.sql.Types.NUMERIC)
+                stmt.setBigDecimal(8, BigDecimal.valueOf(spread))
+                if (spreadPct != null) stmt.setBigDecimal(9, BigDecimal.valueOf(spreadPct)) else stmt.setNull(9, java.sql.Types.NUMERIC)
+                if (midPrice != null) stmt.setBigDecimal(10, BigDecimal.valueOf(midPrice)) else stmt.setNull(10, java.sql.Types.NUMERIC)
+                stmt.setBigDecimal(11, BigDecimal.valueOf(bidDepth10))
+                stmt.setBigDecimal(12, BigDecimal.valueOf(askDepth10))
+                stmt.addBatch()
+            }
+            stmt.executeBatch()
+        }
+    }
+
+    private fun levelsToJson(levels: List<HyperliquidOrderbookLevel>): String {
+        return levels.joinToString(prefix = "[", postfix = "]", separator = ",") { level ->
+            val px = BigDecimal.valueOf(level.price).stripTrailingZeros().toPlainString()
+            val sz = BigDecimal.valueOf(level.size).stripTrailingZeros().toPlainString()
+            """{"price":$px,"size":$sz}"""
         }
     }
 

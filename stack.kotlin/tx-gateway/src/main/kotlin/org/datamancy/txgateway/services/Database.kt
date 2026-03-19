@@ -6,9 +6,11 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.javatime.timestamp
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.math.BigDecimal
 import java.sql.SQLException
-import java.time.Instant
 import java.sql.Timestamp
+import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 data class SchemaOverview(
@@ -36,6 +38,84 @@ data class TxHistoryRecord(
     val response: String?,
     val errorMessage: String?,
     val timestamp: Instant
+)
+
+data class RiskPolicyRecord(
+    val id: UUID,
+    val username: String,
+    val walletAddress: String?,
+    val version: Int,
+    val status: String,
+    val policyJson: String,
+    val createdBy: String,
+    val createdAt: Instant,
+    val activatedAt: Instant?,
+    val activatedByWallet: String?,
+    val activationSignature: String?,
+    val activationNonce: String?,
+    val activationMessage: String?,
+    val isBootstrap: Boolean
+)
+
+data class RiskActivationChallengeRecord(
+    val id: Long,
+    val policyId: UUID,
+    val username: String,
+    val walletAddress: String,
+    val nonce: String,
+    val challengeMessage: String,
+    val expiresAt: Instant,
+    val consumedAt: Instant?,
+    val createdAt: Instant
+)
+
+data class RiskAccountStateRecord(
+    val username: String,
+    val accountEquityUsd: BigDecimal,
+    val highWaterMarkUsd: BigDecimal,
+    val realizedPnlUsd: BigDecimal,
+    val unrealizedPnlUsd: BigDecimal,
+    val dailyRealizedPnlUsd: BigDecimal,
+    val dailyUnrealizedPnlUsd: BigDecimal,
+    val openExposureUsd: BigDecimal,
+    val sentimentScore: Double?,
+    val sentimentConfidence: Double?,
+    val riskTier: String,
+    val tierReason: String?,
+    val updatedAt: Instant
+)
+
+data class RiskAccountStatePatch(
+    val accountEquityUsd: BigDecimal? = null,
+    val realizedPnlUsd: BigDecimal? = null,
+    val unrealizedPnlUsd: BigDecimal? = null,
+    val dailyRealizedPnlUsd: BigDecimal? = null,
+    val dailyUnrealizedPnlUsd: BigDecimal? = null,
+    val openExposureUsd: BigDecimal? = null,
+    val highWaterMarkUsd: BigDecimal? = null
+)
+
+data class RiskKillSwitchStateRecord(
+    val username: String,
+    val engaged: Boolean,
+    val reason: String?,
+    val engagedAt: Instant?,
+    val engagedBy: String?,
+    val manualAckRequired: Boolean,
+    val acknowledgedAt: Instant?,
+    val acknowledgedBy: String?,
+    val ackNote: String?,
+    val updatedAt: Instant
+)
+
+data class SentimentSnapshot(
+    val symbol: String,
+    val sentimentScore: Double,
+    val confidence: Double,
+    val observedAt: Instant,
+    val modelName: String?,
+    val source: String?,
+    val sentimentLabel: String?
 )
 
 object TxAuditLog : Table("tx_audit_log") {
@@ -143,6 +223,8 @@ class DatabaseService(
 
                 dataSource = candidateDataSource
                 initializeQuoteDataSource()
+                ensureRiskTables()
+                ensureBootstrapRiskPolicy()
                 logger.info("Database initialized successfully")
                 return
             } catch (e: Exception) {
@@ -229,6 +311,139 @@ class DatabaseService(
             marketDataSource = null
         }
     }
+
+    private fun ensureRiskTables() {
+        val ddl = listOf(
+            """
+            CREATE TABLE IF NOT EXISTS risk_policy_versions (
+                id UUID PRIMARY KEY,
+                username TEXT NOT NULL,
+                wallet_address TEXT,
+                version INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                policy_json JSONB NOT NULL,
+                created_by TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                activated_at TIMESTAMPTZ,
+                activated_by_wallet TEXT,
+                activation_signature TEXT,
+                activation_nonce TEXT,
+                activation_message TEXT,
+                is_bootstrap BOOLEAN NOT NULL DEFAULT FALSE
+            )
+            """.trimIndent(),
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_risk_policy_versions_user_version
+                ON risk_policy_versions (username, version)
+            """.trimIndent(),
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_risk_policy_versions_user_active
+                ON risk_policy_versions (username)
+                WHERE status = 'active'
+            """.trimIndent(),
+            """
+            CREATE TABLE IF NOT EXISTS risk_policy_activation_nonces (
+                id BIGSERIAL PRIMARY KEY,
+                policy_id UUID NOT NULL,
+                username TEXT NOT NULL,
+                wallet_address TEXT NOT NULL,
+                nonce TEXT NOT NULL,
+                challenge_message TEXT NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                consumed_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """.trimIndent(),
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_risk_activation_nonce_unique
+                ON risk_policy_activation_nonces (policy_id, wallet_address, nonce)
+            """.trimIndent(),
+            """
+            CREATE TABLE IF NOT EXISTS risk_account_state (
+                username TEXT PRIMARY KEY,
+                account_equity_usd NUMERIC(20, 8) NOT NULL DEFAULT 100000,
+                high_water_mark_usd NUMERIC(20, 8) NOT NULL DEFAULT 100000,
+                realized_pnl_usd NUMERIC(20, 8) NOT NULL DEFAULT 0,
+                unrealized_pnl_usd NUMERIC(20, 8) NOT NULL DEFAULT 0,
+                daily_realized_pnl_usd NUMERIC(20, 8) NOT NULL DEFAULT 0,
+                daily_unrealized_pnl_usd NUMERIC(20, 8) NOT NULL DEFAULT 0,
+                open_exposure_usd NUMERIC(20, 8) NOT NULL DEFAULT 0,
+                sentiment_score DOUBLE PRECISION,
+                sentiment_confidence DOUBLE PRECISION,
+                risk_tier TEXT NOT NULL DEFAULT 'normal',
+                tier_reason TEXT,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """.trimIndent(),
+            """
+            CREATE TABLE IF NOT EXISTS risk_kill_switch_state (
+                username TEXT PRIMARY KEY,
+                engaged BOOLEAN NOT NULL DEFAULT FALSE,
+                reason TEXT,
+                engaged_at TIMESTAMPTZ,
+                engaged_by TEXT,
+                manual_ack_required BOOLEAN NOT NULL DEFAULT TRUE,
+                acknowledged_at TIMESTAMPTZ,
+                acknowledged_by TEXT,
+                ack_note TEXT,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """.trimIndent()
+        )
+
+        dataSource.connection.use { conn ->
+            conn.createStatement().use { stmt ->
+                ddl.forEach(stmt::execute)
+            }
+        }
+    }
+
+    private fun ensureBootstrapRiskPolicy() {
+        val existingSql = """
+            SELECT id
+            FROM risk_policy_versions
+            WHERE username = '*' AND status = 'active'
+            LIMIT 1
+        """.trimIndent()
+        val insertSql = """
+            INSERT INTO risk_policy_versions (
+                id, username, wallet_address, version, status, policy_json, created_by, is_bootstrap
+            ) VALUES (?, '*', NULL, 1, 'active', ?::jsonb, 'system-bootstrap', TRUE)
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(existingSql).use { stmt ->
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) return
+                }
+            }
+            conn.prepareStatement(insertSql).use { stmt ->
+                stmt.setObject(1, UUID.randomUUID())
+                stmt.setString(2, defaultBootstrapRiskPolicyJson())
+                stmt.executeUpdate()
+            }
+            logger.info("Created bootstrap risk policy for global scope")
+        }
+    }
+
+    private fun defaultBootstrapRiskPolicyJson(): String = """
+        {
+          "maxExposureUsd": 25000.0,
+          "maxLeverage": 2.5,
+          "maxDrawdownPct": 8.0,
+          "maxDailyLossUsd": 2500.0,
+          "approachTrigger": 0.8,
+          "unwindTrigger": 1.0,
+          "hardKillTrigger": 1.15,
+          "unwindSliceSeconds": 45,
+          "unwindMaxSlippageBps": 35.0,
+          "manualAckRequired": true,
+          "requireSentimentSignal": false,
+          "sentimentLookbackMinutes": 180,
+          "sentimentEscalationScore": -0.6,
+          "sentimentEscalationConfidence": 0.65
+        }
+    """.trimIndent()
 
     fun logTransaction(
         username: String,
@@ -394,7 +609,629 @@ class DatabaseService(
         return records
     }
 
+    fun createRiskPolicyVersion(
+        username: String,
+        policyJson: String,
+        createdBy: String,
+        walletAddress: String? = null
+    ): RiskPolicyRecord {
+        val policyId = UUID.randomUUID()
+        val normalizedUser = username.trim().lowercase()
+        val normalizedWallet = walletAddress?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+
+        val nextVersionSql = """
+            SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+            FROM risk_policy_versions
+            WHERE username = ?
+        """.trimIndent()
+        val insertSql = """
+            INSERT INTO risk_policy_versions (
+                id, username, wallet_address, version, status, policy_json, created_by, is_bootstrap
+            ) VALUES (?, ?, ?, ?, 'draft', ?::jsonb, ?, FALSE)
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            val nextVersion = conn.prepareStatement(nextVersionSql).use { stmt ->
+                stmt.setString(1, normalizedUser)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) rs.getInt("next_version") else 1
+                }
+            }
+            conn.prepareStatement(insertSql).use { stmt ->
+                stmt.setObject(1, policyId)
+                stmt.setString(2, normalizedUser)
+                stmt.setString(3, normalizedWallet)
+                stmt.setInt(4, nextVersion)
+                stmt.setString(5, policyJson)
+                stmt.setString(6, createdBy)
+                stmt.executeUpdate()
+            }
+        }
+
+        return getRiskPolicyById(normalizedUser, policyId)
+            ?: error("Failed to read created risk policy $policyId")
+    }
+
+    fun listRiskPolicies(username: String, includeBootstrap: Boolean = true): List<RiskPolicyRecord> {
+        val normalizedUser = username.trim().lowercase()
+        val sql = if (includeBootstrap) {
+            """
+            SELECT *
+            FROM risk_policy_versions
+            WHERE username = ? OR username = '*'
+            ORDER BY created_at DESC, version DESC
+            """.trimIndent()
+        } else {
+            """
+            SELECT *
+            FROM risk_policy_versions
+            WHERE username = ?
+            ORDER BY created_at DESC, version DESC
+            """.trimIndent()
+        }
+
+        val policies = mutableListOf<RiskPolicyRecord>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, normalizedUser)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        policies += rs.toRiskPolicyRecord()
+                    }
+                }
+            }
+        }
+        return policies
+    }
+
+    fun getRiskPolicyById(username: String, policyId: UUID): RiskPolicyRecord? {
+        val normalizedUser = username.trim().lowercase()
+        val sql = """
+            SELECT *
+            FROM risk_policy_versions
+            WHERE id = ?
+              AND (username = ? OR username = '*')
+            LIMIT 1
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, policyId)
+                stmt.setString(2, normalizedUser)
+                stmt.executeQuery().use { rs ->
+                    if (!rs.next()) return null
+                    return rs.toRiskPolicyRecord()
+                }
+            }
+        }
+    }
+
+    fun getActiveRiskPolicyForUser(username: String): RiskPolicyRecord? {
+        val normalizedUser = username.trim().lowercase()
+        val sql = """
+            SELECT *
+            FROM risk_policy_versions
+            WHERE username = ?
+              AND status = 'active'
+            LIMIT 1
+        """.trimIndent()
+        val globalSql = """
+            SELECT *
+            FROM risk_policy_versions
+            WHERE username = '*'
+              AND status = 'active'
+            LIMIT 1
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, normalizedUser)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) {
+                        return rs.toRiskPolicyRecord()
+                    }
+                }
+            }
+            conn.prepareStatement(globalSql).use { stmt ->
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) {
+                        return rs.toRiskPolicyRecord()
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    fun createRiskActivationChallenge(
+        username: String,
+        policyId: UUID,
+        walletAddress: String,
+        nonce: String,
+        challengeMessage: String,
+        expiresAt: Instant
+    ): RiskActivationChallengeRecord {
+        val normalizedUser = username.trim().lowercase()
+        val normalizedWallet = walletAddress.trim().lowercase()
+        val sql = """
+            INSERT INTO risk_policy_activation_nonces (
+                policy_id, username, wallet_address, nonce, challenge_message, expires_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            RETURNING id, policy_id, username, wallet_address, nonce, challenge_message, expires_at, consumed_at, created_at
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, policyId)
+                stmt.setString(2, normalizedUser)
+                stmt.setString(3, normalizedWallet)
+                stmt.setString(4, nonce)
+                stmt.setString(5, challengeMessage)
+                stmt.setTimestamp(6, Timestamp.from(expiresAt))
+                stmt.executeQuery().use { rs ->
+                    if (!rs.next()) error("Failed to create risk activation challenge")
+                    return rs.toRiskActivationChallengeRecord()
+                }
+            }
+        }
+    }
+
+    fun consumeRiskActivationChallenge(
+        username: String,
+        policyId: UUID,
+        walletAddress: String,
+        nonce: String,
+        now: Instant = Instant.now()
+    ): RiskActivationChallengeRecord? {
+        val normalizedUser = username.trim().lowercase()
+        val normalizedWallet = walletAddress.trim().lowercase()
+        val sql = """
+            UPDATE risk_policy_activation_nonces
+            SET consumed_at = NOW()
+            WHERE id = (
+                SELECT id
+                FROM risk_policy_activation_nonces
+                WHERE policy_id = ?
+                  AND username = ?
+                  AND wallet_address = ?
+                  AND nonce = ?
+                  AND consumed_at IS NULL
+                  AND expires_at >= ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            )
+            RETURNING id, policy_id, username, wallet_address, nonce, challenge_message, expires_at, consumed_at, created_at
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, policyId)
+                stmt.setString(2, normalizedUser)
+                stmt.setString(3, normalizedWallet)
+                stmt.setString(4, nonce)
+                stmt.setTimestamp(5, Timestamp.from(now))
+                stmt.executeQuery().use { rs ->
+                    if (!rs.next()) return null
+                    return rs.toRiskActivationChallengeRecord()
+                }
+            }
+        }
+    }
+
+    fun activateRiskPolicy(
+        username: String,
+        policyId: UUID,
+        walletAddress: String,
+        signature: String,
+        nonce: String,
+        message: String
+    ): RiskPolicyRecord? {
+        val normalizedUser = username.trim().lowercase()
+        val normalizedWallet = walletAddress.trim().lowercase()
+        val deactivateSql = """
+            UPDATE risk_policy_versions
+            SET status = 'superseded'
+            WHERE username = ?
+              AND status = 'active'
+        """.trimIndent()
+        val activateSql = """
+            UPDATE risk_policy_versions
+            SET
+                status = 'active',
+                wallet_address = ?,
+                activated_at = NOW(),
+                activated_by_wallet = ?,
+                activation_signature = ?,
+                activation_nonce = ?,
+                activation_message = ?
+            WHERE id = ?
+              AND username = ?
+            RETURNING *
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            try {
+                conn.prepareStatement(deactivateSql).use { stmt ->
+                    stmt.setString(1, normalizedUser)
+                    stmt.executeUpdate()
+                }
+
+                val activated = conn.prepareStatement(activateSql).use { stmt ->
+                    stmt.setString(1, normalizedWallet)
+                    stmt.setString(2, normalizedWallet)
+                    stmt.setString(3, signature)
+                    stmt.setString(4, nonce)
+                    stmt.setString(5, message)
+                    stmt.setObject(6, policyId)
+                    stmt.setString(7, normalizedUser)
+                    stmt.executeQuery().use { rs ->
+                        if (rs.next()) rs.toRiskPolicyRecord() else null
+                    }
+                }
+                conn.commit()
+                return activated
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            } finally {
+                conn.autoCommit = true
+            }
+        }
+    }
+
+    fun getRiskAccountState(username: String): RiskAccountStateRecord? {
+        val normalizedUser = username.trim().lowercase()
+        val sql = """
+            SELECT *
+            FROM risk_account_state
+            WHERE username = ?
+            LIMIT 1
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, normalizedUser)
+                stmt.executeQuery().use { rs ->
+                    if (!rs.next()) return null
+                    return rs.toRiskAccountStateRecord()
+                }
+            }
+        }
+    }
+
+    fun getOrCreateRiskAccountState(username: String): RiskAccountStateRecord {
+        getRiskAccountState(username)?.let { return it }
+        val normalizedUser = username.trim().lowercase()
+        val insertSql = """
+            INSERT INTO risk_account_state (username)
+            VALUES (?)
+            ON CONFLICT (username) DO NOTHING
+        """.trimIndent()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(insertSql).use { stmt ->
+                stmt.setString(1, normalizedUser)
+                stmt.executeUpdate()
+            }
+        }
+        return getRiskAccountState(normalizedUser)
+            ?: error("Failed to create risk account state for $normalizedUser")
+    }
+
+    fun upsertRiskAccountState(username: String, patch: RiskAccountStatePatch): RiskAccountStateRecord {
+        val normalizedUser = username.trim().lowercase()
+        val existing = getOrCreateRiskAccountState(normalizedUser)
+
+        val accountEquity = patch.accountEquityUsd ?: existing.accountEquityUsd
+        val realizedPnl = patch.realizedPnlUsd ?: existing.realizedPnlUsd
+        val unrealizedPnl = patch.unrealizedPnlUsd ?: existing.unrealizedPnlUsd
+        val dailyRealized = patch.dailyRealizedPnlUsd ?: existing.dailyRealizedPnlUsd
+        val dailyUnrealized = patch.dailyUnrealizedPnlUsd ?: existing.dailyUnrealizedPnlUsd
+        val openExposure = (patch.openExposureUsd ?: existing.openExposureUsd).max(BigDecimal.ZERO)
+        val candidateHighWater = patch.highWaterMarkUsd ?: existing.highWaterMarkUsd
+        val highWater = maxOf(candidateHighWater, accountEquity, existing.highWaterMarkUsd)
+
+        val sql = """
+            INSERT INTO risk_account_state (
+                username,
+                account_equity_usd,
+                high_water_mark_usd,
+                realized_pnl_usd,
+                unrealized_pnl_usd,
+                daily_realized_pnl_usd,
+                daily_unrealized_pnl_usd,
+                open_exposure_usd,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ON CONFLICT (username) DO UPDATE SET
+                account_equity_usd = EXCLUDED.account_equity_usd,
+                high_water_mark_usd = EXCLUDED.high_water_mark_usd,
+                realized_pnl_usd = EXCLUDED.realized_pnl_usd,
+                unrealized_pnl_usd = EXCLUDED.unrealized_pnl_usd,
+                daily_realized_pnl_usd = EXCLUDED.daily_realized_pnl_usd,
+                daily_unrealized_pnl_usd = EXCLUDED.daily_unrealized_pnl_usd,
+                open_exposure_usd = EXCLUDED.open_exposure_usd,
+                updated_at = NOW()
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, normalizedUser)
+                stmt.setBigDecimal(2, accountEquity)
+                stmt.setBigDecimal(3, highWater)
+                stmt.setBigDecimal(4, realizedPnl)
+                stmt.setBigDecimal(5, unrealizedPnl)
+                stmt.setBigDecimal(6, dailyRealized)
+                stmt.setBigDecimal(7, dailyUnrealized)
+                stmt.setBigDecimal(8, openExposure)
+                stmt.executeUpdate()
+            }
+        }
+
+        return getOrCreateRiskAccountState(normalizedUser)
+    }
+
+    fun adjustRiskOpenExposure(username: String, deltaExposureUsd: BigDecimal): RiskAccountStateRecord {
+        val normalizedUser = username.trim().lowercase()
+        getOrCreateRiskAccountState(normalizedUser)
+        val sql = """
+            UPDATE risk_account_state
+            SET
+                open_exposure_usd = GREATEST(0, open_exposure_usd + ?),
+                updated_at = NOW()
+            WHERE username = ?
+        """.trimIndent()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setBigDecimal(1, deltaExposureUsd)
+                stmt.setString(2, normalizedUser)
+                stmt.executeUpdate()
+            }
+        }
+        return getOrCreateRiskAccountState(normalizedUser)
+    }
+
+    fun updateRiskTierSnapshot(
+        username: String,
+        riskTier: String,
+        tierReason: String?,
+        sentiment: SentimentSnapshot?
+    ): RiskAccountStateRecord {
+        val normalizedUser = username.trim().lowercase()
+        getOrCreateRiskAccountState(normalizedUser)
+        val sql = """
+            UPDATE risk_account_state
+            SET
+                risk_tier = ?,
+                tier_reason = ?,
+                sentiment_score = ?,
+                sentiment_confidence = ?,
+                updated_at = NOW()
+            WHERE username = ?
+        """.trimIndent()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, riskTier)
+                stmt.setString(2, tierReason)
+                if (sentiment != null) {
+                    stmt.setDouble(3, sentiment.sentimentScore)
+                    stmt.setDouble(4, sentiment.confidence)
+                } else {
+                    stmt.setNull(3, java.sql.Types.DOUBLE)
+                    stmt.setNull(4, java.sql.Types.DOUBLE)
+                }
+                stmt.setString(5, normalizedUser)
+                stmt.executeUpdate()
+            }
+        }
+        return getOrCreateRiskAccountState(normalizedUser)
+    }
+
+    fun getRiskKillSwitchState(username: String): RiskKillSwitchStateRecord? {
+        val normalizedUser = username.trim().lowercase()
+        val sql = """
+            SELECT *
+            FROM risk_kill_switch_state
+            WHERE username = ?
+            LIMIT 1
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, normalizedUser)
+                stmt.executeQuery().use { rs ->
+                    if (!rs.next()) return null
+                    return rs.toRiskKillSwitchStateRecord()
+                }
+            }
+        }
+    }
+
+    fun engageRiskKillSwitch(
+        username: String,
+        reason: String,
+        engagedBy: String,
+        manualAckRequired: Boolean = true
+    ): RiskKillSwitchStateRecord {
+        val normalizedUser = username.trim().lowercase()
+        val sql = """
+            INSERT INTO risk_kill_switch_state (
+                username,
+                engaged,
+                reason,
+                engaged_at,
+                engaged_by,
+                manual_ack_required,
+                acknowledged_at,
+                acknowledged_by,
+                ack_note,
+                updated_at
+            ) VALUES (?, TRUE, ?, NOW(), ?, ?, NULL, NULL, NULL, NOW())
+            ON CONFLICT (username) DO UPDATE SET
+                engaged = TRUE,
+                reason = EXCLUDED.reason,
+                engaged_at = NOW(),
+                engaged_by = EXCLUDED.engaged_by,
+                manual_ack_required = EXCLUDED.manual_ack_required,
+                acknowledged_at = NULL,
+                acknowledged_by = NULL,
+                ack_note = NULL,
+                updated_at = NOW()
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, normalizedUser)
+                stmt.setString(2, reason)
+                stmt.setString(3, engagedBy)
+                stmt.setBoolean(4, manualAckRequired)
+                stmt.executeUpdate()
+            }
+        }
+        return getRiskKillSwitchState(normalizedUser)
+            ?: error("Failed to engage kill switch for $normalizedUser")
+    }
+
+    fun acknowledgeRiskKillSwitch(
+        username: String,
+        acknowledgedBy: String,
+        note: String?
+    ): RiskKillSwitchStateRecord? {
+        val normalizedUser = username.trim().lowercase()
+        val sql = """
+            UPDATE risk_kill_switch_state
+            SET
+                engaged = FALSE,
+                acknowledged_at = NOW(),
+                acknowledged_by = ?,
+                ack_note = ?,
+                updated_at = NOW()
+            WHERE username = ?
+              AND engaged = TRUE
+            RETURNING *
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, acknowledgedBy)
+                stmt.setString(2, note)
+                stmt.setString(3, normalizedUser)
+                stmt.executeQuery().use { rs ->
+                    if (!rs.next()) return null
+                    return rs.toRiskKillSwitchStateRecord()
+                }
+            }
+        }
+    }
+
+    fun fetchLatestSentiment(symbol: String, lookbackMinutes: Int = 180): SentimentSnapshot? {
+        val candidates = (symbolCandidates(symbol) + "CRYPTO_GLOBAL").distinct()
+        if (candidates.isEmpty()) return null
+
+        val placeholders = candidates.joinToString(",") { "?" }
+        val sqlWithLabel = """
+            SELECT
+                symbol,
+                sentiment_score,
+                confidence,
+                observed_at,
+                model_name,
+                source,
+                sentiment_label
+            FROM rss_sentiment_signals
+            WHERE symbol IN ($placeholders)
+              AND observed_at >= NOW() - (?::text || ' minutes')::interval
+            ORDER BY observed_at DESC
+            LIMIT 1
+        """.trimIndent()
+        val sqlLegacy = """
+            SELECT
+                symbol,
+                sentiment_score,
+                confidence,
+                observed_at,
+                model_name,
+                source
+            FROM rss_sentiment_signals
+            WHERE symbol IN ($placeholders)
+              AND observed_at >= NOW() - (?::text || ' minutes')::interval
+            ORDER BY observed_at DESC
+            LIMIT 1
+        """.trimIndent()
+
+        var best: SentimentSnapshot? = null
+        for (quoteSource in quoteDataSources()) {
+            val fromSource = runSentimentLookupQuery(
+                dataSource = quoteSource,
+                sql = sqlWithLabel,
+                sqlLegacy = sqlLegacy,
+                candidates = candidates,
+                lookbackMinutes = lookbackMinutes
+            ) ?: continue
+            if (best == null || fromSource.observedAt.isAfter(best!!.observedAt)) {
+                best = fromSource
+            }
+        }
+        return best
+    }
+
+    private fun runSentimentLookupQuery(
+        dataSource: HikariDataSource,
+        sql: String,
+        sqlLegacy: String,
+        candidates: List<String>,
+        lookbackMinutes: Int
+    ): SentimentSnapshot? {
+        fun execute(query: String, includeLabel: Boolean): SentimentSnapshot? {
+            dataSource.connection.use { conn ->
+                conn.prepareStatement(query).use { stmt ->
+                    var index = 1
+                    candidates.forEach { candidate ->
+                        stmt.setString(index++, candidate)
+                    }
+                    stmt.setInt(index, lookbackMinutes.coerceAtLeast(1))
+                    stmt.executeQuery().use { rs ->
+                        if (!rs.next()) return null
+                        return SentimentSnapshot(
+                            symbol = rs.getString("symbol"),
+                            sentimentScore = rs.getDouble("sentiment_score"),
+                            confidence = rs.getDouble("confidence"),
+                            observedAt = rs.getTimestamp("observed_at")?.toInstant() ?: Instant.now(),
+                            modelName = rs.getString("model_name"),
+                            source = rs.getString("source"),
+                            sentimentLabel = if (includeLabel) rs.getString("sentiment_label") else null
+                        )
+                    }
+                }
+            }
+        }
+
+        return try {
+            execute(sql, includeLabel = true)
+        } catch (e: SQLException) {
+            if (isMissingColumn(e)) {
+                execute(sqlLegacy, includeLabel = false)
+            } else if (isMissingRelation(e)) {
+                warnMissingRelationOnce("rss_sentiment_signals", e)
+                null
+            } else {
+                logger.warn("Failed querying rss_sentiment_signals: {}", e.message)
+                null
+            }
+        }
+    }
+
     private fun queryOrderbookQuote(exchange: String, symbol: String): LatestQuote? {
+        val canonicalSql = """
+            SELECT symbol, best_bid AS bid, best_ask AS ask, mid_price, time
+            FROM orderbook_data
+            WHERE exchange = ?
+              AND symbol = ?
+              AND best_bid IS NOT NULL
+              AND best_ask IS NOT NULL
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
         val topOfBookSql = """
             SELECT symbol, bid_price AS bid, ask_price AS ask, ((bid_price + ask_price) / 2.0) AS mid_price, time
             FROM orderbook_data
@@ -405,27 +1242,17 @@ class DatabaseService(
             ORDER BY time DESC
             LIMIT 1
         """.trimIndent()
-        val legacySql = """
-            SELECT symbol, best_bid AS bid, best_ask AS ask, mid_price, time
-            FROM orderbook_data
-            WHERE exchange = ?
-              AND symbol = ?
-              AND best_bid IS NOT NULL
-              AND best_ask IS NOT NULL
-            ORDER BY time DESC
-            LIMIT 1
-        """.trimIndent()
 
         return runOrderbookQuoteQuery(
             exchange = exchange,
             symbol = symbol,
-            sql = topOfBookSql,
-            sourceLabel = "orderbook_data:top_of_book"
+            sql = canonicalSql,
+            sourceLabel = "orderbook_data:canonical"
         ) ?: runOrderbookQuoteQuery(
             exchange = exchange,
             symbol = symbol,
-            sql = legacySql,
-            sourceLabel = "orderbook_data:legacy"
+            sql = topOfBookSql,
+            sourceLabel = "orderbook_data:top_of_book_legacy"
         )
     }
 
@@ -608,6 +1435,72 @@ class DatabaseService(
             rawTables = tableNames.sorted(),
             aliases = compatibilityAliases.sorted()
         )
+    }
+
+    private fun java.sql.ResultSet.toRiskPolicyRecord(): RiskPolicyRecord = RiskPolicyRecord(
+        id = getObject("id", UUID::class.java),
+        username = getString("username"),
+        walletAddress = getString("wallet_address"),
+        version = getInt("version"),
+        status = getString("status"),
+        policyJson = getString("policy_json"),
+        createdBy = getString("created_by"),
+        createdAt = getTimestamp("created_at")?.toInstant() ?: Instant.now(),
+        activatedAt = getTimestamp("activated_at")?.toInstant(),
+        activatedByWallet = getString("activated_by_wallet"),
+        activationSignature = getString("activation_signature"),
+        activationNonce = getString("activation_nonce"),
+        activationMessage = getString("activation_message"),
+        isBootstrap = getBoolean("is_bootstrap")
+    )
+
+    private fun java.sql.ResultSet.toRiskActivationChallengeRecord(): RiskActivationChallengeRecord =
+        RiskActivationChallengeRecord(
+            id = getLong("id"),
+            policyId = getObject("policy_id", UUID::class.java),
+            username = getString("username"),
+            walletAddress = getString("wallet_address"),
+            nonce = getString("nonce"),
+            challengeMessage = getString("challenge_message"),
+            expiresAt = getTimestamp("expires_at")?.toInstant() ?: Instant.now(),
+            consumedAt = getTimestamp("consumed_at")?.toInstant(),
+            createdAt = getTimestamp("created_at")?.toInstant() ?: Instant.now()
+        )
+
+    private fun java.sql.ResultSet.toRiskAccountStateRecord(): RiskAccountStateRecord =
+        RiskAccountStateRecord(
+            username = getString("username"),
+            accountEquityUsd = getBigDecimal("account_equity_usd") ?: BigDecimal.ZERO,
+            highWaterMarkUsd = getBigDecimal("high_water_mark_usd") ?: BigDecimal.ZERO,
+            realizedPnlUsd = getBigDecimal("realized_pnl_usd") ?: BigDecimal.ZERO,
+            unrealizedPnlUsd = getBigDecimal("unrealized_pnl_usd") ?: BigDecimal.ZERO,
+            dailyRealizedPnlUsd = getBigDecimal("daily_realized_pnl_usd") ?: BigDecimal.ZERO,
+            dailyUnrealizedPnlUsd = getBigDecimal("daily_unrealized_pnl_usd") ?: BigDecimal.ZERO,
+            openExposureUsd = getBigDecimal("open_exposure_usd") ?: BigDecimal.ZERO,
+            sentimentScore = getDoubleOrNull("sentiment_score"),
+            sentimentConfidence = getDoubleOrNull("sentiment_confidence"),
+            riskTier = getString("risk_tier"),
+            tierReason = getString("tier_reason"),
+            updatedAt = getTimestamp("updated_at")?.toInstant() ?: Instant.now()
+        )
+
+    private fun java.sql.ResultSet.toRiskKillSwitchStateRecord(): RiskKillSwitchStateRecord =
+        RiskKillSwitchStateRecord(
+            username = getString("username"),
+            engaged = getBoolean("engaged"),
+            reason = getString("reason"),
+            engagedAt = getTimestamp("engaged_at")?.toInstant(),
+            engagedBy = getString("engaged_by"),
+            manualAckRequired = getBoolean("manual_ack_required"),
+            acknowledgedAt = getTimestamp("acknowledged_at")?.toInstant(),
+            acknowledgedBy = getString("acknowledged_by"),
+            ackNote = getString("ack_note"),
+            updatedAt = getTimestamp("updated_at")?.toInstant() ?: Instant.now()
+        )
+
+    private fun java.sql.ResultSet.getDoubleOrNull(column: String): Double? {
+        val value = getDouble(column)
+        return if (wasNull()) null else value
     }
 
     fun close() {

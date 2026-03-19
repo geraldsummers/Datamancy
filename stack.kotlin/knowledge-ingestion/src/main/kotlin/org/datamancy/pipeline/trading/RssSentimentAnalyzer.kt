@@ -1,12 +1,25 @@
 package org.datamancy.pipeline.trading
 
+import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.datamancy.pipeline.storage.StagedDocument
+import java.time.Duration
 import java.time.Instant
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
+
+private val logger = KotlinLogging.logger {}
 
 data class RssSentimentSignal(
     val observedAt: Instant,
@@ -16,23 +29,30 @@ data class RssSentimentSignal(
     val articleUrl: String?,
     val sentimentScore: Double,
     val confidence: Double,
+    val sentimentLabel: String,
+    val provider: String?,
+    val explanation: String?,
     val modelName: String,
     val metadata: Map<String, String>
 )
 
+data class SentimentInference(
+    val score: Double,
+    val confidence: Double,
+    val label: String,
+    val explanation: String?,
+    val provider: String?,
+    val rawPayload: String?
+)
+
+interface RssSentimentClient {
+    val modelName: String
+    fun infer(document: StagedDocument, combinedText: String): SentimentInference?
+}
+
 class RssSentimentAnalyzer(
-    private val modelName: String = "rule-based-rss-v2"
+    private val sentimentClient: RssSentimentClient = LiteLlmRssSentimentClient.fromEnv()
 ) {
-    private val positiveKeywords = setOf(
-        "surge", "rally", "bullish", "uptrend", "breakout", "adoption", "approval", "beat", "growth",
-        "record high", "all-time high", "ath", "upgrade", "outperform", "recovery", "buy signal"
-    )
-
-    private val negativeKeywords = setOf(
-        "crash", "drop", "selloff", "bearish", "downtrend", "hack", "lawsuit", "ban", "downgrade",
-        "miss", "decline", "recession", "liquidation", "rug pull", "fraud", "bankruptcy", "risk-off"
-    )
-
     private val symbolAliases = mapOf(
         "bitcoin" to "BTC",
         "ethereum" to "ETH",
@@ -60,14 +80,13 @@ class RssSentimentAnalyzer(
 
         val title = document.metadata["title"]?.trim().orEmpty()
         val description = document.metadata["description"]?.trim().orEmpty()
-        val combinedText = "$title\n$description\n${document.text.take(4000)}"
+        val combinedText = "$title\n$description\n${document.text.take(6000)}".trim()
         if (combinedText.isBlank()) return emptyList()
 
         val symbols = extractSymbols(title, combinedText)
         if (symbols.isEmpty()) return emptyList()
 
-        val score = scoreSentiment(combinedText)
-        val confidence = scoreConfidence(combinedText, score)
+        val inference = sentimentClient.infer(document, combinedText) ?: return emptyList()
         val observedAt = parseObservedAt(document.metadata["published_date"]) ?: document.createdAt
         val source = document.metadata["feed_title"]?.takeIf { it.isNotBlank() }
             ?: document.metadata["feed_url"]?.takeIf { it.isNotBlank() }
@@ -80,14 +99,18 @@ class RssSentimentAnalyzer(
                 source = source,
                 articleTitle = title.ifBlank { null },
                 articleUrl = document.metadata["link"]?.takeIf { it.isNotBlank() },
-                sentimentScore = score,
-                confidence = confidence,
-                modelName = modelName,
-                metadata = mapOf(
-                    "doc_id" to document.id,
-                    "keyword_model" to modelName,
-                    "signal_source" to "knowledge-ingestion-event"
-                )
+                sentimentScore = inference.score.coerceIn(-1.0, 1.0),
+                confidence = inference.confidence.coerceIn(0.0, 1.0),
+                sentimentLabel = inference.label.ifBlank { "neutral" }.lowercase(Locale.getDefault()),
+                provider = inference.provider,
+                explanation = inference.explanation,
+                modelName = sentimentClient.modelName,
+                metadata = buildMap {
+                    put("doc_id", document.id)
+                    put("signal_source", "knowledge-ingestion-llm-sentiment")
+                    inference.provider?.let { put("provider", it) }
+                    inference.rawPayload?.let { put("raw_payload", it.take(4000)) }
+                }
             )
         }
     }
@@ -103,9 +126,7 @@ class RssSentimentAnalyzer(
 
         "(^|\\s)([A-Z]{2,6})(\\s|$)".toRegex().findAll(title).forEach { match ->
             val token = match.groupValues[2]
-            if (token in setOf("BTC", "ETH")) {
-                symbols += token
-            }
+            if (token in setOf("BTC", "ETH")) symbols += token
         }
 
         symbolAliases.forEach { (alias, symbol) ->
@@ -128,29 +149,163 @@ class RssSentimentAnalyzer(
         return cryptoContextKeywords.any { text.contains(it) }
     }
 
-    private fun scoreSentiment(text: String): Double {
-        val normalized = text.lowercase(Locale.getDefault())
-        val positive = positiveKeywords.count { normalized.contains(it) }
-        val negative = negativeKeywords.count { normalized.contains(it) }
-        if (positive == 0 && negative == 0) return 0.0
-
-        val raw = (positive - negative).toDouble() / (positive + negative).toDouble()
-        return raw.coerceIn(-1.0, 1.0)
-    }
-
-    private fun scoreConfidence(text: String, score: Double): Double {
-        val normalized = text.lowercase(Locale.getDefault())
-        val matches = positiveKeywords.count { normalized.contains(it) } + negativeKeywords.count { normalized.contains(it) }
-        val lexicalConfidence = min(1.0, matches / 5.0)
-        val directionality = abs(score)
-        return ((lexicalConfidence * 0.8) + (directionality * 0.2)).coerceIn(0.05, 1.0)
-    }
-
     private fun parseObservedAt(raw: String?): Instant? {
         if (raw.isNullOrBlank()) return null
-
         return runCatching { Instant.parse(raw) }.getOrNull()
             ?: runCatching { ZonedDateTime.parse(raw, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() }.getOrNull()
             ?: runCatching { ZonedDateTime.parse(raw).toInstant() }.getOrNull()
+    }
+}
+
+class LiteLlmRssSentimentClient(
+    private val baseUrl: String,
+    override val modelName: String,
+    private val apiKey: String?,
+    timeoutMs: Long = 8_000
+) : RssSentimentClient {
+    private val json = Json { ignoreUnknownKeys = true }
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(Duration.ofMillis(timeoutMs))
+        .readTimeout(Duration.ofMillis(timeoutMs))
+        .writeTimeout(Duration.ofMillis(timeoutMs))
+        .build()
+    private val mediaType = "application/json; charset=utf-8".toMediaType()
+
+    override fun infer(document: StagedDocument, combinedText: String): SentimentInference? {
+        val endpoint = resolveChatCompletionsUrl(baseUrl)
+        val systemPrompt = """
+            You are a crypto sentiment model. Return strict JSON:
+            {"score":number[-1,1],"confidence":number[0,1],"label":"bearish|neutral|bullish","explanation":"short reason"}
+        """.trimIndent()
+        val userPrompt = buildString {
+            appendLine("Analyze sentiment for this RSS document.")
+            appendLine("Document id: ${document.id}")
+            appendLine("Title: ${document.metadata["title"] ?: ""}")
+            appendLine("URL: ${document.metadata["link"] ?: ""}")
+            appendLine("Text:")
+            append(combinedText.take(5000))
+        }
+
+        val requestBody = """
+            {
+              "model": "${escapeJson(modelName)}",
+              "temperature": 0.0,
+              "max_tokens": 180,
+              "messages": [
+                {"role":"system","content":"${escapeJson(systemPrompt)}"},
+                {"role":"user","content":"${escapeJson(userPrompt)}"}
+              ]
+            }
+        """.trimIndent()
+
+        val requestBuilder = Request.Builder()
+            .url(endpoint)
+            .post(requestBody.toRequestBody(mediaType))
+            .header("Content-Type", "application/json")
+        if (!apiKey.isNullOrBlank()) {
+            requestBuilder.header("Authorization", "Bearer ${apiKey.trim()}")
+        }
+
+        return runCatching {
+            client.newCall(requestBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) {
+                    logger.warn { "LiteLLM sentiment request failed: HTTP ${response.code}" }
+                    return null
+                }
+                val payload = response.body?.string()?.trim().orEmpty()
+                if (payload.isBlank()) return null
+                parseInference(payload)
+            }
+        }.onFailure {
+            logger.warn(it) { "LiteLLM sentiment request errored: ${it.message}" }
+        }.getOrNull()
+    }
+
+    private fun parseInference(payload: String): SentimentInference? {
+        val root = runCatching { json.parseToJsonElement(payload) }.getOrNull() as? JsonObject ?: return null
+        val content = root["choices"]
+            ?.let { it as? JsonArray }
+            ?.firstOrNull()
+            ?.let { it as? JsonObject }
+            ?.get("message")
+            ?.let { it as? JsonObject }
+            ?.get("content")
+            ?.jsonPrimitive
+            ?.content
+            ?: return null
+
+        val normalized = content
+            .removePrefix("```json")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+
+        val sentimentJson = runCatching { json.parseToJsonElement(normalized) }.getOrNull() as? JsonObject ?: return null
+        val score = sentimentJson["score"]?.toString()?.trim('"')?.toDoubleOrNull() ?: return null
+        val confidence = sentimentJson["confidence"]?.toString()?.trim('"')?.toDoubleOrNull() ?: return null
+        val label = sentimentJson["label"]?.jsonPrimitive?.contentOrNull?.lowercase(Locale.getDefault())
+            ?: labelFromScore(score)
+        val explanation = sentimentJson["explanation"]?.jsonPrimitive?.contentOrNull
+
+        return SentimentInference(
+            score = score.coerceIn(-1.0, 1.0),
+            confidence = confidence.coerceIn(0.0, 1.0),
+            label = label,
+            explanation = explanation?.takeIf { it.isNotBlank() },
+            provider = "litellm",
+            rawPayload = normalized
+        )
+    }
+
+    private fun labelFromScore(score: Double): String {
+        return when {
+            score >= 0.2 -> "bullish"
+            score <= -0.2 -> "bearish"
+            else -> "neutral"
+        }
+    }
+
+    private fun escapeJson(value: String): String {
+        return value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+    }
+
+    private fun resolveChatCompletionsUrl(rawBaseUrl: String): String {
+        val trimmed = rawBaseUrl.trim().trimEnd('/')
+        return when {
+            trimmed.endsWith("/chat/completions") -> trimmed
+            trimmed.endsWith("/v1") -> "$trimmed/chat/completions"
+            else -> "$trimmed/v1/chat/completions"
+        }
+    }
+
+    companion object {
+        fun fromEnv(): LiteLlmRssSentimentClient {
+            val baseUrl = System.getenv("RSS_SENTIMENT_LITELLM_URL")
+                ?: System.getenv("LITELLM_BASE_URL")
+                ?: "http://litellm:4000/v1"
+            val modelName = System.getenv("RSS_SENTIMENT_MODEL")
+                ?.takeIf { it.isNotBlank() }
+                ?: "qwen2.5:14b-instruct"
+            val apiKey = System.getenv("RSS_SENTIMENT_LITELLM_API_KEY")
+                ?: System.getenv("LITELLM_MASTER_KEY")
+            val timeoutMs = max(
+                2_000L,
+                min(
+                    30_000L,
+                    System.getenv("RSS_SENTIMENT_TIMEOUT_MS")?.toLongOrNull() ?: 8_000L
+                )
+            )
+            return LiteLlmRssSentimentClient(
+                baseUrl = baseUrl,
+                modelName = modelName,
+                apiKey = apiKey,
+                timeoutMs = timeoutMs
+            )
+        }
     }
 }

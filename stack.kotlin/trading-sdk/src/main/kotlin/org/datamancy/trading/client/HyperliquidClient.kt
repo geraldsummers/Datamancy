@@ -28,7 +28,7 @@ class HyperliquidClient internal constructor(
             "reduceOnly" to reduceOnly
         )
 
-        return httpClient.post("/api/v1/hyperliquid/order", request)
+        return httpClient.post("/api/v1/exchanges/hyperliquid/order", request)
     }
 
     /**
@@ -54,7 +54,7 @@ class HyperliquidClient internal constructor(
             "postOnly" to postOnly
         )
 
-        return httpClient.post("/api/v1/hyperliquid/order", request)
+        return httpClient.post("/api/v1/exchanges/hyperliquid/order", request)
     }
 
     /**

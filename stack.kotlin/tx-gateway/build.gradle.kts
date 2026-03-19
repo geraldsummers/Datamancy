@@ -34,6 +34,7 @@ dependencies {
     // JWT validation
     implementation("com.auth0:java-jwt:4.4.0")
     implementation("com.auth0:jwks-rsa:0.22.1")
+    implementation("org.web3j:crypto:4.12.3")
 
     // Logging
     implementation(libs.bundles.logging)

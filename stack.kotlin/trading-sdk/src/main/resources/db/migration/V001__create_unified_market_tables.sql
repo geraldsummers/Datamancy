@@ -69,6 +69,11 @@ CREATE TABLE IF NOT EXISTS orderbook_data (
     inserted_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE orderbook_data ALTER COLUMN bids SET DEFAULT '[]'::jsonb;
+ALTER TABLE orderbook_data ALTER COLUMN asks SET DEFAULT '[]'::jsonb;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orderbook_time_symbol_exchange_unique
+    ON orderbook_data (time, symbol, exchange);
+
 -- Indexes for fast queries
 CREATE INDEX IF NOT EXISTS idx_orderbook_time ON orderbook_data (time DESC);
 CREATE INDEX IF NOT EXISTS idx_orderbook_symbol_time ON orderbook_data (symbol, time DESC);
