@@ -45,12 +45,11 @@ export default defineConfig({
     /* Base URL for tests - use full domain even inside Docker
      * Docker Compose provides DNS resolution for *.datamancy.net to Caddy container
      * This ensures TLS certificates are valid and auth cookies work correctly
-     * We ignore HTTPS errors for self-signed certificates
      */
     baseURL: process.env.BASE_URL || 'https://datamancy.net',
 
-    /* Ignore HTTPS errors for self-signed certificates in internal testing */
-    ignoreHTTPSErrors: true,
+    /* Keep TLS verification enabled to catch certificate issues */
+    ignoreHTTPSErrors: false,
 
     /* Collect trace when retrying the failed test */
     trace: 'on-first-retry',

@@ -119,14 +119,23 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        for i in $(seq 1 60); do
-          if [ -f /certs/pki/authorities/local/root.crt ]; then
-            cp /certs/pki/authorities/local/root.crt /ca/caddy-ca.crt
-            chmod 644 /ca/caddy-ca.crt
-            echo "Caddy CA exported to /ca/caddy-ca.crt"
-            exit 0
-          fi
-          sleep 1
-        done
-        echo "Caddy CA not found at /certs/pki/authorities/local/root.crt" >&2
-        exit 1
+        BUNDLE_SRC="/etc/ssl/certs/ca-certificates.crt"
+        if [ ! -f "$BUNDLE_SRC" ]; then
+          BUNDLE_SRC="/etc/ssl/cert.pem"
+        fi
+
+        if [ -f "$BUNDLE_SRC" ]; then
+          cp "$BUNDLE_SRC" /ca/caddy-ca.crt
+        else
+          touch /ca/caddy-ca.crt
+        fi
+
+        # In local-certs/dev mode, append Caddy's local root if present.
+        if [ -f /certs/pki/authorities/local/root.crt ]; then
+          cat /certs/pki/authorities/local/root.crt >> /ca/caddy-ca.crt
+          echo "" >> /ca/caddy-ca.crt
+          echo "Appended Caddy local CA to /ca/caddy-ca.crt"
+        fi
+
+        chmod 644 /ca/caddy-ca.crt
+        echo "Caddy trust bundle exported to /ca/caddy-ca.crt"

@@ -459,7 +459,7 @@ fun generateTestRunnersCompose(
         appendLine("    MODEL_CONTEXT_OIDC_CLIENT_ID: \${MODEL_CONTEXT_OIDC_CLIENT_ID:-test-runner}")
         appendLine("    MODEL_CONTEXT_OIDC_REDIRECT_URI: \${MODEL_CONTEXT_OIDC_REDIRECT_URI:-http://test-runner/callback}")
         appendLine("    MODEL_CONTEXT_OIDC_SCOPE: \${MODEL_CONTEXT_OIDC_SCOPE:-openid profile email groups}")
-        appendLine("    DISABLE_TLS_VALIDATION: \"true\"")
+        appendLine("    DISABLE_TLS_VALIDATION: \"false\"")
         appendLine("    LDAP_URL: ldap://ldap:389")
         appendLine("    LDAP_BASE_DN: \${LDAP_BASE_DN}")
         appendLine("    LDAP_ADMIN_DN: \${LDAP_ADMIN_USER}")

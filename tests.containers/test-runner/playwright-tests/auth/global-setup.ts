@@ -43,8 +43,7 @@ async function globalSetup(config: FullConfig) {
 
   // Use Datamancy domain for auth setup
   // Even though we're inside Docker, we use the full domain so Caddy's
-  // TLS certificates are valid (Caddy has certs for *.datamancy.net)
-  // Tests will ignore HTTPS errors via ignoreHTTPSErrors: true
+  // TLS certificates are valid (Caddy issues real ACME certs)
   const domain = process.env.DOMAIN || 'datamancy.net';
   const grafanaUrl = `https://grafana.${domain}`;
 
@@ -120,7 +119,7 @@ async function globalSetup(config: FullConfig) {
 
   const browser = await launchChromiumWithRetry();
   const context = await browser.newContext({
-    ignoreHTTPSErrors: true,  // Trust self-signed certificates
+    ignoreHTTPSErrors: false,
     bypassCSP: true,  // Bypass Content Security Policy
     acceptDownloads: false
   });
@@ -260,8 +259,6 @@ async function globalSetup(config: FullConfig) {
 async function launchChromiumWithRetry() {
   const launchArgs = {
     args: [
-      '--ignore-certificate-errors',
-      '--ignore-certificate-errors-spki-list',
       '--disable-features=IsolateOrigins,site-per-process',
       '--disable-gpu',
     ]

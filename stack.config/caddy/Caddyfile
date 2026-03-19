@@ -10,35 +10,22 @@
 # - API_LITELLM_ALLOWLIST     (space-separated CIDRs)
 # - STACK_ADMIN_EMAIL          (e.g. admin@example.com)
 # - VAULTWARDEN_ORG_ID         (vaultwarden org UUID for SSO policy resolution)
-# - ZEROSSL_API_KEY            (optional, for ZeroSSL ACME)
 #
 # TLS Configuration:
-# - Uses ZeroSSL as primary CA (more generous rate limits than Let's Encrypt)
-# - Falls back to Let's Encrypt if ZeroSSL fails
-# - Development/Testing: Uncomment local_certs for self-signed certificates
+# - Uses Let's Encrypt ACME (production endpoint)
+# - Development/Testing: use staging ACME endpoint to avoid rate limits
 # - Certificates stored in /certs (named volume caddy_certs)
 ###############################################
 {
 	# Store certificates in bind mount (persists in dist/ like other secrets)
 	storage file_system /certs
 
-	# DEVELOPMENT: Use self-signed certificates via Caddy's internal CA
-	local_certs
+	# PRODUCTION: Let's Encrypt
+	email {$STACK_ADMIN_EMAIL:admin@example.com}
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
 
-	# PRODUCTION: ZeroSSL as primary CA (better rate limits)
-	# email {$STACK_ADMIN_EMAIL}
-
-	# ZeroSSL configuration with EAB credentials
-	# acme_ca https://acme.zerossl.com/v2/DV90
-
-	# If ZEROSSL_API_KEY is set, use EAB (External Account Binding)
-	# This provides better rate limits and reliability
-	# Get your API key from: https://app.zerossl.com/developer
-	# acme_eab {$ZEROSSL_KID} {$ZEROSSL_HMAC_KEY}
-
-	# Fallback CAs if ZeroSSL fails
-	# Note: Let's Encrypt has stricter rate limits (5 certs per exact domain set per week)
-	# acme_ca_root https://acme-v02.api.letsencrypt.org/directory
+	# TESTING: Uncomment for staging to avoid production rate limits
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 }
 
 # Snippet for Authelia Forward Auth
@@ -269,6 +256,12 @@ mastodon.{$DOMAIN} {
 # Homepage - www redirects to apex
 www.{$DOMAIN} {
 	redir https://{$DOMAIN}{uri} permanent
+}
+
+# Mail hostname: keep an HTTPS virtual host so Caddy obtains/renews TLS certs
+# consumed by the SMTP/IMAP stack.
+mail.{$DOMAIN} {
+	respond "Mail endpoint is not served over HTTPS" 404
 }
 
 # JupyterHub - Uses RemoteUserAuthenticator with forward_auth
