@@ -169,17 +169,21 @@ while IFS='|' read -r service build_flag last_changed reason build_key; do
             fi
         fi
     fi
+    up_build_arg=""
+    if [ "$build_flag" = "build" ]; then
+        up_build_arg="--no-build"
+    fi
     if [ "$reason" = "stopped" ]; then
         if [ "$DRY_RUN" = "1" ]; then
-            echo "docker compose -f \"$COMPOSE_FILE\" up -d --no-deps \"$service\""
+            echo "docker compose -f \"$COMPOSE_FILE\" up -d --no-deps ${up_build_arg} \"$service\""
         else
-            docker compose -f "$COMPOSE_FILE" up -d --no-deps "$service"
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps ${up_build_arg} "$service"
         fi
     else
         if [ "$DRY_RUN" = "1" ]; then
-            echo "docker compose -f \"$COMPOSE_FILE\" up -d --no-deps --force-recreate \"$service\""
+            echo "docker compose -f \"$COMPOSE_FILE\" up -d --no-deps --force-recreate ${up_build_arg} \"$service\""
         else
-            docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate "$service"
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate ${up_build_arg} "$service"
         fi
     fi
     if [ "$reason" = "changed" ]; then
