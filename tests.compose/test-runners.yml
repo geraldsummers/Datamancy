@@ -16,7 +16,7 @@ x-test-base: &test_runner_base
     MODEL_CONTEXT_OIDC_CLIENT_ID: ${MODEL_CONTEXT_OIDC_CLIENT_ID:-test-runner}
     MODEL_CONTEXT_OIDC_REDIRECT_URI: ${MODEL_CONTEXT_OIDC_REDIRECT_URI:-http://test-runner/callback}
     MODEL_CONTEXT_OIDC_SCOPE: ${MODEL_CONTEXT_OIDC_SCOPE:-openid profile email groups}
-    DISABLE_TLS_VALIDATION: "true"
+    DISABLE_TLS_VALIDATION: "false"
     LDAP_URL: ldap://ldap:389
     LDAP_BASE_DN: ${LDAP_BASE_DN}
     LDAP_ADMIN_DN: ${LDAP_ADMIN_USER}

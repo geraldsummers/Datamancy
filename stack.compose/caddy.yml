@@ -120,12 +120,12 @@ services:
     command:
       - |
         BUNDLE_SRC="/etc/ssl/certs/ca-certificates.crt"
-        if [ ! -f "$BUNDLE_SRC" ]; then
+        if [ ! -f "$$BUNDLE_SRC" ]; then
           BUNDLE_SRC="/etc/ssl/cert.pem"
         fi
 
-        if [ -f "$BUNDLE_SRC" ]; then
-          cp "$BUNDLE_SRC" /ca/caddy-ca.crt
+        if [ -f "$$BUNDLE_SRC" ]; then
+          cp "$$BUNDLE_SRC" /ca/caddy-ca.crt
         else
           touch /ca/caddy-ca.crt
         fi
