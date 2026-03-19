@@ -96,15 +96,17 @@ for name, comp in registry.get("components", {}).items():
         name not in running_services and
         not one_shot_service
     )
-    needs_build = bool((compose_services.get(name) or {}).get("build"))
+    service_def = compose_services.get(name) or {}
+    needs_build = bool(service_def.get("build"))
+    build_key = str(service_def.get("image") or name)
     if last_changed and last_changed != last_built:
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}|{last_changed}|changed")
+        lines.append(f"{name}|{'build' if needs_build else 'no-build'}|{last_changed}|changed|{build_key}")
         planned.add(name)
     elif missing_container:
-        lines.append(f"{name}|no-build|{last_changed}|missing")
+        lines.append(f"{name}|no-build|{last_changed}|missing|")
         planned.add(name)
     elif stopped_container:
-        lines.append(f"{name}|no-build|{last_changed}|stopped")
+        lines.append(f"{name}|no-build|{last_changed}|stopped|")
         planned.add(name)
 
 for name in sorted(force_refresh_services):
@@ -115,12 +117,13 @@ for name in sorted(force_refresh_services):
     if restart_policy == "no":
         continue
     needs_build = bool(service_def.get("build"))
+    build_key = str(service_def.get("image") or name)
     if name not in existing_services:
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||missing")
+        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||missing|{build_key}")
     elif name not in running_services:
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||stopped")
+        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||stopped|{build_key}")
     else:
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||refresh")
+        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||refresh|{build_key}")
 
 with open(out_path, "w", encoding="utf-8") as f:
     if lines:
@@ -133,7 +136,9 @@ if [ ! -s "$tmp_plan" ]; then
     exit 0
 fi
 
-while IFS='|' read -r service build_flag last_changed reason; do
+declare -A built_keys=()
+
+while IFS='|' read -r service build_flag last_changed reason build_key; do
     if [ -z "$service" ]; then
         continue
     fi
@@ -151,10 +156,17 @@ while IFS='|' read -r service build_flag last_changed reason; do
         info "Updating $service (changed: $last_changed)"
     fi
     if [ "$build_flag" = "build" ]; then
-        if [ "$DRY_RUN" = "1" ]; then
-            echo "docker compose -f \"$COMPOSE_FILE\" build \"$service\""
+        if [ -n "${build_key:-}" ] && [ -n "${built_keys[$build_key]+x}" ]; then
+            info "Skipping duplicate build for $service (already built image key: $build_key)"
         else
-            docker compose -f "$COMPOSE_FILE" build "$service"
+            if [ "$DRY_RUN" = "1" ]; then
+                echo "docker compose -f \"$COMPOSE_FILE\" build \"$service\""
+            else
+                docker compose -f "$COMPOSE_FILE" build "$service"
+            fi
+            if [ -n "${build_key:-}" ]; then
+                built_keys["$build_key"]=1
+            fi
         fi
     fi
     if [ "$reason" = "stopped" ]; then
