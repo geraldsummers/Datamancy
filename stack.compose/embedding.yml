@@ -11,18 +11,26 @@ services:
       - ai
     environment:
       RUST_LOG: warn
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     command: >
       --model-id /data/bge-m3
-      --dtype float32
+      --dtype float16
       --port 8080
-      --max-concurrent-requests 512
-      --max-batch-tokens 16384
+      --max-concurrent-requests 1024
+      --max-batch-tokens 8192
       --max-batch-requests 256
+      --max-client-batch-size 160
       --pooling mean
     deploy:
       resources:
         limits:
           cpus: '20.0'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 10s

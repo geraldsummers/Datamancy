@@ -44,6 +44,54 @@ class EmbedderTest {
     }
 
     @Test
+    fun `test successful batched embedding request`() = runBlocking {
+        val embedder = Embedder(
+            serviceUrl = mockServer.url("/").toString().removeSuffix("/"),
+            maxRetries = 1,
+            baseDelayMs = 10
+        )
+
+        val v1 = (1..8).map { it.toFloat() }
+        val v2 = (11..18).map { it.toFloat() }
+        val responseBody = """[[${v1.joinToString(",")}],[${v2.joinToString(",")}]]"""
+
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(responseBody)
+                .addHeader("Content-Type", "application/json")
+        )
+
+        val result = embedder.processBatch(listOf("first", "second"))
+        assertEquals(2, result.size)
+        assertEquals(8, result[0].size)
+        assertEquals(8, result[1].size)
+        assertEquals(1, mockServer.requestCount)
+
+        val requestBody = mockServer.takeRequest().body.readUtf8()
+        assertTrue(requestBody.contains("\"inputs\":[\"first\",\"second\"]"))
+    }
+
+    @Test
+    fun `test batched embedding size mismatch throws`() = runBlocking {
+        val embedder = Embedder(
+            serviceUrl = mockServer.url("/").toString().removeSuffix("/"),
+            maxRetries = 0
+        )
+
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""[[0.1,0.2,0.3]]""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        assertFailsWith<Exception> {
+            embedder.processBatch(listOf("first", "second"))
+        }
+    }
+
+    @Test
     fun `test retry on 429 rate limit`() = runBlocking {
         val embedder = Embedder(
             serviceUrl = mockServer.url("/").toString().removeSuffix("/"),

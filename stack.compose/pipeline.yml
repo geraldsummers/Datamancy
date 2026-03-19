@@ -89,9 +89,15 @@ services:
       postgres:
         condition: service_healthy
       embedding-service:
-        condition: service_started
+        condition: service_healthy
     environment:
       EMBEDDING_SERVICE_URL: http://embedding-service:8080
+      EMBEDDING_WORKER_BATCH_SIZE: "1024"
+      EMBEDDING_WORKER_POLL_INTERVAL_SECONDS: "1"
+      EMBEDDING_WORKER_MAX_CONCURRENT: "128"
+      EMBEDDING_WORKER_REQUEST_BATCH_SIZE: "160"
+      EMBEDDING_WORKER_MAX_CONCURRENT_BATCHES: "20"
+      EMBEDDING_WORKER_MAX_RETRIES: "3"
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6334
       QDRANT_API_KEY: ${QDRANT_ADMIN_API_KEY}

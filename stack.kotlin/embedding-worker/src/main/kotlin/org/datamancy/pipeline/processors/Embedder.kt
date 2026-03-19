@@ -1,6 +1,7 @@
 package org.datamancy.pipeline.processors
 
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaType
@@ -154,137 +155,206 @@ class Embedder(
      * @throws Exception if embedding fails after all retries or encounters non-retryable error
      */
     override suspend fun process(text: String): FloatArray {
-        val startTime = System.currentTimeMillis()
-        var lastException: Exception? = null
+        return processBatch(listOf(text)).firstOrNull()
+            ?: throw Exception("Empty embedding array from service")
+    }
 
-        // Client-side truncation to prevent bandwidth waste and service rejections
+    /**
+     * Batched embedding generation for high-throughput queue draining.
+     *
+     * Sends multiple inputs in a single `/embed` call to increase GPU occupancy and reduce
+     * per-request HTTP overhead.
+     */
+    suspend fun processBatch(texts: List<String>): List<FloatArray> {
+        if (texts.isEmpty()) return emptyList()
+
+        val truncatedTexts = texts.map { truncateIfNeeded(it) }
+        val payloadInputs: Any = if (truncatedTexts.size == 1) {
+            truncatedTexts.first()
+        } else {
+            truncatedTexts
+        }
+
+        val embeddings = requestEmbeddingsWithRetry(payloadInputs)
+        if (embeddings.size != truncatedTexts.size) {
+            throw Exception(
+                "Embedding service returned ${embeddings.size} vectors for ${truncatedTexts.size} inputs"
+            )
+        }
+        return embeddings.toList()
+    }
+
+    private fun truncateIfNeeded(text: String): String {
         val actualTokens = TokenCounter.countTokens(text)
-        val truncatedText = if (actualTokens > maxTokens) {
+        return if (actualTokens > maxTokens) {
             logger.debug { "Text has $actualTokens tokens, truncating to $maxTokens tokens" }
             TokenCounter.truncateToTokens(text, maxTokens)
         } else {
             text
         }
+    }
 
-        // Retry loop with exponential backoff for transient failures
+    private suspend fun requestEmbeddingsWithRetry(inputs: Any): Array<FloatArray> {
+        val startTime = System.currentTimeMillis()
+        var lastException: Exception? = null
+
         for (attempt in 0..maxRetries) {
             try {
-                // Build JSON request with service-side truncation as secondary safeguard
-                val requestBody = gson.toJson(mapOf(
-                    "inputs" to truncatedText,
-                    "truncate" to true  // Service-side safety net if tokenization differs
-                )).toRequestBody(jsonMediaType)
+                val requestBody = gson.toJson(
+                    mapOf(
+                        "inputs" to inputs,
+                        "truncate" to true
+                    )
+                ).toRequestBody(jsonMediaType)
 
                 val request = Request.Builder()
                     .url("$serviceUrl/embed")
                     .post(requestBody)
                     .build()
 
-                val result = client.newCall(request).execute().use { response ->
-                    // Classify HTTP errors as retryable vs non-retryable
+                val embeddings = client.newCall(request).execute().use { response ->
                     if (response.code in listOf(429, 500, 502, 503, 504)) {
                         throw RetryableException("Embedding service returned retryable error ${response.code}")
                     }
-
                     if (!response.isSuccessful) {
                         throw Exception("Embedding service returned ${response.code}: ${response.body?.string()}")
                     }
 
                     val body = response.body?.string() ?: throw Exception("Empty response from embedding service")
-                    val result = gson.fromJson(body, Array<FloatArray>::class.java)
-
-                    result.firstOrNull() ?: throw Exception("Empty embedding array from service")
+                    parseEmbeddingResponse(body)
                 }
 
-                // Track successful request metrics
                 val duration = System.currentTimeMillis() - startTime
-                totalRequests.incrementAndGet()
+                totalRequests.addAndGet(embeddings.size.toLong())
                 totalDurationMs.addAndGet(duration)
 
-                // Periodic telemetry logging (every hour) to monitor service health
                 val now = System.currentTimeMillis()
                 if (now - lastReportTime >= reportIntervalMs) {
                     val requests = totalRequests.get()
                     val retries = totalRetries.get()
                     val avgLatency = if (requests > 0) totalDurationMs.get() / requests else 0
-                    logger.info { "Embedding telemetry: $requests requests, $retries retries, avg latency ${avgLatency}ms" }
+                    logger.info {
+                        "Embedding telemetry: $requests embeddings, $retries retries, avg latency ${avgLatency}ms"
+                    }
                     lastReportTime = now
                 }
 
-                return result
-
+                return embeddings
             } catch (e: RetryableException) {
                 lastException = e
-
                 if (attempt < maxRetries) {
-                    // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
                     val backoffMs = baseDelayMs * (1 shl attempt)
-
-                    // Jitter (0-50% of backoff) prevents thundering herd on service recovery
                     val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
                     val totalDelay = backoffMs + jitterMs
-
                     totalRetries.incrementAndGet()
-                    logger.warn { "Embedding attempt ${attempt + 1}/$maxRetries failed, retrying in ${totalDelay}ms: ${e.message}" }
+                    logger.warn {
+                        "Embedding attempt ${attempt + 1}/$maxRetries failed, retrying in ${totalDelay}ms: ${e.message}"
+                    }
                     delay(totalDelay)
                 } else {
                     logger.error(e) { "Embedding failed after $maxRetries retries: ${e.message}" }
                 }
             } catch (e: java.net.ConnectException) {
-                // Service unreachable (container restarting, network issue)
                 lastException = RetryableException("Connection refused (service may be restarting)", e)
-
                 if (attempt < maxRetries) {
-                    // Longer backoff for connection failures: 1s, 2s, 4s, 8s, 16s
                     val backoffMs = 1000L * (1 shl attempt)
                     val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
                     val totalDelay = backoffMs + jitterMs
-
                     totalRetries.incrementAndGet()
-                    logger.warn { "Embedding service unreachable (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms" }
+                    logger.warn {
+                        "Embedding service unreachable (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms"
+                    }
                     delay(totalDelay)
                 } else {
                     logger.error(e) { "Embedding service unreachable after $maxRetries retries" }
                 }
             } catch (e: java.net.SocketTimeoutException) {
-                // Service overloaded or processing very long text
                 lastException = RetryableException("Socket timeout (service overloaded or restarting)", e)
-
                 if (attempt < maxRetries) {
                     val backoffMs = 1000L * (1 shl attempt)
                     val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
                     val totalDelay = backoffMs + jitterMs
-
                     totalRetries.incrementAndGet()
-                    logger.warn { "Embedding request timeout (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms" }
+                    logger.warn {
+                        "Embedding request timeout (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms"
+                    }
                     delay(totalDelay)
                 } else {
                     logger.error(e) { "Embedding request timeout after $maxRetries retries" }
                 }
             } catch (e: java.io.IOException) {
-                // Network instability (packet loss, DNS issues, etc.)
                 lastException = RetryableException("Network IO error", e)
-
                 if (attempt < maxRetries) {
                     val backoffMs = 1000L * (1 shl attempt)
                     val jitterMs = (backoffMs * Random.nextDouble(0.0, 0.5)).toLong()
                     val totalDelay = backoffMs + jitterMs
-
                     totalRetries.incrementAndGet()
-                    logger.warn { "Network error (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms: ${e.message}" }
+                    logger.warn {
+                        "Network error (attempt ${attempt + 1}/$maxRetries), retrying in ${totalDelay}ms: ${e.message}"
+                    }
                     delay(totalDelay)
                 } else {
                     logger.error(e) { "Network error after $maxRetries retries: ${e.message}" }
                 }
             } catch (e: Exception) {
-                // Non-retryable errors (4xx responses, JSON parsing failures, etc.)
                 logger.error(e) { "Failed to generate embedding (non-retryable): ${e.message}" }
                 throw e
             }
         }
 
-        // All retries exhausted
         throw lastException ?: Exception("Failed to generate embedding after $maxRetries retries")
+    }
+
+    private fun parseEmbeddingResponse(body: String): Array<FloatArray> {
+        val root = JsonParser.parseString(body)
+        if (!root.isJsonArray) {
+            throw Exception("Invalid embedding response: expected top-level JSON array")
+        }
+
+        val rows = root.asJsonArray
+        if (rows.size() == 0) {
+            throw Exception("Empty embedding array from service")
+        }
+
+        val vectors = ArrayList<FloatArray>(rows.size())
+        var sanitizedValues = 0
+        for (rowIndex in 0 until rows.size()) {
+            val row = rows[rowIndex]
+            if (!row.isJsonArray) {
+                throw Exception("Invalid embedding response: row $rowIndex is not an array")
+            }
+            val rowArray = row.asJsonArray
+            val vector = FloatArray(rowArray.size())
+            for (colIndex in 0 until rowArray.size()) {
+                val value = rowArray[colIndex]
+                if (!value.isJsonPrimitive) {
+                    // Keep throughput: sanitize rare malformed values instead of failing whole batch.
+                    vector[colIndex] = 0f
+                    sanitizedValues += 1
+                    continue
+                }
+
+                val primitive = value.asJsonPrimitive
+                val parsed = when {
+                    primitive.isNumber -> primitive.asDouble
+                    primitive.isString -> primitive.asString.toDoubleOrNull()
+                    else -> null
+                }
+
+                if (parsed == null || !parsed.isFinite()) {
+                    vector[colIndex] = 0f
+                    sanitizedValues += 1
+                } else {
+                    vector[colIndex] = parsed.toFloat()
+                }
+            }
+            vectors.add(vector)
+        }
+
+        if (sanitizedValues > 0) {
+            logger.warn { "Sanitized $sanitizedValues non-finite embedding values from service response" }
+        }
+        return vectors.toTypedArray()
     }
 
     /**

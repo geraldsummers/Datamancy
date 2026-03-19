@@ -382,6 +382,35 @@ class DocumentStagingStore(
     }
 
     /**
+     * Bulk status transition for a batch of document IDs.
+     *
+     * This is optimized for high-throughput embedding workers that move many documents
+     * through the same state transition together (e.g. PENDING -> IN_PROGRESS -> COMPLETED).
+     */
+    suspend fun updateStatusBatch(
+        ids: List<String>,
+        newStatus: EmbeddingStatus,
+        errorMessage: String? = null
+    ) {
+        if (ids.isEmpty()) return
+
+        try {
+            transaction {
+                DocumentStagingTable.update({ DocumentStagingTable.id inList ids }) {
+                    it[embeddingStatus] = newStatus.name
+                    it[updatedAt] = Instant.now()
+                    if (errorMessage != null) {
+                        it[DocumentStagingTable.errorMessage] = errorMessage
+                    }
+                }
+            }
+            logger.debug { "Updated status for ${ids.size} docs: $newStatus" }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to update batch status: ${e.message}" }
+        }
+    }
+
+    /**
      * Aggregates document counts by processing status for monitoring dashboards.
      *
      * Used by MonitoringServer to expose Prometheus metrics showing pipeline health:
