@@ -5,11 +5,7 @@ services:
     restart: unless-stopped
     networks:
       caddy:
-        aliases:
-          - bookstack.${DOMAIN}
       mariadb:
-        aliases:
-          - bookstack.${DOMAIN}
     depends_on:
       caddy:
         condition: service_started
