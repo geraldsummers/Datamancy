@@ -310,6 +310,19 @@ class TestFlaskEndpoints:
         assert response.status_code == 400
         assert 'cancelAfterMs must be >= 100' in response.get_json()['error']
 
+    def test_order_rejects_too_slow_cancel(self, client):
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'size': '0.1',
+            'cancelAfterMs': 600001,
+            'hyperliquidKey': 'testkey'
+        })
+        assert response.status_code == 400
+        assert 'cancelAfterMs must be <= 600000' in response.get_json()['error']
+
     @patch('main.get_info_client')
     @patch('main.get_exchange_client')
     def test_market_order_with_slippage_uses_ioc_limit(self, mock_get_exchange, mock_get_info, client):
@@ -386,6 +399,50 @@ class TestFlaskEndpoints:
         call_kwargs = mock_exchange.order.call_args.kwargs
         assert call_kwargs['order_type'] == {'limit': {'tif': 'Alo'}}
 
+    @patch('main.get_info_client')
+    @patch('main.get_exchange_client')
+    def test_limit_order_rejects_when_buy_price_exceeds_slippage_guard(self, mock_get_exchange, mock_get_info, client):
+        mock_info = Mock()
+        mock_info.all_mids.return_value = {'BTC': '50000.0'}
+        mock_get_info.return_value = mock_info
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'LIMIT',
+            'size': '0.1',
+            'price': '50500.0',
+            'maxSlippageBps': '5',
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 400
+        assert 'Limit price exceeds slippage guard' in response.get_json()['error']
+        mock_get_exchange.assert_not_called()
+
+    @patch('main.get_info_client')
+    @patch('main.get_exchange_client')
+    def test_limit_order_rejects_when_sell_price_exceeds_slippage_guard(self, mock_get_exchange, mock_get_info, client):
+        mock_info = Mock()
+        mock_info.all_mids.return_value = {'BTC': '50000.0'}
+        mock_get_info.return_value = mock_info
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'SELL',
+            'type': 'LIMIT',
+            'size': '0.1',
+            'price': '49500.0',
+            'maxSlippageBps': '5',
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 400
+        assert 'Limit price exceeds slippage guard' in response.get_json()['error']
+        mock_get_exchange.assert_not_called()
+
     @patch('main.get_exchange_client')
     def test_limit_order_rejects_notional_over_limit(self, mock_get_exchange, client):
         with patch.object(main, 'MAX_ORDER_NOTIONAL_USD', Decimal('1000')):
@@ -401,6 +458,169 @@ class TestFlaskEndpoints:
 
         assert response.status_code == 400
         assert 'Order notional exceeds max allowed' in response.get_json()['error']
+
+    @patch('main.get_exchange_client')
+    def test_limit_order_forwards_reduce_only_when_supported(self, mock_get_exchange, client):
+        class ExchangeStub:
+            def __init__(self):
+                self.called_kwargs = None
+
+            def order(self, symbol, is_buy, sz, limit_px, order_type, reduce_only=False):
+                self.called_kwargs = {
+                    "symbol": symbol,
+                    "is_buy": is_buy,
+                    "sz": sz,
+                    "limit_px": limit_px,
+                    "order_type": order_type,
+                    "reduce_only": reduce_only,
+                }
+                return {
+                    'status': 'ok',
+                    'response': {
+                        'data': {
+                            'statuses': [{
+                                'status': 'OPEN',
+                                'resting': {'oid': 777}
+                            }]
+                        }
+                    }
+                }
+
+        exchange = ExchangeStub()
+        mock_get_exchange.return_value = exchange
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'SELL',
+            'type': 'LIMIT',
+            'size': '0.1',
+            'price': '50000.0',
+            'reduceOnly': True,
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 200
+        assert exchange.called_kwargs is not None
+        assert exchange.called_kwargs['reduce_only'] is True
+        assert response.get_json()['reduceOnly'] is True
+
+    @patch('main.get_info_client')
+    @patch('main.get_exchange_client')
+    def test_market_order_forwards_reduce_only_when_supported(self, mock_get_exchange, mock_get_info, client):
+        class ExchangeStub:
+            def __init__(self):
+                self.called_kwargs = None
+
+            def market_order(self, symbol, is_buy, sz, reduce_only=False):
+                self.called_kwargs = {
+                    "symbol": symbol,
+                    "is_buy": is_buy,
+                    "sz": sz,
+                    "reduce_only": reduce_only,
+                }
+                return {
+                    'status': 'ok',
+                    'response': {
+                        'data': {
+                            'statuses': [{
+                                'status': 'FILLED',
+                                'filled': {'oid': 778, 'px': '50000.0', 'totalSz': '0.1'}
+                            }]
+                        }
+                    }
+                }
+
+        mock_info = Mock()
+        mock_info.all_mids.return_value = {'BTC': '50000.0'}
+        mock_get_info.return_value = mock_info
+
+        exchange = ExchangeStub()
+        mock_get_exchange.return_value = exchange
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'size': '0.1',
+            'reduceOnly': True,
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 200
+        assert exchange.called_kwargs is not None
+        assert exchange.called_kwargs['reduce_only'] is True
+        assert response.get_json()['reduceOnly'] is True
+
+    @patch('main.get_exchange_client')
+    def test_order_parses_resting_oid_and_pending_status(self, mock_get_exchange, client):
+        mock_exchange = Mock()
+        mock_exchange.order.return_value = {
+            'status': 'ok',
+            'response': {
+                'data': {
+                    'statuses': [{
+                        'resting': {'oid': 445566}
+                    }]
+                }
+            }
+        }
+        mock_get_exchange.return_value = mock_exchange
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'LIMIT',
+            'size': '0.1',
+            'price': '50000.0',
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['orderId'] == '445566'
+        assert data['status'] == 'PENDING'
+        assert data['filledSize'] == '0'
+
+    @patch('main.get_info_client')
+    @patch('main.get_exchange_client')
+    def test_order_filled_status_defaults_filled_size_to_requested_size(self, mock_get_exchange, mock_get_info, client):
+        mock_info = Mock()
+        mock_info.all_mids.return_value = {'BTC': '50000.0'}
+        mock_get_info.return_value = mock_info
+
+        mock_exchange = Mock()
+        mock_exchange.market_order.return_value = {
+            'status': 'ok',
+            'response': {
+                'data': {
+                    'statuses': [{
+                        'status': 'FILLED',
+                        'filled': {
+                            'oid': 9999,
+                            'px': '50000.0'
+                        }
+                    }]
+                }
+            }
+        }
+        mock_get_exchange.return_value = mock_exchange
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'size': '0.2',
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['status'] == 'FILLED'
+        assert data['filledSize'] == '0.2'
 
     @patch('main.get_exchange_client')
     def test_cancel_order_success(self, mock_get_exchange, client):

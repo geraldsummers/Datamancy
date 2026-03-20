@@ -9,6 +9,7 @@ import io.ktor.server.testing.*
 import io.mockk.mockk
 import io.mockk.verify
 import org.datamancy.txgateway.services.*
+import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.Test
@@ -17,6 +18,40 @@ import kotlin.test.assertTrue
 
 class ApplicationTest {
     private fun freshQuoteTimestamp(): Instant = Instant.now().minusSeconds(5)
+
+    private fun baselineRiskAccountState(
+        username: String,
+        openExposureUsd: String = "0",
+        accountEquityUsd: String = "100000"
+    ): RiskAccountStateRecord = RiskAccountStateRecord(
+        username = username,
+        accountEquityUsd = BigDecimal(accountEquityUsd),
+        highWaterMarkUsd = BigDecimal(accountEquityUsd),
+        realizedPnlUsd = BigDecimal.ZERO,
+        unrealizedPnlUsd = BigDecimal.ZERO,
+        dailyRealizedPnlUsd = BigDecimal.ZERO,
+        dailyUnrealizedPnlUsd = BigDecimal.ZERO,
+        openExposureUsd = BigDecimal(openExposureUsd),
+        sentimentScore = 0.0,
+        sentimentConfidence = 1.0,
+        riskTier = "normal",
+        tierReason = null,
+        updatedAt = freshQuoteTimestamp()
+    )
+
+    private fun stubAllowingRiskState(
+        dbService: DatabaseService,
+        username: String = "trader1",
+        openExposureUsd: String = "0"
+    ) {
+        every { dbService.getActiveRiskPolicyForUser(username) } returns null
+        every { dbService.getOrCreateRiskAccountState(username) } returns baselineRiskAccountState(
+            username = username,
+            openExposureUsd = openExposureUsd
+        )
+        every { dbService.getRiskKillSwitchState(username) } returns null
+        every { dbService.fetchLatestSentiment(any(), any()) } returns null
+    }
 
     @Test
     fun testHealthEndpoint() = testApplication {
@@ -653,6 +688,346 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(Regex("\"error\"\\s*:\\s*\"Estimated slippage").containsMatchIn(body), body)
         verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderUsesWorkerNotionalAndReconcilesRiskState() = testApplication {
+        lateinit var workerClient: WorkerClient
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            stubAllowingRiskState(dbService, username = "trader1", openExposureUsd = "0")
+            every { workerClient.submitHyperliquidOrder(any()) } returns mapOf(
+                "orderId" to "live-1",
+                "status" to "FILLED",
+                "executedNotionalUsd" to "3210.55"
+            )
+            every { workerClient.getHyperliquidBalance("trader1", "test-key") } returns mapOf(
+                "accountValue" to "12000.25"
+            )
+            every { workerClient.getHyperliquidPositions("trader1", "test-key") } returns listOf(
+                mapOf(
+                    "size" to "0.25",
+                    "entryPrice" to "70000",
+                    "unrealizedPnl" to "125.5"
+                ),
+                mapOf(
+                    "size" to "-0.1",
+                    "marginUsed" to "800",
+                    "unrealizedPnl" to "-20"
+                )
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"orderId\""), body)
+
+        verify(exactly = 1) {
+            dbService.adjustRiskOpenExposure(
+                username = "trader1",
+                deltaExposureUsd = match { it.compareTo(BigDecimal("3210.55")) == 0 }
+            )
+        }
+        verify(exactly = 1) { workerClient.getHyperliquidBalance("trader1", "test-key") }
+        verify(exactly = 1) { workerClient.getHyperliquidPositions("trader1", "test-key") }
+
+        val patches = mutableListOf<RiskAccountStatePatch>()
+        verify(exactly = 1) { dbService.upsertRiskAccountState("trader1", capture(patches)) }
+        val patch = patches.single()
+        assertTrue(patch.accountEquityUsd?.compareTo(BigDecimal("12000.25")) == 0)
+        assertTrue(patch.openExposureUsd?.compareTo(BigDecimal("18300")) == 0)
+        assertTrue(patch.unrealizedPnlUsd?.compareTo(BigDecimal("105.5")) == 0)
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderFallsBackToFilledSizeTimesPriceForNotional() = testApplication {
+        lateinit var workerClient: WorkerClient
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            stubAllowingRiskState(dbService)
+            every { workerClient.submitHyperliquidOrder(any()) } returns mapOf(
+                "orderId" to "live-2",
+                "status" to "PARTIALLY_FILLED",
+                "filledSize" to "0.05",
+                "fillPrice" to "72000"
+            )
+            every { workerClient.getHyperliquidBalance("trader1", "test-key") } returns mapOf(
+                "accountValue" to "10000"
+            )
+            every { workerClient.getHyperliquidPositions("trader1", "test-key") } returns emptyList()
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        verify(exactly = 1) {
+            dbService.adjustRiskOpenExposure(
+                username = "trader1",
+                deltaExposureUsd = match { it.compareTo(BigDecimal("3600.00000000")) == 0 }
+            )
+        }
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderFallsBackToFillRatioWhenOnlyFilledSizePresent() = testApplication {
+        lateinit var workerClient: WorkerClient
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            stubAllowingRiskState(dbService)
+            every { workerClient.submitHyperliquidOrder(any()) } returns mapOf(
+                "orderId" to "live-3",
+                "status" to "PARTIALLY_FILLED",
+                "filledSize" to "0.025"
+            )
+            every { workerClient.getHyperliquidBalance("trader1", "test-key") } returns mapOf(
+                "accountValue" to "10000"
+            )
+            every { workerClient.getHyperliquidPositions("trader1", "test-key") } returns emptyList()
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        verify(exactly = 1) {
+            dbService.adjustRiskOpenExposure(
+                username = "trader1",
+                deltaExposureUsd = match { it.compareTo(BigDecimal("1825.25000000")) == 0 }
+            )
+        }
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderFallsBackToEstimatedNotionalWhenStatusIsFilled() = testApplication {
+        lateinit var workerClient: WorkerClient
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            stubAllowingRiskState(dbService)
+            every { workerClient.submitHyperliquidOrder(any()) } returns mapOf(
+                "orderId" to "live-4",
+                "status" to "FILLED"
+            )
+            every { workerClient.getHyperliquidBalance("trader1", "test-key") } returns mapOf(
+                "accountValue" to "10000"
+            )
+            every { workerClient.getHyperliquidPositions("trader1", "test-key") } returns emptyList()
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        verify(exactly = 1) {
+            dbService.adjustRiskOpenExposure(
+                username = "trader1",
+                deltaExposureUsd = match { it.compareTo(BigDecimal("7301.00000000")) == 0 }
+            )
+        }
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderStillSucceedsWhenRiskReconciliationFails() = testApplication {
+        lateinit var workerClient: WorkerClient
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            stubAllowingRiskState(dbService)
+            every { workerClient.submitHyperliquidOrder(any()) } returns mapOf(
+                "orderId" to "live-5",
+                "status" to "FILLED",
+                "executedNotionalUsd" to "100"
+            )
+            every {
+                workerClient.getHyperliquidBalance("trader1", "test-key")
+            } throws RuntimeException("balance unavailable")
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("live-5"), body)
+        verify(exactly = 1) {
+            dbService.adjustRiskOpenExposure(
+                username = "trader1",
+                deltaExposureUsd = match { it.compareTo(BigDecimal("100")) == 0 }
+            )
+        }
+        verify(exactly = 0) { dbService.upsertRiskAccountState(any(), any()) }
     }
 
     @Test
