@@ -5,9 +5,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.datamancy.trading.data.Candle
 import org.datamancy.trading.data.FundingRate
 import org.datamancy.trading.data.MarketDataService
@@ -57,9 +57,9 @@ class SimpleStrategyEngineTest {
         val capturedSignals = mutableListOf<Signal>()
         val signalJob = launch {
             engine.signals("Lifecycle")
-                .take(2)
                 .collect { capturedSignals += it.signal }
         }
+        delay(150)
 
         dataService.emitCandle(
             symbol = "BTC",
@@ -67,15 +67,24 @@ class SimpleStrategyEngineTest {
             interval = 1.minutes,
             candle = candle(close = "70000")
         )
-        delay(200)
+        withTimeout(5_000) {
+            while (!capturedSignals.contains(Signal.LONG)) {
+                delay(25)
+            }
+        }
+
         dataService.emitCandle(
             symbol = "BTC",
             exchange = "hyperliquid",
             interval = 1.minutes,
             candle = candle(close = "70100", tsOffsetSeconds = 60)
         )
-
-        signalJob.join()
+        withTimeout(5_000) {
+            while (!capturedSignals.contains(Signal.EXIT)) {
+                delay(25)
+            }
+        }
+        signalJob.cancel()
         val perf = engine.getPerformance("Lifecycle")
         assertNotNull(perf)
         assertEquals(1, perf!!.totalTrades)
@@ -166,7 +175,7 @@ class SimpleStrategyEngineTest {
         private val tradeFlow = MutableSharedFlow<Trade>(extraBufferCapacity = 32)
         private val orderbookFlow = MutableSharedFlow<Orderbook>(extraBufferCapacity = 32)
         private val candleFlows = intervals.distinct().associateWith {
-            MutableSharedFlow<Candle>(extraBufferCapacity = 32)
+            MutableSharedFlow<Candle>(replay = 1, extraBufferCapacity = 32)
         }.toMutableMap()
 
         override val trades: Flow<Trade> = tradeFlow
@@ -175,7 +184,7 @@ class SimpleStrategyEngineTest {
         override val openInterest: Flow<OpenInterest> = emptyFlow()
 
         override fun candles(interval: Duration): Flow<Candle> {
-            return candleFlows.getOrPut(interval) { MutableSharedFlow(extraBufferCapacity = 32) }
+            return candleFlows.getOrPut(interval) { MutableSharedFlow(replay = 1, extraBufferCapacity = 32) }
         }
 
         override suspend fun onTrade(handler: suspend (Trade) -> Unit) {
@@ -197,7 +206,7 @@ class SimpleStrategyEngineTest {
         override suspend fun close() {}
 
         suspend fun emitCandle(interval: Duration, candle: Candle) {
-            val flow = candleFlows.getOrPut(interval) { MutableSharedFlow(extraBufferCapacity = 32) }
+            val flow = candleFlows.getOrPut(interval) { MutableSharedFlow(replay = 1, extraBufferCapacity = 32) }
             flow.emit(candle)
         }
     }
