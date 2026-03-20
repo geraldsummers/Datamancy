@@ -205,6 +205,7 @@ class MonitoringServer(
                 }
 
                 get("/") {
+                    if (!call.requireAuth()) return@get
                     call.respondText(contentType = io.ktor.http.ContentType.Text.Html) {
                         """
                         <!DOCTYPE html>

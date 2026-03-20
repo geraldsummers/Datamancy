@@ -80,6 +80,8 @@ class SearchGateway(
 
     private val gson = Gson()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    private val postgresStatementTimeoutSeconds =
+        (System.getenv("SEARCH_POSTGRES_STATEMENT_TIMEOUT_SECONDS")?.toIntOrNull() ?: 5).coerceIn(1, 60)
 
     // Qdrant gRPC client for vector similarity search
     // Uses cosine distance to find semantically similar documents
@@ -244,15 +246,17 @@ class SearchGateway(
      * @param limit Maximum results per collection (de-duplicated and ranked afterward)
      * @return List of SearchResult with ts_rank scores
      */
-    private suspend fun searchFullText(query: String, collections: List<String>, limit: Int): List<SearchResult> = withContext(Dispatchers.IO) {
-        val results = collections.flatMap { collection ->
-            try {
-                searchPostgres(collection, query, limit)
-            } catch (e: Exception) {
-                logger.warn(e) { "Failed to search PostgreSQL for collection: $collection" }
-                emptyList()
+    private suspend fun searchFullText(query: String, collections: List<String>, limit: Int): List<SearchResult> = coroutineScope {
+        val results = collections.map { collection ->
+            async(Dispatchers.IO) {
+                try {
+                    searchPostgres(collection, query, limit)
+                } catch (e: Exception) {
+                    logger.warn(e) { "Failed to search PostgreSQL for collection: $collection" }
+                    emptyList()
+                }
             }
-        }
+        }.awaitAll().flatten()
 
         results.sortedByDescending { it.score }.take(limit)
     }
@@ -341,6 +345,7 @@ class SearchGateway(
 
         postgresPool.connection.use { conn ->
             conn.prepareStatement(sql).use { stmt ->
+                stmt.queryTimeout = postgresStatementTimeoutSeconds
                 stmt.setString(1, query)
                 stmt.setString(2, collection)
                 stmt.setString(3, query)

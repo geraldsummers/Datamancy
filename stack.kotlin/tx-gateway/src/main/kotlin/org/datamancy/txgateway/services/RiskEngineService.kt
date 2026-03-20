@@ -83,14 +83,28 @@ class RiskEngineService(
         orderNotionalUsd: BigDecimal,
         reduceOnly: Boolean
     ): RiskDecision {
+        var policyLookupFailed = false
+        var accountStateLookupFailed = false
+        var killSwitchLookupFailed = false
         val policyRecord = runCatching { dbService.getActiveRiskPolicyForUser(username) }
-            .onFailure { logger.debug("Risk policy lookup failed, using bootstrap defaults: {}", it.message) }
+            .onFailure {
+                policyLookupFailed = true
+                logger.warn("Risk policy lookup failed: {}", it.message)
+            }
             .getOrNull()
         val policy = decodePolicy(policyRecord?.policyJson)
         val accountState = runCatching { dbService.getOrCreateRiskAccountState(username) }
-            .onFailure { logger.debug("Risk state lookup failed, using in-memory defaults: {}", it.message) }
+            .onFailure {
+                accountStateLookupFailed = true
+                logger.warn("Risk state lookup failed: {}", it.message)
+            }
             .getOrElse { defaultAccountState(username) }
-        val killSwitch = runCatching { dbService.getRiskKillSwitchState(username) }.getOrNull()
+        val killSwitch = runCatching { dbService.getRiskKillSwitchState(username) }
+            .onFailure {
+                killSwitchLookupFailed = true
+                logger.warn("Risk kill-switch lookup failed: {}", it.message)
+            }
+            .getOrNull()
 
         val currentExposureRaw = runCatching { accountState.openExposureUsd }.getOrDefault(BigDecimal.ZERO)
         val accountEquityRaw = runCatching { accountState.accountEquityUsd }.getOrDefault(BigDecimal("100000"))
@@ -98,11 +112,16 @@ class RiskEngineService(
         val dailyRealizedRaw = runCatching { accountState.dailyRealizedPnlUsd }.getOrDefault(BigDecimal.ZERO)
         val dailyUnrealizedRaw = runCatching { accountState.dailyUnrealizedPnlUsd }.getOrDefault(BigDecimal.ZERO)
 
-        if (killSwitch?.engaged == true && killSwitch.manualAckRequired && killSwitch.acknowledgedAt == null) {
+        if (killSwitch?.engaged == true) {
+            val killSwitchReason = if (killSwitch.manualAckRequired) {
+                "Kill switch engaged for account; manual acknowledgement required"
+            } else {
+                "Kill switch engaged for account"
+            }
             val blocked = blockedDecision(
                 tier = RiskTier.HARD_KILL,
                 action = RiskAction.BLOCK_ALL,
-                reason = "Kill switch engaged for account",
+                reason = killSwitchReason,
                 policyId = policyRecord?.id?.toString(),
                 policyVersion = policyRecord?.version,
                 currentExposure = currentExposureRaw,
@@ -122,6 +141,31 @@ class RiskEngineService(
                 )
             }
             return blocked
+        }
+        if (policyLookupFailed || accountStateLookupFailed || killSwitchLookupFailed) {
+            val degraded = blockedDecision(
+                tier = RiskTier.BREACH_UNWIND,
+                action = if (reduceOnly) RiskAction.ALLOW else RiskAction.UNWIND_ONLY,
+                reason = "Risk backend unavailable; only exposure-reducing orders permitted",
+                policyId = policyRecord?.id?.toString(),
+                policyVersion = policyRecord?.version,
+                currentExposure = currentExposureRaw,
+                projectedExposure = currentExposureRaw,
+                accountEquity = accountEquityRaw,
+                highWaterMark = highWaterRaw,
+                dailyLossUsd = calculateDailyLoss(dailyRealizedRaw, dailyUnrealizedRaw),
+                policy = policy,
+                sentiment = null
+            )
+            runCatching {
+                dbService.updateRiskTierSnapshot(
+                    username = username,
+                    riskTier = degraded.tier.name.lowercase(),
+                    tierReason = degraded.reason,
+                    sentiment = null
+                )
+            }
+            return degraded
         }
 
         val currentExposure = currentExposureRaw.max(BigDecimal.ZERO)
@@ -202,11 +246,16 @@ class RiskEngineService(
             RiskTier.HARD_KILL -> RiskAction.BLOCK_ALL
         }
 
+        val hardKillReason = if (policy.manualAckRequired) {
+            "Hard risk kill-switch triggered; manual acknowledgement required"
+        } else {
+            "Hard risk kill-switch triggered"
+        }
         val reason = when (action) {
             RiskAction.ALLOW -> "Order allowed within active risk policy"
             RiskAction.REJECT_NEW_RISK -> "Account approaching risk limits; only exposure-reducing orders allowed"
             RiskAction.UNWIND_ONLY -> "Risk limits breached; slippage-managed unwind required"
-            RiskAction.BLOCK_ALL -> "Hard risk kill-switch triggered; manual acknowledgement required"
+            RiskAction.BLOCK_ALL -> hardKillReason
         }
 
         if (tier == RiskTier.HARD_KILL) {

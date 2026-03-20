@@ -315,23 +315,30 @@ class MarketDataSink(
             }
         }
 
+        return resolveOrderbookWriteMode(columns)
+    }
+
+    internal fun detectOrderbookWriteModeForColumns(columns: Set<String>): String {
+        return resolveOrderbookWriteMode(columns).name
+    }
+
+    private fun resolveOrderbookWriteMode(columns: Set<String>): OrderbookWriteMode {
+        val canonicalColumns = listOf(
+            "bids",
+            "asks",
+            "best_bid",
+            "best_ask",
+            "spread",
+            "spread_pct",
+            "mid_price",
+            "bid_depth_10",
+            "ask_depth_10"
+        )
         return when {
+            columns.containsAll(canonicalColumns) ->
+                OrderbookWriteMode.JSON_DEPTH_CANONICAL
             columns.containsAll(listOf("bid_price", "bid_size", "ask_price", "ask_size")) ->
                 OrderbookWriteMode.TOP_OF_BOOK_LEGACY
-            columns.containsAll(
-                listOf(
-                    "bids",
-                    "asks",
-                    "best_bid",
-                    "best_ask",
-                    "spread",
-                    "spread_pct",
-                    "mid_price",
-                    "bid_depth_10",
-                    "ask_depth_10"
-                )
-            ) ->
-                OrderbookWriteMode.JSON_DEPTH_CANONICAL
             columns.containsAll(listOf("bids", "asks")) ->
                 OrderbookWriteMode.JSON_DEPTH_LEGACY
             else ->
