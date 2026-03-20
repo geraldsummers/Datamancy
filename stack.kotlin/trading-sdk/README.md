@@ -47,10 +47,10 @@ cd /path/to/Datamancy
 
 ### 2. Setup Database
 
-Run the migration script to create unified tables:
+Run the market-data schema migration to create unified tables:
 
 ```bash
-./scripts/setup-trading-db.sh
+psql "$TRADING_DB_URL" -f stack.config/postgres/init-market-data-schema.sql
 ```
 
 This creates:

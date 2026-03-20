@@ -6,6 +6,21 @@ model_list:
       api_key: unused
     supports_function_calling: true
 
+  # Backward-compatible aliases used by older notebooks/services.
+  - model_name: qwen2.5:14b-instruct
+    litellm_params:
+      model: openai/qwen2.5-7b-instruct
+      api_base: http://vllm-7b:8000/v1
+      api_key: unused
+    supports_function_calling: true
+
+  - model_name: qwen2.5-0.5b
+    litellm_params:
+      model: openai/qwen2.5-7b-instruct
+      api_base: http://vllm-7b:8000/v1
+      api_key: unused
+    supports_function_calling: true
+
 
   - model_name: bge-m3
     litellm_params:

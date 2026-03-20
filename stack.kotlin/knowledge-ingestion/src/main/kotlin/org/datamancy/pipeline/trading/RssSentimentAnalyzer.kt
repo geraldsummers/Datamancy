@@ -290,7 +290,7 @@ class LiteLlmRssSentimentClient(
                 ?: "http://litellm:4000/v1"
             val modelName = System.getenv("RSS_SENTIMENT_MODEL")
                 ?.takeIf { it.isNotBlank() }
-                ?: "qwen2.5:14b-instruct"
+                ?: "qwen2.5-7b-instruct"
             val apiKey = System.getenv("RSS_SENTIMENT_LITELLM_API_KEY")
                 ?: System.getenv("LITELLM_MASTER_KEY")
             val timeoutMs = max(

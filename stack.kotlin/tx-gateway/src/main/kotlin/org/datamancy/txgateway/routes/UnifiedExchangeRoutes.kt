@@ -473,7 +473,11 @@ fun Route.unifiedExchangeRoutes(
                     return@get
                 }
 
-                val quote = dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)
+                val quote = resolveQuoteWithPaperFallback(
+                    dbService = dbService,
+                    exchange = exchange,
+                    symbol = symbol
+                )
                 if (quote == null) {
                     call.respond(
                         HttpStatusCode.NotFound,
@@ -598,7 +602,11 @@ fun Route.unifiedExchangeRoutes(
                 val maxTxValueUsd = BigDecimal.valueOf(userInfo.maxTxValueUSD.toLong())
 
                 if (exchange != "hyperliquid") {
-                    val quote = dbService.fetchLatestQuote(exchange = exchange, symbol = orderRequest.symbol)
+                    val quote = resolveQuoteWithPaperFallback(
+                        dbService = dbService,
+                        exchange = exchange,
+                        symbol = orderRequest.symbol
+                    )
                     if (quote == null) {
                         call.respond(
                             HttpStatusCode.NotFound,
@@ -1510,6 +1518,22 @@ private fun BigDecimal.coerceIn(min: BigDecimal, max: BigDecimal): BigDecimal {
         this > max -> max
         else -> this
     }
+}
+
+private fun resolveQuoteWithPaperFallback(
+    dbService: DatabaseService,
+    exchange: String,
+    symbol: String
+): LatestQuote? {
+    val directQuote = dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)
+    if (directQuote != null) return directQuote
+    if (exchange in liveOrderExchanges) return null
+
+    val proxyQuote = dbService.fetchLatestQuote(exchange = "hyperliquid", symbol = symbol) ?: return null
+    return proxyQuote.copy(
+        exchange = exchange,
+        source = "proxy:hyperliquid:${proxyQuote.source}"
+    )
 }
 
 private fun toBps(numerator: BigDecimal, denominator: BigDecimal): BigDecimal {

@@ -2,6 +2,7 @@ package org.datamancy.trading.wallet
 
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -24,7 +25,9 @@ data class WalletInfo(
  * Provides access to Web3 wallet connected via JupyterLab extension
  */
 class Web3WalletProvider(
-    private val jupyterBaseUrl: String = "http://localhost:8888"
+    private val jupyterBaseUrl: String = "http://localhost:8888",
+    private val signPollIntervalMs: Long = 1_000L,
+    private val signPollTimeoutMs: Long = 60_000L
 ) {
     private val logger = LoggerFactory.getLogger(Web3WalletProvider::class.java)
     private val gson = Gson()
@@ -60,11 +63,21 @@ class Web3WalletProvider(
                     val result = gson.fromJson(body, Map::class.java)
                     val wallet = result["wallet"] as? Map<*, *> ?: return@use null
 
+                    val connected = wallet["connected"] as? Boolean ?: false
+                    if (!connected) {
+                        return@use WalletInfo(
+                            address = "",
+                            chainId = 0,
+                            provider = wallet["provider"] as? String ?: "unknown",
+                            connected = false
+                        )
+                    }
+
                     WalletInfo(
                         address = wallet["address"] as? String ?: return@use null,
-                        chainId = (wallet["chainId"] as? Double)?.toInt() ?: return@use null,
+                        chainId = parseChainId(wallet["chainId"]) ?: return@use null,
                         provider = wallet["provider"] as? String ?: "unknown",
-                        connected = wallet["connected"] as? Boolean ?: false
+                        connected = true
                     )
                 } else {
                     null
@@ -96,20 +109,14 @@ class Web3WalletProvider(
                     val body = response.body?.string() ?: return@use null
                     val result = gson.fromJson(body, Map::class.java)
 
-                    // Transaction is queued for signing by frontend
-                    val txId = result["tx_id"] as? String
-
-                    // Poll for signed transaction
-                    // In a real implementation, this would use WebSockets or polling
+                    val txId = result["tx_id"] as? String ?: return@use null
                     logger.info("Transaction queued for signing: $txId")
-
-                    // TODO: Implement polling mechanism
-                    null
+                    pollSignedTransaction(txId)
                 } else {
                     null
                 }
             }
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             logger.error("Failed to sign transaction: ${e.message}")
             null
         }
@@ -128,4 +135,53 @@ class Web3WalletProvider(
     suspend fun getChainId(): Int? {
         return getWalletInfo()?.chainId
     }
+
+    private suspend fun pollSignedTransaction(txId: String): String? {
+        val attempts = (signPollTimeoutMs / signPollIntervalMs).toInt().coerceAtLeast(1)
+        repeat(attempts) {
+            val status = fetchTransactionStatus(txId)
+            when (status?.status?.lowercase()) {
+                "signed" -> return status.signedTransaction
+                "rejected", "failed" -> return null
+            }
+            delay(signPollIntervalMs)
+        }
+        logger.warn("Wallet signing timed out for txId={}", txId)
+        return null
+    }
+
+    private fun fetchTransactionStatus(txId: String): WalletTxStatus? {
+        val request = Request.Builder()
+            .url("$jupyterBaseUrl/datamancy/web3-wallet/tx/$txId")
+            .get()
+            .build()
+
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                return@use null
+            }
+            val body = response.body?.string() ?: return@use null
+            val result = gson.fromJson(body, Map::class.java)
+            val tx = result["tx"] as? Map<*, *> ?: return@use null
+            WalletTxStatus(
+                status = tx["status"] as? String ?: return@use null,
+                signedTransaction = tx["signedTransaction"] as? String
+            )
+        }
+    }
+
+    private fun parseChainId(raw: Any?): Int? {
+        return when (raw) {
+            is Number -> raw.toInt()
+            is String -> raw.trim().takeIf { it.isNotBlank() }?.let {
+                if (it.startsWith("0x")) it.removePrefix("0x").toIntOrNull(16) else it.toIntOrNull()
+            }
+            else -> null
+        }
+    }
+
+    private data class WalletTxStatus(
+        val status: String,
+        val signedTransaction: String?
+    )
 }

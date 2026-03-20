@@ -45,6 +45,8 @@ class TestWeb3WalletHandler(AsyncHTTPTestCase):
         assert data["connected"] == False
         assert "address" in data
         assert "chainId" in data
+        assert "provider" in data
+        assert "updatedAt" in data
 
     @pytest.mark.skipif(not EXTENSION_AVAILABLE, reason="Extension not installed")
     def test_post_sign_transaction_operation(self):
@@ -71,6 +73,32 @@ class TestWeb3WalletHandler(AsyncHTTPTestCase):
         assert data["status"] == "ok"
         assert "tx_id" in data
         assert "message" in data
+
+    @pytest.mark.skipif(not EXTENSION_AVAILABLE, reason="Extension not installed")
+    def test_post_update_wallet_state(self):
+        """Test POST update_wallet_state persists wallet info"""
+        request_body = {
+            "operation": "update_wallet_state",
+            "wallet": {
+                "connected": True,
+                "address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+                "chainId": 8453,
+                "provider": "metamask",
+            }
+        }
+
+        response = self.fetch(
+            "/datamancy/web3-wallet",
+            method="POST",
+            body=json.dumps(request_body),
+            headers={"Content-Type": "application/json"}
+        )
+
+        assert response.code == 200
+        data = json.loads(response.body)
+        assert data["status"] == "ok"
+        assert data["wallet"]["connected"] is True
+        assert data["wallet"]["chainId"] == 8453
 
     @pytest.mark.skipif(not EXTENSION_AVAILABLE, reason="Extension not installed")
     def test_post_unknown_operation(self):
@@ -118,6 +146,7 @@ class TestWeb3WalletMagicHandler(AsyncHTTPTestCase):
         assert "address" in wallet
         assert "chainId" in wallet
         assert "provider" in wallet
+        assert "updatedAt" in wallet
 
 
 @pytest.mark.skipif(not EXTENSION_AVAILABLE, reason="Extension not installed")
@@ -135,13 +164,14 @@ def test_setup_handlers():
     call_args = mock_web_app.add_handlers.call_args
     handlers = call_args[0][1]
 
-    # Should have registered 2 handlers
-    assert len(handlers) == 2
+    # Should have registered 3 handlers
+    assert len(handlers) == 3
 
     # Check routes
     routes = [handler[0] for handler in handlers]
     assert any("web3-wallet" in route for route in routes)
     assert any("magic" in route for route in routes)
+    assert any("/tx/" in route for route in routes)
 
 
 @pytest.mark.skipif(not EXTENSION_AVAILABLE, reason="Extension not installed")

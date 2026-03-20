@@ -18,6 +18,7 @@ export class Web3WalletManager {
   private _walletInfo: IWalletInfo | null = null;
   private _state: IStateDB;
   private _stateKey = 'web3-wallet:connection';
+  private _backendWalletPath = '/datamancy/web3-wallet';
 
   constructor(state: IStateDB) {
     this._state = state;
@@ -65,6 +66,7 @@ export class Web3WalletManager {
 
       // Save connection state
       await this._saveState();
+      await this._syncBackendState();
 
       console.log('Web3 wallet connected:', this._walletInfo);
     } catch (error) {
@@ -112,7 +114,8 @@ export class Web3WalletManager {
           ...this._walletInfo!,
           address: accounts[0]
         };
-        this._saveState();
+        void this._saveState();
+        void this._syncBackendState();
       }
     });
 
@@ -122,7 +125,8 @@ export class Web3WalletManager {
         ...this._walletInfo!,
         chainId: parseInt(chainId, 16)
       };
-      this._saveState();
+      void this._saveState();
+      void this._syncBackendState();
     });
   }
 
@@ -130,8 +134,17 @@ export class Web3WalletManager {
    * Connect via WalletConnect
    */
   private async _connectWalletConnect(): Promise<void> {
+    const runtimeInfuraId =
+      (window as any).__DATAMANCY_WALLETCONNECT_INFURA_ID__ ||
+      (globalThis as any).process?.env?.WALLETCONNECT_INFURA_ID;
+    if (!runtimeInfuraId) {
+      throw new Error(
+        'WalletConnect requires an Infura project ID. Set window.__DATAMANCY_WALLETCONNECT_INFURA_ID__.'
+      );
+    }
+
     const wcProvider = new WalletConnectProvider({
-      infuraId: 'YOUR_INFURA_ID', // TODO: Make this configurable
+      infuraId: runtimeInfuraId,
       qrcode: true
     });
 
@@ -166,6 +179,7 @@ export class Web3WalletManager {
     this._walletInfo = null;
 
     await this._state.remove(this._stateKey);
+    await this._syncBackendState();
     console.log('Web3 wallet disconnected');
   }
 
@@ -245,8 +259,10 @@ export class Web3WalletManager {
           }
         }
       }
+      await this._syncBackendState();
     } catch (error) {
       console.warn('Failed to restore wallet connection:', error);
+      await this._syncBackendState();
     }
   }
 
@@ -256,6 +272,38 @@ export class Web3WalletManager {
   private async _saveState(): Promise<void> {
     if (this._walletInfo) {
       await this._state.save(this._stateKey, this._walletInfo);
+    }
+  }
+
+  private async _postWalletOperation(operation: string, payload: any = {}): Promise<void> {
+    const response = await fetch(this._backendWalletPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        operation,
+        ...payload
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Wallet backend request failed: ${response.status}`);
+    }
+  }
+
+  private async _syncBackendState(): Promise<void> {
+    const wallet = this._walletInfo
+      ? this._walletInfo
+      : {
+          connected: false,
+          address: null,
+          chainId: null,
+          provider: null
+        };
+    try {
+      await this._postWalletOperation('update_wallet_state', { wallet });
+    } catch (error) {
+      console.warn('Failed to sync wallet state to backend:', error);
     }
   }
 }

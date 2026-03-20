@@ -1,5 +1,6 @@
 package org.datamancy.trading.data
 
+import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.datamancy.trading.models.Side
@@ -132,6 +133,86 @@ class MarketDataRepository(
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Get the latest orderbook snapshot.
+     *
+     * Supports both canonical JSON depth schema and legacy top-of-book schema.
+     */
+    suspend fun getCurrentOrderbook(
+        symbol: String,
+        depth: Int = 20,
+        exchange: String = "hyperliquid"
+    ): Orderbook? = withContext(Dispatchers.IO) {
+        val canonicalSql = """
+            SELECT time, symbol, exchange, bids::text, asks::text
+            FROM orderbook_data
+            WHERE symbol = ? AND exchange = ?
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
+        val topOfBookSql = """
+            SELECT time, symbol, exchange, bid_price, bid_size, ask_price, ask_size
+            FROM orderbook_data
+            WHERE symbol = ? AND exchange = ?
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            val canonical = runCatching {
+                conn.prepareStatement(canonicalSql).use { stmt ->
+                    stmt.setString(1, symbol)
+                    stmt.setString(2, exchange)
+                    stmt.executeQuery().use { rs ->
+                        if (!rs.next()) return@use null
+                        val bids = parseOrderbookLevels(
+                            raw = rs.getString("bids"),
+                            depth = depth,
+                            descending = true
+                        )
+                        val asks = parseOrderbookLevels(
+                            raw = rs.getString("asks"),
+                            depth = depth,
+                            descending = false
+                        )
+                        if (bids.isEmpty() || asks.isEmpty()) return@use null
+
+                        Orderbook(
+                            time = rs.getTimestamp("time").toInstant(),
+                            symbol = rs.getString("symbol"),
+                            exchange = rs.getString("exchange"),
+                            bids = bids,
+                            asks = asks
+                        )
+                    }
+                }
+            }.getOrNull()
+            if (canonical != null) return@withContext canonical
+
+            runCatching {
+                conn.prepareStatement(topOfBookSql).use { stmt ->
+                    stmt.setString(1, symbol)
+                    stmt.setString(2, exchange)
+                    stmt.executeQuery().use { rs ->
+                        if (!rs.next()) return@use null
+                        val bidPrice = rs.getBigDecimal("bid_price") ?: return@use null
+                        val bidSize = rs.getBigDecimal("bid_size") ?: BigDecimal.ZERO
+                        val askPrice = rs.getBigDecimal("ask_price") ?: return@use null
+                        val askSize = rs.getBigDecimal("ask_size") ?: BigDecimal.ZERO
+
+                        Orderbook(
+                            time = rs.getTimestamp("time").toInstant(),
+                            symbol = rs.getString("symbol"),
+                            exchange = rs.getString("exchange"),
+                            bids = listOf(OrderbookLevel(bidPrice, bidSize)),
+                            asks = listOf(OrderbookLevel(askPrice, askSize))
+                        )
+                    }
+                }
+            }.getOrNull()
         }
     }
 
@@ -426,6 +507,43 @@ class MarketDataRepository(
             },
             isLiquidation = getBoolean("is_liquidation")
         )
+    }
+
+    private fun parseOrderbookLevels(
+        raw: String?,
+        depth: Int,
+        descending: Boolean
+    ): List<OrderbookLevel> {
+        if (raw.isNullOrBlank()) return emptyList()
+        val parsed = runCatching { JsonParser.parseString(raw).asJsonArray }.getOrNull() ?: return emptyList()
+        val levels = mutableListOf<OrderbookLevel>()
+
+        parsed.forEach { element ->
+            when {
+                element.isJsonArray -> {
+                    val level = element.asJsonArray
+                    if (level.size() >= 2) {
+                        val price = level[0].asString.toBigDecimalOrNull()
+                        val size = level[1].asString.toBigDecimalOrNull()
+                        if (price != null && size != null) {
+                            levels += OrderbookLevel(price = price, size = size)
+                        }
+                    }
+                }
+
+                element.isJsonObject -> {
+                    val obj = element.asJsonObject
+                    val price = obj.get("price")?.asString?.toBigDecimalOrNull()
+                    val size = obj.get("size")?.asString?.toBigDecimalOrNull()
+                    if (price != null && size != null) {
+                        levels += OrderbookLevel(price = price, size = size)
+                    }
+                }
+            }
+        }
+
+        val sorted = if (descending) levels.sortedByDescending { it.price } else levels.sortedBy { it.price }
+        return sorted.take(depth.coerceAtLeast(1))
     }
 }
 
