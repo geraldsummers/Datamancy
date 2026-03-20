@@ -87,6 +87,7 @@ grafana-forward-authenticated.*
 .tmp-test-screens/
 .tmp-server-screenshots/
 test-artifacts/
+.tmp-screenshot-review/
 
 # Heap dumps from OutOfMemoryError
 *.hprof
