@@ -17,6 +17,7 @@ import org.datamancy.txgateway.services.LdapService
 import org.datamancy.txgateway.services.LatestQuote
 import org.datamancy.txgateway.services.RiskDecision
 import org.datamancy.txgateway.services.RiskEngineService
+import org.datamancy.txgateway.services.RiskAccountStatePatch
 import org.datamancy.txgateway.services.WorkerClient
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
@@ -747,6 +748,24 @@ fun Route.unifiedExchangeRoutes(
                     )
                     return@post
                 }
+                if (!quoteForRisk.isOrderbookBacked()) {
+                    logger.warn(
+                        "Rejecting live order due to non-orderbook quote source for exchange={} symbol={} source={}",
+                        exchange,
+                        orderRequest.symbol,
+                        quoteForRisk.source
+                    )
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        mapOf(
+                            "error" to "Orderbook-backed quote required for live order risk checks",
+                            "exchange" to exchange,
+                            "symbol" to orderRequest.symbol,
+                            "quoteSource" to quoteForRisk.source
+                        )
+                    )
+                    return@post
+                }
                 val estimatedNotionalUsd = estimateOrderNotionalUsd(orderRequest, quoteForRisk)
                     ?: run {
                         call.respond(
@@ -829,11 +848,33 @@ fun Route.unifiedExchangeRoutes(
                         status = "success"
                     )
 
-                    riskEngine.recordAcceptedOrder(
-                        username = username,
-                        notionalUsd = estimatedNotionalUsd,
-                        reduceOnly = orderRequest.reduceOnly
+                    val executedNotionalUsd = result.executedNotionalUsd(
+                        estimatedNotionalUsd = estimatedNotionalUsd,
+                        requestedSizeRaw = orderRequest.size
                     )
+                    if (executedNotionalUsd != null && executedNotionalUsd > BigDecimal.ZERO) {
+                        riskEngine.recordAcceptedOrder(
+                            username = username,
+                            notionalUsd = executedNotionalUsd,
+                            reduceOnly = orderRequest.reduceOnly
+                        )
+                    }
+                    runCatching {
+                        reconcileHyperliquidRiskState(
+                            dbService = dbService,
+                            workerClient = workerClient,
+                            username = username,
+                            hyperliquidKey = hyperliquidKey
+                        )
+                    }.onFailure { syncError ->
+                        logger.warn(
+                            "Live risk reconciliation failed for user={} exchange={} symbol={}: {}",
+                            username,
+                            exchange,
+                            orderRequest.symbol,
+                            syncError.message
+                        )
+                    }
 
                     call.respond(HttpStatusCode.OK, result)
                 } catch (e: Exception) {
@@ -1263,6 +1304,11 @@ private fun validateOrderRequest(orderRequest: OrderRequest): String? {
 }
 
 private fun validateExecutionControls(orderRequest: OrderRequest): String? {
+    val type = orderRequest.type.trim().uppercase()
+    if (orderRequest.postOnly && type != "LIMIT") {
+        return "postOnly is only valid for LIMIT orders"
+    }
+
     val urgencyClass = orderRequest.urgencyClass?.trim()?.lowercase()
     if (!urgencyClass.isNullOrBlank() && urgencyClass !in setOf("low", "normal", "high")) {
         return "Invalid urgencyClass: ${orderRequest.urgencyClass}"
@@ -1473,6 +1519,16 @@ private fun toBps(numerator: BigDecimal, denominator: BigDecimal): BigDecimal {
         .divide(denominator, 8, RoundingMode.HALF_UP)
 }
 
+private fun Any?.toBigDecimalOrNull(): BigDecimal? = when (this) {
+    null -> null
+    is BigDecimal -> this
+    is Number -> runCatching { BigDecimal(this.toString()) }.getOrNull()
+    is String -> runCatching {
+        this.trim().takeIf { it.isNotEmpty() }?.let { BigDecimal(it) }
+    }.getOrNull()
+    else -> null
+}
+
 private fun LatestQuote.isValidSnapshot(): Boolean {
     if (!bid.isFinite() || !ask.isFinite() || !last.isFinite()) return false
     if (bid <= 0.0 || ask <= 0.0 || last <= 0.0) return false
@@ -1490,6 +1546,72 @@ private fun LatestQuote.isFreshSnapshot(
     val ageMs = quoteAgeMs(referenceTime)
     if (ageMs < -5_000L) return false
     return ageMs <= maxQuoteAgeMs
+}
+
+private fun LatestQuote.isOrderbookBacked(): Boolean {
+    return source.lowercase().startsWith("orderbook_data")
+}
+
+private fun Map<String, Any>.executedNotionalUsd(
+    estimatedNotionalUsd: BigDecimal,
+    requestedSizeRaw: String
+): BigDecimal? {
+    val explicitNotional = this["executedNotionalUsd"].toBigDecimalOrNull()
+    if (explicitNotional != null && explicitNotional > BigDecimal.ZERO) {
+        return explicitNotional
+    }
+
+    val filledSize = this["filledSize"].toBigDecimalOrNull()
+    val fillPrice = this["fillPrice"].toBigDecimalOrNull()
+    if (filledSize != null && fillPrice != null && filledSize > BigDecimal.ZERO && fillPrice > BigDecimal.ZERO) {
+        return filledSize.multiply(fillPrice).setScale(8, RoundingMode.HALF_UP)
+    }
+
+    val status = this["status"]?.toString()?.trim()?.uppercase().orEmpty()
+    val requestedSize = requestedSizeRaw.toBigDecimalOrNull()
+    if (filledSize != null && requestedSize != null && requestedSize > BigDecimal.ZERO && filledSize > BigDecimal.ZERO) {
+        val fillRatio = filledSize
+            .divide(requestedSize, 18, RoundingMode.HALF_UP)
+            .coerceIn(BigDecimal.ZERO, BigDecimal.ONE)
+        return estimatedNotionalUsd.multiply(fillRatio).setScale(8, RoundingMode.HALF_UP)
+    }
+    return if (status == "FILLED") estimatedNotionalUsd else null
+}
+
+private fun reconcileHyperliquidRiskState(
+    dbService: DatabaseService,
+    workerClient: WorkerClient,
+    username: String,
+    hyperliquidKey: String
+) {
+    val balance = workerClient.getHyperliquidBalance(username, hyperliquidKey)
+    val positions = workerClient.getHyperliquidPositions(username, hyperliquidKey)
+
+    val accountEquity = balance["accountValue"].toBigDecimalOrNull()
+        ?: balance["totalRawUsd"].toBigDecimalOrNull()
+    var openExposureUsd = BigDecimal.ZERO
+    var unrealizedPnlUsd = BigDecimal.ZERO
+
+    positions.forEach { position ->
+        val size = position["size"].toBigDecimalOrNull()?.abs() ?: BigDecimal.ZERO
+        val entryPrice = position["entryPrice"].toBigDecimalOrNull()
+        val marginUsed = position["marginUsed"].toBigDecimalOrNull()
+        val notional = when {
+            size <= BigDecimal.ZERO -> BigDecimal.ZERO
+            entryPrice != null && entryPrice > BigDecimal.ZERO -> size.multiply(entryPrice)
+            marginUsed != null && marginUsed > BigDecimal.ZERO -> marginUsed
+            else -> BigDecimal.ZERO
+        }
+        openExposureUsd = openExposureUsd.add(notional)
+        unrealizedPnlUsd = unrealizedPnlUsd.add(position["unrealizedPnl"].toBigDecimalOrNull() ?: BigDecimal.ZERO)
+    }
+
+    val patch = RiskAccountStatePatch(
+        accountEquityUsd = accountEquity,
+        unrealizedPnlUsd = unrealizedPnlUsd,
+        openExposureUsd = openExposureUsd
+    )
+    dbService.upsertRiskAccountState(username = username, patch = patch)
 }
 
 private fun PaperOrderResponse.estimatedExecutedNotionalUsd(): BigDecimal? {

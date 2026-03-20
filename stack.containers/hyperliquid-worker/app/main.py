@@ -7,6 +7,7 @@ import logging
 import os
 import hmac
 import requests
+import inspect
 from eth_account import Account
 from hyperliquid.info import Info
 from hyperliquid.exchange import Exchange
@@ -49,6 +50,141 @@ def parse_positive_decimal(raw_value, field_name: str):
     if parsed <= 0:
         return None, f"{field_name} must be > 0"
     return parsed, None
+
+
+def parse_bool(raw_value, field_name: str, default: bool = False):
+    if raw_value is None:
+        return default, None
+    if isinstance(raw_value, bool):
+        return raw_value, None
+    if isinstance(raw_value, str):
+        normalized = raw_value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True, None
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False, None
+    return None, f"Invalid {field_name}"
+
+
+def decimal_to_bps_ratio(value: Decimal) -> Decimal:
+    return value / Decimal("10000")
+
+
+def derive_limit_price_from_slippage(side: str, reference_price: Decimal, max_slippage_bps: Decimal) -> Decimal:
+    slippage_ratio = decimal_to_bps_ratio(max_slippage_bps)
+    if side == "BUY":
+        return reference_price * (Decimal("1") + slippage_ratio)
+    return reference_price * (Decimal("1") - slippage_ratio)
+
+
+def ensure_limit_price_within_slippage(symbol: str, side: str, limit_price: Decimal, max_slippage_bps: Decimal):
+    reference_price = resolve_reference_price(symbol=symbol, order_type="MARKET", explicit_price=None)
+    max_limit = derive_limit_price_from_slippage(side=side, reference_price=reference_price, max_slippage_bps=max_slippage_bps)
+    if side == "BUY" and limit_price > max_limit:
+        raise ValueError(
+            f"Limit price exceeds slippage guard (limitPrice={limit_price}, maxAllowed={max_limit}, maxSlippageBps={max_slippage_bps})"
+        )
+    if side == "SELL" and limit_price < max_limit:
+        raise ValueError(
+            f"Limit price exceeds slippage guard (limitPrice={limit_price}, minAllowed={max_limit}, maxSlippageBps={max_slippage_bps})"
+        )
+
+
+def build_limit_order_type(post_only: bool, cancel_after_ms: int | None):
+    if post_only:
+        return {"limit": {"tif": "Alo"}}
+    if cancel_after_ms is not None and cancel_after_ms <= 1500:
+        return {"limit": {"tif": "Ioc"}}
+    return {"limit": {"tif": "Gtc"}}
+
+
+def _supports_param(fn, name: str) -> bool:
+    try:
+        return name in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def submit_limit_order(
+    exchange: Exchange,
+    symbol: str,
+    is_buy: bool,
+    size_float: float,
+    limit_px: float,
+    order_type: dict,
+    reduce_only: bool
+):
+    kwargs = {
+        "symbol": symbol,
+        "is_buy": is_buy,
+        "sz": size_float,
+        "limit_px": limit_px,
+        "order_type": order_type
+    }
+    if reduce_only and _supports_param(exchange.order, "reduce_only"):
+        kwargs["reduce_only"] = True
+    return exchange.order(**kwargs)
+
+
+def submit_market_order(
+    exchange: Exchange,
+    symbol: str,
+    is_buy: bool,
+    size_float: float,
+    reduce_only: bool
+):
+    kwargs = {
+        "symbol": symbol,
+        "is_buy": is_buy,
+        "sz": size_float
+    }
+    if reduce_only and _supports_param(exchange.market_order, "reduce_only"):
+        kwargs["reduce_only"] = True
+    return exchange.market_order(**kwargs)
+
+
+def parse_hyperliquid_status(status_info: dict) -> str:
+    raw = status_info.get("status")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip().upper()
+    if isinstance(status_info.get("filled"), dict):
+        return "FILLED"
+    if isinstance(status_info.get("resting"), dict):
+        return "PENDING"
+    return "UNKNOWN"
+
+
+def parse_order_id(status_info: dict, filled: dict) -> str:
+    oid = filled.get("oid")
+    if oid is None and isinstance(status_info.get("resting"), dict):
+        oid = status_info["resting"].get("oid")
+    if oid is None:
+        oid = status_info.get("oid")
+    if oid is None:
+        return "unknown"
+    return str(oid)
+
+
+def parse_fill_price(filled: dict):
+    for key in ("px", "avgPx", "price"):
+        value = filled.get(key)
+        if value is not None and str(value).strip():
+            return str(value)
+    return None
+
+
+def parse_filled_size(status_info: dict, filled: dict, requested_size: Decimal) -> Decimal:
+    for key in ("totalSz", "sz", "filledSz", "size"):
+        value = filled.get(key)
+        if value is None:
+            continue
+        parsed, err = parse_positive_decimal(value, key)
+        if err is None and parsed is not None:
+            return parsed
+    status = parse_hyperliquid_status(status_info)
+    if status == "FILLED":
+        return requested_size
+    return Decimal("0")
 
 def parse_hyperliquid_key(api_key: str) -> dict:
     """Parse Hyperliquid API key into address and private key"""
@@ -144,7 +280,7 @@ def submit_order():
         if auth_error:
             return auth_error
 
-        data = request.json
+        data = request.json or {}
         username = data.get('username')
         symbol = data.get('symbol')
         side = str(data.get('side', '')).upper()  # "BUY" or "SELL"
@@ -153,6 +289,12 @@ def submit_order():
         price = data.get('price')  # Required for LIMIT orders
         max_slippage_bps = data.get('maxSlippageBps')
         cancel_after_ms = data.get('cancelAfterMs')
+        reduce_only, reduce_only_error = parse_bool(data.get('reduceOnly'), "reduceOnly", default=False)
+        if reduce_only_error:
+            return jsonify({"error": reduce_only_error}), 400
+        post_only, post_only_error = parse_bool(data.get('postOnly'), "postOnly", default=False)
+        if post_only_error:
+            return jsonify({"error": post_only_error}), 400
         hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
@@ -163,6 +305,8 @@ def submit_order():
             return jsonify({"error": f"Unsupported side: {side}"}), 400
         if order_type not in {"MARKET", "LIMIT"}:
             return jsonify({"error": f"Unsupported order type: {order_type}"}), 400
+        if post_only and order_type != "LIMIT":
+            return jsonify({"error": "postOnly is only valid for LIMIT orders"}), 400
 
         size_decimal, size_error = parse_positive_decimal(size, "size")
         if size_error:
@@ -174,6 +318,7 @@ def submit_order():
                 "requestedSize": str(size_decimal)
             }), 400
 
+        slippage_decimal = None
         if max_slippage_bps is not None:
             slippage_decimal, slippage_error = parse_positive_decimal(max_slippage_bps, "maxSlippageBps")
             if slippage_error:
@@ -188,6 +333,8 @@ def submit_order():
                 return jsonify({"error": "Invalid cancelAfterMs"}), 400
             if cancel_after_ms < 100:
                 return jsonify({"error": "cancelAfterMs must be >= 100"}), 400
+            if cancel_after_ms > 600000:
+                return jsonify({"error": "cancelAfterMs must be <= 600000"}), 400
 
         price_decimal = None
         if order_type == "LIMIT":
@@ -196,6 +343,16 @@ def submit_order():
             price_decimal, price_error = parse_positive_decimal(price, "price")
             if price_error:
                 return jsonify({"error": price_error}), 400
+            if slippage_decimal is not None:
+                try:
+                    ensure_limit_price_within_slippage(
+                        symbol=symbol,
+                        side=side,
+                        limit_price=price_decimal,
+                        max_slippage_bps=slippage_decimal
+                    )
+                except ValueError as exc:
+                    return jsonify({"error": str(exc)}), 400
 
         try:
             ensure_order_notional_within_limit(
@@ -207,7 +364,10 @@ def submit_order():
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
 
-        logger.info(f"Order: {username} {side} {size} {symbol} @ {price} ({order_type})")
+        logger.info(
+            f"Order: {username} {side} {size} {symbol} @ {price} ({order_type}) "
+            f"reduceOnly={reduce_only} postOnly={post_only} maxSlippageBps={slippage_decimal} cancelAfterMs={cancel_after_ms}"
+        )
 
         try:
             exchange = get_exchange_client(hyperliquid_key)
@@ -218,21 +378,41 @@ def submit_order():
         is_buy = side == "BUY"
         size_float = float(size_decimal)
 
-        if order_type == "MARKET":
-            # Market order
-            result = exchange.market_order(
+        if order_type == "MARKET" and slippage_decimal is not None:
+            # Convert slippage-capped market intent into IOC limit for strict slippage enforcement.
+            reference_price = resolve_reference_price(symbol=symbol, order_type="MARKET", explicit_price=None)
+            bounded_limit = derive_limit_price_from_slippage(
+                side=side,
+                reference_price=reference_price,
+                max_slippage_bps=slippage_decimal
+            )
+            result = submit_limit_order(
+                exchange=exchange,
                 symbol=symbol,
                 is_buy=is_buy,
-                sz=size_float
+                size_float=size_float,
+                limit_px=float(bounded_limit),
+                order_type={"limit": {"tif": "Ioc"}},
+                reduce_only=reduce_only
+            )
+        elif order_type == "MARKET":
+            result = submit_market_order(
+                exchange=exchange,
+                symbol=symbol,
+                is_buy=is_buy,
+                size_float=size_float,
+                reduce_only=reduce_only
             )
         else:
-            # Limit order
-            result = exchange.order(
+            tif = build_limit_order_type(post_only=post_only, cancel_after_ms=cancel_after_ms)
+            result = submit_limit_order(
+                exchange=exchange,
                 symbol=symbol,
                 is_buy=is_buy,
-                sz=size_float,
+                size_float=size_float,
                 limit_px=float(price_decimal),
-                order_type={"limit": {"tif": "Gtc"}}  # Good-til-cancelled
+                order_type=tif,
+                reduce_only=reduce_only
             )
 
         logger.info(f"Order result: {result}")
@@ -242,17 +422,31 @@ def submit_order():
             response = result['response']
             statuses = response.get('data', {}).get('statuses', [])
             if statuses:
-                status_info = statuses[0]
+                status_info = statuses[0] if isinstance(statuses[0], dict) else {}
                 filled = status_info.get('filled', {})
+                parsed_status = parse_hyperliquid_status(status_info)
+                filled_size = parse_filled_size(status_info, filled, size_decimal)
+                fill_price = parse_fill_price(filled)
+                executed_notional_usd = None
+                if fill_price is not None:
+                    fill_price_decimal, fill_price_error = parse_positive_decimal(fill_price, "fillPrice")
+                    if fill_price_error is None and fill_price_decimal is not None and filled_size > Decimal("0"):
+                        executed_notional_usd = str((fill_price_decimal * filled_size).normalize())
                 return jsonify({
-                    "orderId": str(filled.get('oid', 'unknown')),
+                    "orderId": parse_order_id(status_info, filled),
                     "symbol": symbol,
                     "side": side,
                     "type": order_type,
                     "size": size,
                     "price": price,
-                    "status": status_info.get('status', 'UNKNOWN'),
-                    "fillPrice": filled.get('px'),
+                    "status": parsed_status,
+                    "fillPrice": fill_price,
+                    "filledSize": str(filled_size.normalize()),
+                    "executedNotionalUsd": executed_notional_usd,
+                    "reduceOnly": reduce_only,
+                    "postOnly": post_only,
+                    "maxSlippageBps": str(slippage_decimal) if slippage_decimal is not None else None,
+                    "cancelAfterMs": cancel_after_ms,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "raw": result
                 })

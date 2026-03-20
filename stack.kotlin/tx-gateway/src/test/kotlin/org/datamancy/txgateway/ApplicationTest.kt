@@ -635,7 +635,7 @@ class ApplicationTest {
                 ask = 73010.0,
                 last = 73005.0,
                 timestamp = freshQuoteTimestamp(),
-                source = "market_data:trade"
+                source = "orderbook_data:canonical"
             )
             every { workerClient.submitHyperliquidOrder(any()) } returns mapOf("orderId" to "live-1")
 
@@ -1037,6 +1037,45 @@ class ApplicationTest {
     }
 
     @Test
+    fun testUnifiedOrderRejectsPostOnlyMarketOrderEarly() = testApplication {
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","postOnly":true}""")
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("postOnly is only valid for LIMIT orders"), body)
+        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+    }
+
+    @Test
     fun testLiveHyperliquidOrderRejectsBlankCredentialEarly() = testApplication {
         lateinit var workerClient: WorkerClient
         application {
@@ -1066,7 +1105,7 @@ class ApplicationTest {
                 ask = 73010.0,
                 last = 73005.0,
                 timestamp = freshQuoteTimestamp(),
-                source = "market_data:trade"
+                source = "orderbook_data:canonical"
             )
 
             configureApp(authService, ldapService, workerClient, dbService)
@@ -1123,6 +1162,55 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("Fresh quote snapshot required for live order risk checks"), body)
+        verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderRejectsWhenQuoteIsNotOrderbookBacked() = testApplication {
+        lateinit var workerClient: WorkerClient
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "market_data:trade"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Orderbook-backed quote required for live order risk checks"), body)
         verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
     }
 

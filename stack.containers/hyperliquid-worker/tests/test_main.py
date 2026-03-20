@@ -283,6 +283,19 @@ class TestFlaskEndpoints:
         assert response.status_code == 400
         assert 'maxSlippageBps is unreasonably high' in response.get_json()['error']
 
+    def test_order_rejects_post_only_market_order(self, client):
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'size': '0.1',
+            'postOnly': True,
+            'hyperliquidKey': 'testkey'
+        })
+        assert response.status_code == 400
+        assert 'postOnly is only valid for LIMIT orders' in response.get_json()['error']
+
     @patch('main.get_exchange_client')
     def test_order_rejects_too_fast_cancel(self, mock_get_exchange, client):
         response = client.post('/order', json={
@@ -296,6 +309,82 @@ class TestFlaskEndpoints:
         })
         assert response.status_code == 400
         assert 'cancelAfterMs must be >= 100' in response.get_json()['error']
+
+    @patch('main.get_info_client')
+    @patch('main.get_exchange_client')
+    def test_market_order_with_slippage_uses_ioc_limit(self, mock_get_exchange, mock_get_info, client):
+        mock_info = Mock()
+        mock_info.all_mids.return_value = {'BTC': '50000.0'}
+        mock_get_info.return_value = mock_info
+
+        mock_exchange = Mock()
+        mock_exchange.order.return_value = {
+            'status': 'ok',
+            'response': {
+                'data': {
+                    'statuses': [{
+                        'status': 'FILLED',
+                        'filled': {
+                            'oid': 321,
+                            'px': '50010.0',
+                            'totalSz': '0.1'
+                        }
+                    }]
+                }
+            }
+        }
+        mock_get_exchange.return_value = mock_exchange
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'size': '0.1',
+            'maxSlippageBps': '5',
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 200
+        call_kwargs = mock_exchange.order.call_args.kwargs
+        assert call_kwargs['order_type'] == {'limit': {'tif': 'Ioc'}}
+        assert call_kwargs['is_buy'] is True
+        assert float(call_kwargs['limit_px']) > 50000.0
+
+    @patch('main.get_exchange_client')
+    def test_limit_order_post_only_uses_alo_tif(self, mock_get_exchange, client):
+        mock_exchange = Mock()
+        mock_exchange.order.return_value = {
+            'status': 'ok',
+            'response': {
+                'data': {
+                    'statuses': [{
+                        'status': 'OPEN',
+                        'filled': {
+                            'oid': 991,
+                            'px': '50000.0',
+                            'totalSz': '0'
+                        }
+                    }]
+                }
+            }
+        }
+        mock_get_exchange.return_value = mock_exchange
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'LIMIT',
+            'size': '0.1',
+            'price': '50000.0',
+            'postOnly': True,
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 200
+        call_kwargs = mock_exchange.order.call_args.kwargs
+        assert call_kwargs['order_type'] == {'limit': {'tif': 'Alo'}}
 
     @patch('main.get_exchange_client')
     def test_limit_order_rejects_notional_over_limit(self, mock_get_exchange, client):
