@@ -323,6 +323,7 @@ services:
       - qdrant
       - postgres
       - caddy
+      - monitoring
       - trading
   test-monitoring:
     <<: *test_runner_base
@@ -406,6 +407,7 @@ services:
     networks:
       - caddy
       - ldap
+      - monitoring
       - postgres
       - trading
       - litellm
@@ -415,6 +417,7 @@ services:
     networks:
       - caddy
       - ldap
+      - monitoring
       - postgres
       - trading
       - litellm
@@ -424,6 +427,7 @@ services:
     networks:
       - caddy
       - ldap
+      - monitoring
       - postgres
       - trading
       - litellm
@@ -433,6 +437,7 @@ services:
     networks:
       - caddy
       - ldap
+      - monitoring
       - postgres
       - trading
       - litellm

@@ -151,16 +151,30 @@ def submit_limit_order(
     order_type: dict,
     reduce_only: bool
 ):
-    kwargs = {
-        "name": symbol,
+    base_kwargs = {
         "is_buy": is_buy,
         "sz": size_float,
         "limit_px": limit_px,
         "order_type": order_type
     }
-    if reduce_only and _supports_param(exchange.order, "reduce_only"):
-        kwargs["reduce_only"] = True
-    return exchange.order(**kwargs)
+    symbol_keys = ["name", "symbol"] if _supports_param(exchange.order, "name") else ["symbol", "name"]
+    reduce_options = [True, False] if reduce_only else [False]
+    last_type_error = None
+
+    for symbol_key in symbol_keys:
+        for include_reduce_only in reduce_options:
+            kwargs = dict(base_kwargs)
+            kwargs[symbol_key] = symbol
+            if include_reduce_only:
+                kwargs["reduce_only"] = True
+            try:
+                return exchange.order(**kwargs)
+            except TypeError as exc:
+                last_type_error = exc
+
+    if last_type_error is not None:
+        raise last_type_error
+    raise RuntimeError("Unable to submit limit order")
 
 
 def submit_market_order(
@@ -171,22 +185,83 @@ def submit_market_order(
     reduce_only: bool,
     slippage: float | None = None
 ):
-    market_kwargs = {"sz": size_float}
-    if slippage is not None and _supports_param(exchange.market_close, "slippage"):
-        market_kwargs["slippage"] = slippage
+    # Slippage-constrained market orders are executed as IOC limit orders for deterministic bounds.
+    if slippage is not None and hasattr(exchange, "order"):
+        slippage_bps = Decimal(str(slippage)) * Decimal("10000")
+        reference_price = resolve_reference_price(symbol=symbol, order_type="MARKET", explicit_price=None)
+        limit_px = derive_limit_price_from_slippage(
+            side="BUY" if is_buy else "SELL",
+            reference_price=reference_price,
+            max_slippage_bps=slippage_bps
+        )
+        return submit_limit_order(
+            exchange=exchange,
+            symbol=symbol,
+            is_buy=is_buy,
+            size_float=size_float,
+            limit_px=float(limit_px),
+            order_type={"limit": {"tif": "Ioc"}},
+            reduce_only=reduce_only
+        )
 
-    if reduce_only:
-        # SDK v0.22+ handles reduce-only market intent via market_close.
-        return exchange.market_close(coin=symbol, **market_kwargs)
+    if reduce_only and hasattr(exchange, "market_close"):
+        market_kwargs = {"sz": size_float}
+        if slippage is not None and _supports_param(exchange.market_close, "slippage"):
+            market_kwargs["slippage"] = slippage
+        symbol_keys = ["coin", "name", "symbol"]
+        last_type_error = None
+        for symbol_key in symbol_keys:
+            kwargs = dict(market_kwargs)
+            kwargs[symbol_key] = symbol
+            try:
+                return exchange.market_close(**kwargs)
+            except TypeError as exc:
+                last_type_error = exc
+        if last_type_error is not None:
+            raise last_type_error
 
-    open_kwargs = {
-        "name": symbol,
-        "is_buy": is_buy,
-        "sz": size_float
-    }
-    if slippage is not None and _supports_param(exchange.market_open, "slippage"):
-        open_kwargs["slippage"] = slippage
-    return exchange.market_open(**open_kwargs)
+    if hasattr(exchange, "market_order"):
+        market_kwargs = {
+            "is_buy": is_buy,
+            "sz": size_float
+        }
+        if reduce_only and _supports_param(exchange.market_order, "reduce_only"):
+            market_kwargs["reduce_only"] = True
+        if slippage is not None and _supports_param(exchange.market_order, "slippage"):
+            market_kwargs["slippage"] = slippage
+
+        symbol_keys = ["name", "symbol"] if _supports_param(exchange.market_order, "name") else ["symbol", "name"]
+        last_type_error = None
+        for symbol_key in symbol_keys:
+            kwargs = dict(market_kwargs)
+            kwargs[symbol_key] = symbol
+            try:
+                return exchange.market_order(**kwargs)
+            except TypeError as exc:
+                last_type_error = exc
+        if last_type_error is not None:
+            raise last_type_error
+
+    if hasattr(exchange, "market_open"):
+        open_kwargs = {
+            "is_buy": is_buy,
+            "sz": size_float
+        }
+        if slippage is not None and _supports_param(exchange.market_open, "slippage"):
+            open_kwargs["slippage"] = slippage
+        symbol_keys = ["name", "symbol"] if _supports_param(exchange.market_open, "name") else ["symbol", "name"]
+        last_type_error = None
+        for symbol_key in symbol_keys:
+            kwargs = dict(open_kwargs)
+            kwargs[symbol_key] = symbol
+            try:
+                return exchange.market_open(**kwargs)
+            except TypeError as exc:
+                last_type_error = exc
+        if last_type_error is not None:
+            raise last_type_error
+
+    raise RuntimeError("No compatible market order method found on exchange client")
 
 
 def parse_hyperliquid_status(status_info: dict) -> str:
@@ -305,18 +380,74 @@ def ensure_order_notional_within_limit(symbol: str, order_type: str, size_decima
 def get_exchange_client(hyperliquid_key: str) -> Exchange:
     """Get authenticated Exchange client using ephemeral credentials"""
     creds = parse_hyperliquid_key(hyperliquid_key)
-    wallet_key = creds["private_key"].strip()
-    if not wallet_key.startswith("0x"):
-        wallet_key = f"0x{wallet_key}"
-    wallet = Account.from_key(wallet_key)
-    account_address = resolve_account_address(creds)
+    private_key = creds["private_key"].strip()
+    explicit_address = creds.get("address")
     spot_meta = None if IS_MAINNET else {"universe": [], "tokens": []}
-    return Exchange(
-        wallet=wallet,
-        base_url=HYPERLIQUID_API_URL,
-        account_address=account_address,
-        spot_meta=spot_meta
-    )
+
+    # Legacy SDK constructor compatibility.
+    legacy_variants = []
+    if explicit_address:
+        legacy_variants.extend([
+            {
+                "address": explicit_address,
+                "private_key": private_key,
+                "skip_ws": True,
+                "base_url": HYPERLIQUID_API_URL
+            },
+            {
+                "address": explicit_address,
+                "private_key": private_key,
+                "skip_ws": True
+            }
+        ])
+    legacy_variants.extend([
+        {
+            "private_key": private_key,
+            "skip_ws": True,
+            "base_url": HYPERLIQUID_API_URL
+        },
+        {
+            "private_key": private_key,
+            "skip_ws": True
+        }
+    ])
+    for kwargs in legacy_variants:
+        try:
+            return Exchange(**kwargs)
+        except TypeError:
+            pass
+
+    account_address = explicit_address or derive_evm_address(private_key)
+    wallet_key = private_key if private_key.startswith("0x") else f"0x{private_key}"
+    wallet = Account.from_key(wallet_key)
+
+    modern_variants = [
+        {
+            "wallet": wallet,
+            "base_url": HYPERLIQUID_API_URL,
+            "account_address": account_address,
+            "spot_meta": spot_meta
+        },
+        {
+            "wallet": wallet,
+            "base_url": HYPERLIQUID_API_URL,
+            "account_address": account_address
+        },
+        {
+            "wallet": wallet,
+            "base_url": HYPERLIQUID_API_URL
+        }
+    ]
+    last_type_error = None
+    for kwargs in modern_variants:
+        try:
+            return Exchange(**kwargs)
+        except TypeError as exc:
+            last_type_error = exc
+
+    if last_type_error is not None:
+        raise last_type_error
+    raise RuntimeError("Unable to initialize Hyperliquid Exchange client")
 
 def get_info_client() -> Info:
     """Get Info client for market data queries"""
@@ -608,7 +739,6 @@ def get_positions():
 
         data = request.json or {}
         username = data.get('user') or data.get('username')
-        symbol_filter = str(data.get('symbol') or '').strip()
         hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
@@ -704,6 +834,7 @@ def get_orders():
 
         data = request.json or {}
         username = data.get('user') or data.get('username')
+        symbol_filter = str(data.get('symbol') or '').strip()
         hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
