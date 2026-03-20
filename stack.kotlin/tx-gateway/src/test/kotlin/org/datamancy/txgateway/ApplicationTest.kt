@@ -1680,6 +1680,88 @@ class ApplicationTest {
     }
 
     @Test
+    fun testMetricsEndpointExposesPrometheusPayload() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/metrics")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val contentType = response.headers[HttpHeaders.ContentType].orEmpty()
+        assertTrue(contentType.contains("text/plain"), contentType)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("ktor_http_server_requests"), body)
+    }
+
+    @Test
+    fun testHyperliquidOrdersRouteForwardsSymbolFilterToWorker() = testApplication {
+        lateinit var workerClient: WorkerClient
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { workerClient.getHyperliquidOrders("trader1", "test-key", "BTC") } returns listOf(
+                mapOf(
+                    "orderId" to "1",
+                    "symbol" to "BTC"
+                )
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/hyperliquid/orders?symbol=BTC") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"symbol\":\"BTC\"") || body.contains("\"symbol\": \"BTC\""), body)
+        verify(exactly = 1) { workerClient.getHyperliquidOrders("trader1", "test-key", "BTC") }
+    }
+
+    @Test
+    fun testHyperliquidCloseAllRouteInvokesWorker() = testApplication {
+        lateinit var workerClient: WorkerClient
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { workerClient.closeAllHyperliquidPositions("trader1", "test-key") } returns mapOf(
+                "status" to "completed",
+                "closed" to 2
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/hyperliquid/close-all") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"closed\":2") || body.contains("\"closed\": 2"), body)
+        verify(exactly = 1) { workerClient.closeAllHyperliquidPositions("trader1", "test-key") }
+    }
+
+    @Test
     fun testLegacyHyperliquidOrderEndpointIsDeprecated() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)

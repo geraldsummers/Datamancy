@@ -1,5 +1,6 @@
 package org.datamancy.txgateway.routes
 
+import com.google.gson.Gson
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -12,6 +13,7 @@ import org.datamancy.txgateway.services.*
 import org.slf4j.LoggerFactory
 
 private val logger = LoggerFactory.getLogger("EvmRoutes")
+private val gson = Gson()
 
 fun Route.evmRoutes(
     authService: AuthService,
@@ -93,7 +95,7 @@ fun Route.evmRoutes(
                 )
 
                 val result = workerClient.submitEvmTransfer(payload)
-                val responseJson = Json.encodeToString(result)
+                val responseJson = gson.toJson(result)
 
                 dbService.logTransaction(
                     username = username,
@@ -103,7 +105,7 @@ fun Route.evmRoutes(
                     status = "success"
                 )
 
-                call.respond(HttpStatusCode.OK, result)
+                call.respondJsonPayload(HttpStatusCode.OK, result)
             } catch (e: Exception) {
                 logger.error("Transfer submission failed", e)
                 dbService.logTransaction(
@@ -150,4 +152,12 @@ fun Route.evmRoutes(
             call.respond(HttpStatusCode.OK, mapOf("status" to "ok", "service" to "tx-gateway"))
         }
     }
+}
+
+private suspend fun RoutingCall.respondJsonPayload(status: HttpStatusCode, payload: Any) {
+    respondText(
+        text = gson.toJson(payload),
+        contentType = ContentType.Application.Json,
+        status = status
+    )
 }

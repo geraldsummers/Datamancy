@@ -53,6 +53,7 @@ private val symbolPattern = Regex("^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$")
 private val maxOrderSize = BigDecimal("1000000000")
 private val maxOrderPrice = BigDecimal("1000000000")
 private const val PAPER_EXECUTION_STRATEGY = "tx_gateway_paper_execution"
+private const val LIVE_EXECUTION_STRATEGY = "tx_gateway_live_execution"
 
 @Serializable
 private data class UserResponse(
@@ -514,9 +515,9 @@ fun Route.unifiedExchangeRoutes(
                         quote.last
                     )
                     call.respond(
-                        HttpStatusCode.NotFound,
+                        HttpStatusCode.ServiceUnavailable,
                         mapOf(
-                            "error" to "Quote unavailable",
+                            "error" to "Invalid quote snapshot",
                             "exchange" to exchange,
                             "symbol" to symbol
                         )
@@ -524,29 +525,37 @@ fun Route.unifiedExchangeRoutes(
                     return@get
                 }
 
-                val responseQuote = if (!quote.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs)) {
+                if (!quote.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs)) {
                     logger.warn(
-                        "Serving stale quote snapshot for exchange={} symbol={} ageMs={} maxQuoteAgeMs={}",
+                        "Rejecting stale quote snapshot for exchange={} symbol={} ageMs={} maxQuoteAgeMs={}",
                         quote.exchange,
                         quote.symbol,
                         quote.quoteAgeMs(),
                         maxQuoteAgeMs
                     )
-                    quote.withStaleSourceTag()
-                } else {
-                    quote
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        mapOf(
+                            "error" to "Stale quote snapshot",
+                            "exchange" to exchange,
+                            "symbol" to symbol,
+                            "quoteAgeMs" to quote.quoteAgeMs().toString(),
+                            "maxQuoteAgeMs" to maxQuoteAgeMs.toString()
+                        )
+                    )
+                    return@get
                 }
 
                 call.respond(
                     HttpStatusCode.OK,
                     QuoteResponse(
                         exchange = exchange,
-                        symbol = responseQuote.symbol,
-                        bid = responseQuote.bid,
-                        ask = responseQuote.ask,
-                        last = responseQuote.last,
-                        timestamp = responseQuote.timestamp.toString(),
-                        source = responseQuote.source
+                        symbol = quote.symbol,
+                        bid = quote.bid,
+                        ask = quote.ask,
+                        last = quote.last,
+                        timestamp = quote.timestamp.toString(),
+                        source = quote.source
                     )
                 )
             }
@@ -915,6 +924,47 @@ fun Route.unifiedExchangeRoutes(
                             notionalUsd = executedNotionalUsd,
                             reduceOnly = orderRequest.reduceOnly
                         )
+                    }
+                    liveExecutionPreview?.let { preview ->
+                        runCatching {
+                            dbService.logPaperExecutionAnalytics(
+                                strategyName = LIVE_EXECUTION_STRATEGY,
+                                exchange = exchange,
+                                symbol = preview.symbol,
+                                side = preview.side.lowercase(),
+                                decisionLatencyMs = preview.telemetry.decisionLatencyMs.toDouble(),
+                                submitToAckMs = preview.telemetry.submitToAckMs.toDouble(),
+                                submitToFillMs = (
+                                    preview.telemetry.submitToFinalFillMs
+                                        ?: preview.telemetry.submitToFirstFillMs
+                                    )?.toDouble(),
+                                p50RoundTripMs = preview.telemetry.p50RoundTripMs.toDouble(),
+                                p95RoundTripMs = preview.telemetry.p95RoundTripMs.toDouble(),
+                                p99RoundTripMs = preview.telemetry.p99RoundTripMs.toDouble(),
+                                jitterMs = preview.telemetry.jitterMs.toDouble(),
+                                feeBps = preview.costs.appliedFeeBps,
+                                spreadCostBps = preview.costs.spreadCostBps,
+                                slippageBps = preview.costs.slippageBps,
+                                impactBps = preview.costs.impactBps,
+                                adverseSelectionBps = preview.costs.adverseSelectionBps,
+                                totalCostBps = preview.costs.totalCostBps,
+                                estimatedCostUsd = preview.costs.estimatedCostUsd,
+                                metadataJson = buildLiveAnalyticsMetadataJson(
+                                    username = username,
+                                    orderRequest = orderRequest,
+                                    result = result,
+                                    preview = preview
+                                )
+                            )
+                        }.onFailure { analyticsError ->
+                            logger.warn(
+                                "Failed to persist live execution analytics for user={} exchange={} symbol={}: {}",
+                                username,
+                                exchange,
+                                orderRequest.symbol,
+                                analyticsError.message
+                            )
+                        }
                     }
                     runCatching {
                         reconcileHyperliquidRiskState(
@@ -1743,6 +1793,35 @@ private fun jsonEscape(value: String): String {
     return value
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
+}
+
+private fun buildLiveAnalyticsMetadataJson(
+    username: String,
+    orderRequest: OrderRequest,
+    result: Map<String, Any>,
+    preview: PaperOrderResponse
+): String {
+    val resultStatus = result["status"]?.toString()?.takeIf { it.isNotBlank() } ?: "unknown"
+    val resultOrderId = result["orderId"]?.toString()?.takeIf { it.isNotBlank() } ?: "unknown"
+    val resultFilledSize = result["filledSize"]?.toString()?.takeIf { it.isNotBlank() } ?: preview.filledSize
+    return """
+        {
+          "source":"tx-gateway",
+          "username":"${jsonEscape(username)}",
+          "status":"${jsonEscape(resultStatus)}",
+          "orderId":"${jsonEscape(resultOrderId)}",
+          "exchange":"${jsonEscape(preview.exchange)}",
+          "executionMode":"live",
+          "simulated":false,
+          "previewOnlyCosts":true,
+          "orderType":"${jsonEscape(preview.type)}",
+          "urgencyClass":"${jsonEscape(preview.policy.urgencyClass)}",
+          "fillRatio":${preview.fillRatio},
+          "filledSize":"${jsonEscape(resultFilledSize)}",
+          "quoteAgeMs":${preview.quoteAgeMs},
+          "reduceOnly":${orderRequest.reduceOnly}
+        }
+    """.trimIndent()
 }
 
 private fun RiskDecision.toRejectionPayload(): RiskRejectionResponse {

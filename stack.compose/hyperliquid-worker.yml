@@ -10,9 +10,10 @@ services:
       - "com.centurylinklabs.watchtower.enable=false"
     networks:
       - trading
+      - monitoring
     environment:
-      HYPERLIQUID_API_URL: https://api.hyperliquid.xyz
-      HYPERLIQUID_MAINNET: ${HYPERLIQUID_MAINNET:-true}
+      HYPERLIQUID_API_URL: ${HYPERLIQUID_API_URL:-}
+      HYPERLIQUID_MAINNET: ${HYPERLIQUID_MAINNET:-false}
       WORKER_SHARED_TOKEN: ${WORKER_SHARED_TOKEN}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/health')"]

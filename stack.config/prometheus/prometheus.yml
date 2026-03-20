@@ -51,3 +51,15 @@ scrape_configs:
       - targets: ['litellm:4000']
     metrics_path: '/metrics'
     scrape_interval: 30s
+
+  - job_name: 'tx-gateway'
+    static_configs:
+      - targets: ['tx-gateway:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'hyperliquid-worker'
+    static_configs:
+      - targets: ['hyperliquid-worker:8082']
+    metrics_path: '/metrics'
+    scrape_interval: 15s

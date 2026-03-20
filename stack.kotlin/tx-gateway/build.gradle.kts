@@ -16,6 +16,7 @@ dependencies {
     // Ktor Server
     implementation(libs.bundles.ktor.server)
     implementation("io.ktor:ktor-server-cors:3.0.2")
+    implementation("io.ktor:ktor-server-metrics-micrometer:3.0.2")
 
     // Database
     implementation("org.postgresql:postgresql:42.7.1")

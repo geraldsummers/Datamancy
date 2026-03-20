@@ -2,7 +2,7 @@
 Hyperliquid Worker
 Handles Hyperliquid exchange operations via SDK
 """
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g, Response
 import logging
 import os
 import hmac
@@ -14,6 +14,8 @@ from hyperliquid.exchange import Exchange
 from hyperliquid.utils import constants
 from decimal import Decimal
 from datetime import datetime, timezone
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from time import perf_counter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,13 +24,48 @@ app = Flask(__name__)
 
 # Configuration
 # Note: Vault removed - using ephemeral user credentials
-IS_MAINNET = os.getenv('HYPERLIQUID_MAINNET', 'true').lower() == 'true'
+IS_MAINNET = os.getenv('HYPERLIQUID_MAINNET', 'false').lower() == 'true'
+DEFAULT_HYPERLIQUID_API_URL = constants.MAINNET_API_URL if IS_MAINNET else constants.TESTNET_API_URL
+HYPERLIQUID_API_URL = os.getenv('HYPERLIQUID_API_URL', DEFAULT_HYPERLIQUID_API_URL).strip() or DEFAULT_HYPERLIQUID_API_URL
 MAX_ORDER_SIZE = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_SIZE', '1000'))
 MAX_ORDER_NOTIONAL_USD = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_NOTIONAL_USD', '1000000'))
 WORKER_SHARED_TOKEN = os.getenv('WORKER_SHARED_TOKEN', '').strip()
 
 if not WORKER_SHARED_TOKEN:
     logger.warning("WORKER_SHARED_TOKEN is not set; sensitive endpoints will reject requests")
+
+REQUEST_COUNTER = Counter(
+    "hyperliquid_worker_http_requests_total",
+    "HTTP requests handled by hyperliquid-worker",
+    ["endpoint", "method", "status"]
+)
+REQUEST_LATENCY = Histogram(
+    "hyperliquid_worker_http_request_duration_seconds",
+    "Request latency for hyperliquid-worker endpoints",
+    ["endpoint", "method"]
+)
+HYPERLIQUID_MAINNET_GAUGE = Gauge(
+    "hyperliquid_worker_mainnet_mode",
+    "Whether worker is configured for Hyperliquid mainnet (1) or testnet (0)"
+)
+HYPERLIQUID_MAINNET_GAUGE.set(1 if IS_MAINNET else 0)
+
+
+@app.before_request
+def _record_request_start():
+    g._request_start_ts = perf_counter()
+
+
+@app.after_request
+def _record_request_metrics(response):
+    endpoint = request.path or "unknown"
+    method = request.method or "UNKNOWN"
+    status = str(response.status_code)
+    REQUEST_COUNTER.labels(endpoint=endpoint, method=method, status=status).inc()
+    start_ts = getattr(g, "_request_start_ts", None)
+    if start_ts is not None:
+        REQUEST_LATENCY.labels(endpoint=endpoint, method=method).observe(max(perf_counter() - start_ts, 0.0))
+    return response
 
 
 def require_worker_auth():
@@ -268,7 +305,6 @@ def ensure_order_notional_within_limit(symbol: str, order_type: str, size_decima
 def get_exchange_client(hyperliquid_key: str) -> Exchange:
     """Get authenticated Exchange client using ephemeral credentials"""
     creds = parse_hyperliquid_key(hyperliquid_key)
-    base_url = constants.MAINNET_API_URL if IS_MAINNET else constants.TESTNET_API_URL
     wallet_key = creds["private_key"].strip()
     if not wallet_key.startswith("0x"):
         wallet_key = f"0x{wallet_key}"
@@ -277,16 +313,45 @@ def get_exchange_client(hyperliquid_key: str) -> Exchange:
     spot_meta = None if IS_MAINNET else {"universe": [], "tokens": []}
     return Exchange(
         wallet=wallet,
-        base_url=base_url,
+        base_url=HYPERLIQUID_API_URL,
         account_address=account_address,
         spot_meta=spot_meta
     )
 
 def get_info_client() -> Info:
     """Get Info client for market data queries"""
-    base_url = constants.MAINNET_API_URL if IS_MAINNET else constants.TESTNET_API_URL
     spot_meta = None if IS_MAINNET else {"universe": [], "tokens": []}
-    return Info(base_url=base_url, skip_ws=True, spot_meta=spot_meta)
+    return Info(base_url=HYPERLIQUID_API_URL, skip_ws=True, spot_meta=spot_meta)
+
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
+
+
+@app.route('/markets', methods=['GET'])
+def markets():
+    """Get available markets from Hyperliquid meta feed."""
+    try:
+        info = get_info_client()
+        meta = info.meta() or {}
+        universe = meta.get("universe", []) if isinstance(meta, dict) else []
+
+        markets_payload = []
+        for entry in universe:
+            if isinstance(entry, dict):
+                symbol = entry.get("name") or entry.get("coin")
+                if symbol:
+                    markets_payload.append(entry | {"symbol": symbol})
+
+        return jsonify({
+            "markets": markets_payload,
+            "count": len(markets_payload),
+            "mainnet": IS_MAINNET
+        })
+    except Exception as e:
+        logger.error(f"Markets query failed: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/order', methods=['POST'])
 def submit_order():
@@ -543,6 +608,7 @@ def get_positions():
 
         data = request.json or {}
         username = data.get('user') or data.get('username')
+        symbol_filter = str(data.get('symbol') or '').strip()
         hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
@@ -657,9 +723,12 @@ def get_orders():
         orders = []
         if open_orders:
             for order in open_orders:
+                symbol = order.get('coin')
+                if symbol_filter and symbol != symbol_filter:
+                    continue
                 orders.append({
                     "orderId": order.get('oid'),
-                    "symbol": order.get('coin'),
+                    "symbol": symbol,
                     "side": "BUY" if order.get('side') == 'B' else "SELL",
                     "size": order.get('sz'),
                     "price": order.get('limitPx'),
@@ -736,6 +805,78 @@ def close_position():
         logger.error(f"Close position failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/close-all', methods=['POST'])
+def close_all_positions():
+    """Close all non-zero positions for the user."""
+    try:
+        auth_error = require_worker_auth()
+        if auth_error:
+            return auth_error
+
+        data = request.json or {}
+        username = data.get('username') or data.get('user')
+        hyperliquid_key = data.get('hyperliquidKey')
+
+        if not hyperliquid_key:
+            return jsonify({"error": "Missing hyperliquidKey in request"}), 400
+
+        try:
+            creds = parse_hyperliquid_key(hyperliquid_key)
+            address = resolve_account_address(creds)
+            exchange = get_exchange_client(hyperliquid_key)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        info = get_info_client()
+        user_state = info.user_state(address)
+        positions = []
+
+        if user_state and 'assetPositions' in user_state:
+            for pos in user_state['assetPositions']:
+                position = pos.get('position', {})
+                symbol = position.get('coin')
+                size_raw = position.get('szi', 0)
+                try:
+                    size = float(size_raw)
+                except Exception:
+                    size = 0.0
+                if symbol and size != 0.0:
+                    positions.append((symbol, size))
+
+        if not positions:
+            return jsonify({
+                "status": "no_positions",
+                "closed": 0,
+                "details": []
+            })
+
+        closed = []
+        for symbol, size in positions:
+            is_buy = size < 0  # short -> buy to close
+            result = exchange.market_order(
+                symbol=symbol,
+                is_buy=is_buy,
+                sz=abs(size)
+            )
+            closed.append({
+                "symbol": symbol,
+                "size": size,
+                "status": "closed" if result.get("status") == "ok" else "failed",
+                "raw": result
+            })
+
+        return jsonify({
+            "status": "completed",
+            "username": username,
+            "closed": len(closed),
+            "details": closed
+        })
+
+    except Exception as e:
+        logger.error(f"Close-all failed: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check"""
@@ -752,7 +893,8 @@ def health():
         "status": "healthy" if api_status == "healthy" else "degraded",
         "service": "hyperliquid-worker",
         "api": api_status,
-        "mainnet": IS_MAINNET
+        "mainnet": IS_MAINNET,
+        "apiUrl": HYPERLIQUID_API_URL
     })
 
 if __name__ == '__main__':

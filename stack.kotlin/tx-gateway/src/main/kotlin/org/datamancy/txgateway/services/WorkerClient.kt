@@ -110,6 +110,32 @@ class WorkerClient(
         }
     }
 
+    fun cancelAllHyperliquidOrders(
+        username: String,
+        hyperliquidKey: String,
+        symbol: String? = null
+    ): Map<String, Any> {
+        val payload = buildMap<String, Any> {
+            put("username", username)
+            put("hyperliquidKey", hyperliquidKey)
+            symbol?.takeIf { it.isNotBlank() }?.let { put("symbol", it) }
+        }
+        val request = requestBuilder("$hyperliquidWorkerUrl/cancel-all")
+            .post(gson.toJson(payload).toRequestBody(jsonMediaType))
+            .build()
+
+        logger.info("Cancelling all Hyperliquid orders for user={}, payload={}", username, redactPayload(payload))
+
+        client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string() ?: "{}"
+            if (!response.isSuccessful) {
+                throw RuntimeException("Hyperliquid worker error: HTTP ${response.code} - $responseBody")
+            }
+            @Suppress("UNCHECKED_CAST")
+            return gson.fromJson(responseBody, Map::class.java) as Map<String, Any>
+        }
+    }
+
     fun getHyperliquidPositions(username: String, hyperliquidKey: String): List<Map<String, Any>> {
         val payload = mapOf(
             "user" to username,
@@ -141,6 +167,82 @@ class WorkerClient(
             .build()
 
         logger.info("Fetching Hyperliquid balance for user={}, payload={}", username, redactPayload(payload))
+
+        client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string() ?: "{}"
+            if (!response.isSuccessful) {
+                throw RuntimeException("Hyperliquid worker error: HTTP ${response.code} - $responseBody")
+            }
+            @Suppress("UNCHECKED_CAST")
+            return gson.fromJson(responseBody, Map::class.java) as Map<String, Any>
+        }
+    }
+
+    fun getHyperliquidOrders(
+        username: String,
+        hyperliquidKey: String,
+        symbol: String? = null
+    ): List<Map<String, Any>> {
+        val payload = buildMap<String, Any> {
+            put("user", username)
+            put("hyperliquidKey", hyperliquidKey)
+            symbol?.takeIf { it.isNotBlank() }?.let { put("symbol", it) }
+        }
+        val request = requestBuilder("$hyperliquidWorkerUrl/orders")
+            .post(gson.toJson(payload).toRequestBody(jsonMediaType))
+            .build()
+
+        logger.info("Fetching Hyperliquid open orders for user={}, payload={}", username, redactPayload(payload))
+
+        client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string() ?: "[]"
+            if (!response.isSuccessful) {
+                throw RuntimeException("Hyperliquid worker error: HTTP ${response.code} - $responseBody")
+            }
+            @Suppress("UNCHECKED_CAST")
+            return gson.fromJson(responseBody, List::class.java) as List<Map<String, Any>>
+        }
+    }
+
+    fun closeHyperliquidPosition(
+        username: String,
+        hyperliquidKey: String,
+        symbol: String
+    ): Map<String, Any> {
+        val payload = mapOf(
+            "username" to username,
+            "symbol" to symbol,
+            "hyperliquidKey" to hyperliquidKey
+        )
+        val request = requestBuilder("$hyperliquidWorkerUrl/close")
+            .post(gson.toJson(payload).toRequestBody(jsonMediaType))
+            .build()
+
+        logger.info("Closing Hyperliquid position for user={}, symbol={}", username, symbol)
+
+        client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string() ?: "{}"
+            if (!response.isSuccessful) {
+                throw RuntimeException("Hyperliquid worker error: HTTP ${response.code} - $responseBody")
+            }
+            @Suppress("UNCHECKED_CAST")
+            return gson.fromJson(responseBody, Map::class.java) as Map<String, Any>
+        }
+    }
+
+    fun closeAllHyperliquidPositions(
+        username: String,
+        hyperliquidKey: String
+    ): Map<String, Any> {
+        val payload = mapOf(
+            "username" to username,
+            "hyperliquidKey" to hyperliquidKey
+        )
+        val request = requestBuilder("$hyperliquidWorkerUrl/close-all")
+            .post(gson.toJson(payload).toRequestBody(jsonMediaType))
+            .build()
+
+        logger.info("Closing all Hyperliquid positions for user={}", username)
 
         client.newCall(request).execute().use { response ->
             val responseBody = response.body?.string() ?: "{}"

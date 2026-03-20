@@ -4,6 +4,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
+import io.ktor.server.metrics.micrometer.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
@@ -12,6 +13,8 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import io.micrometer.prometheus.PrometheusConfig
+import io.micrometer.prometheus.PrometheusMeterRegistry
 import org.datamancy.txgateway.routes.evmRoutes
 import org.datamancy.txgateway.routes.hyperliquidRoutes
 import org.datamancy.txgateway.routes.riskRoutes
@@ -80,6 +83,7 @@ fun Application.configureApp(
     val walletSignatureService = WalletSignatureService()
     val corsAllowedOrigins = parseCsvEnv("TXG_CORS_ALLOWED_ORIGINS")
     val wildcardCors = corsAllowedOrigins.any { it == "*" }
+    val prometheusRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
 
     install(ContentNegotiation) {
         json(Json {
@@ -115,9 +119,22 @@ fun Application.configureApp(
         }
     }
 
+    install(MicrometerMetrics) {
+        registry = prometheusRegistry
+        meterBinders = emptyList()
+    }
+
     routing {
         get("/health") {
             call.respond(HttpStatusCode.OK, mapOf("status" to "healthy", "service" to "tx-gateway"))
+        }
+
+        get("/metrics") {
+            call.respondText(
+                text = prometheusRegistry.scrape(),
+                contentType = ContentType.parse("text/plain; version=0.0.4; charset=utf-8"),
+                status = HttpStatusCode.OK
+            )
         }
 
         get("/health/db") {
@@ -231,8 +248,12 @@ fun Application.configureApp(
                     "/api/v1/exchanges/{exchange}/quote?symbol=BTC",
                     "/api/v1/exchanges/{exchange}/order",
                     "/api/v1/hyperliquid/cancel/{orderId}",
+                    "/api/v1/hyperliquid/cancel-all",
                     "/api/v1/hyperliquid/positions",
+                    "/api/v1/hyperliquid/orders",
                     "/api/v1/hyperliquid/balance",
+                    "/api/v1/hyperliquid/close",
+                    "/api/v1/hyperliquid/close-all",
                     "/api/v1/risk/policy/active",
                     "/api/v1/risk/policies",
                     "/api/v1/risk/state",
