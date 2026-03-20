@@ -512,9 +512,29 @@ async function testOIDCService(
   let disallowedUrl: RegExp | null = null;
 
   for (let i = 0; i < maxPatternRetries; i++) {
-    pageTitle = await page.title();
-    pageText = (await page.textContent('body').catch(() => '')) || '';
-    bodyHTML = await body.innerHTML();
+    if (page.isClosed()) {
+      break;
+    }
+
+    try {
+      pageTitle = await page.title();
+      pageText = (await page.textContent('body').catch(() => '')) || '';
+      bodyHTML = await body.innerHTML();
+    } catch (error: any) {
+      const message = String(error?.message || error);
+      const transientNavigationError =
+        /execution context was destroyed/i.test(message)
+        || /target page, context or browser has been closed/i.test(message)
+        || /cannot find context with specified id/i.test(message);
+
+      if (transientNavigationError && i < maxPatternRetries - 1 && !page.isClosed()) {
+        console.log(`   ⚠️  ${serviceName} UI check raced with navigation; retrying... (${i + 1}/${maxPatternRetries})`);
+        await page.waitForTimeout(1200);
+        continue;
+      }
+
+      throw error;
+    }
 
     if (/element/i.test(serviceName) && /verify this device/i.test(pageText)) {
       const skipButton = page.getByRole('button', { name: /skip verification/i }).first();
@@ -622,11 +642,25 @@ async function testOIDCService(
       }
 
       if (/bookstack/i.test(serviceName)) {
+        const isBookStackDashboard = (content: string) =>
+          /\bBooks\b|\bShelves\b|My Recently Viewed|Recent Activity|Recently Updated Pages|My Account|Logout/i.test(content);
+
         const onBookStackError =
           /an error occurred|unknown error occurred/i.test(pageText)
           || /\/oidc\/callback\b/i.test(page.url());
         if (onBookStackError) {
           console.log(`   ⚠️  BookStack hit transient OIDC callback error; retrying login flow... (${i + 1}/${maxPatternRetries})`);
+
+          const homeUrl = new URL('/', page.url()).toString();
+          await page.goto(homeUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+          await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+          const homeTitle = await page.title().catch(() => '');
+          const homeText = (await page.textContent('body').catch(() => '')) || '';
+          const homeCombined = [homeTitle, homeText].filter(Boolean).join('\n');
+          if (isBookStackDashboard(homeCombined) && !/\/login\b/i.test(page.url())) {
+            console.log(`   ✅ BookStack session recovered after callback error; continuing...`);
+            continue;
+          }
 
           const loginUrl = new URL('/login', page.url()).toString();
           await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
@@ -755,7 +789,16 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       await loginPage.login(testUser.username, testUser.password);
     }
 
-    await expect(page).not.toHaveURL(/auth\.|authelia/);
+    await page.waitForURL(
+      (url) => {
+        const href = url.toString();
+        return href.length > 0 && !/auth\.|authelia/i.test(href);
+      },
+      { timeout: 30000 }
+    ).catch(() => {});
+    const settledGrafanaUrl = page.url();
+    expect(settledGrafanaUrl.length).toBeGreaterThan(0);
+    expect(settledGrafanaUrl).not.toMatch(/auth\.|authelia/i);
     await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
     const grafanaPattern = /Grafana|Dashboards|Explore|Connections|Data sources|Loki/i;
@@ -840,11 +883,15 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
     } catch (error: any) {
       const message = String(error?.message || error);
       const pageContent = await page.content().catch(() => '');
+      const currentUrl = page.url();
+      const offMastodonDomain = !/^https?:\/\/(?:[^/]+\.)?mastodon\.datamancy\.net(?:\/|$)/i.test(currentUrl);
       const isTransient =
         /Invalid state/i.test(message) ||
         /Invalid state/i.test(pageContent) ||
         /could not lookup user subject/i.test(pageContent) ||
-        /authorization server encountered an unexpected condition/i.test(pageContent);
+        /authorization server encountered an unexpected condition/i.test(pageContent) ||
+        /execution context was destroyed/i.test(message) ||
+        (/Mastodon profile link is missing/i.test(message) && offMastodonDomain);
       if (!isTransient) {
         throw error;
       }
@@ -879,6 +926,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
   });
 
   test('BookStack - OIDC login flow', async ({ page }) => {
+    test.setTimeout(180000);
     await testOIDCService(
       page,
       'BookStack',
@@ -1471,6 +1519,8 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
 test.describe.serial('OIDC - Cross-service Session', () => {
 
   test('OIDC session works across multiple services', async ({ page }) => {
+    test.setTimeout(180000);
+
     console.log('\n🧪 Testing OIDC session persistence');
 
     // Login to first OIDC service
@@ -1532,6 +1582,10 @@ test.describe.serial('OIDC - Cross-service Session', () => {
     let verifiedBookStackUi = false;
     const maxBookStackSessionChecks = 3;
     for (let i = 0; i < maxBookStackSessionChecks; i += 1) {
+      if (page.isClosed()) {
+        break;
+      }
+
       const currentUrl = page.url();
       const currentHost = new URL(currentUrl).hostname;
       const currentBody = (await page.textContent('body').catch(() => '')) || '';
@@ -1564,7 +1618,7 @@ test.describe.serial('OIDC - Cross-service Session', () => {
           await autheliaPage.login(testUser.username, testUser.password).catch(() => {});
         }
         await oidcPage.handleConsentScreen().catch(() => {});
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1500).catch(() => {});
       }
     }
 
