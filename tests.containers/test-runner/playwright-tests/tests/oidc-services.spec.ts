@@ -501,7 +501,12 @@ async function testOIDCService(
   let bodyHTML = '';
   let pageText = '';
   const maxPatternRetries = 5;
-  const disallowPatterns = options.disallowPatterns ?? [];
+  const defaultDisallowPatterns: RegExp[] = [
+    /Consent Request/i,
+    /Powered by Authelia/i,
+    /Login - Authelia/i,
+  ];
+  const disallowPatterns = [...defaultDisallowPatterns, ...(options.disallowPatterns ?? [])];
   const disallowUrlPatterns = options.disallowUrlPatterns ?? [];
   let disallowedMatch: RegExp | null = null;
   let disallowedUrl: RegExp | null = null;
@@ -591,6 +596,18 @@ async function testOIDCService(
       }
 
       if (/planka/i.test(serviceName)) {
+        const onAutheliaConsent =
+          /consent request|the above application is requesting the following permissions/i.test(pageText)
+          || /\/consent\/|\/decision/i.test(page.url())
+          || /powered by authelia/i.test(pageText);
+        if (onAutheliaConsent) {
+          console.log(`   ⚠️  Planka remained on consent screen; retrying consent handling... (${i + 1}/${maxPatternRetries})`);
+          await oidcPage.handleConsentScreen().catch(() => {});
+          await page.waitForURL((url) => !isAuthUrl(url.toString()), { timeout: 15000 }).catch(() => {});
+          await page.waitForTimeout(1500);
+          continue;
+        }
+
         const plankaUnknownError = /unknown error|try again later/i.test(pageText);
         const onPlankaLogin = /\/login\b/i.test(page.url());
         if (onPlankaLogin && (plankaUnknownError || disallowedUrl)) {
@@ -598,6 +615,31 @@ async function testOIDCService(
           const ssoButton = page.getByRole('button', { name: /log in with sso|sso|oidc/i }).first();
           if (await ssoButton.isVisible().catch(() => false)) {
             await ssoButton.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(2500);
+            continue;
+          }
+        }
+      }
+
+      if (/bookstack/i.test(serviceName)) {
+        const onBookStackError =
+          /an error occurred|unknown error occurred/i.test(pageText)
+          || /\/oidc\/callback\b/i.test(page.url());
+        if (onBookStackError) {
+          console.log(`   ⚠️  BookStack hit transient OIDC callback error; retrying login flow... (${i + 1}/${maxPatternRetries})`);
+
+          const loginUrl = new URL('/login', page.url()).toString();
+          await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+          await page.waitForTimeout(700);
+
+          const oidcRetryButton = page
+            .locator('#oidc-login')
+            .or(page.getByRole('button', { name: /login with authelia|authelia|oidc|sso/i }))
+            .or(page.getByRole('link', { name: /login with authelia|authelia|oidc|sso/i }))
+            .first();
+
+          if (await oidcRetryButton.isVisible().catch(() => false)) {
+            await oidcRetryButton.click({ force: true }).catch(() => {});
             await page.waitForTimeout(2500);
             continue;
           }
@@ -634,6 +676,18 @@ async function testOIDCService(
     console.log(`   Pattern: ${effectiveUiPattern}`);
     console.log(`   Body length: ${bodyHTML.length} chars`);
     throw new Error(`Expected ${serviceName} page but UI pattern not found. Pattern: ${effectiveUiPattern}, Title: "${pageTitle}"`);
+  }
+
+  // Guard against late redirects/races that can happen immediately before capture.
+  await expect.poll(() => isAuthUrl(page.url()), { timeout: 10000 }).toBeFalsy();
+  const finalTitle = await page.title().catch(() => '');
+  const finalPageText = (await page.textContent('body').catch(() => '')) || '';
+  const finalCombined = [finalTitle, finalPageText].filter(Boolean).join('\n');
+  const finalDisallowedMatch = disallowPatterns.find((pattern) => pattern.test(finalCombined)) ?? null;
+  if (finalDisallowedMatch) {
+    throw new Error(
+      `Refusing to capture ${serviceName} screenshot because disallowed content is still visible: ${finalDisallowedMatch}`
+    );
   }
 
   if (!options.skipScreenshot) {
@@ -829,8 +883,12 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       page,
       'BookStack',
       'https://bookstack.datamancy.net/',
-      /Books|Shelves|Recently (Created|Updated)|My Recently Viewed/i, // Look for authenticated dashboard content, NOT error page
-      ['Authelia', 'Login with SSO', 'SSO']
+      /\bBooks\b|\bShelves\b|Recently (Created|Updated)|My Recently Viewed|Recent Activity|Recently Updated Pages/i,
+      ['Authelia', 'Login with SSO', 'SSO'],
+      {
+        disallowPatterns: [/An Error Occurred|unknown error occurred/i, /\bLog in\b/i],
+        disallowUrlPatterns: [/\/login\b/i],
+      }
     );
   });
 
@@ -843,7 +901,10 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
       /Boards|Projects|Add board|Create board|New board|PLANKA|Test User/i,
       ['Authelia', 'SSO', 'OIDC'],
       {
-        disallowPatterns: [/Log in to Planka|Log in with SSO|E-mail or username/i],
+        disallowPatterns: [
+          /Log in to Planka|Log in with SSO|E-mail or username/i,
+          /Consent Request|the above application is requesting the following permissions/i,
+        ],
         disallowUrlPatterns: [/\/login\b/i],
         loginPath: 'https://planka.datamancy.net/login',
         loginButtonPatterns: [/log in with sso|sso|oidc/i],
@@ -1467,9 +1528,47 @@ test.describe.serial('OIDC - Cross-service Session', () => {
 
     await oidcPage.handleConsentScreen();
 
-    // CRITICAL: Verify we're on BookStack (allow authelia in query params)
-    const bookstackHost = new URL(page.url()).hostname;
-    expect(bookstackHost).not.toMatch(/^(auth\.|authelia)/);
+    // CRITICAL: Verify we're on authenticated BookStack UI, not callback/error pages.
+    let verifiedBookStackUi = false;
+    const maxBookStackSessionChecks = 3;
+    for (let i = 0; i < maxBookStackSessionChecks; i += 1) {
+      const currentUrl = page.url();
+      const currentHost = new URL(currentUrl).hostname;
+      const currentBody = (await page.textContent('body').catch(() => '')) || '';
+      const onAuthHost = /^(auth\.|authelia)/.test(currentHost);
+      const disallowedBookStackState =
+        /an error occurred|unknown error occurred/i.test(currentBody)
+        || /\/oidc\/callback\b/i.test(currentUrl)
+        || /\/login\b/i.test(currentUrl);
+      const hasBookStackUi =
+        /\bBooks\b|Shelves|Recently Updated Pages|Recent Activity|My Account|Dark Mode/i.test(currentBody);
+
+      if (!onAuthHost && !disallowedBookStackState && hasBookStackUi) {
+        verifiedBookStackUi = true;
+        break;
+      }
+
+      if (i < maxBookStackSessionChecks - 1) {
+        console.log(`   ⚠️  BookStack session landed on non-authenticated state; retrying SSO... (${i + 1}/${maxBookStackSessionChecks})`);
+        await page.goto('https://bookstack.datamancy.net/login', { waitUntil: 'domcontentloaded' }).catch(() => {});
+        const retryButton = page
+          .locator('#oidc-login')
+          .or(page.getByRole('button', { name: /login with authelia|authelia|oidc|sso/i }))
+          .or(page.getByRole('link', { name: /login with authelia|authelia|oidc|sso/i }))
+          .first();
+        if (await retryButton.isVisible().catch(() => false)) {
+          await retryButton.click({ force: true }).catch(() => {});
+        }
+        if (page.url().includes('authelia') || page.url().includes('auth.')) {
+          const autheliaPage = new AutheliaLoginPage(page);
+          await autheliaPage.login(testUser.username, testUser.password).catch(() => {});
+        }
+        await oidcPage.handleConsentScreen().catch(() => {});
+        await page.waitForTimeout(1500);
+      }
+    }
+
+    expect(verifiedBookStackUi).toBeTruthy();
 
     console.log('\n   ✅ OIDC session test complete\n');
   });

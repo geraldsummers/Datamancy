@@ -378,37 +378,29 @@ fun Route.unifiedExchangeRoutes(
                     return@get
                 }
 
-                val quotes = exchangesToScan.mapNotNull { exchange ->
-                    val quote = dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)
-                    when {
-                        quote == null -> null
-                        !quote.isValidSnapshot() -> {
-                            logger.warn(
-                                "Ignoring invalid quote snapshot for exchange={} symbol={} bid={} ask={} last={}",
-                                quote.exchange,
-                                quote.symbol,
-                                quote.bid,
-                                quote.ask,
-                                quote.last
-                            )
-                            null
-                        }
-                        !quote.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs) -> {
-                            logger.warn(
-                                "Ignoring stale quote snapshot for exchange={} symbol={} ageMs={} maxQuoteAgeMs={}",
-                                quote.exchange,
-                                quote.symbol,
-                                quote.quoteAgeMs(),
-                                maxQuoteAgeMs
-                            )
-                            null
-                        }
+                val candidateQuotes = exchangesToScan.mapNotNull { exchange ->
+                    val quote = resolveQuoteWithPaperFallback(
+                        dbService = dbService,
+                        exchange = exchange,
+                        symbol = symbol
+                    ) ?: return@mapNotNull null
 
-                        else -> quote
+                    if (!quote.isValidSnapshot()) {
+                        logger.warn(
+                            "Ignoring invalid quote snapshot for exchange={} symbol={} bid={} ask={} last={}",
+                            quote.exchange,
+                            quote.symbol,
+                            quote.bid,
+                            quote.ask,
+                            quote.last
+                        )
+                        return@mapNotNull null
                     }
+
+                    quote
                 }
 
-                if (quotes.isEmpty()) {
+                if (candidateQuotes.isEmpty()) {
                     call.respond(
                         HttpStatusCode.NotFound,
                         mapOf(
@@ -419,6 +411,24 @@ fun Route.unifiedExchangeRoutes(
                         )
                     )
                     return@get
+                }
+
+                val freshQuotes = candidateQuotes.filter { it.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs) }
+                val servingStaleQuotes = freshQuotes.isEmpty()
+                val quotes = if (servingStaleQuotes) {
+                    candidateQuotes.map { it.withStaleSourceTag() }
+                } else {
+                    freshQuotes
+                }
+
+                if (servingStaleQuotes) {
+                    logger.warn(
+                        "Serving stale best-quote snapshot for symbol={} side={} exchanges={} maxQuoteAgeMs={}",
+                        symbol,
+                        side,
+                        exchangesToScan.joinToString(","),
+                        maxQuoteAgeMs
+                    )
                 }
 
                 val best = if (side == "buy") {
@@ -499,27 +509,9 @@ fun Route.unifiedExchangeRoutes(
                         quote.last
                     )
                     call.respond(
-                        HttpStatusCode.ServiceUnavailable,
+                        HttpStatusCode.NotFound,
                         mapOf(
-                            "error" to "Invalid quote snapshot",
-                            "exchange" to exchange,
-                            "symbol" to symbol
-                        )
-                    )
-                    return@get
-                }
-                if (!quote.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs)) {
-                    logger.warn(
-                        "Rejecting stale quote snapshot for exchange={} symbol={} ageMs={} maxQuoteAgeMs={}",
-                        quote.exchange,
-                        quote.symbol,
-                        quote.quoteAgeMs(),
-                        maxQuoteAgeMs
-                    )
-                    call.respond(
-                        HttpStatusCode.ServiceUnavailable,
-                        mapOf(
-                            "error" to "Stale quote snapshot",
+                            "error" to "Quote unavailable",
                             "exchange" to exchange,
                             "symbol" to symbol
                         )
@@ -527,16 +519,29 @@ fun Route.unifiedExchangeRoutes(
                     return@get
                 }
 
+                val responseQuote = if (!quote.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs)) {
+                    logger.warn(
+                        "Serving stale quote snapshot for exchange={} symbol={} ageMs={} maxQuoteAgeMs={}",
+                        quote.exchange,
+                        quote.symbol,
+                        quote.quoteAgeMs(),
+                        maxQuoteAgeMs
+                    )
+                    quote.withStaleSourceTag()
+                } else {
+                    quote
+                }
+
                 call.respond(
                     HttpStatusCode.OK,
                     QuoteResponse(
                         exchange = exchange,
-                        symbol = quote.symbol,
-                        bid = quote.bid,
-                        ask = quote.ask,
-                        last = quote.last,
-                        timestamp = quote.timestamp.toString(),
-                        source = quote.source
+                        symbol = responseQuote.symbol,
+                        bid = responseQuote.bid,
+                        ask = responseQuote.ask,
+                        last = responseQuote.last,
+                        timestamp = responseQuote.timestamp.toString(),
+                        source = responseQuote.source
                     )
                 )
             }
@@ -1525,15 +1530,33 @@ private fun resolveQuoteWithPaperFallback(
     exchange: String,
     symbol: String
 ): LatestQuote? {
-    val directQuote = dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)
-    if (directQuote != null) return directQuote
-    if (exchange in liveOrderExchanges) return null
+    val candidates = buildList {
+        dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)?.let { add(it) }
+        if (exchange !in liveOrderExchanges) {
+            dbService.fetchLatestQuote(exchange = "hyperliquid", symbol = symbol)?.let { proxyQuote ->
+                add(
+                    proxyQuote.copy(
+                        exchange = exchange,
+                        source = "proxy:hyperliquid:${proxyQuote.source}"
+                    )
+                )
+            }
+        }
+    }
 
-    val proxyQuote = dbService.fetchLatestQuote(exchange = "hyperliquid", symbol = symbol) ?: return null
-    return proxyQuote.copy(
-        exchange = exchange,
-        source = "proxy:hyperliquid:${proxyQuote.source}"
-    )
+    if (candidates.isEmpty()) return null
+
+    val freshValid = candidates
+        .asSequence()
+        .filter { it.isValidSnapshot() && it.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs) }
+        .minByOrNull { it.quoteAgeMs() }
+    if (freshValid != null) return freshValid
+
+    return candidates.firstOrNull { it.isValidSnapshot() } ?: candidates.first()
+}
+
+private fun LatestQuote.withStaleSourceTag(): LatestQuote {
+    return if (source.startsWith("stale:")) this else copy(source = "stale:$source")
 }
 
 private fun toBps(numerator: BigDecimal, denominator: BigDecimal): BigDecimal {
