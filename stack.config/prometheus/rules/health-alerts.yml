@@ -127,3 +127,36 @@ groups:
         annotations:
           summary: "Critical disk space on {{ $labels.device }}"
           description: "Disk {{ $labels.device }} on {{ $labels.instance }} has less than 5% free space remaining."
+
+  - name: trading_execution_degradation
+    interval: 30s
+    rules:
+      - alert: TradingSlippageDriftHigh
+        expr: max_over_time(tx_gateway_trading_slippage_drift_bps[5m]) > 4
+        for: 5m
+        labels:
+          severity: warning
+          category: trading
+        annotations:
+          summary: "Slippage drift elevated for {{ $labels.strategy }} ({{ $labels.execution_mode }})"
+          description: "Observed slippage drift exceeded 4 bps for strategy={{ $labels.strategy }}, exchange={{ $labels.exchange }}."
+
+      - alert: TradingFillQualityDecayHigh
+        expr: max_over_time(tx_gateway_trading_fill_quality_decay_bps[5m]) > 150
+        for: 5m
+        labels:
+          severity: warning
+          category: trading
+        annotations:
+          summary: "Fill quality decay detected for {{ $labels.strategy }} ({{ $labels.execution_mode }})"
+          description: "Fill quality decay exceeded 150 bps for strategy={{ $labels.strategy }}, exchange={{ $labels.exchange }}."
+
+      - alert: TradingLatencyDriftSpike
+        expr: max_over_time(tx_gateway_trading_latency_drift_ms[5m]) > 120
+        for: 5m
+        labels:
+          severity: critical
+          category: trading
+        annotations:
+          summary: "Latency drift spike for {{ $labels.strategy }} ({{ $labels.execution_mode }})"
+          description: "Latency drift exceeded 120ms for strategy={{ $labels.strategy }}, exchange={{ $labels.exchange }}."

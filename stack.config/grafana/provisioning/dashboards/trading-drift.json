@@ -1,0 +1,166 @@
+{
+  "uid": "trading-drift",
+  "title": "Trading Drift",
+  "tags": ["trading", "drift", "walkforward", "execution"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-48h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "drift_strategy",
+        "type": "custom",
+        "label": "Strategy",
+        "query": "tx_gateway_live_execution,tx_gateway_paper_execution",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "tx_gateway_live_execution",
+          "value": "tx_gateway_live_execution"
+        },
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Live-vs-Backtest Drift Components (bps)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(slippage_drift_bps) AS \"Slippage Drift\"\nFROM strategy_live_backtest_drift\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(fill_quality_delta_bps) AS \"Fill Quality Decay\"\nFROM strategy_live_backtest_drift\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(drift_score) AS \"Drift Score\"\nFROM strategy_live_backtest_drift\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency Drift + Submit->Fill Context (ms)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(latency_drift_ms) AS \"Latency Drift\"\nFROM strategy_live_backtest_drift\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(COALESCE(submit_to_fill_ms, submit_to_ack_ms)) AS \"Submit->Fill\"\nFROM strategy_latency_metrics\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Live Edge vs Backtest Edge (bps)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(live_edge_bps) AS \"Live Edge\"\nFROM strategy_live_backtest_drift\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(backtest_edge_bps) AS \"Backtest Edge\"\nFROM strategy_live_backtest_drift\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Latest Drift Samples",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT observed_at,\n       strategy_name,\n       symbol,\n       ROUND(COALESCE(live_edge_bps, 0)::numeric, 2) AS live_edge_bps,\n       ROUND(COALESCE(backtest_edge_bps, 0)::numeric, 2) AS backtest_edge_bps,\n       ROUND(COALESCE(fill_quality_delta_bps, 0)::numeric, 2) AS fill_quality_decay_bps,\n       ROUND(COALESCE(slippage_drift_bps, 0)::numeric, 2) AS slippage_drift_bps,\n       ROUND(COALESCE(latency_drift_ms, 0)::numeric, 1) AS latency_drift_ms,\n       ROUND(COALESCE(drift_score, 0)::numeric, 2) AS drift_score,\n       metadata ->> 'executionMode' AS execution_mode,\n       metadata ->> 'status' AS status\nFROM strategy_live_backtest_drift\nWHERE strategy_name = '${drift_strategy}'\n  AND $__timeFilter(observed_at)\nORDER BY observed_at DESC\nLIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      }
+    }
+  ]
+}

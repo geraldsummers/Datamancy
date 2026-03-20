@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.datamancy.trading.models.*
+import org.datamancy.trading.strategy.ModeRoutedOrderRequest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -615,5 +616,61 @@ class TxGatewayTest {
         // PnL% = unrealizedPnl / notionalValue * 100 = 1000/5000*100 = 20%
         // (This is PnL as percentage of current position value, not ROI)
         assertEquals(0, BigDecimal("20.0").compareTo(position.pnlPercent))
+    }
+
+    @Test
+    fun `mode router backtest path stays local`() = runBlocking {
+        val result = gateway.modeRouter.submit(
+            ModeRoutedOrderRequest(
+                mode = TradingMode.BACKTEST,
+                strategyName = "wf-ema",
+                exchange = "hyperliquid",
+                symbol = "BTC-PERP",
+                side = Side.BUY,
+                type = OrderType.MARKET,
+                size = BigDecimal("1.2"),
+                price = BigDecimal("72000")
+            )
+        )
+
+        assertTrue(result is ApiResult.Success)
+        val data = (result as ApiResult.Success).data
+        assertEquals(TradingMode.BACKTEST, data.mode)
+        assertEquals(OrderStatus.FILLED, data.status)
+        assertEquals(0, BigDecimal("1.2").compareTo(data.filledSize))
+        assertEquals(0, mockServer.requestCount)
+    }
+
+    @Test
+    fun `mode router forward paper remaps hyperliquid to paper venue`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "paper-200",
+                "status": "PENDING",
+                "filledSize": "0",
+                "exchange": "binance",
+                "symbol": "BTC-PERP",
+                "side": "BUY",
+                "type": "LIMIT"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.modeRouter.submit(
+            ModeRoutedOrderRequest(
+                mode = TradingMode.FORWARD_PAPER,
+                strategyName = "wf-ema",
+                exchange = "hyperliquid",
+                symbol = "BTC-PERP",
+                side = Side.BUY,
+                type = OrderType.LIMIT,
+                size = BigDecimal("0.4"),
+                price = BigDecimal("69000")
+            )
+        )
+
+        assertTrue(result is ApiResult.Success)
+        val requestPath = mockServer.takeRequest().path ?: ""
+        assertTrue(requestPath.contains("/api/v1/exchanges/binance/order"), requestPath)
     }
 }

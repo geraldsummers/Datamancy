@@ -3,6 +3,7 @@ package org.datamancy.trading.strategy
 import org.datamancy.trading.data.Candle
 import org.datamancy.trading.indicators.indicators
 import org.datamancy.trading.models.Side
+import org.datamancy.trading.models.TradingMode
 import org.datamancy.trading.risk.riskManagement
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
@@ -249,5 +250,19 @@ class StrategyDslTest {
         )
         val configured = strat.marketConfig.symbols.map { it.second }.toSet()
         assertEquals(expected, configured)
+    }
+
+    @Test
+    fun `strategy execution mode defaults to backtest and can be overridden`() {
+        val defaultMode = strategy("DefaultMode") {
+            markets { hyperliquid("BTC-PERP") }
+        }
+        assertEquals(TradingMode.BACKTEST, defaultMode.executionMode)
+
+        val configuredMode = strategy("ConfiguredMode") {
+            markets { hyperliquid("BTC-PERP") }
+            executionMode(TradingMode.TESTNET_LIVE)
+        }
+        assertEquals(TradingMode.TESTNET_LIVE, configuredMode.executionMode)
     }
 }

@@ -84,6 +84,7 @@ fun Application.configureApp(
     val corsAllowedOrigins = parseCsvEnv("TXG_CORS_ALLOWED_ORIGINS")
     val wildcardCors = corsAllowedOrigins.any { it == "*" }
     val prometheusRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
+    val tradingTelemetryMetrics = TradingTelemetryMetrics(prometheusRegistry)
 
     install(ContentNegotiation) {
         json(Json {
@@ -267,7 +268,7 @@ fun Application.configureApp(
 
         hyperliquidRoutes(authService, ldapService, workerClient, dbService)
         evmRoutes(authService, ldapService, workerClient, dbService)
-        unifiedExchangeRoutes(authService, ldapService, workerClient, dbService)
+        unifiedExchangeRoutes(authService, ldapService, workerClient, dbService, tradingTelemetryMetrics)
         riskRoutes(authService, dbService, riskEngineService, walletSignatureService)
     }
 

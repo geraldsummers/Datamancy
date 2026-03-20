@@ -28,6 +28,13 @@ enum class OrderStatus {
     PENDING, FILLED, PARTIALLY_FILLED, CANCELLED, REJECTED
 }
 
+enum class TradingMode {
+    BACKTEST,
+    FORWARD_PAPER,
+    TESTNET_LIVE,
+    MAINNET_LIVE
+}
+
 enum class Chain {
     BASE, ARBITRUM, OPTIMISM, ETHEREUM;
 

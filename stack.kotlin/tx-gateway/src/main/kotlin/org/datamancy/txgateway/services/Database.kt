@@ -41,6 +41,14 @@ data class TxHistoryRecord(
     val timestamp: Instant
 )
 
+data class StrategyExecutionBaseline(
+    val avgSlippageBps: Double? = null,
+    val avgSubmitToFillMs: Double? = null,
+    val avgFillRatio: Double? = null,
+    val avgTotalCostBps: Double? = null,
+    val backtestEdgeBps: Double? = null
+)
+
 data class RiskPolicyRecord(
     val id: UUID,
     val username: String,
@@ -227,6 +235,7 @@ class DatabaseService(
                 initializeQuoteDataSource()
                 ensureRiskTables()
                 ensureBootstrapRiskPolicy()
+                ensureStrategyAnalyticsSchemas()
                 logger.info("Database initialized successfully")
                 return
             } catch (e: Exception) {
@@ -570,6 +579,17 @@ class DatabaseService(
         }
     }
 
+    private fun ensureStrategyAnalyticsSchemas() {
+        quoteDataSources().forEach { source ->
+            if (!ensureStrategyAnalyticsSchema(source)) {
+                logger.warn(
+                    "Unable to ensure strategy analytics schema on datasource {}",
+                    source.jdbcUrl.ifBlank { source.poolName ?: "unknown-pool" }
+                )
+            }
+        }
+    }
+
     fun getTransactionHistory(
         username: String,
         days: Int = 7,
@@ -740,7 +760,7 @@ class DatabaseService(
                         } catch (e: SQLException) {
                             conn.rollback()
                             if (isMissingRelation(e) && !attemptedSchemaRepair &&
-                                ensurePaperExecutionAnalyticsSchema(source)
+                                ensureStrategyAnalyticsSchema(source)
                             ) {
                                 attemptedSchemaRepair = true
                                 retryCurrentSource = true
@@ -763,7 +783,7 @@ class DatabaseService(
                     }
                 } catch (e: SQLException) {
                     if (isMissingRelation(e) && !attemptedSchemaRepair &&
-                        ensurePaperExecutionAnalyticsSchema(source)
+                        ensureStrategyAnalyticsSchema(source)
                     ) {
                         attemptedSchemaRepair = true
                         retryCurrentSource = true
@@ -787,6 +807,203 @@ class DatabaseService(
         }
 
         return false
+    }
+
+    fun logLiveBacktestDrift(
+        strategyName: String,
+        symbol: String,
+        liveEdgeBps: Double?,
+        backtestEdgeBps: Double?,
+        fillQualityDeltaBps: Double?,
+        slippageDriftBps: Double?,
+        latencyDriftMs: Double?,
+        driftScore: Double?,
+        metadataJson: String = "{}"
+    ): Boolean {
+        val driftSql = """
+            INSERT INTO strategy_live_backtest_drift (
+                observed_at,
+                strategy_name,
+                symbol,
+                live_edge_bps,
+                backtest_edge_bps,
+                fill_quality_delta_bps,
+                slippage_drift_bps,
+                latency_drift_ms,
+                drift_score,
+                metadata
+            ) VALUES (
+                NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb
+            )
+        """.trimIndent()
+
+        for (source in quoteDataSources()) {
+            var tryNextSource = false
+            var attemptedSchemaRepair = false
+            var retryCurrentSource: Boolean
+            do {
+                retryCurrentSource = false
+                try {
+                    source.connection.use { conn ->
+                        conn.prepareStatement(driftSql).use { stmt ->
+                            stmt.setString(1, strategyName)
+                            stmt.setString(2, symbol)
+                            setNullableDouble(stmt, 3, liveEdgeBps)
+                            setNullableDouble(stmt, 4, backtestEdgeBps)
+                            setNullableDouble(stmt, 5, fillQualityDeltaBps)
+                            setNullableDouble(stmt, 6, slippageDriftBps)
+                            setNullableDouble(stmt, 7, latencyDriftMs)
+                            setNullableDouble(stmt, 8, driftScore)
+                            stmt.setString(9, metadataJson)
+                            stmt.executeUpdate()
+                            return true
+                        }
+                    }
+                } catch (e: SQLException) {
+                    if (isMissingRelation(e) && !attemptedSchemaRepair &&
+                        ensureStrategyAnalyticsSchema(source)
+                    ) {
+                        attemptedSchemaRepair = true
+                        retryCurrentSource = true
+                    } else if (isMissingRelation(e)) {
+                        warnMissingRelationOnce("strategy_live_backtest_drift", e)
+                        tryNextSource = true
+                    } else {
+                        logger.warn(
+                            "Unable to persist strategy live-backtest drift for strategy={} symbol={}: {}",
+                            strategyName,
+                            symbol,
+                            e.message
+                        )
+                    }
+                }
+            } while (retryCurrentSource)
+
+            if (tryNextSource) continue
+        }
+
+        return false
+    }
+
+    fun fetchStrategyExecutionBaseline(
+        strategyName: String,
+        symbol: String,
+        lookbackHours: Int = 24 * 14
+    ): StrategyExecutionBaseline? {
+        val candidates = symbolCandidates(symbol)
+        if (candidates.isEmpty()) return null
+        val effectiveLookbackHours = lookbackHours.coerceAtLeast(1)
+
+        val metricsSql = """
+            SELECT
+                AVG(c.slippage_bps) AS avg_slippage_bps,
+                AVG(COALESCE(l.submit_to_fill_ms, l.submit_to_ack_ms)) AS avg_submit_to_fill_ms,
+                AVG(
+                    CASE
+                        WHEN c.metadata ? 'fillRatio'
+                            THEN NULLIF(c.metadata ->> 'fillRatio', '')::DOUBLE PRECISION
+                        ELSE NULL
+                    END
+                ) AS avg_fill_ratio,
+                AVG(c.total_cost_bps) AS avg_total_cost_bps
+            FROM strategy_execution_costs c
+            JOIN strategy_latency_metrics l
+              ON l.strategy_name = c.strategy_name
+             AND l.exchange = c.exchange
+             AND l.symbol = c.symbol
+             AND l.observed_at = c.observed_at
+            WHERE c.strategy_name = ?
+              AND c.symbol = ANY(?)
+              AND c.observed_at >= NOW() - (?::text || ' hours')::interval
+        """.trimIndent()
+
+        val backtestSql = """
+            SELECT net_return_pct, trades
+            FROM strategy_backtest_runs
+            WHERE strategy_name = ?
+              AND symbol = ANY(?)
+            ORDER BY run_at DESC
+            LIMIT 1
+        """.trimIndent()
+
+        for (source in quoteDataSources()) {
+            var attemptedSchemaRepair = false
+            var retryCurrentSource: Boolean
+            do {
+                retryCurrentSource = false
+                try {
+                    source.connection.use { conn ->
+                        val symbolArray = conn.createArrayOf("text", candidates.toTypedArray())
+                        try {
+                            val metricsBaseline = conn.prepareStatement(metricsSql).use { stmt ->
+                                stmt.setString(1, strategyName)
+                                stmt.setArray(2, symbolArray)
+                                stmt.setInt(3, effectiveLookbackHours)
+                                stmt.executeQuery().use { rs ->
+                                    if (!rs.next()) {
+                                        StrategyExecutionBaseline()
+                                    } else {
+                                        StrategyExecutionBaseline(
+                                            avgSlippageBps = rs.getDoubleOrNull("avg_slippage_bps"),
+                                            avgSubmitToFillMs = rs.getDoubleOrNull("avg_submit_to_fill_ms"),
+                                            avgFillRatio = rs.getDoubleOrNull("avg_fill_ratio"),
+                                            avgTotalCostBps = rs.getDoubleOrNull("avg_total_cost_bps")
+                                        )
+                                    }
+                                }
+                            }
+
+                            val backtestEdgeBps = conn.prepareStatement(backtestSql).use { stmt ->
+                                stmt.setString(1, strategyName)
+                                stmt.setArray(2, symbolArray)
+                                stmt.executeQuery().use { rs ->
+                                    if (!rs.next()) {
+                                        null
+                                    } else {
+                                        val netReturnPct = (rs.getObject("net_return_pct") as? Number)?.toDouble()
+                                        val trades = (rs.getObject("trades") as? Number)?.toInt() ?: 0
+                                        netReturnPct?.let {
+                                            if (trades > 0) {
+                                                (it * 100.0) / trades
+                                            } else {
+                                                it * 100.0
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            val combined = metricsBaseline.copy(backtestEdgeBps = backtestEdgeBps)
+                            if (combined.hasAnyValue()) {
+                                return combined
+                            }
+                        } finally {
+                            runCatching { symbolArray.free() }
+                        }
+                    }
+                } catch (e: SQLException) {
+                    if (isMissingRelation(e) && !attemptedSchemaRepair &&
+                        ensureStrategyAnalyticsSchema(source)
+                    ) {
+                        attemptedSchemaRepair = true
+                        retryCurrentSource = true
+                    } else if (isMissingRelation(e)) {
+                        warnMissingRelationOnce("strategy_execution_costs", e)
+                        warnMissingRelationOnce("strategy_latency_metrics", e)
+                        warnMissingRelationOnce("strategy_backtest_runs", e)
+                    } else {
+                        logger.warn(
+                            "Unable to query strategy execution baseline for strategy={} symbol={}: {}",
+                            strategyName,
+                            symbol,
+                            e.message
+                        )
+                    }
+                }
+            } while (retryCurrentSource)
+        }
+
+        return null
     }
 
     fun createRiskPolicyVersion(
@@ -1544,12 +1761,30 @@ class DatabaseService(
         return e.sqlState == "42P01" || (e.message?.contains("does not exist", ignoreCase = true) == true)
     }
 
-    private fun ensurePaperExecutionAnalyticsSchema(source: HikariDataSource): Boolean {
+    private fun ensureStrategyAnalyticsSchema(source: HikariDataSource): Boolean {
         val key = source.jdbcUrl.ifBlank { source.poolName ?: "unknown-pool" }
         if (analyticsSchemaEnsured.contains(key)) {
             return true
         }
 
+        val backtestTableSql = """
+            CREATE TABLE IF NOT EXISTS strategy_backtest_runs (
+                id BIGSERIAL PRIMARY KEY,
+                run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                timeframe TEXT NOT NULL,
+                start_time TIMESTAMPTZ NOT NULL,
+                end_time TIMESTAMPTZ NOT NULL,
+                trades INTEGER NOT NULL DEFAULT 0,
+                win_rate DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                net_return_pct DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                max_drawdown_pct DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                sharpe DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                notes TEXT,
+                metrics JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+        """.trimIndent()
         val latencyTableSql = """
             CREATE TABLE IF NOT EXISTS strategy_latency_metrics (
                 id BIGSERIAL PRIMARY KEY,
@@ -1585,12 +1820,80 @@ class DatabaseService(
                 metadata JSONB NOT NULL DEFAULT '{}'::jsonb
             )
         """.trimIndent()
+        val walkForwardTableSql = """
+            CREATE TABLE IF NOT EXISTS strategy_walkforward_runs (
+                id BIGSERIAL PRIMARY KEY,
+                run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                train_start TIMESTAMPTZ NOT NULL,
+                train_end TIMESTAMPTZ NOT NULL,
+                test_start TIMESTAMPTZ NOT NULL,
+                test_end TIMESTAMPTZ NOT NULL,
+                net_return_pct DOUBLE PRECISION NOT NULL DEFAULT 0,
+                sharpe DOUBLE PRECISION NOT NULL DEFAULT 0,
+                max_drawdown_pct DOUBLE PRECISION NOT NULL DEFAULT 0,
+                win_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+                trades INTEGER NOT NULL DEFAULT 0,
+                metrics JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+        """.trimIndent()
+        val sensitivityTableSql = """
+            CREATE TABLE IF NOT EXISTS strategy_sensitivity_sweeps (
+                id BIGSERIAL PRIMARY KEY,
+                run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                parameter_name TEXT NOT NULL,
+                parameter_value TEXT NOT NULL,
+                net_return_pct DOUBLE PRECISION NOT NULL DEFAULT 0,
+                sharpe DOUBLE PRECISION NOT NULL DEFAULT 0,
+                max_drawdown_pct DOUBLE PRECISION NOT NULL DEFAULT 0,
+                trades INTEGER NOT NULL DEFAULT 0,
+                metrics JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+        """.trimIndent()
+        val driftTableSql = """
+            CREATE TABLE IF NOT EXISTS strategy_live_backtest_drift (
+                id BIGSERIAL PRIMARY KEY,
+                observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                live_edge_bps DOUBLE PRECISION,
+                backtest_edge_bps DOUBLE PRECISION,
+                fill_quality_delta_bps DOUBLE PRECISION,
+                slippage_drift_bps DOUBLE PRECISION,
+                latency_drift_ms DOUBLE PRECISION,
+                drift_score DOUBLE PRECISION,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+        """.trimIndent()
+        val indexSql = listOf(
+            "CREATE INDEX IF NOT EXISTS idx_strategy_backtest_runs_run_at ON strategy_backtest_runs(run_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_backtest_runs_symbol_time ON strategy_backtest_runs(symbol, timeframe, run_at DESC)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_strategy_backtest_runs_dedupe ON strategy_backtest_runs(strategy_name, symbol, timeframe, start_time, end_time)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_latency_metrics_time ON strategy_latency_metrics(observed_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_latency_metrics_strategy_time ON strategy_latency_metrics(strategy_name, observed_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_execution_costs_time ON strategy_execution_costs(observed_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_execution_costs_strategy_time ON strategy_execution_costs(strategy_name, observed_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_walkforward_runs_time ON strategy_walkforward_runs(run_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_walkforward_runs_strategy_time ON strategy_walkforward_runs(strategy_name, run_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_sensitivity_sweeps_time ON strategy_sensitivity_sweeps(run_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_sensitivity_sweeps_strategy_time ON strategy_sensitivity_sweeps(strategy_name, run_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_live_backtest_drift_time ON strategy_live_backtest_drift(observed_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_strategy_live_backtest_drift_strategy_time ON strategy_live_backtest_drift(strategy_name, observed_at DESC)"
+        )
 
         return try {
             source.connection.use { conn ->
                 conn.createStatement().use { stmt ->
+                    stmt.execute(backtestTableSql)
                     stmt.execute(latencyTableSql)
                     stmt.execute(costTableSql)
+                    stmt.execute(walkForwardTableSql)
+                    stmt.execute(sensitivityTableSql)
+                    stmt.execute(driftTableSql)
+                    indexSql.forEach(stmt::execute)
                 }
             }
             analyticsSchemaEnsured.add(key)
@@ -1607,10 +1910,26 @@ class DatabaseService(
             e.message?.contains("does not exist", ignoreCase = true) == true)
     }
 
+    private fun setNullableDouble(stmt: java.sql.PreparedStatement, index: Int, value: Double?) {
+        if (value == null) {
+            stmt.setNull(index, Types.DOUBLE)
+        } else {
+            stmt.setDouble(index, value)
+        }
+    }
+
+    private fun StrategyExecutionBaseline.hasAnyValue(): Boolean {
+        return avgSlippageBps != null ||
+            avgSubmitToFillMs != null ||
+            avgFillRatio != null ||
+            avgTotalCostBps != null ||
+            backtestEdgeBps != null
+    }
+
     private fun warnMissingRelationOnce(table: String, e: SQLException) {
         if (missingTableWarnings.add(table)) {
             logger.warn(
-                "Table '{}' is unavailable for quote lookups; falling back. sqlState={}, error={}",
+                "Table '{}' is unavailable; falling back. sqlState={}, error={}",
                 table,
                 e.sqlState,
                 e.message

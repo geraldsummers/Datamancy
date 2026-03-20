@@ -16,6 +16,9 @@ import org.datamancy.trading.data.MarketDataStreamConfig
 import org.datamancy.trading.data.OpenInterest
 import org.datamancy.trading.data.Orderbook
 import org.datamancy.trading.data.Trade
+import org.datamancy.trading.models.ApiResult
+import org.datamancy.trading.models.OrderStatus
+import org.datamancy.trading.models.TradingMode
 import org.datamancy.trading.models.Side
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -92,6 +95,60 @@ class SimpleStrategyEngineTest {
         assertEquals(listOf(Signal.LONG, Signal.EXIT), capturedSignals)
 
         engine.stop("Lifecycle")
+    }
+
+    @Test
+    fun `engine routes orders through configured execution mode`() = runBlocking {
+        val dataService = FakeMarketDataService()
+        val executor = CapturingExecutor()
+        val engine = SimpleStrategyEngine(
+            marketDataService = dataService,
+            defaultCandleInterval = 1.minutes,
+            initialEquityUsd = BigDecimal("10000"),
+            modeOrderExecutor = executor
+        )
+
+        val strategy = strategy("ModeRouting") {
+            markets { hyperliquid("BTC") }
+            executionMode(TradingMode.TESTNET_LIVE)
+            onCandle {
+                if (!hasPosition()) {
+                    enter {
+                        side = Side.BUY
+                        size = BigDecimal("1")
+                    }
+                } else {
+                    exit {
+                        reason = "close"
+                    }
+                }
+            }
+        }
+
+        engine.start(strategy)
+        dataService.emitCandle(
+            symbol = "BTC",
+            exchange = "hyperliquid",
+            interval = 1.minutes,
+            candle = candle(close = "70000")
+        )
+        dataService.emitCandle(
+            symbol = "BTC",
+            exchange = "hyperliquid",
+            interval = 1.minutes,
+            candle = candle(close = "70100", tsOffsetSeconds = 60)
+        )
+
+        withTimeout(5_000) {
+            while (executor.requests.size < 2) {
+                delay(25)
+            }
+        }
+        assertEquals(TradingMode.TESTNET_LIVE, executor.requests[0].mode)
+        assertEquals(TradingMode.TESTNET_LIVE, executor.requests[1].mode)
+        assertEquals(false, executor.requests[0].reduceOnly)
+        assertEquals(true, executor.requests[1].reduceOnly)
+        engine.stop("ModeRouting")
     }
 
     private fun candle(
@@ -208,6 +265,25 @@ class SimpleStrategyEngineTest {
         suspend fun emitCandle(interval: Duration, candle: Candle) {
             val flow = candleFlows.getOrPut(interval) { MutableSharedFlow(replay = 1, extraBufferCapacity = 32) }
             flow.emit(candle)
+        }
+    }
+
+    private class CapturingExecutor : ModeRoutedOrderExecutor {
+        val requests = mutableListOf<ModeRoutedOrderRequest>()
+
+        override suspend fun submit(request: ModeRoutedOrderRequest): ApiResult<ModeRoutedOrderResult> {
+            requests += request
+            return ApiResult.Success(
+                ModeRoutedOrderResult(
+                    mode = request.mode,
+                    orderId = "capture-${requests.size}",
+                    exchange = request.exchange,
+                    symbol = request.symbol,
+                    status = OrderStatus.FILLED,
+                    filledSize = request.size,
+                    fillPrice = request.price
+                )
+            )
         }
     }
 }

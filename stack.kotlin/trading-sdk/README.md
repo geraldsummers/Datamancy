@@ -271,6 +271,35 @@ val order = tx.exchanges.placeOrder(
 println(order)
 ```
 
+### Mode-Routed Execution Interface
+
+Use one order interface across:
+`BACKTEST`, `FORWARD_PAPER`, `TESTNET_LIVE`, `MAINNET_LIVE`.
+
+```kotlin
+val tx = TxGateway.create(url = "http://tx-gateway:8080", token = authToken)
+
+val routed = tx.modeRouter.submit(
+    ModeRoutedOrderRequest(
+        mode = TradingMode.TESTNET_LIVE,
+        strategyName = "flow-alpha-v1",
+        exchange = "hyperliquid",
+        symbol = "BTC-PERP",
+        side = Side.BUY,
+        type = OrderType.MARKET,
+        size = "0.2".toBigDecimal(),
+        price = null
+    )
+)
+println(routed)
+```
+
+`SimpleStrategyEngine` can also route `enter/exit` through this same interface by setting:
+
+```kotlin
+executionMode(TradingMode.TESTNET_LIVE)
+```
+
 ## Grafana Integration
 
 See [docs/grafana-queries.md](../../docs/grafana-queries.md) for 12+ pre-built queries:

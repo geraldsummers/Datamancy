@@ -16,7 +16,10 @@ import org.datamancy.trading.data.MarketDataService
 import org.datamancy.trading.data.MarketDataStream
 import org.datamancy.trading.data.Trade
 import org.datamancy.trading.indicators.IndicatorSet
+import org.datamancy.trading.models.OrderStatus
+import org.datamancy.trading.models.OrderType
 import org.datamancy.trading.models.Side
+import org.datamancy.trading.models.TradingMode
 import org.datamancy.trading.risk.RiskManagement
 import org.datamancy.trading.risk.riskManagement
 import org.slf4j.LoggerFactory
@@ -36,7 +39,8 @@ import kotlin.time.Duration.Companion.minutes
 class SimpleStrategyEngine(
     private val marketDataService: MarketDataService,
     private val defaultCandleInterval: Duration = 1.minutes,
-    private val initialEquityUsd: BigDecimal = BigDecimal("100000")
+    private val initialEquityUsd: BigDecimal = BigDecimal("100000"),
+    private val modeOrderExecutor: ModeRoutedOrderExecutor = InMemoryModeRoutedOrderExecutor
 ) : StrategyEngine {
     private val logger = LoggerFactory.getLogger(SimpleStrategyEngine::class.java)
     private val strategies = mutableMapOf<String, RunningStrategy>()
@@ -55,7 +59,9 @@ class SimpleStrategyEngine(
             riskManagement = strategy.riskManagement ?: riskManagement {},
             startTime = Instant.now(),
             currentEquity = initialEquityUsd,
-            peakEquity = initialEquityUsd
+            peakEquity = initialEquityUsd,
+            executionMode = strategy.executionMode,
+            orderExecutor = modeOrderExecutor
         )
 
         strategy.marketConfig.symbols.forEach { (symbol, exchange) ->
@@ -236,19 +242,51 @@ class SimpleStrategyEngine(
             val price = entry.price ?: currentPrice ?: currentCandle?.close
                 ?: error("Current price is unavailable for entry")
             val key = symbolKey(symbol, symbolRuntime.exchange)
-
-            val position = runtime.metricsLock.withLock {
-                val existing = runtime.positionsBySymbol[key]
-                if (existing != null) {
+            runtime.metricsLock.withLock {
+                if (runtime.positionsBySymbol.containsKey(key)) {
                     error("Position already exists for $symbol on ${symbolRuntime.exchange}")
                 }
+            }
+
+            val executionRequest = ModeRoutedOrderRequest(
+                mode = runtime.executionMode,
+                strategyName = runtime.strategy.name,
+                exchange = symbolRuntime.exchange,
+                symbol = symbol,
+                side = side,
+                type = if (entry.price == null) OrderType.MARKET else OrderType.LIMIT,
+                size = size,
+                price = entry.price,
+                reduceOnly = false,
+                metadata = entry.metadata.toMap()
+            )
+            val execution = when (val submitResult = runtime.orderExecutor.submit(executionRequest)) {
+                is org.datamancy.trading.models.ApiResult.Success -> submitResult.data
+                is org.datamancy.trading.models.ApiResult.Error -> {
+                    error("Execution rejected in ${runtime.executionMode}: ${submitResult.message}")
+                }
+            }
+            if (execution.status == OrderStatus.REJECTED || execution.status == OrderStatus.CANCELLED) {
+                error("Execution status ${execution.status} for $symbol on ${execution.exchange}")
+            }
+            val executedSize = execution.filledSize
+                .takeIf { it > BigDecimal.ZERO }
+                ?.min(size)
+                ?: if (execution.status == OrderStatus.PENDING) {
+                    error("Execution pending without fills for $symbol on ${execution.exchange}")
+                } else {
+                    size
+                }
+            val executedPrice = execution.fillPrice ?: price
+
+            val position = runtime.metricsLock.withLock {
                 val created = StrategyPosition(
                     id = UUID.randomUUID().toString(),
                     symbol = symbol,
                     side = side,
                     entryTime = Instant.now(),
-                    entryPrice = price,
-                    size = size,
+                    entryPrice = executedPrice,
+                    size = executedSize,
                     stopLoss = entry.stopLoss,
                     takeProfit = entry.takeProfitTargets ?: entry.takeProfit?.let { listOf(it to BigDecimal("100")) }
                 )
@@ -263,27 +301,85 @@ class SimpleStrategyEngine(
                     symbol = symbol,
                     signal = if (side == Side.BUY) Signal.LONG else Signal.SHORT,
                     reason = entry.metadata["reason"]?.toString(),
-                    metadata = entry.metadata.toMap()
+                    metadata = entry.metadata.toMutableMap().apply {
+                        put("executionMode", runtime.executionMode.name.lowercase())
+                        put("executionStatus", execution.status.name.lowercase())
+                        put("orderId", execution.orderId)
+                        put("executionExchange", execution.exchange)
+                    }
                 )
             )
-            logger.info("Strategy {} entered {} {} @ {}", runtime.strategy.name, side, symbol, price)
+            logger.info(
+                "Strategy {} entered {} {} @ {} mode={} exchange={} orderId={}",
+                runtime.strategy.name,
+                side,
+                symbol,
+                executedPrice,
+                runtime.executionMode,
+                execution.exchange,
+                execution.orderId
+            )
         }
 
         override suspend fun exit(config: ExitConfig.() -> Unit) {
             val exit = ExitConfig().apply(config)
             val key = symbolKey(symbol, symbolRuntime.exchange)
-            val exitPrice = exit.price ?: currentPrice ?: currentCandle?.close
+            val requestedExitPrice = exit.price ?: currentPrice ?: currentCandle?.close
                 ?: error("Current price is unavailable for exit")
 
+            val positionSnapshot = runtime.metricsLock.withLock { runtime.positionsBySymbol[key] } ?: return
+            val requestedCloseSize = (exit.size ?: positionSnapshot.size).min(positionSnapshot.size).max(BigDecimal.ZERO)
+            if (requestedCloseSize == BigDecimal.ZERO) return
+            val exitSide = if (positionSnapshot.isLong) Side.SELL else Side.BUY
+            val executionRequest = ModeRoutedOrderRequest(
+                mode = runtime.executionMode,
+                strategyName = runtime.strategy.name,
+                exchange = symbolRuntime.exchange,
+                symbol = symbol,
+                side = exitSide,
+                type = if (exit.price == null) OrderType.MARKET else OrderType.LIMIT,
+                size = requestedCloseSize,
+                price = exit.price,
+                reduceOnly = true,
+                metadata = mapOf("reason" to exit.reason)
+            )
+            val execution = when (val submitResult = runtime.orderExecutor.submit(executionRequest)) {
+                is org.datamancy.trading.models.ApiResult.Success -> submitResult.data
+                is org.datamancy.trading.models.ApiResult.Error -> {
+                    error("Exit execution rejected in ${runtime.executionMode}: ${submitResult.message}")
+                }
+            }
+            if (execution.status == OrderStatus.REJECTED || execution.status == OrderStatus.CANCELLED) {
+                logger.warn(
+                    "Exit order rejected for strategy={} symbol={} mode={} status={} orderId={}",
+                    runtime.strategy.name,
+                    symbol,
+                    runtime.executionMode,
+                    execution.status,
+                    execution.orderId
+                )
+                return
+            }
+            val executedCloseSize = execution.filledSize
+                .takeIf { it > BigDecimal.ZERO }
+                ?.min(requestedCloseSize)
+                ?: if (execution.status == OrderStatus.FILLED) {
+                    requestedCloseSize
+                } else {
+                    BigDecimal.ZERO
+                }
+            if (executedCloseSize == BigDecimal.ZERO) return
+            val effectiveExitPrice = execution.fillPrice ?: requestedExitPrice
+
             runtime.metricsLock.withLock {
-                val position = runtime.positionsBySymbol[key] ?: return
-                val closeSize = (exit.size ?: position.size).min(position.size).max(BigDecimal.ZERO)
-                if (closeSize == BigDecimal.ZERO) return
+                val position = runtime.positionsBySymbol[key] ?: return@withLock
+                val closeSize = executedCloseSize.min(position.size).max(BigDecimal.ZERO)
+                if (closeSize == BigDecimal.ZERO) return@withLock
 
                 val pnl = if (position.isLong) {
-                    exitPrice.subtract(position.entryPrice).multiply(closeSize)
+                    effectiveExitPrice.subtract(position.entryPrice).multiply(closeSize)
                 } else {
-                    position.entryPrice.subtract(exitPrice).multiply(closeSize)
+                    position.entryPrice.subtract(effectiveExitPrice).multiply(closeSize)
                 }
 
                 val realizedReturnPct = if (position.entryPrice > BigDecimal.ZERO) {
@@ -328,10 +424,24 @@ class SimpleStrategyEngine(
                     time = Instant.now(),
                     symbol = symbol,
                     signal = Signal.EXIT,
-                    reason = exit.reason
+                    reason = exit.reason,
+                    metadata = mapOf(
+                        "executionMode" to runtime.executionMode.name.lowercase(),
+                        "executionStatus" to execution.status.name.lowercase(),
+                        "orderId" to execution.orderId,
+                        "executionExchange" to execution.exchange
+                    )
                 )
             )
-            logger.info("Strategy {} exited {} @ {}", runtime.strategy.name, symbol, exitPrice)
+            logger.info(
+                "Strategy {} exited {} @ {} mode={} exchange={} orderId={}",
+                runtime.strategy.name,
+                symbol,
+                effectiveExitPrice,
+                runtime.executionMode,
+                execution.exchange,
+                execution.orderId
+            )
         }
 
         override suspend fun updateStopLoss(price: BigDecimal) {
@@ -378,6 +488,8 @@ class SimpleStrategyEngine(
         val startTime: Instant,
         var currentEquity: BigDecimal,
         var peakEquity: BigDecimal,
+        val executionMode: TradingMode,
+        val orderExecutor: ModeRoutedOrderExecutor,
         val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
         val metricsLock: Mutex = Mutex(),
         val symbolRuntimes: MutableMap<String, SymbolRuntime> = mutableMapOf(),

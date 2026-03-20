@@ -21,6 +21,8 @@ import org.datamancy.txgateway.services.LatestQuote
 import org.datamancy.txgateway.services.RiskDecision
 import org.datamancy.txgateway.services.RiskEngineService
 import org.datamancy.txgateway.services.RiskAccountStatePatch
+import org.datamancy.txgateway.services.StrategyExecutionBaseline
+import org.datamancy.txgateway.services.TradingTelemetryMetrics
 import org.datamancy.txgateway.services.WorkerClient
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
@@ -278,7 +280,8 @@ fun Route.unifiedExchangeRoutes(
     authService: AuthService,
     ldapService: LdapService,
     workerClient: WorkerClient,
-    dbService: DatabaseService
+    dbService: DatabaseService,
+    tradingTelemetryMetrics: TradingTelemetryMetrics? = null
 ) {
     val riskEngine = RiskEngineService(dbService)
     route("/api/v1") {
@@ -759,6 +762,26 @@ fun Route.unifiedExchangeRoutes(
                             analyticsError.message
                         )
                     }
+                    runCatching {
+                        recordExecutionDrift(
+                            dbService = dbService,
+                            tradingTelemetryMetrics = tradingTelemetryMetrics,
+                            strategyName = PAPER_EXECUTION_STRATEGY,
+                            username = username,
+                            exchange = exchange,
+                            executionMode = "paper",
+                            orderRequest = orderRequest,
+                            result = paperResult
+                        )
+                    }.onFailure { driftError ->
+                        logger.warn(
+                            "Failed to persist paper drift telemetry for user={} exchange={} symbol={}: {}",
+                            username,
+                            exchange,
+                            orderRequest.symbol,
+                            driftError.message
+                        )
+                    }
 
                     if (paperResult.status == "FILLED" || paperResult.status == "PARTIALLY_FILLED") {
                         riskEngine.recordAcceptedOrder(
@@ -963,6 +986,26 @@ fun Route.unifiedExchangeRoutes(
                                 exchange,
                                 orderRequest.symbol,
                                 analyticsError.message
+                            )
+                        }
+                        runCatching {
+                            recordExecutionDrift(
+                                dbService = dbService,
+                                tradingTelemetryMetrics = tradingTelemetryMetrics,
+                                strategyName = LIVE_EXECUTION_STRATEGY,
+                                username = username,
+                                exchange = exchange,
+                                executionMode = "live",
+                                orderRequest = orderRequest,
+                                result = preview
+                            )
+                        }.onFailure { driftError ->
+                            logger.warn(
+                                "Failed to persist live drift telemetry for user={} exchange={} symbol={}: {}",
+                                username,
+                                exchange,
+                                orderRequest.symbol,
+                                driftError.message
                             )
                         }
                     }
@@ -1768,6 +1811,119 @@ private fun PaperOrderResponse.estimatedExecutedNotionalUsd(): BigDecimal? {
     return fillPx.multiply(filled)
 }
 
+private fun recordExecutionDrift(
+    dbService: DatabaseService,
+    tradingTelemetryMetrics: TradingTelemetryMetrics?,
+    strategyName: String,
+    username: String,
+    exchange: String,
+    executionMode: String,
+    orderRequest: OrderRequest,
+    result: PaperOrderResponse
+) {
+    val submitToFillMs = (
+        result.telemetry.submitToFinalFillMs
+            ?: result.telemetry.submitToFirstFillMs
+            ?: result.telemetry.submitToAckMs
+        ).toDouble()
+    val baseline = dbService.fetchStrategyExecutionBaseline(
+        strategyName = strategyName,
+        symbol = result.symbol
+    )
+    val liveEdgeBps = -result.costs.totalCostBps
+    val slippageDriftBps = baseline?.avgSlippageBps?.let { result.costs.slippageBps - it }
+    val fillQualityDeltaBps = baseline?.avgFillRatio?.let { (it - result.fillRatio) * 10_000.0 }
+    val latencyDriftMs = baseline?.avgSubmitToFillMs?.let { submitToFillMs - it }
+    val driftScore = computeDriftScore(
+        slippageDriftBps = slippageDriftBps,
+        fillQualityDeltaBps = fillQualityDeltaBps,
+        latencyDriftMs = latencyDriftMs,
+        backtestEdgeBps = baseline?.backtestEdgeBps,
+        liveEdgeBps = liveEdgeBps
+    )
+    dbService.logLiveBacktestDrift(
+        strategyName = strategyName,
+        symbol = result.symbol,
+        liveEdgeBps = liveEdgeBps,
+        backtestEdgeBps = baseline?.backtestEdgeBps,
+        fillQualityDeltaBps = fillQualityDeltaBps,
+        slippageDriftBps = slippageDriftBps,
+        latencyDriftMs = latencyDriftMs,
+        driftScore = driftScore,
+        metadataJson = buildDriftAnalyticsMetadataJson(
+            username = username,
+            exchange = exchange,
+            executionMode = executionMode,
+            orderRequest = orderRequest,
+            result = result,
+            baseline = baseline,
+            submitToFillMs = submitToFillMs
+        )
+    )
+    tradingTelemetryMetrics?.recordDrift(
+        strategyName = strategyName,
+        exchange = exchange,
+        executionMode = executionMode,
+        slippageDriftBps = slippageDriftBps,
+        fillQualityDecayBps = fillQualityDeltaBps,
+        latencyDriftMs = latencyDriftMs,
+        driftScore = driftScore,
+        submitToFillMs = submitToFillMs,
+        totalCostBps = result.costs.totalCostBps
+    )
+}
+
+private fun computeDriftScore(
+    slippageDriftBps: Double?,
+    fillQualityDeltaBps: Double?,
+    latencyDriftMs: Double?,
+    backtestEdgeBps: Double?,
+    liveEdgeBps: Double
+): Double? {
+    val penalties = mutableListOf<Double>()
+    slippageDriftBps?.takeIf { it > 0.0 }?.let { penalties += it }
+    fillQualityDeltaBps?.takeIf { it > 0.0 }?.let { penalties += it }
+    latencyDriftMs?.takeIf { it > 0.0 }?.let { penalties += it / 10.0 }
+    backtestEdgeBps?.let {
+        val edgeDecay = it - liveEdgeBps
+        if (edgeDecay > 0.0) {
+            penalties += edgeDecay
+        }
+    }
+    if (penalties.isEmpty()) return null
+    return penalties.sum()
+}
+
+private fun buildDriftAnalyticsMetadataJson(
+    username: String,
+    exchange: String,
+    executionMode: String,
+    orderRequest: OrderRequest,
+    result: PaperOrderResponse,
+    baseline: StrategyExecutionBaseline?,
+    submitToFillMs: Double
+): String {
+    return """
+        {
+          "source":"tx-gateway",
+          "username":"${jsonEscape(username)}",
+          "exchange":"${jsonEscape(exchange)}",
+          "executionMode":"${jsonEscape(executionMode)}",
+          "status":"${jsonEscape(result.status)}",
+          "orderType":"${jsonEscape(result.type)}",
+          "urgencyClass":"${jsonEscape(result.policy.urgencyClass)}",
+          "fillRatio":${result.fillRatio},
+          "submitToFillMs":${jsonNumberOrNull(submitToFillMs)},
+          "liveTotalCostBps":${jsonNumberOrNull(result.costs.totalCostBps)},
+          "baselineAvgSlippageBps":${jsonNumberOrNull(baseline?.avgSlippageBps)},
+          "baselineAvgSubmitToFillMs":${jsonNumberOrNull(baseline?.avgSubmitToFillMs)},
+          "baselineAvgFillRatio":${jsonNumberOrNull(baseline?.avgFillRatio)},
+          "baselineBacktestEdgeBps":${jsonNumberOrNull(baseline?.backtestEdgeBps)},
+          "reduceOnly":${orderRequest.reduceOnly}
+        }
+    """.trimIndent()
+}
+
 private fun buildPaperAnalyticsMetadataJson(
     username: String,
     orderRequest: OrderRequest,
@@ -1793,6 +1949,11 @@ private fun jsonEscape(value: String): String {
     return value
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
+}
+
+private fun jsonNumberOrNull(value: Double?): String {
+    if (value == null || !value.isFinite()) return "null"
+    return value.toString()
 }
 
 private fun buildLiveAnalyticsMetadataJson(

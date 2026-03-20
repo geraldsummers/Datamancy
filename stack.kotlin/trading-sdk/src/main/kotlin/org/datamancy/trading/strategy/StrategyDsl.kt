@@ -4,6 +4,7 @@ import org.datamancy.trading.data.*
 import org.datamancy.trading.indicators.IndicatorSet
 import org.datamancy.trading.risk.RiskManagement
 import org.datamancy.trading.models.Side
+import org.datamancy.trading.models.TradingMode
 import kotlinx.coroutines.flow.Flow
 import java.math.BigDecimal
 import java.time.Instant
@@ -227,6 +228,7 @@ class StrategyBuilder(val name: String) {
     internal var parameters = StrategyParameters()
     internal var indicatorBuilder: (IndicatorSet.() -> Unit)? = null
     internal var riskManagement: RiskManagement? = null
+    internal var executionMode: TradingMode = TradingMode.BACKTEST
 
     internal var onCandleHandler: (suspend StrategyContext.() -> Unit)? = null
     internal var onTradeHandler: (suspend StrategyContext.(Trade) -> Unit)? = null
@@ -249,6 +251,10 @@ class StrategyBuilder(val name: String) {
 
     fun risk(config: RiskManagement.() -> Unit) {
         riskManagement = org.datamancy.trading.risk.riskManagement(config)
+    }
+
+    fun executionMode(mode: TradingMode) {
+        executionMode = mode
     }
 
     fun onCandle(handler: suspend StrategyContext.() -> Unit) {
@@ -284,6 +290,7 @@ class StrategyBuilder(val name: String) {
             parameters = parameters,
             indicatorBuilder = indicatorBuilder,
             riskManagement = riskManagement,
+            executionMode = executionMode,
             onCandleHandler = onCandleHandler,
             onTradeHandler = onTradeHandler,
             onPositionHandler = onPositionHandler,
@@ -304,6 +311,7 @@ data class Strategy(
     val parameters: StrategyParameters,
     val indicatorBuilder: (IndicatorSet.() -> Unit)?,
     val riskManagement: RiskManagement?,
+    val executionMode: TradingMode = TradingMode.BACKTEST,
     val onCandleHandler: (suspend StrategyContext.() -> Unit)?,
     val onTradeHandler: (suspend StrategyContext.(Trade) -> Unit)?,
     val onPositionHandler: (suspend StrategyContext.(StrategyPosition) -> Unit)?,

@@ -1,6 +1,7 @@
 package org.datamancy.trading
 
 import org.datamancy.trading.client.EvmClient
+import org.datamancy.trading.client.GatewayModeRoutedOrderExecutor
 import org.datamancy.trading.client.HyperliquidClient
 import org.datamancy.trading.client.TradingHttpClient
 import org.datamancy.trading.client.UnifiedExchangeClient
@@ -52,6 +53,11 @@ class TxGateway private constructor(
      * Unified multi-exchange client and quote mux helper.
      */
     val exchanges = UnifiedExchangeClient(httpClient)
+
+    /**
+     * Homogeneous mode router for BACKTEST / FORWARD_PAPER / TESTNET_LIVE / MAINNET_LIVE.
+     */
+    val modeRouter = GatewayModeRoutedOrderExecutor(exchanges)
 
     /**
      * Get transaction history across all services
