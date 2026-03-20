@@ -236,6 +236,13 @@ suites:
       - hyperliquid-worker
       - evm-broadcaster
       - postgres
+  - name: trading-staged
+    type: kotlin
+    targets:
+      - tx-gateway
+      - hyperliquid-worker
+      - evm-broadcaster
+      - postgres
   - name: trading-advanced
     type: kotlin
     targets:

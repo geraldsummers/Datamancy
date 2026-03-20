@@ -407,6 +407,15 @@ services:
       - postgres
       - trading
       - litellm
+  test-trading-staged:
+    <<: *test_runner_base
+    container_name: test-trading-staged
+    networks:
+      - caddy
+      - ldap
+      - postgres
+      - trading
+      - litellm
   test-trading-advanced:
     <<: *test_runner_base
     container_name: test-trading-advanced

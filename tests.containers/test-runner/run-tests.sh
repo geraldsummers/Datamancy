@@ -76,7 +76,7 @@ print_usage() {
 
 suite_container() {
     case "$1" in
-        foundation|llm|knowledge-base|data-pipeline|microservices|search-service|infrastructure|databases|user-interface|communication|collaboration|productivity|file-management|security|monitoring|backup|authentication|enhanced-auth|authenticated-ops|utility|homeassistant|stack-deployment|bookstack|cicd|isolated-docker-vm|stack-replication|agent-capability|agent-security|agent-llm-quality|agent-orchestration|stack-llm-capability|trading|trading-dsl|trading-advanced|web3-wallet|email-stack|caching-layer|extended-communication|extended-productivity|playwright-e2e|all)
+        foundation|llm|knowledge-base|data-pipeline|microservices|search-service|infrastructure|databases|user-interface|communication|collaboration|productivity|file-management|security|monitoring|backup|authentication|enhanced-auth|authenticated-ops|utility|homeassistant|stack-deployment|bookstack|cicd|isolated-docker-vm|stack-replication|agent-capability|agent-security|agent-llm-quality|agent-orchestration|stack-llm-capability|trading|trading-staged|trading-dsl|trading-advanced|web3-wallet|email-stack|caching-layer|extended-communication|extended-productivity|playwright-e2e|all)
             echo "test-$1"
             ;;
         *)
@@ -253,7 +253,7 @@ list_kt_suites() {
     echo -e "${BLUE}Advanced:${NC}"
     echo "  agent-capability, agent-security, agent-llm-quality"
     echo "  agent-orchestration, stack-llm-capability"
-    echo "  trading, trading-dsl, trading-advanced, web3-wallet"
+    echo "  trading, trading-staged, trading-dsl, trading-advanced, web3-wallet"
     echo ""
     echo -e "${BLUE}Extended Tests:${NC}"
     echo "  extended-communication, extended-productivity, playwright-e2e"

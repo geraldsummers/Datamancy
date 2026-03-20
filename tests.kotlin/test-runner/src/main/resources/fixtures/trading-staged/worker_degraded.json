@@ -1,0 +1,27 @@
+{
+  "name": "worker_degraded",
+  "stage": "replay-contract",
+  "description": "Representative tx-gateway response when hyperliquid worker is degraded/unavailable.",
+  "expectedHttpStatus": 503,
+  "request": {
+    "exchange": "hyperliquid",
+    "symbol": "BTC",
+    "side": "BUY",
+    "type": "MARKET",
+    "size": "0.10000000",
+    "credentialHeader": "X-Credential-hyperliquid"
+  },
+  "expected": {
+    "requiredKeys": [
+      "error"
+    ],
+    "errorContainsAny": [
+      "Hyperliquid worker error",
+      "Worker auth is not configured",
+      "worker unavailable"
+    ]
+  },
+  "sampleResponse": {
+    "error": "Hyperliquid worker error: HTTP 503 - {\"error\":\"Worker auth is not configured\"}"
+  }
+}

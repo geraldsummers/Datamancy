@@ -1,0 +1,101 @@
+{
+  "name": "paper_partial_fill",
+  "stage": "replay-contract",
+  "description": "Representative paper execution response for a large order with partial fill.",
+  "expectedHttpStatus": 200,
+  "request": {
+    "exchange": "bybit",
+    "symbol": "BTC",
+    "side": "BUY",
+    "type": "MARKET",
+    "size": "2.00000000",
+    "urgencyClass": "normal"
+  },
+  "expected": {
+    "status": "PARTIALLY_FILLED",
+    "executionMode": "paper",
+    "requiredKeys": [
+      "orderId",
+      "status",
+      "requestedSize",
+      "filledSize",
+      "remainingSize",
+      "fillPrice",
+      "exchange",
+      "symbol",
+      "executionMode",
+      "costs",
+      "telemetry",
+      "simulation"
+    ]
+  },
+  "sampleResponse": {
+    "orderId": "paper-bybit-btc-002",
+    "status": "PARTIALLY_FILLED",
+    "requestedSize": "2.00000000",
+    "filledSize": "1.40000000",
+    "remainingSize": "0.60000000",
+    "fillRatio": 0.7,
+    "fillPrice": "73022.50350000",
+    "exchange": "bybit",
+    "symbol": "BTC",
+    "side": "BUY",
+    "type": "MARKET",
+    "simulated": true,
+    "executionMode": "paper",
+    "quoteAgeMs": 2200,
+    "quote": {
+      "bid": 73000.0,
+      "ask": 73010.0,
+      "last": 73005.0,
+      "timestamp": "2026-03-20T00:00:00Z",
+      "source": "orderbook_data:canonical"
+    },
+    "costs": {
+      "feeTier": "retail",
+      "makerFeeBps": 1.5,
+      "takerFeeBps": 3.8,
+      "appliedFeeBps": 3.8,
+      "spreadCostBps": 0.2,
+      "slippageBps": 9.0,
+      "impactBps": 3.0,
+      "adverseSelectionBps": 0.8,
+      "fundingDriftBps": 0.0,
+      "basisDriftBps": 0.0,
+      "totalCostBps": 16.8,
+      "estimatedFeeUsd": 388.4,
+      "estimatedCostUsd": 1717.1
+    },
+    "telemetry": {
+      "decisionLatencyMs": 14,
+      "submitToAckMs": 24,
+      "submitToFirstFillMs": 45,
+      "submitToFinalFillMs": 132,
+      "cancelReplaceLatencyMs": 155,
+      "p50RoundTripMs": 59,
+      "p95RoundTripMs": 121,
+      "p99RoundTripMs": 177,
+      "jitterMs": 13
+    },
+    "simulation": {
+      "queuePositionEstimate": 22,
+      "expectedFillProbability": 0.7,
+      "projectedPartialFills": [
+        {
+          "delayMs": 45,
+          "size": "0.90000000",
+          "price": "73020.00300000"
+        },
+        {
+          "delayMs": 132,
+          "size": "0.50000000",
+          "price": "73022.50350000"
+        }
+      ],
+      "failToFillReason": null,
+      "regimeBucket": "high_volatility",
+      "liquidityBucket": "liquidity_stress"
+    },
+    "receivedAt": "2026-03-20T00:00:00Z"
+  }
+}
