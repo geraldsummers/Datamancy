@@ -1,9 +1,12 @@
 package org.datamancy.txgateway.routes
 
+import com.google.gson.Gson
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingCall
 import io.ktor.server.routing.get
@@ -27,6 +30,7 @@ import java.time.Instant
 import java.util.UUID
 
 private val logger = LoggerFactory.getLogger("UnifiedExchangeRoutes")
+private val dynamicJson = Gson()
 
 private val supportedExchanges = listOf(
     "swyftx",
@@ -48,6 +52,7 @@ private val maxQuoteAgeMs: Long = System.getenv("TX_GATEWAY_MAX_QUOTE_AGE_MS")
 private val symbolPattern = Regex("^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$")
 private val maxOrderSize = BigDecimal("1000000000")
 private val maxOrderPrice = BigDecimal("1000000000")
+private const val PAPER_EXECUTION_STRATEGY = "tx_gateway_paper_execution"
 
 @Serializable
 private data class UserResponse(
@@ -707,6 +712,45 @@ fun Route.unifiedExchangeRoutes(
                         status = "success"
                     )
 
+                    runCatching {
+                        dbService.logPaperExecutionAnalytics(
+                            strategyName = PAPER_EXECUTION_STRATEGY,
+                            exchange = exchange,
+                            symbol = paperResult.symbol,
+                            side = paperResult.side.lowercase(),
+                            decisionLatencyMs = paperResult.telemetry.decisionLatencyMs.toDouble(),
+                            submitToAckMs = paperResult.telemetry.submitToAckMs.toDouble(),
+                            submitToFillMs = (
+                                paperResult.telemetry.submitToFinalFillMs
+                                    ?: paperResult.telemetry.submitToFirstFillMs
+                                )?.toDouble(),
+                            p50RoundTripMs = paperResult.telemetry.p50RoundTripMs.toDouble(),
+                            p95RoundTripMs = paperResult.telemetry.p95RoundTripMs.toDouble(),
+                            p99RoundTripMs = paperResult.telemetry.p99RoundTripMs.toDouble(),
+                            jitterMs = paperResult.telemetry.jitterMs.toDouble(),
+                            feeBps = paperResult.costs.appliedFeeBps,
+                            spreadCostBps = paperResult.costs.spreadCostBps,
+                            slippageBps = paperResult.costs.slippageBps,
+                            impactBps = paperResult.costs.impactBps,
+                            adverseSelectionBps = paperResult.costs.adverseSelectionBps,
+                            totalCostBps = paperResult.costs.totalCostBps,
+                            estimatedCostUsd = paperResult.costs.estimatedCostUsd,
+                            metadataJson = buildPaperAnalyticsMetadataJson(
+                                username = username,
+                                orderRequest = orderRequest,
+                                result = paperResult
+                            )
+                        )
+                    }.onFailure { analyticsError ->
+                        logger.warn(
+                            "Failed to persist paper execution analytics for user={} exchange={} symbol={}: {}",
+                            username,
+                            exchange,
+                            orderRequest.symbol,
+                            analyticsError.message
+                        )
+                    }
+
                     if (paperResult.status == "FILLED" || paperResult.status == "PARTIALLY_FILLED") {
                         riskEngine.recordAcceptedOrder(
                             username = username,
@@ -889,7 +933,13 @@ fun Route.unifiedExchangeRoutes(
                         )
                     }
 
-                    call.respond(HttpStatusCode.OK, result)
+                    // Worker payload is dynamic JSON with nested heterogeneous objects.
+                    // Serialize manually to avoid Kotlinx map polymorphism failures.
+                    call.respondText(
+                        text = dynamicJson.toJson(result),
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.OK
+                    )
                 } catch (e: Exception) {
                     logger.error("Unified order failed for exchange=$exchange user=$username", e)
                     dbService.logTransaction(
@@ -1666,6 +1716,33 @@ private fun PaperOrderResponse.estimatedExecutedNotionalUsd(): BigDecimal? {
     val filled = filledSize.toBigDecimalOrNull() ?: return null
     if (fillPx <= BigDecimal.ZERO || filled <= BigDecimal.ZERO) return null
     return fillPx.multiply(filled)
+}
+
+private fun buildPaperAnalyticsMetadataJson(
+    username: String,
+    orderRequest: OrderRequest,
+    result: PaperOrderResponse
+): String {
+    return """
+        {
+          "source":"tx-gateway",
+          "username":"${jsonEscape(username)}",
+          "status":"${jsonEscape(result.status)}",
+          "executionMode":"${jsonEscape(result.executionMode)}",
+          "orderType":"${jsonEscape(result.type)}",
+          "urgencyClass":"${jsonEscape(result.policy.urgencyClass)}",
+          "simulated":${result.simulated},
+          "fillRatio":${result.fillRatio},
+          "quoteAgeMs":${result.quoteAgeMs},
+          "reduceOnly":${orderRequest.reduceOnly}
+        }
+    """.trimIndent()
+}
+
+private fun jsonEscape(value: String): String {
+    return value
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
 }
 
 private fun RiskDecision.toRejectionPayload(): RiskRejectionResponse {

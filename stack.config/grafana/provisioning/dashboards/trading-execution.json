@@ -1,0 +1,129 @@
+{
+  "uid": "trading-execution",
+  "title": "Trading Execution",
+  "tags": ["trading", "execution", "latency", "cost"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Gateway Paper Latency (ms)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(decision_latency_ms) AS \"Decision\"\nFROM strategy_latency_metrics\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = 'tx_gateway_paper_execution'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(submit_to_ack_ms) AS \"Submit->Ack\"\nFROM strategy_latency_metrics\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = 'tx_gateway_paper_execution'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(COALESCE(submit_to_fill_ms, submit_to_ack_ms)) AS \"Submit->Fill\"\nFROM strategy_latency_metrics\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = 'tx_gateway_paper_execution'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(p95_roundtrip_ms) AS \"P95 RTT\"\nFROM strategy_latency_metrics\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = 'tx_gateway_paper_execution'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Gateway Paper Cost Breakdown (bps)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(fee_bps) AS \"Fee\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = 'tx_gateway_paper_execution'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(spread_cost_bps) AS \"Spread\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = 'tx_gateway_paper_execution'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(slippage_bps) AS \"Slippage\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = 'tx_gateway_paper_execution'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(total_cost_bps) AS \"Total Cost\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = 'tx_gateway_paper_execution'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      }
+    },
+    {
+      "type": "table",
+      "title": "Latest Gateway Paper Executions",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  l.observed_at,\n  l.exchange,\n  l.symbol,\n  c.side,\n  ROUND(l.decision_latency_ms::numeric, 1) AS decision_ms,\n  ROUND(l.submit_to_ack_ms::numeric, 1) AS ack_ms,\n  ROUND(COALESCE(l.submit_to_fill_ms, l.submit_to_ack_ms)::numeric, 1) AS fill_ms,\n  ROUND(c.total_cost_bps::numeric, 2) AS total_cost_bps,\n  ROUND(COALESCE(c.estimated_cost_usd, 0)::numeric, 4) AS est_cost_usd,\n  l.metadata ->> 'status' AS status\nFROM strategy_latency_metrics l\nJOIN strategy_execution_costs c\n  ON c.strategy_name = l.strategy_name\n AND c.exchange = l.exchange\n AND c.symbol = l.symbol\n AND c.observed_at = l.observed_at\nWHERE l.strategy_name = 'tx_gateway_paper_execution'\n  AND c.strategy_name = 'tx_gateway_paper_execution'\n  AND $__timeFilter(l.observed_at)\nORDER BY l.observed_at DESC\nLIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      }
+    }
+  ]
+}

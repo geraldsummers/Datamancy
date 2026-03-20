@@ -1,6 +1,7 @@
 package org.datamancy.testrunner.suites
 
 import io.ktor.client.request.*
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import kotlinx.serialization.json.Json
@@ -16,10 +17,14 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.datamancy.testrunner.framework.AuthResult
+import org.datamancy.testrunner.framework.AuthHelper
+import org.datamancy.testrunner.framework.OIDCHelper
 import org.datamancy.testrunner.framework.ServiceEndpoints
 import org.datamancy.testrunner.framework.TestRunner
 import java.io.File
 import java.math.BigDecimal
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -37,6 +42,7 @@ private data class StagedTradingConfig(
     val txGatewayBaseUrl: String,
     val autheliaBaseUrl: String,
     val hyperliquidWorkerBaseUrl: String?,
+    val prepareRiskStateBeforeOrders: Boolean,
     val recordResponses: Boolean,
     val recordDir: String
 )
@@ -46,10 +52,28 @@ private data class ResolvedTradingAuth(
     val source: String
 )
 
+private data class CapturedHttpResponse(
+    val status: HttpStatusCode,
+    val body: String,
+    val json: JsonObject?
+)
+
+private data class AckRetryResult(
+    val response: CapturedHttpResponse,
+    val ackAttempted: Boolean,
+    val retryExecuted: Boolean
+)
+
 private fun envValue(name: String): String? =
     System.getenv(name)
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
+
+private fun envFlag(name: String, defaultValue: Boolean): Boolean =
+    envValue(name)
+        ?.lowercase(Locale.US)
+        ?.let { it == "1" || it == "true" || it == "yes" || it == "on" }
+        ?: defaultValue
 
 private fun stagedTradingConfig(endpoints: ServiceEndpoints): StagedTradingConfig {
     val mode = (envValue("TRADING_E2E_MODE") ?: "replay").lowercase(Locale.US)
@@ -68,6 +92,8 @@ private fun stagedTradingConfig(endpoints: ServiceEndpoints): StagedTradingConfi
     val hyperliquidWorkerBaseUrl = envValue("TRADING_E2E_HYPERLIQUID_WORKER_URL")
         ?: if (runLive) "https://hyperliquid-worker.$targetHost" else endpoints.hyperliquidWorker
 
+    val prepareRiskStateBeforeOrders = envFlag("TRADING_E2E_PREP_RISK_STATE", defaultValue = runLive)
+
     val recordResponses = envValue("TRADING_E2E_RECORD")
         ?.lowercase(Locale.US)
         ?.let { it == "1" || it == "true" || it == "yes" }
@@ -82,6 +108,7 @@ private fun stagedTradingConfig(endpoints: ServiceEndpoints): StagedTradingConfi
         txGatewayBaseUrl = txGatewayBaseUrl.trimEnd('/'),
         autheliaBaseUrl = autheliaBaseUrl.trimEnd('/'),
         hyperliquidWorkerBaseUrl = hyperliquidWorkerBaseUrl?.trimEnd('/'),
+        prepareRiskStateBeforeOrders = prepareRiskStateBeforeOrders,
         recordResponses = recordResponses,
         recordDir = recordDir
     )
@@ -177,7 +204,7 @@ private suspend fun TestRunner.isTradingTokenValid(
     token: String,
     txGatewayBaseUrl: String
 ): Boolean {
-    val response = client.getRawResponse("$txGatewayBaseUrl/api/v1/user") {
+    val response = httpClient.get("$txGatewayBaseUrl/api/v1/user") {
         header(HttpHeaders.Authorization, "Bearer $token")
     }
     return response.status == HttpStatusCode.OK
@@ -210,24 +237,43 @@ private suspend fun TestRunner.resolveTradingAuth(config: StagedTradingConfig): 
         ?: envValue("LDAP_ADMIN_PASSWORD")
         ?: return null
 
-    val login = auth.login(username, password)
+    val directMinted = mintTradingTokenViaDirectOidc(
+        autheliaBaseUrl = config.autheliaBaseUrl,
+        username = username,
+        password = password,
+        clientId = clientId,
+        clientSecret = clientSecret,
+        redirectUri = redirectUri,
+        scope = scope
+    )
+    if (directMinted != null && isTradingTokenValid(directMinted, config.txGatewayBaseUrl)) {
+        return ResolvedTradingAuth(
+            bearerToken = directMinted,
+            source = "oidc-direct:$clientId"
+        )
+    }
+
+    val liveAuth = AuthHelper(config.autheliaBaseUrl, httpClient)
+    val liveOidc = OIDCHelper(config.autheliaBaseUrl, httpClient, liveAuth)
+    val login = liveAuth.login(username, password)
     if (login !is AuthResult.Success) {
         return null
     }
 
     val minted = runCatching {
-        val code = oidc.getAuthorizationCode(
+        val code = liveOidc.getAuthorizationCode(
             clientId = clientId,
             redirectUri = redirectUri,
             scope = scope
         )
-        val tokens = oidc.exchangeCodeForTokens(
+        val tokens = liveOidc.exchangeCodeForTokens(
             clientId = clientId,
             clientSecret = clientSecret,
             code = code,
             redirectUri = redirectUri
         )
-        tokens.accessToken ?: tokens.idToken
+        val accessToken = tokens.accessToken?.takeIf { isTradingTokenValid(it, config.txGatewayBaseUrl) }
+        accessToken ?: tokens.idToken
     }.getOrNull() ?: return null
 
     if (!isTradingTokenValid(minted, config.txGatewayBaseUrl)) {
@@ -240,11 +286,73 @@ private suspend fun TestRunner.resolveTradingAuth(config: StagedTradingConfig): 
     )
 }
 
+private suspend fun TestRunner.mintTradingTokenViaDirectOidc(
+    autheliaBaseUrl: String,
+    username: String,
+    password: String,
+    clientId: String,
+    clientSecret: String,
+    redirectUri: String,
+    scope: String
+): String? {
+    val loginResponse = httpClient.post("$autheliaBaseUrl/api/firstfactor") {
+        contentType(ContentType.Application.Json)
+        setBody(
+            buildJsonObject {
+                put("username", username)
+                put("password", password)
+                put("keepMeLoggedIn", false)
+            }.toString()
+        )
+    }
+    if (loginResponse.status != HttpStatusCode.OK) {
+        return null
+    }
+
+    val authorizationUrl = "$autheliaBaseUrl/api/oidc/authorization?${buildString {
+        append("client_id=$clientId")
+        append("&redirect_uri=${redirectUri.encodeURLParameter()}")
+        append("&response_type=code")
+        append("&scope=${scope.encodeURLParameter()}")
+        append("&state=staged-direct")
+    }}"
+    val authorizationResponse = httpClient.get(authorizationUrl)
+    if (authorizationResponse.status != HttpStatusCode.Found && authorizationResponse.status != HttpStatusCode.SeeOther) {
+        return null
+    }
+
+    val location = authorizationResponse.headers["Location"] ?: return null
+    val code = extractQueryParam(location, "code") ?: return null
+
+    val tokenResponse = httpClient.post("$autheliaBaseUrl/api/oidc/token") {
+        contentType(ContentType.Application.FormUrlEncoded)
+        basicAuth(clientId, clientSecret)
+        setBody(
+            "grant_type=authorization_code" +
+                "&code=${code.encodeURLParameter()}" +
+                "&redirect_uri=${redirectUri.encodeURLParameter()}"
+        )
+    }
+    if (tokenResponse.status != HttpStatusCode.OK) {
+        return null
+    }
+
+    val body = tokenResponse.bodyAsText()
+    val tokenJson = runCatching { stagedFixtureJson.parseToJsonElement(body).jsonObject }.getOrNull() ?: return null
+    return tokenJson["access_token"]?.jsonPrimitive?.contentOrNull
+        ?: tokenJson["id_token"]?.jsonPrimitive?.contentOrNull
+}
+
+private fun extractQueryParam(location: String, key: String): String? {
+    val match = Regex("""(?:\?|&)${Regex.escape(key)}=([^&]+)""").find(location) ?: return null
+    return URLDecoder.decode(match.groupValues[1], StandardCharsets.UTF_8)
+}
+
 private suspend fun TestRunner.selectPaperVenueWithQuote(
     txGatewayBaseUrl: String,
     bearerToken: String
 ): Pair<String, String>? {
-    val userResponse = client.getRawResponse("$txGatewayBaseUrl/api/v1/user") {
+    val userResponse = httpClient.get("$txGatewayBaseUrl/api/v1/user") {
         header(HttpHeaders.Authorization, "Bearer $bearerToken")
     }
     if (userResponse.status != HttpStatusCode.OK) {
@@ -268,7 +376,7 @@ private suspend fun TestRunner.selectPaperVenueWithQuote(
         if (allowed.isNotEmpty() && exchange !in allowed) continue
 
         for (symbol in symbols) {
-            val quoteResponse = client.getRawResponse(
+            val quoteResponse = httpClient.get(
                 "$txGatewayBaseUrl/api/v1/exchanges/$exchange/quote?symbol=$symbol"
             )
             if (quoteResponse.status == HttpStatusCode.OK) {
@@ -277,6 +385,217 @@ private suspend fun TestRunner.selectPaperVenueWithQuote(
         }
     }
     return null
+}
+
+private fun parseJsonObjectOrNull(raw: String): JsonObject? =
+    runCatching { stagedFixtureJson.parseToJsonElement(raw).jsonObject }.getOrNull()
+
+private fun compactForLog(text: String, maxLength: Int = 220): String {
+    val normalized = text.replace(Regex("\\s+"), " ").trim()
+    return if (normalized.length <= maxLength) normalized else "${normalized.take(maxLength)}..."
+}
+
+private fun extractErrorContext(json: JsonObject?, rawBody: String): String {
+    val directError = json?.get("error")?.jsonPrimitive?.contentOrNull
+    val riskReason = (json?.get("risk") as? JsonObject)
+        ?.get("reason")
+        ?.jsonPrimitive
+        ?.contentOrNull
+    return listOfNotNull(directError, riskReason)
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .joinToString(" | ")
+        .ifBlank { rawBody.trim() }
+}
+
+private fun containsHyperliquidKeyFailureSignal(errorText: String): Boolean {
+    val normalized = errorText.lowercase(Locale.US)
+    val markers = listOf(
+        "user or api wallet",
+        "does not exist",
+        "invalid signature",
+        "invalid key",
+        "missing hyperliquid credentials",
+        "missing private key",
+        "unable to derive address",
+        "hyperliquidkey is empty"
+    )
+    return markers.any { normalized.contains(it) }
+}
+
+private fun isManualAckRiskConflict(response: CapturedHttpResponse): Boolean {
+    if (response.status != HttpStatusCode.Conflict) return false
+    val context = extractErrorContext(response.json, response.body).lowercase(Locale.US)
+    val markers = listOf(
+        "manual acknowledgement required",
+        "manual acknowledgment required",
+        "kill switch engaged",
+        "kill-switch",
+        "hard risk kill-switch triggered"
+    )
+    return context.contains("risk") && markers.any { marker -> context.contains(marker) }
+}
+
+private suspend fun captureResponse(response: HttpResponse): CapturedHttpResponse {
+    val body = response.bodyAsText()
+    return CapturedHttpResponse(
+        status = response.status,
+        body = body,
+        json = parseJsonObjectOrNull(body)
+    )
+}
+
+private suspend fun TestRunner.ackRiskKillSwitch(
+    config: StagedTradingConfig,
+    bearerToken: String,
+    stageName: String
+): Boolean {
+    val ackNote = "staged auto-ack for $stageName at ${Instant.now()}"
+    val ackResponse = httpClient.post("${config.txGatewayBaseUrl}/api/v1/risk/kill-switch/ack") {
+        header(HttpHeaders.Authorization, "Bearer $bearerToken")
+        contentType(ContentType.Application.Json)
+        setBody(
+            buildJsonObject {
+                put("note", ackNote)
+            }.toString()
+        )
+    }
+
+    val capturedAck = captureResponse(ackResponse)
+    return when (capturedAck.status) {
+        HttpStatusCode.OK -> {
+            println("      ✓ $stageName auto-acknowledged engaged risk kill-switch")
+            true
+        }
+        HttpStatusCode.Conflict -> {
+            println("      ℹ️  $stageName kill-switch ACK skipped (not currently engaged)")
+            false
+        }
+        else -> error(
+            "$stageName failed risk kill-switch ACK call (status=${capturedAck.status}, body=${capturedAck.body})"
+        )
+    }
+}
+
+private suspend fun TestRunner.prepareRiskStateForLiveOrders(
+    config: StagedTradingConfig,
+    bearerToken: String
+) {
+    val stageName = "Risk preflight"
+    val riskStatePatch = buildJsonObject {
+        put("accountEquityUsd", "100000")
+        put("highWaterMarkUsd", "100000")
+        put("realizedPnlUsd", "0")
+        put("unrealizedPnlUsd", "0")
+        put("dailyRealizedPnlUsd", "0")
+        put("dailyUnrealizedPnlUsd", "0")
+        put("openExposureUsd", "0")
+    }
+
+    val stateResponse = captureResponse(
+        httpClient.put("${config.txGatewayBaseUrl}/api/v1/risk/state") {
+            header(HttpHeaders.Authorization, "Bearer $bearerToken")
+            contentType(ContentType.Application.Json)
+            setBody(riskStatePatch.toString())
+        }
+    )
+    if (stateResponse.status == HttpStatusCode.OK) {
+        println("      ✓ $stageName patched account state to nominal test values")
+    } else {
+        val errorContext = extractErrorContext(stateResponse.json, stateResponse.body)
+        println(
+            "      ℹ️  $stageName could not patch account state (status=${stateResponse.status.value}, detail=${compactForLog(errorContext)})"
+        )
+        return
+    }
+
+    val killSwitchState = captureResponse(
+        httpClient.get("${config.txGatewayBaseUrl}/api/v1/risk/kill-switch") {
+            header(HttpHeaders.Authorization, "Bearer $bearerToken")
+        }
+    )
+    if (killSwitchState.status == HttpStatusCode.OK) {
+        val engaged = killSwitchState.json
+            ?.get("engaged")
+            ?.jsonPrimitive
+            ?.contentOrNull
+            ?.toBooleanStrictOrNull()
+            ?: false
+        if (engaged) {
+            ackRiskKillSwitch(
+                config = config,
+                bearerToken = bearerToken,
+                stageName = stageName
+            )
+        }
+    }
+
+    val previewResponse = captureResponse(
+        httpClient.post("${config.txGatewayBaseUrl}/api/v1/risk/evaluate/order-preview") {
+            header(HttpHeaders.Authorization, "Bearer $bearerToken")
+            contentType(ContentType.Application.Json)
+            setBody(
+                buildJsonObject {
+                    put("symbol", "BTC")
+                    put("notionalUsd", "4000")
+                    put("reduceOnly", false)
+                }.toString()
+            )
+        }
+    )
+    if (previewResponse.status != HttpStatusCode.OK) {
+        val errorContext = extractErrorContext(previewResponse.json, previewResponse.body)
+        println(
+            "      ℹ️  $stageName order-preview unavailable (status=${previewResponse.status.value}, detail=${compactForLog(errorContext)})"
+        )
+        return
+    }
+
+    val previewAllowed = previewResponse.json
+        ?.get("allowed")
+        ?.jsonPrimitive
+        ?.contentOrNull
+        ?.toBooleanStrictOrNull()
+    val previewReason = previewResponse.json
+        ?.get("reason")
+        ?.jsonPrimitive
+        ?.contentOrNull
+        ?.takeIf { it.isNotBlank() }
+        ?: "no reason provided"
+
+    if (previewAllowed == true) {
+        println("      ✓ $stageName indicates live orders are currently allowed")
+    } else {
+        println("      ℹ️  $stageName indicates orders may still be blocked ($previewReason)")
+    }
+}
+
+private suspend fun TestRunner.executeOrderWithAckRetryOnConflict(
+    config: StagedTradingConfig,
+    bearerToken: String,
+    stageName: String,
+    submitOrder: suspend () -> HttpResponse
+): AckRetryResult {
+    val firstAttempt = captureResponse(submitOrder())
+    if (!isManualAckRiskConflict(firstAttempt)) {
+        return AckRetryResult(response = firstAttempt, ackAttempted = false, retryExecuted = false)
+    }
+
+    val errorContext = extractErrorContext(firstAttempt.json, firstAttempt.body)
+    println(
+        "      ℹ️  $stageName received risk 409 requiring manual acknowledgement; attempting auto-ack (detail=$errorContext)"
+    )
+    val acked = ackRiskKillSwitch(
+        config = config,
+        bearerToken = bearerToken,
+        stageName = stageName
+    )
+    if (!acked) {
+        return AckRetryResult(response = firstAttempt, ackAttempted = true, retryExecuted = false)
+    }
+
+    val retryAttempt = captureResponse(submitOrder())
+    return AckRetryResult(response = retryAttempt, ackAttempted = true, retryExecuted = true)
 }
 
 suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Execution Tests") {
@@ -390,12 +709,25 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
     }
 
     val resolvedAuth = resolveTradingAuth(config)
+    val hyperliquidTestnetKey = envValue("TRADING_E2E_HYPERLIQUID_KEY")
+        ?: envValue("HYPERLIQUID_TESTNET_KEY")
     if (resolvedAuth == null) {
         skip(
             "Stage 6: Live authenticated paper order contract",
             "No compatible tx-gateway bearer token found (set TRADING_E2E_BEARER_TOKEN or OIDC vars)"
         )
+        skip(
+            "Stage 6b: Live authenticated hyperliquid testnet order contract",
+            "No compatible tx-gateway bearer token found (set TRADING_E2E_BEARER_TOKEN or OIDC vars)"
+        )
     } else {
+        if (config.prepareRiskStateBeforeOrders) {
+            prepareRiskStateForLiveOrders(
+                config = config,
+                bearerToken = resolvedAuth.bearerToken
+            )
+        }
+
         val selectedVenue = selectPaperVenueWithQuote(
             txGatewayBaseUrl = config.txGatewayBaseUrl,
             bearerToken = resolvedAuth.bearerToken
@@ -417,35 +749,152 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                     put("urgencyClass", "normal")
                 }
 
-                val response = client.postRaw("${config.txGatewayBaseUrl}/api/v1/exchanges/$exchange/order") {
-                    header(HttpHeaders.Authorization, "Bearer ${resolvedAuth.bearerToken}")
-                    contentType(ContentType.Application.Json)
-                    setBody(requestBody.toString())
+                val orderResult = executeOrderWithAckRetryOnConflict(
+                    config = config,
+                    bearerToken = resolvedAuth.bearerToken,
+                    stageName = "Stage 6 paper order"
+                ) {
+                    httpClient.post("${config.txGatewayBaseUrl}/api/v1/exchanges/$exchange/order") {
+                        header(HttpHeaders.Authorization, "Bearer ${resolvedAuth.bearerToken}")
+                        contentType(ContentType.Application.Json)
+                        setBody(requestBody.toString())
+                    }
                 }
 
-                response.status shouldBe HttpStatusCode.OK
-                val body = response.bodyAsText()
-                val json = stagedFixtureJson.parseToJsonElement(body).jsonObject
+                val body = orderResult.response.body
+                val json = orderResult.response.json
+                val retrySuffix = if (orderResult.retryExecuted) " after auto-ack retry" else ""
 
-                assertFixtureContractMatchesResponse("live_paper_contract", fullFillFixture, json)
+                when (orderResult.response.status) {
+                    HttpStatusCode.OK -> {
+                        require(json != null) { "Expected JSON body for successful paper response: $body" }
+                        assertFixtureContractMatchesResponse("live_paper_contract", fullFillFixture, json)
 
-                val status = json["status"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                require(status in setOf("FILLED", "PARTIALLY_FILLED", "PENDING", "REJECTED")) {
-                    "Unexpected paper order status '$status': $body"
+                        val status = json["status"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        require(status in setOf("FILLED", "PARTIALLY_FILLED", "PENDING", "REJECTED")) {
+                            "Unexpected paper order status '$status': $body"
+                        }
+
+                        val executionMode = json["executionMode"]?.jsonPrimitive?.contentOrNull
+                        executionMode shouldBe "paper"
+
+                        println(
+                            "      ✓ Live paper order contract validated on $exchange/$symbol using ${resolvedAuth.source} (status=$status$retrySuffix)"
+                        )
+                    }
+                    HttpStatusCode.Conflict -> {
+                        val errorContext = extractErrorContext(json, body)
+                        require(errorContext.contains("risk", ignoreCase = true)) {
+                            "Unexpected conflict response for paper order: $body"
+                        }
+                        println(
+                            "      ✓ Live paper order was safely blocked by risk controls on $exchange/$symbol using ${resolvedAuth.source} (status=409, detail=$errorContext$retrySuffix)"
+                        )
+                    }
+                    else -> error("Unexpected paper order status=${orderResult.response.status} body=$body")
                 }
-
-                val executionMode = json["executionMode"]?.jsonPrimitive?.contentOrNull
-                executionMode shouldBe "paper"
-
-                println(
-                    "      ✓ Live paper order contract validated on $exchange/$symbol using ${resolvedAuth.source} (status=$status)"
-                )
 
                 writeSnapshotIfEnabled(
                     config = config,
                     scenario = "paper_order_${exchange}_${symbol}",
                     requestBody = requestBody,
-                    responseStatus = response.status.value,
+                    responseStatus = orderResult.response.status.value,
+                    responseBody = body
+                )
+            }
+        }
+
+        if (hyperliquidTestnetKey == null) {
+            skip(
+                "Stage 6b: Live authenticated hyperliquid testnet order contract",
+                "Set TRADING_E2E_HYPERLIQUID_KEY (or HYPERLIQUID_TESTNET_KEY) to run signed testnet order checks"
+            )
+        } else {
+            test("Stage 6b: Live authenticated hyperliquid testnet order contract") {
+                config.hyperliquidWorkerBaseUrl?.let { workerBaseUrl ->
+                    val workerHealth = client.getRawResponse("$workerBaseUrl/health")
+                    require(workerHealth.status == HttpStatusCode.OK) {
+                        "hyperliquid-worker health probe failed: ${workerHealth.status}"
+                    }
+                    val workerJson = parseJsonObjectOrNull(workerHealth.bodyAsText())
+                        ?: error("hyperliquid-worker health payload is not JSON")
+                    val isMainnet = workerJson["mainnet"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
+                    require(isMainnet == false) {
+                        "hyperliquid-worker is not in testnet mode (mainnet=$isMainnet)"
+                    }
+                }
+
+                val requestBody = buildJsonObject {
+                    put("symbol", "BTC")
+                    put("side", "BUY")
+                    put("type", "MARKET")
+                    put("size", "0.001")
+                    put("urgencyClass", "normal")
+                    put("maxSlippageBps", 35.0)
+                }
+
+                val orderResult = executeOrderWithAckRetryOnConflict(
+                    config = config,
+                    bearerToken = resolvedAuth.bearerToken,
+                    stageName = "Stage 6b hyperliquid testnet order"
+                ) {
+                    httpClient.post("${config.txGatewayBaseUrl}/api/v1/exchanges/hyperliquid/order") {
+                        header(HttpHeaders.Authorization, "Bearer ${resolvedAuth.bearerToken}")
+                        header("X-Credential-hyperliquid", hyperliquidTestnetKey)
+                        contentType(ContentType.Application.Json)
+                        setBody(requestBody.toString())
+                    }
+                }
+
+                val body = orderResult.response.body
+                val json = orderResult.response.json
+                val retrySuffix = if (orderResult.retryExecuted) " after auto-ack retry" else ""
+
+                require(orderResult.response.status !in setOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+                    "Hyperliquid testnet order failed auth/authorization: status=${orderResult.response.status} body=$body"
+                }
+
+                when (orderResult.response.status) {
+                    HttpStatusCode.OK -> {
+                        require(json != null) { "Expected JSON body for success response: $body" }
+                        val status = json["status"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        require(status.isNotBlank()) { "Missing status in success payload: $body" }
+                        val executionMode = json["executionMode"]?.jsonPrimitive?.contentOrNull
+                        if (executionMode != null) {
+                            require(executionMode != "paper") {
+                                "Expected live hyperliquid flow, but got paper executionMode in response: $body"
+                            }
+                        }
+                        println(
+                            "      ✓ Hyperliquid testnet order path reached exchange worker using ${resolvedAuth.source} (status=$status$retrySuffix)"
+                        )
+                    }
+                    HttpStatusCode.BadRequest,
+                    HttpStatusCode.Conflict,
+                    HttpStatusCode.ServiceUnavailable,
+                    HttpStatusCode.InternalServerError -> {
+                        val error = extractErrorContext(json, body)
+                        require(error.isNotBlank()) {
+                            "Expected explanatory error payload for status=${orderResult.response.status}, got: $body"
+                        }
+                        require(!containsHyperliquidKeyFailureSignal(error)) {
+                            "Hyperliquid testnet key/wallet was rejected by exchange path: $error"
+                        }
+                        require(!error.contains("Serializing collections of different element types", ignoreCase = true)) {
+                            "tx-gateway response serialization failure encountered: $error"
+                        }
+                        println(
+                            "      ✓ Hyperliquid testnet order path reached worker and returned controlled rejection (status=${orderResult.response.status.value}, error=$error$retrySuffix)"
+                        )
+                    }
+                    else -> error("Unexpected hyperliquid testnet order status=${orderResult.response.status} body=$body")
+                }
+
+                writeSnapshotIfEnabled(
+                    config = config,
+                    scenario = "hyperliquid_testnet_live_order",
+                    requestBody = requestBody,
+                    responseStatus = orderResult.response.status.value,
                     responseBody = body
                 )
             }

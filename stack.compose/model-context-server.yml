@@ -43,7 +43,7 @@ services:
       LDAP_PORT: 389
       LDAP_BASE_DN: ${LDAP_BASE_DN}
       SEARCH_SERVICE_URL: http://search-service:8098
-      AUTHELIA_JWKS_URL: http://authelia:9091/.well-known/jwks.json
+      AUTHELIA_JWKS_URL: http://authelia:9091/jwks.json
       AUTHELIA_JWT_ISSUER: ${AUTHELIA_URL}
       AUTHELIA_JWT_AUDIENCE: ${TOOLSERVER_JWT_AUDIENCE:-model-context-server}
       TOOLSERVER_AUTH_REQUIRED: "true"

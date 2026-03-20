@@ -115,7 +115,7 @@ def submit_limit_order(
     reduce_only: bool
 ):
     kwargs = {
-        "symbol": symbol,
+        "name": symbol,
         "is_buy": is_buy,
         "sz": size_float,
         "limit_px": limit_px,
@@ -131,16 +131,25 @@ def submit_market_order(
     symbol: str,
     is_buy: bool,
     size_float: float,
-    reduce_only: bool
+    reduce_only: bool,
+    slippage: float | None = None
 ):
-    kwargs = {
-        "symbol": symbol,
+    market_kwargs = {"sz": size_float}
+    if slippage is not None and _supports_param(exchange.market_close, "slippage"):
+        market_kwargs["slippage"] = slippage
+
+    if reduce_only:
+        # SDK v0.22+ handles reduce-only market intent via market_close.
+        return exchange.market_close(coin=symbol, **market_kwargs)
+
+    open_kwargs = {
+        "name": symbol,
         "is_buy": is_buy,
         "sz": size_float
     }
-    if reduce_only and _supports_param(exchange.market_order, "reduce_only"):
-        kwargs["reduce_only"] = True
-    return exchange.market_order(**kwargs)
+    if slippage is not None and _supports_param(exchange.market_open, "slippage"):
+        open_kwargs["slippage"] = slippage
+    return exchange.market_open(**open_kwargs)
 
 
 def parse_hyperliquid_status(status_info: dict) -> str:
@@ -260,17 +269,24 @@ def get_exchange_client(hyperliquid_key: str) -> Exchange:
     """Get authenticated Exchange client using ephemeral credentials"""
     creds = parse_hyperliquid_key(hyperliquid_key)
     base_url = constants.MAINNET_API_URL if IS_MAINNET else constants.TESTNET_API_URL
+    wallet_key = creds["private_key"].strip()
+    if not wallet_key.startswith("0x"):
+        wallet_key = f"0x{wallet_key}"
+    wallet = Account.from_key(wallet_key)
+    account_address = resolve_account_address(creds)
+    spot_meta = None if IS_MAINNET else {"universe": [], "tokens": []}
     return Exchange(
-        address=creds.get("address"),
-        private_key=creds["private_key"],
+        wallet=wallet,
         base_url=base_url,
-        skip_ws=True
+        account_address=account_address,
+        spot_meta=spot_meta
     )
 
 def get_info_client() -> Info:
     """Get Info client for market data queries"""
     base_url = constants.MAINNET_API_URL if IS_MAINNET else constants.TESTNET_API_URL
-    return Info(base_url=base_url, skip_ws=True)
+    spot_meta = None if IS_MAINNET else {"universe": [], "tokens": []}
+    return Info(base_url=base_url, skip_ws=True, spot_meta=spot_meta)
 
 @app.route('/order', methods=['POST'])
 def submit_order():
@@ -378,30 +394,18 @@ def submit_order():
         is_buy = side == "BUY"
         size_float = float(size_decimal)
 
-        if order_type == "MARKET" and slippage_decimal is not None:
-            # Convert slippage-capped market intent into IOC limit for strict slippage enforcement.
-            reference_price = resolve_reference_price(symbol=symbol, order_type="MARKET", explicit_price=None)
-            bounded_limit = derive_limit_price_from_slippage(
-                side=side,
-                reference_price=reference_price,
-                max_slippage_bps=slippage_decimal
-            )
-            result = submit_limit_order(
-                exchange=exchange,
-                symbol=symbol,
-                is_buy=is_buy,
-                size_float=size_float,
-                limit_px=float(bounded_limit),
-                order_type={"limit": {"tif": "Ioc"}},
-                reduce_only=reduce_only
-            )
-        elif order_type == "MARKET":
+        if order_type == "MARKET":
+            requested_slippage = None
+            if slippage_decimal is not None:
+                # Exchange SDK expects fractional slippage (e.g. 0.0035 = 35 bps).
+                requested_slippage = float(decimal_to_bps_ratio(slippage_decimal))
             result = submit_market_order(
                 exchange=exchange,
                 symbol=symbol,
                 is_buy=is_buy,
                 size_float=size_float,
-                reduce_only=reduce_only
+                reduce_only=reduce_only,
+                slippage=requested_slippage
             )
         else:
             tif = build_limit_order_type(post_only=post_only, cancel_after_ms=cancel_after_ms)

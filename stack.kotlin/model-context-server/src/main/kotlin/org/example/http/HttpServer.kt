@@ -99,7 +99,7 @@ internal class RequestAuthorizer {
     private val authRequired: Boolean = envOrPropBoolean("TOOLSERVER_AUTH_REQUIRED", true)
     private val trustIdentityHeaders: Boolean = envOrPropBoolean("TOOLSERVER_TRUST_IDENTITY_HEADERS", false)
     private val jwksUrl: String = envOrProp("AUTHELIA_JWKS_URL")
-        ?: "http://authelia:9091/.well-known/jwks.json"
+        ?: "http://authelia:9091/jwks.json"
     private val userInfoUrl: String = envOrProp("AUTHELIA_USERINFO_URL")
         ?: "http://authelia:9091/api/oidc/userinfo"
     private val issuer: String? = envOrProp("AUTHELIA_JWT_ISSUER")

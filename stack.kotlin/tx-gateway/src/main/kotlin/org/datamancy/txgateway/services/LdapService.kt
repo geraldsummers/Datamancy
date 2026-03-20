@@ -46,7 +46,7 @@ class LdapService(
             val allowedChains = entry.getAttributeValues("allowedChains")?.toList()
                 ?: listOf("base", "arbitrum", "optimism")
             val allowedExchanges = entry.getAttributeValues("allowedExchanges")?.toList()
-                ?: listOf("hyperliquid")
+                ?: listOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster")
             val maxTxPerHour = entry.getAttributeValue("maxTxPerHour")?.toIntOrNull() ?: 100
             val maxTxValueUSD = entry.getAttributeValue("maxTxValueUSD")?.toIntOrNull() ?: 10000
 

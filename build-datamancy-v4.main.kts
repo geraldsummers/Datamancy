@@ -217,6 +217,78 @@ fun includeTestsCompose(): Boolean {
     return raw == null || (raw != "0" && raw != "false" && raw != "no")
 }
 
+fun expandHome(path: String): String {
+    val trimmed = path.trim()
+    if (trimmed == "~") {
+        return System.getProperty("user.home")
+    }
+    if (trimmed.startsWith("~/")) {
+        return "${System.getProperty("user.home")}/${trimmed.removePrefix("~/")}"
+    }
+    return trimmed
+}
+
+fun readFirstNonCommentLine(file: File): String? {
+    if (!file.exists() || !file.isFile) return null
+    return file.useLines { lines ->
+        lines.map { it.trim() }
+            .firstOrNull { it.isNotEmpty() && !it.startsWith("#") }
+    }
+}
+
+fun normalizeHyperliquidTestnetKey(rawValue: String): String {
+    val raw = rawValue.trim()
+    require(raw.isNotEmpty()) { "Hyperliquid testnet key is empty" }
+
+    val privateKeyPart = raw.substringAfterLast(":").trim()
+    val normalizedPrivateKey = privateKeyPart.removePrefix("0x")
+    require(normalizedPrivateKey.matches(Regex("^[0-9a-fA-F]{64}$"))) {
+        "Hyperliquid testnet key must be a 64-hex private key (optionally prefixed with 0x)"
+    }
+
+    return if (raw.contains(":")) {
+        val address = raw.substringBefore(":", "").trim()
+        require(address.matches(Regex("^0x[0-9a-fA-F]{40}$"))) {
+            "Hyperliquid address prefix must be 0x + 40 hex chars when using address:key format"
+        }
+        "${address.lowercase()}:0x${normalizedPrivateKey.lowercase()}"
+    } else {
+        "0x${normalizedPrivateKey.lowercase()}"
+    }
+}
+
+fun requireHyperliquidTestnetKeyForTesting(): String {
+    val envCandidates = listOf(
+        "TRADING_E2E_HYPERLIQUID_KEY",
+        "HYPERLIQUID_TESTNET_KEY"
+    )
+    envCandidates.firstNotNullOfOrNull { name ->
+        System.getenv(name)?.trim()?.takeIf { it.isNotEmpty() }
+    }?.let { return normalizeHyperliquidTestnetKey(it) }
+
+    val fileCandidates = listOf(
+        System.getenv("HYPERLIQUID_TESTNET_KEY_FILE")?.trim(),
+        "~/.config/datamancy/hyperliquid_testnet.key"
+    ).mapNotNull { candidate ->
+        candidate?.takeIf { it.isNotBlank() }?.let { File(expandHome(it)) }
+    }
+
+    fileCandidates.forEach { candidate ->
+        val fileValue = readFirstNonCommentLine(candidate)
+        if (!fileValue.isNullOrBlank()) {
+            return normalizeHyperliquidTestnetKey(fileValue)
+        }
+    }
+
+    val defaultPath = expandHome("~/.config/datamancy/hyperliquid_testnet.key")
+    error(
+        "Missing Hyperliquid testnet key required for testing. " +
+            "Set TRADING_E2E_HYPERLIQUID_KEY or HYPERLIQUID_TESTNET_KEY, " +
+            "or write the key to $defaultPath"
+    )
+    exitProcess(1)
+}
+
 fun sanitizeDomain(domain: String): String {
     require(domain.matches(Regex("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"))) {
         "Invalid domain format: $domain"
@@ -467,6 +539,8 @@ fun generateTestRunnersCompose(
         appendLine("    STACK_ADMIN_USER: \${STACK_ADMIN_USER}")
         appendLine("    STACK_ADMIN_PASSWORD: \${STACK_ADMIN_PASSWORD}")
         appendLine("    STACK_ADMIN_EMAIL: \${STACK_ADMIN_EMAIL}")
+        appendLine("    HYPERLIQUID_TESTNET_KEY: \${HYPERLIQUID_TESTNET_KEY}")
+        appendLine("    TRADING_E2E_HYPERLIQUID_KEY: \${TRADING_E2E_HYPERLIQUID_KEY}")
         appendLine("    SEAFILE_USERNAME: \${STACK_ADMIN_EMAIL}")
         appendLine("    SEAFILE_PASSWORD: \${STACK_ADMIN_PASSWORD}")
         appendLine("    FORGEJO_USERNAME: \${STACK_ADMIN_USER}")
@@ -1672,9 +1746,13 @@ fun main(args: Array<String>) {
     val suitesFile = File("tests.config/suites.yml")
     val componentsFile = File("tests.config/components.yml")
     val statusFile = File("tests.config/test-status.yml")
+    val includeTests = includeTestsCompose()
 
     when (args.firstOrNull()) {
         "--test-plan" -> {
+            if (includeTests) {
+                requireHyperliquidTestnetKeyForTesting()
+            }
             val suitesConfig = loadYamlIfExists(mapper, suitesFile, TestSuitesConfig())
             val componentsConfig = loadYamlIfExists(mapper, componentsFile, ComponentsConfig())
             val status = loadYamlIfExists(mapper, statusFile, TestStatusFile())
@@ -1775,13 +1853,18 @@ ${CYAN}╔═══════════════════════�
         generateTestRunnersCompose(testRegistry.suites.values.toList(), File("tests.compose/test-runners.yml"))
     }
     writeDistTestArtifacts(distDir, mapper, jsonMapper, testRegistry, testStatus)
+    val hyperliquidTestnetKey = if (includeTests) requireHyperliquidTestnetKeyForTesting() else null
 
     // Load or generate credentials from dist/.env only.
     val envFile = distDir.resolve(".env")
     val existingCredentials = loadEnvFile(envFile)
     val credentials = generateCredentials(schema, sanitized, existingCredentials, config)
+    hyperliquidTestnetKey?.let { key ->
+        credentials["HYPERLIQUID_TESTNET_KEY"] = key
+        credentials["TRADING_E2E_HYPERLIQUID_KEY"] = key
+    }
     saveEnvFile(envFile, credentials)
-    validateTemplateEnvVars(credentials, includeTestsCompose())
+    validateTemplateEnvVars(credentials, includeTests)
 
     // Run tests first
     runKotlinTests()

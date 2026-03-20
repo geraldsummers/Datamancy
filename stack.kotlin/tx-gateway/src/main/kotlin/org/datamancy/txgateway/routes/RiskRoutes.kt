@@ -86,6 +86,68 @@ private data class RiskDecisionResponse(
     val sentiment: Map<String, String>? = null
 )
 
+@Serializable
+private data class RiskPolicyResponse(
+    val id: String,
+    val username: String,
+    val walletAddress: String? = null,
+    val version: Int,
+    val status: String,
+    val policy: String,
+    val createdBy: String? = null,
+    val createdAt: String,
+    val activatedAt: String? = null,
+    val activatedByWallet: String? = null,
+    val isBootstrap: Boolean
+)
+
+@Serializable
+private data class ActivationChallengeResponse(
+    val policyId: String,
+    val nonce: String,
+    val message: String,
+    val expiresAt: String
+)
+
+@Serializable
+private data class ActivateRiskPolicyResponse(
+    val status: String,
+    val policyId: String,
+    val version: Int,
+    val activatedAt: String? = null,
+    val activatedByWallet: String? = null
+)
+
+@Serializable
+private data class RiskStateResponse(
+    val username: String,
+    val accountEquityUsd: String,
+    val highWaterMarkUsd: String,
+    val realizedPnlUsd: String,
+    val unrealizedPnlUsd: String,
+    val dailyRealizedPnlUsd: String,
+    val dailyUnrealizedPnlUsd: String,
+    val openExposureUsd: String,
+    val riskTier: String? = null,
+    val tierReason: String? = null,
+    val sentimentScore: Double? = null,
+    val sentimentConfidence: Double? = null,
+    val updatedAt: String
+)
+
+@Serializable
+private data class RiskKillSwitchResponse(
+    val username: String,
+    val engaged: Boolean,
+    val reason: String? = null,
+    val engagedAt: String? = null,
+    val engagedBy: String? = null,
+    val manualAckRequired: Boolean,
+    val acknowledgedAt: String? = null,
+    val acknowledgedBy: String? = null,
+    val ackNote: String? = null
+)
+
 private val json = Json { prettyPrint = true; encodeDefaults = true }
 
 fun Route.riskRoutes(
@@ -104,18 +166,18 @@ fun Route.riskRoutes(
             }
             call.respond(
                 HttpStatusCode.OK,
-                mapOf(
-                    "id" to active.id.toString(),
-                    "username" to active.username,
-                    "walletAddress" to active.walletAddress,
-                    "version" to active.version,
-                    "status" to active.status,
-                    "policy" to active.policyJson,
-                    "createdBy" to active.createdBy,
-                    "createdAt" to active.createdAt.toString(),
-                    "activatedAt" to active.activatedAt?.toString(),
-                    "activatedByWallet" to active.activatedByWallet,
-                    "isBootstrap" to active.isBootstrap
+                RiskPolicyResponse(
+                    id = active.id.toString(),
+                    username = active.username,
+                    walletAddress = active.walletAddress,
+                    version = active.version,
+                    status = active.status,
+                    policy = active.policyJson,
+                    createdBy = active.createdBy,
+                    createdAt = active.createdAt.toString(),
+                    activatedAt = active.activatedAt?.toString(),
+                    activatedByWallet = active.activatedByWallet,
+                    isBootstrap = active.isBootstrap
                 )
             )
         }
@@ -126,18 +188,18 @@ fun Route.riskRoutes(
             call.respond(
                 HttpStatusCode.OK,
                 policies.map { policy ->
-                    mapOf(
-                        "id" to policy.id.toString(),
-                        "username" to policy.username,
-                        "walletAddress" to policy.walletAddress,
-                        "version" to policy.version,
-                        "status" to policy.status,
-                        "policy" to policy.policyJson,
-                        "createdBy" to policy.createdBy,
-                        "createdAt" to policy.createdAt.toString(),
-                        "activatedAt" to policy.activatedAt?.toString(),
-                        "activatedByWallet" to policy.activatedByWallet,
-                        "isBootstrap" to policy.isBootstrap
+                    RiskPolicyResponse(
+                        id = policy.id.toString(),
+                        username = policy.username,
+                        walletAddress = policy.walletAddress,
+                        version = policy.version,
+                        status = policy.status,
+                        policy = policy.policyJson,
+                        createdBy = policy.createdBy,
+                        createdAt = policy.createdAt.toString(),
+                        activatedAt = policy.activatedAt?.toString(),
+                        activatedByWallet = policy.activatedByWallet,
+                        isBootstrap = policy.isBootstrap
                     )
                 }
             )
@@ -156,14 +218,18 @@ fun Route.riskRoutes(
 
             call.respond(
                 HttpStatusCode.Created,
-                mapOf(
-                    "id" to created.id.toString(),
-                    "username" to created.username,
-                    "walletAddress" to created.walletAddress,
-                    "version" to created.version,
-                    "status" to created.status,
-                    "policy" to created.policyJson,
-                    "createdAt" to created.createdAt.toString()
+                RiskPolicyResponse(
+                    id = created.id.toString(),
+                    username = created.username,
+                    walletAddress = created.walletAddress,
+                    version = created.version,
+                    status = created.status,
+                    policy = created.policyJson,
+                    createdBy = created.createdBy,
+                    createdAt = created.createdAt.toString(),
+                    activatedAt = created.activatedAt?.toString(),
+                    activatedByWallet = created.activatedByWallet,
+                    isBootstrap = created.isBootstrap
                 )
             )
         }
@@ -210,11 +276,11 @@ fun Route.riskRoutes(
 
             call.respond(
                 HttpStatusCode.OK,
-                mapOf(
-                    "policyId" to policyId.toString(),
-                    "nonce" to challenge.nonce,
-                    "message" to challenge.challengeMessage,
-                    "expiresAt" to challenge.expiresAt.toString()
+                ActivationChallengeResponse(
+                    policyId = policyId.toString(),
+                    nonce = challenge.nonce,
+                    message = challenge.challengeMessage,
+                    expiresAt = challenge.expiresAt.toString()
                 )
             )
         }
@@ -275,12 +341,12 @@ fun Route.riskRoutes(
 
             call.respond(
                 HttpStatusCode.OK,
-                mapOf(
-                    "status" to "active",
-                    "policyId" to activated.id.toString(),
-                    "version" to activated.version,
-                    "activatedAt" to activated.activatedAt?.toString(),
-                    "activatedByWallet" to activated.activatedByWallet
+                ActivateRiskPolicyResponse(
+                    status = "active",
+                    policyId = activated.id.toString(),
+                    version = activated.version,
+                    activatedAt = activated.activatedAt?.toString(),
+                    activatedByWallet = activated.activatedByWallet
                 )
             )
         }
@@ -290,20 +356,20 @@ fun Route.riskRoutes(
             val state = dbService.getOrCreateRiskAccountState(username)
             call.respond(
                 HttpStatusCode.OK,
-                mapOf(
-                    "username" to state.username,
-                    "accountEquityUsd" to state.accountEquityUsd.toPlainString(),
-                    "highWaterMarkUsd" to state.highWaterMarkUsd.toPlainString(),
-                    "realizedPnlUsd" to state.realizedPnlUsd.toPlainString(),
-                    "unrealizedPnlUsd" to state.unrealizedPnlUsd.toPlainString(),
-                    "dailyRealizedPnlUsd" to state.dailyRealizedPnlUsd.toPlainString(),
-                    "dailyUnrealizedPnlUsd" to state.dailyUnrealizedPnlUsd.toPlainString(),
-                    "openExposureUsd" to state.openExposureUsd.toPlainString(),
-                    "riskTier" to state.riskTier,
-                    "tierReason" to state.tierReason,
-                    "sentimentScore" to state.sentimentScore,
-                    "sentimentConfidence" to state.sentimentConfidence,
-                    "updatedAt" to state.updatedAt.toString()
+                RiskStateResponse(
+                    username = state.username,
+                    accountEquityUsd = state.accountEquityUsd.toPlainString(),
+                    highWaterMarkUsd = state.highWaterMarkUsd.toPlainString(),
+                    realizedPnlUsd = state.realizedPnlUsd.toPlainString(),
+                    unrealizedPnlUsd = state.unrealizedPnlUsd.toPlainString(),
+                    dailyRealizedPnlUsd = state.dailyRealizedPnlUsd.toPlainString(),
+                    dailyUnrealizedPnlUsd = state.dailyUnrealizedPnlUsd.toPlainString(),
+                    openExposureUsd = state.openExposureUsd.toPlainString(),
+                    riskTier = state.riskTier,
+                    tierReason = state.tierReason,
+                    sentimentScore = state.sentimentScore,
+                    sentimentConfidence = state.sentimentConfidence,
+                    updatedAt = state.updatedAt.toString()
                 )
             )
         }
@@ -326,16 +392,16 @@ fun Route.riskRoutes(
 
             call.respond(
                 HttpStatusCode.OK,
-                mapOf(
-                    "username" to state.username,
-                    "accountEquityUsd" to state.accountEquityUsd.toPlainString(),
-                    "highWaterMarkUsd" to state.highWaterMarkUsd.toPlainString(),
-                    "realizedPnlUsd" to state.realizedPnlUsd.toPlainString(),
-                    "unrealizedPnlUsd" to state.unrealizedPnlUsd.toPlainString(),
-                    "dailyRealizedPnlUsd" to state.dailyRealizedPnlUsd.toPlainString(),
-                    "dailyUnrealizedPnlUsd" to state.dailyUnrealizedPnlUsd.toPlainString(),
-                    "openExposureUsd" to state.openExposureUsd.toPlainString(),
-                    "updatedAt" to state.updatedAt.toString()
+                RiskStateResponse(
+                    username = state.username,
+                    accountEquityUsd = state.accountEquityUsd.toPlainString(),
+                    highWaterMarkUsd = state.highWaterMarkUsd.toPlainString(),
+                    realizedPnlUsd = state.realizedPnlUsd.toPlainString(),
+                    unrealizedPnlUsd = state.unrealizedPnlUsd.toPlainString(),
+                    dailyRealizedPnlUsd = state.dailyRealizedPnlUsd.toPlainString(),
+                    dailyUnrealizedPnlUsd = state.dailyUnrealizedPnlUsd.toPlainString(),
+                    openExposureUsd = state.openExposureUsd.toPlainString(),
+                    updatedAt = state.updatedAt.toString()
                 )
             )
         }
@@ -367,16 +433,16 @@ fun Route.riskRoutes(
             val state = dbService.getRiskKillSwitchState(username)
             call.respond(
                 HttpStatusCode.OK,
-                mapOf(
-                    "username" to username,
-                    "engaged" to (state?.engaged ?: false),
-                    "reason" to state?.reason,
-                    "engagedAt" to state?.engagedAt?.toString(),
-                    "engagedBy" to state?.engagedBy,
-                    "manualAckRequired" to (state?.manualAckRequired ?: true),
-                    "acknowledgedAt" to state?.acknowledgedAt?.toString(),
-                    "acknowledgedBy" to state?.acknowledgedBy,
-                    "ackNote" to state?.ackNote
+                RiskKillSwitchResponse(
+                    username = username,
+                    engaged = state?.engaged ?: false,
+                    reason = state?.reason,
+                    engagedAt = state?.engagedAt?.toString(),
+                    engagedBy = state?.engagedBy,
+                    manualAckRequired = state?.manualAckRequired ?: true,
+                    acknowledgedAt = state?.acknowledgedAt?.toString(),
+                    acknowledgedBy = state?.acknowledgedBy,
+                    ackNote = state?.ackNote
                 )
             )
         }
@@ -397,12 +463,16 @@ fun Route.riskRoutes(
             )
             call.respond(
                 HttpStatusCode.OK,
-                mapOf(
-                    "username" to state.username,
-                    "engaged" to state.engaged,
-                    "reason" to state.reason,
-                    "engagedAt" to state.engagedAt?.toString(),
-                    "manualAckRequired" to state.manualAckRequired
+                RiskKillSwitchResponse(
+                    username = state.username,
+                    engaged = state.engaged,
+                    reason = state.reason,
+                    engagedAt = state.engagedAt?.toString(),
+                    engagedBy = state.engagedBy,
+                    manualAckRequired = state.manualAckRequired,
+                    acknowledgedAt = state.acknowledgedAt?.toString(),
+                    acknowledgedBy = state.acknowledgedBy,
+                    ackNote = state.ackNote
                 )
             )
         }
@@ -421,12 +491,16 @@ fun Route.riskRoutes(
             }
             call.respond(
                 HttpStatusCode.OK,
-                mapOf(
-                    "username" to acknowledged.username,
-                    "engaged" to acknowledged.engaged,
-                    "acknowledgedAt" to acknowledged.acknowledgedAt?.toString(),
-                    "acknowledgedBy" to acknowledged.acknowledgedBy,
-                    "ackNote" to acknowledged.ackNote
+                RiskKillSwitchResponse(
+                    username = acknowledged.username,
+                    engaged = acknowledged.engaged,
+                    reason = acknowledged.reason,
+                    engagedAt = acknowledged.engagedAt?.toString(),
+                    engagedBy = acknowledged.engagedBy,
+                    manualAckRequired = acknowledged.manualAckRequired,
+                    acknowledgedAt = acknowledged.acknowledgedAt?.toString(),
+                    acknowledgedBy = acknowledged.acknowledgedBy,
+                    ackNote = acknowledged.ackNote
                 )
             )
         }

@@ -21,6 +21,10 @@ print_header() {
     echo -e "${BLUE}║  Datamancy Test Runner                                                   ║${NC}"
     echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
+    echo -e "${YELLOW}Environment Passthrough:${NC}"
+    echo "  Kotlin test runs forward TRADING_E2E_* and selected auth vars into containers."
+    echo "  Add extras with RUN_TESTS_EXEC_ENV_PASSTHROUGH=VAR1,VAR2"
+    echo ""
 }
 
 print_usage() {
@@ -123,6 +127,52 @@ check_container_running() {
         echo -e "${RED}✗${NC} Container is not running. Start it with: $0 start $container_name"
         exit 1
     fi
+}
+
+build_exec_env_args() {
+    EXEC_ENV_ARGS=()
+    local passthrough_vars=(
+        TRADING_E2E_MODE
+        TRADING_E2E_TARGET_HOST
+        TRADING_E2E_TX_GATEWAY_URL
+        TRADING_E2E_AUTHELIA_URL
+        TRADING_E2E_HYPERLIQUID_WORKER_URL
+        TRADING_E2E_HYPERLIQUID_KEY
+        HYPERLIQUID_TESTNET_KEY
+        TRADING_E2E_PREP_RISK_STATE
+        TRADING_E2E_RECORD
+        TRADING_E2E_RECORD_DIR
+        TRADING_E2E_BEARER_TOKEN
+        TRADING_E2E_OIDC_CLIENT_ID
+        TRADING_E2E_OIDC_CLIENT_SECRET
+        TRADING_E2E_OIDC_REDIRECT_URI
+        TRADING_E2E_OIDC_SCOPE
+        TRADING_E2E_USERNAME
+        TRADING_E2E_PASSWORD
+        MODEL_CONTEXT_OIDC_CLIENT_ID
+        MODEL_CONTEXT_OIDC_CLIENT_SECRET
+        MODEL_CONTEXT_OIDC_REDIRECT_URI
+        MODEL_CONTEXT_OIDC_SCOPE
+        TEST_RUNNER_OAUTH_SECRET
+        STACK_ADMIN_USER
+        STACK_ADMIN_PASSWORD
+        LDAP_ADMIN_PASSWORD
+    )
+
+    if [ -n "${RUN_TESTS_EXEC_ENV_PASSTHROUGH:-}" ]; then
+        local extra_csv="${RUN_TESTS_EXEC_ENV_PASSTHROUGH//,/ }"
+        local extra_var
+        for extra_var in $extra_csv; do
+            [ -n "$extra_var" ] && passthrough_vars+=("$extra_var")
+        done
+    fi
+
+    local var_name
+    for var_name in "${passthrough_vars[@]}"; do
+        if [ -n "${!var_name:-}" ]; then
+            EXEC_ENV_ARGS+=("-e" "${var_name}=${!var_name}")
+        fi
+    done
 }
 
 smart_plan_from_registry() {
@@ -294,7 +344,8 @@ case "${1:-help}" in
                     ;;
                 kotlin|*)
                     echo -e "${BLUE}Running Kotlin test suite: $suite${NC}"
-                    docker compose exec "$container_name" java -jar /app/test-runner.jar --env container --suite "$suite"
+                    build_exec_env_args
+                    docker compose exec "${EXEC_ENV_ARGS[@]}" "$container_name" java -jar /app/test-runner.jar --env container --suite "$suite"
                     ;;
             esac
 
@@ -352,7 +403,8 @@ case "${1:-help}" in
         check_container_running "$container_name"
         ensure_caddy_ca_trusted "$container_name"
         echo -e "${BLUE}Running Kotlin test suite: $2${NC}"
-        docker compose exec "$container_name" java -jar /app/test-runner.jar --env container --suite "$2"
+        build_exec_env_args
+        docker compose exec "${EXEC_ENV_ARGS[@]}" "$container_name" java -jar /app/test-runner.jar --env container --suite "$2"
         ;;
 
     kt-list)

@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.sql.SQLException
 import java.sql.Timestamp
+import java.sql.Types
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -191,6 +192,7 @@ class DatabaseService(
     private lateinit var dataSource: HikariDataSource
     private var marketDataSource: HikariDataSource? = null
     private val missingTableWarnings = ConcurrentHashMap.newKeySet<String>()
+    private val analyticsSchemaEnsured = ConcurrentHashMap.newKeySet<String>()
 
     fun init(maxAttempts: Int = 60, delayMs: Long = 2000) {
         logger.info("Initializing database connection to $host:$port/$database as user $user (password: ${dbPassword.length} chars)")
@@ -607,6 +609,184 @@ class DatabaseService(
             }
         }
         return records
+    }
+
+    fun logPaperExecutionAnalytics(
+        strategyName: String,
+        exchange: String,
+        symbol: String,
+        side: String,
+        decisionLatencyMs: Double,
+        submitToAckMs: Double,
+        submitToFillMs: Double?,
+        p50RoundTripMs: Double?,
+        p95RoundTripMs: Double?,
+        p99RoundTripMs: Double?,
+        jitterMs: Double?,
+        feeBps: Double,
+        spreadCostBps: Double,
+        slippageBps: Double,
+        impactBps: Double,
+        adverseSelectionBps: Double,
+        totalCostBps: Double,
+        estimatedCostUsd: Double?,
+        metadataJson: String = "{}"
+    ): Boolean {
+        val latencySql = """
+            INSERT INTO strategy_latency_metrics (
+                observed_at,
+                strategy_name,
+                exchange,
+                symbol,
+                decision_latency_ms,
+                submit_to_ack_ms,
+                submit_to_fill_ms,
+                p50_roundtrip_ms,
+                p95_roundtrip_ms,
+                p99_roundtrip_ms,
+                jitter_ms,
+                metadata
+            ) VALUES (
+                NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb
+            )
+        """.trimIndent()
+        val costSql = """
+            INSERT INTO strategy_execution_costs (
+                observed_at,
+                strategy_name,
+                exchange,
+                symbol,
+                side,
+                fee_bps,
+                spread_cost_bps,
+                slippage_bps,
+                impact_bps,
+                adverse_selection_bps,
+                total_cost_bps,
+                estimated_cost_usd,
+                metadata
+            ) VALUES (
+                NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb
+            )
+        """.trimIndent()
+
+        for (source in quoteDataSources()) {
+            var tryNextSource = false
+            var attemptedSchemaRepair = false
+            var retryCurrentSource: Boolean
+            do {
+                retryCurrentSource = false
+                try {
+                    source.connection.use { conn ->
+                        conn.autoCommit = false
+                        try {
+                            conn.prepareStatement(latencySql).use { stmt ->
+                                stmt.setString(1, strategyName)
+                                stmt.setString(2, exchange)
+                                stmt.setString(3, symbol)
+                                stmt.setDouble(4, decisionLatencyMs)
+                                stmt.setDouble(5, submitToAckMs)
+                                if (submitToFillMs != null) {
+                                    stmt.setDouble(6, submitToFillMs)
+                                } else {
+                                    stmt.setNull(6, Types.DOUBLE)
+                                }
+                                if (p50RoundTripMs != null) {
+                                    stmt.setDouble(7, p50RoundTripMs)
+                                } else {
+                                    stmt.setNull(7, Types.DOUBLE)
+                                }
+                                if (p95RoundTripMs != null) {
+                                    stmt.setDouble(8, p95RoundTripMs)
+                                } else {
+                                    stmt.setNull(8, Types.DOUBLE)
+                                }
+                                if (p99RoundTripMs != null) {
+                                    stmt.setDouble(9, p99RoundTripMs)
+                                } else {
+                                    stmt.setNull(9, Types.DOUBLE)
+                                }
+                                if (jitterMs != null) {
+                                    stmt.setDouble(10, jitterMs)
+                                } else {
+                                    stmt.setNull(10, Types.DOUBLE)
+                                }
+                                stmt.setString(11, metadataJson)
+                                stmt.executeUpdate()
+                            }
+
+                            conn.prepareStatement(costSql).use { stmt ->
+                                stmt.setString(1, strategyName)
+                                stmt.setString(2, exchange)
+                                stmt.setString(3, symbol)
+                                stmt.setString(4, side)
+                                stmt.setDouble(5, feeBps)
+                                stmt.setDouble(6, spreadCostBps)
+                                stmt.setDouble(7, slippageBps)
+                                stmt.setDouble(8, impactBps)
+                                stmt.setDouble(9, adverseSelectionBps)
+                                stmt.setDouble(10, totalCostBps)
+                                if (estimatedCostUsd != null) {
+                                    stmt.setDouble(11, estimatedCostUsd)
+                                } else {
+                                    stmt.setNull(11, Types.DOUBLE)
+                                }
+                                stmt.setString(12, metadataJson)
+                                stmt.executeUpdate()
+                            }
+
+                            conn.commit()
+                            return true
+                        } catch (e: SQLException) {
+                            conn.rollback()
+                            if (isMissingRelation(e) && !attemptedSchemaRepair &&
+                                ensurePaperExecutionAnalyticsSchema(source)
+                            ) {
+                                attemptedSchemaRepair = true
+                                retryCurrentSource = true
+                            } else if (isMissingRelation(e)) {
+                                warnMissingRelationOnce("strategy_latency_metrics", e)
+                                warnMissingRelationOnce("strategy_execution_costs", e)
+                                tryNextSource = true
+                            } else {
+                                logger.warn(
+                                    "Failed to insert paper execution analytics for {}/{} strategy={}: {}",
+                                    exchange,
+                                    symbol,
+                                    strategyName,
+                                    e.message
+                                )
+                            }
+                        } finally {
+                            conn.autoCommit = true
+                        }
+                    }
+                } catch (e: SQLException) {
+                    if (isMissingRelation(e) && !attemptedSchemaRepair &&
+                        ensurePaperExecutionAnalyticsSchema(source)
+                    ) {
+                        attemptedSchemaRepair = true
+                        retryCurrentSource = true
+                    } else if (isMissingRelation(e)) {
+                        warnMissingRelationOnce("strategy_latency_metrics", e)
+                        warnMissingRelationOnce("strategy_execution_costs", e)
+                        tryNextSource = true
+                    } else {
+                        logger.warn(
+                            "Unable to persist paper execution analytics for {}/{} strategy={}: {}",
+                            exchange,
+                            symbol,
+                            strategyName,
+                            e.message
+                        )
+                    }
+                }
+            } while (retryCurrentSource)
+
+            if (tryNextSource) continue
+        }
+
+        return false
     }
 
     fun createRiskPolicyVersion(
@@ -1362,6 +1542,64 @@ class DatabaseService(
 
     private fun isMissingRelation(e: SQLException): Boolean {
         return e.sqlState == "42P01" || (e.message?.contains("does not exist", ignoreCase = true) == true)
+    }
+
+    private fun ensurePaperExecutionAnalyticsSchema(source: HikariDataSource): Boolean {
+        val key = source.jdbcUrl.ifBlank { source.poolName ?: "unknown-pool" }
+        if (analyticsSchemaEnsured.contains(key)) {
+            return true
+        }
+
+        val latencyTableSql = """
+            CREATE TABLE IF NOT EXISTS strategy_latency_metrics (
+                id BIGSERIAL PRIMARY KEY,
+                observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                exchange TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                decision_latency_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
+                submit_to_ack_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
+                submit_to_fill_ms DOUBLE PRECISION,
+                p50_roundtrip_ms DOUBLE PRECISION,
+                p95_roundtrip_ms DOUBLE PRECISION,
+                p99_roundtrip_ms DOUBLE PRECISION,
+                jitter_ms DOUBLE PRECISION,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+        """.trimIndent()
+        val costTableSql = """
+            CREATE TABLE IF NOT EXISTS strategy_execution_costs (
+                id BIGSERIAL PRIMARY KEY,
+                observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                exchange TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                side TEXT NOT NULL,
+                fee_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                spread_cost_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                slippage_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                impact_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                adverse_selection_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                total_cost_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                estimated_cost_usd DOUBLE PRECISION,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+        """.trimIndent()
+
+        return try {
+            source.connection.use { conn ->
+                conn.createStatement().use { stmt ->
+                    stmt.execute(latencyTableSql)
+                    stmt.execute(costTableSql)
+                }
+            }
+            analyticsSchemaEnsured.add(key)
+            logger.info("Ensured strategy analytics schema on datasource {}", key)
+            true
+        } catch (e: SQLException) {
+            logger.warn("Failed ensuring strategy analytics schema on datasource {}: {}", key, e.message)
+            false
+        }
     }
 
     private fun isMissingColumn(e: SQLException): Boolean {

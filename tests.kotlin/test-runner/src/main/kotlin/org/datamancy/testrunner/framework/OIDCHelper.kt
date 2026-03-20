@@ -6,6 +6,8 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import java.util.*
 
 /**
@@ -116,8 +118,7 @@ class OIDCHelper(
         val location = response.headers["Location"]
             ?: throw IllegalStateException("No redirect from authorization endpoint")
 
-        
-        val codeParam = location.substringAfter("code=").substringBefore("&")
+        val codeParam = extractQueryParam(location, "code")
         require(codeParam.isNotBlank()) { "No authorization code in redirect: $location" }
 
         return codeParam
@@ -261,6 +262,13 @@ class OIDCHelper(
 
         
         return "$encodedHeader.$encodedPayload.fake_signature"
+    }
+
+    private fun extractQueryParam(location: String, key: String): String {
+        val match = Regex("""(?:\?|&)${Regex.escape(key)}=([^&]+)""")
+            .find(location)
+            ?: return ""
+        return URLDecoder.decode(match.groupValues[1], StandardCharsets.UTF_8)
     }
 }
 
