@@ -1647,6 +1647,9 @@ fun bundleSourceToRepos(distDir: File, workDir: File, version: String) {
     step("Bundling source code to dist/repos/")
 
     val reposDir = distDir.resolve("repos/datamancy/datamancy-core")
+    if (reposDir.exists()) {
+        reposDir.deleteRecursively()
+    }
     reposDir.mkdirs()
 
     val sourceFiles = listOf(
@@ -1871,7 +1874,12 @@ ${CYAN}╔═══════════════════════�
     info("Domain: ${sanitized.domain}")
     info("Admin: ${sanitized.adminUser} <${sanitized.adminEmail}>")
 
-    // Create dist/
+    val existingDistCredentials = loadEnvFile(distDir.resolve(".env"))
+
+    // Rebuild dist/ from a clean slate while retaining the previous credential set.
+    if (distDir.exists()) {
+        distDir.deleteRecursively()
+    }
     distDir.mkdirs()
 
     val suitesConfig = loadYamlIfExists(mapper, suitesFile, TestSuitesConfig())
@@ -1886,7 +1894,7 @@ ${CYAN}╔═══════════════════════�
 
     // Load or generate credentials from dist/.env only.
     val envFile = distDir.resolve(".env")
-    val existingCredentials = loadEnvFile(envFile)
+    val existingCredentials = existingDistCredentials
     val credentials = generateCredentials(schema, sanitized, existingCredentials, config)
     hyperliquidTestnetKey?.let { key ->
         credentials["HYPERLIQUID_TESTNET_KEY"] = key
