@@ -17,6 +17,25 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ApplicationTest {
+    private fun tradingUserInfo(
+        username: String = "trader1",
+        allowedChains: List<String> = listOf("base"),
+        allowedExchanges: List<String> = listOf("hyperliquid"),
+        allowedTradingModes: List<String> = listOf("backtest", "forward_paper", "testnet_live"),
+        maxTxPerHour: Int = 100,
+        maxTxValueUSD: Int = 25000
+    ) = org.datamancy.txgateway.models.UserInfo(
+        username = username,
+        email = "$username@datamancy.net",
+        groups = listOf("traders"),
+        evmAddress = null,
+        allowedChains = allowedChains,
+        allowedExchanges = allowedExchanges,
+        allowedTradingModes = allowedTradingModes,
+        maxTxPerHour = maxTxPerHour,
+        maxTxValueUSD = maxTxValueUSD
+    )
+
     private fun freshQuoteTimestamp(): Instant = Instant.now().minusSeconds(5)
 
     private fun baselineRiskAccountState(
@@ -406,15 +425,8 @@ class ApplicationTest {
 
             every { authService.validateToken("token") } returns jwt
             every { authService.extractUsername(jwt) } returns "trader1"
-            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
-                username = "trader1",
-                email = "trader1@datamancy.net",
-                groups = listOf("traders"),
-                evmAddress = null,
-                allowedChains = listOf("base"),
-                allowedExchanges = listOf("binance", "hyperliquid"),
-                maxTxPerHour = 100,
-                maxTxValueUSD = 25000
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(
+                allowedExchanges = listOf("binance", "hyperliquid")
             )
             every { dbService.checkRateLimit("trader1", 100) } returns true
             every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
@@ -441,6 +453,37 @@ class ApplicationTest {
         assertTrue(Regex("\"simulated\"\\s*:\\s*true").containsMatchIn(body), body)
         assertTrue(Regex("\"executionMode\"\\s*:\\s*\"forward_paper\"").containsMatchIn(body), body)
         assertTrue(Regex("\"exchange\"\\s*:\\s*\"binance\"").containsMatchIn(body), body)
+    }
+
+    @Test
+    fun testUnifiedOrderRejectsUsersWithoutTradingModes() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(
+                allowedExchanges = listOf("binance"),
+                allowedTradingModes = emptyList()
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        val body = response.bodyAsText()
+        assertTrue(Regex("\"error\"\\s*:\\s*\"Execution mode not allowed: forward_paper\"").containsMatchIn(body), body)
     }
 
     @Test

@@ -647,7 +647,7 @@ fun Route.unifiedExchangeRoutes(
                     .map { it.trim().lowercase() }
                     .filter { it.isNotEmpty() }
                     .toSet()
-                if (allowedTradingModes.isNotEmpty() && executionMode !in allowedTradingModes) {
+                if (executionMode !in allowedTradingModes) {
                     call.respond(
                         HttpStatusCode.Forbidden,
                         mapOf("error" to "Execution mode not allowed: $executionMode")

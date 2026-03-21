@@ -7,6 +7,11 @@ ADMIN_PW="${LDAP_ADMIN_PASSWORD:?}"
 STACK_ADMIN_USER="${STACK_ADMIN_USER:-}"
 STACK_ADMIN_EMAIL="${STACK_ADMIN_EMAIL:-}"
 STACK_ADMIN_PASSWORD="${STACK_ADMIN_PASSWORD:-}"
+LDAP_DEFAULT_ALLOWED_CHAINS="${LDAP_DEFAULT_ALLOWED_CHAINS:-base,arbitrum,optimism}"
+LDAP_DEFAULT_ALLOWED_EXCHANGES="${LDAP_DEFAULT_ALLOWED_EXCHANGES:-swyftx,binance,bybit,coinbase,dydx,hyperliquid,aster}"
+LDAP_DEFAULT_ALLOWED_TRADING_MODES="${LDAP_DEFAULT_ALLOWED_TRADING_MODES:-backtest,forward_paper,testnet_live}"
+LDAP_DEFAULT_MAX_TX_PER_HOUR="${LDAP_DEFAULT_MAX_TX_PER_HOUR:-240}"
+LDAP_DEFAULT_MAX_TX_VALUE_USD="${LDAP_DEFAULT_MAX_TX_VALUE_USD:-25000}"
 
 echo "[ldap-ensure] Waiting for LDAP..."
 MAX_ATTEMPTS=30
@@ -56,6 +61,104 @@ run_ldap_cmd() {
   done
 
   return 1
+}
+
+sanitize_csv_to_lines() {
+  printf '%s\n' "$1" | tr ',;|' '\n' | while IFS= read -r raw; do
+    value=$(printf '%s' "$raw" | xargs)
+    if [ -n "$value" ]; then
+      printf '%s\n' "$value"
+    fi
+  done
+}
+
+entry_has_attribute() {
+  ENTRY_DN="$1"
+  ATTRIBUTE_NAME="$2"
+
+  ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
+    -b "$ENTRY_DN" -s base '(objectClass=*)' "$ATTRIBUTE_NAME" 2>/dev/null | \
+    grep -qi "^${ATTRIBUTE_NAME}:"
+}
+
+ensure_stack_admin_trading_profile() {
+  if [ -z "$STACK_ADMIN_USER" ] || [ -z "$STACK_ADMIN_PASSWORD" ]; then
+    return 0
+  fi
+
+  if ! ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
+    -b "$STACK_ADMIN_DN" -s base '(objectClass=tradingAccount)' dn 2>/dev/null | \
+    grep -q '^dn:'; then
+    cat <<EOF >/tmp/stack_admin_trading_class.ldif
+dn: ${STACK_ADMIN_DN}
+changetype: modify
+add: objectClass
+objectClass: tradingAccount
+EOF
+    run_ldap_cmd "stack admin tradingAccount class add" \
+      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_trading_class.ldif >/dev/null
+  fi
+
+  if ! entry_has_attribute "$STACK_ADMIN_DN" "allowedChains"; then
+    {
+      printf 'dn: %s\n' "$STACK_ADMIN_DN"
+      printf 'changetype: modify\n'
+      printf 'add: allowedChains\n'
+      sanitize_csv_to_lines "$LDAP_DEFAULT_ALLOWED_CHAINS" | while IFS= read -r value; do
+        printf 'allowedChains: %s\n' "$value"
+      done
+    } >/tmp/stack_admin_allowed_chains.ldif
+    run_ldap_cmd "stack admin allowedChains add" \
+      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_allowed_chains.ldif >/dev/null
+  fi
+
+  if ! entry_has_attribute "$STACK_ADMIN_DN" "allowedExchanges"; then
+    {
+      printf 'dn: %s\n' "$STACK_ADMIN_DN"
+      printf 'changetype: modify\n'
+      printf 'add: allowedExchanges\n'
+      sanitize_csv_to_lines "$LDAP_DEFAULT_ALLOWED_EXCHANGES" | while IFS= read -r value; do
+        printf 'allowedExchanges: %s\n' "$value"
+      done
+    } >/tmp/stack_admin_allowed_exchanges.ldif
+    run_ldap_cmd "stack admin allowedExchanges add" \
+      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_allowed_exchanges.ldif >/dev/null
+  fi
+
+  if ! entry_has_attribute "$STACK_ADMIN_DN" "allowedTradingModes"; then
+    {
+      printf 'dn: %s\n' "$STACK_ADMIN_DN"
+      printf 'changetype: modify\n'
+      printf 'add: allowedTradingModes\n'
+      sanitize_csv_to_lines "$LDAP_DEFAULT_ALLOWED_TRADING_MODES" | while IFS= read -r value; do
+        printf 'allowedTradingModes: %s\n' "$value"
+      done
+    } >/tmp/stack_admin_allowed_trading_modes.ldif
+    run_ldap_cmd "stack admin allowedTradingModes add" \
+      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_allowed_trading_modes.ldif >/dev/null
+  fi
+
+  if ! entry_has_attribute "$STACK_ADMIN_DN" "maxTxPerHour"; then
+    cat <<EOF >/tmp/stack_admin_max_tx_per_hour.ldif
+dn: ${STACK_ADMIN_DN}
+changetype: modify
+add: maxTxPerHour
+maxTxPerHour: ${LDAP_DEFAULT_MAX_TX_PER_HOUR}
+EOF
+    run_ldap_cmd "stack admin maxTxPerHour add" \
+      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_max_tx_per_hour.ldif >/dev/null
+  fi
+
+  if ! entry_has_attribute "$STACK_ADMIN_DN" "maxTxValueUSD"; then
+    cat <<EOF >/tmp/stack_admin_max_tx_value_usd.ldif
+dn: ${STACK_ADMIN_DN}
+changetype: modify
+add: maxTxValueUSD
+maxTxValueUSD: ${LDAP_DEFAULT_MAX_TX_VALUE_USD}
+EOF
+    run_ldap_cmd "stack admin maxTxValueUSD add" \
+      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_max_tx_value_usd.ldif >/dev/null
+  fi
 }
 
 echo "[ldap-ensure] Ensuring base OUs exist"
@@ -111,7 +214,9 @@ ensure_group_membership() {
   GROUP_NAME="$1"
   GROUP_DN="cn=${GROUP_NAME},ou=groups,${LDAP_BASE_DN}"
 
-  if ! ldapsearch -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -b "$GROUP_DN" -s base '(objectClass=groupOfNames)' dn >/dev/null 2>&1; then
+  if ! ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
+    -b "$GROUP_DN" -s base '(objectClass=groupOfNames)' dn 2>/dev/null | \
+    grep -q '^dn:'; then
     cat <<EOF >/tmp/group_add.ldif
 dn: ${GROUP_DN}
 objectClass: groupOfNames
@@ -123,7 +228,9 @@ EOF
     return 0
   fi
 
-  if ldapsearch -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -b "$GROUP_DN" "(member=${STACK_ADMIN_DN})" dn >/dev/null 2>&1; then
+  if ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
+    -b "$GROUP_DN" "(member=${STACK_ADMIN_DN})" dn 2>/dev/null | \
+    grep -q '^dn:'; then
     return 0
   fi
 
@@ -142,5 +249,7 @@ ensure_group_membership "admins"
 ensure_group_membership "users"
 ensure_group_membership "openwebui-admin"
 ensure_group_membership "planka-admin"
+echo "[ldap-ensure] Ensuring stack admin trading profile"
+ensure_stack_admin_trading_profile
 
 echo "[ldap-ensure] Done"

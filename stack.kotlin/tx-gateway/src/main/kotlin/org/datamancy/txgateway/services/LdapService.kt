@@ -57,6 +57,7 @@ class LdapService(
             }
 
             val entry = searchResult.searchEntries[0]
+            val hasTradingProfile = entry.hasTradingProfile()
 
             val email = entry.getAttributeValue("mail") ?: "$username@datamancy.net"
             val groups = entry.getAttributeValues("memberOf")?.map { dn ->
@@ -66,26 +67,26 @@ class LdapService(
 
             val evmAddress = entry.getAttributeValue("evmAddress")
             val allowedChains = entry.getAttributeValues("allowedChains")?.toList()
-                ?.map(String::trim)
+                ?.map { it.trim().lowercase() }
                 ?.filter(String::isNotEmpty)
                 ?.ifEmpty { null }
-                ?: defaultAllowedChains
+                ?: if (hasTradingProfile) defaultAllowedChains else emptyList()
             val allowedExchanges = entry.getAttributeValues("allowedExchanges")?.toList()
                 ?.map { it.trim().lowercase() }
                 ?.filter(String::isNotEmpty)
                 ?.distinct()
                 ?.ifEmpty { null }
-                ?: defaultAllowedExchanges
+                ?: if (hasTradingProfile) defaultAllowedExchanges else emptyList()
             val allowedTradingModes = entry.getAttributeValues("allowedTradingModes")?.toList()
                 ?.map { it.trim().lowercase() }
                 ?.filter(String::isNotEmpty)
                 ?.distinct()
                 ?.ifEmpty { null }
-                ?: defaultAllowedTradingModes
+                ?: if (hasTradingProfile) defaultAllowedTradingModes else emptyList()
             val maxTxPerHour = entry.getAttributeValue("maxTxPerHour")?.toIntOrNull()?.coerceAtLeast(1)
-                ?: defaultMaxTxPerHour
+                ?: if (hasTradingProfile) defaultMaxTxPerHour else 1
             val maxTxValueUSD = entry.getAttributeValue("maxTxValueUSD")?.toIntOrNull()?.coerceAtLeast(1)
-                ?: defaultMaxTxValueUsd
+                ?: if (hasTradingProfile) defaultMaxTxValueUsd else 1
 
             UserInfo(
                 username = username,
@@ -123,7 +124,30 @@ class LdapService(
         val raw = System.getenv(name)?.trim().takeUnless { it.isNullOrEmpty() } ?: defaultValue
         return raw.split(',', ';', '|', ' ')
             .map { it.trim() }
+            .map { it.lowercase() }
             .filter { it.isNotEmpty() }
             .distinct()
+    }
+
+    private fun SearchResultEntry.hasTradingProfile(): Boolean {
+        val objectClasses = getAttributeValues("objectClass")
+            ?.map { it.trim().lowercase() }
+            ?.toSet()
+            ?: emptySet()
+        if ("tradingaccount" in objectClasses) {
+            return true
+        }
+
+        val tradingAttributes = listOf(
+            "evmAddress",
+            "evmKeyRef",
+            "hyperliquidKeyRef",
+            "allowedChains",
+            "allowedExchanges",
+            "allowedTradingModes",
+            "maxTxPerHour",
+            "maxTxValueUSD"
+        )
+        return tradingAttributes.any { hasAttribute(it) }
     }
 }
