@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class TradingAccountAudit(
     val username: String,
     val email: String,
+    val evmAddress: String?,
     val groups: List<String>,
     val hasTradingProfile: Boolean,
     val hasTradingObjectClass: Boolean,

@@ -18,6 +18,7 @@ import org.datamancy.txgateway.services.AuthService
 import org.datamancy.txgateway.services.DatabaseService
 import org.datamancy.txgateway.services.LdapService
 import org.datamancy.txgateway.services.LatestQuote
+import org.datamancy.txgateway.services.RiskPolicyRecord
 import org.datamancy.txgateway.services.TradingAccountAudit
 import org.datamancy.txgateway.services.TradingPermissionCatalog
 import org.datamancy.txgateway.services.RiskDecision
@@ -141,6 +142,63 @@ private data class TradingAccountHomogeneityResponse(
     val canonicalAllowedTradingModes: List<String>,
     val summary: TradingAccountHomogeneitySummaryResponse,
     val accounts: List<TradingAccountAudit>
+)
+
+@Serializable
+private data class WalletLinkedRiskPolicyResponse(
+    val id: String,
+    val username: String,
+    val walletAddress: String? = null,
+    val version: Int,
+    val status: String,
+    val createdBy: String,
+    val createdAt: String,
+    val activatedAt: String? = null,
+    val activatedByWallet: String? = null,
+    val isBootstrap: Boolean
+)
+
+@Serializable
+private data class UserWalletLinkResponse(
+    val requestedBy: String,
+    val requestedAt: String,
+    val linkedWallets: List<String>,
+    val draftPolicyCount: Int,
+    val activePolicy: WalletLinkedRiskPolicyResponse? = null,
+    val ldapProfile: TradingAccountAudit,
+    val findings: List<String>
+)
+
+@Serializable
+private data class TradingAccountWalletLinkSummaryResponse(
+    val activeWalletLinks: Int,
+    val uniqueWallets: Int,
+    val walletsLinkedToMultipleUsers: Int,
+    val walletLinksDifferingFromLdap: Int,
+    val walletLinksMissingLdapEvmAddress: Int
+)
+
+@Serializable
+private data class TradingAccountWalletLinkEntryResponse(
+    val username: String,
+    val email: String,
+    val ldapEvmAddress: String? = null,
+    val walletAddress: String,
+    val groups: List<String>,
+    val allowedExchanges: List<String>,
+    val allowedTradingModes: List<String>,
+    val policyId: String,
+    val policyVersion: Int,
+    val activatedAt: String? = null,
+    val findings: List<String>
+)
+
+@Serializable
+private data class TradingAccountWalletLinksResponse(
+    val requestedBy: String,
+    val requestedAt: String,
+    val summary: TradingAccountWalletLinkSummaryResponse,
+    val links: List<TradingAccountWalletLinkEntryResponse>
 )
 
 @Serializable
@@ -376,6 +434,35 @@ fun Route.unifiedExchangeRoutes(
             call.respond(HttpStatusCode.OK, audit)
         }
 
+        get("/user/wallet-link") {
+            val username = extractAuthenticatedUsername(call, authService) ?: return@get
+            val audit = ldapService.getTradingAccountAudit(username)
+                ?: run {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "User not found"))
+                    return@get
+                }
+
+            val policies = dbService.listRiskPolicies(username = username, includeBootstrap = false)
+            val activePolicy = policies.firstOrNull { it.status.equals("active", ignoreCase = true) }
+            val linkedWallets = policies.mapNotNull { record ->
+                record.walletAddress?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+            }.distinct().sorted()
+            val findings = buildUserWalletLinkFindings(audit, activePolicy, linkedWallets)
+
+            call.respond(
+                HttpStatusCode.OK,
+                UserWalletLinkResponse(
+                    requestedBy = username,
+                    requestedAt = Instant.now().toString(),
+                    linkedWallets = linkedWallets,
+                    draftPolicyCount = policies.count { it.status.equals("draft", ignoreCase = true) },
+                    activePolicy = activePolicy?.toWalletLinkedRiskPolicyResponse(),
+                    ldapProfile = audit,
+                    findings = findings
+                )
+            )
+        }
+
         route("/accounts/trading") {
             get("/homogeneity") {
                 val caller = extractAuthorizedTradingAdmin(call, authService, ldapService) ?: return@get
@@ -402,6 +489,59 @@ fun Route.unifiedExchangeRoutes(
                         canonicalAllowedTradingModes = TradingPermissionCatalog.defaultAllowedTradingModes,
                         summary = summary,
                         accounts = audits
+                    )
+                )
+            }
+
+            get("/wallet-links") {
+                val caller = extractAuthorizedTradingAdmin(call, authService, ldapService) ?: return@get
+                val audits = ldapService.listTradingAccountAudits()
+                    .associateBy { it.username.lowercase() }
+                val linkedPolicies = dbService.listActiveWalletLinkedRiskPolicies()
+                val walletOwners = linkedPolicies.groupBy { it.walletAddress!!.trim().lowercase() }
+                    .mapValues { (_, policies) -> policies.map { it.username }.distinct().sorted() }
+
+                val links = linkedPolicies.map { policy ->
+                    val audit = audits[policy.username.lowercase()]
+                    val walletAddress = policy.walletAddress!!.trim().lowercase()
+                    val duplicateOwners = walletOwners[walletAddress].orEmpty()
+                        .filterNot { it.equals(policy.username, ignoreCase = true) }
+                    val findings = buildAdminWalletLinkFindings(audit, walletAddress, duplicateOwners)
+
+                    TradingAccountWalletLinkEntryResponse(
+                        username = policy.username,
+                        email = audit?.email ?: "${policy.username}@datamancy.net",
+                        ldapEvmAddress = audit?.evmAddress,
+                        walletAddress = walletAddress,
+                        groups = audit?.groups ?: emptyList(),
+                        allowedExchanges = audit?.allowedExchanges ?: emptyList(),
+                        allowedTradingModes = audit?.allowedTradingModes ?: emptyList(),
+                        policyId = policy.id.toString(),
+                        policyVersion = policy.version,
+                        activatedAt = policy.activatedAt?.toString(),
+                        findings = findings
+                    )
+                }.sortedBy { it.username }
+
+                val summary = TradingAccountWalletLinkSummaryResponse(
+                    activeWalletLinks = links.size,
+                    uniqueWallets = walletOwners.size,
+                    walletsLinkedToMultipleUsers = walletOwners.count { (_, owners) -> owners.size > 1 },
+                    walletLinksDifferingFromLdap = links.count { link ->
+                        link.findings.any { it == "active wallet link differs from LDAP evmAddress" }
+                    },
+                    walletLinksMissingLdapEvmAddress = links.count { link ->
+                        link.findings.any { it == "LDAP trading account has no evmAddress" }
+                    }
+                )
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    TradingAccountWalletLinksResponse(
+                        requestedBy = caller.username,
+                        requestedAt = Instant.now().toString(),
+                        summary = summary,
+                        links = links
                     )
                 )
             }
@@ -2349,6 +2489,75 @@ private fun RiskDecision.toRejectionPayload(): RiskRejectionResponse {
             }
         )
     )
+}
+
+private fun RiskPolicyRecord.toWalletLinkedRiskPolicyResponse(): WalletLinkedRiskPolicyResponse {
+    return WalletLinkedRiskPolicyResponse(
+        id = id.toString(),
+        username = username,
+        walletAddress = walletAddress,
+        version = version,
+        status = status,
+        createdBy = createdBy,
+        createdAt = createdAt.toString(),
+        activatedAt = activatedAt?.toString(),
+        activatedByWallet = activatedByWallet,
+        isBootstrap = isBootstrap
+    )
+}
+
+private fun buildUserWalletLinkFindings(
+    audit: TradingAccountAudit,
+    activePolicy: RiskPolicyRecord?,
+    linkedWallets: List<String>
+): List<String> {
+    val findings = audit.findings.toMutableList()
+    if (activePolicy == null) {
+        findings += "no active risk policy"
+    } else if (activePolicy.walletAddress.isNullOrBlank()) {
+        findings += "active risk policy has no wallet link"
+    }
+
+    if (linkedWallets.isEmpty()) {
+        findings += "no wallet linked to risk policy history"
+    }
+    if (linkedWallets.size > 1) {
+        findings += "multiple wallets linked across policy history"
+    }
+
+    val activeWallet = activePolicy?.walletAddress?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+    val ldapWallet = audit.evmAddress?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+    if (activeWallet != null && ldapWallet != null && activeWallet != ldapWallet) {
+        findings += "active wallet link differs from LDAP evmAddress"
+    }
+    if (activeWallet != null && ldapWallet == null) {
+        findings += "LDAP trading account has no evmAddress"
+    }
+
+    return findings.distinct()
+}
+
+private fun buildAdminWalletLinkFindings(
+    audit: TradingAccountAudit?,
+    walletAddress: String,
+    duplicateOwners: List<String>
+): List<String> {
+    val findings = mutableListOf<String>()
+    if (audit == null) {
+        findings += "active wallet link has no matching LDAP trading audit"
+    } else {
+        findings += audit.findings
+        val ldapWallet = audit.evmAddress?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        if (ldapWallet == null) {
+            findings += "LDAP trading account has no evmAddress"
+        } else if (walletAddress != ldapWallet) {
+            findings += "active wallet link differs from LDAP evmAddress"
+        }
+    }
+    if (duplicateOwners.isNotEmpty()) {
+        findings += "wallet linked to multiple users: ${duplicateOwners.joinToString(",")}"
+    }
+    return findings.distinct()
 }
 
 private data class AuthorizedTradingUser(

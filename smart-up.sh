@@ -19,6 +19,44 @@ info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
+prepare_shadow_accounts_dir() {
+    local env_file="${ROOT_DIR}/.env"
+    [ -f "$env_file" ] || return 0
+
+    local shadow_dir
+    shadow_dir="$(python3 - "$env_file" <<'PY'
+import os
+import sys
+
+env_file = sys.argv[1]
+values = {}
+
+with open(env_file, "r", encoding="utf-8") as handle:
+    for raw in handle:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip().strip('"').strip("'")
+
+shadow_dir = values.get("SHADOW_ACCOUNTS_HOST_DIR", "").strip()
+if shadow_dir == "~":
+    shadow_dir = os.path.expanduser("~")
+elif shadow_dir.startswith("~/"):
+    shadow_dir = os.path.join(os.path.expanduser("~"), shadow_dir[2:])
+
+if shadow_dir:
+    print(shadow_dir)
+PY
+)"
+
+    if [ -n "${shadow_dir:-}" ]; then
+        mkdir -p "$shadow_dir"
+        chmod 700 "$shadow_dir" 2>/dev/null || true
+        info "Prepared shadow account secrets dir: $shadow_dir"
+    fi
+}
+
 if [ ! -f "$REGISTRY_JSON" ]; then
     error "Missing registry: $REGISTRY_JSON"
     exit 1
@@ -28,6 +66,8 @@ if ! command -v python3 >/dev/null 2>&1; then
     error "python3 is required for smart-up"
     exit 1
 fi
+
+prepare_shadow_accounts_dir
 
 if ! docker compose -f "$COMPOSE_FILE" config --services >/dev/null 2>&1; then
     error "Failed to load docker compose file: $COMPOSE_FILE"

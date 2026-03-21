@@ -19,6 +19,13 @@ fun detectRoot(): File {
     }
 }
 
+fun expandHome(path: String): String {
+    val trimmed = path.trim()
+    if (trimmed == "~") return System.getProperty("user.home")
+    if (trimmed.startsWith("~/")) return "${System.getProperty("user.home")}/${trimmed.removePrefix("~/")}"
+    return trimmed
+}
+
 fun parseEnvFile(file: File): Map<String, String> {
     if (!file.exists()) return emptyMap()
     return file.readLines()
@@ -35,6 +42,33 @@ fun envValue(name: String, fileEnv: Map<String, String>): String? = System.geten
 
 fun requireEnv(name: String, fileEnv: Map<String, String>): String = envValue(name, fileEnv)
     ?: error("Missing required setting: $name")
+
+fun resolveCredentialStoreFile(): File {
+    val explicit = System.getenv("DATAMANCY_CREDENTIAL_STORE_FILE")?.trim()?.takeIf { it.isNotEmpty() }
+    return if (explicit != null) {
+        File(expandHome(explicit)).absoluteFile
+    } else {
+        val xdgConfigHome = System.getenv("XDG_CONFIG_HOME")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: "${System.getProperty("user.home")}/.config"
+        File(expandHome(xdgConfigHome)).resolve("datamancy/credentials.env").absoluteFile
+    }
+}
+
+fun loadCredentialEnv(root: File): Map<String, String> {
+    val repoRoot = root.resolve("stack.compose").isDirectory && root.resolve("scripts").isDirectory
+    val credentialStore = resolveCredentialStoreFile()
+    val merged = mutableMapOf<String, String>()
+
+    if (repoRoot) {
+        root.resolve(".env").takeIf { it.exists() }?.let { merged.putAll(parseEnvFile(it)) }
+        credentialStore.takeIf { it.exists() }?.let { merged.putAll(parseEnvFile(it)) }
+    } else {
+        credentialStore.takeIf { it.exists() }?.let { merged.putAll(parseEnvFile(it)) }
+        root.resolve(".env").takeIf { it.exists() }?.let { merged.putAll(parseEnvFile(it)) }
+    }
+
+    return merged
+}
 
 fun configValue(name: String, fileEnv: Map<String, String>, defaultValue: String): String =
     envValue(name, fileEnv)?.trim()?.takeIf { it.isNotEmpty() } ?: defaultValue
@@ -57,7 +91,7 @@ fun ssha(password: String): String {
 }
 
 val root = detectRoot()
-val fileEnv = parseEnvFile(root.resolve(".env"))
+val fileEnv = loadCredentialEnv(root)
 val template = root.resolve("stack.config/ldap/bootstrap_ldap.ldif.template")
 require(template.exists()) { "Missing template: ${template.path}" }
 val output = when (args.size) {

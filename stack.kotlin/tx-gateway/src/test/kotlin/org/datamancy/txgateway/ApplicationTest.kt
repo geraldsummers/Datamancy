@@ -39,6 +39,7 @@ class ApplicationTest {
 
     private fun tradingAudit(
         username: String = "trader1",
+        evmAddress: String? = null,
         groups: List<String> = listOf("traders"),
         hasTradingProfile: Boolean = true,
         hasTradingObjectClass: Boolean = true,
@@ -54,6 +55,7 @@ class ApplicationTest {
     ) = TradingAccountAudit(
         username = username,
         email = "$username@datamancy.net",
+        evmAddress = evmAddress,
         groups = groups,
         hasTradingProfile = hasTradingProfile,
         hasTradingObjectClass = hasTradingObjectClass,
@@ -69,6 +71,28 @@ class ApplicationTest {
     )
 
     private fun freshQuoteTimestamp(): Instant = Instant.now().minusSeconds(5)
+
+    private fun riskPolicyRecord(
+        username: String = "trader1",
+        walletAddress: String? = null,
+        version: Int = 1,
+        status: String = "active"
+    ) = RiskPolicyRecord(
+        id = UUID.randomUUID(),
+        username = username,
+        walletAddress = walletAddress,
+        version = version,
+        status = status,
+        policyJson = """{"maxExposureUsd":1000.0}""",
+        createdBy = username,
+        createdAt = freshQuoteTimestamp(),
+        activatedAt = freshQuoteTimestamp(),
+        activatedByWallet = walletAddress,
+        activationSignature = null,
+        activationNonce = null,
+        activationMessage = null,
+        isBootstrap = false
+    )
 
     private fun baselineRiskAccountState(
         username: String,
@@ -2277,6 +2301,126 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(body.contains("kraken"), body)
         assertTrue(body.contains("unsupported values"), body)
+    }
+
+    @Test
+    fun testUserWalletLinkEndpointReturnsAlignmentView() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = quoteAwareDbService()
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getTradingAccountAudit("trader1") } returns tradingAudit(
+                evmAddress = "0x1111111111111111111111111111111111111111"
+            )
+            every { dbService.listRiskPolicies("trader1", false) } returns listOf(
+                riskPolicyRecord(
+                    username = "trader1",
+                    walletAddress = "0x1111111111111111111111111111111111111111",
+                    version = 2,
+                    status = "active"
+                ),
+                riskPolicyRecord(
+                    username = "trader1",
+                    walletAddress = null,
+                    version = 3,
+                    status = "draft"
+                )
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/user/wallet-link") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"draftPolicyCount\":1") || body.contains("\"draftPolicyCount\": 1"), body)
+        assertTrue(body.contains("0x1111111111111111111111111111111111111111"), body)
+    }
+
+    @Test
+    fun testTradingWalletLinksEndpointRequiresReservedGroup() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = quoteAwareDbService()
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(groups = listOf("traders"))
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/accounts/trading/wallet-links") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Reserved trading role required"), body)
+    }
+
+    @Test
+    fun testTradingWalletLinksEndpointReturnsLinkAuditSummary() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = quoteAwareDbService()
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(groups = listOf("admins"))
+            every { ldapService.listTradingAccountAudits() } returns listOf(
+                tradingAudit(
+                    username = "trader1",
+                    evmAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    groups = listOf("admins")
+                ),
+                tradingAudit(
+                    username = "trader2",
+                    evmAddress = null,
+                    groups = listOf("admins"),
+                    findings = listOf("maxTxPerHour defaulted to 240")
+                )
+            )
+            every { dbService.listActiveWalletLinkedRiskPolicies() } returns listOf(
+                riskPolicyRecord(
+                    username = "trader1",
+                    walletAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    version = 1
+                ),
+                riskPolicyRecord(
+                    username = "trader2",
+                    walletAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    version = 4
+                )
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/accounts/trading/wallet-links") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"walletsLinkedToMultipleUsers\":1") || body.contains("\"walletsLinkedToMultipleUsers\": 1"), body)
+        assertTrue(body.contains("\"walletLinksMissingLdapEvmAddress\":1") || body.contains("\"walletLinksMissingLdapEvmAddress\": 1"), body)
+        assertTrue(body.contains("wallet linked to multiple users"), body)
+        assertTrue(body.contains("LDAP trading account has no evmAddress"), body)
     }
 
     @Test

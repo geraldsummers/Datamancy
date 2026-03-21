@@ -30,6 +30,7 @@ class LdapServiceTest {
         every { userEntry.dn } returns "uid=trader1,ou=users,dc=datamancy,dc=net"
         every { userEntry.getAttributeValue("uid") } returns "trader1"
         every { userEntry.getAttributeValue("mail") } returns "trader1@datamancy.net"
+        every { userEntry.getAttributeValue("evmAddress") } returns null
         every { userEntry.getAttributeValue("maxTxPerHour") } returns "100"
         every { userEntry.getAttributeValue("maxTxValueUSD") } returns "25000"
         every { userEntry.getAttributeValue("cn") } returns null
@@ -116,6 +117,7 @@ class LdapServiceTest {
         every { userEntry.dn } returns "uid=trader1,ou=users,dc=datamancy,dc=net"
         every { userEntry.getAttributeValue("uid") } returns "trader1"
         every { userEntry.getAttributeValue("mail") } returns "trader1@datamancy.net"
+        every { userEntry.getAttributeValue("evmAddress") } returns null
         every { userEntry.getAttributeValue("maxTxPerHour") } returns "100"
         every { userEntry.getAttributeValue("maxTxValueUSD") } returns "25000"
         every { userEntry.getAttributeValue("cn") } returns null

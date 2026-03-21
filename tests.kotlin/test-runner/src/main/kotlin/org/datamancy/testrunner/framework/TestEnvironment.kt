@@ -58,8 +58,6 @@ import java.io.File
  * @property ntfy Ntfy notification service endpoint
  * @property qbittorrent qBittorrent torrent client endpoint
  * @property homeassistant Home Assistant home automation endpoint
- * @property vault HashiCorp Vault endpoint for credential storage
- * @property web3signer ConsenSys Web3Signer endpoint for transaction signing
  * @property txGateway TX Gateway endpoint for trading request routing
  * @property evmBroadcaster EVM Broadcaster worker for L2 transfers
  * @property hyperliquidWorker Hyperliquid worker for perpetual futures trading
@@ -116,8 +114,6 @@ data class ServiceEndpoints(
 
     val homeassistant: String? = null,
 
-    val vault: String,
-    val web3signer: String,
     val txGateway: String,
     val evmBroadcaster: String,
     val hyperliquidWorker: String
@@ -199,8 +195,6 @@ data class ServiceEndpoints(
 
             homeassistant = env("HOMEASSISTANT_URL") ?: "http://homeassistant:8123",
 
-            vault = env("VAULT_URL") ?: "http://vault:8200",
-            web3signer = env("WEB3SIGNER_URL") ?: "http://web3signer:9000",
             txGateway = env("TX_GATEWAY_URL") ?: "http://tx-gateway:8080",
             evmBroadcaster = env("EVM_BROADCASTER_URL") ?: "http://evm-broadcaster:8081",
             hyperliquidWorker = env("HYPERLIQUID_WORKER_URL") ?: "http://hyperliquid-worker:8082"
@@ -269,8 +263,6 @@ data class ServiceEndpoints(
 
             homeassistant = "http://localhost:8123",
 
-            vault = "http://localhost:18200",
-            web3signer = "http://localhost:19000",
             txGateway = "http://localhost:18083",
             evmBroadcaster = "http://localhost:18084",
             hyperliquidWorker = "http://localhost:18085"

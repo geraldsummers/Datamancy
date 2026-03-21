@@ -23,6 +23,13 @@ fun detectRoot(): File {
     }
 }
 
+fun expandHome(path: String): String {
+    val trimmed = path.trim()
+    if (trimmed == "~") return System.getProperty("user.home")
+    if (trimmed.startsWith("~/")) return "${System.getProperty("user.home")}/${trimmed.removePrefix("~/")}"
+    return trimmed
+}
+
 fun parseEnvFile(file: File): Map<String, String> {
     if (!file.exists()) return emptyMap()
     return file.readLines()
@@ -41,6 +48,33 @@ fun envValue(name: String, fileEnv: Map<String, String>): String? = System.geten
 
 fun requireEnv(name: String, fileEnv: Map<String, String>): String = envValue(name, fileEnv)
     ?: error("Missing required setting: $name")
+
+fun resolveCredentialStoreFile(): File {
+    val explicit = System.getenv("DATAMANCY_CREDENTIAL_STORE_FILE")?.trim()?.takeIf { it.isNotEmpty() }
+    return if (explicit != null) {
+        File(expandHome(explicit)).absoluteFile
+    } else {
+        val xdgConfigHome = System.getenv("XDG_CONFIG_HOME")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: "${System.getProperty("user.home")}/.config"
+        File(expandHome(xdgConfigHome)).resolve("datamancy/credentials.env").absoluteFile
+    }
+}
+
+fun loadCredentialEnv(root: File): Map<String, String> {
+    val repoRoot = root.resolve("stack.compose").isDirectory && root.resolve("scripts").isDirectory
+    val credentialStore = resolveCredentialStoreFile()
+    val merged = mutableMapOf<String, String>()
+
+    if (repoRoot) {
+        root.resolve(".env").takeIf { it.exists() }?.let { merged.putAll(parseEnvFile(it)) }
+        credentialStore.takeIf { it.exists() }?.let { merged.putAll(parseEnvFile(it)) }
+    } else {
+        credentialStore.takeIf { it.exists() }?.let { merged.putAll(parseEnvFile(it)) }
+        root.resolve(".env").takeIf { it.exists() }?.let { merged.putAll(parseEnvFile(it)) }
+    }
+
+    return merged
+}
 
 fun normalizeUsername(raw: String): String {
     val value = raw.trim().removeSuffix("-agent")
@@ -97,7 +131,12 @@ fun ensureFilePermissions(file: File) {
     }
 }
 
-fun resolveSecretsDir(root: File): File {
+fun resolveSecretsDir(root: File, fileEnv: Map<String, String>): File {
+    envValue("DATAMANCY_SHADOW_ACCOUNTS_DIR", fileEnv)
+        ?.let { return File(expandHome(it)).absoluteFile }
+    envValue("SHADOW_ACCOUNTS_HOST_DIR", fileEnv)
+        ?.let { return File(expandHome(it)).absoluteFile }
+
     val distPath = root.resolve("configs/model-context-server/shadow-accounts")
     if (distPath.exists() || root.resolve("docker-compose.yml").isFile) return distPath
     return root.resolve("stack.config/model-context-server/shadow-accounts")
@@ -165,13 +204,13 @@ fun ensureLdapShadowAccount(root: File, fileEnv: Map<String, String>, baseUserna
 val usernameArg = args.firstOrNull() ?: usage()
 val baseUsername = normalizeUsername(usernameArg)
 val root = detectRoot()
-val fileEnv = parseEnvFile(root.resolve(".env"))
+val fileEnv = loadCredentialEnv(root)
 val password = randomPassword()
 val provisionScript = root.resolve("scripts/security/provision-shadow-database-access.sh")
 require(provisionScript.exists()) { "Missing provision script: ${provisionScript.path}" }
 runCommand(listOf(provisionScript.absolutePath, "create", baseUsername, password), root)
 ensureLdapShadowAccount(root, fileEnv, baseUsername, password)
-val secretsDir = resolveSecretsDir(root)
+val secretsDir = resolveSecretsDir(root, fileEnv)
 secretsDir.mkdirs()
 val passwordFile = secretsDir.resolve("shadow-agent-$baseUsername.pwd")
 passwordFile.writeText(password + "\n")

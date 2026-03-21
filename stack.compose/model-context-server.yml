@@ -73,7 +73,7 @@ services:
     volumes:
       - model_context_server_known_hosts:/app/known_hosts_data:ro
       - model_context_server_scripts:/app/scripts:ro
-      - ./configs/model-context-server/shadow-accounts:/run/secrets/datamancy:ro
+      - ${SHADOW_ACCOUNTS_HOST_DIR}:/run/secrets/datamancy:ro
     group_add:
       - "988"
     healthcheck:

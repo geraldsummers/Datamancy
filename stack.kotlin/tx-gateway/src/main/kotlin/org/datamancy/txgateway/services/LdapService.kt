@@ -172,6 +172,7 @@ class LdapService(
         return TradingAccountAudit(
             username = username,
             email = email,
+            evmAddress = entry.getAttributeValue("evmAddress")?.trim()?.takeIf { it.isNotEmpty() },
             groups = groups,
             hasTradingProfile = hasTradingProfile,
             hasTradingObjectClass = hasTradingObjectClass,

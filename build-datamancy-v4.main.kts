@@ -228,6 +228,43 @@ fun expandHome(path: String): String {
     return trimmed
 }
 
+fun defaultDatamancyPath(
+    envName: String,
+    relativePath: String,
+    fallbackRoot: String
+): File {
+    val explicitRoot = System.getenv(envName)?.trim()?.takeIf { it.isNotEmpty() }
+    val baseDir = if (explicitRoot != null) {
+        File(expandHome(explicitRoot))
+    } else {
+        File(System.getProperty("user.home")).resolve(fallbackRoot)
+    }
+    return baseDir.resolve(relativePath).absoluteFile
+}
+
+fun resolveCredentialStoreFile(): File {
+    val explicit = System.getenv("DATAMANCY_CREDENTIAL_STORE_FILE")?.trim()?.takeIf { it.isNotEmpty() }
+    return if (explicit != null) {
+        File(expandHome(explicit)).absoluteFile
+    } else {
+        defaultDatamancyPath("XDG_CONFIG_HOME", "datamancy/credentials.env", ".config")
+    }
+}
+
+fun resolveShadowAccountsHostDir(): File {
+    val explicit = sequenceOf(
+        System.getenv("DATAMANCY_SHADOW_ACCOUNTS_DIR"),
+        System.getenv("SHADOW_ACCOUNTS_HOST_DIR")
+    ).mapNotNull { it?.trim()?.takeIf { value -> value.isNotEmpty() } }
+        .firstOrNull()
+
+    return if (explicit != null) {
+        File(expandHome(explicit)).absoluteFile
+    } else {
+        defaultDatamancyPath("XDG_STATE_HOME", "datamancy/shadow-accounts", ".local/state")
+    }
+}
+
 fun readFirstNonCommentLine(file: File): String? {
     if (!file.exists() || !file.isFile) return null
     return file.useLines { lines ->
@@ -1055,6 +1092,34 @@ fun loadEnvFile(file: File): MutableMap<String, String> {
     return credentials
 }
 
+fun loadExistingCredentialStore(
+    workDir: File,
+    distDir: File,
+    credentialStoreFile: File
+): MutableMap<String, String> {
+    val credentials = mutableMapOf<String, String>()
+    val distEnvFile = distDir.resolve(".env")
+    val repoEnvFile = workDir.resolve(".env")
+
+    listOf(distEnvFile, repoEnvFile, credentialStoreFile)
+        .filter { it.exists() }
+        .forEach { candidate ->
+            credentials.putAll(loadEnvFile(candidate))
+        }
+
+    if (
+        repoEnvFile.exists() &&
+        repoEnvFile.absoluteFile != credentialStoreFile.absoluteFile
+    ) {
+        warn(
+            "Legacy repo-local .env detected at ${repoEnvFile.path}; " +
+                "credentials will be persisted to ${credentialStoreFile.path} instead."
+        )
+    }
+
+    return credentials
+}
+
 fun saveEnvFile(file: File, credentials: Map<String, String>) {
     val content = buildString {
         appendLine("# Datamancy Environment Variables")
@@ -1078,10 +1143,11 @@ fun saveEnvFile(file: File, credentials: Map<String, String>) {
             }
         }
     }
+    file.parentFile?.mkdirs()
     file.writeText(content)
     file.setReadable(true, true)  // Owner only
     file.setWritable(true, true)
-    info("Saved ${credentials.size} credentials to ${file.name}")
+    info("Saved ${credentials.size} credentials to ${file.path}")
 }
 
 fun generateCredentials(
@@ -1104,6 +1170,7 @@ fun generateCredentials(
     credentials.putIfAbsent("VAULTWARDEN_ORG_NAME", sanitized.vaultwardenOrgName)
     credentials.putIfAbsent("VAULTWARDEN_ORG_IDENTIFIER", sanitized.vaultwardenOrgIdentifier)
     credentials.putIfAbsent("VAULTWARDEN_ORG_ID", sanitized.vaultwardenOrgId)
+    credentials.putIfAbsent("SHADOW_ACCOUNTS_HOST_DIR", resolveShadowAccountsHostDir().path)
     config.runtime.isolated_docker_vm_host?.let {
         credentials.putIfAbsent("ISOLATED_DOCKER_VM_HOST", it)
     }
@@ -2001,12 +2068,9 @@ ${CYAN}╔═══════════════════════�
     info("Domain: ${sanitized.domain}")
     info("Admin: ${sanitized.adminUser} <${sanitized.adminEmail}>")
 
-    val credentialStoreFile = workDir.resolve(".env")
-    val existingDistCredentials = when {
-        credentialStoreFile.exists() -> loadEnvFile(credentialStoreFile)
-        distDir.resolve(".env").exists() -> loadEnvFile(distDir.resolve(".env"))
-        else -> mutableMapOf()
-    }
+    val credentialStoreFile = resolveCredentialStoreFile()
+    info("Credential store: ${credentialStoreFile.path}")
+    val existingCredentials = loadExistingCredentialStore(workDir, distDir, credentialStoreFile)
 
     // Rebuild dist/ from a clean slate while retaining the previous credential set.
     if (distDir.exists()) {
@@ -2024,9 +2088,8 @@ ${CYAN}╔═══════════════════════�
     writeDistTestArtifacts(distDir, mapper, jsonMapper, testRegistry, testStatus)
     val hyperliquidTestnetKey = if (includeTests) requireHyperliquidTestnetKeyForTesting() else null
 
-    // Load or generate credentials from the durable local .env store and emit dist/.env as a build artifact.
+    // Load or generate credentials from the external credential store and emit dist/.env as a deploy artifact.
     val envFile = distDir.resolve(".env")
-    val existingCredentials = existingDistCredentials
     val credentials = generateCredentials(schema, sanitized, existingCredentials, config)
     hyperliquidTestnetKey?.let { key ->
         credentials["HYPERLIQUID_TESTNET_KEY"] = key

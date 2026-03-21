@@ -1190,6 +1190,30 @@ class DatabaseService(
         return policies
     }
 
+    fun listActiveWalletLinkedRiskPolicies(): List<RiskPolicyRecord> {
+        val sql = """
+            SELECT *
+            FROM risk_policy_versions
+            WHERE status = 'active'
+              AND username <> '*'
+              AND wallet_address IS NOT NULL
+              AND BTRIM(wallet_address) <> ''
+            ORDER BY username ASC, activated_at DESC NULLS LAST, created_at DESC
+        """.trimIndent()
+
+        val policies = mutableListOf<RiskPolicyRecord>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        policies += rs.toRiskPolicyRecord()
+                    }
+                }
+            }
+        }
+        return policies
+    }
+
     fun getRiskPolicyById(username: String, policyId: UUID): RiskPolicyRecord? {
         val normalizedUser = username.trim().lowercase()
         val sql = """
