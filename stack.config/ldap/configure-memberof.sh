@@ -38,11 +38,10 @@ if [ "$CURRENT_MEMBER_AD" != "member" ]; then
     NEEDS_UPDATE=1
 fi
 if [ $NEEDS_UPDATE -eq 0 ]; then
-    echo "[ldap-memberof] Configuration is correct, no update needed"
-    exit 0
-fi
-echo "[ldap-memberof] Updating memberOf overlay configuration..."
-cat > /tmp/fix-memberof.ldif << 'EOF'
+    echo "[ldap-memberof] Configuration is correct, continuing to reconcile existing group memberships"
+else
+    echo "[ldap-memberof] Updating memberOf overlay configuration..."
+    cat > /tmp/fix-memberof.ldif << 'EOF'
 dn: olcOverlay={0}memberof,olcDatabase={1}mdb,cn=config
 changetype: modify
 replace: olcMemberOfGroupOC
@@ -51,6 +50,7 @@ olcMemberOfGroupOC: groupOfNames
 replace: olcMemberOfMemberAD
 olcMemberOfMemberAD: member
 EOF
+fi
 
 rewrite_group_membership() {
     group_dn="$1"
@@ -85,42 +85,45 @@ rewrite_group_membership() {
         -f /tmp/memberof-rewrite.ldif >/dev/null
 }
 
-if ldapmodify -Q -Y EXTERNAL -H ldapi:/// -f /tmp/fix-memberof.ldif 2>&1; then
-    echo "[ldap-memberof] Configuration updated successfully"
-    rm /tmp/fix-memberof.ldif
-    echo "[ldap-memberof] Triggering memberOf recalculation for existing groups..."
-    GROUPS=$(ldapsearch -x -H ldap://localhost:389 \
-        -D "cn=admin,{{LDAP_BASE_DN}}" \
-        -w "${LDAP_ADMIN_PASSWORD}" \
-        -b "ou=groups,{{LDAP_BASE_DN}}" \
-        "(objectClass=groupOfNames)" dn 2>/dev/null | \
-        grep "^dn:" | awk '{print $2}' || echo "")
-    UNIQUE_GROUPS=$(ldapsearch -x -H ldap://localhost:389 \
-        -D "cn=admin,{{LDAP_BASE_DN}}" \
-        -w "${LDAP_ADMIN_PASSWORD}" \
-        -b "ou=groups,{{LDAP_BASE_DN}}" \
-        "(objectClass=groupOfUniqueNames)" dn 2>/dev/null | \
-        grep "^dn:" | awk '{print $2}' || echo "")
-    if [ -n "$GROUPS" ]; then
-        for group_dn in $GROUPS; do
-            echo "[ldap-memberof] Rewriting member attribute for group: $group_dn"
-            rewrite_group_membership "$group_dn" "member"
-        done
-    fi
-    if [ -n "$UNIQUE_GROUPS" ]; then
-        for group_dn in $UNIQUE_GROUPS; do
-            echo "[ldap-memberof] Rewriting uniqueMember attribute for group: $group_dn"
-            rewrite_group_membership "$group_dn" "uniqueMember"
-        done
-    fi
-    if [ -n "$GROUPS" ] || [ -n "$UNIQUE_GROUPS" ]; then
-        echo "[ldap-memberof] Group membership rewrites completed"
+if [ $NEEDS_UPDATE -eq 1 ]; then
+    if ldapmodify -Q -Y EXTERNAL -H ldapi:/// -f /tmp/fix-memberof.ldif 2>&1; then
+        echo "[ldap-memberof] Configuration updated successfully"
+        rm /tmp/fix-memberof.ldif
     else
-        echo "[ldap-memberof] No groups found to update"
+        echo "[ldap-memberof] ERROR: Failed to update configuration"
+        rm /tmp/fix-memberof.ldif
+        exit 1
     fi
+fi
+
+echo "[ldap-memberof] Triggering memberOf recalculation for existing groups..."
+GROUPS=$(ldapsearch -x -H ldap://localhost:389 \
+    -D "cn=admin,{{LDAP_BASE_DN}}" \
+    -w "${LDAP_ADMIN_PASSWORD}" \
+    -b "ou=groups,{{LDAP_BASE_DN}}" \
+    "(objectClass=groupOfNames)" dn 2>/dev/null | \
+    grep "^dn:" | awk '{print $2}' || echo "")
+UNIQUE_GROUPS=$(ldapsearch -x -H ldap://localhost:389 \
+    -D "cn=admin,{{LDAP_BASE_DN}}" \
+    -w "${LDAP_ADMIN_PASSWORD}" \
+    -b "ou=groups,{{LDAP_BASE_DN}}" \
+    "(objectClass=groupOfUniqueNames)" dn 2>/dev/null | \
+    grep "^dn:" | awk '{print $2}' || echo "")
+if [ -n "$GROUPS" ]; then
+    for group_dn in $GROUPS; do
+        echo "[ldap-memberof] Rewriting member attribute for group: $group_dn"
+        rewrite_group_membership "$group_dn" "member"
+    done
+fi
+if [ -n "$UNIQUE_GROUPS" ]; then
+    for group_dn in $UNIQUE_GROUPS; do
+        echo "[ldap-memberof] Rewriting uniqueMember attribute for group: $group_dn"
+        rewrite_group_membership "$group_dn" "uniqueMember"
+    done
+fi
+if [ -n "$GROUPS" ] || [ -n "$UNIQUE_GROUPS" ]; then
+    echo "[ldap-memberof] Group membership rewrites completed"
 else
-    echo "[ldap-memberof] ERROR: Failed to update configuration"
-    rm /tmp/fix-memberof.ldif
-    exit 1
+    echo "[ldap-memberof] No groups found to update"
 fi
 echo "[ldap-memberof] memberOf overlay configuration complete"

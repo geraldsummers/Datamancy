@@ -25,9 +25,17 @@ class LdapMemberOfConfigTest {
             memberOfScriptText.contains("rewrite_group_membership \"${'$'}group_dn\" \"member\""),
             "memberOf reconciler should rewrite the real membership attribute so existing users get backfilled memberOf values"
         )
+        assertTrue(
+            memberOfScriptText.contains("Configuration is correct, continuing to reconcile existing group memberships"),
+            "memberOf reconciler should continue into the rewrite phase even when the overlay config is already correct"
+        )
         kotlin.test.assertFalse(
             memberOfScriptText.contains("description: trigger-memberof-update"),
             "memberOf reconciler should not rely on description touch updates because they do not repopulate memberOf for existing groups"
+        )
+        kotlin.test.assertFalse(
+            memberOfScriptText.contains("Configuration is correct, no update needed\"\n    exit 0"),
+            "memberOf reconciler should not exit before rewriting existing group memberships"
         )
     }
 
