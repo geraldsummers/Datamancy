@@ -13,6 +13,28 @@ class LdapService(
 ) {
     private val logger = LoggerFactory.getLogger(LdapService::class.java)
     private lateinit var connection: LDAPConnection
+    private val defaultAllowedChains = parseCsvEnv(
+        "LDAP_DEFAULT_ALLOWED_CHAINS",
+        "base,arbitrum,optimism"
+    )
+    private val defaultAllowedExchanges = parseCsvEnv(
+        "LDAP_DEFAULT_ALLOWED_EXCHANGES",
+        "swyftx,binance,bybit,coinbase,dydx,hyperliquid,aster"
+    )
+    private val defaultAllowedTradingModes = parseCsvEnv(
+        "LDAP_DEFAULT_ALLOWED_TRADING_MODES",
+        "backtest,forward_paper"
+    )
+    private val defaultMaxTxPerHour = System.getenv("LDAP_DEFAULT_MAX_TX_PER_HOUR")
+        ?.trim()
+        ?.toIntOrNull()
+        ?.coerceAtLeast(1)
+        ?: 100
+    private val defaultMaxTxValueUsd = System.getenv("LDAP_DEFAULT_MAX_TX_VALUE_USD")
+        ?.trim()
+        ?.toIntOrNull()
+        ?.coerceAtLeast(1)
+        ?: 10000
 
     fun init() {
         connection = LDAPConnection(host, port, bindDn, bindPassword)
@@ -44,11 +66,26 @@ class LdapService(
 
             val evmAddress = entry.getAttributeValue("evmAddress")
             val allowedChains = entry.getAttributeValues("allowedChains")?.toList()
-                ?: listOf("base", "arbitrum", "optimism")
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                ?.ifEmpty { null }
+                ?: defaultAllowedChains
             val allowedExchanges = entry.getAttributeValues("allowedExchanges")?.toList()
-                ?: listOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster")
-            val maxTxPerHour = entry.getAttributeValue("maxTxPerHour")?.toIntOrNull() ?: 100
-            val maxTxValueUSD = entry.getAttributeValue("maxTxValueUSD")?.toIntOrNull() ?: 10000
+                ?.map { it.trim().lowercase() }
+                ?.filter(String::isNotEmpty)
+                ?.distinct()
+                ?.ifEmpty { null }
+                ?: defaultAllowedExchanges
+            val allowedTradingModes = entry.getAttributeValues("allowedTradingModes")?.toList()
+                ?.map { it.trim().lowercase() }
+                ?.filter(String::isNotEmpty)
+                ?.distinct()
+                ?.ifEmpty { null }
+                ?: defaultAllowedTradingModes
+            val maxTxPerHour = entry.getAttributeValue("maxTxPerHour")?.toIntOrNull()?.coerceAtLeast(1)
+                ?: defaultMaxTxPerHour
+            val maxTxValueUSD = entry.getAttributeValue("maxTxValueUSD")?.toIntOrNull()?.coerceAtLeast(1)
+                ?: defaultMaxTxValueUsd
 
             UserInfo(
                 username = username,
@@ -57,6 +94,7 @@ class LdapService(
                 evmAddress = evmAddress,
                 allowedChains = allowedChains,
                 allowedExchanges = allowedExchanges,
+                allowedTradingModes = allowedTradingModes,
                 maxTxPerHour = maxTxPerHour,
                 maxTxValueUSD = maxTxValueUSD
             )
@@ -79,5 +117,13 @@ class LdapService(
         if (::connection.isInitialized) {
             connection.close()
         }
+    }
+
+    private fun parseCsvEnv(name: String, defaultValue: String): List<String> {
+        val raw = System.getenv(name)?.trim().takeUnless { it.isNullOrEmpty() } ?: defaultValue
+        return raw.split(',', ';', '|', ' ')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
     }
 }

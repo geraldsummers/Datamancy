@@ -22,6 +22,7 @@ dn: uid={{STACK_ADMIN_USER}},ou=users,{{LDAP_BASE_DN}}
 objectClass: inetOrgPerson
 objectClass: posixAccount
 objectClass: shadowAccount
+objectClass: tradingAccount
 uid: {{STACK_ADMIN_USER}}
 cn: System Administrator
 sn: Administrator
@@ -33,6 +34,21 @@ gidNumber: 10000
 homeDirectory: /home/{{STACK_ADMIN_USER}}
 loginShell: /bin/bash
 userPassword: {{ADMIN_SSHA_PASSWORD}}
+allowedChains: base
+allowedChains: arbitrum
+allowedChains: optimism
+allowedExchanges: swyftx
+allowedExchanges: binance
+allowedExchanges: bybit
+allowedExchanges: coinbase
+allowedExchanges: dydx
+allowedExchanges: hyperliquid
+allowedExchanges: aster
+allowedTradingModes: backtest
+allowedTradingModes: forward_paper
+allowedTradingModes: testnet_live
+maxTxPerHour: 240
+maxTxValueUSD: 25000
 
 # Shadow Agent Accounts (per-user, created dynamically)
 # Format: uid={username}-agent,ou=agents,{{LDAP_BASE_DN}}

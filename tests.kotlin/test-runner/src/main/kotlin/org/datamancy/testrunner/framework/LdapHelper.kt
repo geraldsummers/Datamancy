@@ -82,6 +82,7 @@ class LdapHelper(
 
             
             ctx.createSubcontext(userDn, attrs)
+            attachTradingDefaults(ctx, userDn)
 
             
             for (groupName in groups) {
@@ -164,6 +165,50 @@ class LdapHelper(
         } catch (e: Exception) {
             
             println("      ℹ️  Could not add user to group $groupName: ${e.message}")
+        }
+    }
+
+    private fun attachTradingDefaults(ctx: DirContext, userDn: String) {
+        try {
+            val exchanges = BasicAttribute("allowedExchanges").apply {
+                add("swyftx")
+                add("binance")
+                add("bybit")
+                add("coinbase")
+                add("dydx")
+                add("hyperliquid")
+                add("aster")
+            }
+            val modes = BasicAttribute("allowedTradingModes").apply {
+                add("backtest")
+                add("forward_paper")
+                add("testnet_live")
+            }
+            val chains = BasicAttribute("allowedChains").apply {
+                add("base")
+                add("arbitrum")
+                add("optimism")
+            }
+            val mods = arrayOf(
+                ModificationItem(
+                    DirContext.ADD_ATTRIBUTE,
+                    BasicAttribute("objectClass", "tradingAccount")
+                ),
+                ModificationItem(DirContext.ADD_ATTRIBUTE, exchanges),
+                ModificationItem(DirContext.ADD_ATTRIBUTE, modes),
+                ModificationItem(DirContext.ADD_ATTRIBUTE, chains),
+                ModificationItem(
+                    DirContext.ADD_ATTRIBUTE,
+                    BasicAttribute("maxTxPerHour", "100")
+                ),
+                ModificationItem(
+                    DirContext.ADD_ATTRIBUTE,
+                    BasicAttribute("maxTxValueUSD", "25000")
+                )
+            )
+            ctx.modifyAttributes(userDn, mods)
+        } catch (e: Exception) {
+            println("      ℹ️  Could not attach trading defaults for $userDn: ${e.message}")
         }
     }
 

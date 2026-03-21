@@ -37,6 +37,9 @@ services:
       GF_AUTH_PROXY_HEADER_PROPERTY: username
       GF_AUTH_PROXY_AUTO_SIGN_UP: true
       GF_AUTH_PROXY_HEADERS: "Email:Remote-Email Name:Remote-Name"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: ${GRAFANA_AUTO_ASSIGN_ORG_ROLE:-Editor}
+      GF_LOG_LEVEL: ${GRAFANA_LOG_LEVEL:-info}
+      GF_LOG_FILTERS: ${GRAFANA_LOG_FILTERS:-auth.proxy:info}
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/market-data.json
       GF_ALERTING_ENABLED: false
       GF_UNIFIED_ALERTING_ENABLED: false

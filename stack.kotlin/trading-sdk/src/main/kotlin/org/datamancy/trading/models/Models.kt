@@ -152,6 +152,7 @@ data class UnifiedOrderRequest(
     val type: OrderType,
     val size: BigDecimal,
     val price: BigDecimal? = null,
+    val executionMode: TradingMode? = null,
     val reduceOnly: Boolean = false,
     val urgencyClass: String? = null,
     val feeTier: String? = null,
@@ -168,6 +169,7 @@ data class UnifiedOrderResult(
     val status: OrderStatus,
     val filledSize: BigDecimal = BigDecimal.ZERO,
     val fillPrice: BigDecimal? = null,
+    val executionMode: TradingMode? = null,
     val timestamp: Instant = Instant.now(),
     val raw: Map<String, Any?> = emptyMap()
 )

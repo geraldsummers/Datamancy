@@ -786,6 +786,7 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                     put("side", "BUY")
                     put("type", "MARKET")
                     put("size", "0.05")
+                    put("executionMode", "forward_paper")
                     put("urgencyClass", "normal")
                 }
 
@@ -816,7 +817,7 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                         }
 
                         val executionMode = json["executionMode"]?.jsonPrimitive?.contentOrNull
-                        executionMode shouldBe "paper"
+                        executionMode shouldBe "forward_paper"
 
                         println(
                             "      ✓ Live paper order contract validated on $exchange/$symbol using ${resolvedAuth.source} (status=$status$retrySuffix)"
@@ -829,15 +830,6 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                         }
                         println(
                             "      ✓ Live paper order was safely blocked by risk controls on $exchange/$symbol using ${resolvedAuth.source} (status=409, detail=$errorContext$retrySuffix)"
-                        )
-                    }
-                    HttpStatusCode.NotImplemented -> {
-                        val errorContext = extractErrorContext(json, body)
-                        require(errorContext.contains("adapter disabled", ignoreCase = true)) {
-                            "Unexpected non-hyperliquid adapter response: $body"
-                        }
-                        println(
-                            "      ✓ Non-hyperliquid order path is intentionally disabled on $exchange/$symbol using ${resolvedAuth.source} (status=501, detail=$errorContext)"
                         )
                     }
                     else -> error("Unexpected paper order status=${orderResult.response.status} body=$body")
@@ -878,6 +870,7 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                     put("side", "BUY")
                     put("type", "MARKET")
                     put("size", "0.001")
+                    put("executionMode", "testnet_live")
                     put("urgencyClass", "normal")
                     put("maxSlippageBps", 35.0)
                 }
@@ -910,9 +903,7 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                         require(status.isNotBlank()) { "Missing status in success payload: $body" }
                         val executionMode = json["executionMode"]?.jsonPrimitive?.contentOrNull
                         if (executionMode != null) {
-                            require(executionMode != "paper") {
-                                "Expected live hyperliquid flow, but got paper executionMode in response: $body"
-                            }
+                            executionMode shouldBe "testnet_live"
                         }
                         println(
                             "      ✓ Hyperliquid testnet order path reached exchange worker using ${resolvedAuth.source} (status=$status$retrySuffix)"

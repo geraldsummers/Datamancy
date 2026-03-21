@@ -339,7 +339,11 @@ def derive_evm_address(private_key: str) -> str:
 
 
 def resolve_account_address(creds: dict) -> str:
-    return creds.get("address") or derive_evm_address(creds["private_key"])
+    derived_address = derive_evm_address(creds["private_key"])
+    explicit_address = creds.get("address")
+    if explicit_address and explicit_address.lower() != derived_address.lower():
+        raise ValueError("Provided Hyperliquid address does not match private key")
+    return explicit_address or derived_address
 
 
 def resolve_reference_price(symbol: str, order_type: str, explicit_price: Decimal | None) -> Decimal:
@@ -417,7 +421,7 @@ def get_exchange_client(hyperliquid_key: str) -> Exchange:
         except TypeError:
             pass
 
-    account_address = explicit_address or derive_evm_address(private_key)
+    account_address = resolve_account_address(creds)
     wallet_key = private_key if private_key.startswith("0x") else f"0x{private_key}"
     wallet = Account.from_key(wallet_key)
 

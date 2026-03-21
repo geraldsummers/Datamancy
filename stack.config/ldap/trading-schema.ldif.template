@@ -45,9 +45,14 @@ olcAttributeTypes: ( 1.3.6.1.4.1.99999.1.1.7
   EQUALITY integerMatch
   SYNTAX 1.3.6.1.4.1.1466.115.121.1.27
   SINGLE-VALUE )
+olcAttributeTypes: ( 1.3.6.1.4.1.99999.1.1.8
+  NAME 'allowedTradingModes'
+  DESC 'Allowed trading execution modes'
+  EQUALITY caseIgnoreMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
 olcObjectClasses: ( 1.3.6.1.4.1.99999.2.1.1
   NAME 'tradingAccount'
   DESC 'Trading account attributes'
   AUXILIARY
   MAY ( evmAddress $ evmKeyRef $ hyperliquidKeyRef $ allowedChains $
-        allowedExchanges $ maxTxPerHour $ maxTxValueUSD ) )
+        allowedExchanges $ maxTxPerHour $ maxTxValueUSD $ allowedTradingModes ) )

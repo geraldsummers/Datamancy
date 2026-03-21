@@ -53,8 +53,9 @@ services:
       # MCP authn/authz: require LDAP-backed identity headers for tool methods.
       MCP_AUTH_REQUIRED: "true"
       MCP_LIST_ALLOWED_ROLES: "users,admins,agents"
-      MCP_DEFAULT_TOOL_ALLOWED_ROLES: "users,admins,agents"
-      MCP_TOOL_ROLE_RULES: "docker*=admins|agents;host_exec_readonly=admins|agents;http_get=admins|agents;ssh_exec_whitelisted=admins|agents;browser_login=admins|agents"
+      MCP_DEFAULT_TOOL_ALLOWED_ROLES: "admins"
+      MCP_ADMIN_TOOL_PATTERNS: "docker_*,host_*,ssh_*,vm_*"
+      MCP_TOOL_ROLE_RULES: "normalize_whitespace=users|admins|agents;uuid_generate=users|admins|agents;retrieve_stack_context=users|admins|agents;get_stack_knowledge_categories=users|admins|agents;llm_embed_text=users|admins|agents;llm_chat_completion=admins|agents;query_mariadb=admins|agents;search_qdrant=admins|agents;search_ldap=admins|agents;semantic_search=admins|agents;http_get=admins|agents;browser_dom=admins|agents;browser_screenshot=admins|agents;browser_login=admins|agents;host_exec_readonly=admins|agents;ssh_exec_whitelisted=admins|agents;docker_list_containers=admins|agents;docker_logs=admins|agents;docker_stats=admins|agents;docker_inspect=admins|agents;docker_health_wait=admins|agents;docker_container_list=admins|agents;docker_restart=admins;docker_exec=admins;docker_compose_restart=admins;docker_container_create=admins;docker_container_stop=admins;docker_container_remove=admins;docker_container_exec=admins;docker_ssh_key_get=admins"
       MCP_GRANT_HOST_NETWORK_HTTP: "true"
       MCP_GRANT_HOST_NETWORK_SSH: "true"
       TOOLSERVER_HTTP_ALLOWED_HOSTS: "*.${DOMAIN},${DOMAIN},prompt-server,playwright,litellm,authelia,caddy"

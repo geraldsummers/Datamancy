@@ -38,6 +38,8 @@ services:
       LDAP_BASE_DN: ${LDAP_BASE_DN}
       LDAP_BIND_DN: cn=admin,${LDAP_BASE_DN}
       LDAP_BIND_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      LDAP_DEFAULT_ALLOWED_EXCHANGES: ${LDAP_DEFAULT_ALLOWED_EXCHANGES:-swyftx,binance,bybit,coinbase,dydx,hyperliquid,aster}
+      LDAP_DEFAULT_ALLOWED_TRADING_MODES: ${LDAP_DEFAULT_ALLOWED_TRADING_MODES:-backtest,forward_paper}
       AUTHELIA_JWKS_URL: http://authelia:9091/jwks.json
       AUTHELIA_JWT_ISSUER: ${AUTHELIA_URL}
       AUTHELIA_JWT_AUDIENCE: ${TXG_JWT_AUDIENCE:-tx-gateway}

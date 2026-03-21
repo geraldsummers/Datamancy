@@ -13,7 +13,7 @@
   },
   "expected": {
     "status": "FILLED",
-    "executionMode": "paper",
+    "executionMode": "forward_paper",
     "requiredKeys": [
       "orderId",
       "status",
@@ -42,7 +42,7 @@
     "side": "BUY",
     "type": "MARKET",
     "simulated": true,
-    "executionMode": "paper",
+    "executionMode": "forward_paper",
     "quoteAgeMs": 2500,
     "quote": {
       "bid": 73000.0,

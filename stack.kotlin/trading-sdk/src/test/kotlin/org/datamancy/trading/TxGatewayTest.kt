@@ -678,9 +678,30 @@ class TxGatewayTest {
         val requestPath = request.path ?: ""
         val requestBody = request.body.readUtf8()
         assertTrue(requestPath.contains("/api/v1/exchanges/hyperliquid/order"), requestPath)
+        assertTrue(requestBody.contains(""""executionMode":"forward_paper""""))
         assertTrue(requestBody.contains(""""urgencyClass":"high""""))
         assertTrue(requestBody.contains(""""feeTier":"vip""""))
         assertTrue(requestBody.contains(""""maxSlippageBps":6.5"""))
         assertTrue(requestBody.contains(""""cancelAfterMs":900"""))
+    }
+
+    @Test
+    fun `mode router rejects unsupported exchange names instead of defaulting to hyperliquid`() = runBlocking {
+        val result = gateway.modeRouter.submit(
+            ModeRoutedOrderRequest(
+                mode = TradingMode.FORWARD_PAPER,
+                strategyName = "wf-ema",
+                exchange = "not-a-venue",
+                symbol = "BTC-PERP",
+                side = Side.BUY,
+                type = OrderType.MARKET,
+                size = BigDecimal("0.2"),
+                price = null
+            )
+        )
+
+        assertTrue(result is ApiResult.Error)
+        assertEquals("Unsupported exchange: not-a-venue", (result as ApiResult.Error).message)
+        assertEquals(0, mockServer.requestCount)
     }
 }

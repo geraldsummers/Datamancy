@@ -1,11 +1,77 @@
 import os
 import sys
 import ssl
+import re
+
+from jupyterhub.handlers import BaseHandler
+from remote_user_authenticator import RemoteUserAuthenticator
+from tornado import web
+from traitlets import Set, Unicode
 
 from tornado.httpclient import AsyncHTTPClient
 AsyncHTTPClient.configure("tornado.simple_httpclient.SimpleAsyncHTTPClient")
 
 c = get_config()
+
+
+class DatamancyRemoteUserLoginHandler(BaseHandler):
+    async def get(self):
+        auth_model = await self.authenticator.get_authenticated_user(self, None)
+        if auth_model is None:
+            raise web.HTTPError(401)
+
+        user = await self.auth_to_user(auth_model)
+        self.set_login_cookie(user)
+        self.redirect(self.get_next_url(user))
+
+
+class DatamancyRemoteUserAuthenticator(RemoteUserAuthenticator):
+    groups_header_name = Unicode(
+        default_value='Remote-Groups',
+        config=True,
+        help="HTTP header that carries LDAP group membership."
+    )
+    allowed_remote_groups = Set(
+        config=True,
+        help="Remote groups allowed to access JupyterHub."
+    )
+
+    def get_handlers(self, app):
+        return [
+            (r'/login', DatamancyRemoteUserLoginHandler),
+        ]
+
+    async def authenticate(self, handler, data=None):
+        remote_user = handler.request.headers.get(self.header_name, '').strip()
+        if not remote_user:
+            return None
+
+        raw_groups = handler.request.headers.get(self.groups_header_name, '')
+        groups = sorted({
+            group.strip().lower()
+            for group in re.split(r'[,;|\\s]+', raw_groups)
+            if group.strip()
+        })
+
+        return {
+            'name': remote_user,
+            'groups': groups,
+        }
+
+    def check_allowed(self, username, authentication=None):
+        if username in self.allowed_users:
+            return True
+
+        configured_groups = {group.strip().lower() for group in self.allowed_remote_groups if group.strip()}
+        if not configured_groups:
+            return True
+
+        auth_groups = {
+            group.strip().lower()
+            for group in (authentication or {}).get('groups', [])
+            if isinstance(group, str) and group.strip()
+        }
+        return not auth_groups.isdisjoint(configured_groups)
 
 c.JupyterHub.bind_url = 'http://0.0.0.0:8000'
 c.JupyterHub.hub_bind_url = 'http://0.0.0.0:8081'
@@ -47,11 +113,19 @@ c.Spawner.environment = {
     'CHOWN_EXTRA_OPTS': '-R',
 }
 
-c.JupyterHub.authenticator_class = 'remote_user_authenticator.RemoteUserAuthenticator'
+c.JupyterHub.authenticator_class = DatamancyRemoteUserAuthenticator
 
-c.RemoteUserAuthenticator.header_name = 'Remote-User'
+c.DatamancyRemoteUserAuthenticator.header_name = 'Remote-User'
+c.DatamancyRemoteUserAuthenticator.groups_header_name = 'Remote-Groups'
+c.DatamancyRemoteUserAuthenticator.allowed_remote_groups = {
+    group.strip()
+    for group in re.split(r'[,;|\\s]+', os.environ.get('JUPYTERHUB_ALLOWED_REMOTE_GROUPS', 'users,admins'))
+    if group.strip()
+}
 
-c.Authenticator.allow_all = True
+c.Authenticator.manage_groups = True
+c.Authenticator.allow_all = False
+c.Authenticator.any_allow_config = True
 
 c.Authenticator.admin_users = set()
 

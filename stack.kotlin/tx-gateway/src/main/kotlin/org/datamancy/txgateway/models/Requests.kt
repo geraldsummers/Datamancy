@@ -10,6 +10,7 @@ data class OrderRequest(
     val type: String,
     val size: String,
     val price: String? = null,
+    val executionMode: String? = null,
     val reduceOnly: Boolean = false,
     val postOnly: Boolean = false,
     val urgencyClass: String? = null,
@@ -41,6 +42,7 @@ data class UserInfo(
     val evmAddress: String?,
     val allowedChains: List<String>,
     val allowedExchanges: List<String>,
+    val allowedTradingModes: List<String> = listOf("backtest", "forward_paper", "testnet_live", "mainnet_live"),
     val maxTxPerHour: Int,
     val maxTxValueUSD: Int
 )

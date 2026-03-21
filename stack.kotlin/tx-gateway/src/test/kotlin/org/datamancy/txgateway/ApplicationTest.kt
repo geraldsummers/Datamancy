@@ -396,7 +396,7 @@ class ApplicationTest {
     }
 
     @Test
-    fun testNonHyperliquidOrderEndpointIsNotImplemented() = testApplication {
+    fun testNonHyperliquidOrderEndpointReturnsPaperExecution() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -436,14 +436,106 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
         }
 
-        assertEquals(HttpStatusCode.NotImplemented, response.status)
+        assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
-        assertTrue(body.contains("adapter disabled"), body)
-        assertTrue(body.contains("hyperliquid"), body)
+        assertTrue(Regex("\"simulated\"\\s*:\\s*true").containsMatchIn(body), body)
+        assertTrue(Regex("\"executionMode\"\\s*:\\s*\"forward_paper\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"exchange\"\\s*:\\s*\"binance\"").containsMatchIn(body), body)
     }
 
     @Test
-    fun testNonHyperliquidOrderDoesNotEmitPaperExecutionMetrics() = testApplication {
+    fun testHyperliquidOrderHonorsExplicitForwardPaperMode() = testApplication {
+        lateinit var workerClient: WorkerClient
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                allowedTradingModes = listOf("forward_paper"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25","executionMode":"forward_paper"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(Regex("\"executionMode\"\\s*:\\s*\"forward_paper\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"simulated\"\\s*:\\s*true").containsMatchIn(body), body)
+        verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
+    }
+
+    @Test
+    fun testHyperliquidLiveOrderRejectedWhenUserTradingModesExcludeLive() = testApplication {
+        lateinit var workerClient: WorkerClient
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                allowedTradingModes = listOf("forward_paper"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        val body = response.bodyAsText()
+        assertTrue(Regex("\"error\"\\s*:\\s*\"Execution mode not allowed: testnet_live\"").containsMatchIn(body), body)
+        verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
+    }
+
+    @Test
+    fun testNonHyperliquidOrderEmitsPaperExecutionMetrics() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -496,17 +588,18 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
         }
 
-        assertEquals(HttpStatusCode.NotImplemented, orderResponse.status)
+        assertEquals(HttpStatusCode.OK, orderResponse.status)
 
         val metricsResponse = client.get("/metrics")
         assertEquals(HttpStatusCode.OK, metricsResponse.status)
         val metricsBody = metricsResponse.bodyAsText()
         assertTrue(metricsBody.contains("tx_gateway_trading_total_cost_bps"), metricsBody)
-        assertTrue(!metricsBody.contains("strategy=\"tx_gateway_paper_execution\""), metricsBody)
+        assertTrue(metricsBody.contains("strategy=\"tx_gateway_paper_execution\""), metricsBody)
+        assertTrue(metricsBody.contains("execution_mode=\"forward_paper\""), metricsBody)
     }
 
     @Test
-    fun testNonHyperliquidLimitOrderEndpointIsNotImplemented() = testApplication {
+    fun testNonHyperliquidLimitOrderEndpointReturnsPaperExecution() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -546,13 +639,14 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"LIMIT","size":"0.25","price":"72000"}""")
         }
 
-        assertEquals(HttpStatusCode.NotImplemented, response.status)
+        assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
-        assertTrue(body.contains("adapter disabled"), body)
+        assertTrue(Regex("\"status\"\\s*:\\s*\"PENDING\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"executionMode\"\\s*:\\s*\"forward_paper\"").containsMatchIn(body), body)
     }
 
     @Test
-    fun testNonHyperliquidOrderEndpointDoesNotReturnSimulatedFills() = testApplication {
+    fun testNonHyperliquidOrderEndpointReturnsSimulatedExecutionDetails() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -592,15 +686,16 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"5","urgencyClass":"low","cancelAfterMs":1500}""")
         }
 
-        assertEquals(HttpStatusCode.NotImplemented, response.status)
+        assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
-        assertTrue(body.contains("adapter disabled"), body)
-        assertTrue(!body.contains("\"costs\""), body)
-        assertTrue(!body.contains("\"telemetry\""), body)
+        assertTrue(Regex("\"simulated\"\\s*:\\s*true").containsMatchIn(body), body)
+        assertTrue(body.contains("\"costs\""), body)
+        assertTrue(body.contains("\"telemetry\""), body)
+        assertTrue(body.contains("\"simulation\""), body)
     }
 
     @Test
-    fun testNonHyperliquidOrderEndpointIgnoresPaperFeeSimulation() = testApplication {
+    fun testNonHyperliquidOrderEndpointAppliesPaperFeeSimulation() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -640,10 +735,10 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","feeTier":"vip"}""")
         }
 
-        assertEquals(HttpStatusCode.NotImplemented, response.status)
+        assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
-        assertTrue(body.contains("adapter disabled"), body)
-        assertTrue(!body.contains("feeTierAdjustmentBps"), body)
+        assertTrue(Regex("\"feeTierAdjustmentBps\"\\s*:\\s*-1\\.5").containsMatchIn(body), body)
+        assertTrue(Regex("\"executionMode\"\\s*:\\s*\"forward_paper\"").containsMatchIn(body), body)
     }
 
     @Test

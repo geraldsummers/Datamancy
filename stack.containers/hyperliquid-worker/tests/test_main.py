@@ -50,9 +50,18 @@ class TestAddressResolution:
         assert main.resolve_account_address(creds) == "0xDerived"
         mock_account.from_key.assert_called_once_with("0xabcdef1234")
 
-    def test_resolve_account_address_prefers_explicit_address(self):
+    @patch('main.Account')
+    def test_resolve_account_address_prefers_matching_explicit_address(self, mock_account):
+        mock_account.from_key.return_value = Mock(address="0xExplicit")
         creds = {"address": "0xExplicit", "private_key": "unused"}
         assert main.resolve_account_address(creds) == "0xExplicit"
+
+    @patch('main.Account')
+    def test_resolve_account_address_rejects_mismatched_explicit_address(self, mock_account):
+        mock_account.from_key.return_value = Mock(address="0xDerived")
+        creds = {"address": "0xExplicit", "private_key": "unused"}
+        with pytest.raises(ValueError, match="does not match private key"):
+            main.resolve_account_address(creds)
 
 
 class TestGetExchangeClient:
@@ -667,8 +676,9 @@ class TestFlaskEndpoints:
         data = response.get_json()
         assert data['status'] == 'success'
 
+    @patch('main.resolve_account_address', return_value='0xAddress')
     @patch('main.get_info_client')
-    def test_get_positions(self, mock_get_info, client):
+    def test_get_positions(self, mock_get_info, _mock_resolve_account_address, client):
         """Test getting user positions"""
         mock_info = Mock()
         mock_info.user_state.return_value = {
@@ -699,8 +709,9 @@ class TestFlaskEndpoints:
         assert data[0]['symbol'] == 'BTC'
         assert data[0]['size'] == '0.5'
 
+    @patch('main.resolve_account_address', return_value='0xAddress')
     @patch('main.get_info_client')
-    def test_get_balance(self, mock_get_info, client):
+    def test_get_balance(self, mock_get_info, _mock_resolve_account_address, client):
         """Test getting user balance"""
         mock_info = Mock()
         mock_info.user_state.return_value = {
@@ -730,8 +741,9 @@ class TestFlaskEndpoints:
         data = response.get_json()
         assert 'hyperliquidKey' in data['error']
 
+    @patch('main.resolve_account_address', return_value='0xAddress')
     @patch('main.get_info_client')
-    def test_get_orders(self, mock_get_info, client):
+    def test_get_orders(self, mock_get_info, _mock_resolve_account_address, client):
         """Test getting open orders"""
         mock_info = Mock()
         mock_info.open_orders.return_value = [
@@ -757,9 +769,10 @@ class TestFlaskEndpoints:
         assert data[0]['symbol'] == 'BTC'
         assert data[0]['side'] == 'BUY'
 
+    @patch('main.resolve_account_address', return_value='0xAddress')
     @patch('main.get_exchange_client')
     @patch('main.get_info_client')
-    def test_close_position_success(self, mock_get_info, mock_get_exchange, client):
+    def test_close_position_success(self, mock_get_info, mock_get_exchange, _mock_resolve_account_address, client):
         """Test successful position close"""
         # Mock position info
         mock_info = Mock()
@@ -791,8 +804,9 @@ class TestFlaskEndpoints:
         assert data['status'] == 'closed'
         assert data['symbol'] == 'BTC'
 
+    @patch('main.resolve_account_address', return_value='0xAddress')
     @patch('main.get_info_client')
-    def test_close_position_not_found(self, mock_get_info, client):
+    def test_close_position_not_found(self, mock_get_info, _mock_resolve_account_address, client):
         """Test closing non-existent position"""
         mock_info = Mock()
         mock_info.user_state.return_value = {

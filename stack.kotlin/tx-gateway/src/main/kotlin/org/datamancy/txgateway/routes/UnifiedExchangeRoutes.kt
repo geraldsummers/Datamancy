@@ -24,6 +24,7 @@ import org.datamancy.txgateway.services.RiskAccountStatePatch
 import org.datamancy.txgateway.services.StrategyExecutionBaseline
 import org.datamancy.txgateway.services.TradingTelemetryMetrics
 import org.datamancy.txgateway.services.WorkerClient
+import org.datamancy.txgateway.services.parseBooleanFlag
 import org.datamancy.txgateway.services.resolveHyperliquidQuoteExchange
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
@@ -57,6 +58,18 @@ private val maxOrderSize = BigDecimal("1000000000")
 private val maxOrderPrice = BigDecimal("1000000000")
 private const val PAPER_EXECUTION_STRATEGY = "tx_gateway_paper_execution"
 private const val LIVE_EXECUTION_STRATEGY = "tx_gateway_live_execution"
+private const val FORWARD_PAPER_EXECUTION_MODE = "forward_paper"
+private val liveExecutionModes = setOf("testnet_live", "mainnet_live")
+private val hyperliquidDefaultLiveExecutionMode = if (
+    parseBooleanFlag(
+        raw = System.getenv("HYPERLIQUID_MAINNET"),
+        defaultValue = false
+    )
+) {
+    "mainnet_live"
+} else {
+    "testnet_live"
+}
 
 @Serializable
 private data class UserResponse(
@@ -65,6 +78,7 @@ private data class UserResponse(
     val groups: List<String>,
     val allowedChains: List<String>,
     val allowedExchanges: List<String>,
+    val allowedTradingModes: List<String>,
     val maxTxPerHour: Int,
     val maxTxValueUSD: Int,
     val evmAddress: String?
@@ -91,7 +105,9 @@ private data class HistoryItem(
 private data class ExchangeDescriptor(
     val name: String,
     val apiName: String,
-    val liveOrder: Boolean
+    val liveOrder: Boolean,
+    val supportedExecutionModes: List<String>,
+    val defaultExecutionMode: String
 )
 
 @Serializable
@@ -313,6 +329,7 @@ fun Route.unifiedExchangeRoutes(
                     groups = userInfo.groups,
                     allowedChains = userInfo.allowedChains,
                     allowedExchanges = userInfo.allowedExchanges,
+                    allowedTradingModes = userInfo.allowedTradingModes,
                     maxTxPerHour = userInfo.maxTxPerHour,
                     maxTxValueUSD = userInfo.maxTxValueUSD,
                     evmAddress = userInfo.evmAddress
@@ -348,7 +365,9 @@ fun Route.unifiedExchangeRoutes(
                     ExchangeDescriptor(
                         name = exchange,
                         apiName = exchange,
-                        liveOrder = liveOrderExchanges.contains(exchange)
+                        liveOrder = liveOrderExchanges.contains(exchange),
+                        supportedExecutionModes = supportedExecutionModes(exchange),
+                        defaultExecutionMode = defaultExecutionModeForExchange(exchange)
                     )
                 }
                 call.respond(HttpStatusCode.OK, ExchangeCatalogResponse(exchanges = payload))
@@ -614,8 +633,30 @@ fun Route.unifiedExchangeRoutes(
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to executionControlError))
                     return@post
                 }
+                val executionMode = resolveExecutionMode(
+                    exchange = exchange,
+                    requestedExecutionMode = orderRequest.executionMode
+                ) ?: run {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Invalid executionMode: ${orderRequest.executionMode}")
+                    )
+                    return@post
+                }
+                val allowedTradingModes = userInfo.allowedTradingModes
+                    .map { it.trim().lowercase() }
+                    .filter { it.isNotEmpty() }
+                    .toSet()
+                if (allowedTradingModes.isNotEmpty() && executionMode !in allowedTradingModes) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        mapOf("error" to "Execution mode not allowed: $executionMode")
+                    )
+                    return@post
+                }
                 val requestLog = mapOf(
                     "exchange" to exchange,
+                    "executionMode" to executionMode,
                     "symbol" to orderRequest.symbol,
                     "side" to orderRequest.side,
                     "type" to orderRequest.type,
@@ -628,7 +669,7 @@ fun Route.unifiedExchangeRoutes(
                 )
                 val maxTxValueUsd = BigDecimal.valueOf(userInfo.maxTxValueUSD.toLong())
 
-                if (exchange != "hyperliquid") {
+                if (isPaperExecutionMode(executionMode)) {
                     val quote = resolveQuoteWithPaperFallback(
                         dbService = dbService,
                         exchange = exchange,
@@ -715,7 +756,12 @@ fun Route.unifiedExchangeRoutes(
                     }
 
                     val executionPreview = runCatching {
-                        buildPaperOrderResponse(exchange = exchange, orderRequest = orderRequest, quote = quote)
+                        buildPaperOrderResponse(
+                            exchange = exchange,
+                            orderRequest = orderRequest,
+                            quote = quote,
+                            executionMode = executionMode
+                        )
                     }.getOrElse { error ->
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to (error.message ?: "invalid order payload")))
                         return@post
@@ -733,24 +779,99 @@ fun Route.unifiedExchangeRoutes(
                         return@post
                     }
 
-                    val adapterMessage =
-                        "Exchange order adapter disabled for $exchange; only hyperliquid is currently enabled"
                     dbService.logTransaction(
                         username = username,
                         txType = "exchange_order_$exchange",
                         request = requestLog.toString(),
-                        response = null,
-                        status = "error",
-                        errorMessage = adapterMessage
+                        response = dynamicJson.toJson(executionPreview),
+                        status = "success"
                     )
+
+                    runCatching {
+                        dbService.logPaperExecutionAnalytics(
+                            strategyName = PAPER_EXECUTION_STRATEGY,
+                            exchange = exchange,
+                            symbol = executionPreview.symbol,
+                            side = executionPreview.side.lowercase(),
+                            decisionLatencyMs = executionPreview.telemetry.decisionLatencyMs.toDouble(),
+                            submitToAckMs = executionPreview.telemetry.submitToAckMs.toDouble(),
+                            submitToFillMs = (
+                                executionPreview.telemetry.submitToFinalFillMs
+                                    ?: executionPreview.telemetry.submitToFirstFillMs
+                                )?.toDouble(),
+                            p50RoundTripMs = executionPreview.telemetry.p50RoundTripMs.toDouble(),
+                            p95RoundTripMs = executionPreview.telemetry.p95RoundTripMs.toDouble(),
+                            p99RoundTripMs = executionPreview.telemetry.p99RoundTripMs.toDouble(),
+                            jitterMs = executionPreview.telemetry.jitterMs.toDouble(),
+                            feeBps = executionPreview.costs.appliedFeeBps,
+                            feeTier = executionPreview.costs.feeTier,
+                            feeTierAdjustmentBps = executionPreview.costs.feeTierAdjustmentBps,
+                            makerFeeBps = executionPreview.costs.makerFeeBps,
+                            takerFeeBps = executionPreview.costs.takerFeeBps,
+                            spreadCostBps = executionPreview.costs.spreadCostBps,
+                            slippageBps = executionPreview.costs.slippageBps,
+                            impactBps = executionPreview.costs.impactBps,
+                            adverseSelectionBps = executionPreview.costs.adverseSelectionBps,
+                            fundingDriftBps = executionPreview.costs.fundingDriftBps,
+                            basisDriftBps = executionPreview.costs.basisDriftBps,
+                            totalCostBps = executionPreview.costs.totalCostBps,
+                            edgeAfterCostBps = -executionPreview.costs.totalCostBps,
+                            estimatedFeeUsd = executionPreview.costs.estimatedFeeUsd,
+                            estimatedCostUsd = executionPreview.costs.estimatedCostUsd,
+                            metadataJson = buildPaperAnalyticsMetadataJson(
+                                username = username,
+                                orderRequest = orderRequest,
+                                result = executionPreview
+                            )
+                        )
+                    }.onFailure { analyticsError ->
+                        logger.warn(
+                            "Failed to persist paper execution analytics for user={} exchange={} symbol={}: {}",
+                            username,
+                            exchange,
+                            orderRequest.symbol,
+                            analyticsError.message
+                        )
+                    }
+                    runCatching {
+                        recordExecutionDrift(
+                            dbService = dbService,
+                            tradingTelemetryMetrics = tradingTelemetryMetrics,
+                            strategyName = PAPER_EXECUTION_STRATEGY,
+                            username = username,
+                            exchange = exchange,
+                            executionMode = executionMode,
+                            orderRequest = orderRequest,
+                            result = executionPreview
+                        )
+                    }.onFailure { driftError ->
+                        logger.warn(
+                            "Failed to persist paper drift telemetry for user={} exchange={} symbol={}: {}",
+                            username,
+                            exchange,
+                            orderRequest.symbol,
+                            driftError.message
+                        )
+                    }
+
+                    call.respond(HttpStatusCode.OK, executionPreview)
+                    return@post
+                }
+
+                if (exchange != "hyperliquid") {
                     call.respond(
                         HttpStatusCode.NotImplemented,
                         mapOf(
-                            "error" to adapterMessage,
+                            "error" to "Execution mode '$executionMode' is not supported for $exchange",
                             "exchange" to exchange,
-                            "enabledOrderExchanges" to liveOrderExchanges.joinToString(",")
+                            "supportedExecutionModes" to supportedExecutionModes(exchange)
                         )
                     )
+                    return@post
+                }
+                val liveModeCompatibilityError = validateLiveExecutionMode(exchange, executionMode)
+                if (liveModeCompatibilityError != null) {
+                    call.respond(HttpStatusCode.Conflict, mapOf("error" to liveModeCompatibilityError))
                     return@post
                 }
 
@@ -873,7 +994,12 @@ fun Route.unifiedExchangeRoutes(
 
                 val liveExecutionPreview = quoteForRisk?.let { quote ->
                     runCatching {
-                        buildPaperOrderResponse(exchange = exchange, orderRequest = orderRequest, quote = quote)
+                        buildPaperOrderResponse(
+                            exchange = exchange,
+                            orderRequest = orderRequest,
+                            quote = quote,
+                            executionMode = executionMode
+                        )
                     }.getOrNull()
                 }
                 if (liveExecutionPreview?.status == "REJECTED") {
@@ -913,12 +1039,17 @@ fun Route.unifiedExchangeRoutes(
                     orderRequest.maxSlippageBps?.let { payload["maxSlippageBps"] = it }
                     orderRequest.cancelAfterMs?.let { payload["cancelAfterMs"] = it }
                     val result = workerClient.submitHyperliquidOrder(payload)
+                    val responsePayload = linkedMapOf<String, Any?>().apply {
+                        putAll(result)
+                        put("executionMode", executionMode)
+                        put("simulated", false)
+                    }
 
                     dbService.logTransaction(
                         username = username,
                         txType = "exchange_order_$exchange",
                         request = requestLog.toString(),
-                        response = result.toString(),
+                        response = responsePayload.toString(),
                         status = "success"
                     )
 
@@ -969,7 +1100,8 @@ fun Route.unifiedExchangeRoutes(
                                     username = username,
                                     orderRequest = orderRequest,
                                     result = result,
-                                    preview = preview
+                                    preview = preview,
+                                    executionMode = executionMode
                                 )
                             )
                         }.onFailure { analyticsError ->
@@ -988,7 +1120,7 @@ fun Route.unifiedExchangeRoutes(
                                 strategyName = LIVE_EXECUTION_STRATEGY,
                                 username = username,
                                 exchange = exchange,
-                                executionMode = "live",
+                                executionMode = executionMode,
                                 orderRequest = orderRequest,
                                 result = preview
                             )
@@ -1022,7 +1154,7 @@ fun Route.unifiedExchangeRoutes(
                     // Worker payload is dynamic JSON with nested heterogeneous objects.
                     // Serialize manually to avoid Kotlinx map polymorphism failures.
                     call.respondText(
-                        text = dynamicJson.toJson(result),
+                        text = dynamicJson.toJson(responsePayload),
                         contentType = ContentType.Application.Json,
                         status = HttpStatusCode.OK
                     )
@@ -1049,7 +1181,8 @@ fun Route.unifiedExchangeRoutes(
 private fun buildPaperOrderResponse(
     exchange: String,
     orderRequest: OrderRequest,
-    quote: LatestQuote
+    quote: LatestQuote,
+    executionMode: String = FORWARD_PAPER_EXECUTION_MODE
 ): PaperOrderResponse {
     val now = Instant.now()
     val side = orderRequest.side.trim().uppercase()
@@ -1272,7 +1405,7 @@ private fun buildPaperOrderResponse(
         side = side,
         type = type,
         simulated = true,
-        executionMode = "paper",
+        executionMode = executionMode,
         rejectionReason = rejectionReason,
         quoteAgeMs = Duration.between(quote.timestamp, now).toMillis().coerceAtLeast(0L),
         quote = PaperQuoteSnapshot(
@@ -1399,6 +1532,50 @@ private fun parseFeeTier(raw: String?): FeeTier = when (raw?.trim()?.lowercase()
     "pro" -> FeeTier.PRO
     "vip" -> FeeTier.VIP
     else -> FeeTier.RETAIL
+}
+
+private fun supportedExecutionModes(exchange: String): List<String> {
+    return if (exchange.lowercase() == "hyperliquid") {
+        listOf(FORWARD_PAPER_EXECUTION_MODE, "testnet_live", "mainnet_live")
+    } else {
+        listOf(FORWARD_PAPER_EXECUTION_MODE)
+    }
+}
+
+private fun defaultExecutionModeForExchange(exchange: String): String {
+    return if (exchange.lowercase() == "hyperliquid") {
+        hyperliquidDefaultLiveExecutionMode
+    } else {
+        FORWARD_PAPER_EXECUTION_MODE
+    }
+}
+
+private fun resolveExecutionMode(exchange: String, requestedExecutionMode: String?): String? {
+    val normalized = requestedExecutionMode
+        ?.trim()
+        ?.lowercase()
+        ?.takeIf { it.isNotEmpty() }
+        ?: return defaultExecutionModeForExchange(exchange)
+    return normalized.takeIf { it in supportedExecutionModes(exchange) }
+}
+
+private fun isPaperExecutionMode(executionMode: String): Boolean =
+    executionMode == FORWARD_PAPER_EXECUTION_MODE
+
+private fun validateLiveExecutionMode(exchange: String, executionMode: String): String? {
+    if (exchange.lowercase() != "hyperliquid") {
+        return "Execution mode '$executionMode' is not supported for $exchange"
+    }
+    if (executionMode !in liveExecutionModes) {
+        return "Execution mode '$executionMode' is not a live mode"
+    }
+
+    val environmentMode = hyperliquidDefaultLiveExecutionMode
+    return if (environmentMode != executionMode) {
+        "Hyperliquid worker is configured for $environmentMode, cannot execute $executionMode"
+    } else {
+        null
+    }
 }
 
 private fun validateOrderRequest(orderRequest: OrderRequest): String? {
@@ -1944,7 +2121,8 @@ private fun buildLiveAnalyticsMetadataJson(
     username: String,
     orderRequest: OrderRequest,
     result: Map<String, Any>,
-    preview: PaperOrderResponse
+    preview: PaperOrderResponse,
+    executionMode: String
 ): String {
     val resultStatus = result["status"]?.toString()?.takeIf { it.isNotBlank() } ?: "unknown"
     val resultOrderId = result["orderId"]?.toString()?.takeIf { it.isNotBlank() } ?: "unknown"
@@ -1956,7 +2134,7 @@ private fun buildLiveAnalyticsMetadataJson(
           "status":"${jsonEscape(resultStatus)}",
           "orderId":"${jsonEscape(resultOrderId)}",
           "exchange":"${jsonEscape(preview.exchange)}",
-          "executionMode":"live",
+          "executionMode":"${jsonEscape(executionMode)}",
           "simulated":false,
           "previewOnlyCosts":true,
           "orderType":"${jsonEscape(preview.type)}",

@@ -52,6 +52,7 @@ class UnifiedExchangeClient internal constructor(
             "type" to request.type.name,
             "size" to request.size.toString(),
             "price" to request.price?.toString(),
+            "executionMode" to request.executionMode?.name?.lowercase(),
             "reduceOnly" to request.reduceOnly,
             "urgencyClass" to request.urgencyClass,
             "feeTier" to request.feeTier,
@@ -154,6 +155,11 @@ class UnifiedExchangeClient internal constructor(
             ?.uppercase()
             ?.let { runCatching { OrderStatus.valueOf(it) }.getOrNull() }
             ?: OrderStatus.PENDING
+        val executionMode = payload["executionMode"]?.toString()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.uppercase()
+            ?.let { runCatching { TradingMode.valueOf(it) }.getOrNull() }
 
         val requestedSize = request.size.abs()
         val filledSize = payload["filledSize"].toBigDecimalOrNull() ?: BigDecimal.ZERO
@@ -199,6 +205,7 @@ class UnifiedExchangeClient internal constructor(
                 status = status,
                 filledSize = filledSize,
                 fillPrice = fillPrice,
+                executionMode = executionMode,
                 timestamp = Instant.now(),
                 raw = payload
             )
