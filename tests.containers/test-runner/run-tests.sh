@@ -3,18 +3,22 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIST_DIR_DEFAULT=""
 if [ -f "$SCRIPT_DIR/docker-compose.yml" ] && [ -f "$SCRIPT_DIR/tests.compose/test-runners.yml" ]; then
     PROJECT_ROOT="$SCRIPT_DIR"
+    DIST_DIR_DEFAULT="$PROJECT_ROOT"
 elif [ -d "$SCRIPT_DIR/../global.settings" ]; then
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    DIST_DIR_DEFAULT="$PROJECT_ROOT/dist"
 elif [ -d "$SCRIPT_DIR/../../global.settings" ]; then
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    DIST_DIR_DEFAULT="$PROJECT_ROOT/dist"
 else
     echo "Error: could not locate the Datamancy project root" >&2
     exit 1
 fi
 
-DIST_DIR="${DIST_DIR:-$PROJECT_ROOT/dist}"
+DIST_DIR="${DIST_DIR:-$DIST_DIR_DEFAULT}"
 PRIMARY_COMPOSE_FILE="${COMPOSE_FILE_PATH:-$DIST_DIR/docker-compose.yml}"
 TEST_RUNNERS_COMPOSE_FILE="${TEST_RUNNERS_COMPOSE_FILE_PATH:-$DIST_DIR/tests.compose/test-runners.yml}"
 TEST_REGISTRY_JSON="${TEST_REGISTRY_JSON:-$DIST_DIR/test-registry.json}"
