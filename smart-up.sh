@@ -57,6 +57,16 @@ PY
     fi
 }
 
+prepare_test_results_dir() {
+    local service="$1"
+
+    case "$service" in
+        test-*)
+            mkdir -p "$ROOT_DIR/test-results" "$ROOT_DIR/test-results/${service#test-}"
+            ;;
+    esac
+}
+
 if [ ! -f "$REGISTRY_JSON" ]; then
     error "Missing registry: $REGISTRY_JSON"
     exit 1
@@ -212,6 +222,7 @@ while IFS='|' read -r service build_flag last_changed reason build_key; do
             fi
         fi
     fi
+    prepare_test_results_dir "$service"
     up_build_arg=""
     if [ "$build_flag" = "build" ]; then
         up_build_arg="--no-build"

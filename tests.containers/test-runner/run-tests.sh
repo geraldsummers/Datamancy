@@ -101,6 +101,17 @@ docker_compose() {
         "$@"
 }
 
+prepare_service_results_dir() {
+    local service="$1"
+
+    mkdir -p "$DIST_DIR/test-results"
+    case "$service" in
+        test-*)
+            mkdir -p "$DIST_DIR/test-results/${service#test-}"
+            ;;
+    esac
+}
+
 suite_service() {
     case "$1" in
         foundation|llm|knowledge-base|data-pipeline|microservices|search-service|infrastructure|databases|user-interface|communication|collaboration|productivity|file-management|security|monitoring|backup|authentication|enhanced-auth|authenticated-ops|utility|homeassistant|stack-deployment|bookstack|cicd|isolated-docker-vm|stack-replication|agent-capability|agent-security|agent-llm-quality|agent-orchestration|stack-llm-capability|trading|trading-staged|trading-dsl|trading-advanced|web3-wallet|email-stack|caching-layer|extended-communication|extended-productivity|playwright-e2e|all)
@@ -164,6 +175,7 @@ run_service_once() {
     local service="$1"
     shift || true
 
+    prepare_service_results_dir "$service"
     build_exec_env_args
     docker_compose run --rm "${EXEC_ENV_ARGS[@]}" "$service" "$@"
 }
@@ -349,6 +361,7 @@ case "${1:-help}" in
             echo -e "${RED}Error:${NC} Unknown suite: $suite" >&2
             exit 1
         }
+        prepare_service_results_dir "$service"
         echo -e "${BLUE}Starting detached suite service: ${service}${NC}"
         docker_compose up -d --force-recreate "$service"
         ;;
@@ -366,6 +379,7 @@ case "${1:-help}" in
             echo -e "${RED}Error:${NC} Unknown suite: $suite" >&2
             exit 1
         }
+        prepare_service_results_dir "$service"
         docker_compose rm -f -s "$service" >/dev/null 2>&1 || true
         docker_compose up -d --force-recreate "$service"
         ;;
