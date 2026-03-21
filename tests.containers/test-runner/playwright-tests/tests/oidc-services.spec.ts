@@ -14,7 +14,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AutheliaLoginPage } from '../pages/AutheliaLoginPage';
@@ -632,22 +632,53 @@ async function testOIDCService(
         const onPlankaLogin = /\/login\b/i.test(page.url());
         if (onPlankaLogin && (plankaUnknownError || disallowedUrl)) {
           console.log(`   ⚠️  Planka returned to login with transient OIDC error; retrying SSO... (${i + 1}/${maxPatternRetries})`);
-          const namedSsoButton = page.getByRole('button', { name: /log in with sso|sso|oidc/i }).first();
-          const genericLoginButton = page.locator('main button').first();
-          if (await namedSsoButton.isVisible().catch(() => false)) {
-            await namedSsoButton.click({ force: true }).catch(() => {});
-            await page.waitForTimeout(2500);
+
+          const waitForPlankaRedirect = async () =>
+            page.waitForURL((url) => {
+              const href = url.toString();
+              return isAuthUrl(href) || !/\/login\b/i.test(href);
+            }, { timeout: 7000 }).then(() => true).catch(() => false);
+
+          const clickPlankaLoginAndWait = async (locator: Locator) => {
+            if (!(await locator.first().isVisible().catch(() => false))) {
+              return false;
+            }
+            await locator.first().click({ force: true }).catch(() => {});
+            await page.waitForTimeout(600);
+            return waitForPlankaRedirect();
+          };
+
+          const namedSsoButton = page.getByRole('button', { name: /log in with sso|sso|oidc/i });
+          const genericLoginButton = page.locator('main button');
+          const directSsoLink = page.locator(
+            'a[href*="openid"], a[href*="oidc"], a[href*="oauth"], a[href*="sso"], a[href*="auth"]'
+          );
+
+          if (await clickPlankaLoginAndWait(namedSsoButton)) {
             continue;
           }
-          if (await genericLoginButton.isVisible().catch(() => false)) {
-            await genericLoginButton.click({ force: true }).catch(() => {});
-            await page.waitForTimeout(2500);
+          if (await clickPlankaLoginAndWait(genericLoginButton)) {
+            continue;
+          }
+          if (await clickPlankaLoginAndWait(directSsoLink)) {
             continue;
           }
 
+          const spinnerOnlyState = await page.locator(
+            'main button.loading, main button[disabled], main button[aria-busy="true"], main button:has(i.loading.icon), main button i[class*="spinner"], main button .spinner'
+          ).first().isVisible().catch(() => false);
+          if (spinnerOnlyState) {
+            console.log('   ⚠️  Planka login button stuck in spinner state; resetting login page...');
+          }
+
           // Planka can occasionally leave the login action in a spinner-only state.
-          // Reload and retry instead of failing the whole flow immediately.
-          await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+          // Hard-reset the login page before retrying to force a fresh OIDC request.
+          const plankaLoginPath = options.loginPath ?? 'https://planka.datamancy.net/login';
+          await page.goto(plankaLoginPath, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+          await page.evaluate(() => {
+            const storageOwner = globalThis as typeof globalThis & { sessionStorage?: { clear: () => void } };
+            storageOwner.sessionStorage?.clear();
+          }).catch(() => {});
           await page.waitForTimeout(1500);
           continue;
         }
