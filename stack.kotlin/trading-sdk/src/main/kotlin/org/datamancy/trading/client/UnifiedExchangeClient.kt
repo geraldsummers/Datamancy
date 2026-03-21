@@ -46,13 +46,14 @@ class UnifiedExchangeClient internal constructor(
 
     suspend fun placeOrder(request: UnifiedOrderRequest): ApiResult<UnifiedOrderResult> {
         val path = "/api/v1/exchanges/${request.exchange.apiName}/order"
+        val executionMode = request.executionMode ?: TradingMode.FORWARD_PAPER
         val payload = mapOf(
             "symbol" to request.symbol,
             "side" to request.side.name,
             "type" to request.type.name,
             "size" to request.size.toString(),
             "price" to request.price?.toString(),
-            "executionMode" to request.executionMode?.name?.lowercase(),
+            "executionMode" to executionMode.name.lowercase(),
             "reduceOnly" to request.reduceOnly,
             "urgencyClass" to request.urgencyClass,
             "feeTier" to request.feeTier,

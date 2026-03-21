@@ -786,6 +786,15 @@ fun Route.unifiedExchangeRoutes(
                         response = dynamicJson.toJson(executionPreview),
                         status = "success"
                     )
+                    executionPreview.estimatedExecutedNotionalUsd()?.let { executedNotionalUsd ->
+                        if (executedNotionalUsd > BigDecimal.ZERO) {
+                            riskEngine.recordAcceptedOrder(
+                                username = username,
+                                notionalUsd = executedNotionalUsd,
+                                reduceOnly = orderRequest.reduceOnly
+                            )
+                        }
+                    }
 
                     runCatching {
                         dbService.logPaperExecutionAnalytics(
@@ -1053,14 +1062,14 @@ fun Route.unifiedExchangeRoutes(
                         status = "success"
                     )
 
-                    val executedNotionalUsd = result.executedNotionalUsd(
+                    val reservedNotionalUsd = result.acceptedExposureReservationUsd(
                         estimatedNotionalUsd = estimatedNotionalUsd,
                         requestedSizeRaw = orderRequest.size
                     )
-                    if (executedNotionalUsd != null && executedNotionalUsd > BigDecimal.ZERO) {
+                    if (reservedNotionalUsd != null && reservedNotionalUsd > BigDecimal.ZERO) {
                         riskEngine.recordAcceptedOrder(
                             username = username,
-                            notionalUsd = executedNotionalUsd,
+                            notionalUsd = reservedNotionalUsd,
                             reduceOnly = orderRequest.reduceOnly
                         )
                     }
@@ -1543,11 +1552,7 @@ private fun supportedExecutionModes(exchange: String): List<String> {
 }
 
 private fun defaultExecutionModeForExchange(exchange: String): String {
-    return if (exchange.lowercase() == "hyperliquid") {
-        hyperliquidDefaultLiveExecutionMode
-    } else {
-        FORWARD_PAPER_EXECUTION_MODE
-    }
+    return FORWARD_PAPER_EXECUTION_MODE
 }
 
 private fun resolveExecutionMode(exchange: String, requestedExecutionMode: String?): String? {
@@ -1921,6 +1926,26 @@ private fun Map<String, Any>.executedNotionalUsd(
         return estimatedNotionalUsd.multiply(fillRatio).setScale(8, RoundingMode.HALF_UP)
     }
     return if (status == "FILLED") estimatedNotionalUsd else null
+}
+
+private fun Map<String, Any>.acceptedExposureReservationUsd(
+    estimatedNotionalUsd: BigDecimal,
+    requestedSizeRaw: String
+): BigDecimal? {
+    executedNotionalUsd(
+        estimatedNotionalUsd = estimatedNotionalUsd,
+        requestedSizeRaw = requestedSizeRaw
+    )?.let { return it }
+
+    val status = this["status"]?.toString()?.trim()?.uppercase()
+    val hasOrderId = this["orderId"]?.toString()?.trim()?.isNotEmpty() == true
+    if (status in setOf("REJECTED", "FAILED", "CANCELLED", "ERROR")) {
+        return null
+    }
+    if (status == null && !hasOrderId) {
+        return null
+    }
+    return estimatedNotionalUsd.takeIf { it > BigDecimal.ZERO }
 }
 
 private fun reconcileHyperliquidRiskState(

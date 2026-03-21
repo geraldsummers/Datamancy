@@ -16,17 +16,35 @@ class HyperliquidClient internal constructor(
         symbol: String,
         side: Side,
         size: BigDecimal,
-        reduceOnly: Boolean = false
+        reduceOnly: Boolean = false,
+        executionMode: TradingMode = TradingMode.FORWARD_PAPER,
+        urgencyClass: String? = null,
+        feeTier: String? = null,
+        maxSlippageBps: BigDecimal? = null,
+        cancelAfterMs: Long? = null
     ): ApiResult<Order> {
-        logger.info("Market order: $side $size $symbol (reduceOnly=$reduceOnly)")
+        logger.info(
+            "Market order: {} {} {} (reduceOnly={}, executionMode={})",
+            side,
+            size,
+            symbol,
+            reduceOnly,
+            executionMode
+        )
 
-        val request = mapOf(
+        val request = linkedMapOf<String, Any>(
             "symbol" to symbol,
             "side" to side.name,
             "type" to "MARKET",
             "size" to size.toString(),
+            "executionMode" to executionMode.name.lowercase(),
             "reduceOnly" to reduceOnly
-        )
+        ).apply {
+            urgencyClass?.takeIf { it.isNotBlank() }?.let { put("urgencyClass", it) }
+            feeTier?.takeIf { it.isNotBlank() }?.let { put("feeTier", it) }
+            maxSlippageBps?.let { put("maxSlippageBps", it.toDouble()) }
+            cancelAfterMs?.let { put("cancelAfterMs", it) }
+        }
 
         return httpClient.post("/api/v1/exchanges/hyperliquid/order", request)
     }
@@ -40,19 +58,39 @@ class HyperliquidClient internal constructor(
         size: BigDecimal,
         price: BigDecimal,
         reduceOnly: Boolean = false,
-        postOnly: Boolean = false
+        postOnly: Boolean = false,
+        executionMode: TradingMode = TradingMode.FORWARD_PAPER,
+        urgencyClass: String? = null,
+        feeTier: String? = null,
+        maxSlippageBps: BigDecimal? = null,
+        cancelAfterMs: Long? = null
     ): ApiResult<Order> {
-        logger.info("Limit order: $side $size $symbol @ $price (reduceOnly=$reduceOnly, postOnly=$postOnly)")
+        logger.info(
+            "Limit order: {} {} {} @ {} (reduceOnly={}, postOnly={}, executionMode={})",
+            side,
+            size,
+            symbol,
+            price,
+            reduceOnly,
+            postOnly,
+            executionMode
+        )
 
-        val request = mapOf(
+        val request = linkedMapOf<String, Any>(
             "symbol" to symbol,
             "side" to side.name,
             "type" to "LIMIT",
             "size" to size.toString(),
             "price" to price.toString(),
+            "executionMode" to executionMode.name.lowercase(),
             "reduceOnly" to reduceOnly,
             "postOnly" to postOnly
-        )
+        ).apply {
+            urgencyClass?.takeIf { it.isNotBlank() }?.let { put("urgencyClass", it) }
+            feeTier?.takeIf { it.isNotBlank() }?.let { put("feeTier", it) }
+            maxSlippageBps?.let { put("maxSlippageBps", it.toDouble()) }
+            cancelAfterMs?.let { put("cancelAfterMs", it) }
+        }
 
         return httpClient.post("/api/v1/exchanges/hyperliquid/order", request)
     }

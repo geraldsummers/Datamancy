@@ -64,6 +64,9 @@ class TxGatewayTest {
         assertEquals("ETH-PERP", order.symbol)
         assertEquals(Side.BUY, order.side)
         assertEquals(OrderStatus.FILLED, order.status)
+
+        val requestBody = mockServer.takeRequest().body.readUtf8()
+        assertTrue(requestBody.contains(""""executionMode":"forward_paper""""), requestBody)
     }
 
     @Test
@@ -97,6 +100,51 @@ class TxGatewayTest {
         assertEquals("67890", order.orderId)
         assertEquals(OrderType.LIMIT, order.type)
         assertEquals(OrderStatus.PENDING, order.status)
+
+        val requestBody = mockServer.takeRequest().body.readUtf8()
+        assertTrue(requestBody.contains(""""executionMode":"forward_paper""""), requestBody)
+    }
+
+    @Test
+    fun `test hyperliquid limit order forwards explicit execution controls`() = runBlocking {
+        val mockResponse = """
+            {
+                "orderId": "limit-2468",
+                "symbol": "BTC-PERP",
+                "side": "SELL",
+                "type": "LIMIT",
+                "size": "0.5",
+                "price": "50000.00",
+                "status": "PENDING",
+                "filledSize": "0.0",
+                "fillPrice": null,
+                "timestamp": "2026-02-07T00:00:00Z"
+            }
+        """.trimIndent()
+
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.hyperliquid.limit(
+            symbol = "BTC-PERP",
+            side = Side.SELL,
+            size = BigDecimal("0.5"),
+            price = BigDecimal("50000"),
+            postOnly = true,
+            executionMode = TradingMode.TESTNET_LIVE,
+            urgencyClass = "high",
+            feeTier = "vip",
+            maxSlippageBps = BigDecimal("4.5"),
+            cancelAfterMs = 750
+        )
+
+        assertTrue(result is ApiResult.Success)
+        val requestBody = mockServer.takeRequest().body.readUtf8()
+        assertTrue(requestBody.contains("\"executionMode\":\"testnet_live\""), requestBody)
+        assertTrue(requestBody.contains("\"postOnly\":true"), requestBody)
+        assertTrue(requestBody.contains("\"urgencyClass\":\"high\""), requestBody)
+        assertTrue(requestBody.contains("\"feeTier\":\"vip\""), requestBody)
+        assertTrue(requestBody.contains("\"maxSlippageBps\":4.5"), requestBody)
+        assertTrue(requestBody.contains("\"cancelAfterMs\":750"), requestBody)
     }
 
     @Test

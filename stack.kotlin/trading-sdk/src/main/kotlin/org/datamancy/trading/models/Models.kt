@@ -152,7 +152,7 @@ data class UnifiedOrderRequest(
     val type: OrderType,
     val size: BigDecimal,
     val price: BigDecimal? = null,
-    val executionMode: TradingMode? = null,
+    val executionMode: TradingMode? = TradingMode.FORWARD_PAPER,
     val reduceOnly: Boolean = false,
     val urgencyClass: String? = null,
     val feeTier: String? = null,

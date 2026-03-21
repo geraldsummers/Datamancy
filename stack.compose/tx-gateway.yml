@@ -18,9 +18,11 @@ services:
       postgres:
         condition: service_healthy
       ldap:
-        condition: service_started
+        condition: service_healthy
+      ldap-ensure-suffixes:
+        condition: service_completed_successfully
       authelia:
-        condition: service_started
+        condition: service_healthy
     environment:
       PORT: 8080
       POSTGRES_HOST: postgres

@@ -537,43 +537,47 @@ class ApplicationTest {
     }
 
     @Test
-    fun testHyperliquidLiveOrderRejectedWhenUserTradingModesExcludeLive() = testApplication {
+    fun testHyperliquidOrderDefaultsToForwardPaperWhenLiveModeIsNotRequested() = testApplication {
         lateinit var workerClient: WorkerClient
+        lateinit var dbService: DatabaseService
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            dbService = mockk(relaxed = true)
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
             every { authService.extractUsername(jwt) } returns "trader1"
-            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
-                username = "trader1",
-                email = "trader1@datamancy.net",
-                groups = listOf("traders"),
-                evmAddress = null,
-                allowedChains = listOf("base"),
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(
                 allowedExchanges = listOf("hyperliquid"),
-                allowedTradingModes = listOf("forward_paper"),
-                maxTxPerHour = 100,
-                maxTxValueUSD = 25000
+                allowedTradingModes = listOf("forward_paper")
             )
             every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            stubAllowingRiskState(dbService)
 
             configureApp(authService, ldapService, workerClient, dbService)
         }
 
         val response = client.post("/api/v1/exchanges/hyperliquid/order") {
             header(HttpHeaders.Authorization, "Bearer token")
-            header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
         }
 
-        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
-        assertTrue(Regex("\"error\"\\s*:\\s*\"Execution mode not allowed: testnet_live\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"executionMode\"\\s*:\\s*\"forward_paper\"").containsMatchIn(body), body)
+        assertTrue(Regex("\"simulated\"\\s*:\\s*true").containsMatchIn(body), body)
         verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
     }
 
@@ -639,6 +643,52 @@ class ApplicationTest {
         assertTrue(metricsBody.contains("tx_gateway_trading_total_cost_bps"), metricsBody)
         assertTrue(metricsBody.contains("strategy=\"tx_gateway_paper_execution\""), metricsBody)
         assertTrue(metricsBody.contains("execution_mode=\"forward_paper\""), metricsBody)
+    }
+
+    @Test
+    fun testPaperOrderRecordsAcceptedRiskExposureFromSimulatedFill() = testApplication {
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(
+                allowedExchanges = listOf("binance"),
+                allowedTradingModes = listOf("forward_paper")
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "market_data:trade"
+            )
+            stubAllowingRiskState(dbService)
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"LIMIT","size":"0.25","price":"73010","executionMode":"forward_paper"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        verify(exactly = 1) {
+            dbService.adjustRiskOpenExposure(
+                username = "trader1",
+                deltaExposureUsd = match { it.compareTo(BigDecimal("18252.5")) == 0 }
+            )
+        }
     }
 
     @Test
@@ -871,7 +921,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","maxSlippageBps":0.5}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live","maxSlippageBps":0.5}""")
         }
 
         assertEquals(HttpStatusCode.BadRequest, response.status)
@@ -942,7 +992,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
         }
 
         assertEquals(HttpStatusCode.OK, response.status)
@@ -1018,7 +1068,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
         }
 
         assertEquals(HttpStatusCode.OK, response.status)
@@ -1081,7 +1131,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
         }
 
         assertEquals(HttpStatusCode.OK, response.status)
@@ -1143,7 +1193,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
         }
 
         assertEquals(HttpStatusCode.OK, response.status)
@@ -1151,6 +1201,62 @@ class ApplicationTest {
             dbService.adjustRiskOpenExposure(
                 username = "trader1",
                 deltaExposureUsd = match { it.compareTo(BigDecimal("7301.00000000")) == 0 }
+            )
+        }
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderReservesEstimatedNotionalWhenWorkerReturnsPendingHandle() = testApplication {
+        lateinit var workerClient: WorkerClient
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            dbService = mockk(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(
+                allowedExchanges = listOf("hyperliquid"),
+                allowedTradingModes = listOf("forward_paper", "testnet_live")
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            stubAllowingRiskState(dbService)
+            every { workerClient.submitHyperliquidOrder(any()) } returns mapOf(
+                "orderId" to "live-pending",
+                "status" to "PENDING"
+            )
+            every { workerClient.getHyperliquidBalance("trader1", "test-key") } returns mapOf(
+                "accountValue" to "10000"
+            )
+            every { workerClient.getHyperliquidPositions("trader1", "test-key") } returns emptyList()
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        verify(exactly = 1) {
+            dbService.adjustRiskOpenExposure(
+                username = "trader1",
+                deltaExposureUsd = match { it.compareTo(BigDecimal("7301.0")) == 0 }
             )
         }
     }
@@ -1205,7 +1311,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
         }
 
         assertEquals(HttpStatusCode.OK, response.status)
@@ -1679,7 +1785,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "   ")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
         }
 
         assertEquals(HttpStatusCode.BadRequest, response.status)
@@ -1720,7 +1826,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
         }
 
         assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
@@ -1769,7 +1875,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
         }
 
         assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
@@ -1824,7 +1930,7 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer token")
             header("X-Credential-hyperliquid", "test-key")
             contentType(ContentType.Application.Json)
-            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
         }
 
         assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
