@@ -34,21 +34,11 @@ gidNumber: 10000
 homeDirectory: /home/{{STACK_ADMIN_USER}}
 loginShell: /bin/bash
 userPassword: {{ADMIN_SSHA_PASSWORD}}
-allowedChains: base
-allowedChains: arbitrum
-allowedChains: optimism
-allowedExchanges: swyftx
-allowedExchanges: binance
-allowedExchanges: bybit
-allowedExchanges: coinbase
-allowedExchanges: dydx
-allowedExchanges: hyperliquid
-allowedExchanges: aster
-allowedTradingModes: backtest
-allowedTradingModes: forward_paper
-allowedTradingModes: testnet_live
-maxTxPerHour: 240
-maxTxValueUSD: 25000
+{{LDAP_DEFAULT_ALLOWED_CHAINS_LDIF}}
+{{LDAP_DEFAULT_ALLOWED_EXCHANGES_LDIF}}
+{{LDAP_DEFAULT_ALLOWED_TRADING_MODES_LDIF}}
+maxTxPerHour: {{LDAP_DEFAULT_MAX_TX_PER_HOUR_VALUE}}
+maxTxValueUSD: {{LDAP_DEFAULT_MAX_TX_VALUE_USD_VALUE}}
 
 # Shadow Agent Accounts (per-user, created dynamically)
 # Format: uid={username}-agent,ou=agents,{{LDAP_BASE_DN}}

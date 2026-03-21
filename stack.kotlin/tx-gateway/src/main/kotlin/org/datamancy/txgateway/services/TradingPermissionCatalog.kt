@@ -48,7 +48,7 @@ object TradingPermissionCatalog {
         }
     val defaultAllowedTradingModes =
         parseCsv(System.getenv("LDAP_DEFAULT_ALLOWED_TRADING_MODES")).filter { it in supportedTradingModes }.ifEmpty {
-            listOf("backtest", "forward_paper")
+            listOf("backtest", "forward_paper", "testnet_live")
         }
     val mainnetReservedGroups = parseCsv(System.getenv("LDAP_MAINNET_ALLOWED_GROUPS")).toSet().ifEmpty { setOf("admins") }
 

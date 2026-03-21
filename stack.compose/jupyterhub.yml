@@ -32,6 +32,8 @@ services:
       JUPYTER_NOTEBOOK_IMAGE: ${JUPYTER_NOTEBOOK_IMAGE:-datamancy-jupyter-notebook:5.4.3}
       DOCKER_HOST: tcp://docker-socket-proxy:2375
       JUPYTERHUB_ALLOWED_REMOTE_GROUPS: ${JUPYTERHUB_ALLOWED_REMOTE_GROUPS:-users,admins}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: datamancy

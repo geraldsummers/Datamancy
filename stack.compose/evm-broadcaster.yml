@@ -18,7 +18,7 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: txgateway
-      POSTGRES_USER: txgateway
+      POSTGRES_USER: ${POSTGRES_TXGATEWAY_USER:-txgateway}
       POSTGRES_PASSWORD: ${POSTGRES_TXGATEWAY_PASSWORD}
       BASE_RPC_URL: ${BASE_RPC_URL:-https://mainnet.base.org}
       ARBITRUM_RPC_URL: ${ARBITRUM_RPC_URL:-https://arb1.arbitrum.io/rpc}

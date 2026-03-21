@@ -104,13 +104,39 @@ class ApplicationTest {
         every { dbService.fetchLatestSentiment(any(), any()) } returns null
     }
 
+    private fun quoteAwareDbService(): DatabaseService {
+        val dbService = mockk<DatabaseService>(relaxed = true)
+        every { dbService.fetchLatestQuote(any(), any(), any()) } answers {
+            val exchange = args[0] as String
+            val symbol = args[1] as String
+            val executionMode = args[2] as String?
+            val quote = dbService.fetchLatestQuote(exchange, symbol) ?: return@answers null
+            if (exchange.lowercase() != "hyperliquid" || executionMode.isNullOrBlank()) {
+                return@answers quote
+            }
+
+            val resolvedExchange = when (executionMode.trim().lowercase()) {
+                "forward_paper", "mainnet_live" -> "hyperliquid_mainnet"
+                "testnet_live" -> "hyperliquid_testnet"
+                else -> null
+            } ?: return@answers quote
+
+            if (quote.source.contains("resolved_exchange=")) {
+                quote
+            } else {
+                quote.copy(source = "${quote.source}:resolved_exchange=$resolvedExchange")
+            }
+        }
+        return dbService
+    }
+
     @Test
     fun testHealthEndpoint() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             configureApp(authService, ldapService, workerClient, dbService)
         }
 
@@ -126,7 +152,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             configureApp(authService, ldapService, workerClient, dbService)
         }
 
@@ -143,7 +169,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             configureApp(authService, ldapService, workerClient, dbService)
         }
 
@@ -159,7 +185,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             configureApp(authService, ldapService, workerClient, dbService)
         }
 
@@ -177,7 +203,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             configureApp(authService, ldapService, workerClient, dbService)
         }
 
@@ -200,7 +226,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
                 exchange = "hyperliquid",
                 symbol = "BTC",
@@ -226,7 +252,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
                 exchange = "hyperliquid",
                 symbol = "BTC",
@@ -251,7 +277,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
                 exchange = "hyperliquid",
                 symbol = "BTC",
@@ -276,7 +302,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
                 exchange = "hyperliquid",
                 symbol = "BTC",
@@ -301,7 +327,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
 
             every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
                 exchange = "hyperliquid",
@@ -344,7 +370,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
 
             every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
                 exchange = "hyperliquid",
@@ -380,7 +406,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
 
             every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
                 exchange = "hyperliquid",
@@ -416,7 +442,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
 
             every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
                 exchange = "hyperliquid",
@@ -452,7 +478,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -493,7 +519,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -525,7 +551,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -576,7 +602,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -619,7 +645,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -684,7 +710,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -729,7 +755,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -776,7 +802,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -825,7 +851,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -872,7 +898,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -919,7 +945,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -970,7 +996,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1056,7 +1082,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1120,7 +1146,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1183,7 +1209,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1245,7 +1271,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1301,7 +1327,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1364,7 +1390,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1411,7 +1437,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1457,7 +1483,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1503,7 +1529,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1550,7 +1576,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1579,7 +1605,7 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.BadRequest, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("Invalid urgencyClass"), body)
-        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any(), any()) }
     }
 
     @Test
@@ -1589,7 +1615,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1618,7 +1644,7 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.BadRequest, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("Invalid symbol"), body)
-        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any(), any()) }
     }
 
     @Test
@@ -1628,7 +1654,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1657,7 +1683,7 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.BadRequest, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("Invalid side"), body)
-        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any(), any()) }
     }
 
     @Test
@@ -1667,7 +1693,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1696,7 +1722,7 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.BadRequest, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("Market orders must not include price"), body)
-        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any(), any()) }
     }
 
     @Test
@@ -1706,7 +1732,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1735,7 +1761,7 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.BadRequest, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("cancelAfterMs must be <= 600000"), body)
-        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any(), any()) }
     }
 
     @Test
@@ -1745,7 +1771,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            dbService = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1774,7 +1800,7 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.BadRequest, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("postOnly is only valid for LIMIT orders"), body)
-        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any()) }
+        verify(exactly = 0) { dbService.fetchLatestQuote(any(), any(), any()) }
     }
 
     @Test
@@ -1784,7 +1810,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1833,7 +1859,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1874,7 +1900,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1923,7 +1949,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -1947,6 +1973,15 @@ class ApplicationTest {
                 last = 73005.0,
                 timestamp = freshQuoteTimestamp(),
                 source = "orderbook_data:canonical"
+            )
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC", "testnet_live") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical:resolved_exchange=hyperliquid_mainnet"
             )
 
             configureApp(
@@ -1977,7 +2012,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -2067,7 +2102,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             configureApp(authService, ldapService, workerClient, dbService)
         }
 
@@ -2088,7 +2123,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -2121,7 +2156,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             workerClient = mockk(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -2151,7 +2186,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -2181,7 +2216,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -2206,7 +2241,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -2244,7 +2279,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             val jwt = mockk<DecodedJWT>(relaxed = true)
 
             every { authService.validateToken("token") } returns jwt
@@ -2277,7 +2312,7 @@ class ApplicationTest {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
-            val dbService = mockk<DatabaseService>(relaxed = true)
+            val dbService = quoteAwareDbService()
             configureApp(authService, ldapService, workerClient, dbService)
         }
 

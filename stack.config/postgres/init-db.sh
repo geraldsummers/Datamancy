@@ -14,6 +14,7 @@ POSTGRES_AGENT_PASSWORD="${POSTGRES_AGENT_PASSWORD:?ERROR: POSTGRES_AGENT_PASSWO
 POSTGRES_PIPELINE_PASSWORD="${POSTGRES_PIPELINE_PASSWORD:?ERROR: POSTGRES_PIPELINE_PASSWORD not set}"
 POSTGRES_SEARCH_SERVICE_PASSWORD="${POSTGRES_SEARCH_SERVICE_PASSWORD:?ERROR: POSTGRES_SEARCH_SERVICE_PASSWORD not set}"
 POSTGRES_TEST_RUNNER_PASSWORD="${POSTGRES_TEST_RUNNER_PASSWORD:?ERROR: POSTGRES_TEST_RUNNER_PASSWORD not set}"
+POSTGRES_TXGATEWAY_USER="${POSTGRES_TXGATEWAY_USER:-txgateway}"
 POSTGRES_TXGATEWAY_PASSWORD="${POSTGRES_TXGATEWAY_PASSWORD:?ERROR: POSTGRES_TXGATEWAY_PASSWORD not set}"
 POSTGRES_SOGO_PASSWORD="${POSTGRES_SOGO_PASSWORD:?ERROR: POSTGRES_SOGO_PASSWORD not set}"
 # PGPASSWORD already set by docker-compose environment
@@ -102,10 +103,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
             ALTER USER test_runner_user WITH PASSWORD \$pwd\$$POSTGRES_TEST_RUNNER_PASSWORD\$pwd\$;
         END IF;
         -- Create txgateway service user (for tx-gateway and evm-broadcaster services)
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'txgateway') THEN
-            CREATE USER txgateway WITH PASSWORD \$pwd\$$POSTGRES_TXGATEWAY_PASSWORD\$pwd\$;
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$POSTGRES_TXGATEWAY_USER') THEN
+            EXECUTE format('CREATE USER %I WITH PASSWORD %L', '$POSTGRES_TXGATEWAY_USER', '$POSTGRES_TXGATEWAY_PASSWORD');
         ELSE
-            ALTER USER txgateway WITH PASSWORD \$pwd\$$POSTGRES_TXGATEWAY_PASSWORD\$pwd\$;
+            EXECUTE format('ALTER USER %I WITH PASSWORD %L', '$POSTGRES_TXGATEWAY_USER', '$POSTGRES_TXGATEWAY_PASSWORD');
         END IF;
     END
     \$\$;
@@ -134,7 +135,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sogo')\gexec
     SELECT 'CREATE DATABASE datamancy OWNER pipeline_user'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'datamancy')\gexec
-    SELECT 'CREATE DATABASE txgateway OWNER txgateway'
+    SELECT format('CREATE DATABASE txgateway OWNER %I', '$POSTGRES_TXGATEWAY_USER')
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'txgateway')\gexec
     -- Create sysadmin database for monitoring/admin tools
     SELECT 'CREATE DATABASE sysadmin OWNER $POSTGRES_USER'
@@ -162,7 +163,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE datamancy TO pipeline_user;
     GRANT CONNECT ON DATABASE datamancy TO search_service_user;
     GRANT CONNECT ON DATABASE datamancy TO test_runner_user;
-    GRANT ALL PRIVILEGES ON DATABASE txgateway TO txgateway;
+    SELECT format('GRANT ALL PRIVILEGES ON DATABASE txgateway TO %I', '$POSTGRES_TXGATEWAY_USER')\gexec
     -- Shadow agent accounts are granted CONNECT via scripts/security/provision-shadow-database-access.sh
     -- Each {username}-agent gets CONNECT on safe databases only (grafana, planka, mastodon, forgejo)
     -- SECURITY: Per-user shadow accounts enable audit traceability and limited blast radius
@@ -190,7 +191,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "sogo" -c "GRANT AL
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT ALL ON SCHEMA public TO pipeline_user;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT USAGE ON SCHEMA public TO search_service_user;"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" -c "GRANT USAGE ON SCHEMA public TO test_runner_user;"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "txgateway" -c "GRANT ALL ON SCHEMA public TO txgateway;"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "txgateway" -c "GRANT ALL ON SCHEMA public TO \"$POSTGRES_TXGATEWAY_USER\";"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "datamancy" <<-EOSQL
     -- Data-fetcher tables for deduplication and fetch tracking
     CREATE TABLE IF NOT EXISTS dedupe_records (

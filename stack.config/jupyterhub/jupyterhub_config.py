@@ -105,10 +105,13 @@ c.DockerSpawner.volumes = {
     'jupyterhub-user-{username}': '/home/jovyan/work'
 }
 
+litellm_api_key = os.environ.get('LITELLM_API_KEY') or os.environ.get('LITELLM_MASTER_KEY') or 'unused'
+
 c.Spawner.environment = {
-    'LITELLM_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
+    'LITELLM_API_KEY': litellm_api_key,
+    'LITELLM_MASTER_KEY': litellm_api_key,
     'OPENAI_API_BASE': 'http://litellm:4000/v1',
-    'OPENAI_API_KEY': os.environ.get('LITELLM_API_KEY', 'unused'),
+    'OPENAI_API_KEY': litellm_api_key,
     'POSTGRES_HOST': os.environ.get('POSTGRES_HOST', 'postgres'),
     'POSTGRES_PORT': os.environ.get('POSTGRES_PORT', '5432'),
     'POSTGRES_DB': os.environ.get('POSTGRES_DB', 'datamancy'),

@@ -40,4 +40,67 @@ class DatabaseConfigTest {
             resolveHyperliquidQuoteExchange(explicitExchange = null, mainnetFlag = "true")
         )
     }
+
+    @Test
+    fun `quote exchange resolves per execution mode`() {
+        assertEquals(
+            "hyperliquid_mainnet",
+            resolveHyperliquidQuoteExchangeForExecutionMode(
+                requestedExecutionMode = "forward_paper",
+                legacyQuoteExchange = null,
+                forwardPaperExchange = null,
+                testnetExchange = null,
+                mainnetExchange = null,
+                mainnetFlag = "false"
+            )
+        )
+        assertEquals(
+            "hyperliquid_testnet",
+            resolveHyperliquidQuoteExchangeForExecutionMode(
+                requestedExecutionMode = "testnet_live",
+                legacyQuoteExchange = null,
+                forwardPaperExchange = null,
+                testnetExchange = null,
+                mainnetExchange = null,
+                mainnetFlag = "true"
+            )
+        )
+        assertEquals(
+            "hyperliquid_mainnet",
+            resolveHyperliquidQuoteExchangeForExecutionMode(
+                requestedExecutionMode = "mainnet_live",
+                legacyQuoteExchange = null,
+                forwardPaperExchange = null,
+                testnetExchange = null,
+                mainnetExchange = null,
+                mainnetFlag = "false"
+            )
+        )
+    }
+
+    @Test
+    fun `quote exchange uses mode-specific overrides before legacy fallback`() {
+        assertEquals(
+            "hyperliquid_live_tape",
+            resolveHyperliquidQuoteExchangeForExecutionMode(
+                requestedExecutionMode = "forward_paper",
+                legacyQuoteExchange = "hyperliquid_testnet",
+                forwardPaperExchange = "hyperliquid_live_tape",
+                testnetExchange = "hyperliquid_testnet",
+                mainnetExchange = "hyperliquid_mainnet",
+                mainnetFlag = "false"
+            )
+        )
+        assertEquals(
+            "hyperliquid_testnet",
+            resolveHyperliquidQuoteExchangeForExecutionMode(
+                requestedExecutionMode = null,
+                legacyQuoteExchange = "hyperliquid_testnet",
+                forwardPaperExchange = "hyperliquid_mainnet",
+                testnetExchange = "hyperliquid_testnet",
+                mainnetExchange = "hyperliquid_mainnet",
+                mainnetFlag = "true"
+            )
+        )
+    }
 }

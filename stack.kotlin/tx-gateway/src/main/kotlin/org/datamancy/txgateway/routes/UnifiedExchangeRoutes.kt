@@ -28,6 +28,7 @@ import org.datamancy.txgateway.services.TradingTelemetryMetrics
 import org.datamancy.txgateway.services.WorkerClient
 import org.datamancy.txgateway.services.parseBooleanFlag
 import org.datamancy.txgateway.services.resolveHyperliquidQuoteExchange
+import org.datamancy.txgateway.services.resolveHyperliquidQuoteExchangeForExecutionMode
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -480,11 +481,26 @@ fun Route.unifiedExchangeRoutes(
                     return@get
                 }
 
+                val requestedExecutionMode = call.request.queryParameters["executionMode"]
+                val exchangeExecutionModes = mutableMapOf<String, String>()
+                for (exchange in exchangesToScan) {
+                    val resolvedExecutionMode = resolveExecutionMode(exchange, requestedExecutionMode)
+                        ?: run {
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                mapOf("error" to "Invalid executionMode '$requestedExecutionMode' for $exchange")
+                            )
+                            return@get
+                        }
+                    exchangeExecutionModes[exchange] = resolvedExecutionMode
+                }
+
                 val candidateQuotes = exchangesToScan.mapNotNull { exchange ->
                     val quote = resolveQuoteWithPaperFallback(
                         dbService = dbService,
                         exchange = exchange,
-                        symbol = symbol
+                        symbol = symbol,
+                        executionMode = exchangeExecutionModes.getValue(exchange)
                     ) ?: return@mapNotNull null
 
                     if (!quote.isValidSnapshot()) {
@@ -585,10 +601,21 @@ fun Route.unifiedExchangeRoutes(
                     return@get
                 }
 
+                val requestedExecutionMode = call.request.queryParameters["executionMode"]
+                val executionMode = resolveExecutionMode(exchange, requestedExecutionMode)
+                    ?: run {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            mapOf("error" to "Invalid executionMode: $requestedExecutionMode")
+                        )
+                        return@get
+                    }
+
                 val quote = resolveQuoteWithPaperFallback(
                     dbService = dbService,
                     exchange = exchange,
-                    symbol = symbol
+                    symbol = symbol,
+                    executionMode = executionMode
                 )
                 if (quote == null) {
                     call.respond(
@@ -756,7 +783,8 @@ fun Route.unifiedExchangeRoutes(
                     val quote = resolveQuoteWithPaperFallback(
                         dbService = dbService,
                         exchange = exchange,
-                        symbol = orderRequest.symbol
+                        symbol = orderRequest.symbol,
+                        executionMode = executionMode
                     )
                     if (quote == null) {
                         call.respond(
@@ -967,7 +995,16 @@ fun Route.unifiedExchangeRoutes(
                     return@post
                 }
 
-                val rawRiskQuote = dbService.fetchLatestQuote(exchange = exchange, symbol = orderRequest.symbol)
+                val requiredQuoteExchange = resolveRequiredQuoteExchange(
+                    exchange = exchange,
+                    executionMode = executionMode,
+                    legacyHyperliquidQuoteExchange = requiredHyperliquidQuoteExchange
+                )
+                val rawRiskQuote = dbService.fetchLatestQuote(
+                    exchange = exchange,
+                    symbol = orderRequest.symbol,
+                    executionMode = executionMode
+                )
                 val quoteForRisk = rawRiskQuote?.takeIf {
                     it.isValidSnapshot() && it.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs)
                 }
@@ -1028,10 +1065,10 @@ fun Route.unifiedExchangeRoutes(
                 }
                 if (
                     exchange == "hyperliquid" &&
-                    !requiredHyperliquidQuoteExchange.isNullOrBlank() &&
+                    !requiredQuoteExchange.isNullOrBlank() &&
                     !quoteSourceMatchesResolvedExchange(
                         source = quoteForRisk.source,
-                        expectedExchange = requiredHyperliquidQuoteExchange
+                        expectedExchange = requiredQuoteExchange
                     )
                 ) {
                     logger.warn(
@@ -1039,7 +1076,7 @@ fun Route.unifiedExchangeRoutes(
                         exchange,
                         orderRequest.symbol,
                         quoteForRisk.source,
-                        requiredHyperliquidQuoteExchange
+                        requiredQuoteExchange
                     )
                     call.respond(
                         HttpStatusCode.ServiceUnavailable,
@@ -1048,7 +1085,7 @@ fun Route.unifiedExchangeRoutes(
                             "exchange" to exchange,
                             "symbol" to orderRequest.symbol,
                             "quoteSource" to quoteForRisk.source,
-                            "expectedQuoteExchange" to requiredHyperliquidQuoteExchange
+                            "expectedQuoteExchange" to requiredQuoteExchange
                         )
                     )
                     return@post
@@ -1925,9 +1962,26 @@ private fun BigDecimal.coerceIn(min: BigDecimal, max: BigDecimal): BigDecimal {
 private fun resolveQuoteWithPaperFallback(
     dbService: DatabaseService,
     exchange: String,
-    symbol: String
+    symbol: String,
+    executionMode: String
 ): LatestQuote? {
-    return dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)
+    return dbService.fetchLatestQuote(exchange = exchange, symbol = symbol, executionMode = executionMode)
+}
+
+private fun resolveRequiredQuoteExchange(
+    exchange: String,
+    executionMode: String,
+    legacyHyperliquidQuoteExchange: String?
+): String? {
+    if (exchange.lowercase() != "hyperliquid") return null
+    return resolveHyperliquidQuoteExchangeForExecutionMode(
+        requestedExecutionMode = executionMode,
+        legacyQuoteExchange = legacyHyperliquidQuoteExchange,
+        forwardPaperExchange = System.getenv("HYPERLIQUID_FORWARD_PAPER_QUOTE_EXCHANGE"),
+        testnetExchange = System.getenv("HYPERLIQUID_TESTNET_QUOTE_EXCHANGE"),
+        mainnetExchange = System.getenv("HYPERLIQUID_MAINNET_QUOTE_EXCHANGE"),
+        mainnetFlag = System.getenv("HYPERLIQUID_MAINNET")
+    )
 }
 
 private fun LatestQuote.withStaleSourceTag(): LatestQuote {

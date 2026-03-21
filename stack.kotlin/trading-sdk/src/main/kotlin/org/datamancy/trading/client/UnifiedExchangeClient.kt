@@ -33,8 +33,16 @@ class UnifiedExchangeClient internal constructor(
 
     fun supportedExchanges(): List<ExchangeId> = supported
 
-    suspend fun quote(exchange: ExchangeId, symbol: String): ApiResult<UnifiedQuote> {
-        val path = "/api/v1/exchanges/${exchange.apiName}/quote?symbol=${symbol.encodeForQuery()}"
+    suspend fun quote(
+        exchange: ExchangeId,
+        symbol: String,
+        executionMode: TradingMode = TradingMode.FORWARD_PAPER
+    ): ApiResult<UnifiedQuote> {
+        val path = buildString {
+            append("/api/v1/exchanges/${exchange.apiName}/quote")
+            append("?symbol=${symbol.encodeForQuery()}")
+            append("&executionMode=${executionMode.name.lowercase().encodeForQuery()}")
+        }
         return when (val result = httpClient.get<Map<String, Any>>(path)) {
             is ApiResult.Success -> parseQuote(exchange, symbol, result.data)
             is ApiResult.Error -> ApiResult.Error(
@@ -76,13 +84,14 @@ class UnifiedExchangeClient internal constructor(
     suspend fun bestQuote(
         symbol: String,
         side: Side,
-        exchanges: List<ExchangeId> = supported
+        exchanges: List<ExchangeId> = supported,
+        executionMode: TradingMode = TradingMode.FORWARD_PAPER
     ): ApiResult<UnifiedQuote> {
         val candidates = mutableListOf<UnifiedQuote>()
         val errors = mutableListOf<String>()
 
         for (exchange in exchanges.distinct()) {
-            when (val q = quote(exchange, symbol)) {
+            when (val q = quote(exchange, symbol, executionMode)) {
                 is ApiResult.Success -> candidates += q.data
                 is ApiResult.Error -> errors += "${exchange.apiName}: ${q.message}"
             }
@@ -104,11 +113,12 @@ class UnifiedExchangeClient internal constructor(
     suspend fun bestQuoteViaGateway(
         symbol: String,
         side: Side,
-        exchanges: List<ExchangeId> = supported
+        exchanges: List<ExchangeId> = supported,
+        executionMode: TradingMode = TradingMode.FORWARD_PAPER
     ): ApiResult<UnifiedQuote> {
         val exchangeCsv = exchanges.distinct().joinToString(",") { it.apiName }
         val path =
-            "/api/v1/exchanges/best-quote?symbol=${symbol.encodeForQuery()}&side=${side.name.lowercase()}&exchanges=${exchangeCsv.encodeForQuery()}"
+            "/api/v1/exchanges/best-quote?symbol=${symbol.encodeForQuery()}&side=${side.name.lowercase()}&exchanges=${exchangeCsv.encodeForQuery()}&executionMode=${executionMode.name.lowercase().encodeForQuery()}"
 
         return when (val result = httpClient.get<Map<String, Any?>>(path)) {
             is ApiResult.Success -> {
@@ -116,9 +126,9 @@ class UnifiedExchangeClient internal constructor(
                     payload = result.data,
                     allowedExchangeNames = exchanges.map { it.apiName }.toSet()
                 )
-                    ?: bestQuote(symbol = symbol, side = side, exchanges = exchanges)
+                    ?: bestQuote(symbol = symbol, side = side, exchanges = exchanges, executionMode = executionMode)
             }
-            is ApiResult.Error -> bestQuote(symbol = symbol, side = side, exchanges = exchanges)
+            is ApiResult.Error -> bestQuote(symbol = symbol, side = side, exchanges = exchanges, executionMode = executionMode)
         }
     }
 

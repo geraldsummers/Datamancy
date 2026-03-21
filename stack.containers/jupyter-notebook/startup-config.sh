@@ -1,35 +1,52 @@
 #!/bin/bash
-mkdir -p /home/jovyan/.jupyter
-cat > /home/jovyan/.jupyter/jupyter_jupyter_ai_config.json <<'EOF'
-{
-  "AiExtension": {
-    "model_parameters": {
-      "openai-chat:qwen2.5-0.5b": {
-        "api_base": "http://litellm:4000/v1",
-        "api_key": "${LITELLM_API_KEY}"
-      }
-    }
-  }
-}
-EOF
-cat > /home/jovyan/.env <<'EOF'
-OPENAI_API_BASE=http://litellm:4000/v1
-OPENAI_API_KEY=${LITELLM_API_KEY}
-VLLM_API_BASE=http://vllm:8000/v1
-VLLM_API_KEY=unused
-DEFAULT_LLM_MODEL=qwen2.5-0.5b
-DEFAULT_EMBEDDING_MODEL=embed-small
-LANGCHAIN_TRACING_V2=false
-POSTGRES_HOST=${POSTGRES_HOST:-postgres}
-POSTGRES_PORT=${POSTGRES_PORT:-5432}
-POSTGRES_DB=${POSTGRES_DB:-datamancy}
-POSTGRES_USER=${POSTGRES_USER:-pipeline_user}
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-EOF
 
 python3 <<'PY'
 import json
 import os
+from pathlib import Path
+
+home_dir = Path("/home/jovyan")
+jupyter_config_dir = home_dir / ".jupyter"
+jupyter_config_dir.mkdir(parents=True, exist_ok=True)
+
+litellm_api_key = os.getenv("LITELLM_API_KEY") or os.getenv("LITELLM_MASTER_KEY") or "unused"
+
+(jupyter_config_dir / "jupyter_jupyter_ai_config.json").write_text(
+    json.dumps(
+        {
+            "AiExtension": {
+                "model_parameters": {
+                    "openai-chat:qwen2.5-0.5b": {
+                        "api_base": "http://litellm:4000/v1",
+                        "api_key": litellm_api_key,
+                    }
+                }
+            }
+        },
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+
+env_values = {
+    "OPENAI_API_BASE": "http://litellm:4000/v1",
+    "OPENAI_API_KEY": litellm_api_key,
+    "VLLM_API_BASE": "http://vllm:8000/v1",
+    "VLLM_API_KEY": "unused",
+    "DEFAULT_LLM_MODEL": "qwen2.5-0.5b",
+    "DEFAULT_EMBEDDING_MODEL": "embed-small",
+    "LANGCHAIN_TRACING_V2": "false",
+    "POSTGRES_HOST": os.getenv("POSTGRES_HOST", "postgres"),
+    "POSTGRES_PORT": os.getenv("POSTGRES_PORT", "5432"),
+    "POSTGRES_DB": os.getenv("POSTGRES_DB", "datamancy"),
+    "POSTGRES_USER": os.getenv("POSTGRES_USER", "pipeline_user"),
+    "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
+}
+(home_dir / ".env").write_text(
+    "".join(f"{key}={value}\n" for key, value in env_values.items()),
+    encoding="utf-8",
+)
 
 notebook_dir = "/home/jovyan/work/datamancy-notebooks"
 os.makedirs(notebook_dir, exist_ok=True)

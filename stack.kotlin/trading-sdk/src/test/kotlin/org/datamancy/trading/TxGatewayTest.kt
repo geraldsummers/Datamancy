@@ -248,6 +248,35 @@ class TxGatewayTest {
     }
 
     @Test
+    fun `test unified exchange quote forwards execution mode query parameter`() = runBlocking {
+        val mockResponse = """
+            {
+                "exchange": "hyperliquid",
+                "symbol": "BTC",
+                "bid": 73000.0,
+                "ask": 73010.0,
+                "last": 73005.0,
+                "timestamp": "2026-02-07T00:00:00Z",
+                "source": "orderbook_data:resolved_exchange=hyperliquid_mainnet"
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.quote(
+            exchange = ExchangeId.HYPERLIQUID,
+            symbol = "BTC",
+            executionMode = TradingMode.MAINNET_LIVE
+        )
+
+        assertTrue(result is ApiResult.Success)
+        val request = mockServer.takeRequest()
+        assertTrue(
+            request.path?.contains("executionMode=mainnet_live") == true,
+            request.path ?: "<missing path>"
+        )
+    }
+
+    @Test
     fun `test unified exchange order rejects impossible fill payload`() = runBlocking {
         val mockResponse = """
             {

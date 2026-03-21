@@ -1590,6 +1590,28 @@ fun processConfigTemplates(
         return
     }
 
+    fun configValue(name: String, defaultValue: String): String =
+        credentials[name]?.trim()?.takeIf { it.isNotEmpty() } ?: defaultValue
+
+    fun csvToLdifValues(attributeName: String, raw: String): String =
+        raw.split(',', ';', '|', ' ')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .joinToString("\n") { "$attributeName: $it" }
+
+    val ldapDefaultAllowedChains = configValue("LDAP_DEFAULT_ALLOWED_CHAINS", "base,arbitrum,optimism")
+    val ldapDefaultAllowedExchanges = configValue(
+        "LDAP_DEFAULT_ALLOWED_EXCHANGES",
+        "swyftx,binance,bybit,coinbase,dydx,hyperliquid,aster"
+    )
+    val ldapDefaultAllowedTradingModes = configValue(
+        "LDAP_DEFAULT_ALLOWED_TRADING_MODES",
+        "backtest,forward_paper,testnet_live"
+    )
+    val ldapDefaultMaxTxPerHour = configValue("LDAP_DEFAULT_MAX_TX_PER_HOUR", "240")
+    val ldapDefaultMaxTxValueUsd = configValue("LDAP_DEFAULT_MAX_TX_VALUE_USD", "25000")
+
     existingDirs.forEach { templatesDir ->
         templatesDir.walkTopDown().forEach { source ->
             if (!source.isFile) return@forEach
@@ -1611,6 +1633,11 @@ fun processConfigTemplates(
                 .replace("{{VAULTWARDEN_ORG_NAME}}", sanitized.vaultwardenOrgName)
                 .replace("{{VAULTWARDEN_ORG_IDENTIFIER}}", sanitized.vaultwardenOrgIdentifier)
                 .replace("{{GENERATION_TIMESTAMP}}", Instant.now().toString())
+                .replace("{{LDAP_DEFAULT_ALLOWED_CHAINS_LDIF}}", csvToLdifValues("allowedChains", ldapDefaultAllowedChains))
+                .replace("{{LDAP_DEFAULT_ALLOWED_EXCHANGES_LDIF}}", csvToLdifValues("allowedExchanges", ldapDefaultAllowedExchanges))
+                .replace("{{LDAP_DEFAULT_ALLOWED_TRADING_MODES_LDIF}}", csvToLdifValues("allowedTradingModes", ldapDefaultAllowedTradingModes))
+                .replace("{{LDAP_DEFAULT_MAX_TX_PER_HOUR_VALUE}}", ldapDefaultMaxTxPerHour)
+                .replace("{{LDAP_DEFAULT_MAX_TX_VALUE_USD_VALUE}}", ldapDefaultMaxTxValueUsd)
 
             // Find matching template rule
             val matchingRule = schema.template_rules.find { rule ->

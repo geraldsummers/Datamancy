@@ -18,12 +18,12 @@ class LdapService(
         ?.trim()
         ?.toIntOrNull()
         ?.coerceAtLeast(1)
-        ?: 100
+        ?: 240
     private val defaultMaxTxValueUsd = System.getenv("LDAP_DEFAULT_MAX_TX_VALUE_USD")
         ?.trim()
         ?.toIntOrNull()
         ?.coerceAtLeast(1)
-        ?: 10000
+        ?: 25000
 
     fun init() {
         connection = LDAPConnection(host, port, bindDn, bindPassword)

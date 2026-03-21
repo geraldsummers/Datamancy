@@ -201,9 +201,34 @@ class DatabaseService(
     private var marketDataSource: HikariDataSource? = null
     private val missingTableWarnings = ConcurrentHashMap.newKeySet<String>()
     private val analyticsSchemaEnsured = ConcurrentHashMap.newKeySet<String>()
-    private val hyperliquidQuoteExchange = resolveHyperliquidQuoteExchange(
+    private val hyperliquidMainnetFlag = System.getenv("HYPERLIQUID_MAINNET")
+    private val legacyHyperliquidQuoteExchange = resolveHyperliquidQuoteExchange(
         explicitExchange = System.getenv("HYPERLIQUID_QUOTE_EXCHANGE"),
-        mainnetFlag = System.getenv("HYPERLIQUID_MAINNET")
+        mainnetFlag = hyperliquidMainnetFlag
+    )
+    private val hyperliquidForwardPaperQuoteExchange = resolveHyperliquidQuoteExchangeForExecutionMode(
+        requestedExecutionMode = "forward_paper",
+        legacyQuoteExchange = legacyHyperliquidQuoteExchange,
+        forwardPaperExchange = System.getenv("HYPERLIQUID_FORWARD_PAPER_QUOTE_EXCHANGE"),
+        testnetExchange = System.getenv("HYPERLIQUID_TESTNET_QUOTE_EXCHANGE"),
+        mainnetExchange = System.getenv("HYPERLIQUID_MAINNET_QUOTE_EXCHANGE"),
+        mainnetFlag = hyperliquidMainnetFlag
+    )
+    private val hyperliquidTestnetQuoteExchange = resolveHyperliquidQuoteExchangeForExecutionMode(
+        requestedExecutionMode = "testnet_live",
+        legacyQuoteExchange = legacyHyperliquidQuoteExchange,
+        forwardPaperExchange = System.getenv("HYPERLIQUID_FORWARD_PAPER_QUOTE_EXCHANGE"),
+        testnetExchange = System.getenv("HYPERLIQUID_TESTNET_QUOTE_EXCHANGE"),
+        mainnetExchange = System.getenv("HYPERLIQUID_MAINNET_QUOTE_EXCHANGE"),
+        mainnetFlag = hyperliquidMainnetFlag
+    )
+    private val hyperliquidMainnetQuoteExchange = resolveHyperliquidQuoteExchangeForExecutionMode(
+        requestedExecutionMode = "mainnet_live",
+        legacyQuoteExchange = legacyHyperliquidQuoteExchange,
+        forwardPaperExchange = System.getenv("HYPERLIQUID_FORWARD_PAPER_QUOTE_EXCHANGE"),
+        testnetExchange = System.getenv("HYPERLIQUID_TESTNET_QUOTE_EXCHANGE"),
+        mainnetExchange = System.getenv("HYPERLIQUID_MAINNET_QUOTE_EXCHANGE"),
+        mainnetFlag = hyperliquidMainnetFlag
     )
     private val allowCanonicalHyperliquidFallback = parseBooleanFlag(
         raw = System.getenv("HYPERLIQUID_QUOTE_EXCHANGE_ALLOW_CANONICAL_FALLBACK"),
@@ -565,10 +590,13 @@ class DatabaseService(
      * 2. Latest candle close (synthetic tight spread)
      * 3. Latest trade (synthetic tight spread)
      */
-    fun fetchLatestQuote(exchange: String, symbol: String): LatestQuote? {
+    fun fetchLatestQuote(exchange: String, symbol: String): LatestQuote? =
+        fetchLatestQuote(exchange = exchange, symbol = symbol, executionMode = null)
+
+    fun fetchLatestQuote(exchange: String, symbol: String, executionMode: String?): LatestQuote? {
         val normalizedExchange = exchange.lowercase()
         val candidates = symbolCandidates(symbol)
-        val exchangeCandidates = quoteExchangeCandidates(normalizedExchange)
+        val exchangeCandidates = quoteExchangeCandidates(normalizedExchange, executionMode)
 
         for (exchangeCandidate in exchangeCandidates) {
             for (candidate in candidates) {
@@ -597,9 +625,14 @@ class DatabaseService(
         return null
     }
 
-    private fun quoteExchangeCandidates(exchange: String): List<String> {
+    private fun quoteExchangeCandidates(exchange: String, executionMode: String?): List<String> {
         if (exchange != "hyperliquid") return listOf(exchange)
-        val preferred = hyperliquidQuoteExchange
+        val preferred = when (executionMode?.trim()?.lowercase()) {
+            "forward_paper" -> hyperliquidForwardPaperQuoteExchange
+            "testnet_live" -> hyperliquidTestnetQuoteExchange
+            "mainnet_live" -> hyperliquidMainnetQuoteExchange
+            else -> legacyHyperliquidQuoteExchange
+        }
         val candidates = mutableListOf<String>()
         if (!preferred.isNullOrBlank()) {
             candidates += preferred
@@ -2181,6 +2214,31 @@ internal fun resolveHyperliquidQuoteExchange(
         ?: return null
     val mainnet = parseBooleanFlag(normalizedMainnetFlag, defaultValue = false)
     return if (mainnet) "hyperliquid_mainnet" else "hyperliquid_testnet"
+}
+
+internal fun resolveHyperliquidQuoteExchangeForExecutionMode(
+    requestedExecutionMode: String?,
+    legacyQuoteExchange: String?,
+    forwardPaperExchange: String?,
+    testnetExchange: String?,
+    mainnetExchange: String?,
+    mainnetFlag: String?
+): String? {
+    fun normalize(raw: String?): String? {
+        return raw
+            ?.trim()
+            ?.lowercase()
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    val normalizedMode = normalize(requestedExecutionMode)
+    val legacy = normalize(legacyQuoteExchange)
+    return when (normalizedMode) {
+        "forward_paper" -> normalize(forwardPaperExchange) ?: "hyperliquid_mainnet"
+        "testnet_live" -> normalize(testnetExchange) ?: "hyperliquid_testnet"
+        "mainnet_live" -> normalize(mainnetExchange) ?: "hyperliquid_mainnet"
+        else -> legacy ?: resolveHyperliquidQuoteExchange(explicitExchange = null, mainnetFlag = mainnetFlag)
+    }
 }
 
 internal fun parseBooleanFlag(raw: String?, defaultValue: Boolean): Boolean {

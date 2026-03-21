@@ -36,6 +36,16 @@ fun envValue(name: String, fileEnv: Map<String, String>): String? = System.geten
 fun requireEnv(name: String, fileEnv: Map<String, String>): String = envValue(name, fileEnv)
     ?: error("Missing required setting: $name")
 
+fun configValue(name: String, fileEnv: Map<String, String>, defaultValue: String): String =
+    envValue(name, fileEnv)?.trim()?.takeIf { it.isNotEmpty() } ?: defaultValue
+
+fun csvToLdifValues(attributeName: String, raw: String): String =
+    raw.split(',', ';', '|', ' ')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinct()
+        .joinToString("\n") { "$attributeName: $it" }
+
 fun ssha(password: String): String {
     val salt = ByteArray(8)
     SecureRandom().nextBytes(salt)
@@ -60,12 +70,30 @@ val ldapBaseDn = requireEnv("LDAP_BASE_DN", fileEnv)
 val stackAdminUser = requireEnv("STACK_ADMIN_USER", fileEnv)
 val stackAdminEmail = envValue("STACK_ADMIN_EMAIL", fileEnv) ?: "$stackAdminUser@datamancy.net"
 val stackAdminPassword = requireEnv("STACK_ADMIN_PASSWORD", fileEnv)
+val ldapDefaultAllowedChains = configValue("LDAP_DEFAULT_ALLOWED_CHAINS", fileEnv, "base,arbitrum,optimism")
+val ldapDefaultAllowedExchanges = configValue(
+    "LDAP_DEFAULT_ALLOWED_EXCHANGES",
+    fileEnv,
+    "swyftx,binance,bybit,coinbase,dydx,hyperliquid,aster"
+)
+val ldapDefaultAllowedTradingModes = configValue(
+    "LDAP_DEFAULT_ALLOWED_TRADING_MODES",
+    fileEnv,
+    "backtest,forward_paper,testnet_live"
+)
+val ldapDefaultMaxTxPerHour = configValue("LDAP_DEFAULT_MAX_TX_PER_HOUR", fileEnv, "240")
+val ldapDefaultMaxTxValueUsd = configValue("LDAP_DEFAULT_MAX_TX_VALUE_USD", fileEnv, "25000")
 val rendered = template.readText()
     .replace("{{GENERATION_TIMESTAMP}}", java.time.Instant.now().toString())
     .replace("{{LDAP_BASE_DN}}", ldapBaseDn)
     .replace("{{STACK_ADMIN_USER}}", stackAdminUser)
     .replace("{{STACK_ADMIN_EMAIL}}", stackAdminEmail)
     .replace("{{ADMIN_SSHA_PASSWORD}}", ssha(stackAdminPassword))
+    .replace("{{LDAP_DEFAULT_ALLOWED_CHAINS_LDIF}}", csvToLdifValues("allowedChains", ldapDefaultAllowedChains))
+    .replace("{{LDAP_DEFAULT_ALLOWED_EXCHANGES_LDIF}}", csvToLdifValues("allowedExchanges", ldapDefaultAllowedExchanges))
+    .replace("{{LDAP_DEFAULT_ALLOWED_TRADING_MODES_LDIF}}", csvToLdifValues("allowedTradingModes", ldapDefaultAllowedTradingModes))
+    .replace("{{LDAP_DEFAULT_MAX_TX_PER_HOUR_VALUE}}", ldapDefaultMaxTxPerHour)
+    .replace("{{LDAP_DEFAULT_MAX_TX_VALUE_USD_VALUE}}", ldapDefaultMaxTxValueUsd)
 
 output.parentFile.mkdirs()
 output.writeText(rendered)

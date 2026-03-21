@@ -45,20 +45,21 @@ RUN chown -R testing_container_user:testing_container_user /app && \
     chmod +x /run-tests.sh
 
 ENV DOCKER_CONFIG=/home/testing_container_user/.docker
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Install npm dependencies as testing_container_user
 USER testing_container_user
 WORKDIR /app/playwright-tests
 RUN npm ci
 
-# Switch back to root to install Playwright system dependencies
+# Install Playwright system dependencies and a shared browser cache once.
 USER root
-RUN npx playwright install --with-deps chromium
+RUN mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
+    npx playwright install --with-deps chromium && \
+    chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 
-# Install browsers as testing_container_user so they're in the correct home directory
 USER testing_container_user
-RUN npx playwright install chromium
-
 WORKDIR /app
 
 CMD ["tail", "-f", "/dev/null"]
