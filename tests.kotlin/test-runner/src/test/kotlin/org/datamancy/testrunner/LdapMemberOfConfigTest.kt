@@ -11,6 +11,7 @@ class LdapMemberOfConfigTest {
     fun `ldap container runs memberOf reconciler on startup`() {
         val composeText = repoFileText("stack.compose/ldap.yml")
         val startupScriptText = repoFileText("stack.config/ldap/run-with-schema-ensure.sh")
+        val memberOfScriptText = repoFileText("stack.config/ldap/configure-memberof.sh")
 
         assertTrue(
             composeText.contains("./configs/ldap/configure-memberof.sh:/tmp/configure-memberof.sh:ro"),
@@ -19,6 +20,14 @@ class LdapMemberOfConfigTest {
         assertTrue(
             startupScriptText.contains("sh /tmp/configure-memberof.sh"),
             "LDAP startup wrapper should run configure-memberof.sh so tx-gateway role lookups see memberOf on user entries"
+        )
+        assertTrue(
+            memberOfScriptText.contains("rewrite_group_membership \"${'$'}group_dn\" \"member\""),
+            "memberOf reconciler should rewrite the real membership attribute so existing users get backfilled memberOf values"
+        )
+        kotlin.test.assertFalse(
+            memberOfScriptText.contains("description: trigger-memberof-update"),
+            "memberOf reconciler should not rely on description touch updates because they do not repopulate memberOf for existing groups"
         )
     }
 
