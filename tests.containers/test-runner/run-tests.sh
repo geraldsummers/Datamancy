@@ -3,7 +3,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -d "$SCRIPT_DIR/../global.settings" ]; then
+if [ -f "$SCRIPT_DIR/docker-compose.yml" ] && [ -f "$SCRIPT_DIR/tests.compose/test-runners.yml" ]; then
+    PROJECT_ROOT="$SCRIPT_DIR"
+elif [ -d "$SCRIPT_DIR/../global.settings" ]; then
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 elif [ -d "$SCRIPT_DIR/../../global.settings" ]; then
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
