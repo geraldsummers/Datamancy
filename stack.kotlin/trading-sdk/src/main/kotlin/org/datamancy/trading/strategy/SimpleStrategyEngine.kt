@@ -258,6 +258,10 @@ class SimpleStrategyEngine(
                 size = size,
                 price = entry.price,
                 reduceOnly = false,
+                urgencyClass = entry.urgencyClass,
+                feeTier = entry.feeTier,
+                maxSlippageBps = entry.maxSlippageBps,
+                cancelAfterMs = entry.cancelAfterMs,
                 metadata = entry.metadata.toMap()
             )
             val execution = when (val submitResult = runtime.orderExecutor.submit(executionRequest)) {
@@ -341,6 +345,10 @@ class SimpleStrategyEngine(
                 size = requestedCloseSize,
                 price = exit.price,
                 reduceOnly = true,
+                urgencyClass = exit.urgencyClass,
+                feeTier = exit.feeTier,
+                maxSlippageBps = exit.maxSlippageBps,
+                cancelAfterMs = exit.cancelAfterMs,
                 metadata = mapOf("reason" to exit.reason)
             )
             val execution = when (val submitResult = runtime.orderExecutor.submit(executionRequest)) {

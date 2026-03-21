@@ -696,11 +696,19 @@ class DatabaseService(
         p99RoundTripMs: Double?,
         jitterMs: Double?,
         feeBps: Double,
+        feeTier: String?,
+        feeTierAdjustmentBps: Double?,
+        makerFeeBps: Double?,
+        takerFeeBps: Double?,
         spreadCostBps: Double,
         slippageBps: Double,
         impactBps: Double,
         adverseSelectionBps: Double,
+        fundingDriftBps: Double?,
+        basisDriftBps: Double?,
         totalCostBps: Double,
+        edgeAfterCostBps: Double?,
+        estimatedFeeUsd: Double?,
         estimatedCostUsd: Double?,
         metadataJson: String = "{}"
     ): Boolean {
@@ -730,15 +738,23 @@ class DatabaseService(
                 symbol,
                 side,
                 fee_bps,
+                fee_tier,
+                fee_tier_adjustment_bps,
+                maker_fee_bps,
+                taker_fee_bps,
                 spread_cost_bps,
                 slippage_bps,
                 impact_bps,
                 adverse_selection_bps,
+                funding_drift_bps,
+                basis_drift_bps,
                 total_cost_bps,
+                edge_after_cost_bps,
+                estimated_fee_usd,
                 estimated_cost_usd,
                 metadata
             ) VALUES (
-                NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb
+                NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb
             )
         """.trimIndent()
 
@@ -793,17 +809,25 @@ class DatabaseService(
                                 stmt.setString(3, symbol)
                                 stmt.setString(4, side)
                                 stmt.setDouble(5, feeBps)
-                                stmt.setDouble(6, spreadCostBps)
-                                stmt.setDouble(7, slippageBps)
-                                stmt.setDouble(8, impactBps)
-                                stmt.setDouble(9, adverseSelectionBps)
-                                stmt.setDouble(10, totalCostBps)
+                                stmt.setString(6, feeTier?.trim()?.ifEmpty { "retail" } ?: "retail")
+                                setNullableDouble(stmt, 7, feeTierAdjustmentBps)
+                                setNullableDouble(stmt, 8, makerFeeBps)
+                                setNullableDouble(stmt, 9, takerFeeBps)
+                                stmt.setDouble(10, spreadCostBps)
+                                stmt.setDouble(11, slippageBps)
+                                stmt.setDouble(12, impactBps)
+                                stmt.setDouble(13, adverseSelectionBps)
+                                setNullableDouble(stmt, 14, fundingDriftBps)
+                                setNullableDouble(stmt, 15, basisDriftBps)
+                                stmt.setDouble(16, totalCostBps)
+                                setNullableDouble(stmt, 17, edgeAfterCostBps)
+                                setNullableDouble(stmt, 18, estimatedFeeUsd)
                                 if (estimatedCostUsd != null) {
-                                    stmt.setDouble(11, estimatedCostUsd)
+                                    stmt.setDouble(19, estimatedCostUsd)
                                 } else {
-                                    stmt.setNull(11, Types.DOUBLE)
+                                    stmt.setNull(19, Types.DOUBLE)
                                 }
-                                stmt.setString(12, metadataJson)
+                                stmt.setString(20, metadataJson)
                                 stmt.executeUpdate()
                             }
 
@@ -811,12 +835,12 @@ class DatabaseService(
                             return true
                         } catch (e: SQLException) {
                             conn.rollback()
-                            if (isMissingRelation(e) && !attemptedSchemaRepair &&
+                            if ((isMissingRelation(e) || isMissingColumn(e)) && !attemptedSchemaRepair &&
                                 ensureStrategyAnalyticsSchema(source)
                             ) {
                                 attemptedSchemaRepair = true
                                 retryCurrentSource = true
-                            } else if (isMissingRelation(e)) {
+                            } else if (isMissingRelation(e) || isMissingColumn(e)) {
                                 warnMissingRelationOnce("strategy_latency_metrics", e)
                                 warnMissingRelationOnce("strategy_execution_costs", e)
                                 tryNextSource = true
@@ -834,12 +858,12 @@ class DatabaseService(
                         }
                     }
                 } catch (e: SQLException) {
-                    if (isMissingRelation(e) && !attemptedSchemaRepair &&
+                    if ((isMissingRelation(e) || isMissingColumn(e)) && !attemptedSchemaRepair &&
                         ensureStrategyAnalyticsSchema(source)
                     ) {
                         attemptedSchemaRepair = true
                         retryCurrentSource = true
-                    } else if (isMissingRelation(e)) {
+                    } else if (isMissingRelation(e) || isMissingColumn(e)) {
                         warnMissingRelationOnce("strategy_latency_metrics", e)
                         warnMissingRelationOnce("strategy_execution_costs", e)
                         tryNextSource = true
@@ -1863,15 +1887,33 @@ class DatabaseService(
                 symbol TEXT NOT NULL,
                 side TEXT NOT NULL,
                 fee_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                fee_tier TEXT NOT NULL DEFAULT 'retail',
+                fee_tier_adjustment_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                maker_fee_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                taker_fee_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
                 spread_cost_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
                 slippage_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
                 impact_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
                 adverse_selection_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                funding_drift_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                basis_drift_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
                 total_cost_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                edge_after_cost_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                estimated_fee_usd DOUBLE PRECISION,
                 estimated_cost_usd DOUBLE PRECISION,
                 metadata JSONB NOT NULL DEFAULT '{}'::jsonb
             )
         """.trimIndent()
+        val costColumnsRepairSql = listOf(
+            "ALTER TABLE strategy_execution_costs ADD COLUMN IF NOT EXISTS fee_tier TEXT NOT NULL DEFAULT 'retail'",
+            "ALTER TABLE strategy_execution_costs ADD COLUMN IF NOT EXISTS fee_tier_adjustment_bps DOUBLE PRECISION NOT NULL DEFAULT 0",
+            "ALTER TABLE strategy_execution_costs ADD COLUMN IF NOT EXISTS maker_fee_bps DOUBLE PRECISION NOT NULL DEFAULT 0",
+            "ALTER TABLE strategy_execution_costs ADD COLUMN IF NOT EXISTS taker_fee_bps DOUBLE PRECISION NOT NULL DEFAULT 0",
+            "ALTER TABLE strategy_execution_costs ADD COLUMN IF NOT EXISTS funding_drift_bps DOUBLE PRECISION NOT NULL DEFAULT 0",
+            "ALTER TABLE strategy_execution_costs ADD COLUMN IF NOT EXISTS basis_drift_bps DOUBLE PRECISION NOT NULL DEFAULT 0",
+            "ALTER TABLE strategy_execution_costs ADD COLUMN IF NOT EXISTS edge_after_cost_bps DOUBLE PRECISION NOT NULL DEFAULT 0",
+            "ALTER TABLE strategy_execution_costs ADD COLUMN IF NOT EXISTS estimated_fee_usd DOUBLE PRECISION"
+        )
         val walkForwardTableSql = """
             CREATE TABLE IF NOT EXISTS strategy_walkforward_runs (
                 id BIGSERIAL PRIMARY KEY,
@@ -1942,6 +1984,7 @@ class DatabaseService(
                     stmt.execute(backtestTableSql)
                     stmt.execute(latencyTableSql)
                     stmt.execute(costTableSql)
+                    costColumnsRepairSql.forEach(stmt::execute)
                     stmt.execute(walkForwardTableSql)
                     stmt.execute(sensitivityTableSql)
                     stmt.execute(driftTableSql)

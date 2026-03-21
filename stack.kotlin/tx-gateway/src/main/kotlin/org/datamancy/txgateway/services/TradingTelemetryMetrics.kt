@@ -13,6 +13,12 @@ class TradingTelemetryMetrics(
     private val fillQualityDecayGauge = ConcurrentHashMap<String, AtomicReference<Double>>()
     private val latencyDriftGauge = ConcurrentHashMap<String, AtomicReference<Double>>()
     private val driftScoreGauge = ConcurrentHashMap<String, AtomicReference<Double>>()
+    private val impactCostGauge = ConcurrentHashMap<String, AtomicReference<Double>>()
+    private val adverseSelectionCostGauge = ConcurrentHashMap<String, AtomicReference<Double>>()
+    private val fundingDriftCostGauge = ConcurrentHashMap<String, AtomicReference<Double>>()
+    private val basisDriftCostGauge = ConcurrentHashMap<String, AtomicReference<Double>>()
+    private val feeTierAdjustmentGauge = ConcurrentHashMap<String, AtomicReference<Double>>()
+    private val edgeAfterCostGauge = ConcurrentHashMap<String, AtomicReference<Double>>()
     private val submitToFillSummary = ConcurrentHashMap<String, DistributionSummary>()
     private val totalCostSummary = ConcurrentHashMap<String, DistributionSummary>()
 
@@ -47,6 +53,48 @@ class TradingTelemetryMetrics(
             tags = defaultTags,
             value = 0.0
         )
+        updateGauge(
+            store = impactCostGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_impact_bps",
+            tags = defaultTags,
+            value = 0.0
+        )
+        updateGauge(
+            store = adverseSelectionCostGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_adverse_selection_bps",
+            tags = defaultTags,
+            value = 0.0
+        )
+        updateGauge(
+            store = fundingDriftCostGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_funding_drift_bps",
+            tags = defaultTags,
+            value = 0.0
+        )
+        updateGauge(
+            store = basisDriftCostGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_basis_drift_bps",
+            tags = defaultTags,
+            value = 0.0
+        )
+        updateGauge(
+            store = feeTierAdjustmentGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_fee_tier_adjustment_bps",
+            tags = defaultTags,
+            value = 0.0
+        )
+        updateGauge(
+            store = edgeAfterCostGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_edge_after_cost_bps",
+            tags = defaultTags,
+            value = 0.0
+        )
         summary(
             store = submitToFillSummary,
             key = defaultKey,
@@ -72,7 +120,13 @@ class TradingTelemetryMetrics(
         latencyDriftMs: Double?,
         driftScore: Double?,
         submitToFillMs: Double?,
-        totalCostBps: Double?
+        totalCostBps: Double?,
+        impactBps: Double?,
+        adverseSelectionBps: Double?,
+        fundingDriftBps: Double?,
+        basisDriftBps: Double?,
+        feeTierAdjustmentBps: Double?,
+        edgeAfterCostBps: Double?
     ) {
         val tags = tags(strategyName, exchange, executionMode)
         val key = tags.toString()
@@ -104,6 +158,48 @@ class TradingTelemetryMetrics(
             metricName = "tx_gateway_trading_drift_score",
             tags = tags,
             value = driftScore
+        )
+        updateGauge(
+            store = impactCostGauge,
+            key = key,
+            metricName = "tx_gateway_trading_impact_bps",
+            tags = tags,
+            value = impactBps
+        )
+        updateGauge(
+            store = adverseSelectionCostGauge,
+            key = key,
+            metricName = "tx_gateway_trading_adverse_selection_bps",
+            tags = tags,
+            value = adverseSelectionBps
+        )
+        updateGauge(
+            store = fundingDriftCostGauge,
+            key = key,
+            metricName = "tx_gateway_trading_funding_drift_bps",
+            tags = tags,
+            value = fundingDriftBps
+        )
+        updateGauge(
+            store = basisDriftCostGauge,
+            key = key,
+            metricName = "tx_gateway_trading_basis_drift_bps",
+            tags = tags,
+            value = basisDriftBps
+        )
+        updateGauge(
+            store = feeTierAdjustmentGauge,
+            key = key,
+            metricName = "tx_gateway_trading_fee_tier_adjustment_bps",
+            tags = tags,
+            value = feeTierAdjustmentBps
+        )
+        updateGauge(
+            store = edgeAfterCostGauge,
+            key = key,
+            metricName = "tx_gateway_trading_edge_after_cost_bps",
+            tags = tags,
+            value = edgeAfterCostBps
         )
 
         if (submitToFillMs != null && submitToFillMs.isFinite() && submitToFillMs >= 0.0) {

@@ -288,7 +288,11 @@ val routed = tx.modeRouter.submit(
         side = Side.BUY,
         type = OrderType.MARKET,
         size = "0.2".toBigDecimal(),
-        price = null
+        price = null,
+        urgencyClass = "high",
+        feeTier = "vip",
+        maxSlippageBps = "5.0".toBigDecimal(),
+        cancelAfterMs = 800
     )
 )
 println(routed)

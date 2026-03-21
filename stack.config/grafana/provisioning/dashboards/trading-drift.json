@@ -16,7 +16,7 @@
         "name": "drift_strategy",
         "type": "custom",
         "label": "Strategy",
-        "query": "tx_gateway_live_execution,tx_gateway_paper_execution",
+        "query": "tx_gateway_live_execution,tx_gateway_paper_execution,tx_gateway_forward_mainnet_data",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -70,6 +70,49 @@
     },
     {
       "type": "timeseries",
+      "title": "Execution Cost Context (bps)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(total_cost_bps) AS \"Total Cost\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(edge_after_cost_bps) AS \"Edge After Cost\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(impact_bps) AS \"Impact\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(adverse_selection_bps) AS \"Adverse Selection\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      }
+    },
+    {
+      "type": "timeseries",
       "title": "Latency Drift + Submit->Fill Context (ms)",
       "datasource": {
         "type": "postgres",
@@ -97,8 +140,46 @@
       "gridPos": {
         "h": 9,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Carry/Fee Tier Drift Context (bps)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(funding_drift_bps) AS \"Funding Drift\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(basis_drift_bps) AS \"Basis Drift\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(fee_tier_adjustment_bps) AS \"Fee Tier Adj\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${drift_strategy}'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 18
       }
     },
     {
@@ -131,7 +212,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 18
       }
     },
     {
@@ -145,7 +226,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT observed_at,\n       strategy_name,\n       symbol,\n       ROUND(COALESCE(live_edge_bps, 0)::numeric, 2) AS live_edge_bps,\n       ROUND(COALESCE(backtest_edge_bps, 0)::numeric, 2) AS backtest_edge_bps,\n       ROUND(COALESCE(fill_quality_delta_bps, 0)::numeric, 2) AS fill_quality_decay_bps,\n       ROUND(COALESCE(slippage_drift_bps, 0)::numeric, 2) AS slippage_drift_bps,\n       ROUND(COALESCE(latency_drift_ms, 0)::numeric, 1) AS latency_drift_ms,\n       ROUND(COALESCE(drift_score, 0)::numeric, 2) AS drift_score,\n       metadata ->> 'executionMode' AS execution_mode,\n       metadata ->> 'status' AS status\nFROM strategy_live_backtest_drift\nWHERE strategy_name = '${drift_strategy}'\n  AND $__timeFilter(observed_at)\nORDER BY observed_at DESC\nLIMIT 100"
+          "rawSql": "SELECT d.observed_at,\n       d.strategy_name,\n       d.symbol,\n       ROUND(COALESCE(d.live_edge_bps, 0)::numeric, 2) AS live_edge_bps,\n       ROUND(COALESCE(d.backtest_edge_bps, 0)::numeric, 2) AS backtest_edge_bps,\n       ROUND(COALESCE(d.fill_quality_delta_bps, 0)::numeric, 2) AS fill_quality_decay_bps,\n       ROUND(COALESCE(d.slippage_drift_bps, 0)::numeric, 2) AS slippage_drift_bps,\n       ROUND(COALESCE(d.latency_drift_ms, 0)::numeric, 1) AS latency_drift_ms,\n       ROUND(COALESCE(c.total_cost_bps, 0)::numeric, 2) AS total_cost_bps,\n       ROUND(COALESCE(c.edge_after_cost_bps, 0)::numeric, 2) AS edge_after_cost_bps,\n       ROUND(COALESCE(c.funding_drift_bps, 0)::numeric, 2) AS funding_drift_bps,\n       ROUND(COALESCE(c.basis_drift_bps, 0)::numeric, 2) AS basis_drift_bps,\n       ROUND(COALESCE(d.drift_score, 0)::numeric, 2) AS drift_score,\n       d.metadata ->> 'executionMode' AS execution_mode,\n       d.metadata ->> 'status' AS status\nFROM strategy_live_backtest_drift d\nLEFT JOIN strategy_execution_costs c\n  ON c.strategy_name = d.strategy_name\n AND c.symbol = d.symbol\n AND c.observed_at = d.observed_at\nWHERE d.strategy_name = '${drift_strategy}'\n  AND $__timeFilter(d.observed_at)\nORDER BY d.observed_at DESC\nLIMIT 100"
         }
       ],
       "fieldConfig": {
@@ -156,10 +237,10 @@
         "showHeader": true
       },
       "gridPos": {
-        "h": 10,
+        "h": 11,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 27
       }
     }
   ]

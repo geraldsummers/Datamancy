@@ -160,3 +160,53 @@ groups:
         annotations:
           summary: "Latency drift spike for {{ $labels.strategy }} ({{ $labels.execution_mode }})"
           description: "Latency drift exceeded 120ms for strategy={{ $labels.strategy }}, exchange={{ $labels.exchange }}."
+
+      - alert: TradingTotalCostHigh
+        expr: rate(tx_gateway_trading_total_cost_bps_sum[10m]) / clamp_min(rate(tx_gateway_trading_total_cost_bps_count[10m]), 0.00001) > 12
+        for: 10m
+        labels:
+          severity: warning
+          category: trading
+        annotations:
+          summary: "Total execution cost elevated for {{ $labels.strategy }} ({{ $labels.execution_mode }})"
+          description: "Average total cost exceeded 12 bps over 10m for strategy={{ $labels.strategy }}, exchange={{ $labels.exchange }}."
+
+      - alert: TradingEdgeAfterCostNegative
+        expr: min_over_time(tx_gateway_trading_edge_after_cost_bps[10m]) < -12
+        for: 10m
+        labels:
+          severity: critical
+          category: trading
+        annotations:
+          summary: "Edge-after-cost has turned materially negative for {{ $labels.strategy }} ({{ $labels.execution_mode }})"
+          description: "Edge-after-cost dropped below -12 bps for strategy={{ $labels.strategy }}, exchange={{ $labels.exchange }}."
+
+      - alert: TradingImpactCostSpike
+        expr: max_over_time(tx_gateway_trading_impact_bps[5m]) > 6
+        for: 5m
+        labels:
+          severity: warning
+          category: trading
+        annotations:
+          summary: "Impact cost spike for {{ $labels.strategy }} ({{ $labels.execution_mode }})"
+          description: "Market impact exceeded 6 bps for strategy={{ $labels.strategy }}, exchange={{ $labels.exchange }}."
+
+      - alert: TradingAdverseSelectionSpike
+        expr: max_over_time(tx_gateway_trading_adverse_selection_bps[5m]) > 4
+        for: 5m
+        labels:
+          severity: warning
+          category: trading
+        annotations:
+          summary: "Adverse selection spike for {{ $labels.strategy }} ({{ $labels.execution_mode }})"
+          description: "Adverse selection exceeded 4 bps for strategy={{ $labels.strategy }}, exchange={{ $labels.exchange }}."
+
+      - alert: TradingCarryDriftSpike
+        expr: max_over_time(tx_gateway_trading_funding_drift_bps[5m]) > 2.5 or min_over_time(tx_gateway_trading_funding_drift_bps[5m]) < -2.5 or max_over_time(tx_gateway_trading_basis_drift_bps[5m]) > 2.5 or min_over_time(tx_gateway_trading_basis_drift_bps[5m]) < -2.5
+        for: 5m
+        labels:
+          severity: warning
+          category: trading
+        annotations:
+          summary: "Funding/basis drift spike for {{ $labels.strategy }} ({{ $labels.execution_mode }})"
+          description: "Funding or basis drift exceeded +/-2.5 bps for strategy={{ $labels.strategy }}, exchange={{ $labels.exchange }}."

@@ -110,6 +110,10 @@ class EntryConfig {
     var stopLoss: BigDecimal? = null
     var takeProfit: BigDecimal? = null
     var takeProfitTargets: List<Pair<BigDecimal, BigDecimal>>? = null
+    var urgencyClass: String? = null
+    var feeTier: String? = null
+    var maxSlippageBps: BigDecimal? = null
+    var cancelAfterMs: Long? = null
     var metadata: MutableMap<String, Any> = mutableMapOf()
 }
 
@@ -117,6 +121,10 @@ class ExitConfig {
     var size: BigDecimal? = null // null = close entire position
     var price: BigDecimal? = null // null = market order
     var reason: String? = null
+    var urgencyClass: String? = null
+    var feeTier: String? = null
+    var maxSlippageBps: BigDecimal? = null
+    var cancelAfterMs: Long? = null
 }
 
 // ============================================================================

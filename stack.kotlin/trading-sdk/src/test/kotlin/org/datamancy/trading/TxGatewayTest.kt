@@ -665,12 +665,22 @@ class TxGatewayTest {
                 side = Side.BUY,
                 type = OrderType.LIMIT,
                 size = BigDecimal("0.4"),
-                price = BigDecimal("69000")
+                price = BigDecimal("69000"),
+                urgencyClass = "high",
+                feeTier = "vip",
+                maxSlippageBps = BigDecimal("6.5"),
+                cancelAfterMs = 900
             )
         )
 
         assertTrue(result is ApiResult.Success)
-        val requestPath = mockServer.takeRequest().path ?: ""
+        val request = mockServer.takeRequest()
+        val requestPath = request.path ?: ""
+        val requestBody = request.body.readUtf8()
         assertTrue(requestPath.contains("/api/v1/exchanges/hyperliquid/order"), requestPath)
+        assertTrue(requestBody.contains(""""urgencyClass":"high""""))
+        assertTrue(requestBody.contains(""""feeTier":"vip""""))
+        assertTrue(requestBody.contains(""""maxSlippageBps":6.5"""))
+        assertTrue(requestBody.contains(""""cancelAfterMs":900"""))
     }
 }

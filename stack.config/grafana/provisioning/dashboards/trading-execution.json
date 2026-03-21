@@ -16,7 +16,7 @@
         "name": "execution_strategy",
         "type": "custom",
         "label": "Execution Strategy",
-        "query": "tx_gateway_live_execution,tx_gateway_paper_execution",
+        "query": "tx_gateway_live_execution,tx_gateway_paper_execution,tx_gateway_forward_mainnet_data",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -75,7 +75,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Gateway Execution Cost Breakdown (bps)",
+      "title": "Core Cost Breakdown (bps)",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -111,8 +111,89 @@
       },
       "gridPos": {
         "h": 10,
-        "w": 12,
+        "w": 8,
         "x": 0,
+        "y": 10
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Execution Frictions + Carry (bps)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(impact_bps) AS \"Impact\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${execution_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(adverse_selection_bps) AS \"Adverse Selection\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${execution_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(funding_drift_bps) AS \"Funding Drift\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${execution_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(basis_drift_bps) AS \"Basis Drift\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${execution_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "E",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(fee_tier_adjustment_bps) AS \"Fee Tier Adj\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${execution_strategy}'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Edge After Cost (bps)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(edge_after_cost_bps) AS \"Edge After Cost\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${execution_strategy}'\nGROUP BY 1\nORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', observed_at) AS \"time\", AVG(total_cost_bps) * -1 AS \"-Total Cost\"\nFROM strategy_execution_costs\nWHERE $__timeFilter(observed_at)\n  AND strategy_name = '${execution_strategy}'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 16,
         "y": 10
       }
     },
@@ -127,7 +208,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  l.observed_at,\n  l.strategy_name,\n  l.exchange,\n  l.symbol,\n  c.side,\n  ROUND(l.decision_latency_ms::numeric, 1) AS decision_ms,\n  ROUND(l.submit_to_ack_ms::numeric, 1) AS ack_ms,\n  ROUND(COALESCE(l.submit_to_fill_ms, l.submit_to_ack_ms)::numeric, 1) AS fill_ms,\n  ROUND(c.total_cost_bps::numeric, 2) AS total_cost_bps,\n  ROUND(COALESCE(c.estimated_cost_usd, 0)::numeric, 4) AS est_cost_usd,\n  COALESCE(l.metadata ->> 'executionMode', 'unknown') AS execution_mode,\n  l.metadata ->> 'status' AS status\nFROM strategy_latency_metrics l\nJOIN strategy_execution_costs c\n  ON c.strategy_name = l.strategy_name\n AND c.exchange = l.exchange\n AND c.symbol = l.symbol\n AND c.observed_at = l.observed_at\nWHERE l.strategy_name = '${execution_strategy}'\n  AND c.strategy_name = '${execution_strategy}'\n  AND $__timeFilter(l.observed_at)\nORDER BY l.observed_at DESC\nLIMIT 100"
+          "rawSql": "SELECT\n  l.observed_at,\n  l.strategy_name,\n  l.exchange,\n  l.symbol,\n  c.side,\n  c.fee_tier,\n  ROUND(c.fee_tier_adjustment_bps::numeric, 2) AS fee_tier_adj_bps,\n  ROUND(l.decision_latency_ms::numeric, 1) AS decision_ms,\n  ROUND(l.submit_to_ack_ms::numeric, 1) AS ack_ms,\n  ROUND(COALESCE(l.submit_to_fill_ms, l.submit_to_ack_ms)::numeric, 1) AS fill_ms,\n  ROUND(c.impact_bps::numeric, 2) AS impact_bps,\n  ROUND(c.adverse_selection_bps::numeric, 2) AS adverse_selection_bps,\n  ROUND(c.funding_drift_bps::numeric, 2) AS funding_drift_bps,\n  ROUND(c.basis_drift_bps::numeric, 2) AS basis_drift_bps,\n  ROUND(c.total_cost_bps::numeric, 2) AS total_cost_bps,\n  ROUND(c.edge_after_cost_bps::numeric, 2) AS edge_after_cost_bps,\n  ROUND(COALESCE(c.estimated_fee_usd, 0)::numeric, 4) AS est_fee_usd,\n  ROUND(COALESCE(c.estimated_cost_usd, 0)::numeric, 4) AS est_cost_usd,\n  COALESCE(l.metadata ->> 'executionMode', 'unknown') AS execution_mode,\n  l.metadata ->> 'status' AS status\nFROM strategy_latency_metrics l\nJOIN strategy_execution_costs c\n  ON c.strategy_name = l.strategy_name\n AND c.exchange = l.exchange\n AND c.symbol = l.symbol\n AND c.observed_at = l.observed_at\nWHERE l.strategy_name = '${execution_strategy}'\n  AND c.strategy_name = '${execution_strategy}'\n  AND $__timeFilter(l.observed_at)\nORDER BY l.observed_at DESC\nLIMIT 100"
         }
       ],
       "fieldConfig": {
@@ -138,10 +219,10 @@
         "showHeader": true
       },
       "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 10
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 20
       }
     }
   ]

@@ -18,6 +18,10 @@ data class ModeRoutedOrderRequest(
     val size: BigDecimal,
     val price: BigDecimal?,
     val reduceOnly: Boolean = false,
+    val urgencyClass: String? = null,
+    val feeTier: String? = null,
+    val maxSlippageBps: BigDecimal? = null,
+    val cancelAfterMs: Long? = null,
     val metadata: Map<String, Any?> = emptyMap()
 )
 

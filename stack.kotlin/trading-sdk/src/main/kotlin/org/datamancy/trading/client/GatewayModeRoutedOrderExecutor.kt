@@ -40,7 +40,11 @@ class GatewayModeRoutedOrderExecutor(
             type = request.type,
             size = request.size,
             price = request.price,
-            reduceOnly = request.reduceOnly
+            reduceOnly = request.reduceOnly,
+            urgencyClass = request.urgencyClass,
+            feeTier = request.feeTier,
+            maxSlippageBps = request.maxSlippageBps,
+            cancelAfterMs = request.cancelAfterMs
         )
 
         return when (val result = exchangeClient.placeOrder(gatewayRequest)) {
