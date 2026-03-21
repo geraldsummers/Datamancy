@@ -6,6 +6,9 @@
 
 import * as ldap from 'ldapjs';
 
+const PLAYWRIGHT_MANAGED_DESCRIPTION = 'datamancy-playwright-managed';
+const LEGACY_PLAYWRIGHT_USERNAME_PREFIX = 'pl';
+
 export interface TestUser {
   username: string;
   password: string;
@@ -60,6 +63,7 @@ export class LDAPClient {
           mail: user.email,
           userPassword: user.password,
           displayName: `Test User ${user.username}`,
+          description: PLAYWRIGHT_MANAGED_DESCRIPTION,
         };
 
         console.log(`🔧 Creating LDAP user: ${userDn}`);
@@ -133,6 +137,31 @@ export class LDAPClient {
           });
       });
     });
+  }
+
+  /**
+   * Remove any leftover Playwright-managed users from prior interrupted runs.
+   * This keeps the LDAP directory homogeneous across repeated test passes.
+   */
+  async cleanupManagedTestUsers(excludedUsernames: string[] = []): Promise<string[]> {
+    const excluded = new Set(
+      excludedUsernames
+        .map((username) => username.trim().toLowerCase())
+        .filter((username) => username.length > 0)
+    );
+
+    const managedUsernames = await this.findManagedTestUsernames();
+    const deletedUsernames: string[] = [];
+
+    for (const username of managedUsernames) {
+      if (excluded.has(username.toLowerCase())) {
+        continue;
+      }
+      await this.deleteUser(username);
+      deletedUsernames.push(username);
+    }
+
+    return deletedUsernames;
   }
 
   /**
@@ -248,6 +277,54 @@ export class LDAPClient {
 
         client.unbind();
         resolve(true);
+      });
+    });
+  }
+
+  private async findManagedTestUsernames(): Promise<string[]> {
+    const client = ldap.createClient({ url: this.url });
+    const managedUserFilter =
+      `(|(description=${PLAYWRIGHT_MANAGED_DESCRIPTION})` +
+      `(&(uid=${LEGACY_PLAYWRIGHT_USERNAME_PREFIX}*)(sn=TestUser)(displayName=Test User *)))`;
+
+    return new Promise((resolve, reject) => {
+      client.bind(this.adminDn, this.adminPassword, (bindErr) => {
+        if (bindErr) {
+          console.error('❌ LDAP bind failed during managed user search:', bindErr);
+          return reject(bindErr);
+        }
+
+        const opts = {
+          filter: managedUserFilter,
+          scope: 'sub' as const,
+          attributes: ['uid'],
+        };
+
+        client.search(this.usersDn, opts, (searchErr, res) => {
+          if (searchErr) {
+            client.unbind();
+            return reject(searchErr);
+          }
+
+          const usernames = new Set<string>();
+
+          res.on('searchEntry', (entry) => {
+            const username = String((entry as { object?: { uid?: string } }).object?.uid ?? '').trim();
+            if (username) {
+              usernames.add(username);
+            }
+          });
+
+          res.on('error', (entryErr) => {
+            client.unbind();
+            reject(entryErr);
+          });
+
+          res.on('end', () => {
+            client.unbind();
+            resolve([...usernames].sort());
+          });
+        });
       });
     });
   }

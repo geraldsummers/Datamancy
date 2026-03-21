@@ -57,6 +57,12 @@ async function globalSetup(config: FullConfig) {
     adminPassword: ldapAdminPassword,
   });
 
+  const preservedUsers = [stackAdminUser].filter((username): username is string => Boolean(username && username.trim()));
+  const removedStaleUsers = await ldapClient.cleanupManagedTestUsers(preservedUsers);
+  if (removedStaleUsers.length > 0) {
+    console.log(`🧹 Removed stale managed LDAP users: ${removedStaleUsers.join(', ')}\n`);
+  }
+
   // Generate ephemeral test user (preferred)
   const username = LDAPClient.generateUsername('playwright');
   const password = LDAPClient.generatePassword();

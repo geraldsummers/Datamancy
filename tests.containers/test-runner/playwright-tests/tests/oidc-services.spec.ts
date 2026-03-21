@@ -778,7 +778,11 @@ async function testOIDCService(
 
   if (!options.skipScreenshot) {
     // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
-    const screenshotName = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-oidc-authenticated.jpg`;
+    const normalizedServiceName = serviceName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const screenshotName = `${normalizedServiceName}-oidc-authenticated.jpg`;
     const screenshotPath = `/app/test-results/screenshots/${screenshotName}`;
     if (options.screenshotSelector) {
       const target = page.locator(options.screenshotSelector).first();

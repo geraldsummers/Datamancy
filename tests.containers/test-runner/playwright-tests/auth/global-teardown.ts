@@ -36,43 +36,49 @@ async function globalTeardown() {
   const ldapAdminDn = process.env.LDAP_ADMIN_DN || 'cn=admin,dc=datamancy,dc=net';
   const ldapAdminPassword = process.env.LDAP_ADMIN_PASSWORD || 'admin';
   const stackAdminUser = process.env.STACK_ADMIN_USER;
+  const preservedUsers = [stackAdminUser].filter((username): username is string => Boolean(username && username.trim()));
+  const ldapClient = new LDAPClient({
+    url: ldapUrl,
+    adminDn: ldapAdminDn,
+    adminPassword: ldapAdminPassword,
+  });
 
   // Load test user credentials
   const credsPath = resolveCredsPath();
 
   if (!credsPath) {
-    console.warn('⚠️  No test user credentials found - skipping cleanup');
-    return;
+    console.warn('⚠️  No test user credentials found - skipping direct user cleanup');
+  } else {
+    const testUser = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
+    console.log(`🔍 Found test user: ${testUser.username}\n`);
+
+    const managedUser = testUser.managed !== false;
+    if (!managedUser || (stackAdminUser && testUser.username === stackAdminUser)) {
+      console.log('⚠️  Skipping LDAP cleanup for non-managed or stack admin user\n');
+    } else {
+      try {
+        await ldapClient.deleteUser(testUser.username);
+        console.log('\n✅ LDAP user cleaned up successfully\n');
+      } catch (error) {
+        console.error('❌ Failed to clean up LDAP user:', error);
+        // Don't throw - we want teardown to complete even if cleanup fails
+      }
+    }
   }
 
-  const testUser = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
-  console.log(`🔍 Found test user: ${testUser.username}\n`);
-
-  const managedUser = testUser.managed !== false;
-  if (!managedUser || (stackAdminUser && testUser.username === stackAdminUser)) {
-    console.log('⚠️  Skipping LDAP cleanup for non-managed or stack admin user\n');
-  } else {
-    // Create LDAP client
-    const ldapClient = new LDAPClient({
-      url: ldapUrl,
-      adminDn: ldapAdminDn,
-      adminPassword: ldapAdminPassword,
-    });
-
-    // Delete user from LDAP
-    try {
-      await ldapClient.deleteUser(testUser.username);
-      console.log('\n✅ LDAP user cleaned up successfully\n');
-    } catch (error) {
-      console.error('❌ Failed to clean up LDAP user:', error);
-      // Don't throw - we want teardown to complete even if cleanup fails
+  try {
+    const removedStaleUsers = await ldapClient.cleanupManagedTestUsers(preservedUsers);
+    if (removedStaleUsers.length > 0) {
+      console.log(`🧹 Removed stale managed LDAP users: ${removedStaleUsers.join(', ')}\n`);
     }
+  } catch (error) {
+    console.error('❌ Failed to remove stale LDAP users:', error);
   }
 
   // Clean up auth files
   try {
-    const authDir = path.dirname(credsPath);
-    if (fs.existsSync(authDir)) {
+    const authDir = credsPath ? path.dirname(credsPath) : null;
+    if (authDir && fs.existsSync(authDir)) {
       fs.rmSync(authDir, { recursive: true, force: true });
       console.log('🗑️  Auth files cleaned up\n');
     }

@@ -82,6 +82,7 @@ async function testForwardAuthService(
     screenshotDelayMs?: number;
     screenshotUsePage?: boolean;
     screenshotViewport?: { width: number; height: number };
+    screenshotSuffix?: string;
     skipScreenshot?: boolean;
     onAfterLoad?: (page: Page) => Promise<void>;
   } = {}
@@ -272,7 +273,11 @@ async function testForwardAuthService(
 
   if (!options.skipScreenshot) {
     // Capture screenshot for manual validation (compressed to prevent 5MB+ files)
-    const screenshotBase = `${serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-authenticated`;
+    const normalizedServiceName = serviceName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const screenshotBase = `${normalizedServiceName}-${options.screenshotSuffix ?? 'authenticated'}`;
     const screenshotType = options.screenshotType ?? 'jpeg';
     const screenshotName = `${screenshotBase}.${screenshotType}`;
     const screenshotPath = `/app/test-results/screenshots/${screenshotName}`;
@@ -610,6 +615,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         disallowUrlPatterns: [/#\/vault\b/i],
         maxPatternRetries: 4,
         retryDelayMs: 2000,
+        screenshotSuffix: 'protected',
       }
     );
   });
@@ -744,6 +750,7 @@ test.describe('Forward Auth Services - SSO Flow', () => {
         disallowUrlPatterns: [/#\/vault\b/i],
         maxPatternRetries: 4,
         retryDelayMs: 2000,
+        screenshotSuffix: 'protected',
       }
     );
   });

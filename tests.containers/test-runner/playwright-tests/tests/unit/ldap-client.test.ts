@@ -45,5 +45,11 @@ describe('LDAPClient', () => {
       expect(username).toMatch(/^te[a-z0-9]+$/);
       expect(username.length).toBeLessThanOrEqual(16);
     });
+
+    it('keeps the legacy playwright prefix stable for managed-user cleanup', () => {
+      const username = LDAPClient.generateUsername('playwright');
+      expect(username).toMatch(/^pl[a-z0-9]+$/);
+      expect(username.length).toBeLessThanOrEqual(16);
+    });
   });
 });
