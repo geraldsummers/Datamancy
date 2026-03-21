@@ -83,6 +83,17 @@ internal fun envFlag(
         ?.let { it == "1" || it == "true" || it == "yes" || it == "on" }
         ?: defaultValue
 
+internal fun csvEnvValues(
+    name: String,
+    env: Map<String, String> = System.getenv()
+): Set<String> =
+    envValue(name, env)
+        ?.split(',', ';', '|', ' ')
+        ?.map { it.trim().lowercase(Locale.US) }
+        ?.filter { it.isNotEmpty() }
+        ?.toSet()
+        ?: emptySet()
+
 internal fun stagedTradingConfig(
     endpoints: ServiceEndpoints,
     env: Map<String, String> = System.getenv()
@@ -753,6 +764,10 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
         ?: envValue("HYPERLIQUID_TESTNET_KEY")
     if (resolvedAuth == null) {
         skip(
+            "Stage 5b: Live trading account homogeneity probe",
+            "No compatible tx-gateway bearer token found (set TRADING_E2E_BEARER_TOKEN or OIDC vars)"
+        )
+        skip(
             "Stage 6: Live authenticated paper order contract",
             "No compatible tx-gateway bearer token found (set TRADING_E2E_BEARER_TOKEN or OIDC vars)"
         )
@@ -765,6 +780,66 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
             prepareRiskStateForLiveOrders(
                 config = config,
                 bearerToken = resolvedAuth.bearerToken
+            )
+        }
+
+        test("Stage 5b: Live trading account homogeneity probe") {
+            val response = httpClient.get("${config.txGatewayBaseUrl}/api/v1/accounts/trading/homogeneity") {
+                header(HttpHeaders.Authorization, "Bearer ${resolvedAuth.bearerToken}")
+            }
+            response.status shouldBe HttpStatusCode.OK
+
+            val body = response.bodyAsText()
+            val json = stagedFixtureJson.parseToJsonElement(body).jsonObject
+            val accounts = json["accounts"]?.jsonArray ?: error("Homogeneity response missing accounts array")
+            val expectedTradingUsers = buildSet {
+                envValue("STACK_ADMIN_USER")?.lowercase(Locale.US)?.let { add(it) }
+                addAll(csvEnvValues("LDAP_MANAGED_TRADING_USERS"))
+            }
+
+            require(expectedTradingUsers.isNotEmpty()) {
+                "Expected at least one managed trading user to validate"
+            }
+
+            val accountsByUser = accounts.mapNotNull { element ->
+                val account = element.jsonObject
+                val username = account["username"]?.jsonPrimitive?.contentOrNull?.lowercase(Locale.US)
+                username?.let { it to account }
+            }.toMap()
+
+            expectedTradingUsers.forEach { username ->
+                val account = accountsByUser[username]
+                    ?: error("Managed trading user '$username' missing from homogeneity audit")
+                val hasTradingProfile = account["hasTradingProfile"]
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+                    ?.toBooleanStrictOrNull()
+                val hasTradingObjectClass = account["hasTradingObjectClass"]
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+                    ?.toBooleanStrictOrNull()
+                val findings = account["findings"]
+                    ?.jsonArray
+                    ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                    ?: emptyList()
+
+                require(hasTradingProfile == true) {
+                    "Managed trading user '$username' is missing a trading profile: $account"
+                }
+                require(hasTradingObjectClass == true) {
+                    "Managed trading user '$username' is missing tradingAccount objectClass: $account"
+                }
+                require(findings.isEmpty()) {
+                    "Managed trading user '$username' has homogeneity findings: ${findings.joinToString(" | ")}"
+                }
+            }
+
+            writeSnapshotIfEnabled(
+                config = config,
+                scenario = "trading_account_homogeneity",
+                requestBody = null,
+                responseStatus = response.status.value,
+                responseBody = body
             )
         }
 

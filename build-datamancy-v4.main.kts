@@ -539,6 +539,7 @@ fun generateTestRunnersCompose(
         appendLine("    STACK_ADMIN_USER: \${STACK_ADMIN_USER}")
         appendLine("    STACK_ADMIN_PASSWORD: \${STACK_ADMIN_PASSWORD}")
         appendLine("    STACK_ADMIN_EMAIL: \${STACK_ADMIN_EMAIL}")
+        appendLine("    LDAP_MANAGED_TRADING_USERS: \${LDAP_MANAGED_TRADING_USERS:-traderbot}")
         appendLine("    HYPERLIQUID_TESTNET_KEY: \${HYPERLIQUID_TESTNET_KEY}")
         appendLine("    TRADING_E2E_HYPERLIQUID_KEY: \${TRADING_E2E_HYPERLIQUID_KEY}")
         appendLine("    SEAFILE_USERNAME: \${STACK_ADMIN_EMAIL}")

@@ -127,4 +127,14 @@ class StagedTradingExecutionTestsTest {
             )
         )
     }
+
+    @Test
+    fun `managed trading users parser normalizes configured usernames`() {
+        val users = csvEnvValues(
+            name = "LDAP_MANAGED_TRADING_USERS",
+            env = mapOf("LDAP_MANAGED_TRADING_USERS" to " traderbot ; Ops-Bot | traderbot ")
+        )
+
+        assertEquals(setOf("traderbot", "ops-bot"), users)
+    }
 }

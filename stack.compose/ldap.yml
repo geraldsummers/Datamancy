@@ -57,6 +57,7 @@ services:
       LDAP_DEFAULT_ALLOWED_TRADING_MODES: ${LDAP_DEFAULT_ALLOWED_TRADING_MODES:-backtest,forward_paper,testnet_live}
       LDAP_DEFAULT_MAX_TX_PER_HOUR: ${LDAP_DEFAULT_MAX_TX_PER_HOUR:-240}
       LDAP_DEFAULT_MAX_TX_VALUE_USD: ${LDAP_DEFAULT_MAX_TX_VALUE_USD:-25000}
+      LDAP_MANAGED_TRADING_USERS: ${LDAP_MANAGED_TRADING_USERS:-traderbot}
     volumes:
       - ./configs/ldap/ensure_suffixes.ldif:/tmp/ensure_suffixes.ldif:ro
       - ./configs/ldap/ensure-suffixes.sh:/tmp/ensure-suffixes.sh:ro

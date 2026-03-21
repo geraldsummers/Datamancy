@@ -2099,9 +2099,14 @@ private fun reconcileHyperliquidRiskState(
         val size = position["size"].toBigDecimalOrNull()?.abs() ?: BigDecimal.ZERO
         val entryPrice = position["entryPrice"].toBigDecimalOrNull()
         val marginUsed = position["marginUsed"].toBigDecimalOrNull()
+        val leverage = position["leverage"].toBigDecimalOrNull()
         val notional = when {
             size <= BigDecimal.ZERO -> BigDecimal.ZERO
             entryPrice != null && entryPrice > BigDecimal.ZERO -> size.multiply(entryPrice)
+            marginUsed != null &&
+                marginUsed > BigDecimal.ZERO &&
+                leverage != null &&
+                leverage > BigDecimal.ZERO -> marginUsed.multiply(leverage)
             marginUsed != null && marginUsed > BigDecimal.ZERO -> marginUsed
             else -> BigDecimal.ZERO
         }

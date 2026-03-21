@@ -12,6 +12,7 @@ LDAP_DEFAULT_ALLOWED_EXCHANGES="${LDAP_DEFAULT_ALLOWED_EXCHANGES:-swyftx,binance
 LDAP_DEFAULT_ALLOWED_TRADING_MODES="${LDAP_DEFAULT_ALLOWED_TRADING_MODES:-backtest,forward_paper,testnet_live}"
 LDAP_DEFAULT_MAX_TX_PER_HOUR="${LDAP_DEFAULT_MAX_TX_PER_HOUR:-240}"
 LDAP_DEFAULT_MAX_TX_VALUE_USD="${LDAP_DEFAULT_MAX_TX_VALUE_USD:-25000}"
+LDAP_MANAGED_TRADING_USERS="${LDAP_MANAGED_TRADING_USERS:-traderbot}"
 
 echo "[ldap-ensure] Waiting for LDAP..."
 MAX_ATTEMPTS=30
@@ -81,134 +82,105 @@ entry_has_attribute() {
     grep -qi "^${ATTRIBUTE_NAME}:"
 }
 
-ensure_stack_admin_trading_profile() {
-  if [ -z "$STACK_ADMIN_USER" ] || [ -z "$STACK_ADMIN_PASSWORD" ]; then
+entry_exists() {
+  ENTRY_DN="$1"
+  ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
+    -b "$ENTRY_DN" -s base '(objectClass=*)' dn >/dev/null 2>&1
+}
+
+safe_file_id() {
+  printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'
+}
+
+ensure_trading_object_class() {
+  ENTRY_DN="$1"
+  USERNAME="$2"
+  SAFE_ID="$3"
+
+  if ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
+    -b "$ENTRY_DN" -s base '(objectClass=tradingAccount)' dn 2>/dev/null | \
+    grep -q '^dn:'; then
     return 0
   fi
 
-  if ! ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
-    -b "$STACK_ADMIN_DN" -s base '(objectClass=tradingAccount)' dn 2>/dev/null | \
-    grep -q '^dn:'; then
-    cat <<EOF >/tmp/stack_admin_trading_class.ldif
-dn: ${STACK_ADMIN_DN}
+  cat <<EOF >/tmp/${SAFE_ID}_trading_class.ldif
+dn: ${ENTRY_DN}
 changetype: modify
 add: objectClass
 objectClass: tradingAccount
 EOF
-    run_ldap_cmd "stack admin tradingAccount class add" \
-      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_trading_class.ldif >/dev/null
+  run_ldap_cmd "tradingAccount class add for ${USERNAME}" \
+    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_trading_class.ldif >/dev/null
+}
+
+ensure_csv_attribute() {
+  ENTRY_DN="$1"
+  USERNAME="$2"
+  SAFE_ID="$3"
+  ATTRIBUTE_NAME="$4"
+  RAW_VALUES="$5"
+
+  if entry_has_attribute "$ENTRY_DN" "$ATTRIBUTE_NAME"; then
+    return 0
   fi
 
-  if ! entry_has_attribute "$STACK_ADMIN_DN" "allowedChains"; then
-    {
-      printf 'dn: %s\n' "$STACK_ADMIN_DN"
-      printf 'changetype: modify\n'
-      printf 'add: allowedChains\n'
-      sanitize_csv_to_lines "$LDAP_DEFAULT_ALLOWED_CHAINS" | while IFS= read -r value; do
-        printf 'allowedChains: %s\n' "$value"
-      done
-    } >/tmp/stack_admin_allowed_chains.ldif
-    run_ldap_cmd "stack admin allowedChains add" \
-      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_allowed_chains.ldif >/dev/null
+  {
+    printf 'dn: %s\n' "$ENTRY_DN"
+    printf 'changetype: modify\n'
+    printf 'add: %s\n' "$ATTRIBUTE_NAME"
+    sanitize_csv_to_lines "$RAW_VALUES" | while IFS= read -r value; do
+      printf '%s: %s\n' "$ATTRIBUTE_NAME" "$value"
+    done
+  } >/tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif
+  run_ldap_cmd "${ATTRIBUTE_NAME} add for ${USERNAME}" \
+    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif >/dev/null
+}
+
+ensure_single_value_attribute() {
+  ENTRY_DN="$1"
+  USERNAME="$2"
+  SAFE_ID="$3"
+  ATTRIBUTE_NAME="$4"
+  ATTRIBUTE_VALUE="$5"
+
+  if entry_has_attribute "$ENTRY_DN" "$ATTRIBUTE_NAME"; then
+    return 0
   fi
 
-  if ! entry_has_attribute "$STACK_ADMIN_DN" "allowedExchanges"; then
-    {
-      printf 'dn: %s\n' "$STACK_ADMIN_DN"
-      printf 'changetype: modify\n'
-      printf 'add: allowedExchanges\n'
-      sanitize_csv_to_lines "$LDAP_DEFAULT_ALLOWED_EXCHANGES" | while IFS= read -r value; do
-        printf 'allowedExchanges: %s\n' "$value"
-      done
-    } >/tmp/stack_admin_allowed_exchanges.ldif
-    run_ldap_cmd "stack admin allowedExchanges add" \
-      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_allowed_exchanges.ldif >/dev/null
-  fi
-
-  if ! entry_has_attribute "$STACK_ADMIN_DN" "allowedTradingModes"; then
-    {
-      printf 'dn: %s\n' "$STACK_ADMIN_DN"
-      printf 'changetype: modify\n'
-      printf 'add: allowedTradingModes\n'
-      sanitize_csv_to_lines "$LDAP_DEFAULT_ALLOWED_TRADING_MODES" | while IFS= read -r value; do
-        printf 'allowedTradingModes: %s\n' "$value"
-      done
-    } >/tmp/stack_admin_allowed_trading_modes.ldif
-    run_ldap_cmd "stack admin allowedTradingModes add" \
-      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_allowed_trading_modes.ldif >/dev/null
-  fi
-
-  if ! entry_has_attribute "$STACK_ADMIN_DN" "maxTxPerHour"; then
-    cat <<EOF >/tmp/stack_admin_max_tx_per_hour.ldif
-dn: ${STACK_ADMIN_DN}
+  cat <<EOF >/tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif
+dn: ${ENTRY_DN}
 changetype: modify
-add: maxTxPerHour
-maxTxPerHour: ${LDAP_DEFAULT_MAX_TX_PER_HOUR}
+add: ${ATTRIBUTE_NAME}
+${ATTRIBUTE_NAME}: ${ATTRIBUTE_VALUE}
 EOF
-    run_ldap_cmd "stack admin maxTxPerHour add" \
-      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_max_tx_per_hour.ldif >/dev/null
+  run_ldap_cmd "${ATTRIBUTE_NAME} add for ${USERNAME}" \
+    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif >/dev/null
+}
+
+ensure_user_trading_profile() {
+  USERNAME="$1"
+  if [ -z "$USERNAME" ]; then
+    return 0
   fi
 
-  if ! entry_has_attribute "$STACK_ADMIN_DN" "maxTxValueUSD"; then
-    cat <<EOF >/tmp/stack_admin_max_tx_value_usd.ldif
-dn: ${STACK_ADMIN_DN}
-changetype: modify
-add: maxTxValueUSD
-maxTxValueUSD: ${LDAP_DEFAULT_MAX_TX_VALUE_USD}
-EOF
-    run_ldap_cmd "stack admin maxTxValueUSD add" \
-      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_max_tx_value_usd.ldif >/dev/null
+  USER_DN="uid=${USERNAME},ou=users,${LDAP_BASE_DN}"
+  if ! entry_exists "$USER_DN"; then
+    echo "[ldap-ensure] Trading profile target not present, skipping: $USERNAME"
+    return 0
   fi
+
+  SAFE_ID="$(safe_file_id "$USERNAME")"
+  echo "[ldap-ensure] Ensuring trading profile for existing user: $USERNAME"
+  ensure_trading_object_class "$USER_DN" "$USERNAME" "$SAFE_ID"
+  ensure_csv_attribute "$USER_DN" "$USERNAME" "$SAFE_ID" "allowedChains" "$LDAP_DEFAULT_ALLOWED_CHAINS"
+  ensure_csv_attribute "$USER_DN" "$USERNAME" "$SAFE_ID" "allowedExchanges" "$LDAP_DEFAULT_ALLOWED_EXCHANGES"
+  ensure_csv_attribute "$USER_DN" "$USERNAME" "$SAFE_ID" "allowedTradingModes" "$LDAP_DEFAULT_ALLOWED_TRADING_MODES"
+  ensure_single_value_attribute "$USER_DN" "$USERNAME" "$SAFE_ID" "maxTxPerHour" "$LDAP_DEFAULT_MAX_TX_PER_HOUR"
+  ensure_single_value_attribute "$USER_DN" "$USERNAME" "$SAFE_ID" "maxTxValueUSD" "$LDAP_DEFAULT_MAX_TX_VALUE_USD"
 }
 
 echo "[ldap-ensure] Ensuring base OUs exist"
 ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -c -f /tmp/ensure_suffixes.ldif >/dev/null 2>&1 || true
-
-if [ -z "$STACK_ADMIN_USER" ] || [ -z "$STACK_ADMIN_PASSWORD" ]; then
-  echo "[ldap-ensure] STACK_ADMIN_* variables not set; skipping stack admin sync"
-  echo "[ldap-ensure] Done"
-  exit 0
-fi
-
-STACK_ADMIN_DN="uid=${STACK_ADMIN_USER},ou=users,${LDAP_BASE_DN}"
-STACK_ADMIN_EMAIL="${STACK_ADMIN_EMAIL:-${STACK_ADMIN_USER}@datamancy.net}"
-STACK_ADMIN_PASSWORD_VALUE="$STACK_ADMIN_PASSWORD"
-if command -v slappasswd >/dev/null 2>&1; then
-  STACK_ADMIN_PASSWORD_VALUE="$(slappasswd -s "$STACK_ADMIN_PASSWORD")"
-fi
-
-if ldapsearch -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -b "$STACK_ADMIN_DN" -s base '(objectClass=*)' dn >/dev/null 2>&1; then
-  echo "[ldap-ensure] Synchronizing password for existing stack admin user: $STACK_ADMIN_USER"
-  cat <<EOF >/tmp/stack_admin_modify.ldif
-dn: ${STACK_ADMIN_DN}
-changetype: modify
-replace: userPassword
-userPassword: ${STACK_ADMIN_PASSWORD_VALUE}
-EOF
-  run_ldap_cmd "stack admin password sync" \
-    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_modify.ldif >/dev/null
-else
-  echo "[ldap-ensure] Creating stack admin user: $STACK_ADMIN_USER"
-  cat <<EOF >/tmp/stack_admin_add.ldif
-dn: ${STACK_ADMIN_DN}
-objectClass: inetOrgPerson
-objectClass: posixAccount
-objectClass: shadowAccount
-uid: ${STACK_ADMIN_USER}
-cn: System Administrator
-sn: Administrator
-givenName: System
-mail: ${STACK_ADMIN_EMAIL}
-displayName: System Administrator
-uidNumber: 10000
-gidNumber: 10000
-homeDirectory: /home/${STACK_ADMIN_USER}
-loginShell: /bin/bash
-userPassword: ${STACK_ADMIN_PASSWORD_VALUE}
-EOF
-  run_ldap_cmd "stack admin user create" \
-    ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_add.ldif >/dev/null
-fi
 
 ensure_group_membership() {
   GROUP_NAME="$1"
@@ -244,12 +216,63 @@ EOF
     ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_member_add.ldif >/dev/null
 }
 
-echo "[ldap-ensure] Ensuring stack admin group membership"
-ensure_group_membership "admins"
-ensure_group_membership "users"
-ensure_group_membership "openwebui-admin"
-ensure_group_membership "planka-admin"
-echo "[ldap-ensure] Ensuring stack admin trading profile"
-ensure_stack_admin_trading_profile
+if [ -z "$STACK_ADMIN_USER" ] || [ -z "$STACK_ADMIN_PASSWORD" ]; then
+  echo "[ldap-ensure] STACK_ADMIN_* variables not set; skipping stack admin sync"
+else
+  STACK_ADMIN_DN="uid=${STACK_ADMIN_USER},ou=users,${LDAP_BASE_DN}"
+  STACK_ADMIN_EMAIL="${STACK_ADMIN_EMAIL:-${STACK_ADMIN_USER}@datamancy.net}"
+  STACK_ADMIN_PASSWORD_VALUE="$STACK_ADMIN_PASSWORD"
+  if command -v slappasswd >/dev/null 2>&1; then
+    STACK_ADMIN_PASSWORD_VALUE="$(slappasswd -s "$STACK_ADMIN_PASSWORD")"
+  fi
+
+  if entry_exists "$STACK_ADMIN_DN"; then
+    echo "[ldap-ensure] Synchronizing password for existing stack admin user: $STACK_ADMIN_USER"
+    cat <<EOF >/tmp/stack_admin_modify.ldif
+dn: ${STACK_ADMIN_DN}
+changetype: modify
+replace: userPassword
+userPassword: ${STACK_ADMIN_PASSWORD_VALUE}
+EOF
+    run_ldap_cmd "stack admin password sync" \
+      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_modify.ldif >/dev/null
+  else
+    echo "[ldap-ensure] Creating stack admin user: $STACK_ADMIN_USER"
+    cat <<EOF >/tmp/stack_admin_add.ldif
+dn: ${STACK_ADMIN_DN}
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: ${STACK_ADMIN_USER}
+cn: System Administrator
+sn: Administrator
+givenName: System
+mail: ${STACK_ADMIN_EMAIL}
+displayName: System Administrator
+uidNumber: 10000
+gidNumber: 10000
+homeDirectory: /home/${STACK_ADMIN_USER}
+loginShell: /bin/bash
+userPassword: ${STACK_ADMIN_PASSWORD_VALUE}
+EOF
+    run_ldap_cmd "stack admin user create" \
+      ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_add.ldif >/dev/null
+  fi
+
+  echo "[ldap-ensure] Ensuring stack admin group membership"
+  ensure_group_membership "admins"
+  ensure_group_membership "users"
+  ensure_group_membership "openwebui-admin"
+  ensure_group_membership "planka-admin"
+  ensure_user_trading_profile "$STACK_ADMIN_USER"
+fi
+
+echo "[ldap-ensure] Ensuring managed trading profiles"
+sanitize_csv_to_lines "$LDAP_MANAGED_TRADING_USERS" | while IFS= read -r managed_user; do
+  if [ -n "$STACK_ADMIN_USER" ] && [ "$managed_user" = "$STACK_ADMIN_USER" ]; then
+    continue
+  fi
+  ensure_user_trading_profile "$managed_user"
+done
 
 echo "[ldap-ensure] Done"
