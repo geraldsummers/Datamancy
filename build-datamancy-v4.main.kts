@@ -1925,7 +1925,12 @@ ${CYAN}╔═══════════════════════�
     info("Domain: ${sanitized.domain}")
     info("Admin: ${sanitized.adminUser} <${sanitized.adminEmail}>")
 
-    val existingDistCredentials = loadEnvFile(distDir.resolve(".env"))
+    val credentialStoreFile = workDir.resolve(".env")
+    val existingDistCredentials = when {
+        credentialStoreFile.exists() -> loadEnvFile(credentialStoreFile)
+        distDir.resolve(".env").exists() -> loadEnvFile(distDir.resolve(".env"))
+        else -> mutableMapOf()
+    }
 
     // Rebuild dist/ from a clean slate while retaining the previous credential set.
     if (distDir.exists()) {
@@ -1943,7 +1948,7 @@ ${CYAN}╔═══════════════════════�
     writeDistTestArtifacts(distDir, mapper, jsonMapper, testRegistry, testStatus)
     val hyperliquidTestnetKey = if (includeTests) requireHyperliquidTestnetKeyForTesting() else null
 
-    // Load or generate credentials from dist/.env only.
+    // Load or generate credentials from the durable local .env store and emit dist/.env as a build artifact.
     val envFile = distDir.resolve(".env")
     val existingCredentials = existingDistCredentials
     val credentials = generateCredentials(schema, sanitized, existingCredentials, config)
@@ -1951,6 +1956,7 @@ ${CYAN}╔═══════════════════════�
         credentials["HYPERLIQUID_TESTNET_KEY"] = key
         credentials["TRADING_E2E_HYPERLIQUID_KEY"] = key
     }
+    saveEnvFile(credentialStoreFile, credentials)
     saveEnvFile(envFile, credentials)
     validateTemplateEnvVars(credentials, includeTests)
 
