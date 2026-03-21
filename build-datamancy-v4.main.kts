@@ -1070,12 +1070,12 @@ fun loadEnvFile(file: File): MutableMap<String, String> {
             val key = parts[0].trim()
             val value = parts[1].trim()
 
-            // Check for heredoc format (for reading old files)
-            if (value == "<<EOF") {
-                // Read multiline value until EOF
+            // Support heredoc-style multiline values in the external credential store.
+            if (value.startsWith("<<")) {
+                val delimiter = value.removePrefix("<<").ifBlank { "EOF" }
                 val multilineValue = mutableListOf<String>()
                 i++
-                while (i < lines.size && lines[i].trim() != "EOF") {
+                while (i < lines.size && lines[i].trim() != delimiter) {
                     multilineValue.add(lines[i])
                     i++
                 }
@@ -1137,7 +1137,11 @@ fun enforceOwnerOnlyFilePermissions(file: File) {
     }
 }
 
-fun saveEnvFile(file: File, credentials: Map<String, String>) {
+fun saveEnvFile(
+    file: File,
+    credentials: Map<String, String>,
+    persistMultilineValues: Boolean = false
+) {
     val content = buildString {
         appendLine("# Datamancy Environment Variables")
         appendLine("# Generated: ${Instant.now()}")
@@ -1147,11 +1151,17 @@ fun saveEnvFile(file: File, credentials: Map<String, String>) {
 
         credentials.keys.sorted().forEach { key ->
             val value = credentials[key]!!
-            // For multiline values (RSA keys), skip them - they're stored in separate files
             if (value.contains("\n")) {
-                // Docker Compose .env doesn't support multiline well, so we'll store these separately
-                // and document that RSA keys should be in separate files
-                appendLine("# $key: (multiline value, stored in configs/)")
+                if (persistMultilineValues) {
+                    val delimiter = "__DATAMANCY_${key}_EOF__"
+                    appendLine("$key=<<$delimiter")
+                    appendLine(value)
+                    appendLine(delimiter)
+                } else {
+                    // Docker Compose .env doesn't support multiline well, so we'll store these separately
+                    // and document that RSA keys should be in separate files
+                    appendLine("# $key: (multiline value, stored in configs/)")
+                }
             } else {
                 // Escape $ signs to prevent variable interpolation in Docker Compose
                 // Docker Compose interprets ${VAR} as variable substitution
@@ -2111,7 +2121,7 @@ ${CYAN}╔═══════════════════════�
         credentials["HYPERLIQUID_TESTNET_KEY"] = key
         credentials["TRADING_E2E_HYPERLIQUID_KEY"] = key
     }
-    saveEnvFile(credentialStoreFile, credentials)
+    saveEnvFile(credentialStoreFile, credentials, persistMultilineValues = true)
     saveEnvFile(envFile, credentials)
     validateTemplateEnvVars(credentials, includeTests)
 
