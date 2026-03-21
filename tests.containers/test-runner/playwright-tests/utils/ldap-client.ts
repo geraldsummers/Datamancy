@@ -309,7 +309,13 @@ export class LDAPClient {
           const usernames = new Set<string>();
 
           res.on('searchEntry', (entry) => {
-            const username = String((entry as { object?: { uid?: string } }).object?.uid ?? '').trim();
+            const entryDn = (entry as { dn?: { toString?: () => string } }).dn?.toString?.() ?? '';
+            const usernameFromDn = entryDn.match(/^uid=([^,]+)/i)?.[1]?.trim() ?? '';
+            const rawUid = (entry as { object?: { uid?: string | string[] } }).object?.uid;
+            const usernameFromObject = Array.isArray(rawUid)
+              ? String(rawUid[0] ?? '').trim()
+              : String(rawUid ?? '').trim();
+            const username = usernameFromDn || usernameFromObject;
             if (username) {
               usernames.add(username);
             }
