@@ -6,6 +6,7 @@
 .env.server
 .env.local
 volumes/secrets/
+stack.config/model-context-server/shadow-accounts/*.pwd
 *.key
 stackops_ed25519
 .gradle/

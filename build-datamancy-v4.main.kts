@@ -1240,6 +1240,16 @@ fun copyBuildArtifacts(distDir: File) {
         info("Copied smart-up script to dist/smart-up.sh")
     }
 
+    val scriptsDir = File("scripts")
+    if (scriptsDir.exists()) {
+        val destScriptsDir = distDir.resolve("scripts")
+        if (destScriptsDir.exists()) {
+            destScriptsDir.deleteRecursively()
+        }
+        scriptsDir.copyRecursively(destScriptsDir, overwrite = true)
+        info("Copied scripts/ to dist/scripts")
+    }
+
     // Copy stack.kotlin JARs only
     val kotlinSrcDir = File("stack.kotlin")
     if (kotlinSrcDir.exists()) {

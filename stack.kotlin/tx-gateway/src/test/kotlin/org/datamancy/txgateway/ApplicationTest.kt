@@ -19,6 +19,7 @@ import kotlin.test.assertTrue
 class ApplicationTest {
     private fun tradingUserInfo(
         username: String = "trader1",
+        groups: List<String> = listOf("traders"),
         allowedChains: List<String> = listOf("base"),
         allowedExchanges: List<String> = listOf("hyperliquid"),
         allowedTradingModes: List<String> = listOf("backtest", "forward_paper", "testnet_live"),
@@ -27,13 +28,44 @@ class ApplicationTest {
     ) = org.datamancy.txgateway.models.UserInfo(
         username = username,
         email = "$username@datamancy.net",
-        groups = listOf("traders"),
+        groups = groups,
         evmAddress = null,
         allowedChains = allowedChains,
         allowedExchanges = allowedExchanges,
         allowedTradingModes = allowedTradingModes,
         maxTxPerHour = maxTxPerHour,
         maxTxValueUSD = maxTxValueUSD
+    )
+
+    private fun tradingAudit(
+        username: String = "trader1",
+        groups: List<String> = listOf("traders"),
+        hasTradingProfile: Boolean = true,
+        hasTradingObjectClass: Boolean = true,
+        rawAllowedChains: List<String> = listOf("base"),
+        allowedChains: List<String> = listOf("base"),
+        rawAllowedExchanges: List<String> = listOf("hyperliquid"),
+        allowedExchanges: List<String> = listOf("hyperliquid"),
+        rawAllowedTradingModes: List<String> = listOf("forward_paper"),
+        allowedTradingModes: List<String> = listOf("forward_paper"),
+        maxTxPerHour: Int = 100,
+        maxTxValueUSD: Int = 25000,
+        findings: List<String> = emptyList()
+    ) = TradingAccountAudit(
+        username = username,
+        email = "$username@datamancy.net",
+        groups = groups,
+        hasTradingProfile = hasTradingProfile,
+        hasTradingObjectClass = hasTradingObjectClass,
+        rawAllowedChains = rawAllowedChains,
+        allowedChains = allowedChains,
+        rawAllowedExchanges = rawAllowedExchanges,
+        allowedExchanges = allowedExchanges,
+        rawAllowedTradingModes = rawAllowedTradingModes,
+        allowedTradingModes = allowedTradingModes,
+        maxTxPerHour = maxTxPerHour,
+        maxTxValueUSD = maxTxValueUSD,
+        findings = findings
     )
 
     private fun freshQuoteTimestamp(): Instant = Instant.now().minusSeconds(5)
@@ -2111,6 +2143,132 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(body.contains("\"closed\":2") || body.contains("\"closed\": 2"), body)
         verify(exactly = 1) { workerClient.closeAllHyperliquidPositions("trader1", "test-key") }
+    }
+
+    @Test
+    fun testUserTradingProfileEndpointReturnsAudit() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getTradingAccountAudit("trader1") } returns tradingAudit(
+                rawAllowedExchanges = listOf("hyperliquid", "kraken"),
+                allowedExchanges = listOf("hyperliquid"),
+                findings = listOf("allowedExchanges contains unsupported values: kraken")
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/user/trading-profile") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("kraken"), body)
+        assertTrue(body.contains("unsupported values"), body)
+    }
+
+    @Test
+    fun testTradingHomogeneityEndpointRequiresReservedGroup() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(groups = listOf("traders"))
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/accounts/trading/homogeneity") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Reserved trading role required"), body)
+    }
+
+    @Test
+    fun testTradingHomogeneityEndpointReturnsAuditSummaryForReservedGroup() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(groups = listOf("admins"))
+            every { ldapService.listTradingAccountAudits() } returns listOf(
+                tradingAudit(username = "trader1", groups = listOf("admins")),
+                tradingAudit(
+                    username = "trader2",
+                    groups = listOf("traders"),
+                    hasTradingObjectClass = false,
+                    rawAllowedTradingModes = listOf("mainnet_live"),
+                    allowedTradingModes = listOf("mainnet_live"),
+                    findings = listOf("mainnet_live allowed without reserved group membership (admins)")
+                )
+            )
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/accounts/trading/homogeneity") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"totalAccounts\":2") || body.contains("\"totalAccounts\": 2"), body)
+        assertTrue(body.contains("\"accountsWithMainnetLive\":1") || body.contains("\"accountsWithMainnetLive\": 1"), body)
+        assertTrue(body.contains("trader2"), body)
+    }
+
+    @Test
+    fun testMainnetLiveOrderRequiresReservedGroup() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every {
+                ldapService.getUserInfo("trader1")
+            } returns tradingUserInfo(
+                groups = listOf("traders"),
+                allowedTradingModes = listOf("forward_paper", "mainnet_live")
+            )
+            every { dbService.checkRateLimit("trader1", any()) } returns true
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"mainnet_live"}""")
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("requires reserved trading role"), body)
     }
 
     @Test

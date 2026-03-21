@@ -13,18 +13,7 @@ class LdapService(
 ) {
     private val logger = LoggerFactory.getLogger(LdapService::class.java)
     private lateinit var connection: LDAPConnection
-    private val defaultAllowedChains = parseCsvEnv(
-        "LDAP_DEFAULT_ALLOWED_CHAINS",
-        "base,arbitrum,optimism"
-    )
-    private val defaultAllowedExchanges = parseCsvEnv(
-        "LDAP_DEFAULT_ALLOWED_EXCHANGES",
-        "swyftx,binance,bybit,coinbase,dydx,hyperliquid,aster"
-    )
-    private val defaultAllowedTradingModes = parseCsvEnv(
-        "LDAP_DEFAULT_ALLOWED_TRADING_MODES",
-        "backtest,forward_paper"
-    )
+    private val usersDn = "ou=users,$baseDn"
     private val defaultMaxTxPerHour = System.getenv("LDAP_DEFAULT_MAX_TX_PER_HOUR")
         ?.trim()
         ?.toIntOrNull()
@@ -42,71 +31,46 @@ class LdapService(
     }
 
     fun getUserInfo(username: String): UserInfo? {
+        val audit = getTradingAccountAudit(username) ?: return null
+        return UserInfo(
+            username = audit.username,
+            email = audit.email,
+            groups = audit.groups,
+            evmAddress = getSearchResultEntry(username)?.getAttributeValue("evmAddress"),
+            allowedChains = audit.allowedChains,
+            allowedExchanges = audit.allowedExchanges,
+            allowedTradingModes = audit.allowedTradingModes,
+            maxTxPerHour = audit.maxTxPerHour,
+            maxTxValueUSD = audit.maxTxValueUSD
+        )
+    }
+
+    fun getTradingAccountAudit(username: String): TradingAccountAudit? {
+        val entry = getSearchResultEntry(username) ?: return null
+        return buildTradingAccountAudit(entry)
+    }
+
+    fun listTradingAccountAudits(): List<TradingAccountAudit> {
         return try {
             val searchRequest = SearchRequest(
-                baseDn,
-                SearchScope.SUB,
-                Filter.createEqualityFilter("uid", username),
+                usersDn,
+                SearchScope.ONE,
+                Filter.createPresenceFilter("uid"),
                 "*"
             )
 
             val searchResult = connection.search(searchRequest)
-            if (searchResult.entryCount == 0) {
-                logger.warn("User not found in LDAP: $username")
-                return null
-            }
-
-            val entry = searchResult.searchEntries[0]
-            val hasTradingProfile = entry.hasTradingProfile()
-
-            val email = entry.getAttributeValue("mail") ?: "$username@datamancy.net"
-            val groups = entry.getAttributeValues("memberOf")?.map { dn ->
-                // Extract CN from DN (e.g., "cn=traders,ou=groups,dc=..." -> "traders")
-                dn.substringAfter("cn=").substringBefore(",")
-            } ?: emptyList()
-
-            val evmAddress = entry.getAttributeValue("evmAddress")
-            val allowedChains = entry.getAttributeValues("allowedChains")?.toList()
-                ?.map { it.trim().lowercase() }
-                ?.filter(String::isNotEmpty)
-                ?.ifEmpty { null }
-                ?: if (hasTradingProfile) defaultAllowedChains else emptyList()
-            val allowedExchanges = entry.getAttributeValues("allowedExchanges")?.toList()
-                ?.map { it.trim().lowercase() }
-                ?.filter(String::isNotEmpty)
-                ?.distinct()
-                ?.ifEmpty { null }
-                ?: if (hasTradingProfile) defaultAllowedExchanges else emptyList()
-            val allowedTradingModes = entry.getAttributeValues("allowedTradingModes")?.toList()
-                ?.map { it.trim().lowercase() }
-                ?.filter(String::isNotEmpty)
-                ?.distinct()
-                ?.ifEmpty { null }
-                ?: if (hasTradingProfile) defaultAllowedTradingModes else emptyList()
-            val maxTxPerHour = entry.getAttributeValue("maxTxPerHour")?.toIntOrNull()?.coerceAtLeast(1)
-                ?: if (hasTradingProfile) defaultMaxTxPerHour else 1
-            val maxTxValueUSD = entry.getAttributeValue("maxTxValueUSD")?.toIntOrNull()?.coerceAtLeast(1)
-                ?: if (hasTradingProfile) defaultMaxTxValueUsd else 1
-
-            UserInfo(
-                username = username,
-                email = email,
-                groups = groups,
-                evmAddress = evmAddress,
-                allowedChains = allowedChains,
-                allowedExchanges = allowedExchanges,
-                allowedTradingModes = allowedTradingModes,
-                maxTxPerHour = maxTxPerHour,
-                maxTxValueUSD = maxTxValueUSD
-            )
+            searchResult.searchEntries
+                .map(::buildTradingAccountAudit)
+                .sortedBy { it.username }
         } catch (e: LDAPException) {
-            logger.error("LDAP search failed for user $username", e)
-            null
+            logger.error("LDAP account audit scan failed", e)
+            emptyList()
         }
     }
 
     fun getEvmAddress(username: String): String? {
-        return getUserInfo(username)?.evmAddress
+        return getSearchResultEntry(username)?.getAttributeValue("evmAddress")
     }
 
     fun healthCheck() {
@@ -120,16 +84,130 @@ class LdapService(
         }
     }
 
-    private fun parseCsvEnv(name: String, defaultValue: String): List<String> {
-        val raw = System.getenv(name)?.trim().takeUnless { it.isNullOrEmpty() } ?: defaultValue
-        return raw.split(',', ';', '|', ' ')
-            .map { it.trim() }
-            .map { it.lowercase() }
-            .filter { it.isNotEmpty() }
-            .distinct()
+    private fun getSearchResultEntry(username: String): SearchResultEntry? {
+        return try {
+            val searchRequest = SearchRequest(
+                baseDn,
+                SearchScope.SUB,
+                Filter.createEqualityFilter("uid", username),
+                "*"
+            )
+
+            val searchResult = connection.search(searchRequest)
+            if (searchResult.entryCount == 0) {
+                logger.warn("User not found in LDAP: {}", username)
+                return null
+            }
+            searchResult.searchEntries.first()
+        } catch (e: LDAPException) {
+            logger.error("LDAP search failed for user {}", username, e)
+            null
+        }
     }
 
-    private fun SearchResultEntry.hasTradingProfile(): Boolean {
+    private fun buildTradingAccountAudit(entry: SearchResultEntry): TradingAccountAudit {
+        val username = entry.getAttributeValue("uid")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: entry.dn.substringAfter("uid=").substringBefore(",")
+        val email = entry.getAttributeValue("mail") ?: "$username@datamancy.net"
+        val groups = entry.getAttributeValues("memberOf")
+            ?.mapNotNull { dn ->
+                dn.substringAfter("cn=").substringBefore(",")
+                    .trim()
+                    .lowercase()
+                    .takeIf { it.isNotEmpty() }
+            }
+            ?.distinct()
+            ?: emptyList()
+        val objectClasses = entry.getAttributeValues("objectClass")
+            ?.map { it.trim().lowercase() }
+            ?.toSet()
+            ?: emptySet()
+        val hasTradingObjectClass = "tradingaccount" in objectClasses
+        val hasTradingProfile = hasTradingObjectClass || entry.hasTradingAttributes()
+
+        val rawAllowedChains = entry.getAttributeValues("allowedChains")?.toList() ?: emptyList()
+        val rawAllowedExchanges = entry.getAttributeValues("allowedExchanges")?.toList() ?: emptyList()
+        val rawAllowedTradingModes = entry.getAttributeValues("allowedTradingModes")?.toList() ?: emptyList()
+
+        val normalizedChains = TradingPermissionCatalog.normalizeChains(
+            rawValues = rawAllowedChains,
+            defaultIfEmpty = hasTradingProfile
+        )
+        val normalizedExchanges = TradingPermissionCatalog.normalizeExchanges(
+            rawValues = rawAllowedExchanges,
+            defaultIfEmpty = hasTradingProfile
+        )
+        val normalizedTradingModes = TradingPermissionCatalog.normalizeTradingModes(
+            rawValues = rawAllowedTradingModes,
+            defaultIfEmpty = hasTradingProfile
+        )
+
+        val maxTxPerHourValue = entry.getAttributeValue("maxTxPerHour")?.toIntOrNull()?.coerceAtLeast(1)
+        val maxTxValueUsdValue = entry.getAttributeValue("maxTxValueUSD")?.toIntOrNull()?.coerceAtLeast(1)
+        val maxTxPerHour = maxTxPerHourValue ?: if (hasTradingProfile) defaultMaxTxPerHour else 1
+        val maxTxValueUsd = maxTxValueUsdValue ?: if (hasTradingProfile) defaultMaxTxValueUsd else 1
+
+        val findings = mutableListOf<String>()
+        if (hasTradingProfile && !hasTradingObjectClass) {
+            findings += "trading profile attributes present without tradingAccount objectClass"
+        }
+        appendNormalizationFindings("allowedChains", normalizedChains, findings)
+        appendNormalizationFindings("allowedExchanges", normalizedExchanges, findings)
+        appendNormalizationFindings("allowedTradingModes", normalizedTradingModes, findings)
+        if (hasTradingProfile && maxTxPerHourValue == null) {
+            findings += "maxTxPerHour defaulted to $defaultMaxTxPerHour"
+        }
+        if (hasTradingProfile && maxTxValueUsdValue == null) {
+            findings += "maxTxValueUSD defaulted to $defaultMaxTxValueUsd"
+        }
+        val liveModes = normalizedTradingModes.normalized.filter { it == "testnet_live" || it == "mainnet_live" }
+        if (liveModes.isNotEmpty() && "hyperliquid" !in normalizedExchanges.normalized) {
+            findings += "live trading modes granted without hyperliquid exchange access"
+        }
+        if (
+            "mainnet_live" in normalizedTradingModes.normalized &&
+            groups.toSet().intersect(TradingPermissionCatalog.mainnetReservedGroups).isEmpty()
+        ) {
+            findings += "mainnet_live allowed without reserved group membership (${TradingPermissionCatalog.mainnetReservedGroups.joinToString(",")})"
+        }
+
+        return TradingAccountAudit(
+            username = username,
+            email = email,
+            groups = groups,
+            hasTradingProfile = hasTradingProfile,
+            hasTradingObjectClass = hasTradingObjectClass,
+            rawAllowedChains = rawAllowedChains,
+            allowedChains = normalizedChains.normalized,
+            rawAllowedExchanges = rawAllowedExchanges,
+            allowedExchanges = normalizedExchanges.normalized,
+            rawAllowedTradingModes = rawAllowedTradingModes,
+            allowedTradingModes = normalizedTradingModes.normalized,
+            maxTxPerHour = maxTxPerHour,
+            maxTxValueUSD = maxTxValueUsd,
+            findings = findings.distinct()
+        )
+    }
+
+    private fun appendNormalizationFindings(
+        attributeName: String,
+        normalization: PermissionNormalization,
+        findings: MutableList<String>
+    ) {
+        if (normalization.defaulted) {
+            findings += "$attributeName defaulted to ${normalization.normalized.joinToString(",")}"
+        }
+        if (normalization.duplicatesDropped) {
+            findings += "$attributeName contained duplicate values"
+        }
+        if (normalization.unsupported.isNotEmpty()) {
+            findings += "$attributeName contains unsupported values: ${normalization.unsupported.joinToString(",")}"
+        }
+    }
+
+    private fun SearchResultEntry.hasTradingAttributes(): Boolean {
         val objectClasses = getAttributeValues("objectClass")
             ?.map { it.trim().lowercase() }
             ?.toSet()

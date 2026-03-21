@@ -18,6 +18,8 @@ import org.datamancy.txgateway.services.AuthService
 import org.datamancy.txgateway.services.DatabaseService
 import org.datamancy.txgateway.services.LdapService
 import org.datamancy.txgateway.services.LatestQuote
+import org.datamancy.txgateway.services.TradingAccountAudit
+import org.datamancy.txgateway.services.TradingPermissionCatalog
 import org.datamancy.txgateway.services.RiskDecision
 import org.datamancy.txgateway.services.RiskEngineService
 import org.datamancy.txgateway.services.RiskAccountStatePatch
@@ -36,17 +38,9 @@ import java.util.UUID
 private val logger = LoggerFactory.getLogger("UnifiedExchangeRoutes")
 private val dynamicJson = Gson()
 
-private val supportedExchanges = listOf(
-    "swyftx",
-    "binance",
-    "bybit",
-    "coinbase",
-    "dydx",
-    "hyperliquid",
-    "aster"
-)
-
-private val liveOrderExchanges = setOf("hyperliquid")
+private val supportedExchanges = TradingPermissionCatalog.supportedExchanges
+private val liveOrderExchanges = TradingPermissionCatalog.liveOrderExchanges
+private val mainnetReservedGroups = TradingPermissionCatalog.mainnetReservedGroups
 private val maxQuoteAgeMs: Long = System.getenv("TX_GATEWAY_MAX_QUOTE_AGE_MS")
     ?.trim()
     ?.takeIf { it.isNotEmpty() }
@@ -113,6 +107,39 @@ private data class ExchangeDescriptor(
 @Serializable
 private data class ExchangeCatalogResponse(
     val exchanges: List<ExchangeDescriptor>
+)
+
+@Serializable
+private data class ErrorResponse(
+    val error: String
+)
+
+@Serializable
+private data class RequiredGroupsErrorResponse(
+    val error: String,
+    val requiredGroups: List<String>
+)
+
+@Serializable
+private data class TradingAccountHomogeneitySummaryResponse(
+    val totalAccounts: Int,
+    val tradingAccounts: Int,
+    val accountsWithFindings: Int,
+    val accountsWithUnsupportedPermissions: Int,
+    val accountsWithMainnetLive: Int,
+    val accountsMissingTradingObjectClass: Int
+)
+
+@Serializable
+private data class TradingAccountHomogeneityResponse(
+    val requestedBy: String,
+    val requestedAt: String,
+    val mainnetReservedGroups: List<String>,
+    val canonicalAllowedChains: List<String>,
+    val canonicalAllowedExchanges: List<String>,
+    val canonicalAllowedTradingModes: List<String>,
+    val summary: TradingAccountHomogeneitySummaryResponse,
+    val accounts: List<TradingAccountAudit>
 )
 
 @Serializable
@@ -335,6 +362,48 @@ fun Route.unifiedExchangeRoutes(
                     evmAddress = userInfo.evmAddress
                 )
             )
+        }
+
+        get("/user/trading-profile") {
+            val username = extractAuthenticatedUsername(call, authService) ?: return@get
+            val audit = ldapService.getTradingAccountAudit(username)
+                ?: run {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "User not found"))
+                    return@get
+                }
+
+            call.respond(HttpStatusCode.OK, audit)
+        }
+
+        route("/accounts/trading") {
+            get("/homogeneity") {
+                val caller = extractAuthorizedTradingAdmin(call, authService, ldapService) ?: return@get
+                val audits = ldapService.listTradingAccountAudits()
+                val summary = TradingAccountHomogeneitySummaryResponse(
+                    totalAccounts = audits.size,
+                    tradingAccounts = audits.count { it.hasTradingProfile },
+                    accountsWithFindings = audits.count { it.findings.isNotEmpty() },
+                    accountsWithUnsupportedPermissions = audits.count { audit ->
+                        audit.findings.any { finding -> "unsupported values" in finding }
+                    },
+                    accountsWithMainnetLive = audits.count { "mainnet_live" in it.allowedTradingModes },
+                    accountsMissingTradingObjectClass = audits.count { it.hasTradingProfile && !it.hasTradingObjectClass }
+                )
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    TradingAccountHomogeneityResponse(
+                        requestedBy = caller.username,
+                        requestedAt = Instant.now().toString(),
+                        mainnetReservedGroups = mainnetReservedGroups.toList().sorted(),
+                        canonicalAllowedChains = TradingPermissionCatalog.defaultAllowedChains,
+                        canonicalAllowedExchanges = TradingPermissionCatalog.defaultAllowedExchanges,
+                        canonicalAllowedTradingModes = TradingPermissionCatalog.defaultAllowedTradingModes,
+                        summary = summary,
+                        accounts = audits
+                    )
+                )
+            }
         }
 
         get("/history") {
@@ -651,6 +720,20 @@ fun Route.unifiedExchangeRoutes(
                     call.respond(
                         HttpStatusCode.Forbidden,
                         mapOf("error" to "Execution mode not allowed: $executionMode")
+                    )
+                    return@post
+                }
+                val callerGroups = userInfo.groups
+                    .map { it.trim().lowercase() }
+                    .filter { it.isNotEmpty() }
+                    .toSet()
+                if (executionMode == "mainnet_live" && callerGroups.intersect(mainnetReservedGroups).isEmpty()) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        RequiredGroupsErrorResponse(
+                            error = "Execution mode '$executionMode' requires reserved trading role",
+                            requiredGroups = mainnetReservedGroups.toList().sorted()
+                        )
                     )
                     return@post
                 }
@@ -1544,15 +1627,11 @@ private fun parseFeeTier(raw: String?): FeeTier = when (raw?.trim()?.lowercase()
 }
 
 private fun supportedExecutionModes(exchange: String): List<String> {
-    return if (exchange.lowercase() == "hyperliquid") {
-        listOf(FORWARD_PAPER_EXECUTION_MODE, "testnet_live", "mainnet_live")
-    } else {
-        listOf(FORWARD_PAPER_EXECUTION_MODE)
-    }
+    return TradingPermissionCatalog.supportedExecutionModes(exchange)
 }
 
 private fun defaultExecutionModeForExchange(exchange: String): String {
-    return FORWARD_PAPER_EXECUTION_MODE
+    return TradingPermissionCatalog.defaultExecutionModeForExchange(exchange)
 }
 
 private fun resolveExecutionMode(exchange: String, requestedExecutionMode: String?): String? {
@@ -2213,25 +2292,58 @@ private fun RiskDecision.toRejectionPayload(): RiskRejectionResponse {
     )
 }
 
+private data class AuthorizedTradingUser(
+    val username: String,
+    val userInfo: org.datamancy.txgateway.models.UserInfo
+)
+
+private suspend fun extractAuthorizedTradingAdmin(
+    call: RoutingCall,
+    authService: AuthService,
+    ldapService: LdapService
+): AuthorizedTradingUser? {
+    val username = extractAuthenticatedUsername(call, authService) ?: return null
+    val userInfo = ldapService.getUserInfo(username)
+        ?: run {
+            call.respond(HttpStatusCode.Forbidden, ErrorResponse("User not found"))
+            return null
+        }
+    val groups = userInfo.groups
+        .map { it.trim().lowercase() }
+        .filter { it.isNotEmpty() }
+        .toSet()
+    if (groups.intersect(mainnetReservedGroups).isEmpty()) {
+        call.respond(
+            HttpStatusCode.Forbidden,
+            RequiredGroupsErrorResponse(
+                error = "Reserved trading role required",
+                requiredGroups = mainnetReservedGroups.toList().sorted()
+            )
+        )
+        return null
+    }
+    return AuthorizedTradingUser(username = username, userInfo = userInfo)
+}
+
 private suspend fun extractAuthenticatedUsername(
     call: RoutingCall,
     authService: AuthService
 ): String? {
     val token = call.request.headers["Authorization"]?.removePrefix("Bearer ")
     if (token == null) {
-        call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Missing token"))
+        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Missing token"))
         return null
     }
 
     val jwt = authService.validateToken(token)
     if (jwt == null) {
-        call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid token"))
+        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
         return null
     }
 
     val username = authService.extractUsername(jwt)
     if (username == null) {
-        call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid token claims"))
+        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token claims"))
         return null
     }
 

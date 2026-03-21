@@ -247,7 +247,9 @@ fun Application.configureApp(
                   "endpoints": [
                     "/api/v1/health",
                     "/api/v1/user",
+                    "/api/v1/user/trading-profile",
                     "/api/v1/history",
+                    "/api/v1/accounts/trading/homogeneity",
                     "/api/v1/exchanges",
                     "/api/v1/exchanges/best-quote?symbol=BTC&side=buy",
                     "/api/v1/exchanges/{exchange}/quote?symbol=BTC",
