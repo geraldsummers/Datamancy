@@ -26,7 +26,7 @@ server/test env:
 - stack path on server: ~/datamancy
 - test runner script: ~/datamancy/run-tests.sh
 - do not use -v in rsync
-- if waiting, wait in 120s intervals
+- if waiting, wait in 120s intervals unless waiting for the test runner in which case you'd be better to wait in 300s intervals
 
 workflow:
 - take initiative, be humble, no blocking unless truly blocked
