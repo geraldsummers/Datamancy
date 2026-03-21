@@ -1666,17 +1666,36 @@ fun bundleSourceToRepos(distDir: File, workDir: File, version: String) {
         "README.md"
     )
 
-    sourceFiles.forEach { path ->
-        val source = workDir.resolve(path)
-        val dest = reposDir.resolve(path)
-
-        if (source.exists()) {
-            if (source.isDirectory) {
-                source.copyRecursively(dest, overwrite = true)
-            } else {
-                dest.parentFile.mkdirs()
-                source.copyTo(dest, overwrite = true)
+    val trackedSourceFiles = ProcessBuilder(
+        "git",
+        "ls-files",
+        "--",
+        *sourceFiles.map { it.removeSuffix("/") }.toTypedArray()
+    )
+        .directory(workDir)
+        .redirectErrorStream(true)
+        .start()
+        .run { inputStream.readBytes().toString(Charsets.UTF_8).trim() to waitFor() }
+        .let { (output, exitCode) ->
+            if (exitCode != 0) {
+                error("Failed to enumerate tracked source files for dist/repos")
+                println(output)
+                exitProcess(1)
             }
+            output
+                .lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .toList()
+        }
+
+    trackedSourceFiles.forEach { relativePath ->
+        val source = workDir.resolve(relativePath)
+        if (source.exists() && source.isFile) {
+            val dest = reposDir.resolve(relativePath)
+            dest.parentFile.mkdirs()
+            source.copyTo(dest, overwrite = true)
+            dest.setExecutable(source.canExecute())
         }
     }
 
