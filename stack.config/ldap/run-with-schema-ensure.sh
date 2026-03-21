@@ -11,5 +11,6 @@ forward_signal() {
 trap forward_signal INT TERM
 
 sh /tmp/ensure-trading-schema.sh
+sh /tmp/configure-memberof.sh
 
 wait "$RUNNER_PID"

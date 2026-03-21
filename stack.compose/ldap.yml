@@ -20,6 +20,7 @@ services:
       - ./configs/ldap/bootstrap_ldap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap_ldap.ldif:ro
       - ./configs/ldap/trading-schema.ldif:/container/service/slapd/assets/config/bootstrap/schema/custom/trading-schema.ldif:ro
       - ./configs/ldap/ensure-trading-schema.sh:/tmp/ensure-trading-schema.sh:ro
+      - ./configs/ldap/configure-memberof.sh:/tmp/configure-memberof.sh:ro
       - ./configs/ldap/run-with-schema-ensure.sh:/tmp/run-with-schema-ensure.sh:ro
     entrypoint: ["/bin/sh", "/tmp/run-with-schema-ensure.sh"]
     command:

@@ -163,6 +163,12 @@ class TestFlaskEndpoints:
         data = response.get_json()
         assert 'hyperliquidKey' in data['error']
 
+    def test_order_missing_body_is_validation_error(self, client):
+        response = client.post('/order')
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'hyperliquidKey' in data['error']
+
     @patch('main.get_info_client')
     @patch('main.get_exchange_client')
     def test_order_market_success(self, mock_get_exchange, mock_get_info, client):
@@ -659,6 +665,37 @@ class TestFlaskEndpoints:
         data = response.get_json()
         assert 'hyperliquidKey' in data['error']
 
+    def test_cancel_order_missing_body_is_validation_error(self, client):
+        response = client.post('/cancel/12345')
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'hyperliquidKey' in data['error']
+
+    def test_cancel_order_missing_symbol_is_validation_error(self, client):
+        response = client.post('/cancel/12345', json={
+            'username': 'testuser',
+            'hyperliquidKey': 'testkey'
+        })
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['error'] == 'Missing symbol'
+
+    def test_cancel_order_invalid_order_id_is_validation_error(self, client):
+        response = client.post('/cancel/not-a-number', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'hyperliquidKey': 'testkey'
+        })
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['error'] == 'Invalid orderId'
+
+    def test_cancel_all_missing_body_is_validation_error(self, client):
+        response = client.post('/cancel-all')
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'hyperliquidKey' in data['error']
+
     @patch('main.get_exchange_client')
     def test_cancel_all_success(self, mock_get_exchange, client):
         """Test successful cancel all orders"""
@@ -823,6 +860,21 @@ class TestFlaskEndpoints:
         assert response.status_code == 404
         data = response.get_json()
         assert 'No position found' in data['error']
+
+    def test_close_position_missing_body_is_validation_error(self, client):
+        response = client.post('/close')
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'hyperliquidKey' in data['error']
+
+    def test_close_position_missing_symbol_is_validation_error(self, client):
+        response = client.post('/close', json={
+            'username': 'testuser',
+            'hyperliquidKey': '0xAddress:testkey'
+        })
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['error'] == 'Missing symbol'
 
 
 if __name__ == '__main__':

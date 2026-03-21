@@ -78,6 +78,12 @@ def require_worker_auth():
     return None
 
 
+def request_json_payload():
+    """Return a parsed JSON object or an empty dict for validation-first handlers."""
+    payload = request.get_json(silent=True)
+    return payload if isinstance(payload, dict) else {}
+
+
 def parse_positive_decimal(raw_value, field_name: str):
     """Parse a positive decimal request field or return an error message tuple."""
     try:
@@ -496,7 +502,7 @@ def submit_order():
         if auth_error:
             return auth_error
 
-        data = request.json or {}
+        data = request_json_payload()
         username = data.get('username')
         symbol = data.get('symbol')
         side = str(data.get('side', '')).upper()  # "BUY" or "SELL"
@@ -672,13 +678,19 @@ def cancel_order(order_id):
         if auth_error:
             return auth_error
 
-        data = request.json
+        data = request_json_payload()
         username = data.get('username')
         symbol = data.get('symbol')  # Required for cancellation
         hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
             return jsonify({"error": "Missing hyperliquidKey in request"}), 400
+        if not symbol:
+            return jsonify({"error": "Missing symbol"}), 400
+        try:
+            parsed_order_id = int(order_id)
+        except Exception:
+            return jsonify({"error": "Invalid orderId"}), 400
 
         logger.info(f"Cancel order: {order_id} for {username}")
 
@@ -686,7 +698,7 @@ def cancel_order(order_id):
             exchange = get_exchange_client(hyperliquid_key)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
-        result = exchange.cancel(symbol=symbol, oid=int(order_id))
+        result = exchange.cancel(symbol=symbol, oid=parsed_order_id)
 
         logger.info(f"Cancel result: {result}")
 
@@ -708,7 +720,7 @@ def cancel_all():
         if auth_error:
             return auth_error
 
-        data = request.json
+        data = request_json_payload()
         username = data.get('username')
         symbol = data.get('symbol')  # Optional, cancels all if not provided
         hyperliquid_key = data.get('hyperliquidKey')
@@ -741,7 +753,7 @@ def get_positions():
         if auth_error:
             return auth_error
 
-        data = request.json or {}
+        data = request_json_payload()
         username = data.get('user') or data.get('username')
         hyperliquid_key = data.get('hyperliquidKey')
 
@@ -791,7 +803,7 @@ def get_balance():
         if auth_error:
             return auth_error
 
-        data = request.json or {}
+        data = request_json_payload()
         username = data.get('user') or data.get('username')
         hyperliquid_key = data.get('hyperliquidKey')
 
@@ -836,7 +848,7 @@ def get_orders():
         if auth_error:
             return auth_error
 
-        data = request.json or {}
+        data = request_json_payload()
         username = data.get('user') or data.get('username')
         symbol_filter = str(data.get('symbol') or '').strip()
         hyperliquid_key = data.get('hyperliquidKey')
@@ -884,13 +896,15 @@ def close_position():
         if auth_error:
             return auth_error
 
-        data = request.json
+        data = request_json_payload()
         username = data.get('username')
         symbol = data.get('symbol')
         hyperliquid_key = data.get('hyperliquidKey')
 
         if not hyperliquid_key:
             return jsonify({"error": "Missing hyperliquidKey in request"}), 400
+        if not symbol:
+            return jsonify({"error": "Missing symbol"}), 400
 
         logger.info(f"Close position for {username}: {symbol}")
 
@@ -949,7 +963,7 @@ def close_all_positions():
         if auth_error:
             return auth_error
 
-        data = request.json or {}
+        data = request_json_payload()
         username = data.get('username') or data.get('user')
         hyperliquid_key = data.get('hyperliquidKey')
 

@@ -14,6 +14,7 @@ class LdapService(
     private val logger = LoggerFactory.getLogger(LdapService::class.java)
     private lateinit var connection: LDAPConnection
     private val usersDn = "ou=users,$baseDn"
+    private val groupsDn = "ou=groups,$baseDn"
     private val defaultMaxTxPerHour = System.getenv("LDAP_DEFAULT_MAX_TX_PER_HOUR")
         ?.trim()
         ?.toIntOrNull()
@@ -111,15 +112,7 @@ class LdapService(
             ?.takeIf { it.isNotEmpty() }
             ?: entry.dn.substringAfter("uid=").substringBefore(",")
         val email = entry.getAttributeValue("mail") ?: "$username@datamancy.net"
-        val groups = entry.getAttributeValues("memberOf")
-            ?.mapNotNull { dn ->
-                dn.substringAfter("cn=").substringBefore(",")
-                    .trim()
-                    .lowercase()
-                    .takeIf { it.isNotEmpty() }
-            }
-            ?.distinct()
-            ?: emptyList()
+        val groups = resolveGroups(entry)
         val objectClasses = entry.getAttributeValues("objectClass")
             ?.map { it.trim().lowercase() }
             ?.toSet()
@@ -205,6 +198,54 @@ class LdapService(
         if (normalization.unsupported.isNotEmpty()) {
             findings += "$attributeName contains unsupported values: ${normalization.unsupported.joinToString(",")}"
         }
+    }
+
+    private fun resolveGroups(entry: SearchResultEntry): List<String> {
+        val memberOfGroups = entry.getAttributeValues("memberOf")
+            ?.mapNotNull(::normalizeGroupDn)
+            ?.distinct()
+            .orEmpty()
+        if (memberOfGroups.isNotEmpty()) {
+            return memberOfGroups
+        }
+        return searchGroupMembership(entry.dn)
+    }
+
+    private fun searchGroupMembership(userDn: String): List<String> {
+        return try {
+            val searchRequest = SearchRequest(
+                groupsDn,
+                SearchScope.ONE,
+                Filter.createORFilter(
+                    Filter.createANDFilter(
+                        Filter.createEqualityFilter("objectClass", "groupOfNames"),
+                        Filter.createEqualityFilter("member", userDn)
+                    ),
+                    Filter.createANDFilter(
+                        Filter.createEqualityFilter("objectClass", "groupOfUniqueNames"),
+                        Filter.createEqualityFilter("uniqueMember", userDn)
+                    )
+                ),
+                "cn"
+            )
+
+            connection.search(searchRequest).searchEntries
+                .mapNotNull { it.getAttributeValue("cn") }
+                .map(String::trim)
+                .map(String::lowercase)
+                .filter(String::isNotEmpty)
+                .distinct()
+        } catch (e: LDAPException) {
+            logger.warn("LDAP group membership lookup failed for {}", userDn, e)
+            emptyList()
+        }
+    }
+
+    private fun normalizeGroupDn(dn: String): String? {
+        return dn.substringAfter("cn=").substringBefore(",")
+            .trim()
+            .lowercase()
+            .takeIf { it.isNotEmpty() }
     }
 
     private fun SearchResultEntry.hasTradingAttributes(): Boolean {

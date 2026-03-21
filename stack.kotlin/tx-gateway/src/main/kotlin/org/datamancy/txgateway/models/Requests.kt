@@ -42,7 +42,7 @@ data class UserInfo(
     val evmAddress: String?,
     val allowedChains: List<String>,
     val allowedExchanges: List<String>,
-    val allowedTradingModes: List<String> = listOf("backtest", "forward_paper", "testnet_live", "mainnet_live"),
+    val allowedTradingModes: List<String> = listOf("backtest", "forward_paper", "testnet_live"),
     val maxTxPerHour: Int,
     val maxTxValueUSD: Int
 )
