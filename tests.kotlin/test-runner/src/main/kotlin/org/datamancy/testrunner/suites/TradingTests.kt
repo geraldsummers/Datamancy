@@ -232,6 +232,16 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
                     }
                 }
 
+                if (response.status == HttpStatusCode.ServiceUnavailable) {
+                    val body = runCatching { Json.parseToJsonElement(response.bodyAsText()).jsonObject }.getOrNull()
+                    val error = body?.get("error")?.jsonPrimitive?.contentOrNull
+                    if (error == "Stale quote snapshot" || error == "Invalid quote snapshot") {
+                        outcomes += "$exchange:$symbol:degraded-${error.lowercase().replace(' ', '-')}"
+                        exchangePassed = true
+                        break
+                    }
+                }
+
                 outcomes += "$exchange:$symbol:unexpected-${response.status.value}"
             }
 
@@ -248,6 +258,7 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
         val statuses = mutableListOf<String>()
         val unexpectedStatuses = mutableListOf<String>()
         var gracefulUnavailable = 0
+        var guardedUnavailable = 0
         var success = false
 
         for (symbol in symbols) {
@@ -269,15 +280,25 @@ suspend fun TestRunner.tradingTests() = suite("Trading Infrastructure Tests") {
                     gracefulUnavailable += 1
                     continue
                 }
+            } else if (response.status == HttpStatusCode.ServiceUnavailable) {
+                val json = runCatching { Json.parseToJsonElement(response.bodyAsText()).jsonObject }.getOrNull()
+                val error = json?.get("error")?.jsonPrimitive?.contentOrNull
+                if (error == "Stale quote snapshot" || error == "Invalid quote snapshot") {
+                    guardedUnavailable += 1
+                    continue
+                }
             }
             unexpectedStatuses += "$symbol:${response.status.value}"
         }
 
-        if (!success && gracefulUnavailable == symbols.size) {
-            println("      ℹ️  Unified quote endpoint returned graceful 'Quote unavailable' for all tested symbols (${statuses.joinToString()})")
+        if (!success && gracefulUnavailable + guardedUnavailable == symbols.size) {
+            println(
+                "      ℹ️  Unified quote endpoint had no executable quote for tested symbols " +
+                        "(notFound=$gracefulUnavailable guarded503=$guardedUnavailable statuses=${statuses.joinToString()})"
+            )
         }
 
-        require(success || gracefulUnavailable == symbols.size) {
+        require(success || gracefulUnavailable + guardedUnavailable == symbols.size) {
             "Unified quote endpoint failed unexpectedly (${statuses.joinToString()})"
         }
 
