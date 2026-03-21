@@ -632,12 +632,24 @@ async function testOIDCService(
         const onPlankaLogin = /\/login\b/i.test(page.url());
         if (onPlankaLogin && (plankaUnknownError || disallowedUrl)) {
           console.log(`   ⚠️  Planka returned to login with transient OIDC error; retrying SSO... (${i + 1}/${maxPatternRetries})`);
-          const ssoButton = page.getByRole('button', { name: /log in with sso|sso|oidc/i }).first();
-          if (await ssoButton.isVisible().catch(() => false)) {
-            await ssoButton.click({ force: true }).catch(() => {});
+          const namedSsoButton = page.getByRole('button', { name: /log in with sso|sso|oidc/i }).first();
+          const genericLoginButton = page.locator('main button').first();
+          if (await namedSsoButton.isVisible().catch(() => false)) {
+            await namedSsoButton.click({ force: true }).catch(() => {});
             await page.waitForTimeout(2500);
             continue;
           }
+          if (await genericLoginButton.isVisible().catch(() => false)) {
+            await genericLoginButton.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(2500);
+            continue;
+          }
+
+          // Planka can occasionally leave the login action in a spinner-only state.
+          // Reload and retry instead of failing the whole flow immediately.
+          await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+          await page.waitForTimeout(1500);
+          continue;
         }
       }
 
