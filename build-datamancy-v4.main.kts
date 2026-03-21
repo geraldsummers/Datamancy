@@ -757,6 +757,29 @@ fun getGitVersion(workDir: File): String {
     } catch (e: Exception) { "unknown" }
 }
 
+fun forceDeleteRecursively(target: File) {
+    if (!target.exists()) return
+
+    val failedDeletes = mutableListOf<String>()
+
+    target.walkBottomUp().forEach { path ->
+        path.setWritable(true, false)
+        if (path.isDirectory) {
+            path.setReadable(true, false)
+            path.setExecutable(true, false)
+        }
+        if (!path.delete() && path.exists()) {
+            failedDeletes += path.absolutePath
+        }
+    }
+
+    if (failedDeletes.isNotEmpty()) {
+        error("Failed to clean build output")
+        failedDeletes.forEach { println(it) }
+        exitProcess(1)
+    }
+}
+
 // ============================================================================
 // Credential Generation
 // ============================================================================
@@ -1648,7 +1671,7 @@ fun bundleSourceToRepos(distDir: File, workDir: File, version: String) {
 
     val reposDir = distDir.resolve("repos/datamancy/datamancy-core")
     if (reposDir.exists()) {
-        reposDir.deleteRecursively()
+        forceDeleteRecursively(reposDir)
     }
     reposDir.mkdirs()
 
@@ -1878,7 +1901,7 @@ ${CYAN}╔═══════════════════════�
 
     // Rebuild dist/ from a clean slate while retaining the previous credential set.
     if (distDir.exists()) {
-        distDir.deleteRecursively()
+        forceDeleteRecursively(distDir)
     }
     distDir.mkdirs()
 
