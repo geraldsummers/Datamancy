@@ -7,7 +7,7 @@ REGISTRY_JSON="${REGISTRY_JSON:-$ROOT_DIR/test-registry.json}"
 STATUS_JSON="${STATUS_JSON:-$ROOT_DIR/build-status.json}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
 DRY_RUN="${DRY_RUN:-0}"
-FORCE_REFRESH_SERVICES="${FORCE_REFRESH_SERVICES:-test-all,test-playwright-e2e}"
+FORCE_REFRESH_SERVICES="${FORCE_REFRESH_SERVICES:-ldap-ensure-suffixes,test-all,test-playwright-e2e}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -114,11 +114,12 @@ for name in sorted(force_refresh_services):
         continue
     service_def = compose_services.get(name) or {}
     restart_policy = str(service_def.get("restart") or "").strip().lower()
-    if restart_policy == "no":
-        continue
+    one_shot_service = restart_policy == "no"
     needs_build = bool(service_def.get("build"))
     build_key = str(service_def.get("image") or name)
-    if name not in existing_services:
+    if one_shot_service:
+        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||force-one-shot|{build_key}")
+    elif name not in existing_services:
         lines.append(f"{name}|{'build' if needs_build else 'no-build'}||missing|{build_key}")
     elif name not in running_services:
         lines.append(f"{name}|{'build' if needs_build else 'no-build'}||stopped|{build_key}")
@@ -150,6 +151,8 @@ while IFS='|' read -r service build_flag last_changed reason build_key; do
         info "Deploying missing container for $service"
     elif [ "$reason" = "stopped" ]; then
         info "Recovering stopped container for $service"
+    elif [ "$reason" = "force-one-shot" ]; then
+        info "Refreshing one-shot reconciler $service"
     elif [ "$reason" = "refresh" ]; then
         info "Refreshing $service"
     else
