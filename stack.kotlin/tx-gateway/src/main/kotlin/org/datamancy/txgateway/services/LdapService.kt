@@ -9,10 +9,13 @@ class LdapService(
     private val port: Int = System.getenv("LDAP_PORT")?.toInt() ?: 389,
     private val baseDn: String = System.getenv("LDAP_BASE_DN") ?: "dc=datamancy,dc=net",
     private val bindDn: String = System.getenv("LDAP_BIND_DN") ?: "cn=admin,$baseDn",
-    private val bindPassword: String = System.getenv("LDAP_BIND_PASSWORD") ?: ""
+    private val bindPassword: String = System.getenv("LDAP_BIND_PASSWORD") ?: "",
+    private val connectionFactory: () -> LDAPConnection = { LDAPConnection(host, port, bindDn, bindPassword) }
 ) {
     private val logger = LoggerFactory.getLogger(LdapService::class.java)
-    private lateinit var connection: LDAPConnection
+    @Volatile
+    private var connection: LDAPConnection? = null
+    private val connectionLock = Any()
     private val usersDn = "ou=users,$baseDn"
     private val groupsDn = "ou=groups,$baseDn"
     private val defaultMaxTxPerHour = System.getenv("LDAP_DEFAULT_MAX_TX_PER_HOUR")
@@ -27,8 +30,7 @@ class LdapService(
         ?: 25000
 
     fun init() {
-        connection = LDAPConnection(host, port, bindDn, bindPassword)
-        logger.info("LDAP connection established")
+        getConnection(forceReconnect = true)
     }
 
     fun getUserInfo(username: String): UserInfo? {
@@ -60,7 +62,7 @@ class LdapService(
                 "*"
             )
 
-            val searchResult = connection.search(searchRequest)
+            val searchResult = executeWithReconnect("LDAP account audit scan") { it.search(searchRequest) }
             searchResult.searchEntries
                 .map(::buildTradingAccountAudit)
                 .sortedBy { it.username }
@@ -75,13 +77,14 @@ class LdapService(
     }
 
     fun healthCheck() {
-        val rootDSE = connection.getRootDSE()
+        val rootDSE = executeWithReconnect("LDAP health check") { it.rootDSE }
         require(rootDSE != null) { "LDAP connection not healthy" }
     }
 
     fun close() {
-        if (::connection.isInitialized) {
-            connection.close()
+        synchronized(connectionLock) {
+            connection?.close()
+            connection = null
         }
     }
 
@@ -94,7 +97,7 @@ class LdapService(
                 "*"
             )
 
-            val searchResult = connection.search(searchRequest)
+            val searchResult = executeWithReconnect("LDAP search for user $username") { it.search(searchRequest) }
             if (searchResult.entryCount == 0) {
                 logger.warn("User not found in LDAP: {}", username)
                 return null
@@ -229,7 +232,7 @@ class LdapService(
                 "cn"
             )
 
-            connection.search(searchRequest).searchEntries
+            executeWithReconnect("LDAP group membership lookup for $userDn") { it.search(searchRequest) }.searchEntries
                 .mapNotNull { it.getAttributeValue("cn") }
                 .map(String::trim)
                 .map(String::lowercase)
@@ -238,6 +241,45 @@ class LdapService(
         } catch (e: LDAPException) {
             logger.warn("LDAP group membership lookup failed for {}", userDn, e)
             emptyList()
+        }
+    }
+
+    private fun getConnection(forceReconnect: Boolean = false): LDAPConnection {
+        synchronized(connectionLock) {
+            val existing = connection
+            if (!forceReconnect && existing != null && existing.isConnected) {
+                return existing
+            }
+
+            existing?.close()
+            return connectionFactory().also {
+                connection = it
+                logger.info("LDAP connection established")
+            }
+        }
+    }
+
+    private fun <T> executeWithReconnect(operation: String, action: (LDAPConnection) -> T): T {
+        return try {
+            action(getConnection())
+        } catch (e: LDAPException) {
+            if (!e.shouldReconnect()) {
+                throw e
+            }
+            logger.warn("LDAP operation failed, reconnecting once: {}", operation, e)
+            action(getConnection(forceReconnect = true))
+        }
+    }
+
+    private fun LDAPException.shouldReconnect(): Boolean {
+        return when (resultCode) {
+            ResultCode.CONNECT_ERROR,
+            ResultCode.SERVER_DOWN,
+            ResultCode.TIMEOUT,
+            ResultCode.LOCAL_ERROR,
+            ResultCode.DECODING_ERROR -> true
+
+            else -> false
         }
     }
 

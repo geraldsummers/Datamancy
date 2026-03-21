@@ -44,6 +44,14 @@ run_ldap_cmd() {
       return 0
     fi
 
+    if [ "$CMD_STATUS" -eq 20 ] && echo "$CMD_OUTPUT" | grep -qi "Type or value exists"; then
+      return 0
+    fi
+
+    if [ "$CMD_STATUS" -eq 68 ] && echo "$CMD_OUTPUT" | grep -qi "Already exists"; then
+      return 0
+    fi
+
     if echo "$CMD_OUTPUT" | grep -qi "Can't contact LDAP server"; then
       if [ "$CMD_ATTEMPT" -ge "$CMD_MAX_ATTEMPTS" ]; then
         echo "[ldap-ensure] ERROR: ${DESC} failed after ${CMD_MAX_ATTEMPTS} attempts"
@@ -82,6 +90,16 @@ entry_has_attribute() {
     grep -qi "^${ATTRIBUTE_NAME}:"
 }
 
+entry_has_exact_value() {
+  ENTRY_DN="$1"
+  ATTRIBUTE_NAME="$2"
+  EXPECTED_VALUE="$3"
+
+  ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
+    -b "$ENTRY_DN" -s base '(objectClass=*)' "$ATTRIBUTE_NAME" 2>/dev/null | \
+    grep -Fqx "${ATTRIBUTE_NAME}: ${EXPECTED_VALUE}"
+}
+
 entry_exists() {
   ENTRY_DN="$1"
   ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
@@ -110,7 +128,7 @@ add: objectClass
 objectClass: tradingAccount
 EOF
   run_ldap_cmd "tradingAccount class add for ${USERNAME}" \
-    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_trading_class.ldif >/dev/null
+    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_trading_class.ldif
 }
 
 ensure_csv_attribute() {
@@ -133,7 +151,7 @@ ensure_csv_attribute() {
     done
   } >/tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif
   run_ldap_cmd "${ATTRIBUTE_NAME} add for ${USERNAME}" \
-    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif >/dev/null
+    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif
 }
 
 ensure_single_value_attribute() {
@@ -154,7 +172,7 @@ add: ${ATTRIBUTE_NAME}
 ${ATTRIBUTE_NAME}: ${ATTRIBUTE_VALUE}
 EOF
   run_ldap_cmd "${ATTRIBUTE_NAME} add for ${USERNAME}" \
-    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif >/dev/null
+    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif
 }
 
 ensure_user_trading_profile() {
@@ -196,13 +214,11 @@ cn: ${GROUP_NAME}
 member: ${STACK_ADMIN_DN}
 EOF
     run_ldap_cmd "group create ${GROUP_NAME}" \
-      ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_add.ldif >/dev/null
+      ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_add.ldif
     return 0
   fi
 
-  if ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
-    -b "$GROUP_DN" "(member=${STACK_ADMIN_DN})" dn 2>/dev/null | \
-    grep -q '^dn:'; then
+  if entry_has_exact_value "$GROUP_DN" "member" "$STACK_ADMIN_DN"; then
     return 0
   fi
 
@@ -213,7 +229,7 @@ add: member
 member: ${STACK_ADMIN_DN}
 EOF
   run_ldap_cmd "group member add ${GROUP_NAME}" \
-    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_member_add.ldif >/dev/null
+    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_member_add.ldif
 }
 
 if [ -z "$STACK_ADMIN_USER" ] || [ -z "$STACK_ADMIN_PASSWORD" ]; then
@@ -235,7 +251,7 @@ replace: userPassword
 userPassword: ${STACK_ADMIN_PASSWORD_VALUE}
 EOF
     run_ldap_cmd "stack admin password sync" \
-      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_modify.ldif >/dev/null
+      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_modify.ldif
   else
     echo "[ldap-ensure] Creating stack admin user: $STACK_ADMIN_USER"
     cat <<EOF >/tmp/stack_admin_add.ldif
@@ -256,7 +272,7 @@ loginShell: /bin/bash
 userPassword: ${STACK_ADMIN_PASSWORD_VALUE}
 EOF
     run_ldap_cmd "stack admin user create" \
-      ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_add.ldif >/dev/null
+      ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/stack_admin_add.ldif
   fi
 
   echo "[ldap-ensure] Ensuring stack admin group membership"
