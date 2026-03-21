@@ -500,7 +500,7 @@ async function testOIDCService(
   let pageTitle = '';
   let bodyHTML = '';
   let pageText = '';
-  const maxPatternRetries = 5;
+  const maxPatternRetries = /planka/i.test(serviceName) ? 8 : 5;
   const defaultDisallowPatterns: RegExp[] = [
     /Consent Request/i,
     /Powered by Authelia/i,
@@ -625,6 +625,15 @@ async function testOIDCService(
           await oidcPage.handleConsentScreen().catch(() => {});
           await page.waitForURL((url) => !isAuthUrl(url.toString()), { timeout: 15000 }).catch(() => {});
           await page.waitForTimeout(1500);
+          continue;
+        }
+
+        const onPlankaCallback = /\/oidc-callback\b/i.test(page.url());
+        if (onPlankaCallback) {
+          console.log(`   ⚠️  Planka remained on OIDC callback; forcing app reload... (${i + 1}/${maxPatternRetries})`);
+          await page.waitForTimeout(1200);
+          await page.goto('https://planka.datamancy.net/', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+          await page.waitForTimeout(1200);
           continue;
         }
 
