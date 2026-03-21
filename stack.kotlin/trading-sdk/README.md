@@ -105,6 +105,16 @@ The Jupyter container seeds practical trading research notebooks in `/home/jovya
 - `12_walk_forward_backtests_with_regime_slices.ipynb`
 - `13_sensitivity_sweeps_fees_slippage_latency.ipynb`
 - `14_live_vs_backtest_drift_dashboard.ipynb`
+- `15_forward_test_mainnet_data.ipynb` (forward-test harness against live/mainnet market data with paper-execution realism and optional persistence into execution/drift telemetry tables)
+
+Notebook persistence defaults are conservative (`persist_* = False` in several notebooks).
+Enable persistence flags when you want notebooks to feed Grafana-facing strategy tables:
+- `strategy_backtest_runs`
+- `strategy_walkforward_runs`
+- `strategy_sensitivity_sweeps`
+- `strategy_latency_metrics`
+- `strategy_execution_costs`
+- `strategy_live_backtest_drift`
 
 ### Market Data Streaming
 
