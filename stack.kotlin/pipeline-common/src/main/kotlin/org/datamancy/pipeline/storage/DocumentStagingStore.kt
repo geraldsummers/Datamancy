@@ -148,6 +148,49 @@ class DocumentStagingStore(
     private val json = Json { ignoreUnknownKeys = true }
     private val dataSource: HikariDataSource
 
+    private fun normalizeStats(stats: Map<String, Long>): Map<String, Long> {
+        return mapOf(
+            "pending" to (stats["pending"] ?: 0L),
+            "in_progress" to (stats["in_progress"] ?: 0L),
+            "completed" to (stats["completed"] ?: 0L),
+            "failed" to (stats["failed"] ?: 0L)
+        )
+    }
+
+    private fun Transaction.applyLocalStatementTimeout(timeoutMs: Long) {
+        if (!jdbcUrl.startsWith("jdbc:postgresql") || timeoutMs <= 0) {
+            return
+        }
+
+        val boundedTimeoutMs = timeoutMs.coerceAtMost(Int.MAX_VALUE.toLong())
+        exec("SET LOCAL statement_timeout = $boundedTimeoutMs")
+    }
+
+    private fun queryStats(): Map<String, Long> {
+        val countExpr = DocumentStagingTable.id.count()
+        val stats = DocumentStagingTable
+            .select(DocumentStagingTable.embeddingStatus, countExpr)
+            .groupBy(DocumentStagingTable.embeddingStatus)
+            .associate { row ->
+                row[DocumentStagingTable.embeddingStatus].lowercase() to row[countExpr]
+            }
+
+        return normalizeStats(stats)
+    }
+
+    private fun queryStatsBySource(source: String): Map<String, Long> {
+        val countExpr = DocumentStagingTable.id.count()
+        val stats = DocumentStagingTable
+            .select(DocumentStagingTable.embeddingStatus, countExpr)
+            .where { DocumentStagingTable.sourceName eq source }
+            .groupBy(DocumentStagingTable.embeddingStatus)
+            .associate { row ->
+                row[DocumentStagingTable.embeddingStatus].lowercase() to row[countExpr]
+            }
+
+        return normalizeStats(stats)
+    }
+
     init {
         
         logger.info { "DocumentStagingStore init: jdbcUrl=$jdbcUrl, user=$user, password.length=${dbPassword.length}" }
@@ -423,29 +466,23 @@ class DocumentStagingStore(
     suspend fun getStats(): Map<String, Long> {
         return try {
             transaction {
-                val countExpr = DocumentStagingTable.id.count()
-                val stats = DocumentStagingTable
-                    .select(DocumentStagingTable.embeddingStatus, countExpr)
-                    .groupBy(DocumentStagingTable.embeddingStatus)
-                    .associate { row ->
-                        row[DocumentStagingTable.embeddingStatus].lowercase() to row[countExpr]
-                    }
-
-                mapOf(
-                    "pending" to (stats["pending"] ?: 0L),
-                    "in_progress" to (stats["in_progress"] ?: 0L),
-                    "completed" to (stats["completed"] ?: 0L),
-                    "failed" to (stats["failed"] ?: 0L)
-                )
+                queryStats()
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to get stats: ${e.message}" }
-            mapOf(
-                "pending" to 0L,
-                "in_progress" to 0L,
-                "completed" to 0L,
-                "failed" to 0L
-            )
+            normalizeStats(emptyMap())
+        }
+    }
+
+    suspend fun getStatsWithQueryTimeout(timeoutMs: Long): Map<String, Long>? {
+        return try {
+            transaction {
+                applyLocalStatementTimeout(timeoutMs)
+                queryStats()
+            }
+        } catch (e: Exception) {
+            logger.warn(e) { "Timed out or failed to get stats within ${timeoutMs}ms" }
+            null
         }
     }
 
@@ -489,30 +526,23 @@ class DocumentStagingStore(
     suspend fun getStatsBySource(source: String): Map<String, Long> {
         return try {
             transaction {
-                val countExpr = DocumentStagingTable.id.count()
-                val stats = DocumentStagingTable
-                    .select(DocumentStagingTable.embeddingStatus, countExpr)
-                    .where { DocumentStagingTable.sourceName eq source }
-                    .groupBy(DocumentStagingTable.embeddingStatus)
-                    .associate { row ->
-                        row[DocumentStagingTable.embeddingStatus].lowercase() to row[countExpr]
-                    }
-
-                mapOf(
-                    "pending" to (stats["pending"] ?: 0L),
-                    "in_progress" to (stats["in_progress"] ?: 0L),
-                    "completed" to (stats["completed"] ?: 0L),
-                    "failed" to (stats["failed"] ?: 0L)
-                )
+                queryStatsBySource(source)
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to get source stats: ${e.message}" }
-            mapOf(
-                "pending" to 0L,
-                "in_progress" to 0L,
-                "completed" to 0L,
-                "failed" to 0L
-            )
+            normalizeStats(emptyMap())
+        }
+    }
+
+    suspend fun getStatsBySourceWithQueryTimeout(source: String, timeoutMs: Long): Map<String, Long>? {
+        return try {
+            transaction {
+                applyLocalStatementTimeout(timeoutMs)
+                queryStatsBySource(source)
+            }
+        } catch (e: Exception) {
+            logger.warn(e) { "Timed out or failed to get stats for source '$source' within ${timeoutMs}ms" }
+            null
         }
     }
 

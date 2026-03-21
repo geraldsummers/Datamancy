@@ -171,6 +171,33 @@ class DocumentStagingStoreTest {
     }
 
     @Test
+    fun `getStatsWithQueryTimeout should return correct counts`() = runBlocking {
+        val docs = listOf(
+            StagedDocument("timed-stat-1", "alpha", "test", "text", emptyMap(), EmbeddingStatus.PENDING),
+            StagedDocument("timed-stat-2", "alpha", "test", "text", emptyMap(), EmbeddingStatus.COMPLETED)
+        )
+        stagingStore.stageBatch(docs)
+        stagingStore.updateStatus("timed-stat-2", EmbeddingStatus.COMPLETED)
+
+        val stats = requireNotNull(stagingStore.getStatsWithQueryTimeout(1000))
+        assertTrue(stats["pending"]!! >= 1, "Should have at least 1 pending")
+        assertTrue(stats["completed"]!! >= 1, "Should have at least 1 completed")
+    }
+
+    @Test
+    fun `getStatsBySourceWithQueryTimeout should filter by source`() = runBlocking {
+        val docs = listOf(
+            StagedDocument("timed-source-1", "source-a", "test", "text", emptyMap(), EmbeddingStatus.PENDING),
+            StagedDocument("timed-source-2", "source-b", "test", "text", emptyMap(), EmbeddingStatus.FAILED)
+        )
+        stagingStore.stageBatch(docs)
+
+        val sourceStats = requireNotNull(stagingStore.getStatsBySourceWithQueryTimeout("source-a", 1000))
+        assertTrue(sourceStats["pending"]!! >= 1, "Should have at least 1 pending for source-a")
+        assertEquals(0L, sourceStats["failed"]!!, "source-a should not include source-b failures")
+    }
+
+    @Test
     fun `StagedDocument handles special characters`() {
         val doc = StagedDocument(
             id = "special-chars",

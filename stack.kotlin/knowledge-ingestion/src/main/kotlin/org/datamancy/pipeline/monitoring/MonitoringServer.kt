@@ -10,7 +10,6 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import org.datamancy.pipeline.storage.DocumentStagingStore
 import org.datamancy.pipeline.storage.SourceMetadataStore
@@ -31,7 +30,7 @@ class MonitoringServer(
         if (stagingStore == null) {
             return null
         }
-        return withTimeoutOrNull(timeoutMs) { stagingStore.getStats() }
+        return stagingStore.getStatsWithQueryTimeout(timeoutMs)
     }
 
     private suspend fun fetchQueueStatsBySourceWithTimeout(
@@ -41,7 +40,7 @@ class MonitoringServer(
         if (stagingStore == null) {
             return null
         }
-        return withTimeoutOrNull(timeoutMs) { stagingStore.getStatsBySource(source) }
+        return stagingStore.getStatsBySourceWithQueryTimeout(source, timeoutMs)
     }
 
     
