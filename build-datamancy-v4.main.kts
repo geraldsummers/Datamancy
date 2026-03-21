@@ -13,6 +13,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
 import java.time.Instant
 import kotlin.system.exitProcess
@@ -1120,6 +1122,21 @@ fun loadExistingCredentialStore(
     return credentials
 }
 
+fun enforceOwnerOnlyFilePermissions(file: File) {
+    try {
+        Files.setPosixFilePermissions(
+            file.toPath(),
+            PosixFilePermissions.fromString("rw-------")
+        )
+    } catch (_: Exception) {
+        file.setReadable(false, false)
+        file.setWritable(false, false)
+        file.setExecutable(false, false)
+        file.setReadable(true, true)
+        file.setWritable(true, true)
+    }
+}
+
 fun saveEnvFile(file: File, credentials: Map<String, String>) {
     val content = buildString {
         appendLine("# Datamancy Environment Variables")
@@ -1145,8 +1162,7 @@ fun saveEnvFile(file: File, credentials: Map<String, String>) {
     }
     file.parentFile?.mkdirs()
     file.writeText(content)
-    file.setReadable(true, true)  // Owner only
-    file.setWritable(true, true)
+    enforceOwnerOnlyFilePermissions(file)
     info("Saved ${credentials.size} credentials to ${file.path}")
 }
 
