@@ -714,98 +714,43 @@ fun Route.unifiedExchangeRoutes(
                         return@post
                     }
 
-                    val paperResult = runCatching {
+                    val executionPreview = runCatching {
                         buildPaperOrderResponse(exchange = exchange, orderRequest = orderRequest, quote = quote)
                     }.getOrElse { error ->
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to (error.message ?: "invalid order payload")))
                         return@post
                     }
 
+                    if (executionPreview.status == "REJECTED") {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            mapOf(
+                                "error" to (executionPreview.rejectionReason ?: "Order rejected by execution safeguards"),
+                                "exchange" to exchange,
+                                "symbol" to orderRequest.symbol
+                            )
+                        )
+                        return@post
+                    }
+
+                    val adapterMessage =
+                        "Exchange order adapter disabled for $exchange; only hyperliquid is currently enabled"
                     dbService.logTransaction(
                         username = username,
                         txType = "exchange_order_$exchange",
                         request = requestLog.toString(),
-                        response = paperResult.toString(),
-                        status = "success"
+                        response = null,
+                        status = "error",
+                        errorMessage = adapterMessage
                     )
-
-                    runCatching {
-                        dbService.logPaperExecutionAnalytics(
-                            strategyName = PAPER_EXECUTION_STRATEGY,
-                            exchange = exchange,
-                            symbol = paperResult.symbol,
-                            side = paperResult.side.lowercase(),
-                            decisionLatencyMs = paperResult.telemetry.decisionLatencyMs.toDouble(),
-                            submitToAckMs = paperResult.telemetry.submitToAckMs.toDouble(),
-                            submitToFillMs = (
-                                paperResult.telemetry.submitToFinalFillMs
-                                    ?: paperResult.telemetry.submitToFirstFillMs
-                                )?.toDouble(),
-                            p50RoundTripMs = paperResult.telemetry.p50RoundTripMs.toDouble(),
-                            p95RoundTripMs = paperResult.telemetry.p95RoundTripMs.toDouble(),
-                            p99RoundTripMs = paperResult.telemetry.p99RoundTripMs.toDouble(),
-                            jitterMs = paperResult.telemetry.jitterMs.toDouble(),
-                            feeBps = paperResult.costs.appliedFeeBps,
-                            feeTier = paperResult.costs.feeTier,
-                            feeTierAdjustmentBps = paperResult.costs.feeTierAdjustmentBps,
-                            makerFeeBps = paperResult.costs.makerFeeBps,
-                            takerFeeBps = paperResult.costs.takerFeeBps,
-                            spreadCostBps = paperResult.costs.spreadCostBps,
-                            slippageBps = paperResult.costs.slippageBps,
-                            impactBps = paperResult.costs.impactBps,
-                            adverseSelectionBps = paperResult.costs.adverseSelectionBps,
-                            fundingDriftBps = paperResult.costs.fundingDriftBps,
-                            basisDriftBps = paperResult.costs.basisDriftBps,
-                            totalCostBps = paperResult.costs.totalCostBps,
-                            edgeAfterCostBps = -paperResult.costs.totalCostBps,
-                            estimatedFeeUsd = paperResult.costs.estimatedFeeUsd,
-                            estimatedCostUsd = paperResult.costs.estimatedCostUsd,
-                            metadataJson = buildPaperAnalyticsMetadataJson(
-                                username = username,
-                                orderRequest = orderRequest,
-                                result = paperResult
-                            )
+                    call.respond(
+                        HttpStatusCode.NotImplemented,
+                        mapOf(
+                            "error" to adapterMessage,
+                            "exchange" to exchange,
+                            "enabledOrderExchanges" to liveOrderExchanges.joinToString(",")
                         )
-                    }.onFailure { analyticsError ->
-                        logger.warn(
-                            "Failed to persist paper execution analytics for user={} exchange={} symbol={}: {}",
-                            username,
-                            exchange,
-                            orderRequest.symbol,
-                            analyticsError.message
-                        )
-                    }
-                    runCatching {
-                        recordExecutionDrift(
-                            dbService = dbService,
-                            tradingTelemetryMetrics = tradingTelemetryMetrics,
-                            strategyName = PAPER_EXECUTION_STRATEGY,
-                            username = username,
-                            exchange = exchange,
-                            executionMode = "paper",
-                            orderRequest = orderRequest,
-                            result = paperResult
-                        )
-                    }.onFailure { driftError ->
-                        logger.warn(
-                            "Failed to persist paper drift telemetry for user={} exchange={} symbol={}: {}",
-                            username,
-                            exchange,
-                            orderRequest.symbol,
-                            driftError.message
-                        )
-                    }
-
-                    if (paperResult.status == "FILLED" || paperResult.status == "PARTIALLY_FILLED") {
-                        riskEngine.recordAcceptedOrder(
-                            username = username,
-                            notionalUsd = paperResult.estimatedExecutedNotionalUsd()
-                                ?: estimatedNotionalUsd,
-                            reduceOnly = orderRequest.reduceOnly
-                        )
-                    }
-
-                    call.respond(HttpStatusCode.OK, paperResult)
+                    )
                     return@post
                 }
 
@@ -1721,29 +1666,7 @@ private fun resolveQuoteWithPaperFallback(
     exchange: String,
     symbol: String
 ): LatestQuote? {
-    val candidates = buildList {
-        dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)?.let { add(it) }
-        if (exchange !in liveOrderExchanges) {
-            dbService.fetchLatestQuote(exchange = "hyperliquid", symbol = symbol)?.let { proxyQuote ->
-                add(
-                    proxyQuote.copy(
-                        exchange = exchange,
-                        source = "proxy:hyperliquid:${proxyQuote.source}"
-                    )
-                )
-            }
-        }
-    }
-
-    if (candidates.isEmpty()) return null
-
-    val freshValid = candidates
-        .asSequence()
-        .filter { it.isValidSnapshot() && it.isFreshSnapshot(maxQuoteAgeMs = maxQuoteAgeMs) }
-        .minByOrNull { it.quoteAgeMs() }
-    if (freshValid != null) return freshValid
-
-    return candidates.firstOrNull { it.isValidSnapshot() } ?: candidates.first()
+    return dbService.fetchLatestQuote(exchange = exchange, symbol = symbol)
 }
 
 private fun LatestQuote.withStaleSourceTag(): LatestQuote {

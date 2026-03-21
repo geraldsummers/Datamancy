@@ -396,7 +396,7 @@ class ApplicationTest {
     }
 
     @Test
-    fun testPaperOrderEndpointForNonLiveExchange() = testApplication {
+    fun testNonHyperliquidOrderEndpointIsNotImplemented() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -436,15 +436,14 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
         }
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(HttpStatusCode.NotImplemented, response.status)
         val body = response.bodyAsText()
-        assertTrue(Regex("\"simulated\"\\s*:\\s*true").containsMatchIn(body), body)
-        assertTrue(Regex("\"executionMode\"\\s*:\\s*\"paper\"").containsMatchIn(body), body)
-        assertTrue(Regex("\"status\"\\s*:\\s*\"FILLED\"").containsMatchIn(body), body)
+        assertTrue(body.contains("adapter disabled"), body)
+        assertTrue(body.contains("hyperliquid"), body)
     }
 
     @Test
-    fun testPaperOrderStillEmitsTradingMetricsWhenDriftPersistenceFails() = testApplication {
+    fun testNonHyperliquidOrderDoesNotEmitPaperExecutionMetrics() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -497,17 +496,17 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
         }
 
-        assertEquals(HttpStatusCode.OK, orderResponse.status)
+        assertEquals(HttpStatusCode.NotImplemented, orderResponse.status)
 
         val metricsResponse = client.get("/metrics")
         assertEquals(HttpStatusCode.OK, metricsResponse.status)
         val metricsBody = metricsResponse.bodyAsText()
         assertTrue(metricsBody.contains("tx_gateway_trading_total_cost_bps"), metricsBody)
-        assertTrue(metricsBody.contains("strategy=\"tx_gateway_paper_execution\""), metricsBody)
+        assertTrue(!metricsBody.contains("strategy=\"tx_gateway_paper_execution\""), metricsBody)
     }
 
     @Test
-    fun testPaperLimitOrderCanRemainPending() = testApplication {
+    fun testNonHyperliquidLimitOrderEndpointIsNotImplemented() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -547,15 +546,13 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"LIMIT","size":"0.25","price":"72000"}""")
         }
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(HttpStatusCode.NotImplemented, response.status)
         val body = response.bodyAsText()
-        assertTrue(Regex("\"status\"\\s*:\\s*\"PENDING\"").containsMatchIn(body), body)
-        assertTrue(Regex("\"filledSize\"\\s*:\\s*\"0\"").containsMatchIn(body), body)
-        assertTrue(Regex("\"executionMode\"\\s*:\\s*\"paper\"").containsMatchIn(body), body)
+        assertTrue(body.contains("adapter disabled"), body)
     }
 
     @Test
-    fun testPaperOrderCanBePartiallyFilledWithExecutionTelemetry() = testApplication {
+    fun testNonHyperliquidOrderEndpointDoesNotReturnSimulatedFills() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -595,21 +592,15 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"5","urgencyClass":"low","cancelAfterMs":1500}""")
         }
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(HttpStatusCode.NotImplemented, response.status)
         val body = response.bodyAsText()
-        assertTrue(Regex("\"status\"\\s*:\\s*\"PARTIALLY_FILLED\"").containsMatchIn(body), body)
-        assertTrue(Regex("\"costs\"\\s*:").containsMatchIn(body), body)
-        assertTrue(Regex("\"telemetry\"\\s*:").containsMatchIn(body), body)
-        assertTrue(Regex("\"p50RoundTripMs\"\\s*:\\s*\\d+").containsMatchIn(body), body)
-        assertTrue(Regex("\"p99RoundTripMs\"\\s*:\\s*\\d+").containsMatchIn(body), body)
-        assertTrue(Regex("\"simulation\"\\s*:").containsMatchIn(body), body)
-        assertTrue(Regex("\"queuePositionEstimate\"\\s*:\\s*\\d+").containsMatchIn(body), body)
-        assertTrue(Regex("\"projectedPartialFills\"\\s*:").containsMatchIn(body), body)
-        assertTrue(Regex("\"cancelCadenceMs\"\\s*:\\s*1500").containsMatchIn(body), body)
+        assertTrue(body.contains("adapter disabled"), body)
+        assertTrue(!body.contains("\"costs\""), body)
+        assertTrue(!body.contains("\"telemetry\""), body)
     }
 
     @Test
-    fun testPaperOrderAppliesFeeTierAdjustments() = testApplication {
+    fun testNonHyperliquidOrderEndpointIgnoresPaperFeeSimulation() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -649,14 +640,14 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","feeTier":"vip"}""")
         }
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(HttpStatusCode.NotImplemented, response.status)
         val body = response.bodyAsText()
-        assertTrue(Regex("\"feeTier\"\\s*:\\s*\"vip\"").containsMatchIn(body), body)
-        assertTrue(Regex("\"feeTierAdjustmentBps\"\\s*:\\s*-1\\.5").containsMatchIn(body), body)
+        assertTrue(body.contains("adapter disabled"), body)
+        assertTrue(!body.contains("feeTierAdjustmentBps"), body)
     }
 
     @Test
-    fun testPaperOrderRejectsWhenEstimatedSlippageExceedsLimit() = testApplication {
+    fun testNonHyperliquidOrderStillRejectsWhenEstimatedSlippageExceedsLimit() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -696,11 +687,9 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25","maxSlippageBps":0.5}""")
         }
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(HttpStatusCode.BadRequest, response.status)
         val body = response.bodyAsText()
-        assertTrue(Regex("\"status\"\\s*:\\s*\"REJECTED\"").containsMatchIn(body), body)
-        assertTrue(Regex("\"filledSize\"\\s*:\\s*\"0\"").containsMatchIn(body), body)
-        assertTrue(Regex("\"rejectionReason\"\\s*:\\s*\"Estimated slippage").containsMatchIn(body), body)
+        assertTrue(Regex("\"error\"\\s*:\\s*\"Estimated slippage").containsMatchIn(body), body)
     }
 
     @Test
@@ -1141,7 +1130,7 @@ class ApplicationTest {
     }
 
     @Test
-    fun testPaperOrderRejectsPostOnlyOrderThatWouldTakeLiquidity() = testApplication {
+    fun testNonHyperliquidOrderRejectsPostOnlyThatWouldTakeLiquidity() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
             val ldapService = mockk<LdapService>(relaxed = true)
@@ -1181,10 +1170,9 @@ class ApplicationTest {
             setBody("""{"symbol":"BTC","side":"BUY","type":"LIMIT","size":"0.1","price":"73020","postOnly":true}""")
         }
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(HttpStatusCode.BadRequest, response.status)
         val body = response.bodyAsText()
-        assertTrue(Regex("\"status\"\\s*:\\s*\"REJECTED\"").containsMatchIn(body), body)
-        assertTrue(Regex("\"rejectionReason\"\\s*:\\s*\"Post-only limit order would cross the spread").containsMatchIn(body), body)
+        assertTrue(Regex("\"error\"\\s*:\\s*\"Post-only limit order would cross the spread").containsMatchIn(body), body)
     }
 
     @Test

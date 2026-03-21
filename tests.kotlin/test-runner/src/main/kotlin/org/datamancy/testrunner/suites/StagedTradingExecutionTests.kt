@@ -831,6 +831,15 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                             "      ✓ Live paper order was safely blocked by risk controls on $exchange/$symbol using ${resolvedAuth.source} (status=409, detail=$errorContext$retrySuffix)"
                         )
                     }
+                    HttpStatusCode.NotImplemented -> {
+                        val errorContext = extractErrorContext(json, body)
+                        require(errorContext.contains("adapter disabled", ignoreCase = true)) {
+                            "Unexpected non-hyperliquid adapter response: $body"
+                        }
+                        println(
+                            "      ✓ Non-hyperliquid order path is intentionally disabled on $exchange/$symbol using ${resolvedAuth.source} (status=501, detail=$errorContext)"
+                        )
+                    }
                     else -> error("Unexpected paper order status=${orderResult.response.status} body=$body")
                 }
 

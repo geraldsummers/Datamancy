@@ -244,7 +244,7 @@ The SDK now exposes a unified exchange surface for:
 
 Order routing behavior:
 - `hyperliquid`: live worker-backed execution
-- all other venues: gateway-backed paper execution (quote-aware) for safe dry-runs
+- all other venues: unified quote/routing shape is preserved, but order adapters are currently disabled
 
 ```kotlin
 val tx = TxGateway.create(url = "http://tx-gateway:8080", token = authToken)
