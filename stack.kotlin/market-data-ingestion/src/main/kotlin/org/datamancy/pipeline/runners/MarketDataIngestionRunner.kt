@@ -11,6 +11,8 @@ import kotlin.math.pow
 import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
+internal const val HYPERLIQUID_MAINNET_WS_URL = "wss://api.hyperliquid.xyz/ws"
+internal const val HYPERLIQUID_TESTNET_WS_URL = "wss://api.hyperliquid-testnet.xyz/ws"
 
 /**
  * Continuous market data ingestion runner for Hyperliquid.
@@ -67,6 +69,15 @@ class MarketDataIngestionRunner {
     private val candleIntervals = System.getenv("CANDLE_INTERVALS")?.split(",")?.map { it.trim() }
         ?: listOf("1m", "5m", "15m", "1h")
     private val enableOrderbook = System.getenv("ENABLE_ORDERBOOK")?.toBoolean() ?: false
+    private val hyperliquidMainnet = parseBooleanEnv(System.getenv("HYPERLIQUID_MAINNET"), defaultValue = true)
+    private val hyperliquidWsUrl = resolveHyperliquidWsUrl(
+        explicitUrl = System.getenv("HYPERLIQUID_WS_URL"),
+        mainnet = hyperliquidMainnet
+    )
+    private val hyperliquidExchangeId = resolveHyperliquidExchangeId(
+        explicitExchangeId = System.getenv("HYPERLIQUID_EXCHANGE_ID"),
+        mainnet = hyperliquidMainnet
+    )
 
     private lateinit var source: HyperliquidSource
     private lateinit var sink: MarketDataSink
@@ -81,6 +92,9 @@ class MarketDataIngestionRunner {
         logger.info { "Symbols: ${symbols.joinToString()}" }
         logger.info { "Candle Intervals: ${candleIntervals.joinToString()}" }
         logger.info { "Orderbook Ingestion: ${if (enableOrderbook) "ENABLED" else "DISABLED"}" }
+        logger.info { "Hyperliquid Mode: ${if (hyperliquidMainnet) "MAINNET" else "TESTNET"}" }
+        logger.info { "Hyperliquid WS URL: $hyperliquidWsUrl" }
+        logger.info { "Hyperliquid Exchange ID: $hyperliquidExchangeId" }
         logger.info { "TimescaleDB: $postgresHost:$postgresPort/$postgresDb" }
         logger.info { "=" * 80 }
 
@@ -90,11 +104,16 @@ class MarketDataIngestionRunner {
             subscribeToTrades = true,
             subscribeToCandles = true,
             candleIntervals = candleIntervals,
-            subscribeToOrderbook = enableOrderbook
+            subscribeToOrderbook = enableOrderbook,
+            url = hyperliquidWsUrl
         )
 
         val dataSource = createDataSource()
-        sink = MarketDataSink(dataSource, batchSize = batchSize)
+        sink = MarketDataSink(
+            dataSource = dataSource,
+            batchSize = batchSize,
+            exchangeId = hyperliquidExchangeId
+        )
 
         // Block startup until TimescaleDB is reachable instead of shutting down on first race.
         if (!waitForTimescaleDb()) {
@@ -146,6 +165,15 @@ class MarketDataIngestionRunner {
         return false
     }
 
+    private fun parseBooleanEnv(raw: String?, defaultValue: Boolean): Boolean {
+        val normalized = raw?.trim()?.lowercase() ?: return defaultValue
+        return when (normalized) {
+            "1", "true", "yes", "on" -> true
+            "0", "false", "no", "off" -> false
+            else -> defaultValue
+        }
+    }
+
     /**
      * Main ingestion loop with automatic reconnection
      */
@@ -154,11 +182,17 @@ class MarketDataIngestionRunner {
         val maxReconnectDelay = 60.seconds
 
         while (scope.isActive) {
+            var messagesInSession = 0
             try {
                 logger.info { "Connecting to Hyperliquid WebSocket..." }
 
                 source.fetch()
                     .onEach { data ->
+                        messagesInSession++
+                        if (messagesInSession == 1 && reconnectAttempt > 0) {
+                            reconnectAttempt = 0
+                            logger.info { "WebSocket stream produced data; reconnection backoff reset" }
+                        }
                         sink.write(data)
                     }
                     .catch { e ->
@@ -170,7 +204,25 @@ class MarketDataIngestionRunner {
                     .collect { }
 
                 // If we reach here, the stream completed (shouldn't happen normally)
-                logger.warn { "WebSocket stream completed unexpectedly" }
+                logger.warn {
+                    "WebSocket stream completed unexpectedly (messagesInSession=$messagesInSession)"
+                }
+                try {
+                    sink.flush()
+                } catch (flushError: Exception) {
+                    logger.error(flushError) {
+                        "Failed to flush pending data after unexpected stream completion: ${flushError.message}"
+                    }
+                }
+                reconnectAttempt++
+                val reconnectDelayMs = reconnectBackoffDelayMs(
+                    reconnectAttempt = reconnectAttempt,
+                    maxDelayMs = maxReconnectDelay.inWholeMilliseconds
+                )
+                logger.info {
+                    "Reconnecting in ${reconnectDelayMs}ms after unexpected stream completion (attempt $reconnectAttempt)..."
+                }
+                delay(reconnectDelayMs)
 
             } catch (e: CancellationException) {
                 logger.info { "Ingestion cancelled" }
@@ -187,12 +239,12 @@ class MarketDataIngestionRunner {
 
                 // Exponential backoff for reconnection
                 reconnectAttempt++
-                val delay = minOf(
-                    (2.0.pow(reconnectAttempt) * 1000).toLong(),
-                    maxReconnectDelay.inWholeMilliseconds
+                val reconnectDelayMs = reconnectBackoffDelayMs(
+                    reconnectAttempt = reconnectAttempt,
+                    maxDelayMs = maxReconnectDelay.inWholeMilliseconds
                 )
-                logger.info { "Reconnecting in ${delay}ms (attempt $reconnectAttempt)..." }
-                delay(delay)
+                logger.info { "Reconnecting in ${reconnectDelayMs}ms (attempt $reconnectAttempt)..." }
+                delay(reconnectDelayMs)
             }
         }
     }
@@ -262,6 +314,25 @@ class MarketDataIngestionRunner {
             password = postgresPassword
         }
     }
+}
+
+internal fun resolveHyperliquidWsUrl(explicitUrl: String?, mainnet: Boolean): String {
+    val url = explicitUrl?.trim()
+    if (!url.isNullOrEmpty()) return url
+    return if (mainnet) HYPERLIQUID_MAINNET_WS_URL else HYPERLIQUID_TESTNET_WS_URL
+}
+
+internal fun reconnectBackoffDelayMs(reconnectAttempt: Int, maxDelayMs: Long): Long {
+    val normalizedAttempt = reconnectAttempt.coerceAtLeast(1)
+    val boundedAttempt = normalizedAttempt.coerceAtMost(30)
+    val computedDelay = (2.0.pow(boundedAttempt) * 1000).toLong()
+    return computedDelay.coerceAtMost(maxDelayMs).coerceAtLeast(1000L)
+}
+
+internal fun resolveHyperliquidExchangeId(explicitExchangeId: String?, mainnet: Boolean): String {
+    val exchangeId = explicitExchangeId?.trim()?.lowercase()
+    if (!exchangeId.isNullOrEmpty()) return exchangeId
+    return if (mainnet) "hyperliquid_mainnet" else "hyperliquid_testnet"
 }
 
 /**

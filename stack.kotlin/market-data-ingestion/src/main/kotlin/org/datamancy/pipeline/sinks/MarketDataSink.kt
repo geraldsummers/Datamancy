@@ -49,10 +49,12 @@ private val logger = KotlinLogging.logger {}
  */
 class MarketDataSink(
     private val dataSource: DataSource,
-    private val batchSize: Int = 1000
+    private val batchSize: Int = 1000,
+    exchangeId: String = "hyperliquid"
 ) : Sink<HyperliquidMarketData> {
 
     override val name = "MarketDataSink"
+    private val exchange = exchangeId.trim().lowercase().ifBlank { "hyperliquid" }
 
     // Batch accumulators
     private val tradeBatch = mutableListOf<HyperliquidTrade>()
@@ -146,7 +148,7 @@ class MarketDataSink(
                         trades.forEach { trade ->
                             stmt.setTimestamp(1, Timestamp.from(trade.time))
                             stmt.setString(2, trade.symbol)
-                            stmt.setString(3, "hyperliquid")
+                            stmt.setString(3, exchange)
                             stmt.setString(4, trade.tradeId)
                             stmt.setBigDecimal(5, BigDecimal.valueOf(trade.price))
                             stmt.setBigDecimal(6, BigDecimal.valueOf(trade.size))
@@ -204,7 +206,7 @@ class MarketDataSink(
                             val dataType = "candle_${candle.interval}" // e.g., 'candle_1m', 'candle_5m'
                             stmt.setTimestamp(1, Timestamp.from(candle.time))
                             stmt.setString(2, candle.symbol)
-                            stmt.setString(3, "hyperliquid")
+                            stmt.setString(3, exchange)
                             stmt.setString(4, dataType)
                             stmt.setBigDecimal(5, BigDecimal.valueOf(candle.open))
                             stmt.setBigDecimal(6, BigDecimal.valueOf(candle.high))
@@ -367,7 +369,7 @@ class MarketDataSink(
 
                 stmt.setTimestamp(1, Timestamp.from(orderbook.time))
                 stmt.setString(2, orderbook.symbol)
-                stmt.setString(3, "hyperliquid")
+                stmt.setString(3, exchange)
                 stmt.setBigDecimal(4, BigDecimal.valueOf(bestBid.price))
                 stmt.setBigDecimal(5, BigDecimal.valueOf(bestBid.size))
                 stmt.setBigDecimal(6, BigDecimal.valueOf(bestAsk.price))
@@ -394,7 +396,7 @@ class MarketDataSink(
 
                 stmt.setTimestamp(1, Timestamp.from(orderbook.time))
                 stmt.setString(2, orderbook.symbol)
-                stmt.setString(3, "hyperliquid")
+                stmt.setString(3, exchange)
                 stmt.setString(4, bidsJson)
                 stmt.setString(5, asksJson)
                 stmt.addBatch()
@@ -458,7 +460,7 @@ class MarketDataSink(
 
                 stmt.setTimestamp(1, Timestamp.from(orderbook.time))
                 stmt.setString(2, orderbook.symbol)
-                stmt.setString(3, "hyperliquid")
+                stmt.setString(3, exchange)
                 stmt.setString(4, levelsToJson(sortedBids))
                 stmt.setString(5, levelsToJson(sortedAsks))
                 if (bestBid != null) stmt.setBigDecimal(6, BigDecimal.valueOf(bestBid.price)) else stmt.setNull(6, java.sql.Types.NUMERIC)

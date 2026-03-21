@@ -77,7 +77,11 @@ fun Application.configureApp(
     authService: AuthService,
     ldapService: LdapService,
     workerClient: WorkerClient,
-    dbService: DatabaseService
+    dbService: DatabaseService,
+    requiredHyperliquidQuoteExchange: String? = resolveHyperliquidQuoteExchange(
+        explicitExchange = System.getenv("HYPERLIQUID_QUOTE_EXCHANGE"),
+        mainnetFlag = System.getenv("HYPERLIQUID_MAINNET")
+    )
 ) {
     val riskEngineService = RiskEngineService(dbService)
     val walletSignatureService = WalletSignatureService()
@@ -268,7 +272,14 @@ fun Application.configureApp(
 
         hyperliquidRoutes(authService, ldapService, workerClient, dbService)
         evmRoutes(authService, ldapService, workerClient, dbService)
-        unifiedExchangeRoutes(authService, ldapService, workerClient, dbService, tradingTelemetryMetrics)
+        unifiedExchangeRoutes(
+            authService = authService,
+            ldapService = ldapService,
+            workerClient = workerClient,
+            dbService = dbService,
+            tradingTelemetryMetrics = tradingTelemetryMetrics,
+            requiredHyperliquidQuoteExchange = requiredHyperliquidQuoteExchange
+        )
         riskRoutes(authService, dbService, riskEngineService, walletSignatureService)
     }
 

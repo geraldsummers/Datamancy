@@ -66,10 +66,7 @@ class GatewayModeRoutedOrderExecutor(
     private fun resolveExchange(request: ModeRoutedOrderRequest): ExchangeId {
         val requested = ExchangeId.entries.firstOrNull { it.apiName == request.exchange.trim().lowercase() }
         return when (request.mode) {
-            TradingMode.FORWARD_PAPER -> {
-                val preferred = requested ?: ExchangeId.BINANCE
-                if (preferred == ExchangeId.HYPERLIQUID) ExchangeId.BINANCE else preferred
-            }
+            TradingMode.FORWARD_PAPER -> requested ?: ExchangeId.HYPERLIQUID
             TradingMode.TESTNET_LIVE,
             TradingMode.MAINNET_LIVE -> requested ?: ExchangeId.HYPERLIQUID
             TradingMode.BACKTEST -> requested ?: ExchangeId.HYPERLIQUID

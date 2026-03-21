@@ -24,6 +24,7 @@ import org.datamancy.txgateway.services.RiskAccountStatePatch
 import org.datamancy.txgateway.services.StrategyExecutionBaseline
 import org.datamancy.txgateway.services.TradingTelemetryMetrics
 import org.datamancy.txgateway.services.WorkerClient
+import org.datamancy.txgateway.services.resolveHyperliquidQuoteExchange
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -281,7 +282,11 @@ fun Route.unifiedExchangeRoutes(
     ldapService: LdapService,
     workerClient: WorkerClient,
     dbService: DatabaseService,
-    tradingTelemetryMetrics: TradingTelemetryMetrics? = null
+    tradingTelemetryMetrics: TradingTelemetryMetrics? = null,
+    requiredHyperliquidQuoteExchange: String? = resolveHyperliquidQuoteExchange(
+        explicitExchange = System.getenv("HYPERLIQUID_QUOTE_EXCHANGE"),
+        mainnetFlag = System.getenv("HYPERLIQUID_MAINNET")
+    )
 ) {
     val riskEngine = RiskEngineService(dbService)
     route("/api/v1") {
@@ -851,6 +856,33 @@ fun Route.unifiedExchangeRoutes(
                             "exchange" to exchange,
                             "symbol" to orderRequest.symbol,
                             "quoteSource" to quoteForRisk.source
+                        )
+                    )
+                    return@post
+                }
+                if (
+                    exchange == "hyperliquid" &&
+                    !requiredHyperliquidQuoteExchange.isNullOrBlank() &&
+                    !quoteSourceMatchesResolvedExchange(
+                        source = quoteForRisk.source,
+                        expectedExchange = requiredHyperliquidQuoteExchange
+                    )
+                ) {
+                    logger.warn(
+                        "Rejecting live order due to quote exchange mismatch for exchange={} symbol={} source={} expectedExchange={}",
+                        exchange,
+                        orderRequest.symbol,
+                        quoteForRisk.source,
+                        requiredHyperliquidQuoteExchange
+                    )
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        mapOf(
+                            "error" to "Quote exchange mismatch for live order risk checks",
+                            "exchange" to exchange,
+                            "symbol" to orderRequest.symbol,
+                            "quoteSource" to quoteForRisk.source,
+                            "expectedQuoteExchange" to requiredHyperliquidQuoteExchange
                         )
                     )
                     return@post
@@ -1702,6 +1734,13 @@ private fun LatestQuote.withStaleSourceTag(): LatestQuote {
     return if (source.startsWith("stale:")) this else copy(source = "stale:$source")
 }
 
+internal fun quoteSourceMatchesResolvedExchange(source: String, expectedExchange: String): Boolean {
+    val expected = expectedExchange.trim().lowercase()
+    if (expected.isBlank()) return true
+    val normalizedSource = source.trim().lowercase()
+    return normalizedSource.contains("resolved_exchange=$expected")
+}
+
 private fun toBps(numerator: BigDecimal, denominator: BigDecimal): BigDecimal {
     if (denominator <= BigDecimal.ZERO) return BigDecimal.ZERO
     return numerator
@@ -1841,6 +1880,17 @@ private fun recordExecutionDrift(
         backtestEdgeBps = baseline?.backtestEdgeBps,
         liveEdgeBps = liveEdgeBps
     )
+    tradingTelemetryMetrics?.recordDrift(
+        strategyName = strategyName,
+        exchange = exchange,
+        executionMode = executionMode,
+        slippageDriftBps = slippageDriftBps,
+        fillQualityDecayBps = fillQualityDeltaBps,
+        latencyDriftMs = latencyDriftMs,
+        driftScore = driftScore,
+        submitToFillMs = submitToFillMs,
+        totalCostBps = result.costs.totalCostBps
+    )
     dbService.logLiveBacktestDrift(
         strategyName = strategyName,
         symbol = result.symbol,
@@ -1859,17 +1909,6 @@ private fun recordExecutionDrift(
             baseline = baseline,
             submitToFillMs = submitToFillMs
         )
-    )
-    tradingTelemetryMetrics?.recordDrift(
-        strategyName = strategyName,
-        exchange = exchange,
-        executionMode = executionMode,
-        slippageDriftBps = slippageDriftBps,
-        fillQualityDecayBps = fillQualityDeltaBps,
-        latencyDriftMs = latencyDriftMs,
-        driftScore = driftScore,
-        submitToFillMs = submitToFillMs,
-        totalCostBps = result.costs.totalCostBps
     )
 }
 

@@ -642,13 +642,13 @@ class TxGatewayTest {
     }
 
     @Test
-    fun `mode router forward paper remaps hyperliquid to paper venue`() = runBlocking {
+    fun `mode router forward paper preserves requested venue`() = runBlocking {
         val mockResponse = """
             {
                 "orderId": "paper-200",
                 "status": "PENDING",
                 "filledSize": "0",
-                "exchange": "binance",
+                "exchange": "hyperliquid",
                 "symbol": "BTC-PERP",
                 "side": "BUY",
                 "type": "LIMIT"
@@ -671,6 +671,6 @@ class TxGatewayTest {
 
         assertTrue(result is ApiResult.Success)
         val requestPath = mockServer.takeRequest().path ?: ""
-        assertTrue(requestPath.contains("/api/v1/exchanges/binance/order"), requestPath)
+        assertTrue(requestPath.contains("/api/v1/exchanges/hyperliquid/order"), requestPath)
     }
 }

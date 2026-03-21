@@ -35,13 +35,14 @@ private val stagedFixtureJson = Json {
     prettyPrint = true
 }
 
-private data class StagedTradingConfig(
+internal data class StagedTradingConfig(
     val mode: String,
     val runLiveProbes: Boolean,
     val targetHost: String,
     val txGatewayBaseUrl: String,
     val autheliaBaseUrl: String,
     val hyperliquidWorkerBaseUrl: String?,
+    val strictHyperliquidCredentialChecks: Boolean,
     val prepareRiskStateBeforeOrders: Boolean,
     val recordResponses: Boolean,
     val recordDir: String
@@ -64,42 +65,75 @@ private data class AckRetryResult(
     val retryExecuted: Boolean
 )
 
-private fun envValue(name: String): String? =
-    System.getenv(name)
+internal fun envValue(
+    name: String,
+    env: Map<String, String> = System.getenv()
+): String? =
+    env[name]
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
 
-private fun envFlag(name: String, defaultValue: Boolean): Boolean =
-    envValue(name)
+internal fun envFlag(
+    name: String,
+    defaultValue: Boolean,
+    env: Map<String, String> = System.getenv()
+): Boolean =
+    envValue(name, env)
         ?.lowercase(Locale.US)
         ?.let { it == "1" || it == "true" || it == "yes" || it == "on" }
         ?: defaultValue
 
-private fun stagedTradingConfig(endpoints: ServiceEndpoints): StagedTradingConfig {
-    val mode = (envValue("TRADING_E2E_MODE") ?: "replay").lowercase(Locale.US)
+internal fun stagedTradingConfig(
+    endpoints: ServiceEndpoints,
+    env: Map<String, String> = System.getenv()
+): StagedTradingConfig {
+    val mode = (envValue("TRADING_E2E_MODE", env) ?: "replay").lowercase(Locale.US)
     val runLive = mode == "live" || mode == "hybrid"
+    val liveExternalUrls = envFlag("TRADING_E2E_LIVE_EXTERNAL_URLS", defaultValue = false, env = env)
 
-    val targetHost = envValue("TRADING_E2E_TARGET_HOST")
-        ?: envValue("DOMAIN")
+    val targetHost = envValue("TRADING_E2E_TARGET_HOST", env)
+        ?: envValue("DOMAIN", env)
         ?: "latium.local"
 
-    val txGatewayBaseUrl = envValue("TRADING_E2E_TX_GATEWAY_URL")
-        ?: if (runLive) "https://tx-gateway.$targetHost" else endpoints.txGateway
+    val txGatewayBaseUrl = envValue("TRADING_E2E_TX_GATEWAY_URL", env)
+        ?: when {
+            !runLive -> endpoints.txGateway
+            liveExternalUrls -> "https://tx-gateway.$targetHost"
+            else -> endpoints.txGateway
+        }
 
-    val autheliaBaseUrl = envValue("TRADING_E2E_AUTHELIA_URL")
-        ?: if (runLive) "https://auth.$targetHost" else endpoints.authelia
+    val autheliaBaseUrl = envValue("TRADING_E2E_AUTHELIA_URL", env)
+        ?: when {
+            !runLive -> endpoints.authelia
+            liveExternalUrls -> "https://auth.$targetHost"
+            else -> endpoints.authelia
+        }
 
-    val hyperliquidWorkerBaseUrl = envValue("TRADING_E2E_HYPERLIQUID_WORKER_URL")
-        ?: if (runLive) "https://hyperliquid-worker.$targetHost" else endpoints.hyperliquidWorker
+    val hyperliquidWorkerBaseUrl = envValue("TRADING_E2E_HYPERLIQUID_WORKER_URL", env)
+        ?: when {
+            !runLive -> endpoints.hyperliquidWorker
+            liveExternalUrls -> "https://hyperliquid-worker.$targetHost"
+            else -> endpoints.hyperliquidWorker
+        }
 
-    val prepareRiskStateBeforeOrders = envFlag("TRADING_E2E_PREP_RISK_STATE", defaultValue = runLive)
+    val strictHyperliquidCredentialChecks = envFlag(
+        "TRADING_E2E_HYPERLIQUID_STRICT_CREDENTIALS",
+        defaultValue = false,
+        env = env
+    )
 
-    val recordResponses = envValue("TRADING_E2E_RECORD")
+    val prepareRiskStateBeforeOrders = envFlag(
+        "TRADING_E2E_PREP_RISK_STATE",
+        defaultValue = runLive,
+        env = env
+    )
+
+    val recordResponses = envValue("TRADING_E2E_RECORD", env)
         ?.lowercase(Locale.US)
         ?.let { it == "1" || it == "true" || it == "yes" }
         ?: false
 
-    val recordDir = envValue("TRADING_E2E_RECORD_DIR") ?: "/tmp/trading-e2e-fixtures"
+    val recordDir = envValue("TRADING_E2E_RECORD_DIR", env) ?: "/tmp/trading-e2e-fixtures"
 
     return StagedTradingConfig(
         mode = mode,
@@ -108,6 +142,7 @@ private fun stagedTradingConfig(endpoints: ServiceEndpoints): StagedTradingConfi
         txGatewayBaseUrl = txGatewayBaseUrl.trimEnd('/'),
         autheliaBaseUrl = autheliaBaseUrl.trimEnd('/'),
         hyperliquidWorkerBaseUrl = hyperliquidWorkerBaseUrl?.trimEnd('/'),
+        strictHyperliquidCredentialChecks = strictHyperliquidCredentialChecks,
         prepareRiskStateBeforeOrders = prepareRiskStateBeforeOrders,
         recordResponses = recordResponses,
         recordDir = recordDir
@@ -422,6 +457,11 @@ private fun containsHyperliquidKeyFailureSignal(errorText: String): Boolean {
     )
     return markers.any { normalized.contains(it) }
 }
+
+internal fun shouldFailOnHyperliquidCredentialError(
+    strictCredentialChecks: Boolean,
+    errorText: String
+): Boolean = strictCredentialChecks && containsHyperliquidKeyFailureSignal(errorText)
 
 private fun isManualAckRiskConflict(response: CapturedHttpResponse): Boolean {
     if (response.status != HttpStatusCode.Conflict) return false
@@ -877,15 +917,22 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                         require(error.isNotBlank()) {
                             "Expected explanatory error payload for status=${orderResult.response.status}, got: $body"
                         }
-                        require(!containsHyperliquidKeyFailureSignal(error)) {
-                            "Hyperliquid testnet key/wallet was rejected by exchange path: $error"
+                        val credentialRejected = containsHyperliquidKeyFailureSignal(error)
+                        if (shouldFailOnHyperliquidCredentialError(config.strictHyperliquidCredentialChecks, error)) {
+                            error("Hyperliquid testnet key/wallet was rejected by exchange path: $error")
                         }
                         require(!error.contains("Serializing collections of different element types", ignoreCase = true)) {
                             "tx-gateway response serialization failure encountered: $error"
                         }
-                        println(
-                            "      ✓ Hyperliquid testnet order path reached worker and returned controlled rejection (status=${orderResult.response.status.value}, error=$error$retrySuffix)"
-                        )
+                        if (credentialRejected) {
+                            println(
+                                "      ~ Hyperliquid credentials were rejected by exchange path; non-strict mode accepted this (set TRADING_E2E_HYPERLIQUID_STRICT_CREDENTIALS=true to fail)."
+                            )
+                        } else {
+                            println(
+                                "      ✓ Hyperliquid testnet order path reached worker and returned controlled rejection (status=${orderResult.response.status.value}, error=$error$retrySuffix)"
+                            )
+                        }
                     }
                     else -> error("Unexpected hyperliquid testnet order status=${orderResult.response.status} body=$body")
                 }

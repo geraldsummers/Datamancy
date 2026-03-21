@@ -16,6 +16,53 @@ class TradingTelemetryMetrics(
     private val submitToFillSummary = ConcurrentHashMap<String, DistributionSummary>()
     private val totalCostSummary = ConcurrentHashMap<String, DistributionSummary>()
 
+    init {
+        val defaultTags = tags("unknown", "unknown", "unknown")
+        val defaultKey = defaultTags.toString()
+        updateGauge(
+            store = slippageDriftGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_slippage_drift_bps",
+            tags = defaultTags,
+            value = 0.0
+        )
+        updateGauge(
+            store = fillQualityDecayGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_fill_quality_decay_bps",
+            tags = defaultTags,
+            value = 0.0
+        )
+        updateGauge(
+            store = latencyDriftGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_latency_drift_ms",
+            tags = defaultTags,
+            value = 0.0
+        )
+        updateGauge(
+            store = driftScoreGauge,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_drift_score",
+            tags = defaultTags,
+            value = 0.0
+        )
+        summary(
+            store = submitToFillSummary,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_submit_to_fill_ms",
+            tags = defaultTags,
+            baseUnit = "milliseconds"
+        )
+        summary(
+            store = totalCostSummary,
+            key = defaultKey,
+            metricName = "tx_gateway_trading_total_cost_bps",
+            tags = defaultTags,
+            baseUnit = "bps"
+        )
+    }
+
     fun recordDrift(
         strategyName: String,
         exchange: String,

@@ -444,6 +444,69 @@ class ApplicationTest {
     }
 
     @Test
+    fun testPaperOrderStillEmitsTradingMetricsWhenDriftPersistenceFails() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("binance"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("binance", "BTC") } returns LatestQuote(
+                exchange = "binance",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "market_data:trade"
+            )
+            every {
+                dbService.logLiveBacktestDrift(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any()
+                )
+            } throws RuntimeException("drift table unavailable")
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val orderResponse = client.post("/api/v1/exchanges/binance/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.25"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, orderResponse.status)
+
+        val metricsResponse = client.get("/metrics")
+        assertEquals(HttpStatusCode.OK, metricsResponse.status)
+        val metricsBody = metricsResponse.bodyAsText()
+        assertTrue(metricsBody.contains("tx_gateway_trading_total_cost_bps"), metricsBody)
+        assertTrue(metricsBody.contains("strategy=\"tx_gateway_paper_execution\""), metricsBody)
+    }
+
+    @Test
     fun testPaperLimitOrderCanRemainPending() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
@@ -1590,6 +1653,61 @@ class ApplicationTest {
     }
 
     @Test
+    fun testLiveHyperliquidOrderRejectsWhenQuoteExchangeDoesNotMatchConfiguredEnvironment() = testApplication {
+        lateinit var workerClient: WorkerClient
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = mockk<DatabaseService>(relaxed = true)
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns org.datamancy.txgateway.models.UserInfo(
+                username = "trader1",
+                email = "trader1@datamancy.net",
+                groups = listOf("traders"),
+                evmAddress = null,
+                allowedChains = listOf("base"),
+                allowedExchanges = listOf("hyperliquid"),
+                maxTxPerHour = 100,
+                maxTxValueUSD = 25000
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+
+            configureApp(
+                authService = authService,
+                ldapService = ldapService,
+                workerClient = workerClient,
+                dbService = dbService,
+                requiredHyperliquidQuoteExchange = "hyperliquid_testnet"
+            )
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1"}""")
+        }
+
+        assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Quote exchange mismatch for live order risk checks"), body)
+        verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
+    }
+
+    @Test
     fun testUnifiedOrderRejectsWhenRiskEngineBlocksNewExposure() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)
@@ -1695,6 +1813,8 @@ class ApplicationTest {
         assertTrue(contentType.contains("text/plain"), contentType)
         val body = response.bodyAsText()
         assertTrue(body.contains("ktor_http_server_requests"), body)
+        assertTrue(body.contains("tx_gateway_trading_slippage_drift_bps"), body)
+        assertTrue(body.contains("tx_gateway_trading_total_cost_bps"), body)
     }
 
     @Test

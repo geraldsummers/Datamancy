@@ -201,6 +201,14 @@ class DatabaseService(
     private var marketDataSource: HikariDataSource? = null
     private val missingTableWarnings = ConcurrentHashMap.newKeySet<String>()
     private val analyticsSchemaEnsured = ConcurrentHashMap.newKeySet<String>()
+    private val hyperliquidQuoteExchange = resolveHyperliquidQuoteExchange(
+        explicitExchange = System.getenv("HYPERLIQUID_QUOTE_EXCHANGE"),
+        mainnetFlag = System.getenv("HYPERLIQUID_MAINNET")
+    )
+    private val allowCanonicalHyperliquidFallback = parseBooleanFlag(
+        raw = System.getenv("HYPERLIQUID_QUOTE_EXCHANGE_ALLOW_CANONICAL_FALLBACK"),
+        defaultValue = true
+    )
 
     fun init(maxAttempts: Int = 60, delayMs: Long = 2000) {
         logger.info("Initializing database connection to $host:$port/$database as user $user (password: ${dbPassword.length} chars)")
@@ -560,16 +568,60 @@ class DatabaseService(
     fun fetchLatestQuote(exchange: String, symbol: String): LatestQuote? {
         val normalizedExchange = exchange.lowercase()
         val candidates = symbolCandidates(symbol)
+        val exchangeCandidates = quoteExchangeCandidates(normalizedExchange)
 
-        for (candidate in candidates) {
-            queryOrderbookQuote(normalizedExchange, candidate)?.let { return it }
+        for (exchangeCandidate in exchangeCandidates) {
+            for (candidate in candidates) {
+                queryOrderbookQuote(exchangeCandidate, candidate)?.let { quote ->
+                    return normalizeResolvedQuote(
+                        quote = quote,
+                        requestedExchange = normalizedExchange,
+                        resolvedExchange = exchangeCandidate
+                    )
+                }
+            }
         }
 
-        for (candidate in candidates) {
-            queryMarketDataQuote(normalizedExchange, candidate)?.let { return it }
+        for (exchangeCandidate in exchangeCandidates) {
+            for (candidate in candidates) {
+                queryMarketDataQuote(exchangeCandidate, candidate)?.let { quote ->
+                    return normalizeResolvedQuote(
+                        quote = quote,
+                        requestedExchange = normalizedExchange,
+                        resolvedExchange = exchangeCandidate
+                    )
+                }
+            }
         }
 
         return null
+    }
+
+    private fun quoteExchangeCandidates(exchange: String): List<String> {
+        if (exchange != "hyperliquid") return listOf(exchange)
+        val preferred = hyperliquidQuoteExchange
+        val candidates = mutableListOf<String>()
+        if (!preferred.isNullOrBlank()) {
+            candidates += preferred
+        }
+        if (allowCanonicalHyperliquidFallback || candidates.isEmpty()) {
+            candidates += "hyperliquid"
+        }
+        return candidates.distinct()
+    }
+
+    private fun normalizeResolvedQuote(
+        quote: LatestQuote,
+        requestedExchange: String,
+        resolvedExchange: String
+    ): LatestQuote {
+        if (resolvedExchange == requestedExchange) return quote
+        val resolvedTag = "resolved_exchange=${resolvedExchange.lowercase()}"
+        val taggedSource = if (quote.source.contains(resolvedTag)) quote.source else "${quote.source}:$resolvedTag"
+        return quote.copy(
+            exchange = requestedExchange,
+            source = taggedSource
+        )
     }
 
     private fun quoteDataSources(): List<HikariDataSource> = buildList {
@@ -2066,5 +2118,33 @@ class DatabaseService(
         if (::dataSource.isInitialized) {
             dataSource.close()
         }
+    }
+}
+
+internal fun resolveHyperliquidQuoteExchange(
+    explicitExchange: String?,
+    mainnetFlag: String?
+): String? {
+    val explicit = explicitExchange
+        ?.trim()
+        ?.lowercase()
+        ?.takeIf { it.isNotEmpty() }
+    if (explicit != null) return explicit
+
+    val normalizedMainnetFlag = mainnetFlag
+        ?.trim()
+        ?.lowercase()
+        ?.takeIf { it.isNotEmpty() }
+        ?: return null
+    val mainnet = parseBooleanFlag(normalizedMainnetFlag, defaultValue = false)
+    return if (mainnet) "hyperliquid_mainnet" else "hyperliquid_testnet"
+}
+
+internal fun parseBooleanFlag(raw: String?, defaultValue: Boolean): Boolean {
+    val normalized = raw?.trim()?.lowercase() ?: return defaultValue
+    return when (normalized) {
+        "1", "true", "yes", "on" -> true
+        "0", "false", "no", "off" -> false
+        else -> defaultValue
     }
 }
