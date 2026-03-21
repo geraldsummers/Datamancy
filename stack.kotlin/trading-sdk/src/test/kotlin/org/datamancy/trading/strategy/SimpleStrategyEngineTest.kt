@@ -132,6 +132,12 @@ class SimpleStrategyEngineTest {
             interval = 1.minutes,
             candle = candle(close = "70000")
         )
+        withTimeout(5_000) {
+            while (executor.requests.size < 1) {
+                delay(25)
+            }
+        }
+
         dataService.emitCandle(
             symbol = "BTC",
             exchange = "hyperliquid",
