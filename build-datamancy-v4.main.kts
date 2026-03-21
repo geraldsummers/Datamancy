@@ -757,9 +757,7 @@ fun getGitVersion(workDir: File): String {
     } catch (e: Exception) { "unknown" }
 }
 
-fun forceDeleteRecursively(target: File) {
-    if (!target.exists()) return
-
+private fun deleteRecursivelyWithWriteReset(target: File): List<String> {
     val failedDeletes = mutableListOf<String>()
 
     target.walkBottomUp().forEach { path ->
@@ -771,6 +769,36 @@ fun forceDeleteRecursively(target: File) {
         if (!path.delete() && path.exists()) {
             failedDeletes += path.absolutePath
         }
+    }
+
+    return failedDeletes
+}
+
+private fun resetOwnershipWithDocker(target: File): Boolean {
+    val uid = execCapture("id", "-u", ignoreError = true).trim()
+    val gid = execCapture("id", "-g", ignoreError = true).trim()
+    if (uid.isBlank() || gid.isBlank()) return false
+
+    val status = execStatus(
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        "${target.absolutePath}:/target",
+        "alpine",
+        "sh",
+        "-lc",
+        "chown -R $uid:$gid /target"
+    )
+    return status == 0
+}
+
+fun forceDeleteRecursively(target: File) {
+    if (!target.exists()) return
+
+    var failedDeletes = deleteRecursivelyWithWriteReset(target)
+    if (failedDeletes.isNotEmpty() && resetOwnershipWithDocker(target)) {
+        failedDeletes = deleteRecursivelyWithWriteReset(target)
     }
 
     if (failedDeletes.isNotEmpty()) {
