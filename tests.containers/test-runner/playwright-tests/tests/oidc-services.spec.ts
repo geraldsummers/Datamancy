@@ -887,22 +887,21 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           loginButtonPatterns: [/log in|sign in|continue with sso|sso|openid/i],
           oidcLinkPatterns: [/sign in with.*(openid|sso)/i, /openid/i, /sso/i],
           postLogin: async (page) => {
-            await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+            const followingUrl = `https://mastodon.datamancy.net/@${encodeURIComponent(testUser.username)}/following`;
+            const ensureFollowingPage = async () => {
+              const currentUrl = page.url();
+              const onMastodonDomain = /^https?:\/\/(?:[^/]+\.)?mastodon\.datamancy\.net(?:\/|$)/i.test(currentUrl);
+              const onFollowingPage = /\/@[^/]+\/following\b/i.test(currentUrl);
+              if (!onMastodonDomain || !onFollowingPage) {
+                await page.goto(followingUrl, {
+                  waitUntil: 'domcontentloaded',
+                  timeout: 20000,
+                });
+              }
+              await page.waitForTimeout(1500);
+            };
 
-            const profileLink = page.locator('a[href^="/@"]:not([href="/@undefined"])').first();
-            if (!(await profileLink.isVisible().catch(() => false))) {
-              throw new Error(`Mastodon profile link is missing (likely still unauthenticated). Current URL: ${page.url()}`);
-            }
-            const profileHref = await profileLink.getAttribute('href');
-            if (!profileHref) {
-              throw new Error('Mastodon profile link href is empty.');
-            }
-
-            await page.goto(`https://mastodon.datamancy.net${profileHref.replace(/\/+$/, '')}/following`, {
-              waitUntil: 'domcontentloaded',
-              timeout: 20000,
-            }).catch(() => {});
-            await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+            await ensureFollowingPage();
 
             const maxAttempts = 16;
             for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -915,16 +914,14 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               const followingCount = Number(descMatch?.[1] || 0);
 
               if (followingCount > 0 && !isEmptyFollowingUi) {
-                await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
-                await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+                await ensureFollowingPage();
                 expect(followingCount).toBeGreaterThan(0);
                 return;
               }
 
               if (attempt < maxAttempts) {
                 await page.waitForTimeout(10000);
-                await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
-                await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+                await ensureFollowingPage();
               }
             }
 
