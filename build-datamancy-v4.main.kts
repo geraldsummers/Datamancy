@@ -495,7 +495,7 @@ fun writeDistTestArtifacts(
         if (distTestRunnerDir.exists()) {
             distTestRunnerDir.deleteRecursively()
         }
-        testRunnerDir.copyRecursively(distTestRunnerDir, overwrite = true)
+        copyDirectoryToDist(testRunnerDir, distTestRunnerDir)
     }
 
     val testRunnerScript = File("tests.containers/test-runner/run-tests.sh")
@@ -519,6 +519,39 @@ fun extractServiceNetworks(serviceSpec: Any?): Set<String> {
         }
         else -> emptySet()
     }
+}
+
+val distCopySkipDirNames = setOf(
+    "node_modules",
+    "playwright-report",
+    "test-results",
+    ".pytest_cache",
+    ".tmp-screenshot-review",
+    "__pycache__"
+)
+
+fun shouldSkipDistCopy(path: File, root: File): Boolean {
+    if (path == root) {
+        return false
+    }
+
+    val relativeSegments = path.relativeTo(root).invariantSeparatorsPath.split("/")
+    return relativeSegments.any { it in distCopySkipDirNames }
+}
+
+fun copyDirectoryToDist(sourceRoot: File, destRoot: File) {
+    sourceRoot.walkTopDown()
+        .onEnter { dir -> !shouldSkipDistCopy(dir, sourceRoot) }
+        .forEach { source ->
+            if (!source.isFile || shouldSkipDistCopy(source, sourceRoot)) {
+                return@forEach
+            }
+
+            val relativePath = source.relativeTo(sourceRoot)
+            val dest = destRoot.resolve(relativePath)
+            dest.parentFile.mkdirs()
+            source.copyTo(dest, overwrite = true)
+        }
 }
 
 fun readComposeServices(mapper: ObjectMapper, file: File): Map<String, Set<String>> {
@@ -1276,14 +1309,7 @@ fun copyBuildArtifacts(distDir: File) {
     if (containersSrcDir.exists()) {
         val destContainersDir = distDir.resolve("stack.containers")
         destContainersDir.mkdirs()
-        containersSrcDir.walkTopDown().forEach { source ->
-            if (source.isFile) {
-                val relativePath = source.relativeTo(containersSrcDir)
-                val dest = destContainersDir.resolve(relativePath)
-                dest.parentFile.mkdirs()
-                source.copyTo(dest, overwrite = true)
-            }
-        }
+        copyDirectoryToDist(containersSrcDir, destContainersDir)
         info("Copied stack.containers/")
     }
 
@@ -1292,14 +1318,7 @@ fun copyBuildArtifacts(distDir: File) {
     if (testsContainersDir.exists()) {
         val destTestsContainersDir = distDir.resolve("tests.containers")
         destTestsContainersDir.mkdirs()
-        testsContainersDir.walkTopDown().forEach { source ->
-            if (source.isFile) {
-                val relativePath = source.relativeTo(testsContainersDir)
-                val dest = destTestsContainersDir.resolve(relativePath)
-                dest.parentFile.mkdirs()
-                source.copyTo(dest, overwrite = true)
-            }
-        }
+        copyDirectoryToDist(testsContainersDir, destTestsContainersDir)
         info("Copied tests.containers/")
     }
 

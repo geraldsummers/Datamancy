@@ -5,5 +5,13 @@ volumes/
 *.tmp
 .env.local
 .env.*.local
-node_modules/
+**/node_modules/
+**/playwright-report/
+**/test-results/
+.pytest_cache/
+.tmp-screenshot-review/
+test-results*/
+ts-results*/
+kt-results*/
+latest-test-artifacts/
 configs/caddy/certs/
