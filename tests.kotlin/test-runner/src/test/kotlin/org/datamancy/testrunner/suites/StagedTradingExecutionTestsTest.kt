@@ -71,14 +71,14 @@ class StagedTradingExecutionTestsTest {
     }
 
     @Test
-    fun `staged trading hyperliquid strict credential checks are opt-in`() {
+    fun `staged trading hyperliquid strict credential checks default on for live modes`() {
         val endpoints = ServiceEndpoints.forLocalhost()
 
         val nonStrictConfig = stagedTradingConfig(
             endpoints = endpoints,
             env = mapOf("TRADING_E2E_MODE" to "hybrid")
         )
-        assertFalse(nonStrictConfig.strictHyperliquidCredentialChecks)
+        assertTrue(nonStrictConfig.strictHyperliquidCredentialChecks)
 
         val strictConfig = stagedTradingConfig(
             endpoints = endpoints,
@@ -88,6 +88,21 @@ class StagedTradingExecutionTestsTest {
             )
         )
         assertTrue(strictConfig.strictHyperliquidCredentialChecks)
+
+        val replayConfig = stagedTradingConfig(
+            endpoints = endpoints,
+            env = mapOf("TRADING_E2E_MODE" to "replay")
+        )
+        assertFalse(replayConfig.strictHyperliquidCredentialChecks)
+
+        val liveOverrideDisabled = stagedTradingConfig(
+            endpoints = endpoints,
+            env = mapOf(
+                "TRADING_E2E_MODE" to "live",
+                "TRADING_E2E_HYPERLIQUID_STRICT_CREDENTIALS" to "false"
+            )
+        )
+        assertFalse(liveOverrideDisabled.strictHyperliquidCredentialChecks)
     }
 
     @Test

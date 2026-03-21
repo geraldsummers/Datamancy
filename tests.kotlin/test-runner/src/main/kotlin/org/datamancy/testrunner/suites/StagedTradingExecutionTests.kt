@@ -118,7 +118,7 @@ internal fun stagedTradingConfig(
 
     val strictHyperliquidCredentialChecks = envFlag(
         "TRADING_E2E_HYPERLIQUID_STRICT_CREDENTIALS",
-        defaultValue = false,
+        defaultValue = runLive,
         env = env
     )
 
@@ -926,7 +926,7 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                         }
                         if (credentialRejected) {
                             println(
-                                "      ~ Hyperliquid credentials were rejected by exchange path; non-strict mode accepted this (set TRADING_E2E_HYPERLIQUID_STRICT_CREDENTIALS=true to fail)."
+                                "      ~ Hyperliquid credentials were rejected by exchange path; strict mode was disabled for this run (set TRADING_E2E_HYPERLIQUID_STRICT_CREDENTIALS=true to fail, or leave it unset in live/hybrid mode to fail by default)."
                             )
                         } else {
                             println(
