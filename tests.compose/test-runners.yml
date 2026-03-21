@@ -5,6 +5,7 @@ x-test-base: &test_runner_base
     dockerfile: ./tests.containers/test-runner/Dockerfile
   image: datamancy/test-runner:local-build
   pull_policy: build
+  init: true
   labels:
     - "com.centurylinklabs.watchtower.enable=false"
 
@@ -64,6 +65,10 @@ services:
   test-agent-capability:
     <<: *test_runner_base
     container_name: test-agent-capability
+    restart: "no"
+    command: ["suite", "agent-capability"]
+    volumes:
+      - ./test-results/agent-capability:/app/test-results
     networks:
       - ai
       - docker-proxy
@@ -73,6 +78,10 @@ services:
   test-agent-llm-quality:
     <<: *test_runner_base
     container_name: test-agent-llm-quality
+    restart: "no"
+    command: ["suite", "agent-llm-quality"]
+    volumes:
+      - ./test-results/agent-llm-quality:/app/test-results
     networks:
       - ai
       - caddy
@@ -82,6 +91,10 @@ services:
   test-agent-orchestration:
     <<: *test_runner_base
     container_name: test-agent-orchestration
+    restart: "no"
+    command: ["suite", "agent-orchestration"]
+    volumes:
+      - ./test-results/agent-orchestration:/app/test-results
     networks:
       - ai
       - docker-proxy
@@ -94,6 +107,10 @@ services:
   test-agent-security:
     <<: *test_runner_base
     container_name: test-agent-security
+    restart: "no"
+    command: ["suite", "agent-security"]
+    volumes:
+      - ./test-results/agent-security:/app/test-results
     networks:
       - authelia
       - caddy
@@ -104,6 +121,10 @@ services:
   test-all:
     <<: *test_runner_base
     container_name: test-all
+    restart: "no"
+    command: ["suite", "all"]
+    volumes:
+      - ./test-results/all:/app/test-results
     networks:
       - default
       - internet
@@ -126,6 +147,10 @@ services:
   test-authenticated-ops:
     <<: *test_runner_base
     container_name: test-authenticated-ops
+    restart: "no"
+    command: ["suite", "authenticated-ops"]
+    volumes:
+      - ./test-results/authenticated-ops:/app/test-results
     networks:
       - authelia
       - caddy
@@ -136,6 +161,10 @@ services:
   test-authentication:
     <<: *test_runner_base
     container_name: test-authentication
+    restart: "no"
+    command: ["suite", "authentication"]
+    volumes:
+      - ./test-results/authentication:/app/test-results
     networks:
       - authelia
       - caddy
@@ -145,24 +174,40 @@ services:
   test-backup:
     <<: *test_runner_base
     container_name: test-backup
+    restart: "no"
+    command: ["suite", "backup"]
+    volumes:
+      - ./test-results/backup:/app/test-results
     networks:
       - caddy
       - internet
   test-bookstack:
     <<: *test_runner_base
     container_name: test-bookstack
+    restart: "no"
+    command: ["suite", "bookstack"]
+    volumes:
+      - ./test-results/bookstack:/app/test-results
     networks:
       - caddy
       - mariadb
   test-caching-layer:
     <<: *test_runner_base
     container_name: test-caching-layer
+    restart: "no"
+    command: ["suite", "caching-layer"]
+    volumes:
+      - ./test-results/caching-layer:/app/test-results
     networks:
       - valkey
       - memcached
   test-cicd:
     <<: *test_runner_base
     container_name: test-cicd
+    restart: "no"
+    command: ["suite", "cicd"]
+    volumes:
+      - ./test-results/cicd:/app/test-results
     networks:
       - authelia
       - caddy
@@ -172,6 +217,10 @@ services:
   test-collaboration:
     <<: *test_runner_base
     container_name: test-collaboration
+    restart: "no"
+    command: ["suite", "collaboration"]
+    volumes:
+      - ./test-results/collaboration:/app/test-results
     networks:
       - authelia
       - caddy
@@ -180,6 +229,10 @@ services:
   test-communication:
     <<: *test_runner_base
     container_name: test-communication
+    restart: "no"
+    command: ["suite", "communication"]
+    volumes:
+      - ./test-results/communication:/app/test-results
     networks:
       - caddy
       - ldap
@@ -194,6 +247,10 @@ services:
   test-data-pipeline:
     <<: *test_runner_base
     container_name: test-data-pipeline
+    restart: "no"
+    command: ["suite", "data-pipeline"]
+    volumes:
+      - ./test-results/data-pipeline:/app/test-results
     networks:
       - internet
       - mariadb
@@ -203,6 +260,10 @@ services:
   test-databases:
     <<: *test_runner_base
     container_name: test-databases
+    restart: "no"
+    command: ["suite", "databases"]
+    volumes:
+      - ./test-results/databases:/app/test-results
     networks:
       - litellm
       - postgres
@@ -212,6 +273,10 @@ services:
   test-email-stack:
     <<: *test_runner_base
     container_name: test-email-stack
+    restart: "no"
+    command: ["suite", "email-stack"]
+    volumes:
+      - ./test-results/email-stack:/app/test-results
     networks:
       - caddy
       - ldap
@@ -219,6 +284,10 @@ services:
   test-enhanced-auth:
     <<: *test_runner_base
     container_name: test-enhanced-auth
+    restart: "no"
+    command: ["suite", "enhanced-auth"]
+    volumes:
+      - ./test-results/enhanced-auth:/app/test-results
     networks:
       - authelia
       - caddy
@@ -229,6 +298,10 @@ services:
   test-extended-communication:
     <<: *test_runner_base
     container_name: test-extended-communication
+    restart: "no"
+    command: ["suite", "extended-communication"]
+    volumes:
+      - ./test-results/extended-communication:/app/test-results
     networks:
       - caddy
       - ldap
@@ -242,6 +315,10 @@ services:
   test-extended-productivity:
     <<: *test_runner_base
     container_name: test-extended-productivity
+    restart: "no"
+    command: ["suite", "extended-productivity"]
+    volumes:
+      - ./test-results/extended-productivity:/app/test-results
     networks:
       - caddy
       - docker-proxy
@@ -252,6 +329,10 @@ services:
   test-file-management:
     <<: *test_runner_base
     container_name: test-file-management
+    restart: "no"
+    command: ["suite", "file-management"]
+    volumes:
+      - ./test-results/file-management:/app/test-results
     networks:
       - caddy
       - mariadb
@@ -260,6 +341,10 @@ services:
   test-foundation:
     <<: *test_runner_base
     container_name: test-foundation
+    restart: "no"
+    command: ["suite", "foundation"]
+    volumes:
+      - ./test-results/foundation:/app/test-results
     networks:
       - ai
       - authelia
@@ -278,6 +363,10 @@ services:
   test-homeassistant:
     <<: *test_runner_base
     container_name: test-homeassistant
+    restart: "no"
+    command: ["suite", "homeassistant"]
+    volumes:
+      - ./test-results/homeassistant:/app/test-results
     networks:
       - caddy
       - internet
@@ -286,6 +375,10 @@ services:
   test-infrastructure:
     <<: *test_runner_base
     container_name: test-infrastructure
+    restart: "no"
+    command: ["suite", "infrastructure"]
+    volumes:
+      - ./test-results/infrastructure:/app/test-results
     networks:
       - docker-proxy
       - monitoring
@@ -295,11 +388,19 @@ services:
   test-isolated-docker-vm:
     <<: *test_runner_base
     container_name: test-isolated-docker-vm
+    restart: "no"
+    command: ["suite", "isolated-docker-vm"]
+    volumes:
+      - ./test-results/isolated-docker-vm:/app/test-results
     networks:
       - docker-proxy
   test-knowledge-base:
     <<: *test_runner_base
     container_name: test-knowledge-base
+    restart: "no"
+    command: ["suite", "knowledge-base"]
+    volumes:
+      - ./test-results/knowledge-base:/app/test-results
     networks:
       - caddy
       - mariadb
@@ -307,6 +408,10 @@ services:
   test-llm:
     <<: *test_runner_base
     container_name: test-llm
+    restart: "no"
+    command: ["suite", "llm"]
+    volumes:
+      - ./test-results/llm:/app/test-results
     networks:
       - ai
       - caddy
@@ -316,6 +421,10 @@ services:
   test-microservices:
     <<: *test_runner_base
     container_name: test-microservices
+    restart: "no"
+    command: ["suite", "microservices"]
+    volumes:
+      - ./test-results/microservices:/app/test-results
     networks:
       - ai
       - docker-proxy
@@ -329,6 +438,10 @@ services:
   test-monitoring:
     <<: *test_runner_base
     container_name: test-monitoring
+    restart: "no"
+    command: ["suite", "monitoring"]
+    volumes:
+      - ./test-results/monitoring:/app/test-results
     networks:
       - monitoring
       - authelia
@@ -338,6 +451,10 @@ services:
   test-playwright-e2e:
     <<: *test_runner_base
     container_name: test-playwright-e2e
+    restart: "no"
+    command: ["suite", "playwright-e2e"]
+    volumes:
+      - ./test-results/playwright-e2e:/app/test-results
     networks:
       - caddy
       - ldap
@@ -345,6 +462,10 @@ services:
   test-productivity:
     <<: *test_runner_base
     container_name: test-productivity
+    restart: "no"
+    command: ["suite", "productivity"]
+    volumes:
+      - ./test-results/productivity:/app/test-results
     networks:
       - caddy
       - docker-proxy
@@ -353,6 +474,10 @@ services:
   test-search-service:
     <<: *test_runner_base
     container_name: test-search-service
+    restart: "no"
+    command: ["suite", "search-service"]
+    volumes:
+      - ./test-results/search-service:/app/test-results
     networks:
       - ai
       - postgres
@@ -360,6 +485,10 @@ services:
   test-security:
     <<: *test_runner_base
     container_name: test-security
+    restart: "no"
+    command: ["suite", "security"]
+    volumes:
+      - ./test-results/security:/app/test-results
     networks:
       - authelia
       - caddy
@@ -370,6 +499,10 @@ services:
   test-stack-deployment:
     <<: *test_runner_base
     container_name: test-stack-deployment
+    restart: "no"
+    command: ["suite", "stack-deployment"]
+    volumes:
+      - ./test-results/stack-deployment:/app/test-results
     networks:
       - ai
       - authelia
@@ -389,6 +522,10 @@ services:
   test-stack-llm-capability:
     <<: *test_runner_base
     container_name: test-stack-llm-capability
+    restart: "no"
+    command: ["suite", "stack-llm-capability"]
+    volumes:
+      - ./test-results/stack-llm-capability:/app/test-results
     networks:
       - ai
       - caddy
@@ -398,6 +535,10 @@ services:
   test-stack-replication:
     <<: *test_runner_base
     container_name: test-stack-replication
+    restart: "no"
+    command: ["suite", "stack-replication"]
+    volumes:
+      - ./test-results/stack-replication:/app/test-results
     networks:
       - caddy
       - internet
@@ -405,6 +546,10 @@ services:
   test-trading:
     <<: *test_runner_base
     container_name: test-trading
+    restart: "no"
+    command: ["suite", "trading"]
+    volumes:
+      - ./test-results/trading:/app/test-results
     networks:
       - caddy
       - ldap
@@ -415,6 +560,10 @@ services:
   test-trading-advanced:
     <<: *test_runner_base
     container_name: test-trading-advanced
+    restart: "no"
+    command: ["suite", "trading-advanced"]
+    volumes:
+      - ./test-results/trading-advanced:/app/test-results
     networks:
       - caddy
       - ldap
@@ -425,6 +574,10 @@ services:
   test-trading-dsl:
     <<: *test_runner_base
     container_name: test-trading-dsl
+    restart: "no"
+    command: ["suite", "trading-dsl"]
+    volumes:
+      - ./test-results/trading-dsl:/app/test-results
     networks:
       - caddy
       - ldap
@@ -435,6 +588,10 @@ services:
   test-trading-staged:
     <<: *test_runner_base
     container_name: test-trading-staged
+    restart: "no"
+    command: ["suite", "trading-staged"]
+    volumes:
+      - ./test-results/trading-staged:/app/test-results
     networks:
       - caddy
       - ldap
@@ -445,6 +602,10 @@ services:
   test-user-interface:
     <<: *test_runner_base
     container_name: test-user-interface
+    restart: "no"
+    command: ["suite", "user-interface"]
+    volumes:
+      - ./test-results/user-interface:/app/test-results
     networks:
       - caddy
       - docker-proxy
@@ -455,12 +616,20 @@ services:
   test-utility:
     <<: *test_runner_base
     container_name: test-utility
+    restart: "no"
+    command: ["suite", "utility"]
+    volumes:
+      - ./test-results/utility:/app/test-results
     networks:
       - caddy
       - internet
   test-web3-wallet:
     <<: *test_runner_base
     container_name: test-web3-wallet
+    restart: "no"
+    command: ["suite", "web3-wallet"]
+    volumes:
+      - ./test-results/web3-wallet:/app/test-results
     networks:
       - caddy
       - docker-proxy

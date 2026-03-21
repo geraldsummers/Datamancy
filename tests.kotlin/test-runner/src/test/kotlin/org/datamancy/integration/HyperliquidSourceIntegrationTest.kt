@@ -19,7 +19,7 @@ import kotlin.time.Duration.Companion.seconds
  * and are run in the Docker test environment.
  * They are disabled for regular builds and should be run via Docker Compose.
  */
-@Disabled("Integration tests - run via docker compose --profile testing")
+@Disabled("Integration tests - run via tests.containers/test-runner/run-tests.sh")
 class HyperliquidSourceIntegrationTest {
 
     @Test

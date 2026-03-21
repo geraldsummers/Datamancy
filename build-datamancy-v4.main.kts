@@ -481,6 +481,30 @@ fun writeDistTestArtifacts(
     saveYaml(yamlMapper, distDir.resolve("test-status.yml"), status)
     saveJsonPretty(jsonMapper, distDir.resolve("test-status.json"), buildDistTestStatus(registry, status))
     saveJsonPretty(jsonMapper, distDir.resolve("build-status.json"), buildDistBuildStatus(registry))
+
+    val generatedTestRunnersCompose = File("tests.compose/test-runners.yml")
+    if (generatedTestRunnersCompose.exists()) {
+        val distCompose = distDir.resolve("tests.compose/test-runners.yml")
+        distCompose.parentFile.mkdirs()
+        generatedTestRunnersCompose.copyTo(distCompose, overwrite = true)
+    }
+
+    val testRunnerDir = File("tests.containers/test-runner")
+    if (testRunnerDir.exists()) {
+        val distTestRunnerDir = distDir.resolve("tests.containers/test-runner")
+        if (distTestRunnerDir.exists()) {
+            distTestRunnerDir.deleteRecursively()
+        }
+        testRunnerDir.copyRecursively(distTestRunnerDir, overwrite = true)
+    }
+
+    val testRunnerScript = File("tests.containers/test-runner/run-tests.sh")
+    if (testRunnerScript.exists()) {
+        val distScript = distDir.resolve("run-tests.sh")
+        distScript.parentFile.mkdirs()
+        testRunnerScript.copyTo(distScript, overwrite = true)
+        distScript.setExecutable(true)
+    }
 }
 
 fun extractServiceNetworks(serviceSpec: Any?): Set<String> {
@@ -520,6 +544,7 @@ fun generateTestRunnersCompose(
         appendLine("    dockerfile: ./tests.containers/test-runner/Dockerfile")
         appendLine("  image: datamancy/test-runner:local-build")
         appendLine("  pull_policy: build")
+        appendLine("  init: true")
         appendLine("  labels:")
         appendLine("    - \"com.centurylinklabs.watchtower.enable=false\"")
         appendLine()
@@ -581,6 +606,10 @@ fun generateTestRunnersCompose(
             appendLine("  $serviceName:")
             appendLine("    <<: *test_runner_base")
             appendLine("    container_name: $serviceName")
+            appendLine("    restart: \"no\"")
+            appendLine("    command: [\"suite\", \"${suite.name}\"]")
+            appendLine("    volumes:")
+            appendLine("      - ./test-results/${suite.name}:/app/test-results")
             appendLine("    networks:")
             suite.required_networks.forEach { network ->
                 appendLine("      - $network")

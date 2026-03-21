@@ -1,6 +1,6 @@
 FROM eclipse-temurin:21-jre-jammy
 
-# Install base utilities, Docker, SSH, and Node.js in a single layer to reduce build time
+# Install base utilities, Docker, SSH, Node.js, and gosu for privilege dropping.
 RUN apt-get update && apt-get install -y \
     bash \
     curl \
@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     lsb-release \
     openssh-client \
+    gosu \
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
@@ -33,7 +34,7 @@ WORKDIR /app
 
 COPY tests.kotlin/test-runner/build/libs/test-runner-*-all.jar /app/test-runner.jar
 COPY tests.containers/test-runner/playwright-tests /app/playwright-tests
-COPY tests.containers/test-runner/run-tests.sh /run-tests.sh
+COPY tests.containers/test-runner/container-entrypoint.sh /container-entrypoint.sh
 
 RUN chown -R testing_container_user:testing_container_user /app && \
     mkdir -p /app/test-results && \
@@ -42,13 +43,13 @@ RUN chown -R testing_container_user:testing_container_user /app && \
     touch /home/testing_container_user/.docker/config.json && \
     chown -R testing_container_user:testing_container_user /home/testing_container_user/.docker && \
     chmod -R 755 /home/testing_container_user/.docker && \
-    chmod +x /run-tests.sh
+    chmod +x /container-entrypoint.sh
 
 ENV DOCKER_CONFIG=/home/testing_container_user/.docker
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# Install npm dependencies as testing_container_user
+# Install npm dependencies as testing_container_user.
 USER testing_container_user
 WORKDIR /app/playwright-tests
 RUN npm ci
@@ -59,7 +60,6 @@ RUN mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
     npx playwright install --with-deps chromium && \
     chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 
-USER testing_container_user
 WORKDIR /app
-
-CMD ["tail", "-f", "/dev/null"]
+ENTRYPOINT ["/container-entrypoint.sh"]
+CMD ["suite"]

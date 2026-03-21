@@ -152,10 +152,10 @@ Tests run in Docker via test-runner container:
 
 ```bash
 # From Datamancy stack
-docker exec test-runner npx playwright test
+./tests.containers/test-runner/run-tests.sh ts-e2e
 
 # Or via docker-compose
-docker-compose run --rm playwright-tests npm test
+./tests.containers/test-runner/run-tests.sh ts
 ```
 
 ## Writing New Tests

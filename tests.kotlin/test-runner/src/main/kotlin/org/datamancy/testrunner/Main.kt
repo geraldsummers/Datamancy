@@ -306,9 +306,10 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             println("                  collaboration, productivity, file-management, security, monitoring, backup,")
             println("                  authentication, enhanced-auth, authenticated-ops, utility, homeassistant,")
             println("                  stack-deployment, bookstack, cicd, isolated-docker-vm, stack-replication,")
-            println("                  agent-capability, agent-security, agent-llm-quality, stack-llm-capability,")
-            println("                  trading, trading-staged, trading-dsl, trading-advanced, web3-wallet, email-stack, caching-layer,")
-            println("                  extended-communication, extended-productivity, playwright-e2e, vault, all")
+            println("                  agent-capability, agent-security, agent-llm-quality, agent-orchestration,")
+            println("                  stack-llm-capability, trading, trading-staged, trading-dsl,")
+            println("                  trading-advanced, web3-wallet, email-stack, caching-layer,")
+            println("                  extended-communication, extended-productivity, playwright-e2e, all")
             exitProcess(1)
         }
     }
@@ -462,8 +463,12 @@ private fun printUsage() {
                                      file-management, security, monitoring, backup,
                                      authentication, enhanced-auth, authenticated-ops, utility, homeassistant,
                                      stack-deployment, bookstack, cicd, isolated-docker-vm,
-                                     agent-capability, agent-security, agent-llm-quality, trading,
-                                     trading-staged, trading-dsl, trading-advanced, playwright-e2e, vault, all
+                                     stack-replication, agent-capability, agent-security,
+                                     agent-llm-quality, agent-orchestration, stack-llm-capability,
+                                     trading, trading-staged, trading-dsl, trading-advanced,
+                                     web3-wallet, email-stack, caching-layer,
+                                     extended-communication, extended-productivity,
+                                     playwright-e2e, all
 
       --verbose, -v          Enable verbose logging
       --help, -h             Show this help message

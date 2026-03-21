@@ -5,13 +5,13 @@
 Run all Web3 wallet tests using the test-runner container:
 
 ```bash
-docker exec test-runner java -jar /app/test-runner.jar --suite=web3-wallet
+./tests.containers/test-runner/run-tests.sh kt web3-wallet
 ```
 
 Or run as part of the full test suite:
 
 ```bash
-docker exec test-runner java -jar /app/test-runner.jar --suite=all
+./tests.containers/test-runner/run-tests.sh kt all
 ```
 
 ## Test Coverage

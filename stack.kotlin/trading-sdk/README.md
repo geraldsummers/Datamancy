@@ -79,7 +79,7 @@ ssh user@server "docker cp /tmp/test-runner.jar test-all:/app/test-runner.jar"
 ### 5. Run Integration Tests
 
 ```bash
-ssh user@server "docker exec test-all java -jar /app/test-runner.jar --suite trading-dsl --env container"
+ssh user@server "cd /path/to/Datamancy && ./tests.containers/test-runner/run-tests.sh kt trading-dsl"
 ```
 
 **Expected Results:** All trading SDK tests should pass.
@@ -455,7 +455,7 @@ Run all unit tests:
 
 Run E2E integration tests:
 ```bash
-docker exec test-all java -jar /app/test-runner.jar --suite trading-dsl --env container
+./tests.containers/test-runner/run-tests.sh kt trading-dsl
 ```
 
 ## Dependencies

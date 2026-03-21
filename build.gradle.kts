@@ -59,7 +59,7 @@ tasks.register("test") {
 tasks.register<Exec>("buildTestRunner") {
     group = "verification"
     description = "Build the integration test runner Docker image"
-    commandLine("docker", "build", "-f", "Dockerfile.test-runner", "-t", "datamancy/test-runner:latest", ".")
+    commandLine("docker", "build", "-f", "tests.containers/test-runner/Dockerfile", "-t", "datamancy/test-runner:latest", ".")
 }
 
 // Run integration tests via Docker Compose
@@ -69,21 +69,21 @@ tasks.register("integrationTest") {
     doLast {
         println("""
             ╔═══════════════════════════════════════════════════════════════════════════╗
-            ║  To run integration tests, use Docker Compose:                           ║
+            ║  To run integration tests, use the one-shot test runner services:        ║
             ╚═══════════════════════════════════════════════════════════════════════════╝
 
             # Run all tests:
-            docker compose --profile testing run --rm test-all
+            ./tests.containers/test-runner/run-tests.sh kt all
 
             # Run specific suite:
-            docker compose --profile testing run --rm test-foundation
-            docker compose --profile testing run --rm test-llm
-            docker compose --profile testing run --rm test-knowledge-base
-            docker compose --profile testing run --rm test-data-pipeline
-            docker compose --profile testing run --rm test-playwright-e2e
+            ./tests.containers/test-runner/run-tests.sh kt foundation
+            ./tests.containers/test-runner/run-tests.sh kt llm
+            ./tests.containers/test-runner/run-tests.sh kt knowledge-base
+            ./tests.containers/test-runner/run-tests.sh kt data-pipeline
+            ./tests.containers/test-runner/run-tests.sh ts-e2e
 
             # Debug mode:
-            docker compose --profile testing run --rm test-all bash
+            ./tests.containers/test-runner/run-tests.sh shell all
         """.trimIndent())
     }
 }
