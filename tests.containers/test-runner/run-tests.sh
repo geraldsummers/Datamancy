@@ -107,13 +107,53 @@ docker_compose() {
         "$@"
 }
 
+repair_dir_ownership() {
+    local target="$1"
+    local uid gid
+
+    uid="$(id -u 2>/dev/null || true)"
+    gid="$(id -g 2>/dev/null || true)"
+    if [ -z "$uid" ] || [ -z "$gid" ] || ! command -v docker >/dev/null 2>&1; then
+        return 1
+    fi
+
+    docker run --rm -v "$target:/target" alpine sh -lc "chown -R $uid:$gid /target && chmod -R u+rwX /target" >/dev/null 2>&1
+}
+
+ensure_writable_dir() {
+    local dir="$1"
+
+    if mkdir -p "$dir" 2>/dev/null && [ -d "$dir" ] && [ -w "$dir" ]; then
+        return 0
+    fi
+
+    if [ -e "$dir" ]; then
+        chmod u+rwx "$dir" 2>/dev/null || true
+    fi
+    if [ -d "$dir" ] && [ -w "$dir" ]; then
+        return 0
+    fi
+
+    if [ -e "$dir" ]; then
+        repair_dir_ownership "$dir" || true
+        chmod u+rwx "$dir" 2>/dev/null || true
+    fi
+
+    if mkdir -p "$dir" 2>/dev/null && [ -d "$dir" ] && [ -w "$dir" ]; then
+        return 0
+    fi
+
+    echo -e "${RED}Error:${NC} Unable to prepare writable test results directory: $dir" >&2
+    exit 1
+}
+
 prepare_service_results_dir() {
     local service="$1"
 
-    mkdir -p "$DIST_DIR/test-results"
+    ensure_writable_dir "$DIST_DIR/test-results"
     case "$service" in
         test-*)
-            mkdir -p "$DIST_DIR/test-results/${service#test-}"
+            ensure_writable_dir "$DIST_DIR/test-results/${service#test-}"
             ;;
     esac
 }

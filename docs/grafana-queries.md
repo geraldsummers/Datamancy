@@ -13,6 +13,11 @@ The queries are centered on these tables and metric families:
 - `strategy_live_backtest_drift`
 - `tx_gateway_trading_*`
 
+Trading dashboards also assume two normalization rules:
+
+- Hyperliquid mainnet charts stitch legacy `hyperliquid` rows with canonical `hyperliquid_mainnet` rows.
+- Execution/drift dashboard strategy selectors query persisted strategy ids so notebook variants appear without editing dashboard JSON.
+
 ## Execution Panels
 
 Typical SQL patterns used in Grafana execution panels:

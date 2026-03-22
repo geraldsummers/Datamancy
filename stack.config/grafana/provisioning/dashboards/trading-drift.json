@@ -14,16 +14,23 @@
     "list": [
       {
         "name": "drift_strategy",
-        "type": "custom",
+        "type": "query",
         "label": "Strategy",
-        "query": "tx_gateway_live_execution,tx_gateway_paper_execution,tx_gateway_forward_mainnet_data",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT strategy_name AS __text, strategy_name AS __value FROM (SELECT DISTINCT strategy_name FROM strategy_live_backtest_drift UNION SELECT DISTINCT strategy_name FROM strategy_execution_costs) strategies ORDER BY 1",
+        "definition": "SELECT strategy_name AS __text, strategy_name AS __value FROM (SELECT DISTINCT strategy_name FROM strategy_live_backtest_drift UNION SELECT DISTINCT strategy_name FROM strategy_execution_costs) strategies ORDER BY 1",
         "includeAll": false,
         "multi": false,
         "current": {
           "selected": true,
-          "text": "tx_gateway_live_execution",
-          "value": "tx_gateway_live_execution"
+          "text": "tx_gateway_paper_execution",
+          "value": "tx_gateway_paper_execution"
         },
+        "refresh": 2,
+        "sort": 1,
         "hide": 0,
         "skipUrlSync": false
       }
