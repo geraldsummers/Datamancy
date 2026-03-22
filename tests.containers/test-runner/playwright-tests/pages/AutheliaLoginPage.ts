@@ -53,6 +53,17 @@ export class AutheliaLoginPage {
     ).first();
   }
 
+  private isAuthUrl(href: string): boolean {
+    try {
+      const parsed = new URL(href);
+      return parsed.hostname.startsWith('auth.')
+        || parsed.hostname.includes('authelia')
+        || parsed.port === '9091';
+    } catch {
+      return /auth\.|authelia|:9091/i.test(href);
+    }
+  }
+
   /**
    * Login with Authelia (forward auth)
    */
@@ -94,21 +105,42 @@ export class AutheliaLoginPage {
       fullPage: true,
     });
 
-    // Click submit and wait for auth to complete (API or redirect depending on flow)
+    // Click submit and wait for auth to complete (API, consent screen, or service redirect depending on flow)
     const responsePromise = this.page
-      .waitForResponse((resp) => resp.url().includes('/api/firstfactor') && resp.status() === 200, { timeout: 15000 })
+      .waitForResponse((resp) => resp.url().includes('/api/firstfactor'), { timeout: 15000 })
       .catch(() => null);
     await this.submitButton.click();
     const response = await responsePromise;
     if (response) {
-      console.log('   ✓ Submit clicked and auth response received');
+      console.log(`   ✓ Submit clicked and auth response received (${response.status()})`);
     } else {
       console.log('   ⚠️  Auth API response not observed, waiting for redirect');
     }
 
-    // Wait for navigation away from Authelia
+    // Some OIDC flows remain on auth host for consent, but the login form itself should disappear.
     await this.page
-      .waitForURL((url) => !url.toString().includes('authelia') && !url.toString().includes(':9091'), {
+      .waitForFunction(() => {
+        const usernameField = document.querySelector('#username-textfield, input[name="username"], input[id="username"], input[autocomplete="username"]');
+        const passwordField = document.querySelector('#password-textfield, input[name="password"], input[id="password"], input[autocomplete="current-password"]');
+        const signInButton = document.querySelector('#sign-in-button, button[type="submit"]');
+        const poweredByAuthelia = /powered by authelia/i.test(document.body?.innerText ?? '');
+        return !usernameField || !passwordField || !signInButton || !poweredByAuthelia;
+      }, { timeout: 20000 })
+      .catch(() => {});
+
+    if (this.isAuthUrl(this.page.url())) {
+      const formStillVisible = await this.usernameInput.first().isVisible().catch(() => false)
+        && await this.passwordInput.first().isVisible().catch(() => false)
+        && await this.submitButton.isVisible().catch(() => false);
+      if (formStillVisible) {
+        console.log('   ⚠️  Login form remained visible after submit; retrying once with Enter');
+        await this.passwordInput.first().press('Enter').catch(() => {});
+      }
+    }
+
+    // Wait for navigation away from the auth host when it happens.
+    await this.page
+      .waitForURL((url) => !this.isAuthUrl(url.toString()), {
         timeout: 20000,
       })
       .catch(() => {});
@@ -120,7 +152,6 @@ export class AutheliaLoginPage {
    * Check if currently on Authelia login page
    */
   async isOnLoginPage(): Promise<boolean> {
-    const url = this.page.url();
-    return url.toString().includes('authelia') || url.toString().includes(':9091');
+    return this.isAuthUrl(this.page.url());
   }
 }

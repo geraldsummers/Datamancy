@@ -8,6 +8,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.Socket
+import java.util.UUID
 
 suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
@@ -33,6 +34,8 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
         val port = parts.getOrNull(1)?.toIntOrNull() ?: 11211
         return host to port
     }
+
+    fun uniqueCacheKey(prefix: String): String = "$prefix:${System.currentTimeMillis()}:${UUID.randomUUID()}"
 
     // Valkey (Redis-compatible) tests
     test("Valkey: Service is reachable") {
@@ -73,8 +76,8 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
                 if (valkeyPassword.isNotEmpty()) {
                     jedis.auth("default", valkeyPassword)
                 }
-                val key = "test:integration:${System.currentTimeMillis()}"
-                val value = "test-value-${System.currentTimeMillis()}"
+                val key = uniqueCacheKey("test:integration")
+                val value = "test-value-${UUID.randomUUID()}"
 
                 jedis.set(key, value)
                 val retrieved = jedis.get(key)
@@ -97,7 +100,7 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
                 if (valkeyPassword.isNotEmpty()) {
                     jedis.auth("default", valkeyPassword)
                 }
-                val key = "test:ttl:${System.currentTimeMillis()}"
+                val key = uniqueCacheKey("test:ttl")
                 val value = "expires-soon"
 
                 jedis.setex(key, 5, value) // 5 second TTL
@@ -172,7 +175,7 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
                 if (valkeyPassword.isNotEmpty()) {
                     jedis.auth("default", valkeyPassword)
                 }
-                val hashKey = "test:hash:${System.currentTimeMillis()}"
+                val hashKey = uniqueCacheKey("test:hash")
                 val fields = mapOf(
                     "field1" to "value1",
                     "field2" to "value2",
@@ -200,13 +203,16 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
                 if (valkeyPassword.isNotEmpty()) {
                     jedis.auth("default", valkeyPassword)
                 }
-                val listKey = "test:list:${System.currentTimeMillis()}"
+                val listKey = uniqueCacheKey("test:list")
                 val items = listOf("item1", "item2", "item3")
 
-                items.forEach { jedis.rpush(listKey, it) }
+                jedis.del(listKey)
+                jedis.rpush(listKey, *items.toTypedArray())
                 val length = jedis.llen(listKey)
+                val retrievedItems = jedis.lrange(listKey, 0, -1)
 
                 length shouldBe items.size.toLong()
+                retrievedItems shouldBe items
                 jedis.del(listKey) // Cleanup
 
                 println("      ✓ List operations successful")
@@ -224,7 +230,7 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
                 if (valkeyPassword.isNotEmpty()) {
                     jedis.auth("default", valkeyPassword)
                 }
-                val setKey = "test:set:${System.currentTimeMillis()}"
+                val setKey = uniqueCacheKey("test:set")
                 val members = setOf("member1", "member2", "member3")
 
                 members.forEach { jedis.sadd(setKey, it) }
@@ -248,7 +254,7 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
                 if (valkeyPassword.isNotEmpty()) {
                     jedis.auth("default", valkeyPassword)
                 }
-                val counterKey = "test:counter:${System.currentTimeMillis()}"
+                val counterKey = uniqueCacheKey("test:counter")
 
                 val count1 = jedis.incr(counterKey)
                 val count2 = jedis.incr(counterKey)
@@ -281,7 +287,7 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
 
     test("Memcached: ASCII protocol SET/GET works") {
         val (host, port) = parseMemcachedUrl(memcachedUrl)
-        val key = "itest:${System.currentTimeMillis()}"
+        val key = uniqueCacheKey("itest")
         val value = "hello"
 
         try {
@@ -329,7 +335,7 @@ suspend fun TestRunner.cachingLayerTests() = suite("Caching Layer Tests") {
                 if (valkeyPassword.isNotEmpty()) {
                     jedis.auth("default", valkeyPassword)
                 }
-                val key = "test:exists:${System.currentTimeMillis()}"
+                val key = uniqueCacheKey("test:exists")
 
                 jedis.set(key, "test-value")
                 jedis.exists(key) shouldBe true

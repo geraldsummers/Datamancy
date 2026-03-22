@@ -425,20 +425,28 @@ suspend fun TestRunner.tradingDslTests() = suite("Trading DSL E2E Tests") {
             val dataSource = createDataSource(jdbcUrl, postgresUser, postgresPassword)
             val repo = MarketDataRepository(dataSource)
 
-            val recentCandles = repo.getCandles(
-                symbol = "BTC",
-                interval = "1m",
-                from = Instant.now().minusSeconds(300), // Last 5 minutes
-                to = Instant.now(),
-                exchange = "hyperliquid",
-                limit = 5
-            )
+            var recentCandles: Pair<String, List<Candle>>? = null
+            for (exchange in listOf("hyperliquid_mainnet", "hyperliquid")) {
+                val candles = repo.getCandles(
+                    symbol = "BTC",
+                    interval = "1m",
+                    from = Instant.now().minusSeconds(300), // Last 5 minutes
+                    to = Instant.now(),
+                    exchange = exchange,
+                    limit = 5
+                )
+                if (candles.isNotEmpty()) {
+                    recentCandles = exchange to candles
+                    break
+                }
+            }
 
-            if (recentCandles.isNotEmpty()) {
-                println("      ✓ Pipeline has ingested ${recentCandles.size} recent candles")
-                println("      ✓ Data freshness: ${recentCandles.first().time}")
+            if (recentCandles != null) {
+                val (exchange, candles) = recentCandles
+                println("      ✓ Pipeline has ingested ${candles.size} recent candles for $exchange")
+                println("      ✓ Data freshness: ${candles.first().time}")
             } else {
-                println("      ℹ️  No recent data (pipeline may need to be started)")
+                println("      ℹ️  No recent Hyperliquid data found under canonical aliases (pipeline may need to catch up)")
             }
         } catch (e: Exception) {
             println("      ℹ️  Pipeline integration test skipped: ${e.message}")
