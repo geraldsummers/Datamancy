@@ -3,6 +3,8 @@ package org.datamancy.testrunner
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -93,6 +95,101 @@ class JupyterNotebookStartupConfigTest {
     }
 
     @Test
+    fun `research notebook migration rewrites persisted legacy hyperliquid aliases`() {
+        val tempHome = Files.createTempDirectory("jupyter-startup-config-test")
+        val notebookDir = Files.createDirectories(tempHome.resolve("work/datamancy-notebooks"))
+        val notebookPath = notebookDir.resolve("01_quant_backtest_from_market_data.ipynb")
+        Files.writeString(
+            notebookPath,
+            """
+            {
+             "cells": [
+              {
+               "cell_type": "code",
+               "execution_count": null,
+               "metadata": {},
+               "outputs": [],
+               "source": [
+                "import os\n",
+                "import pandas as pd\n",
+                "from sqlalchemy import create_engine, text\n"
+               ]
+              },
+              {
+               "cell_type": "code",
+               "execution_count": null,
+               "metadata": {},
+               "outputs": [],
+               "source": [
+                "symbol = 'BTC'\n",
+                "interval = 'candle_1m'\n",
+                "lookback = '30 days'\n",
+                "\n",
+                "sql = text('''\n",
+                "SELECT time, open, high, low, close, volume\n",
+                "FROM market_data\n",
+                "WHERE symbol = :symbol\n",
+                "  AND exchange = 'hyperliquid'\n",
+                "  AND data_type = :interval\n",
+                "  AND time >= NOW() - CAST(:lookback AS interval)\n",
+                "ORDER BY time ASC\n",
+                "''')\n",
+                "df = pd.read_sql(sql, engine, params={'symbol': symbol, 'interval': interval, 'lookback': lookback}, parse_dates=['time'])\n"
+               ]
+              }
+             ],
+             "metadata": {
+              "kernelspec": {
+               "display_name": "Python 3",
+               "language": "python",
+               "name": "python3"
+              },
+              "language_info": {
+               "name": "python"
+              }
+             },
+             "nbformat": 4,
+             "nbformat_minor": 5
+            }
+            """.trimIndent() + "\n"
+        )
+
+        val script = firstPythonHeredoc(startupConfigText())
+            .replace(
+                """home_dir = Path("/home/jovyan")""",
+                """home_dir = Path(r"${pythonPathLiteral(tempHome)}")"""
+            )
+            .replace(
+                """notebook_dir = "/home/jovyan/work/datamancy-notebooks"""",
+                """notebook_dir = r"${pythonPathLiteral(notebookDir)}""""
+            )
+        val scriptPath = tempHome.resolve("startup-config-first-heredoc.py")
+        Files.writeString(scriptPath, script)
+
+        val process = ProcessBuilder("python3", scriptPath.toString())
+            .directory(repoRoot().toFile())
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        assertTrue(process.waitFor(30, TimeUnit.SECONDS), "startup-config python heredoc should finish promptly")
+        assertEquals(0, process.exitValue(), output)
+
+        val migratedNotebook = Files.readString(notebookPath)
+        assertTrue(
+            migratedNotebook.contains("exchange_aliases = ['hyperliquid', 'hyperliquid_mainnet']"),
+            "runtime migration should inject canonical hyperliquid alias stitching into persisted seeded notebooks"
+        )
+        assertTrue(
+            migratedNotebook.contains("AND exchange IN ({exchange_sql})"),
+            "runtime migration should replace legacy single-exchange filters with canonical alias queries"
+        )
+        assertFalse(
+            migratedNotebook.contains("AND exchange = 'hyperliquid'"),
+            "runtime migration should remove the legacy hyperliquid-only filter from persisted seeded notebooks"
+        )
+    }
+
+    @Test
     fun `jupyter notebook dockerfile pins compatible ai packages and checks dependencies`() {
         val text = dockerfileText()
         assertTrue(
@@ -134,6 +231,19 @@ class JupyterNotebookStartupConfigTest {
         val dockerfile = repoRoot().resolve("stack.containers/jupyter-notebook/Dockerfile")
         return Files.readString(dockerfile)
     }
+
+    private fun firstPythonHeredoc(text: String): String {
+        val startMarker = "python3 <<'PY'\n"
+        val startIndex = text.indexOf(startMarker)
+        require(startIndex >= 0) { "Could not locate first Python heredoc start in startup-config.sh" }
+        val bodyStart = startIndex + startMarker.length
+        val endIndex = text.indexOf("\nPY\n", bodyStart)
+        require(endIndex > bodyStart) { "Could not locate first Python heredoc end in startup-config.sh" }
+        return text.substring(bodyStart, endIndex)
+    }
+
+    private fun pythonPathLiteral(path: Path): String =
+        path.toAbsolutePath().toString().replace("\\", "\\\\")
 
     private fun repoRoot(): Path {
         var current = Path.of("").toAbsolutePath()

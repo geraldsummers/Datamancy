@@ -74,56 +74,56 @@ def write_notebook(name: str, cells):
         json.dump(notebook, f, indent=1)
 
 RESEARCH_ALIAS_PREFIX = (
-    "exchange = os.getenv('DATAMANCY_RESEARCH_EXCHANGE', 'hyperliquid_mainnet').strip() or 'hyperliquid_mainnet'\\n"
-    "exchange_aliases = ['hyperliquid', 'hyperliquid_mainnet'] if exchange == 'hyperliquid_mainnet' else [exchange]\\n"
-    "exchange_sql = ', '.join([\\\"'\\\" + alias.replace(\\\"'\\\", \\\"''\\\") + \\\"'\\\" for alias in exchange_aliases])\\n"
-    "\\n"
+    "exchange = os.getenv('DATAMANCY_RESEARCH_EXCHANGE', 'hyperliquid_mainnet').strip() or 'hyperliquid_mainnet'\n"
+    "exchange_aliases = ['hyperliquid', 'hyperliquid_mainnet'] if exchange == 'hyperliquid_mainnet' else [exchange]\n"
+    "exchange_sql = ', '.join([\"'\" + alias.replace(\"'\", \"''\") + \"'\" for alias in exchange_aliases])\n"
+    "\n"
 )
 
 NOTEBOOK_ALIAS_MIGRATIONS = {
     "00_profit_workflow_index.ipynb": {
-        "prefix_anchor": "setup_sql = text('''\\n",
+        "prefix_anchor": "setup_sql = text('''\n",
         "replace": [
-            ("setup_sql = text('''\\n", "setup_sql = text(f'''\\n"),
-            ("  WHERE exchange = 'hyperliquid'\\n", "  WHERE exchange IN ({exchange_sql})\\n"),
+            ("setup_sql = text('''\n", "setup_sql = text(f'''\n"),
+            ("  WHERE exchange = 'hyperliquid'\n", "  WHERE exchange IN ({exchange_sql})\n"),
         ],
     },
     "01_quant_backtest_from_market_data.ipynb": {
-        "prefix_anchor": "symbol = 'BTC'\\n",
+        "prefix_anchor": "symbol = 'BTC'\n",
         "replace": [
-            ("sql = text('''\\n", "sql = text(f'''\\n"),
-            ("  AND exchange = 'hyperliquid'\\n", "  AND exchange IN ({exchange_sql})\\n"),
+            ("sql = text('''\n", "sql = text(f'''\n"),
+            ("  AND exchange = 'hyperliquid'\n", "  AND exchange IN ({exchange_sql})\n"),
         ],
     },
     "02_rss_sentiment_to_market_signals.ipynb": {
-        "prefix_anchor": "plot_df = pd.read_sql(text('''\\n",
+        "prefix_anchor": "plot_df = pd.read_sql(text('''\n",
         "replace": [
-            ("plot_df = pd.read_sql(text('''\\n", "plot_df = pd.read_sql(text(f'''\\n"),
+            ("plot_df = pd.read_sql(text('''\n", "plot_df = pd.read_sql(text(f'''\n"),
             (
-                "  WHERE symbol='BTC' AND exchange='hyperliquid' AND data_type='candle_1m'\\n",
-                "  WHERE symbol='BTC' AND exchange IN ({exchange_sql}) AND data_type='candle_1m'\\n",
+                "  WHERE symbol='BTC' AND exchange='hyperliquid' AND data_type='candle_1m'\n",
+                "  WHERE symbol='BTC' AND exchange IN ({exchange_sql}) AND data_type='candle_1m'\n",
             ),
         ],
     },
     "03_strategy_parameter_sweep_and_robustness.ipynb": {
-        "prefix_anchor": "symbol = 'BTC'\\n",
+        "prefix_anchor": "symbol = 'BTC'\n",
         "replace": [
-            ("prices = pd.read_sql(text('''\\n", "prices = pd.read_sql(text(f'''\\n"),
-            ("  AND exchange='hyperliquid'\\n", "  AND exchange IN ({exchange_sql})\\n"),
+            ("prices = pd.read_sql(text('''\n", "prices = pd.read_sql(text(f'''\n"),
+            ("  AND exchange='hyperliquid'\n", "  AND exchange IN ({exchange_sql})\n"),
         ],
     },
     "04_alpha_signal_ranking.ipynb": {
-        "prefix_anchor": "symbols = ['BTC', 'ETH', 'SOL', 'AVAX', 'LINK']\\n",
+        "prefix_anchor": "symbols = ['BTC', 'ETH', 'SOL', 'AVAX', 'LINK']\n",
         "replace": [
-            ("px = pd.read_sql(text('''\\n", "px = pd.read_sql(text(f'''\\n"),
-            ("WHERE exchange = 'hyperliquid'\\n", "WHERE exchange IN ({exchange_sql})\\n"),
+            ("px = pd.read_sql(text('''\n", "px = pd.read_sql(text(f'''\n"),
+            ("WHERE exchange = 'hyperliquid'\n", "WHERE exchange IN ({exchange_sql})\n"),
         ],
     },
     "06_profitability_and_risk_attribution.ipynb": {
-        "prefix_anchor": "market = pd.read_sql(text('''\\n",
+        "prefix_anchor": "market = pd.read_sql(text('''\n",
         "replace": [
-            ("market = pd.read_sql(text('''\\n", "market = pd.read_sql(text(f'''\\n"),
-            ("  WHERE exchange = 'hyperliquid'\\n", "  WHERE exchange IN ({exchange_sql})\\n"),
+            ("market = pd.read_sql(text('''\n", "market = pd.read_sql(text(f'''\n"),
+            ("  WHERE exchange = 'hyperliquid'\n", "  WHERE exchange IN ({exchange_sql})\n"),
         ],
     },
 }
