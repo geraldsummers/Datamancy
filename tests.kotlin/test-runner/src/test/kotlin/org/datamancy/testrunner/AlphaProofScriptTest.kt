@@ -48,6 +48,14 @@ class AlphaProofScriptTest {
             "alpha proof should expose the slower downside-tail strategy family for lower-latency-sensitive alpha discovery"
         )
         assertTrue(
+            text.contains("--fixed-param-label"),
+            "alpha proof should support fixed-parameter replay so the operator can verify a dominant walk-forward config without per-window reselection"
+        )
+        assertTrue(
+            text.contains("def parse_strategy_label(label: str) -> StrategyParams:"),
+            "alpha proof should parse persisted parameter labels back into executable strategy parameters"
+        )
+        assertTrue(
             text.contains("INSERT INTO strategy_backtest_runs"),
             "alpha proof should persist aggregate walk-forward evidence into strategy_backtest_runs"
         )

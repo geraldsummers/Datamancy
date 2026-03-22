@@ -57,6 +57,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run walk-forward alpha proof against Datamancy market data")
     parser.add_argument("--exchange", default=os.getenv("ALPHA_PROOF_EXCHANGE", "hyperliquid_mainnet"))
     parser.add_argument("--family", default=os.getenv("ALPHA_PROOF_FAMILY", "microstructure_v1"))
+    parser.add_argument("--fixed-param-label", default=os.getenv("ALPHA_PROOF_FIXED_PARAM_LABEL"))
     parser.add_argument(
         "--symbols",
         default=os.getenv("ALPHA_PROOF_SYMBOLS", "BTC,ETH,SOL,AVAX,LINK"),
@@ -130,6 +131,41 @@ def depth_notional_usd(df: pd.DataFrame, depth_units: pd.Series) -> pd.Series:
     # orderbook_data bid/ask depth columns are stored in base-asset size, not quote notional.
     reference_price = df["mid_price"].replace(0, np.nan).fillna(df["close"]).replace(0, np.nan)
     return (depth_units * reference_price).replace([np.inf, -np.inf], np.nan)
+
+
+def parse_strategy_label(label: str) -> StrategyParams:
+    raw = (label or "").strip()
+    if not raw:
+        raise SystemExit("fixed strategy label must not be empty")
+
+    parts = {}
+    for item in raw.split(","):
+        if "=" not in item:
+            raise SystemExit(f"invalid strategy label segment: {item}")
+        key, value = item.split("=", 1)
+        parts[key.strip()] = value.strip()
+
+    family = parts.get("family")
+    if family == "tail_short_v2":
+        return StrategyParams(
+            family=family,
+            entry_quantile=float(parts["entry_q"]),
+            hold_bars=int(parts["hold"]),
+            spread_cap_quantile=float(parts["spread_q"]),
+            depth_floor_quantile=float(parts["depth_q"]),
+        )
+    if family == "microstructure_v1":
+        return StrategyParams(
+            family=family,
+            direction=float(parts["dir"]),
+            book_weight=float(parts["book"]),
+            micro_weight=float(parts["micro"]),
+            flow_weight=float(parts["flow"]),
+            momentum_weight=float(parts["mom"]),
+            entry_z=float(parts["entry"]),
+            exit_z=float(parts["exit"]),
+        )
+    raise SystemExit(f"unsupported strategy family in label: {family}")
 
 
 def resolve_exchange_aliases(exchange: str) -> list[str]:
@@ -342,7 +378,14 @@ def build_tail_short_param_grid() -> list[StrategyParams]:
     return params
 
 
-def build_param_grid(family: str) -> list[StrategyParams]:
+def build_param_grid(family: str, fixed_param_label: str | None = None) -> list[StrategyParams]:
+    if fixed_param_label:
+        fixed = parse_strategy_label(fixed_param_label)
+        if fixed.family != family:
+            raise SystemExit(
+                f"fixed strategy label family {fixed.family!r} does not match requested family {family!r}"
+            )
+        return [fixed]
     if family == "microstructure_v1":
         return build_microstructure_param_grid()
     if family == "tail_short_v2":
@@ -726,6 +769,9 @@ def evaluate_selected_windows(
         trades = int(sum(row["test_metrics"]["trades"] for row in window_rows))
         active_rows = int((strategy_ret != 0).sum())
         total_return = float(eq.iloc[-1] - 1.0)
+        trade_rows = int(oos["trade_flag"].sum()) if "trade_flag" in oos else 0
+        trade_cost_denominator = max(1, trade_rows if trade_rows > 0 else trades)
+        trade_fill_mask = oos["trade_flag"] > 0 if "trade_flag" in oos else pd.Series(False, index=oos.index)
         overall_metrics = {
             "net_return_pct": total_return * 100.0,
             "max_drawdown_pct": float(drawdown * 100.0),
@@ -733,8 +779,10 @@ def evaluate_selected_windows(
             "trades": trades,
             "win_rate": float((strategy_ret > 0).sum() / max(1, active_rows)),
             "edge_bps_per_trade": float(total_return * 10000.0 / max(trades, 1)),
-            "avg_total_cost_bps": float(oos["total_cost_bps"].mean()),
-            "avg_fill_ratio": float(oos["fill_ratio"].mean()),
+            "avg_total_cost_bps": float(oos["total_cost_bps"].sum() / trade_cost_denominator),
+            "avg_fill_ratio": float(
+                oos.loc[trade_fill_mask, "fill_ratio"].mean() if trade_rows > 0 else oos["fill_ratio"].mean()
+            ),
         }
 
     overall_metrics["window_count"] = len(window_rows)
@@ -803,6 +851,7 @@ def persist_symbol_result(
     strategy_name: str,
     symbol: str,
     family: str,
+    fixed_param_label: str | None,
     canonical_exchange: str,
     exchange_aliases: Sequence[str],
     lookback: str,
@@ -819,6 +868,7 @@ def persist_symbol_result(
     metrics_json = json.dumps(
         {
             "family": family,
+            "fixed_param_label": fixed_param_label,
             "canonical_exchange": canonical_exchange,
             "exchange_aliases": list(exchange_aliases),
             "lookback": lookback,
@@ -1012,6 +1062,7 @@ def run_symbol(
         "symbol": symbol,
         "strategy_name": strategy_name,
         "family": args.family,
+        "fixed_param_label": args.fixed_param_label,
         "status": proof_status,
         "bars": int(len(frame)),
         "windows": overall_metrics["window_count"],
@@ -1045,6 +1096,7 @@ def run_symbol(
             strategy_name=strategy_name,
             symbol=symbol,
             family=args.family,
+            fixed_param_label=args.fixed_param_label,
             canonical_exchange=args.exchange,
             exchange_aliases=exchange_aliases,
             lookback=args.lookback,
@@ -1065,10 +1117,11 @@ def main() -> None:
     args = parse_args()
     symbols = [symbol.strip().upper() for symbol in args.symbols.split(",") if symbol.strip()]
     exchange_aliases = resolve_exchange_aliases(args.exchange)
-    param_grid = build_param_grid(args.family)
+    param_grid = build_param_grid(args.family, fixed_param_label=args.fixed_param_label)
     print(
         f"[alpha-proof] family={args.family} exchange={args.exchange} aliases={exchange_aliases} symbols={symbols} "
-        f"lookback={args.lookback} persist={args.persist} use_trade_flow={args.use_trade_flow}"
+        f"lookback={args.lookback} persist={args.persist} use_trade_flow={args.use_trade_flow} "
+        f"fixed_param_label={args.fixed_param_label or 'none'}"
     )
     conn = connect(args)
     try:
