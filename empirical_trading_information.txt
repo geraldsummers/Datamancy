@@ -199,37 +199,4 @@ The British regulator describes a phased move toward a FSMA-based regime for cry
 US enforcement actions show spoofing prohibitions are actively enforced (with bans and penalties), which is directly relevant because some microstructure strategies can resemble abusive patterns if misused.
 A European systemic-risk report highlights concerns around governance, conduct, and market abuse in crypto markets, reinforcing that surveillance and controls are part of “production readiness.”
 Take. Even if your goal is purely alpha, treat “market abuse risk” as an engineering requirement: implement message-rate controls, self-trade prevention, audit logs, and a kill switch; do not build strategies that rely on deceptive order placement. Evidence from the live execution work also implies that non-bona fide orders can destabilise imbalance signals, making them a poor foundation even aside from legality.
-
-Mermaid timeline for research to production
-Apr 2026
-May 2026
-Jun 2026
-Jul 2026
-Aug 2026
-Sep 2026
-Data audit (LOB/trades/funding/fees)
-Periodic model refresh + governance
-Latency telemetry instrumentation
-Simulator validation vs historical fills
-Baseline microstructure features + rules
-Execution model (fill/slippage)
-Walk-forward + regime stress testing
-Shadow trading with latency replay
-TCA dashboards and alert thresholds
-Limited capital deployment + canaries
-Scale-up with impact constraints
-Data and infrastructure
-Signal research
-Paper trading
-Production rollout
-Research to production timeline
-
-
-Show code
-What would change the ranking of top strategies
-Facts-based decision triggers.
-
-If your measured latency distribution (including jitter) is stable and you can model it accurately, seconds-scale flow alpha and aggressive market making should move up because the main empirical obstacle (execution disadvantage conditional on state) becomes modellable.
-If fee tiers are large, frequent, or discontinuous for your traded volume, fee-optimised execution and maker-heavy strategies move up because the empirical cost-reduction potential is substantial under realistic schedules.
-If your venue risk and transfer frictions are high (withdrawal risk, congestion, slow settlement), cross-venue arbitrage moves down because these frictions are precisely why arbitrage persists and why it is risky to harvest.
-If your backtest edge survives pessimistic marking, taker fees, and realistic marketable-limit failure probabilities, then the edge is more likely to be “real” rather than a mid-price artefact.
+t edge survives pessimistic marking, taker fees, and realistic marketable-limit failure probabilities, then the edge is more likely to be “real” rather than a mid-price artefact.
