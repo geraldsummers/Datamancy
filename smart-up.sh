@@ -7,7 +7,7 @@ REGISTRY_JSON="${REGISTRY_JSON:-$ROOT_DIR/test-registry.json}"
 STATUS_JSON="${STATUS_JSON:-${DEPLOY_STATUS_JSON:-$ROOT_DIR/deploy-status.json}}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
 DRY_RUN="${DRY_RUN:-0}"
-FORCE_REFRESH_SERVICES="${FORCE_REFRESH_SERVICES:-postgres-datamancy-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e}"
+FORCE_REFRESH_SERVICES="${FORCE_REFRESH_SERVICES:-postgres-datamancy-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e,test-trading-staged}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

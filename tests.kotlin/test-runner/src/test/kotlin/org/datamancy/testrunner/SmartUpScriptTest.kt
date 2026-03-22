@@ -16,8 +16,8 @@ class SmartUpScriptTest {
             "smart-up should track deploy state outside the synced build-status artifact"
         )
         assertTrue(
-            text.contains("FORCE_REFRESH_SERVICES=\"\${FORCE_REFRESH_SERVICES:-postgres-datamancy-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e}\""),
-            "smart-up should force refresh schema and LDAP one-shot reconcilers so deploy-time state stays consistent"
+            text.contains("FORCE_REFRESH_SERVICES=\"\${FORCE_REFRESH_SERVICES:-postgres-datamancy-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e,test-trading-staged}\""),
+            "smart-up should force refresh schema reconcilers and staged trading probes so deploy-time credentials stay consistent"
         )
         assertTrue(
             text.contains("last_deployed_commit"),

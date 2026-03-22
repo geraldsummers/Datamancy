@@ -38,7 +38,7 @@ class StagedTradingExecutionTestsTest {
     }
 
     @Test
-    fun `staged trading live defaults use internal service urls`() {
+    fun `staged trading live defaults use external auth and internal trading service urls`() {
         val endpoints = ServiceEndpoints.forLocalhost()
         val config = stagedTradingConfig(
             endpoints = endpoints,
@@ -49,7 +49,7 @@ class StagedTradingExecutionTestsTest {
         )
 
         assertEquals(endpoints.txGateway, config.txGatewayBaseUrl)
-        assertEquals(endpoints.authelia, config.autheliaBaseUrl)
+        assertEquals("https://auth.datamancy.net", config.autheliaBaseUrl)
         assertEquals(endpoints.hyperliquidWorker, config.hyperliquidWorkerBaseUrl)
     }
 

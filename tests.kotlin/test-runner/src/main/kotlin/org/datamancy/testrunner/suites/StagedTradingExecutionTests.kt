@@ -116,8 +116,7 @@ internal fun stagedTradingConfig(
     val autheliaBaseUrl = envValue("TRADING_E2E_AUTHELIA_URL", env)
         ?: when {
             !runLive -> endpoints.authelia
-            liveExternalUrls -> "https://auth.$targetHost"
-            else -> endpoints.authelia
+            else -> "https://auth.$targetHost"
         }
 
     val hyperliquidWorkerBaseUrl = envValue("TRADING_E2E_HYPERLIQUID_WORKER_URL", env)
