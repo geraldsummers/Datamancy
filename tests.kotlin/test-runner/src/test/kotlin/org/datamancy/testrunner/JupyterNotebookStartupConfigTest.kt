@@ -75,6 +75,15 @@ class JupyterNotebookStartupConfigTest {
             text.contains("\"spread_bps = (forward['spread_pct'].clip(lower=0) * 10000.0)\\n\""),
             "research notebooks should not overstate spreads by treating percent units as fractions"
         )
+        assertTrue(
+            text.contains("def migrate_seeded_research_notebooks():"),
+            "startup-config should patch existing seeded research notebooks in persisted Jupyter volumes when alias wiring changes"
+        )
+        assertTrue(
+            text.contains("\"00_profit_workflow_index.ipynb\": {") &&
+                text.contains("\"06_profitability_and_risk_attribution.ipynb\": {"),
+            "startup-config should carry targeted migrations for the seeded backtest and attribution notebooks"
+        )
     }
 
     @Test
