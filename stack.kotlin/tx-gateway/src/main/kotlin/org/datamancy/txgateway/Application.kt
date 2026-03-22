@@ -149,7 +149,10 @@ fun Application.configureApp(
             } catch (e: Exception) {
                 false
             }
-            call.respond(HttpStatusCode.OK, mapOf("database" to if (dbHealthy) "connected" else "disconnected"))
+            call.respond(
+                if (dbHealthy) HttpStatusCode.OK else HttpStatusCode.ServiceUnavailable,
+                mapOf("database" to if (dbHealthy) "connected" else "disconnected")
+            )
         }
 
         get("/health/ldap") {
@@ -159,7 +162,10 @@ fun Application.configureApp(
             } catch (e: Exception) {
                 false
             }
-            call.respond(HttpStatusCode.OK, mapOf("ldap" to if (ldapHealthy) "connected" else "disconnected"))
+            call.respond(
+                if (ldapHealthy) HttpStatusCode.OK else HttpStatusCode.ServiceUnavailable,
+                mapOf("ldap" to if (ldapHealthy) "connected" else "disconnected")
+            )
         }
 
         get("/health/authelia") {
@@ -169,7 +175,10 @@ fun Application.configureApp(
             } catch (e: Exception) {
                 false
             }
-            call.respond(HttpStatusCode.OK, mapOf("authelia" to if (autheliaHealthy) "reachable" else "unreachable"))
+            call.respond(
+                if (autheliaHealthy) HttpStatusCode.OK else HttpStatusCode.ServiceUnavailable,
+                mapOf("authelia" to if (autheliaHealthy) "reachable" else "unreachable")
+            )
         }
 
         get("/health/workers") {
@@ -178,10 +187,14 @@ fun Application.configureApp(
             } catch (e: Exception) {
                 Pair(false, false)
             }
-            call.respond(HttpStatusCode.OK, mapOf(
-                "evm_broadcaster" to if (evmHealthy) "reachable" else "unreachable",
-                "hyperliquid_worker" to if (hlHealthy) "reachable" else "unreachable"
-            ))
+            val allWorkersHealthy = evmHealthy && hlHealthy
+            call.respond(
+                if (allWorkersHealthy) HttpStatusCode.OK else HttpStatusCode.ServiceUnavailable,
+                mapOf(
+                    "evm_broadcaster" to if (evmHealthy) "reachable" else "unreachable",
+                    "hyperliquid_worker" to if (hlHealthy) "reachable" else "unreachable"
+                )
+            )
         }
 
         get("/rate-limits") {

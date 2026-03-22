@@ -28,12 +28,24 @@ class SmartUpScriptTest {
             "smart-up should persist deploy status after recreating changed services"
         )
         assertTrue(
-            text.contains("lines.append(f\"{name}|{'build' if needs_build else 'no-build'}||force-one-shot|{build_key}\")"),
+            text.contains("append_entry(name, \"build\" if needs_build else \"no-build\", \"\", \"force-one-shot\", build_key)"),
             "smart-up should plan an explicit refresh path for one-shot services in the force-refresh list"
         )
         assertTrue(
             text.contains("info \"Refreshing one-shot reconciler ${'$'}service\""),
             "smart-up should surface one-shot reconciler refreshes in its output"
+        )
+        assertTrue(
+            text.contains("wait_for_service_ready()"),
+            "smart-up should wait for refreshed services to become ready before it exits"
+        )
+        assertTrue(
+            text.contains("wait_for_service_ready \"${'$'}service\" \"${'$'}wait_mode\" \"${'$'}timeout_seconds\""),
+            "smart-up should block on service readiness after each recreate"
+        )
+        assertTrue(
+            text.contains("state_info=\"$(docker inspect -f '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.State.ExitCode}}'"),
+            "smart-up should inspect runtime state so one-shot services and healthchecked services are handled correctly"
         )
     }
 

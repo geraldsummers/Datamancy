@@ -67,6 +67,79 @@ prepare_test_results_dir() {
     esac
 }
 
+compose_container_id() {
+    docker compose -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null | head -n 1
+}
+
+wait_for_service_ready() {
+    local service="$1"
+    local wait_mode="$2"
+    local timeout_seconds="$3"
+    local deadline=$((SECONDS + timeout_seconds))
+
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        local container_id
+        container_id="$(compose_container_id "$service")"
+        if [ -z "$container_id" ]; then
+            sleep 2
+            continue
+        fi
+
+        local state_info
+        state_info="$(docker inspect -f '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.State.ExitCode}}' "$container_id" 2>/dev/null || true)"
+        local state=""
+        local health=""
+        local exit_code=""
+        IFS='|' read -r state health exit_code <<< "$state_info"
+
+        case "$wait_mode" in
+            one-shot)
+                if [ "$state" = "exited" ]; then
+                    if [ "${exit_code:-1}" = "0" ]; then
+                        info "One-shot service $service completed successfully"
+                        return 0
+                    fi
+                    error "One-shot service $service failed with exit code ${exit_code:-unknown}"
+                    docker compose -f "$COMPOSE_FILE" logs --tail=80 "$service" || true
+                    return 1
+                fi
+                ;;
+            healthcheck)
+                if [ "$state" = "running" ] && [ "$health" = "healthy" ]; then
+                    info "Service $service is healthy"
+                    return 0
+                fi
+                if [ "$state" = "exited" ]; then
+                    error "Service $service exited unexpectedly with exit code ${exit_code:-unknown}"
+                    docker compose -f "$COMPOSE_FILE" logs --tail=80 "$service" || true
+                    return 1
+                fi
+                ;;
+            running)
+                if [ "$state" = "running" ]; then
+                    info "Service $service is running"
+                    return 0
+                fi
+                if [ "$state" = "exited" ]; then
+                    error "Service $service exited unexpectedly with exit code ${exit_code:-unknown}"
+                    docker compose -f "$COMPOSE_FILE" logs --tail=80 "$service" || true
+                    return 1
+                fi
+                ;;
+            *)
+                return 0
+                ;;
+        esac
+
+        sleep 2
+    done
+
+    error "Timed out waiting for $service (${wait_mode}) after ${timeout_seconds}s"
+    docker compose -f "$COMPOSE_FILE" ps "$service" || true
+    docker compose -f "$COMPOSE_FILE" logs --tail=80 "$service" || true
+    return 1
+}
+
 if [ ! -f "$REGISTRY_JSON" ]; then
     error "Missing registry: $REGISTRY_JSON"
     exit 1
@@ -131,8 +204,47 @@ except FileNotFoundError:
 status_components = status.get("components", {})
 compose_services = compose_config.get("services", {})
 
-lines = []
+entries = []
 planned = set()
+order = 0
+
+
+def dependency_names(service_def):
+    depends_on = service_def.get("depends_on") or {}
+    if isinstance(depends_on, dict):
+        raw_names = depends_on.keys()
+    elif isinstance(depends_on, list):
+        raw_names = depends_on
+    else:
+        raw_names = []
+    return [str(name).strip() for name in raw_names if str(name).strip()]
+
+
+def append_entry(name, build_flag, last_changed, reason, build_key):
+    global order
+    service_def = compose_services.get(name) or {}
+    restart_policy = str(service_def.get("restart") or "").strip().lower()
+    one_shot = restart_policy == "no"
+    has_healthcheck = bool(service_def.get("healthcheck"))
+    is_test_service = name.startswith("test-")
+    wait_mode = "one-shot" if one_shot else ("healthcheck" if has_healthcheck else "running")
+    timeout_seconds = 3600 if is_test_service else (600 if one_shot else 300)
+    entries.append({
+        "name": name,
+        "build_flag": build_flag,
+        "last_changed": last_changed,
+        "reason": reason,
+        "build_key": build_key,
+        "one_shot": one_shot,
+        "is_test_service": is_test_service,
+        "depends_on": dependency_names(service_def),
+        "wait_mode": wait_mode,
+        "timeout_seconds": timeout_seconds,
+        "order": order,
+    })
+    order += 1
+
+
 for name, comp in registry.get("components", {}).items():
     if name not in services:
         continue
@@ -155,13 +267,13 @@ for name, comp in registry.get("components", {}).items():
     needs_build = bool(service_def.get("build"))
     build_key = str(service_def.get("image") or name)
     if last_changed and last_changed != last_deployed:
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}|{last_changed}|changed|{build_key}")
+        append_entry(name, "build" if needs_build else "no-build", last_changed, "changed", build_key)
         planned.add(name)
     elif missing_container:
-        lines.append(f"{name}|no-build|{last_changed}|missing|")
+        append_entry(name, "no-build", last_changed, "missing", "")
         planned.add(name)
     elif stopped_container:
-        lines.append(f"{name}|no-build|{last_changed}|stopped|")
+        append_entry(name, "no-build", last_changed, "stopped", "")
         planned.add(name)
 
 for name in sorted(force_refresh_services):
@@ -173,17 +285,61 @@ for name in sorted(force_refresh_services):
     needs_build = bool(service_def.get("build"))
     build_key = str(service_def.get("image") or name)
     if one_shot_service:
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||force-one-shot|{build_key}")
+        append_entry(name, "build" if needs_build else "no-build", "", "force-one-shot", build_key)
     elif name not in existing_services:
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||missing|{build_key}")
+        append_entry(name, "build" if needs_build else "no-build", "", "missing", build_key)
     elif name not in running_services:
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||stopped|{build_key}")
+        append_entry(name, "build" if needs_build else "no-build", "", "stopped", build_key)
     else:
-        lines.append(f"{name}|{'build' if needs_build else 'no-build'}||refresh|{build_key}")
+        append_entry(name, "build" if needs_build else "no-build", "", "refresh", build_key)
+
+planned_names = {entry["name"] for entry in entries}
+for entry in entries:
+    entry["depends_on"] = [dep for dep in entry["depends_on"] if dep in planned_names]
+
+
+def topo_sort(items):
+    name_to_entry = {entry["name"]: entry for entry in items}
+    indegree = {entry["name"]: 0 for entry in items}
+    children = {entry["name"]: [] for entry in items}
+
+    for entry in items:
+        for dep in entry["depends_on"]:
+            if dep not in name_to_entry:
+                continue
+            indegree[entry["name"]] += 1
+            children[dep].append(entry["name"])
+
+    ready = [name for name, degree in indegree.items() if degree == 0]
+    ordered = []
+
+    while ready:
+        ready.sort(key=lambda name: (0 if name_to_entry[name]["one_shot"] else 1, name_to_entry[name]["order"]))
+        current = ready.pop(0)
+        ordered.append(name_to_entry[current])
+        for child in children[current]:
+            indegree[child] -= 1
+            if indegree[child] == 0:
+                ready.append(child)
+
+    if len(ordered) != len(items):
+        ordered_names = {entry["name"] for entry in ordered}
+        remaining = [entry for entry in items if entry["name"] not in ordered_names]
+        remaining.sort(key=lambda entry: (0 if entry["one_shot"] else 1, entry["order"]))
+        ordered.extend(remaining)
+
+    return ordered
+
+
+sorted_entries = topo_sort([entry for entry in entries if not entry["is_test_service"]])
+sorted_entries += topo_sort([entry for entry in entries if entry["is_test_service"]])
 
 with open(out_path, "w", encoding="utf-8") as f:
-    if lines:
-        f.write("\n".join(lines) + "\n")
+    for entry in sorted_entries:
+        f.write(
+            f"{entry['name']}|{entry['build_flag']}|{entry['last_changed']}|{entry['reason']}|"
+            f"{entry['build_key']}|{entry['wait_mode']}|{entry['timeout_seconds']}\n"
+        )
 PY
 
 if [ ! -s "$tmp_plan" ]; then
@@ -194,7 +350,7 @@ fi
 
 declare -A built_keys=()
 
-while IFS='|' read -r service build_flag last_changed reason build_key; do
+while IFS='|' read -r service build_flag last_changed reason build_key wait_mode timeout_seconds; do
     if [ -z "$service" ]; then
         continue
     fi
@@ -244,6 +400,11 @@ while IFS='|' read -r service build_flag last_changed reason build_key; do
         else
             docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate ${up_build_arg} "$service"
         fi
+    fi
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "wait_for_service_ready \"$service\" \"$wait_mode\" \"$timeout_seconds\""
+    else
+        wait_for_service_ready "$service" "$wait_mode" "$timeout_seconds"
     fi
     if [ "$reason" = "changed" ]; then
         echo "$service" >> "$tmp_updated"
