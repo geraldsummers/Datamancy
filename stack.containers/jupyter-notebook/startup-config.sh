@@ -1797,6 +1797,8 @@ write_notebook(
     ]
 )
 
+migrate_seeded_research_notebooks()
+
 PY
 
 chown -R ${NB_UID:-1000}:${NB_GID:-100} /home/jovyan/work/datamancy-notebooks 2>/dev/null || true
@@ -2888,6 +2890,4 @@ write_notebook(
         )
     ]
 )
-
-migrate_seeded_research_notebooks()
 PY

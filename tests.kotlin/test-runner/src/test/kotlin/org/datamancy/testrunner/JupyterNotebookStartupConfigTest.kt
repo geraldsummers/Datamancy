@@ -84,6 +84,12 @@ class JupyterNotebookStartupConfigTest {
                 text.contains("\"06_profitability_and_risk_attribution.ipynb\": {"),
             "startup-config should carry targeted migrations for the seeded backtest and attribution notebooks"
         )
+        val firstPythonTerminator = text.indexOf("\nPY\n")
+        val migrationCall = text.indexOf("migrate_seeded_research_notebooks()")
+        assertTrue(
+            migrationCall in 0 until firstPythonTerminator,
+            "startup-config should invoke notebook migrations before the first Python heredoc terminates"
+        )
     }
 
     @Test
