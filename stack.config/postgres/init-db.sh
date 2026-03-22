@@ -110,6 +110,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         END IF;
     END
     \$\$;
+    -- Only the datamancy database should inherit TimescaleDB.
+    -- Remove it from template1/postgres before creating application databases.
+    \connect template1
+    DROP EXTENSION IF EXISTS timescaledb CASCADE;
+    \connect postgres
+    DROP EXTENSION IF EXISTS timescaledb CASCADE;
     -- Create databases with correct owners (IF NOT EXISTS requires PostgreSQL 9.1+)
     SELECT 'CREATE DATABASE planka OWNER planka'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'planka')\gexec
