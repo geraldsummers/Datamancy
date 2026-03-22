@@ -143,6 +143,16 @@ def build_query(exchange_aliases: Sequence[str], use_trade_flow: bool) -> str:
     GROUP BY 1
 )
 """ if use_trade_flow else ""
+    funding_cte = f"""
+,funding AS (
+    SELECT time, funding_rate
+    FROM market_data
+    WHERE exchange IN ({aliases})
+      AND symbol = %(symbol)s
+      AND data_type = 'funding'
+      AND time >= NOW() - CAST(%(lookback)s AS interval) - INTERVAL '1 hour'
+)
+"""
     trade_flow_select = (
         "COALESCE(t.buy_volume, 0) AS buy_volume,\n"
         "    COALESCE(t.sell_volume, 0) AS sell_volume,\n"
@@ -163,6 +173,7 @@ WITH candles AS (
       AND time >= NOW() - CAST(%(lookback)s AS interval)
 )
 {trade_flow_cte}
+{funding_cte}
 SELECT
     c.time,
     c.open,
@@ -177,7 +188,7 @@ SELECT
     o.mid_price,
     o.best_bid,
     o.best_ask,
-    0.0 AS funding_rate
+    COALESCE(f.funding_rate, 0.0) AS funding_rate
 FROM candles c
 {trade_flow_join}LEFT JOIN LATERAL (
     SELECT spread_pct, bid_depth_10, ask_depth_10, mid_price, best_bid, best_ask
@@ -189,6 +200,13 @@ FROM candles c
     ORDER BY o.time DESC
     LIMIT 1
 ) o ON TRUE
+LEFT JOIN LATERAL (
+    SELECT funding_rate
+    FROM funding f
+    WHERE f.time <= c.time
+    ORDER BY f.time DESC
+    LIMIT 1
+) f ON TRUE
 ORDER BY c.time ASC
 """
 
@@ -249,7 +267,8 @@ def engineer_features(frame: pd.DataFrame) -> pd.DataFrame:
     df["microprice_alpha"] = (
         df["microprice"] / df["mid_price"].replace(0, np.nan) - 1.0
     ).replace([np.inf, -np.inf], np.nan).fillna(0)
-    df["carry_overlay"] = 0.0
+    # Hyperliquid funding is paid hourly; convert the latest hourly rate into per-minute carry.
+    df["carry_overlay"] = (-(df["funding_rate"].fillna(0.0) / 60.0)).clip(-0.0005, 0.0005)
 
     for column in ["signed_flow", "book_imbalance", "microprice_alpha", "mom_30m", "rev_5m"]:
         mu = df[column].rolling(180).mean()
@@ -560,6 +579,7 @@ def persist_symbol_result(
     sensitivity_rows: Sequence[dict],
     proof_status: str,
     proof_reasons: Sequence[str],
+    carry_overlay_enabled: bool,
 ) -> None:
     start_time = window_rows[0]["test_start"]
     end_time = window_rows[-1]["test_end"]
@@ -583,7 +603,7 @@ def persist_symbol_result(
                 }
                 for row in sensitivity_rows
             ],
-            "carry_overlay_enabled": False,
+            "carry_overlay_enabled": carry_overlay_enabled,
         },
         default=_json_default,
     )
@@ -614,7 +634,7 @@ def persist_symbol_result(
                 overall_metrics["net_return_pct"],
                 overall_metrics["max_drawdown_pct"],
                 overall_metrics["sharpe"],
-                "Walk-forward OOS aggregate using canonicalized Hyperliquid history; funding carry disabled until ingestion lands",
+                "Walk-forward OOS aggregate using canonicalized Hyperliquid history with funding-aware carry overlay when available",
                 metrics_json,
             ),
         )
@@ -749,6 +769,7 @@ def run_symbol(
         sensitivity.append({"scenario": scenario, "metrics": metrics})
 
     proof_status, proof_reasons = acceptance(overall_metrics, sensitivity)
+    carry_overlay_enabled = bool(frame["funding_rate"].abs().sum() > 0)
     strategy_name = f"{args.strategy_prefix}_{symbol.lower()}"
     summary = {
         "symbol": symbol,
@@ -763,6 +784,7 @@ def run_symbol(
         "sharpe": overall_metrics["sharpe"],
         "proof_reasons": proof_reasons,
         "exchange_aliases": list(exchange_aliases),
+        "carry_overlay_enabled": carry_overlay_enabled,
         "best_selected_params": Counter(row["params"].label for row in window_rows).most_common(3),
         "sensitivity": {
             row["scenario"].name: {
@@ -788,6 +810,7 @@ def run_symbol(
             sensitivity_rows=sensitivity,
             proof_status=proof_status,
             proof_reasons=proof_reasons,
+            carry_overlay_enabled=carry_overlay_enabled,
         )
         print(f"[alpha-proof] {symbol}: persisted strategy tables for {strategy_name}")
 

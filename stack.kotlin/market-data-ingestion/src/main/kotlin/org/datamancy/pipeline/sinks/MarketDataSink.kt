@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.datamancy.pipeline.core.Sink
+import org.datamancy.pipeline.sources.HyperliquidAssetContext
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidMarketData
 import org.datamancy.pipeline.sources.HyperliquidOrderbook
@@ -30,6 +31,7 @@ private val logger = KotlinLogging.logger {}
  * - Trades: Real-time execution data with price, size, side
  * - Candles: OHLCV aggregated data at various intervals (1m, 5m, 15m, 1h, etc.)
  * - Orderbooks: L2 order book snapshots with bid/ask levels
+ * - Asset context: funding rate and open interest for perp carry/risk modelling
  *
  * **Downstream Consumers:**
  * - trading-sdk MarketDataRepository: Queries historical data for backtesting and live trading
@@ -60,11 +62,14 @@ class MarketDataSink(
     private val tradeBatch = mutableListOf<HyperliquidTrade>()
     private val candleBatch = mutableListOf<HyperliquidCandle>()
     private val orderbookBatch = mutableListOf<HyperliquidOrderbook>()
+    private val assetContextBatch = mutableListOf<HyperliquidAssetContext>()
     private val batchLock = Any()
 
     private var tradeCount = 0L
     private var candleCount = 0L
     private var orderbookCount = 0L
+    private var fundingCount = 0L
+    private var openInterestCount = 0L
 
     @Volatile
     private var orderbookWriteMode: OrderbookWriteMode? = null
@@ -79,6 +84,7 @@ class MarketDataSink(
         var flushTradesNow = false
         var flushCandlesNow = false
         var flushOrderbooksNow = false
+        var flushAssetContextNow = false
 
         when (item) {
             is HyperliquidMarketData.Trades -> {
@@ -99,11 +105,18 @@ class MarketDataSink(
                     flushOrderbooksNow = orderbookBatch.size >= batchSize
                 }
             }
+            is HyperliquidMarketData.AssetContext -> {
+                synchronized(batchLock) {
+                    assetContextBatch.add(item.assetContext)
+                    flushAssetContextNow = assetContextBatch.size >= batchSize
+                }
+            }
         }
 
         if (flushTradesNow) flushTrades()
         if (flushCandlesNow) flushCandles()
         if (flushOrderbooksNow) flushOrderbooks()
+        if (flushAssetContextNow) flushAssetContexts()
     }
 
     override suspend fun writeBatch(items: List<HyperliquidMarketData>) {
@@ -115,13 +128,19 @@ class MarketDataSink(
      * Flush all pending batches to database
      */
     suspend fun flush() {
-        val (hasTrades, hasCandles, hasOrderbooks) = synchronized(batchLock) {
-            Triple(tradeBatch.isNotEmpty(), candleBatch.isNotEmpty(), orderbookBatch.isNotEmpty())
+        val (hasTrades, hasCandles, hasOrderbooks, hasAssetContexts) = synchronized(batchLock) {
+            listOf(
+                tradeBatch.isNotEmpty(),
+                candleBatch.isNotEmpty(),
+                orderbookBatch.isNotEmpty(),
+                assetContextBatch.isNotEmpty()
+            )
         }
 
         if (hasTrades) flushTrades()
         if (hasCandles) flushCandles()
         if (hasOrderbooks) flushOrderbooks()
+        if (hasAssetContexts) flushAssetContexts()
     }
 
     /**
@@ -236,6 +255,75 @@ class MarketDataSink(
     }
 
     /**
+     * Write accumulated funding/open-interest context to market_data table.
+     */
+    private suspend fun flushAssetContexts() = withContext(Dispatchers.IO) {
+        val assetContexts = synchronized(batchLock) {
+            if (assetContextBatch.isEmpty()) emptyList()
+            else assetContextBatch.toList().also { assetContextBatch.clear() }
+        }
+        if (assetContexts.isEmpty()) return@withContext
+
+        val fundingSql = """
+            INSERT INTO market_data (time, symbol, exchange, data_type, funding_rate)
+            VALUES (?, ?, ?, 'funding', ?)
+            ON CONFLICT (time, symbol, exchange, data_type) WHERE data_type = 'funding' DO UPDATE SET
+                funding_rate = EXCLUDED.funding_rate
+        """.trimIndent()
+        val openInterestSql = """
+            INSERT INTO market_data (time, symbol, exchange, data_type, open_interest)
+            VALUES (?, ?, ?, 'open_interest', ?)
+            ON CONFLICT (time, symbol, exchange, data_type) WHERE data_type = 'open_interest' DO UPDATE SET
+                open_interest = EXCLUDED.open_interest
+        """.trimIndent()
+
+        try {
+            dataSource.connection.use { conn ->
+                conn.autoCommit = false
+                try {
+                    ensureScalarMarketDataSchema(conn)
+                    conn.prepareStatement(fundingSql).use { fundingStmt ->
+                        assetContexts.forEach { assetContext ->
+                            fundingStmt.setTimestamp(1, Timestamp.from(assetContext.time))
+                            fundingStmt.setString(2, assetContext.symbol)
+                            fundingStmt.setString(3, exchange)
+                            fundingStmt.setBigDecimal(4, BigDecimal.valueOf(assetContext.fundingRate))
+                            fundingStmt.addBatch()
+                        }
+                        fundingStmt.executeBatch()
+                    }
+                    conn.prepareStatement(openInterestSql).use { openInterestStmt ->
+                        assetContexts.forEach { assetContext ->
+                            openInterestStmt.setTimestamp(1, Timestamp.from(assetContext.time))
+                            openInterestStmt.setString(2, assetContext.symbol)
+                            openInterestStmt.setString(3, exchange)
+                            openInterestStmt.setBigDecimal(4, BigDecimal.valueOf(assetContext.openInterest))
+                            openInterestStmt.addBatch()
+                        }
+                        openInterestStmt.executeBatch()
+                    }
+                    conn.commit()
+                    fundingCount += assetContexts.size
+                    openInterestCount += assetContexts.size
+                    logger.debug {
+                        "Flushed ${assetContexts.size} asset contexts to market_data " +
+                            "(funding total: $fundingCount, open interest total: $openInterestCount)"
+                    }
+                } catch (e: Exception) {
+                    conn.rollback()
+                    logger.error(e) { "Failed to flush asset context batch: ${e.message}" }
+                    throw e
+                }
+            }
+        } catch (e: Exception) {
+            synchronized(batchLock) {
+                assetContextBatch.addAll(0, assetContexts)
+            }
+            throw e
+        }
+    }
+
+    /**
      * Write accumulated orderbooks to orderbook_data table
      */
     private suspend fun flushOrderbooks() = withContext(Dispatchers.IO) {
@@ -296,6 +384,32 @@ class MarketDataSink(
                 runCatching { stmt.execute(sql) }
                     .onFailure { e ->
                         logger.debug { "Skipping optional schema upgrade statement '$sql': ${e.message}" }
+                    }
+            }
+        }
+    }
+
+    private fun ensureScalarMarketDataSchema(conn: Connection) {
+        val statements = listOf(
+            "ALTER TABLE market_data ADD COLUMN IF NOT EXISTS funding_rate DOUBLE PRECISION",
+            "ALTER TABLE market_data ADD COLUMN IF NOT EXISTS open_interest DOUBLE PRECISION",
+            """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_funding_unique
+                    ON market_data (time, symbol, exchange, data_type)
+                    WHERE data_type = 'funding'
+            """.trimIndent(),
+            """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_open_interest_unique
+                    ON market_data (time, symbol, exchange, data_type)
+                    WHERE data_type = 'open_interest'
+            """.trimIndent()
+        )
+
+        conn.createStatement().use { stmt ->
+            statements.forEach { sql ->
+                runCatching { stmt.execute(sql) }
+                    .onFailure { e ->
+                        logger.debug { "Skipping optional scalar market schema statement '$sql': ${e.message}" }
                     }
             }
         }
@@ -506,15 +620,18 @@ class MarketDataSink(
      */
     fun getStats(): IngestionStats {
         val pending = synchronized(batchLock) {
-            Triple(tradeBatch.size, candleBatch.size, orderbookBatch.size)
+            listOf(tradeBatch.size, candleBatch.size, orderbookBatch.size, assetContextBatch.size)
         }
         return IngestionStats(
             tradesIngested = tradeCount,
             candlesIngested = candleCount,
             orderbooksIngested = orderbookCount,
-            pendingTrades = pending.first,
-            pendingCandles = pending.second,
-            pendingOrderbooks = pending.third
+            fundingRowsIngested = fundingCount,
+            openInterestRowsIngested = openInterestCount,
+            pendingTrades = pending[0],
+            pendingCandles = pending[1],
+            pendingOrderbooks = pending[2],
+            pendingAssetContexts = pending[3]
         )
     }
 
@@ -525,6 +642,8 @@ class MarketDataSink(
         tradeCount = 0
         candleCount = 0
         orderbookCount = 0
+        fundingCount = 0
+        openInterestCount = 0
     }
 }
 
@@ -532,10 +651,14 @@ data class IngestionStats(
     val tradesIngested: Long,
     val candlesIngested: Long,
     val orderbooksIngested: Long,
+    val fundingRowsIngested: Long = 0,
+    val openInterestRowsIngested: Long = 0,
     val pendingTrades: Int,
     val pendingCandles: Int,
-    val pendingOrderbooks: Int
+    val pendingOrderbooks: Int,
+    val pendingAssetContexts: Int = 0
 ) {
-    val totalIngested: Long = tradesIngested + candlesIngested + orderbooksIngested
-    val totalPending: Int = pendingTrades + pendingCandles + pendingOrderbooks
+    val totalIngested: Long =
+        tradesIngested + candlesIngested + orderbooksIngested + fundingRowsIngested + openInterestRowsIngested
+    val totalPending: Int = pendingTrades + pendingCandles + pendingOrderbooks + pendingAssetContexts
 }

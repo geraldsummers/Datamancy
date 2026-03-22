@@ -92,6 +92,7 @@ class MarketDataIngestionRunner {
         logger.info { "Symbols: ${symbols.joinToString()}" }
         logger.info { "Candle Intervals: ${candleIntervals.joinToString()}" }
         logger.info { "Orderbook Ingestion: ${if (enableOrderbook) "ENABLED" else "DISABLED"}" }
+        logger.info { "Asset Context Ingestion: ENABLED (funding + open interest)" }
         logger.info { "Hyperliquid Mode: ${if (hyperliquidMainnet) "MAINNET" else "TESTNET"}" }
         logger.info { "Hyperliquid WS URL: $hyperliquidWsUrl" }
         logger.info { "Hyperliquid Exchange ID: $hyperliquidExchangeId" }
@@ -105,6 +106,7 @@ class MarketDataIngestionRunner {
             subscribeToCandles = true,
             candleIntervals = candleIntervals,
             subscribeToOrderbook = enableOrderbook,
+            subscribeToAssetCtx = true,
             url = hyperliquidWsUrl
         )
 
@@ -261,11 +263,14 @@ class MarketDataIngestionRunner {
         logger.info { "  Trades:        ${stats.tradesIngested.format()}" }
         logger.info { "  Candles:       ${stats.candlesIngested.format()}" }
         logger.info { "  Orderbooks:    ${stats.orderbooksIngested.format()}" }
+        logger.info { "  Funding:       ${stats.fundingRowsIngested.format()}" }
+        logger.info { "  Open Interest: ${stats.openInterestRowsIngested.format()}" }
         logger.info { "─" * 80 }
         logger.info { "Pending:         ${stats.totalPending}" }
         logger.info { "  Trades:        ${stats.pendingTrades}" }
         logger.info { "  Candles:       ${stats.pendingCandles}" }
         logger.info { "  Orderbooks:    ${stats.pendingOrderbooks}" }
+        logger.info { "  Asset Ctx:     ${stats.pendingAssetContexts}" }
         logger.info { "═" * 80 }
     }
 

@@ -134,6 +134,12 @@ private class PollingMarketDataStream(
         config.subscribeOrderbook?.let { orderbookConfig ->
             scope.launch { pollOrderbookLoop(orderbookConfig) }
         }
+        if (config.subscribeFunding) {
+            scope.launch { pollFundingLoop() }
+        }
+        if (config.subscribeOpenInterest) {
+            scope.launch { pollOpenInterestLoop() }
+        }
     }
 
     override fun candles(interval: Duration): Flow<Candle> {
@@ -266,6 +272,56 @@ private class PollingMarketDataStream(
                 logger.debug("Orderbook polling failed for {}/{}: {}", exchange, symbol, it.message)
             }
             delay(cadence)
+        }
+    }
+
+    private suspend fun pollFundingLoop() {
+        var lastSignature: String? = null
+
+        while (true) {
+            runCatching {
+                val snapshot = repository.getLatestFundingRate(
+                    symbol = symbol,
+                    exchange = exchange
+                ) ?: return@runCatching
+
+                val signature = buildString {
+                    append(snapshot.time.toEpochMilli())
+                    append(':')
+                    append(snapshot.rate)
+                    append(':')
+                    append(snapshot.predictedRate ?: "")
+                }
+                if (signature != lastSignature) {
+                    lastSignature = signature
+                    fundingFlow.tryEmit(snapshot)
+                }
+            }.onFailure {
+                logger.debug("Funding polling failed for {}/{}: {}", exchange, symbol, it.message)
+            }
+            delay(pollInterval)
+        }
+    }
+
+    private suspend fun pollOpenInterestLoop() {
+        var lastSignature: String? = null
+
+        while (true) {
+            runCatching {
+                val snapshot = repository.getLatestOpenInterest(
+                    symbol = symbol,
+                    exchange = exchange
+                ) ?: return@runCatching
+
+                val signature = "${snapshot.time.toEpochMilli()}:${snapshot.value}"
+                if (signature != lastSignature) {
+                    lastSignature = signature
+                    openInterestFlow.tryEmit(snapshot)
+                }
+            }.onFailure {
+                logger.debug("Open interest polling failed for {}/{}: {}", exchange, symbol, it.message)
+            }
+            delay(pollInterval)
         }
     }
 }

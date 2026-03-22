@@ -41,7 +41,7 @@ class JupyterNotebookStartupConfigTest {
     }
 
     @Test
-    fun `research notebooks canonicalize hyperliquid history and stop requiring funding column`() {
+    fun `research notebooks canonicalize hyperliquid history and consume funding when present`() {
         val text = startupConfigText()
         assertTrue(
             text.contains("\"exchange_aliases = ['hyperliquid', 'hyperliquid_mainnet'] if exchange == 'hyperliquid_mainnet' else [exchange]\\n\""),
@@ -52,8 +52,16 @@ class JupyterNotebookStartupConfigTest {
             "research notebooks should query canonical exchange aliases rather than a single exchange identifier"
         )
         assertTrue(
-            text.contains("\"  0.0 AS funding_rate\\n\""),
-            "research notebooks should degrade carry overlay gracefully when funding ingestion is unavailable"
+            text.contains("data_type = 'funding'"),
+            "research notebooks should query persisted funding rows when the pipeline stores them"
+        )
+        assertTrue(
+            text.contains("\"  COALESCE(f.funding_rate, 0.0) AS funding_rate\\n\""),
+            "research notebooks should fall back to zero funding safely when recent history is sparse"
+        )
+        assertTrue(
+            text.contains("\"df['carry_overlay'] = (-(df['funding_rate'].fillna(0.0) / 60.0)).clip(-0.0005, 0.0005)\\n\""),
+            "execution-aware research notebooks should convert hourly funding into bounded per-minute carry"
         )
         assertTrue(
             text.contains("\"spread_bps = (forward['spread_pct'].clip(lower=0) * 100.0)\\n\""),
@@ -62,10 +70,6 @@ class JupyterNotebookStartupConfigTest {
         assertTrue(
             text.contains("\"spread_bps = df['spread_pct'].clip(lower=0) * 100.0\\n\""),
             "research notebooks should reuse percent-to-bps conversion consistently in execution realism calculations"
-        )
-        assertFalse(
-            text.contains("\"  SELECT time, funding_rate\\n\""),
-            "research notebooks should not reference a funding_rate market_data column that is absent from the deployed schema"
         )
         assertFalse(
             text.contains("\"spread_bps = (forward['spread_pct'].clip(lower=0) * 10000.0)\\n\""),

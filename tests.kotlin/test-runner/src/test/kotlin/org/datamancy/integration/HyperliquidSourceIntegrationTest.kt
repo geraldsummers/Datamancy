@@ -104,4 +104,24 @@ class HyperliquidSourceIntegrationTest {
             assertTrue(bestBid.price < bestAsk.price)
         }
     }
+
+    @Test
+    fun `receives asset context data`() = runBlocking {
+        val source = HyperliquidSource(
+            symbols = listOf("BTC"),
+            subscribeToTrades = false,
+            subscribeToCandles = false,
+            subscribeToOrderbook = false,
+            subscribeToAssetCtx = true
+        )
+
+        withTimeout(60.seconds) {
+            val data = source.fetch()
+                .filterIsInstance<HyperliquidMarketData.AssetContext>()
+                .first()
+            val assetContext = data.assetContext
+            assertEquals("BTC", assetContext.symbol)
+            assertTrue(assetContext.openInterest >= 0.0)
+        }
+    }
 }

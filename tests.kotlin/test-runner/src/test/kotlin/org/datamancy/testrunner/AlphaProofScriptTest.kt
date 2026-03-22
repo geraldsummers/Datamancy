@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 class AlphaProofScriptTest {
 
     @Test
-    fun `alpha proof script canonicalizes exchange history and persists proof tables`() {
+    fun `alpha proof script canonicalizes exchange history, consumes funding, and persists proof tables`() {
         val text = repoFileText("scripts/trading/alpha_proof.py")
 
         assertTrue(
@@ -24,8 +24,16 @@ class AlphaProofScriptTest {
             "alpha proof should augment the minute frame with signed trade flow instead of relying on candles alone"
         )
         assertTrue(
-            text.contains("0.0 AS funding_rate"),
-            "alpha proof should degrade carry overlay safely until funding data is ingested"
+            text.contains("data_type = 'funding'"),
+            "alpha proof should query persisted funding rows when they exist"
+        )
+        assertTrue(
+            text.contains("COALESCE(f.funding_rate, 0.0) AS funding_rate"),
+            "alpha proof should fall back to zero funding safely when funding history is sparse"
+        )
+        assertTrue(
+            text.contains("df[\"carry_overlay\"] = (-(df[\"funding_rate\"].fillna(0.0) / 60.0)).clip(-0.0005, 0.0005)"),
+            "alpha proof should translate hourly funding into bounded per-minute carry"
         )
         assertTrue(
             text.contains("spread_pct_to_bps"),

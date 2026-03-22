@@ -12,7 +12,7 @@ Current behavior:
 
 - canonicalizes Hyperliquid history across `hyperliquid` and `hyperliquid_mainnet`
 - uses `candle_1m` bars plus signed trade flow and order-book depth
-- disables carry overlay until funding ingestion lands in `market_data`
+- consumes persisted funding rows when present and safely falls back to zero carry when they are absent
 - applies explicit fee/slippage/impact/latency stress scenarios
 
 Remote run example on `latium.local`:

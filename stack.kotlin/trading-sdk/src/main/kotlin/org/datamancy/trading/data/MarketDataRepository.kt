@@ -217,6 +217,82 @@ class MarketDataRepository(
     }
 
     /**
+     * Get latest funding rate snapshot.
+     */
+    suspend fun getLatestFundingRate(
+        symbol: String,
+        exchange: String = "hyperliquid"
+    ): FundingRate? = withContext(Dispatchers.IO) {
+        val sql = """
+            SELECT time, symbol, exchange, funding_rate
+            FROM market_data
+            WHERE symbol = ? AND exchange = ?
+              AND data_type = 'funding'
+              AND funding_rate IS NOT NULL
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, symbol)
+                stmt.setString(2, exchange)
+
+                stmt.executeQuery().use { result ->
+                    if (result.next()) {
+                        FundingRate(
+                            time = result.getTimestamp("time").toInstant(),
+                            symbol = result.getString("symbol"),
+                            exchange = result.getString("exchange"),
+                            rate = result.getBigDecimal("funding_rate")
+                        )
+                    } else {
+                        null
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Get latest open-interest snapshot.
+     */
+    suspend fun getLatestOpenInterest(
+        symbol: String,
+        exchange: String = "hyperliquid"
+    ): OpenInterest? = withContext(Dispatchers.IO) {
+        val sql = """
+            SELECT time, symbol, exchange, open_interest
+            FROM market_data
+            WHERE symbol = ? AND exchange = ?
+              AND data_type = 'open_interest'
+              AND open_interest IS NOT NULL
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, symbol)
+                stmt.setString(2, exchange)
+
+                stmt.executeQuery().use { result ->
+                    if (result.next()) {
+                        OpenInterest(
+                            time = result.getTimestamp("time").toInstant(),
+                            symbol = result.getString("symbol"),
+                            exchange = result.getString("exchange"),
+                            value = result.getBigDecimal("open_interest")
+                        )
+                    } else {
+                        null
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Rank symbols by momentum + sentiment + trend persistence.
      * Useful for quickly selecting trade candidates inside notebooks.
      */

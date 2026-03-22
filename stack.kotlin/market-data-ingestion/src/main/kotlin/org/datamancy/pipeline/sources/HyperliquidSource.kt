@@ -33,6 +33,7 @@ class HyperliquidSource(
     private val subscribeToCandles: Boolean = true,
     private val candleIntervals: List<String> = listOf("1m", "5m", "15m", "1h"),
     private val subscribeToOrderbook: Boolean = false,
+    private val subscribeToAssetCtx: Boolean = true,
     private val url: String = "wss://api.hyperliquid.xyz/ws"
 ) : Source<HyperliquidMarketData> {
     override val name = "HyperliquidSource"
@@ -46,7 +47,10 @@ class HyperliquidSource(
 
     override suspend fun fetch(): Flow<HyperliquidMarketData> = flow {
         logger.info { "Starting Hyperliquid WebSocket ingestion for ${symbols.size} symbols" }
-        logger.info { "Subscriptions - Trades: $subscribeToTrades, Candles: $subscribeToCandles (${candleIntervals.joinToString()}), Orderbook: $subscribeToOrderbook" }
+        logger.info {
+            "Subscriptions - Trades: $subscribeToTrades, Candles: $subscribeToCandles (${candleIntervals.joinToString()}), " +
+                "Orderbook: $subscribeToOrderbook, AssetCtx: $subscribeToAssetCtx"
+        }
 
         try {
             client.webSocket(url) {
@@ -64,6 +68,9 @@ class HyperliquidSource(
                     }
                     if (subscribeToOrderbook) {
                         subscribeOrderbook(symbol)
+                    }
+                    if (subscribeToAssetCtx) {
+                        subscribeActiveAssetCtx(symbol)
                     }
                 }
 
@@ -144,6 +151,23 @@ class HyperliquidSource(
     }
 
     /**
+     * Subscribe to active asset context for a symbol.
+     *
+     * This public feed includes funding and open interest for perp markets.
+     */
+    private suspend fun DefaultClientWebSocketSession.subscribeActiveAssetCtx(symbol: String) {
+        val subscribeMsg = buildJsonObject {
+            put("method", "subscribe")
+            put("subscription", buildJsonObject {
+                put("type", "activeAssetCtx")
+                put("coin", symbol)
+            })
+        }
+        send(Frame.Text(subscribeMsg.toString()))
+        logger.debug { "Subscribed to active asset context: $symbol" }
+    }
+
+    /**
      * Process incoming WebSocket message
      */
     private fun processMessage(text: String): HyperliquidMarketData? {
@@ -158,6 +182,7 @@ class HyperliquidSource(
                 "trades" -> parseTrades(data)
                 "candle" -> parseCandle(data)
                 "l2Book" -> parseOrderbook(data)
+                "activeAssetCtx" -> parseActiveAssetCtx(data)
                 else -> {
                     logger.trace { "Unhandled channel: $channel" }
                     null
@@ -283,6 +308,38 @@ class HyperliquidSource(
         }
     }
 
+    /**
+     * Parse active asset context messages carrying funding and open interest.
+     */
+    private fun parseActiveAssetCtx(data: JsonElement?): HyperliquidMarketData? {
+        data ?: return null
+
+        return try {
+            val payload = data.jsonObject
+            val symbol = payload["coin"]?.jsonPrimitive?.content ?: return null
+            val ctx = payload["ctx"]?.jsonObject ?: payload
+            val fundingRate = ctx.doubleField("funding") ?: return null
+            val openInterest = ctx.doubleField("openInterest") ?: return null
+
+            HyperliquidMarketData.AssetContext(
+                HyperliquidAssetContext(
+                    time = Instant.now(),
+                    symbol = symbol,
+                    fundingRate = fundingRate,
+                    openInterest = openInterest,
+                    markPrice = ctx.doubleField("markPx"),
+                    oraclePrice = ctx.doubleField("oraclePx"),
+                    midPrice = ctx.doubleField("midPx"),
+                    dayNotionalVolume = ctx.doubleField("dayNtlVlm"),
+                    previousDayPrice = ctx.doubleField("prevDayPx")
+                )
+            )
+        } catch (e: Exception) {
+            logger.error(e) { "Error parsing active asset context" }
+            null
+        }
+    }
+
     private fun parseOrderbookLevel(level: JsonElement): HyperliquidOrderbookLevel? {
         val obj = when {
             level is JsonObject -> level
@@ -292,6 +349,16 @@ class HyperliquidSource(
         val price = obj["px"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return null
         val size = obj["sz"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return null
         return HyperliquidOrderbookLevel(price = price, size = size)
+    }
+
+    private fun JsonObject.doubleField(name: String): Double? {
+        val element = this[name] ?: return null
+        return runCatching {
+            when (element) {
+                is JsonPrimitive -> element.content.toDouble()
+                else -> element.toString().toDouble()
+            }
+        }.getOrNull()
     }
 }
 
@@ -306,6 +373,7 @@ sealed class HyperliquidMarketData {
     data class Trades(val trades: List<HyperliquidTrade>) : HyperliquidMarketData()
     data class Candle(val candle: HyperliquidCandle) : HyperliquidMarketData()
     data class Orderbook(val orderbook: HyperliquidOrderbook) : HyperliquidMarketData()
+    data class AssetContext(val assetContext: HyperliquidAssetContext) : HyperliquidMarketData()
 }
 
 data class HyperliquidTrade(
@@ -372,4 +440,28 @@ data class HyperliquidOrderbook(
     }
 
     fun contentHash(): String = "$symbol:${time.epochSecond}".hashCode().toString()
+}
+
+data class HyperliquidAssetContext(
+    val time: Instant,
+    val symbol: String,
+    val fundingRate: Double,
+    val openInterest: Double,
+    val markPrice: Double? = null,
+    val oraclePrice: Double? = null,
+    val midPrice: Double? = null,
+    val dayNotionalVolume: Double? = null,
+    val previousDayPrice: Double? = null
+) {
+    fun toText(): String = buildString {
+        appendLine("# Asset Context: $symbol")
+        appendLine("**Time:** $time")
+        appendLine("**Funding Rate:** $fundingRate")
+        appendLine("**Open Interest:** $openInterest")
+        markPrice?.let { appendLine("**Mark Price:** $it") }
+        oraclePrice?.let { appendLine("**Oracle Price:** $it") }
+        midPrice?.let { appendLine("**Mid Price:** $it") }
+    }
+
+    fun contentHash(): String = "$symbol:${time.epochSecond}:$fundingRate:$openInterest".hashCode().toString()
 }

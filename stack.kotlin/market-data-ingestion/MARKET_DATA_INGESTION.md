@@ -20,6 +20,7 @@ Real-time market data ingestion from cryptocurrency exchanges into TimescaleDB f
                           │  • Trades             │   │  • market_data       │
                           │  • Candles (OHLCV)    │   │  • orderbook_data    │
                           │  • Orderbooks (L2)    │   └──────────────────────┘
+                          │  • Funding / OI       │
                           └──────────────────────┘              │
                                                                  │
                                                                  ▼
@@ -50,6 +51,7 @@ WebSocket-based market data source for Hyperliquid perpetual futures exchange.
 - Real-time trade execution data
 - Multiple candle intervals (1m, 5m, 15m, 1h, 4h, 1d)
 - Level 2 order book snapshots
+- Active asset context snapshots (funding + open interest)
 - Automatic reconnection with exponential backoff
 - Configurable subscriptions
 
@@ -68,6 +70,7 @@ val source = HyperliquidSource(
 - `HyperliquidTrade` - Individual trade with price, size, side
 - `HyperliquidCandle` - OHLCV data with volume and trade count
 - `HyperliquidOrderbook` - Bids/asks with price levels
+- `HyperliquidAssetContext` - Funding rate and open interest for perp carry/risk modelling
 
 ### 2. **MarketDataSink** (`sinks/MarketDataSink.kt`)
 
@@ -104,6 +107,10 @@ CREATE TABLE market_data (
     volume DECIMAL,
     num_trades INTEGER,
 
+    -- Scalar market context fields
+    funding_rate DECIMAL,
+    open_interest DECIMAL,
+
     PRIMARY KEY (time, symbol, exchange, data_type, COALESCE(trade_id, ''))
 );
 
@@ -135,6 +142,7 @@ Continuous ingestion runner that wires HyperliquidSource → MarketDataSink.
 - Statistics logging every 60 seconds
 - Environment-based configuration
 - Health monitoring
+- Continuous funding/open-interest capture for research notebooks and Grafana
 
 **Environment Variables:**
 ```bash

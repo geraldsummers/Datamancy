@@ -101,4 +101,22 @@ class HyperliquidSourceTest {
         assertNotNull(orderbook.toText())
         assertNotNull(orderbook.contentHash())
     }
+
+    @Test
+    fun `asset context data model has correct properties`() {
+        val assetContext = HyperliquidAssetContext(
+            time = java.time.Instant.now(),
+            symbol = "BTC",
+            fundingRate = 0.0001,
+            openInterest = 12345.67,
+            markPrice = 82000.0
+        )
+
+        assertEquals("BTC", assetContext.symbol)
+        assertEquals(0.0001, assetContext.fundingRate)
+        assertEquals(12345.67, assetContext.openInterest)
+        assertEquals(82000.0, assetContext.markPrice)
+        assertNotNull(assetContext.toText())
+        assertNotNull(assetContext.contentHash())
+    }
 }

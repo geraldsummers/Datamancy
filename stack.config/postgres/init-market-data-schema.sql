@@ -2,12 +2,12 @@
 -- Creates tables for storing market data from the data pipeline
 -- This schema is used by both the pipeline (writes) and trading SDK (reads)
 
--- Create market_data table (unified table for candles and trades)
+-- Create market_data table (unified table for candles, trades, funding, and open interest)
 CREATE TABLE IF NOT EXISTS market_data (
     time TIMESTAMPTZ NOT NULL,
     symbol TEXT NOT NULL,
     exchange TEXT NOT NULL,
-    data_type TEXT NOT NULL,  -- 'candle_1m', 'candle_5m', 'trade', etc.
+    data_type TEXT NOT NULL,  -- 'candle_1m', 'candle_5m', 'trade', 'funding', 'open_interest', etc.
 
     -- Candle fields (populated for data_type = 'candle_*')
     open DOUBLE PRECISION,
@@ -22,7 +22,11 @@ CREATE TABLE IF NOT EXISTS market_data (
     price DOUBLE PRECISION,
     size DOUBLE PRECISION,
     side TEXT,  -- 'buy' or 'sell'
-    is_liquidation BOOLEAN DEFAULT FALSE
+    is_liquidation BOOLEAN DEFAULT FALSE,
+
+    -- Scalar market context fields
+    funding_rate DOUBLE PRECISION,
+    open_interest DOUBLE PRECISION
 );
 
 -- Create index for efficient time-based queries
@@ -39,6 +43,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_trade_unique
 CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_candle_unique
     ON market_data (time, symbol, exchange, data_type)
     WHERE data_type LIKE 'candle_%';
+
+-- Enforce uniqueness for scalar market context rows
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_funding_unique
+    ON market_data (time, symbol, exchange, data_type)
+    WHERE data_type = 'funding';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_open_interest_unique
+    ON market_data (time, symbol, exchange, data_type)
+    WHERE data_type = 'open_interest';
+
+ALTER TABLE market_data ADD COLUMN IF NOT EXISTS funding_rate DOUBLE PRECISION;
+ALTER TABLE market_data ADD COLUMN IF NOT EXISTS open_interest DOUBLE PRECISION;
 
 -- Create orderbook_data table
 CREATE TABLE IF NOT EXISTS orderbook_data (

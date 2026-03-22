@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS market_data (
     -- Funding rate fields
     funding_rate NUMERIC(20, 8),
 
+    -- Open interest fields
+    open_interest NUMERIC(20, 8),
+
     -- Metadata
     inserted_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -42,6 +45,17 @@ CREATE INDEX IF NOT EXISTS idx_market_data_time ON market_data (time DESC);
 CREATE INDEX IF NOT EXISTS idx_market_data_symbol_time ON market_data (symbol, time DESC);
 CREATE INDEX IF NOT EXISTS idx_market_data_type_time ON market_data (data_type, time DESC);
 CREATE INDEX IF NOT EXISTS idx_market_data_symbol_type ON market_data (symbol, data_type, time DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_trade_unique
+    ON market_data (time, symbol, exchange, data_type, trade_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_candle_unique
+    ON market_data (time, symbol, exchange, data_type)
+    WHERE data_type LIKE 'candle_%';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_funding_unique
+    ON market_data (time, symbol, exchange, data_type)
+    WHERE data_type = 'funding';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_open_interest_unique
+    ON market_data (time, symbol, exchange, data_type)
+    WHERE data_type = 'open_interest';
 
 -- =============================================================================
 -- ORDERBOOK DATA TABLE - All orderbook snapshots
@@ -134,9 +148,9 @@ CREATE TABLE IF NOT EXISTS strategy_performance (
 -- HELPFUL COMMENTS
 -- =============================================================================
 
-COMMENT ON TABLE market_data IS 'Unified time-series table for all market data: trades, candles, funding rates. Optimized for Grafana/Jupyter queries.';
+COMMENT ON TABLE market_data IS 'Unified time-series table for all market data: trades, candles, funding rates, and open interest. Optimized for Grafana/Jupyter queries.';
 COMMENT ON TABLE orderbook_data IS 'Orderbook snapshots with pre-calculated metrics for analysis';
-COMMENT ON COLUMN market_data.data_type IS 'Type: trade, candle_1m, candle_5m, candle_1h, candle_1d, candle_1w, funding';
+COMMENT ON COLUMN market_data.data_type IS 'Type: trade, candle_1m, candle_5m, candle_1h, candle_1d, candle_1w, funding, open_interest';
 COMMENT ON COLUMN market_data.side IS 'Trade side: buy or sell';
 COMMENT ON COLUMN orderbook_data.bids IS 'Array of bid levels as JSONB: [{"price": "50000", "size": "1.5"}, ...]';
 COMMENT ON COLUMN orderbook_data.asks IS 'Array of ask levels as JSONB: [{"price": "50001", "size": "2.0"}, ...]';

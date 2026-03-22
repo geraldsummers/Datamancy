@@ -111,6 +111,23 @@ class MarketDataSinkIntegrationTest {
     }
 
     @Test
+    fun `can write and flush asset context`() = runBlocking {
+        val assetContexts = (1..3).map {
+            createTestAssetContext(symbol = "TEST-${System.currentTimeMillis()}")
+        }
+
+        assetContexts.forEach { assetContext ->
+            sink.write(HyperliquidMarketData.AssetContext(assetContext))
+        }
+        sink.flush()
+
+        val stats = sink.getStats()
+        assertTrue(stats.fundingRowsIngested >= 3)
+        assertTrue(stats.openInterestRowsIngested >= 3)
+        assertEquals(0, stats.pendingAssetContexts)
+    }
+
+    @Test
     fun `batch write triggers automatic flush`() = runBlocking {
         // Create more items than batch size (10)
         val trades = (1..15).map { i ->
@@ -130,7 +147,8 @@ class MarketDataSinkIntegrationTest {
         val items = listOf(
             HyperliquidMarketData.Trades(listOf(createTestTrade())),
             HyperliquidMarketData.Candle(createTestCandle()),
-            HyperliquidMarketData.Orderbook(createTestOrderbook())
+            HyperliquidMarketData.Orderbook(createTestOrderbook()),
+            HyperliquidMarketData.AssetContext(createTestAssetContext())
         )
 
         sink.writeBatch(items)
@@ -245,6 +263,18 @@ class MarketDataSinkIntegrationTest {
                 HyperliquidOrderbookLevel(50001.0, 1.5),
                 HyperliquidOrderbookLevel(50002.0, 2.5)
             )
+        )
+    }
+
+    private fun createTestAssetContext(
+        symbol: String = "TEST"
+    ): HyperliquidAssetContext {
+        return HyperliquidAssetContext(
+            time = Instant.now(),
+            symbol = symbol,
+            fundingRate = 0.0001,
+            openInterest = 12345.67,
+            markPrice = 50000.0
         )
     }
 }
