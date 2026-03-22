@@ -370,6 +370,7 @@ When the notebook image starts, Datamancy now seeds:
 - `~/work/datamancy-notebooks/12_walk_forward_backtests_with_regime_slices.ipynb`
 - `~/work/datamancy-notebooks/13_sensitivity_sweeps_fees_slippage_latency.ipynb`
 - `~/work/datamancy-notebooks/14_live_vs_backtest_drift_dashboard.ipynb`
+- `~/work/datamancy-notebooks/15_forward_test_mainnet_data.ipynb`
 
 These notebooks are wired to the stack Postgres database (`datamancy`) and include:
 
@@ -382,6 +383,7 @@ These notebooks are wired to the stack Postgres database (`datamancy`) and inclu
 - ranked long/short candidates from momentum + sentiment alpha scoring
 - profitability/risk attribution against market regime + sentiment features
 - multi-exchange mux scoring to prioritize execution venues
+- env-driven forward-test defaults (`DATAMANCY_FORWARD_TEST_*`) so notebook 15 can be rerun without re-editing cells
 
 ### Grafana Trading Dashboard
 

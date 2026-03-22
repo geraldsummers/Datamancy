@@ -16,6 +16,7 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 from time import perf_counter
+from waitress import serve
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ HYPERLIQUID_API_URL = os.getenv('HYPERLIQUID_API_URL', DEFAULT_HYPERLIQUID_API_U
 MAX_ORDER_SIZE = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_SIZE', '1000'))
 MAX_ORDER_NOTIONAL_USD = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_NOTIONAL_USD', '1000000'))
 WORKER_SHARED_TOKEN = os.getenv('WORKER_SHARED_TOKEN', '').strip()
+WORKER_HTTP_THREADS = max(2, int(os.getenv('HYPERLIQUID_WORKER_THREADS', '8')))
 
 if not WORKER_SHARED_TOKEN:
     logger.warning("WORKER_SHARED_TOKEN is not set; sensitive endpoints will reject requests")
@@ -1048,4 +1050,4 @@ def health():
 
 if __name__ == '__main__':
     logger.info(f"Starting Hyperliquid Worker - {'MAINNET' if IS_MAINNET else 'TESTNET'}")
-    app.run(host='0.0.0.0', port=8082)
+    serve(app, host='0.0.0.0', port=8082, threads=WORKER_HTTP_THREADS)

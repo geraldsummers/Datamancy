@@ -1,0 +1,21 @@
+services:
+  postgres-datamancy-reconcile:
+    image: timescale/timescaledb@sha256:0af03ecf697825f6ddae76fd275d16bf46007bed6d00eb3d754779cb7db96fa6
+    container_name: postgres-datamancy-reconcile
+    restart: "no"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+    volumes:
+      - ./configs/postgres/init-market-data-schema.sql:/docker-entrypoint-initdb.d/init-market-data-schema.sql:ro
+      - ./configs/postgres/reconcile-datamancy-schema.sh:/usr/local/bin/reconcile-datamancy-schema.sh:ro
+    command: ["bash", "/usr/local/bin/reconcile-datamancy-schema.sh"]

@@ -234,6 +234,30 @@ CREATE TABLE IF NOT EXISTS strategy_live_backtest_drift (
 CREATE INDEX IF NOT EXISTS idx_strategy_drift_time ON strategy_live_backtest_drift (observed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_strategy_drift_strategy_time ON strategy_live_backtest_drift (strategy_name, observed_at DESC);
 
+-- Align ownership with the datamancy application role so pipeline_user can evolve schema safely.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
+        ALTER TABLE IF EXISTS market_data OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS orderbook_data OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS rss_sentiment_signals OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS strategy_backtest_runs OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS strategy_latency_metrics OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS strategy_execution_costs OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS strategy_walkforward_runs OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS strategy_sensitivity_sweeps OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS strategy_live_backtest_drift OWNER TO pipeline_user;
+
+        ALTER SEQUENCE IF EXISTS rss_sentiment_signals_id_seq OWNER TO pipeline_user;
+        ALTER SEQUENCE IF EXISTS strategy_backtest_runs_id_seq OWNER TO pipeline_user;
+        ALTER SEQUENCE IF EXISTS strategy_latency_metrics_id_seq OWNER TO pipeline_user;
+        ALTER SEQUENCE IF EXISTS strategy_execution_costs_id_seq OWNER TO pipeline_user;
+        ALTER SEQUENCE IF EXISTS strategy_walkforward_runs_id_seq OWNER TO pipeline_user;
+        ALTER SEQUENCE IF EXISTS strategy_sensitivity_sweeps_id_seq OWNER TO pipeline_user;
+        ALTER SEQUENCE IF EXISTS strategy_live_backtest_drift_id_seq OWNER TO pipeline_user;
+    END IF;
+END $$;
+
 -- Grant permissions to test runner
 DO $$
 BEGIN

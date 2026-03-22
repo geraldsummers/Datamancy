@@ -14,6 +14,7 @@ services:
     environment:
       HYPERLIQUID_API_URL: ${HYPERLIQUID_API_URL:-}
       HYPERLIQUID_MAINNET: ${HYPERLIQUID_MAINNET:-false}
+      HYPERLIQUID_WORKER_THREADS: ${HYPERLIQUID_WORKER_THREADS:-8}
       WORKER_SHARED_TOKEN: ${WORKER_SHARED_TOKEN}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/health')"]

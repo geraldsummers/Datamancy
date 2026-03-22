@@ -657,7 +657,12 @@ class DatabaseService(
         )
     }
 
-    private fun quoteDataSources(): List<HikariDataSource> = buildList {
+    private fun quoteDataSources(): List<HikariDataSource> {
+        marketDataSource?.let { return listOf(it) }
+        return if (::dataSource.isInitialized) listOf(dataSource) else emptyList()
+    }
+
+    private fun analyticsDataSources(): List<HikariDataSource> = buildList {
         marketDataSource?.let { add(it) }
         if (::dataSource.isInitialized && dataSource !in this) {
             add(dataSource)
@@ -665,7 +670,7 @@ class DatabaseService(
     }
 
     private fun ensureStrategyAnalyticsSchemas() {
-        quoteDataSources().forEach { source ->
+        analyticsDataSources().forEach { source ->
             if (!ensureStrategyAnalyticsSchema(source)) {
                 logger.warn(
                     "Unable to ensure strategy analytics schema on datasource {}",
@@ -1632,6 +1637,10 @@ class DatabaseService(
             UPDATE risk_kill_switch_state
             SET
                 engaged = FALSE,
+                reason = NULL,
+                engaged_at = NULL,
+                engaged_by = NULL,
+                manual_ack_required = FALSE,
                 acknowledged_at = NOW(),
                 acknowledged_by = ?,
                 ack_note = ?,
