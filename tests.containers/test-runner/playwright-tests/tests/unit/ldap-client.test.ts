@@ -52,4 +52,33 @@ describe('LDAPClient', () => {
       expect(username.length).toBeLessThanOrEqual(16);
     });
   });
+
+  describe('managed-user cleanup safety', () => {
+    it('extracts the embedded timestamp from managed usernames', () => {
+      const createdAt = Date.UTC(2026, 2, 22, 9, 55, 0);
+      const username = `pl${createdAt.toString(36)}abc`;
+
+      expect(LDAPClient.extractGeneratedUsernameTimestamp(username)).toBe(createdAt);
+    });
+
+    it('preserves fresh managed usernames during cleanup', () => {
+      const createdAt = Date.UTC(2026, 2, 22, 9, 55, 0);
+      const username = `pl${createdAt.toString(36)}abc`;
+      const oneHourLater = createdAt + 60 * 60 * 1000;
+
+      expect(LDAPClient.isManagedUserStale(username, 6 * 60 * 60 * 1000, oneHourLater)).toBe(false);
+    });
+
+    it('reaps stale managed usernames once they age out', () => {
+      const createdAt = Date.UTC(2026, 2, 22, 9, 55, 0);
+      const username = `pl${createdAt.toString(36)}abc`;
+      const sevenHoursLater = createdAt + 7 * 60 * 60 * 1000;
+
+      expect(LDAPClient.isManagedUserStale(username, 6 * 60 * 60 * 1000, sevenHoursLater)).toBe(true);
+    });
+
+    it('treats legacy usernames without embedded timestamps as stale', () => {
+      expect(LDAPClient.isManagedUserStale('pllegacyuser', 6 * 60 * 60 * 1000, Date.now())).toBe(true);
+    });
+  });
 });

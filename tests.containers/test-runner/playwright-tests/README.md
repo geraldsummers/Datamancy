@@ -5,6 +5,7 @@ Comprehensive end-to-end tests for all Datamancy Web UIs with SSO authentication
 ## Features
 
 ✅ **Centralized LDAP Provisioning** - One test user created/deleted per run
+✅ **Stale-Only Cleanup** - Managed LDAP users from other active runs are preserved
 ✅ **Authentication State Reuse** - Login once, test everywhere
 ✅ **Extensive Telemetry** - Debug selector issues with detailed page structure logs
 ✅ **Forward Auth Support** - Tests services using Authelia forward authentication
@@ -190,6 +191,10 @@ test('My service', async ({ page }) => {
 **LDAP user not deleted?**
 - Global teardown should handle it
 - Manually delete: `ldapdelete -x -D "cn=admin,dc=datamancy,dc=net" -w admin "uid=playwright-*,ou=users,dc=datamancy,dc=net"`
+
+**Multiple Playwright runs at once?**
+- Fresh managed users are intentionally preserved so one run does not delete another run's active LDAP account.
+- Cleanup only reaps managed users older than `PLAYWRIGHT_MANAGED_USER_STALE_AFTER_MS` (default: 6 hours).
 
 **Network issues?**
 - Enable network logging: `setupNetworkLogging(page)`

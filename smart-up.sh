@@ -68,7 +68,7 @@ prepare_test_results_dir() {
 }
 
 compose_container_id() {
-    docker compose -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null | head -n 1
+    docker compose -f "$COMPOSE_FILE" ps -a -q "$1" 2>/dev/null | head -n 1
 }
 
 wait_for_service_ready() {

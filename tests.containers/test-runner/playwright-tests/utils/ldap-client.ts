@@ -8,6 +8,7 @@ import * as ldap from 'ldapjs';
 
 const PLAYWRIGHT_MANAGED_DESCRIPTION = 'datamancy-playwright-managed';
 const LEGACY_PLAYWRIGHT_USERNAME_PREFIX = 'pl';
+const DEFAULT_MANAGED_USER_STALE_AFTER_MS = 6 * 60 * 60 * 1000;
 
 export interface TestUser {
   username: string;
@@ -152,9 +153,15 @@ export class LDAPClient {
 
     const managedUsernames = await this.findManagedTestUsernames();
     const deletedUsernames: string[] = [];
+    const nowMs = Date.now();
+    const staleAfterMs = LDAPClient.managedUserStaleAfterMs();
 
     for (const username of managedUsernames) {
       if (excluded.has(username.toLowerCase())) {
+        continue;
+      }
+      if (!LDAPClient.isManagedUserStale(username, staleAfterMs, nowMs)) {
+        console.log(`⏭️  Preserving active managed LDAP user: ${username}`);
         continue;
       }
       await this.deleteUser(username);
@@ -358,5 +365,40 @@ export class LDAPClient {
     // Ensure length <= 16 and only alnum for strict consumers (e.g., Planka)
     username = username.replace(/[^a-z0-9]/g, '').slice(0, 16);
     return username;
+  }
+
+  static extractGeneratedUsernameTimestamp(username: string): number | null {
+    const normalized = username.trim().toLowerCase();
+    if (!/^[a-z0-9]+$/.test(normalized) || normalized.length <= 5) {
+      return null;
+    }
+
+    const timestampPart = normalized.slice(2, -3);
+    if (timestampPart.length < 4 || !/^[a-z0-9]+$/.test(timestampPart)) {
+      return null;
+    }
+
+    const parsed = Number.parseInt(timestampPart, 36);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+
+    return parsed;
+  }
+
+  static managedUserStaleAfterMs(): number {
+    const raw = Number(process.env.PLAYWRIGHT_MANAGED_USER_STALE_AFTER_MS ?? DEFAULT_MANAGED_USER_STALE_AFTER_MS);
+    if (!Number.isFinite(raw) || raw < 0) {
+      return DEFAULT_MANAGED_USER_STALE_AFTER_MS;
+    }
+    return raw;
+  }
+
+  static isManagedUserStale(username: string, staleAfterMs: number, nowMs: number = Date.now()): boolean {
+    const createdAt = LDAPClient.extractGeneratedUsernameTimestamp(username);
+    if (createdAt == null) {
+      return true;
+    }
+    return nowMs - createdAt >= staleAfterMs;
   }
 }

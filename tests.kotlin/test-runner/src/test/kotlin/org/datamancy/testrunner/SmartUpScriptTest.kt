@@ -47,6 +47,10 @@ class SmartUpScriptTest {
             text.contains("state_info=\"$(docker inspect -f '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.State.ExitCode}}'"),
             "smart-up should inspect runtime state so one-shot services and healthchecked services are handled correctly"
         )
+        assertTrue(
+            text.contains("docker compose -f \"${'$'}COMPOSE_FILE\" ps -a -q \"${'$'}1\""),
+            "smart-up should inspect exited one-shot containers as well as running ones"
+        )
     }
 
     private fun smartUpScriptText(): String {
