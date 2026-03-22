@@ -77,12 +77,50 @@ class JupyterNotebookStartupConfigTest {
         )
     }
 
+    @Test
+    fun `jupyter notebook dockerfile pins compatible ai packages and checks dependencies`() {
+        val text = dockerfileText()
+        assertTrue(
+            text.contains("'jupyter-ai==2.31.7'"),
+            "jupyter notebook image should pin Jupyter AI so notebook environments do not drift unexpectedly"
+        )
+        assertTrue(
+            text.contains("'langchain-openai==0.3.35'"),
+            "jupyter notebook image should pin a langchain-openai release compatible with Jupyter AI 2.x"
+        )
+        assertFalse(
+            text.contains("'langchain>=0.3.0'"),
+            "jupyter notebook image should not install an unconstrained langchain package that can override Jupyter AI's compatibility line"
+        )
+        assertFalse(
+            text.contains("'langchain-community>=0.3.0'"),
+            "jupyter notebook image should not install an unconstrained langchain-community package that can override Jupyter AI's dependency set"
+        )
+        assertFalse(
+            text.contains("'langgraph>=0.2.0'"),
+            "jupyter notebook image should not install an unconstrained langgraph package into the shared notebook environment"
+        )
+        assertTrue(
+            text.contains("'packaging<26.0.0'"),
+            "jupyter notebook image should pin packaging below 26 so langchain-core remains compatible after vector tooling installs"
+        )
+        assertTrue(
+            text.contains("pip check"),
+            "jupyter notebook image should run pip check so dependency conflicts fail during the image build"
+        )
+    }
+
     private fun startupConfigText(): String {
-        val startupConfig = findRepoRoot().resolve("stack.containers/jupyter-notebook/startup-config.sh")
+        val startupConfig = repoRoot().resolve("stack.containers/jupyter-notebook/startup-config.sh")
         return Files.readString(startupConfig)
     }
 
-    private fun findRepoRoot(): Path {
+    private fun dockerfileText(): String {
+        val dockerfile = repoRoot().resolve("stack.containers/jupyter-notebook/Dockerfile")
+        return Files.readString(dockerfile)
+    }
+
+    private fun repoRoot(): Path {
         var current = Path.of("").toAbsolutePath()
         repeat(8) {
             if (Files.exists(current.resolve("stack.containers/jupyter-notebook/startup-config.sh"))) {

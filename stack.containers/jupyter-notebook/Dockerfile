@@ -46,11 +46,10 @@ RUN pip install --no-cache-dir \
     'seaborn>=0.13.0' \
     'scipy>=1.11.0'
 
+# Keep notebook AI tooling on the Jupyter AI 2.x / LangChain 0.3.x compatibility line.
 RUN pip install --no-cache-dir \
-    'langchain>=0.3.0' \
-    'langchain-openai>=0.2.0' \
-    'langchain-community>=0.3.0' \
-    'langgraph>=0.2.0'
+    'jupyter-ai==2.31.7' \
+    'langchain-openai==0.3.35'
 
 RUN pip install --no-cache-dir \
     'llama-index>=0.11.0' \
@@ -65,14 +64,15 @@ RUN pip install --no-cache-dir \
     'chromadb>=0.5.0' \
     'faiss-cpu>=1.8.0'
 
-RUN pip install --no-cache-dir 'jupyter-ai>=2.0.0'
-
 # Install Web3 wallet extension
 COPY --chown=${NB_UID}:${NB_GID} stack.containers/jupyterlab-web3-wallet /tmp/jupyterlab-web3-wallet
 WORKDIR /tmp/jupyterlab-web3-wallet
 RUN pip install -e . && \
     cd / && \
     rm -rf /tmp/jupyterlab-web3-wallet
+
+RUN pip install --no-cache-dir 'packaging<26.0.0' && \
+    pip check
 
 WORKDIR /home/jovyan
 
