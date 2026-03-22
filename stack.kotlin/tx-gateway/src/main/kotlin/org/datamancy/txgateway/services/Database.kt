@@ -267,6 +267,7 @@ class DatabaseService(
                 dataSource = candidateDataSource
                 initializeQuoteDataSource()
                 ensureRiskTables()
+                normalizeDisengagedRiskKillSwitchRows()
                 ensureBootstrapRiskPolicy()
                 ensureStrategyAnalyticsSchemas()
                 logger.info("Database initialized successfully")
@@ -438,6 +439,34 @@ class DatabaseService(
         dataSource.connection.use { conn ->
             conn.createStatement().use { stmt ->
                 ddl.forEach(stmt::execute)
+            }
+        }
+    }
+
+    private fun normalizeDisengagedRiskKillSwitchRows() {
+        val sql = """
+            UPDATE risk_kill_switch_state
+            SET
+                reason = NULL,
+                engaged_at = NULL,
+                engaged_by = NULL,
+                manual_ack_required = FALSE,
+                updated_at = NOW()
+            WHERE engaged = FALSE
+              AND (
+                reason IS NOT NULL
+                OR engaged_at IS NOT NULL
+                OR engaged_by IS NOT NULL
+                OR manual_ack_required <> FALSE
+              )
+        """.trimIndent()
+
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                val normalizedRows = stmt.executeUpdate()
+                if (normalizedRows > 0) {
+                    logger.info("Normalized {} disengaged risk kill-switch rows", normalizedRows)
+                }
             }
         }
     }

@@ -12,8 +12,20 @@ class SmartUpScriptTest {
         val text = smartUpScriptText()
 
         assertTrue(
-            text.contains("FORCE_REFRESH_SERVICES=\"\${FORCE_REFRESH_SERVICES:-ldap-ensure-suffixes,test-all,test-playwright-e2e}\""),
-            "smart-up should force refresh ldap-ensure-suffixes so managed trading-account reconciliation is not skipped on later deploys"
+            text.contains("STATUS_JSON=\"\${STATUS_JSON:-\${DEPLOY_STATUS_JSON:-\$ROOT_DIR/deploy-status.json}}\""),
+            "smart-up should track deploy state outside the synced build-status artifact"
+        )
+        assertTrue(
+            text.contains("FORCE_REFRESH_SERVICES=\"\${FORCE_REFRESH_SERVICES:-postgres-datamancy-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e}\""),
+            "smart-up should force refresh schema and LDAP one-shot reconcilers so deploy-time state stays consistent"
+        )
+        assertTrue(
+            text.contains("last_deployed_commit"),
+            "smart-up should compare services against last deployed commit rather than synced build status"
+        )
+        assertTrue(
+            text.contains("Updated deploy status: \$STATUS_JSON"),
+            "smart-up should persist deploy status after recreating changed services"
         )
         assertTrue(
             text.contains("lines.append(f\"{name}|{'build' if needs_build else 'no-build'}||force-one-shot|{build_key}\")"),

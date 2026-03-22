@@ -13,6 +13,7 @@ LDAP_DEFAULT_ALLOWED_TRADING_MODES="${LDAP_DEFAULT_ALLOWED_TRADING_MODES:-backte
 LDAP_DEFAULT_MAX_TX_PER_HOUR="${LDAP_DEFAULT_MAX_TX_PER_HOUR:-240}"
 LDAP_DEFAULT_MAX_TX_VALUE_USD="${LDAP_DEFAULT_MAX_TX_VALUE_USD:-25000}"
 LDAP_MANAGED_TRADING_USERS="${LDAP_MANAGED_TRADING_USERS:-traderbot}"
+LDAP_MANAGED_TRADING_ADMIN_USERS="${LDAP_MANAGED_TRADING_ADMIN_USERS:-}"
 
 echo "[ldap-ensure] Waiting for LDAP..."
 MAX_ATTEMPTS=30
@@ -79,6 +80,18 @@ sanitize_csv_to_lines() {
       printf '%s\n' "$value"
     fi
   done
+}
+
+csv_contains_value() {
+  TARGET_VALUE="$1"
+  CSV_VALUES="$2"
+
+  sanitize_csv_to_lines "$CSV_VALUES" | while IFS= read -r value; do
+    if [ "$value" = "$TARGET_VALUE" ]; then
+      printf '1\n'
+      return 0
+    fi
+  done | grep -q '^1$'
 }
 
 entry_has_attribute() {
@@ -175,6 +188,77 @@ EOF
     ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_${ATTRIBUTE_NAME}.ldif
 }
 
+ensure_group_contains_member() {
+  GROUP_NAME="$1"
+  MEMBER_DN="$2"
+  GROUP_DN="cn=${GROUP_NAME},ou=groups,${LDAP_BASE_DN}"
+
+  if ! ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
+    -b "$GROUP_DN" -s base '(objectClass=groupOfNames)' dn 2>/dev/null | \
+    grep -q '^dn:'; then
+    cat <<EOF >/tmp/group_add.ldif
+dn: ${GROUP_DN}
+objectClass: groupOfNames
+cn: ${GROUP_NAME}
+member: ${MEMBER_DN}
+EOF
+    run_ldap_cmd "group create ${GROUP_NAME}" \
+      ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_add.ldif
+    return 0
+  fi
+
+  if entry_has_exact_value "$GROUP_DN" "member" "$MEMBER_DN"; then
+    return 0
+  fi
+
+  cat <<EOF >/tmp/group_member_add.ldif
+dn: ${GROUP_DN}
+changetype: modify
+add: member
+member: ${MEMBER_DN}
+EOF
+  run_ldap_cmd "group member add ${GROUP_NAME}" \
+    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_member_add.ldif
+}
+
+ensure_group_lacks_member() {
+  GROUP_NAME="$1"
+  MEMBER_DN="$2"
+  GROUP_DN="cn=${GROUP_NAME},ou=groups,${LDAP_BASE_DN}"
+
+  if ! entry_exists "$GROUP_DN"; then
+    return 0
+  fi
+
+  if ! entry_has_exact_value "$GROUP_DN" "member" "$MEMBER_DN"; then
+    return 0
+  fi
+
+  cat <<EOF >/tmp/group_member_remove.ldif
+dn: ${GROUP_DN}
+changetype: modify
+delete: member
+member: ${MEMBER_DN}
+EOF
+  run_ldap_cmd "group member remove ${GROUP_NAME}" \
+    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_member_remove.ldif
+}
+
+ensure_managed_trading_group_baseline() {
+  USERNAME="$1"
+  USER_DN="uid=${USERNAME},ou=users,${LDAP_BASE_DN}"
+
+  ensure_group_contains_member "users" "$USER_DN"
+
+  if csv_contains_value "$USERNAME" "$LDAP_MANAGED_TRADING_ADMIN_USERS"; then
+    return 0
+  fi
+
+  ensure_group_lacks_member "admins" "$USER_DN"
+  ensure_group_lacks_member "openwebui-admin" "$USER_DN"
+  ensure_group_lacks_member "planka-admin" "$USER_DN"
+}
+
 ensure_user_trading_profile() {
   USERNAME="$1"
   if [ -z "$USERNAME" ]; then
@@ -202,34 +286,7 @@ ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -c -f /tmp/ensure_su
 
 ensure_group_membership() {
   GROUP_NAME="$1"
-  GROUP_DN="cn=${GROUP_NAME},ou=groups,${LDAP_BASE_DN}"
-
-  if ! ldapsearch -x -LLL -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" \
-    -b "$GROUP_DN" -s base '(objectClass=groupOfNames)' dn 2>/dev/null | \
-    grep -q '^dn:'; then
-    cat <<EOF >/tmp/group_add.ldif
-dn: ${GROUP_DN}
-objectClass: groupOfNames
-cn: ${GROUP_NAME}
-member: ${STACK_ADMIN_DN}
-EOF
-    run_ldap_cmd "group create ${GROUP_NAME}" \
-      ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_add.ldif
-    return 0
-  fi
-
-  if entry_has_exact_value "$GROUP_DN" "member" "$STACK_ADMIN_DN"; then
-    return 0
-  fi
-
-  cat <<EOF >/tmp/group_member_add.ldif
-dn: ${GROUP_DN}
-changetype: modify
-add: member
-member: ${STACK_ADMIN_DN}
-EOF
-  run_ldap_cmd "group member add ${GROUP_NAME}" \
-    ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/group_member_add.ldif
+  ensure_group_contains_member "$GROUP_NAME" "$STACK_ADMIN_DN"
 }
 
 if [ -z "$STACK_ADMIN_USER" ] || [ -z "$STACK_ADMIN_PASSWORD" ]; then
@@ -289,6 +346,7 @@ sanitize_csv_to_lines "$LDAP_MANAGED_TRADING_USERS" | while IFS= read -r managed
     continue
   fi
   ensure_user_trading_profile "$managed_user"
+  ensure_managed_trading_group_baseline "$managed_user"
 done
 
 echo "[ldap-ensure] Done"

@@ -1854,6 +1854,9 @@ fun writeAutheliaRSAKey(outputDir: File, rsaKey: String) {
     val rsaKeyFile = autheliaDir.resolve("oidc_rsa.pem")
 
     if (rsaKeyFile.exists()) {
+        if (!rsaKeyFile.isFile) {
+            forceDeleteRecursively(rsaKeyFile)
+        }
         rsaKeyFile.setWritable(true)
     }
 

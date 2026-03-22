@@ -28,6 +28,18 @@ class LdapEnsureSuffixesConfigTest {
             scriptText.contains("grep -Fqx \"\${ATTRIBUTE_NAME}: \${EXPECTED_VALUE}\""),
             "ldap ensure script should compare group membership values literally to avoid filter false negatives"
         )
+        assertTrue(
+            scriptText.contains("ensure_group_lacks_member"),
+            "ldap ensure script should be able to remove stale privileged group membership from managed trading users"
+        )
+        assertTrue(
+            scriptText.contains("LDAP_MANAGED_TRADING_ADMIN_USERS"),
+            "ldap ensure script should allow explicit admin exceptions instead of leaving every managed trading user privileged"
+        )
+        assertTrue(
+            scriptText.contains("ensure_managed_trading_group_baseline"),
+            "ldap ensure script should enforce a least-privilege group baseline for managed trading users on reruns"
+        )
         assertFalse(
             scriptText.contains("run_ldap_cmd \"group member add \${GROUP_NAME}\" \\\n    ldapmodify -x -H ldap://ldap:389 -D \"\$ADMIN_DN\" -w \"\$ADMIN_PW\" -f /tmp/group_member_add.ldif >/dev/null"),
             "ldap ensure script should not discard run_ldap_cmd error output for group membership updates"

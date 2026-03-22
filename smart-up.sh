@@ -4,10 +4,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REGISTRY_JSON="${REGISTRY_JSON:-$ROOT_DIR/test-registry.json}"
-STATUS_JSON="${STATUS_JSON:-$ROOT_DIR/build-status.json}"
+STATUS_JSON="${STATUS_JSON:-${DEPLOY_STATUS_JSON:-$ROOT_DIR/deploy-status.json}}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
 DRY_RUN="${DRY_RUN:-0}"
-FORCE_REFRESH_SERVICES="${FORCE_REFRESH_SERVICES:-ldap-ensure-suffixes,test-all,test-playwright-e2e}"
+FORCE_REFRESH_SERVICES="${FORCE_REFRESH_SERVICES:-postgres-datamancy-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -137,7 +137,12 @@ for name, comp in registry.get("components", {}).items():
     if name not in services:
         continue
     last_changed = comp.get("last_changed_commit") or ""
-    last_built = (status_components.get(name) or {}).get("last_built_commit") or ""
+    deploy_status = status_components.get(name) or {}
+    last_deployed = (
+        deploy_status.get("last_deployed_commit")
+        or deploy_status.get("last_built_commit")
+        or ""
+    )
     missing_container = name not in existing_services
     restart_policy = str((compose_services.get(name) or {}).get("restart") or "").strip().lower()
     one_shot_service = restart_policy == "no"
@@ -149,7 +154,7 @@ for name, comp in registry.get("components", {}).items():
     service_def = compose_services.get(name) or {}
     needs_build = bool(service_def.get("build"))
     build_key = str(service_def.get("image") or name)
-    if last_changed and last_changed != last_built:
+    if last_changed and last_changed != last_deployed:
         lines.append(f"{name}|{'build' if needs_build else 'no-build'}|{last_changed}|changed|{build_key}")
         planned.add(name)
     elif missing_container:
@@ -271,14 +276,14 @@ for name in updated:
     comp = registry.get("components", {}).get(name, {})
     last_changed = comp.get("last_changed_commit") or ""
     status["components"][name] = {
-        "last_built_commit": last_changed,
-        "last_built_at": now,
+        "last_deployed_commit": last_changed,
+        "last_deployed_at": now,
     }
 
 with open(status_path, "w", encoding="utf-8") as f:
     json.dump(status, f, indent=2, sort_keys=True)
 PY
-    info "Updated build status: $STATUS_JSON"
+    info "Updated deploy status: $STATUS_JSON"
 fi
 
 rm -f "$tmp_plan" "$tmp_updated" "$COMPOSE_CONFIG_JSON"
