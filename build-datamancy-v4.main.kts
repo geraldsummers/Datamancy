@@ -190,6 +190,25 @@ fun exec(vararg command: String, ignoreError: Boolean = false): Int {
     return exitCode
 }
 
+fun execWithEnv(
+    envOverrides: Map<String, String>,
+    vararg command: String,
+    ignoreError: Boolean = false
+): Int {
+    info("Running: ${command.joinToString(" ")}")
+    val process = ProcessBuilder(*command).apply {
+        environment().putAll(envOverrides.filterValues { it.isNotBlank() })
+    }
+        .inheritIO()
+        .start()
+    val exitCode = process.waitFor()
+    if (exitCode != 0 && !ignoreError) {
+        error("Command failed (exit $exitCode): ${command.joinToString(" ")}")
+        exitProcess(exitCode)
+    }
+    return exitCode
+}
+
 fun execCapture(vararg command: String, ignoreError: Boolean = false): String {
     val process = ProcessBuilder(*command)
         .redirectErrorStream(true)
@@ -251,6 +270,41 @@ fun resolveCredentialStoreFile(): File {
     } else {
         defaultDatamancyPath("XDG_CONFIG_HOME", "datamancy/credentials.env", ".config")
     }
+}
+
+fun resolvePreferredJava21Home(): String? {
+    val userHome = System.getProperty("user.home")
+    val candidates = listOf(
+        System.getenv("JAVA_HOME"),
+        File(userHome).resolve("opt/jdk/21").absolutePath,
+        File(userHome).resolve("opt/jdks/temurin-21-jdk").absolutePath,
+        "/usr/lib/jvm/temurin-21-jdk-amd64",
+        "/usr/lib/jvm/java-21-openjdk-amd64"
+    ).mapNotNull { it?.trim()?.takeIf { value -> value.isNotEmpty() } }
+
+    return candidates.firstOrNull { candidate ->
+        File(candidate).resolve("bin/javac").canExecute()
+    }
+}
+
+fun gradleExecEnv(): Map<String, String> {
+    val env = mutableMapOf<String, String>()
+
+    if (System.getenv("JAVA_HOME").isNullOrBlank()) {
+        resolvePreferredJava21Home()?.let { javaHome ->
+            env["JAVA_HOME"] = javaHome
+            val currentPath = System.getenv("PATH").orEmpty()
+            env["PATH"] = "${File(javaHome).resolve("bin").absolutePath}:$currentPath"
+        }
+    }
+
+    if (System.getenv("GRADLE_OPTS").isNullOrBlank()) {
+        env["GRADLE_OPTS"] =
+            "-Dorg.gradle.jvmargs=-Xmx6g\\ -XX:MaxMetaspaceSize=1536m\\ -Dfile.encoding=UTF-8\\ " +
+                "-Dkotlin.daemon.jvm.options=-Xmx4g"
+    }
+
+    return env
 }
 
 fun resolveShadowAccountsHostDir(): File {
@@ -1262,7 +1316,9 @@ fun runKotlinTests() {
         return
     }
     step("Running Kotlin unit tests")
-    exec("./gradlew", "test")
+    val env = gradleExecEnv()
+    env["JAVA_HOME"]?.let { info("Using JAVA_HOME=$it for Gradle") }
+    execWithEnv(env, "./gradlew", "test")
 }
 
 fun runPythonTests() {
@@ -1350,14 +1406,30 @@ fun runTypeScriptTests() {
         }
     }
 
+    fun hasUsableNodeModules(testDir: File): Boolean {
+        val nodeModules = testDir.resolve("node_modules")
+        if (!nodeModules.exists()) {
+            return false
+        }
+
+        val requiredPaths = listOf(
+            "jest-cli/package.json",
+            "typescript/package.json",
+            "@playwright/test/package.json"
+        )
+
+        return requiredPaths.all { relative ->
+            nodeModules.resolve(relative).isFile
+        }
+    }
+
     tsTestDirs.forEach { testPath ->
         val testDir = File(testPath)
         if (testDir.exists() && testDir.resolve("package.json").exists()) {
             info("Testing $testPath")
 
-            // Check if node_modules exists, install if not
-            val nodeModules = testDir.resolve("node_modules")
-            if (!nodeModules.exists()) {
+            // A copied or stale node_modules tree is not trustworthy for clean remote builds.
+            if (!hasUsableNodeModules(testDir)) {
                 info("Installing npm dependencies")
                 runNpmOrExit(testDir, "npm", "ci")
             }
@@ -1379,7 +1451,9 @@ fun buildGradleServices() {
         return
     }
     step("Building JARs with Gradle")
-    exec("./gradlew", "clean", "shadowJar")
+    val env = gradleExecEnv()
+    env["JAVA_HOME"]?.let { info("Using JAVA_HOME=$it for Gradle") }
+    execWithEnv(env, "./gradlew", "clean", "shadowJar")
 }
 
 fun buildDockerImages(credentials: Map<String, String>) {
