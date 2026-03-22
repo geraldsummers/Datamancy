@@ -14,6 +14,8 @@ import psycopg2
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas.io.sql")
 
+EXPECTED_BAR_MINUTES = 1.0
+
 
 @dataclass(frozen=True)
 class StrategyParams:
@@ -68,10 +70,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-hours", type=int, default=int(os.getenv("ALPHA_PROOF_TEST_HOURS", "4")))
     parser.add_argument("--step-hours", type=int, default=int(os.getenv("ALPHA_PROOF_STEP_HOURS", "4")))
     parser.add_argument("--min-bars", type=int, default=int(os.getenv("ALPHA_PROOF_MIN_BARS", "1200")))
+    parser.add_argument(
+        "--max-gap-minutes",
+        type=float,
+        default=float(os.getenv("ALPHA_PROOF_MAX_GAP_MINUTES", "1.5")),
+    )
     parser.add_argument("--notional-usd", type=float, default=float(os.getenv("ALPHA_PROOF_NOTIONAL_USD", "7500")))
     parser.add_argument(
         "--strategy-prefix",
-        default=os.getenv("ALPHA_PROOF_STRATEGY_PREFIX", "alpha_proof_microstructure_v1"),
+        default=os.getenv("ALPHA_PROOF_STRATEGY_PREFIX"),
     )
     parser.add_argument(
         "--db-host",
@@ -108,7 +115,15 @@ def parse_args() -> argparse.Namespace:
         default=_env_flag("ALPHA_PROOF_USE_TRADE_FLOW", False),
     )
     parser.add_argument("--no-trade-flow", dest="use_trade_flow", action="store_false")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.strategy_prefix:
+        args.strategy_prefix = default_strategy_prefix(args.family)
+    return args
+
+
+def default_strategy_prefix(family: str) -> str:
+    normalized = (family or "").strip() or "microstructure_v1"
+    return f"alpha_proof_{normalized}"
 
 
 def _env_flag(name: str, default: bool) -> bool:
@@ -332,6 +347,66 @@ def engineer_features(frame: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def split_contiguous_segments(
+    frame: pd.DataFrame,
+    max_gap_minutes: float,
+    expected_bar_minutes: float = EXPECTED_BAR_MINUTES,
+) -> tuple[list[pd.DataFrame], dict]:
+    if frame.empty:
+        return [], {
+            "segment_count": 0,
+            "gap_count": 0,
+            "largest_gap_minutes": 0.0,
+            "missing_bars_estimate": 0,
+            "latest_segment_bars": 0,
+            "latest_segment_start": None,
+            "latest_segment_end": None,
+            "longest_segment_bars": 0,
+            "longest_segment_start": None,
+            "longest_segment_end": None,
+        }
+
+    times = pd.to_datetime(frame["time"], utc=True)
+    deltas = times.diff().dt.total_seconds().div(60.0)
+    segment_start = 0
+    segments: list[pd.DataFrame] = []
+    gaps: list[dict] = []
+
+    for idx in range(1, len(frame)):
+        delta_minutes = float(deltas.iloc[idx]) if pd.notna(deltas.iloc[idx]) else 0.0
+        if delta_minutes > max_gap_minutes:
+            segments.append(frame.iloc[segment_start:idx].reset_index(drop=True))
+            missing_bars = max(0, int(round(delta_minutes / expected_bar_minutes)) - 1)
+            gaps.append(
+                {
+                    "gap_start": frame.iloc[idx - 1]["time"],
+                    "gap_end": frame.iloc[idx]["time"],
+                    "gap_minutes": delta_minutes,
+                    "missing_bars": missing_bars,
+                }
+            )
+            segment_start = idx
+
+    segments.append(frame.iloc[segment_start:].reset_index(drop=True))
+
+    latest_segment = segments[-1]
+    longest_segment = max(segments, key=len)
+    largest_gap = max((gap["gap_minutes"] for gap in gaps), default=float(expected_bar_minutes))
+
+    return segments, {
+        "segment_count": len(segments),
+        "gap_count": len(gaps),
+        "largest_gap_minutes": largest_gap,
+        "missing_bars_estimate": int(sum(gap["missing_bars"] for gap in gaps)),
+        "latest_segment_bars": int(len(latest_segment)),
+        "latest_segment_start": latest_segment.iloc[0]["time"],
+        "latest_segment_end": latest_segment.iloc[-1]["time"],
+        "longest_segment_bars": int(len(longest_segment)),
+        "longest_segment_start": longest_segment.iloc[0]["time"],
+        "longest_segment_end": longest_segment.iloc[-1]["time"],
+    }
+
+
 def build_microstructure_param_grid() -> list[StrategyParams]:
     params: list[StrategyParams] = []
     weight_bases = [
@@ -465,6 +540,10 @@ def simulate_microstructure(frame: pd.DataFrame, params: StrategyParams, notiona
         }
     )
 
+    trade_fill_mask = effective_turnover > 0
+    avg_total_cost_bps = float(pd.Series(total_cost_bps)[trade_fill_mask].mean()) if trade_fill_mask.any() else 0.0
+    avg_fill_ratio = float(pd.Series(fill_ratio)[trade_fill_mask].mean()) if trade_fill_mask.any() else 1.0
+
     metrics = {
         "net_return_pct": total_return * 100.0,
         "max_drawdown_pct": float(drawdown * 100.0),
@@ -472,8 +551,8 @@ def simulate_microstructure(frame: pd.DataFrame, params: StrategyParams, notiona
         "trades": trades,
         "win_rate": float((strategy_ret > 0).sum() / max(1, active_rows)),
         "edge_bps_per_trade": edge_bps_per_trade,
-        "avg_total_cost_bps": float(pd.Series(total_cost_bps).mean()),
-        "avg_fill_ratio": float(pd.Series(fill_ratio).mean()),
+        "avg_total_cost_bps": avg_total_cost_bps,
+        "avg_fill_ratio": avg_fill_ratio,
     }
     return metrics, result_frame
 
@@ -721,6 +800,22 @@ def regime_summary(result_frame: pd.DataFrame) -> list[dict]:
     return records
 
 
+def sanitize_json_value(value):
+    if isinstance(value, dict):
+        return {key: sanitize_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [sanitize_json_value(item) for item in value]
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    if isinstance(value, np.generic):
+        return sanitize_json_value(value.item())
+    if isinstance(value, float):
+        if np.isnan(value) or np.isinf(value):
+            return None
+        return value
+    return value
+
+
 def evaluate_selected_windows(
     selected_windows: Sequence[dict],
     notional_usd: float,
@@ -769,9 +864,10 @@ def evaluate_selected_windows(
         trades = int(sum(row["test_metrics"]["trades"] for row in window_rows))
         active_rows = int((strategy_ret != 0).sum())
         total_return = float(eq.iloc[-1] - 1.0)
-        trade_rows = int(oos["trade_flag"].sum()) if "trade_flag" in oos else 0
-        trade_cost_denominator = max(1, trade_rows if trade_rows > 0 else trades)
         trade_fill_mask = oos["trade_flag"] > 0 if "trade_flag" in oos else pd.Series(False, index=oos.index)
+        trade_rows = int(trade_fill_mask.sum())
+        avg_total_cost_bps = float(oos.loc[trade_fill_mask, "total_cost_bps"].mean()) if trade_rows > 0 else 0.0
+        avg_fill_ratio = float(oos.loc[trade_fill_mask, "fill_ratio"].mean()) if trade_rows > 0 else 1.0
         overall_metrics = {
             "net_return_pct": total_return * 100.0,
             "max_drawdown_pct": float(drawdown * 100.0),
@@ -779,10 +875,8 @@ def evaluate_selected_windows(
             "trades": trades,
             "win_rate": float((strategy_ret > 0).sum() / max(1, active_rows)),
             "edge_bps_per_trade": float(total_return * 10000.0 / max(trades, 1)),
-            "avg_total_cost_bps": float(oos["total_cost_bps"].sum() / trade_cost_denominator),
-            "avg_fill_ratio": float(
-                oos.loc[trade_fill_mask, "fill_ratio"].mean() if trade_rows > 0 else oos["fill_ratio"].mean()
-            ),
+            "avg_total_cost_bps": avg_total_cost_bps,
+            "avg_fill_ratio": avg_fill_ratio,
         }
 
     overall_metrics["window_count"] = len(window_rows)
@@ -862,11 +956,13 @@ def persist_symbol_result(
     proof_status: str,
     proof_reasons: Sequence[str],
     carry_overlay_enabled: bool,
+    contiguity: dict,
 ) -> None:
     start_time = window_rows[0]["test_start"]
     end_time = window_rows[-1]["test_end"]
     metrics_json = json.dumps(
-        {
+        sanitize_json_value(
+            {
             "family": family,
             "fixed_param_label": fixed_param_label,
             "canonical_exchange": canonical_exchange,
@@ -891,8 +987,11 @@ def persist_symbol_result(
                 for row in sensitivity_rows
             ],
             "carry_overlay_enabled": carry_overlay_enabled,
-        },
+            "contiguity": contiguity,
+            }
+        ),
         default=_json_default,
+        allow_nan=False,
     )
 
     with conn.cursor() as cur:
@@ -953,12 +1052,15 @@ def persist_symbol_result(
                     row["test_metrics"]["win_rate"],
                     row["test_metrics"]["trades"],
                     json.dumps(
-                        {
+                        sanitize_json_value(
+                            {
                             "selected_params": row["params"].label,
                             "train_metrics": row["train_metrics"],
                             "test_metrics": row["test_metrics"],
-                        },
+                            }
+                        ),
                         default=_json_default,
+                        allow_nan=False,
                     ),
                 ),
             )
@@ -985,12 +1087,15 @@ def persist_symbol_result(
                     row["metrics"]["max_drawdown_pct"],
                     row["metrics"]["trades"],
                     json.dumps(
-                        {
+                        sanitize_json_value(
+                            {
                             "scenario": row["scenario"].name,
                             "note": row["scenario"].note,
                             "metrics": row["metrics"],
-                        },
+                            }
+                        ),
                         default=_json_default,
+                        allow_nan=False,
                     ),
                 ),
             )
@@ -1020,29 +1125,46 @@ def run_symbol(
         use_trade_flow=args.use_trade_flow,
     )
     frame = engineer_features(raw)
-    print(f"[alpha-proof] {symbol}: loaded {len(frame)} bars from aliases={exchange_aliases}")
+    segments, contiguity = split_contiguous_segments(frame, max_gap_minutes=args.max_gap_minutes)
+    print(
+        f"[alpha-proof] {symbol}: loaded {len(frame)} bars from aliases={exchange_aliases} "
+        f"segments={contiguity['segment_count']} latest_segment_bars={contiguity['latest_segment_bars']} "
+        f"largest_gap_minutes={contiguity['largest_gap_minutes']:.2f}"
+    )
     if len(frame) < args.min_bars:
         return {
             "symbol": symbol,
             "status": "insufficient_data",
             "bars": int(len(frame)),
             "exchange_aliases": list(exchange_aliases),
+            "contiguity": contiguity,
         }
 
     train_bars = args.train_hours * 60
     test_bars = args.test_hours * 60
     step_bars = args.step_hours * 60
-    windows = build_windows(frame, train_bars=train_bars, test_bars=test_bars, step_bars=step_bars)
-    if len(windows) < 3:
+    selected_windows = []
+    eligible_segments = 0
+    for segment in segments:
+        windows = build_windows(segment, train_bars=train_bars, test_bars=test_bars, step_bars=step_bars)
+        if not windows:
+            continue
+        eligible_segments += 1
+        selected_windows.extend(
+            select_walkforward_params(segment, param_grid=param_grid, windows=windows, notional_usd=args.notional_usd)
+        )
+
+    if len(selected_windows) < 3:
         return {
             "symbol": symbol,
-            "status": "insufficient_windows",
+            "status": "insufficient_contiguous_windows",
             "bars": int(len(frame)),
-            "windows": len(windows),
+            "windows": len(selected_windows),
+            "eligible_segments": eligible_segments,
             "exchange_aliases": list(exchange_aliases),
+            "contiguity": contiguity,
         }
 
-    selected_windows = select_walkforward_params(frame, param_grid=param_grid, windows=windows, notional_usd=args.notional_usd)
     baseline = scenario_rows()[0]
     overall_metrics, window_rows, oos_frame = evaluate_selected_windows(
         selected_windows,
@@ -1079,6 +1201,7 @@ def run_symbol(
         "proof_reasons": proof_reasons,
         "exchange_aliases": list(exchange_aliases),
         "carry_overlay_enabled": carry_overlay_enabled,
+        "contiguity": contiguity,
         "best_selected_params": Counter(row["params"].label for row in window_rows).most_common(3),
         "sensitivity": {
             row["scenario"].name: {
@@ -1107,6 +1230,7 @@ def run_symbol(
             proof_status=proof_status,
             proof_reasons=proof_reasons,
             carry_overlay_enabled=carry_overlay_enabled,
+            contiguity=contiguity,
         )
         print(f"[alpha-proof] {symbol}: persisted strategy tables for {strategy_name}")
 

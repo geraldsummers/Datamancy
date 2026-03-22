@@ -13,6 +13,8 @@ import kotlin.time.Duration.Companion.seconds
 private val logger = KotlinLogging.logger {}
 internal const val HYPERLIQUID_MAINNET_WS_URL = "wss://api.hyperliquid.xyz/ws"
 internal const val HYPERLIQUID_TESTNET_WS_URL = "wss://api.hyperliquid-testnet.xyz/ws"
+internal const val DEFAULT_HYPERLIQUID_IDLE_TIMEOUT_MS = 120_000L
+internal const val MIN_HYPERLIQUID_IDLE_TIMEOUT_MS = 5_000L
 
 /**
  * Continuous market data ingestion runner for Hyperliquid.
@@ -42,6 +44,7 @@ internal const val HYPERLIQUID_TESTNET_WS_URL = "wss://api.hyperliquid-testnet.x
  * - HYPERLIQUID_SYMBOLS: Comma-separated symbols (default: BTC,ETH)
  * - CANDLE_INTERVALS: Comma-separated intervals (default: 1m,5m,15m,1h)
  * - ENABLE_ORDERBOOK: Whether to ingest orderbook data (default: false)
+ * - HYPERLIQUID_IDLE_TIMEOUT_MS: Reconnect if no frames arrive for this long (default: 120000)
  *
  * **Usage:**
  * ```kotlin
@@ -74,12 +77,38 @@ class MarketDataIngestionRunner {
         explicitUrl = System.getenv("HYPERLIQUID_WS_URL"),
         mainnet = hyperliquidMainnet
     )
+    private val hyperliquidInfoUrl = resolveHyperliquidInfoUrl(
+        explicitUrl = System.getenv("HYPERLIQUID_INFO_URL"),
+        mainnet = hyperliquidMainnet
+    )
+    private val hyperliquidIdleTimeoutMs = resolveHyperliquidIdleTimeoutMs(
+        explicitTimeoutMs = System.getenv("HYPERLIQUID_IDLE_TIMEOUT_MS")?.toLongOrNull()
+    )
+    private val hyperliquidFreshnessCheckIntervalMs = resolveHyperliquidFreshnessCheckIntervalMs(
+        explicitIntervalMs = System.getenv("HYPERLIQUID_FRESHNESS_CHECK_INTERVAL_MS")?.toLongOrNull()
+    )
+    private val hyperliquidChannelActivityTimeoutMs = resolveHyperliquidChannelActivityTimeoutMs(
+        explicitTimeoutMs = System.getenv("HYPERLIQUID_CHANNEL_ACTIVITY_TIMEOUT_MS")?.toLongOrNull()
+    )
+    private val hyperliquidCandleStaleMultiplier = resolveHyperliquidCandleStaleMultiplier(
+        explicitMultiplier = System.getenv("HYPERLIQUID_CANDLE_STALE_MULTIPLIER")?.toDoubleOrNull()
+    )
+    private val hyperliquidBackfillLookbackHours = resolveHyperliquidBackfillLookbackHours(
+        explicitLookbackHours = System.getenv("HYPERLIQUID_BACKFILL_LOOKBACK_HOURS")?.toLongOrNull()
+    )
+    private val hyperliquidBackfillMaxBars = resolveHyperliquidBackfillMaxBars(
+        explicitMaxBars = System.getenv("HYPERLIQUID_BACKFILL_MAX_BARS")?.toIntOrNull()
+    )
+    private val hyperliquidBackfillOverlapBars = resolveHyperliquidBackfillOverlapBars(
+        explicitOverlapBars = System.getenv("HYPERLIQUID_BACKFILL_OVERLAP_BARS")?.toIntOrNull()
+    )
     private val hyperliquidExchangeId = resolveHyperliquidExchangeId(
         explicitExchangeId = System.getenv("HYPERLIQUID_EXCHANGE_ID"),
         mainnet = hyperliquidMainnet
     )
 
     private lateinit var source: HyperliquidSource
+    private lateinit var candleBackfillClient: HyperliquidCandleBackfillClient
     private lateinit var sink: MarketDataSink
 
     /**
@@ -95,6 +124,15 @@ class MarketDataIngestionRunner {
         logger.info { "Asset Context Ingestion: ENABLED (funding + open interest)" }
         logger.info { "Hyperliquid Mode: ${if (hyperliquidMainnet) "MAINNET" else "TESTNET"}" }
         logger.info { "Hyperliquid WS URL: $hyperliquidWsUrl" }
+        logger.info { "Hyperliquid Info URL: $hyperliquidInfoUrl" }
+        logger.info { "Hyperliquid Idle Timeout: ${hyperliquidIdleTimeoutMs}ms" }
+        logger.info { "Hyperliquid Freshness Check Interval: ${hyperliquidFreshnessCheckIntervalMs}ms" }
+        logger.info { "Hyperliquid Channel Activity Timeout: ${hyperliquidChannelActivityTimeoutMs}ms" }
+        logger.info { "Hyperliquid Candle Stale Multiplier: ${hyperliquidCandleStaleMultiplier}x" }
+        logger.info {
+            "Hyperliquid Candle Backfill: ${hyperliquidBackfillLookbackHours}h lookback, " +
+                "${hyperliquidBackfillMaxBars} max bars, ${hyperliquidBackfillOverlapBars} overlap bars"
+        }
         logger.info { "Hyperliquid Exchange ID: $hyperliquidExchangeId" }
         logger.info { "TimescaleDB: $postgresHost:$postgresPort/$postgresDb" }
         logger.info { "=" * 80 }
@@ -107,7 +145,14 @@ class MarketDataIngestionRunner {
             candleIntervals = candleIntervals,
             subscribeToOrderbook = enableOrderbook,
             subscribeToAssetCtx = true,
-            url = hyperliquidWsUrl
+            url = hyperliquidWsUrl,
+            receiveIdleTimeoutMs = hyperliquidIdleTimeoutMs
+        )
+        candleBackfillClient = HyperliquidCandleBackfillClient(
+            infoUrl = hyperliquidInfoUrl,
+            lookbackHours = hyperliquidBackfillLookbackHours,
+            maxBarsPerRequest = hyperliquidBackfillMaxBars,
+            overlapBars = hyperliquidBackfillOverlapBars
         )
 
         val dataSource = createDataSource()
@@ -187,23 +232,46 @@ class MarketDataIngestionRunner {
             var messagesInSession = 0
             try {
                 logger.info { "Connecting to Hyperliquid WebSocket..." }
+                val continuityWatchdog = HyperliquidContinuityWatchdog(
+                    symbols = symbols,
+                    candleIntervals = candleIntervals,
+                    activityTimeoutMs = hyperliquidChannelActivityTimeoutMs,
+                    candleStaleMultiplier = hyperliquidCandleStaleMultiplier
+                )
+                repairRecentCandleHistory(continuityWatchdog)
 
-                source.fetch()
-                    .onEach { data ->
-                        messagesInSession++
-                        if (messagesInSession == 1 && reconnectAttempt > 0) {
-                            reconnectAttempt = 0
-                            logger.info { "WebSocket stream produced data; reconnection backoff reset" }
+                coroutineScope {
+                    val streamCollector = async {
+                        source.fetch()
+                            .onEach { data ->
+                                messagesInSession++
+                                continuityWatchdog.record(data)
+                                if (messagesInSession == 1 && reconnectAttempt > 0) {
+                                    reconnectAttempt = 0
+                                    logger.info { "WebSocket stream produced data; reconnection backoff reset" }
+                                }
+                                sink.write(data)
+                            }
+                            .catch { e ->
+                                logger.error(e) { "Error in data stream: ${e.message}" }
+                                // Flush any pending data before reconnecting
+                                sink.flush()
+                                throw e
+                            }
+                            .collect { }
+                    }
+                    val continuityMonitor = launch {
+                        while (isActive) {
+                            delay(hyperliquidFreshnessCheckIntervalMs)
+                            continuityWatchdog.assertHealthy()
                         }
-                        sink.write(data)
                     }
-                    .catch { e ->
-                        logger.error(e) { "Error in data stream: ${e.message}" }
-                        // Flush any pending data before reconnecting
-                        sink.flush()
-                        throw e
+                    try {
+                        streamCollector.await()
+                    } finally {
+                        continuityMonitor.cancelAndJoin()
                     }
-                    .collect { }
+                }
 
                 // If we reach here, the stream completed (shouldn't happen normally)
                 logger.warn {
@@ -287,21 +355,34 @@ class MarketDataIngestionRunner {
 
         // Flush remaining data
         runBlocking {
-            try {
-                sink.flush()
-                logger.info { "Flushed all pending data" }
-            } catch (e: Exception) {
-                logger.error(e) { "Failed to flush pending data during shutdown: ${e.message}" }
+            if (::sink.isInitialized) {
+                try {
+                    sink.flush()
+                    logger.info { "Flushed all pending data" }
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to flush pending data during shutdown: ${e.message}" }
+                }
             }
-            try {
-                source.close()
-            } catch (e: Exception) {
-                logger.warn(e) { "Failed to close Hyperliquid source cleanly: ${e.message}" }
+            if (::source.isInitialized) {
+                try {
+                    source.close()
+                } catch (e: Exception) {
+                    logger.warn(e) { "Failed to close Hyperliquid source cleanly: ${e.message}" }
+                }
+            }
+            if (::candleBackfillClient.isInitialized) {
+                try {
+                    candleBackfillClient.close()
+                } catch (e: Exception) {
+                    logger.warn(e) { "Failed to close Hyperliquid candle backfill client cleanly: ${e.message}" }
+                }
             }
         }
 
         // Log final stats
-        logStats()
+        if (::sink.isInitialized) {
+            logStats()
+        }
 
         scope.cancel()
         logger.info { "Pipeline stopped" }
@@ -319,12 +400,60 @@ class MarketDataIngestionRunner {
             password = postgresPassword
         }
     }
+
+    private suspend fun repairRecentCandleHistory(continuityWatchdog: HyperliquidContinuityWatchdog) {
+        val sessionStart = java.time.Instant.now()
+        var fetchedCandles = 0
+        var repairedStreams = 0
+
+        for (symbol in symbols) {
+            for (interval in candleIntervals) {
+                try {
+                    val candles = candleBackfillClient.fetchRecentCandles(
+                        symbol = symbol,
+                        interval = interval,
+                        now = java.time.Instant.now()
+                    )
+                    if (candles.isEmpty()) {
+                        logger.warn { "Candle backfill returned no data for $symbol/$interval" }
+                        continue
+                    }
+
+                    candles.forEach { candle ->
+                        sink.write(org.datamancy.pipeline.sources.HyperliquidMarketData.Candle(candle))
+                    }
+                    continuityWatchdog.seedBackfilledCandles(candles)
+                    fetchedCandles += candles.size
+                    repairedStreams++
+                } catch (e: Exception) {
+                    logger.error(e) { "Candle backfill failed for $symbol/$interval: ${e.message}" }
+                }
+            }
+        }
+
+        try {
+            sink.flush()
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to flush backfilled candles: ${e.message}" }
+            throw e
+        }
+
+        logger.info {
+            "Recent candle repair pass completed: $repairedStreams streams, " +
+                "$fetchedCandles candles fetched in ${java.time.Duration.between(sessionStart, java.time.Instant.now()).seconds}s"
+        }
+    }
 }
 
 internal fun resolveHyperliquidWsUrl(explicitUrl: String?, mainnet: Boolean): String {
     val url = explicitUrl?.trim()
     if (!url.isNullOrEmpty()) return url
     return if (mainnet) HYPERLIQUID_MAINNET_WS_URL else HYPERLIQUID_TESTNET_WS_URL
+}
+
+internal fun resolveHyperliquidIdleTimeoutMs(explicitTimeoutMs: Long?): Long {
+    val timeoutMs = explicitTimeoutMs ?: DEFAULT_HYPERLIQUID_IDLE_TIMEOUT_MS
+    return timeoutMs.coerceAtLeast(MIN_HYPERLIQUID_IDLE_TIMEOUT_MS)
 }
 
 internal fun reconnectBackoffDelayMs(reconnectAttempt: Int, maxDelayMs: Long): Long {

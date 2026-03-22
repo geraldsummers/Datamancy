@@ -48,6 +48,11 @@ class AlphaProofScriptTest {
             "alpha proof should expose the slower downside-tail strategy family for lower-latency-sensitive alpha discovery"
         )
         assertTrue(
+            text.contains("def default_strategy_prefix(family: str) -> str:") &&
+                text.contains("args.strategy_prefix = default_strategy_prefix(args.family)"),
+            "alpha proof should derive the persisted strategy prefix from the selected family when the operator does not override it"
+        )
+        assertTrue(
             text.contains("--fixed-param-label"),
             "alpha proof should support fixed-parameter replay so the operator can verify a dominant walk-forward config without per-window reselection"
         )
@@ -66,6 +71,28 @@ class AlphaProofScriptTest {
         assertTrue(
             text.contains("INSERT INTO strategy_sensitivity_sweeps"),
             "alpha proof should persist stress scenarios into strategy_sensitivity_sweeps"
+        )
+        assertTrue(
+            text.contains("def split_contiguous_segments("),
+            "alpha proof should explicitly segment minute history around ingestion gaps instead of building walk-forward windows across outages"
+        )
+        assertTrue(
+            text.contains("\"largest_gap_minutes\""),
+            "alpha proof should surface contiguity diagnostics so Grafana and operators can see when history contains material gaps"
+        )
+        assertTrue(
+            text.contains("trade_fill_mask = effective_turnover > 0"),
+            "alpha proof should only average microstructure execution costs over actual trade rows"
+        )
+        assertTrue(
+            text.contains("\"avg_total_cost_bps\": avg_total_cost_bps") &&
+                text.contains("\"avg_fill_ratio\": avg_fill_ratio"),
+            "alpha proof should not report synthetic average cost/fill metrics when the selected OOS slice produced no trades"
+        )
+        assertTrue(
+            text.contains("avg_total_cost_bps = float(oos.loc[trade_fill_mask, \"total_cost_bps\"].mean()) if trade_rows > 0 else 0.0") &&
+                text.contains("avg_fill_ratio = float(oos.loc[trade_fill_mask, \"fill_ratio\"].mean()) if trade_rows > 0 else 1.0"),
+            "alpha proof should aggregate OOS cost and fill metrics over executed trades only"
         )
     }
 
