@@ -51,6 +51,18 @@ class SmartUpScriptTest {
             text.contains("docker compose -f \"${'$'}COMPOSE_FILE\" ps -a -q \"${'$'}1\""),
             "smart-up should inspect exited one-shot containers as well as running ones"
         )
+        assertTrue(
+            text.contains("repair_dir_ownership()"),
+            "smart-up should include the same ownership repair helper used by the run-tests entrypoint"
+        )
+        assertTrue(
+            text.contains("ensure_writable_dir \"${'$'}ROOT_DIR/test-results\""),
+            "smart-up should repair root-owned test result paths before force-refreshing test services"
+        )
+        assertTrue(
+            text.contains("Unable to prepare writable test results directory"),
+            "smart-up should fail fast if test result directories remain unwritable after repair attempts"
+        )
     }
 
     private fun smartUpScriptText(): String {
