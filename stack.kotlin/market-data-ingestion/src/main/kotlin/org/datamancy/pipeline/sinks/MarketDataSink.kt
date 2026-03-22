@@ -71,14 +71,32 @@ class MarketDataSink(
     private var fundingCount = 0L
     private var openInterestCount = 0L
 
+    private val schemaLock = Any()
+
     @Volatile
     private var orderbookWriteMode: OrderbookWriteMode? = null
+
+    @Volatile
+    private var scalarMarketDataSchemaValidated = false
 
     private enum class OrderbookWriteMode {
         TOP_OF_BOOK_LEGACY,
         JSON_DEPTH_LEGACY,
         JSON_DEPTH_CANONICAL
     }
+
+    private val requiredScalarMarketDataColumns = listOf("funding_rate", "open_interest")
+    private val canonicalOrderbookColumns = listOf(
+        "bids",
+        "asks",
+        "best_bid",
+        "best_ask",
+        "spread",
+        "spread_pct",
+        "mid_price",
+        "bid_depth_10",
+        "ask_depth_10"
+    )
 
     override suspend fun write(item: HyperliquidMarketData) {
         var flushTradesNow = false
@@ -337,10 +355,16 @@ class MarketDataSink(
             dataSource.connection.use { conn ->
                 conn.autoCommit = false
                 try {
-                    ensureCanonicalOrderbookSchema(conn)
                     val writeMode = orderbookWriteMode ?: detectOrderbookWriteMode(conn).also {
                         orderbookWriteMode = it
                         logger.info { "Detected orderbook_data write mode: $it" }
+                        if (it != OrderbookWriteMode.JSON_DEPTH_CANONICAL) {
+                            logger.warn {
+                                "orderbook_data schema is $it; runtime DDL is disabled, so canonical depth " +
+                                    "columns must be added by init-market-data-schema.sql or " +
+                                    "reconcile-datamancy-schema.sh"
+                            }
+                        }
                     }
 
                     when (writeMode) {
@@ -366,92 +390,44 @@ class MarketDataSink(
         }
     }
 
-    private fun ensureCanonicalOrderbookSchema(conn: Connection) {
-        val statements = listOf(
-            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS bids JSONB NOT NULL DEFAULT '[]'::jsonb",
-            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS asks JSONB NOT NULL DEFAULT '[]'::jsonb",
-            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS best_bid DOUBLE PRECISION",
-            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS best_ask DOUBLE PRECISION",
-            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS spread DOUBLE PRECISION",
-            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS spread_pct DOUBLE PRECISION",
-            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS mid_price DOUBLE PRECISION",
-            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS bid_depth_10 DOUBLE PRECISION",
-            "ALTER TABLE orderbook_data ADD COLUMN IF NOT EXISTS ask_depth_10 DOUBLE PRECISION"
-        )
-
-        conn.createStatement().use { stmt ->
-            statements.forEach { sql ->
-                runCatching { stmt.execute(sql) }
-                    .onFailure { e ->
-                        logger.debug { "Skipping optional schema upgrade statement '$sql': ${e.message}" }
-                    }
-            }
-        }
-    }
-
     private fun ensureScalarMarketDataSchema(conn: Connection) {
-        val statements = listOf(
-            "ALTER TABLE market_data ADD COLUMN IF NOT EXISTS funding_rate DOUBLE PRECISION",
-            "ALTER TABLE market_data ADD COLUMN IF NOT EXISTS open_interest DOUBLE PRECISION",
-            """
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_funding_unique
-                    ON market_data (time, symbol, exchange, data_type)
-                    WHERE data_type = 'funding'
-            """.trimIndent(),
-            """
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_open_interest_unique
-                    ON market_data (time, symbol, exchange, data_type)
-                    WHERE data_type = 'open_interest'
-            """.trimIndent()
-        )
+        if (scalarMarketDataSchemaValidated) {
+            return
+        }
 
-        conn.createStatement().use { stmt ->
-            statements.forEach { sql ->
-                runCatching { stmt.execute(sql) }
-                    .onFailure { e ->
-                        logger.debug { "Skipping optional scalar market schema statement '$sql': ${e.message}" }
-                    }
+        synchronized(schemaLock) {
+            if (scalarMarketDataSchemaValidated) {
+                return
             }
+
+            val columns = loadTableColumns(conn, "market_data")
+            val missing = missingScalarMarketDataColumnsForColumns(columns)
+            if (missing.isNotEmpty()) {
+                error(
+                    "market_data schema missing required columns: ${missing.joinToString(",")}. " +
+                        "Apply stack.config/postgres/init-market-data-schema.sql or " +
+                        "stack.config/postgres/reconcile-datamancy-schema.sh before starting ingestion."
+                )
+            }
+            scalarMarketDataSchemaValidated = true
         }
     }
 
     private fun detectOrderbookWriteMode(conn: Connection): OrderbookWriteMode {
-        val columns = mutableSetOf<String>()
-        conn.prepareStatement(
-            """
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = 'orderbook_data'
-            """.trimIndent()
-        ).use { stmt ->
-            stmt.executeQuery().use { rs ->
-                while (rs.next()) {
-                    columns += rs.getString("column_name")
-                }
-            }
-        }
-
-        return resolveOrderbookWriteMode(columns)
+        return resolveOrderbookWriteMode(loadTableColumns(conn, "orderbook_data"))
     }
 
     internal fun detectOrderbookWriteModeForColumns(columns: Set<String>): String {
         return resolveOrderbookWriteMode(columns).name
     }
 
+    internal fun missingScalarMarketDataColumnsForColumns(columns: Set<String>): List<String> {
+        return requiredScalarMarketDataColumns.filterNot(columns::contains)
+    }
+
     private fun resolveOrderbookWriteMode(columns: Set<String>): OrderbookWriteMode {
-        val canonicalColumns = listOf(
-            "bids",
-            "asks",
-            "best_bid",
-            "best_ask",
-            "spread",
-            "spread_pct",
-            "mid_price",
-            "bid_depth_10",
-            "ask_depth_10"
-        )
         return when {
-            columns.containsAll(canonicalColumns) ->
+            columns.containsAll(canonicalOrderbookColumns) ->
                 OrderbookWriteMode.JSON_DEPTH_CANONICAL
             columns.containsAll(listOf("bid_price", "bid_size", "ask_price", "ask_size")) ->
                 OrderbookWriteMode.TOP_OF_BOOK_LEGACY
@@ -596,6 +572,25 @@ class MarketDataSink(
             val sz = BigDecimal.valueOf(level.size).stripTrailingZeros().toPlainString()
             """{"price":$px,"size":$sz}"""
         }
+    }
+
+    private fun loadTableColumns(conn: Connection, tableName: String): Set<String> {
+        val columns = mutableSetOf<String>()
+        conn.prepareStatement(
+            """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = ?
+            """.trimIndent()
+        ).use { stmt ->
+            stmt.setString(1, tableName)
+            stmt.executeQuery().use { rs ->
+                while (rs.next()) {
+                    columns += rs.getString("column_name")
+                }
+            }
+        }
+        return columns
     }
 
     override suspend fun healthCheck(): Boolean {

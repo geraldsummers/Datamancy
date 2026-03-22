@@ -61,4 +61,34 @@ class MarketDataSinkTest {
 
         assertEquals("TOP_OF_BOOK_LEGACY", mode)
     }
+
+    @Test
+    fun `orderbook mode supports json legacy depth when canonical metrics are absent`() {
+        val sink = MarketDataSink(dataSource = mockk<DataSource>(relaxed = true))
+        val mode = sink.detectOrderbookWriteModeForColumns(
+            setOf("bids", "asks")
+        )
+
+        assertEquals("JSON_DEPTH_LEGACY", mode)
+    }
+
+    @Test
+    fun `scalar market data schema check reports missing funding context columns`() {
+        val sink = MarketDataSink(dataSource = mockk<DataSource>(relaxed = true))
+        val missing = sink.missingScalarMarketDataColumnsForColumns(
+            setOf("time", "symbol", "exchange", "data_type", "close")
+        )
+
+        assertEquals(listOf("funding_rate", "open_interest"), missing)
+    }
+
+    @Test
+    fun `scalar market data schema check accepts canonical columns`() {
+        val sink = MarketDataSink(dataSource = mockk<DataSource>(relaxed = true))
+        val missing = sink.missingScalarMarketDataColumnsForColumns(
+            setOf("time", "symbol", "exchange", "data_type", "funding_rate", "open_interest")
+        )
+
+        assertTrue(missing.isEmpty())
+    }
 }
