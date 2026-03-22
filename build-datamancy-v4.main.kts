@@ -249,6 +249,25 @@ fun expandHome(path: String): String {
     return trimmed
 }
 
+fun resolveExecutable(command: String): String {
+    val pathDirs = (System.getenv("PATH") ?: "")
+        .split(File.pathSeparatorChar)
+        .mapNotNull { raw -> raw.trim().takeIf { it.isNotEmpty() }?.let(::File) }
+
+    val fallbackDirs = listOf(
+        File(System.getProperty("user.home")).resolve("bin"),
+        File("/usr/local/bin"),
+        File("/usr/bin")
+    )
+
+    return (pathDirs + fallbackDirs)
+        .distinctBy { it.absolutePath }
+        .map { it.resolve(command) }
+        .firstOrNull { it.canExecute() }
+        ?.absolutePath
+        ?: command
+}
+
 fun defaultDatamancyPath(
     envName: String,
     relativePath: String,
@@ -1427,20 +1446,21 @@ fun runTypeScriptTests() {
         val testDir = File(testPath)
         if (testDir.exists() && testDir.resolve("package.json").exists()) {
             info("Testing $testPath")
+            val npmCommand = resolveExecutable("npm")
 
             // A copied or stale node_modules tree is not trustworthy for clean remote builds.
             if (!hasUsableNodeModules(testDir)) {
                 info("Installing npm dependencies")
-                runNpmOrExit(testDir, "npm", "ci")
+                runNpmOrExit(testDir, npmCommand, "ci")
             }
 
             // Run TypeScript compilation check
             info("Running TypeScript compilation check")
-            runNpmOrExit(testDir, "npm", "run", "build")
+            runNpmOrExit(testDir, npmCommand, "run", "build")
 
             // Run unit tests
             info("Running Jest unit tests")
-            runNpmOrExit(testDir, "npm", "run", "test:unit")
+            runNpmOrExit(testDir, npmCommand, "run", "test:unit")
         }
     }
 }
