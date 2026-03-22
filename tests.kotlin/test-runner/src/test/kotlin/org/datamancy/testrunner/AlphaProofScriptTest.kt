@@ -53,6 +53,12 @@ class AlphaProofScriptTest {
             "alpha proof should derive the persisted strategy prefix from the selected family when the operator does not override it"
         )
         assertTrue(
+            text.contains("--allow-strategy-name-mismatch") &&
+                text.contains("def validate_strategy_name_family(") &&
+                text.contains("refusing to persist mislabeled alpha proof rows"),
+            "alpha proof should guard against persisting one strategy family under another family's name"
+        )
+        assertTrue(
             text.contains("--fixed-param-label"),
             "alpha proof should support fixed-parameter replay so the operator can verify a dominant walk-forward config without per-window reselection"
         )

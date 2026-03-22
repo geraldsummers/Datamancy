@@ -81,6 +81,14 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("ALPHA_PROOF_STRATEGY_PREFIX"),
     )
     parser.add_argument(
+        "--allow-strategy-name-mismatch",
+        dest="allow_strategy_name_mismatch",
+        action="store_true",
+        default=_env_flag("ALPHA_PROOF_ALLOW_STRATEGY_NAME_MISMATCH", False),
+        help="Allow persisted strategy names that do not encode the requested family",
+    )
+    parser.add_argument("--no-allow-strategy-name-mismatch", dest="allow_strategy_name_mismatch", action="store_false")
+    parser.add_argument(
         "--db-host",
         default=os.getenv("POSTGRES_HOST", "postgres"),
     )
@@ -131,6 +139,24 @@ def _env_flag(name: str, default: bool) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def validate_strategy_name_family(
+    strategy_name: str,
+    family: str,
+    allow_mismatch: bool = False,
+) -> None:
+    if allow_mismatch:
+        return
+    normalized_name = (strategy_name or "").strip().lower().replace("-", "_")
+    normalized_family = (family or "").strip().lower().replace("-", "_")
+    if normalized_family and normalized_family not in normalized_name:
+        raise SystemExit(
+            "strategy name "
+            f"{strategy_name!r} does not encode requested family {family!r}; "
+            "refusing to persist mislabeled alpha proof rows. "
+            "Pass --allow-strategy-name-mismatch if this is intentional."
+        )
 
 
 def sql_quote(value: str) -> str:
@@ -1180,6 +1206,11 @@ def run_symbol(
     proof_status, proof_reasons = acceptance(overall_metrics, sensitivity, family=args.family)
     carry_overlay_enabled = bool(frame["funding_rate"].abs().sum() > 0)
     strategy_name = f"{args.strategy_prefix}_{symbol.lower()}"
+    validate_strategy_name_family(
+        strategy_name=strategy_name,
+        family=args.family,
+        allow_mismatch=args.allow_strategy_name_mismatch,
+    )
     summary = {
         "symbol": symbol,
         "strategy_name": strategy_name,

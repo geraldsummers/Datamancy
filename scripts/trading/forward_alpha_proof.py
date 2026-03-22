@@ -24,6 +24,7 @@ from alpha_proof import (
     split_contiguous_segments,
     simulate,
     spread_pct_to_bps,
+    validate_strategy_name_family,
     CostScenario,
     StrategyParams,
 )
@@ -68,6 +69,14 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("FORWARD_ALPHA_PROOF_STRATEGY_PREFIX", "alpha_proof_tail_short_v2_fixed"),
     )
     parser.add_argument("--strategy-name", default=os.getenv("FORWARD_ALPHA_PROOF_STRATEGY_NAME"))
+    parser.add_argument(
+        "--allow-strategy-name-mismatch",
+        dest="allow_strategy_name_mismatch",
+        action="store_true",
+        default=_env_flag("FORWARD_ALPHA_PROOF_ALLOW_STRATEGY_NAME_MISMATCH", False),
+        help="Allow persisted strategy names that do not encode the requested family",
+    )
+    parser.add_argument("--no-allow-strategy-name-mismatch", dest="allow_strategy_name_mismatch", action="store_false")
     parser.add_argument("--execution-exchange", default=os.getenv("FORWARD_ALPHA_PROOF_EXECUTION_EXCHANGE"))
     parser.add_argument(
         "--persist",
@@ -590,6 +599,11 @@ def run_symbol(
     )
 
     strategy_name = args.strategy_name or f"{args.strategy_prefix}_{symbol.lower()}"
+    validate_strategy_name_family(
+        strategy_name=strategy_name,
+        family=args.family,
+        allow_mismatch=args.allow_strategy_name_mismatch,
+    )
     baseline_backtest_edge_bps = load_baseline_backtest_edge(conn, strategy_name=strategy_name, symbol=symbol)
     summary = summarize_forward(
         metrics=metrics,

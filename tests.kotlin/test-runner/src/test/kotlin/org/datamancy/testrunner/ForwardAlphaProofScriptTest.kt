@@ -20,6 +20,11 @@ class ForwardAlphaProofScriptTest {
             "forward alpha proof should require a fixed strategy label so recent forward proof matches the backtest family exactly"
         )
         assertTrue(
+            text.contains("--allow-strategy-name-mismatch") &&
+                text.contains("validate_strategy_name_family("),
+            "forward alpha proof should reject strategy names that mislabel the requested family unless the operator explicitly overrides the guard"
+        )
+        assertTrue(
             text.contains("strategy_latency_metrics"),
             "forward alpha proof should persist latency telemetry for Grafana execution panels"
         )
