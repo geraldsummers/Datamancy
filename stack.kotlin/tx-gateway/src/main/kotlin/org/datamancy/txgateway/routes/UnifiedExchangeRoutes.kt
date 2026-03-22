@@ -43,6 +43,7 @@ private val dynamicJson = Gson()
 private val supportedExchanges = TradingPermissionCatalog.supportedExchanges
 private val liveOrderExchanges = TradingPermissionCatalog.liveOrderExchanges
 private val mainnetReservedGroups = TradingPermissionCatalog.mainnetReservedGroups
+private val tradingAdminGroups = TradingPermissionCatalog.tradingAdminGroups
 private val maxQuoteAgeMs: Long = System.getenv("TX_GATEWAY_MAX_QUOTE_AGE_MS")
     ?.trim()
     ?.takeIf { it.isNotEmpty() }
@@ -2580,12 +2581,12 @@ private suspend fun extractAuthorizedTradingAdmin(
         .map { it.trim().lowercase() }
         .filter { it.isNotEmpty() }
         .toSet()
-    if (groups.intersect(mainnetReservedGroups).isEmpty()) {
+    if (groups.intersect(tradingAdminGroups).isEmpty()) {
         call.respond(
             HttpStatusCode.Forbidden,
             RequiredGroupsErrorResponse(
-                error = "Reserved trading role required",
-                requiredGroups = mainnetReservedGroups.toList().sorted()
+                error = "Trading admin role required",
+                requiredGroups = tradingAdminGroups.toList().sorted()
             )
         )
         return null

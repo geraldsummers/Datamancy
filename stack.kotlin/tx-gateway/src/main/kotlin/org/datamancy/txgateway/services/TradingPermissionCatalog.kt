@@ -52,6 +52,7 @@ object TradingPermissionCatalog {
             listOf("backtest", "forward_paper", "testnet_live")
         }
     val mainnetReservedGroups = parseCsv(System.getenv("LDAP_MAINNET_ALLOWED_GROUPS")).toSet().ifEmpty { setOf("admins") }
+    val tradingAdminGroups = parseCsv(System.getenv("LDAP_TRADING_ADMIN_GROUPS")).toSet().ifEmpty { setOf("admins") }
 
     fun supportedExecutionModes(exchange: String): List<String> {
         return if (normalizeValue(exchange) == "hyperliquid") {

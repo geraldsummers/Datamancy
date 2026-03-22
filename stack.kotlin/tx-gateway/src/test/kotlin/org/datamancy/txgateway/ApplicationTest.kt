@@ -2367,7 +2367,7 @@ class ApplicationTest {
 
         assertEquals(HttpStatusCode.Forbidden, response.status)
         val body = response.bodyAsText()
-        assertTrue(body.contains("Reserved trading role required"), body)
+        assertTrue(body.contains("Trading admin role required"), body)
     }
 
     @Test
@@ -2445,7 +2445,7 @@ class ApplicationTest {
 
         assertEquals(HttpStatusCode.Forbidden, response.status)
         val body = response.bodyAsText()
-        assertTrue(body.contains("Reserved trading role required"), body)
+        assertTrue(body.contains("Trading admin role required"), body)
     }
 
     @Test
