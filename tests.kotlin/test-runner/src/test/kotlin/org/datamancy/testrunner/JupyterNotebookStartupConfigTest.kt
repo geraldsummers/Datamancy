@@ -3,6 +3,7 @@ package org.datamancy.testrunner
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class JupyterNotebookStartupConfigTest {
@@ -36,6 +37,39 @@ class JupyterNotebookStartupConfigTest {
         assertTrue(
             text.contains("\"def place_hyperliquid_mainnet_order(symbol, side='BUY', order_type='MARKET', size='0.01', price=None, reduce_only=False, post_only=False, urgency_class='normal', max_slippage_bps=35.0, cancel_after_ms=None):\\n\""),
             "startup-config should seed an explicit Hyperliquid mainnet order helper for notebook parity"
+        )
+    }
+
+    @Test
+    fun `research notebooks canonicalize hyperliquid history and stop requiring funding column`() {
+        val text = startupConfigText()
+        assertTrue(
+            text.contains("\"exchange_aliases = ['hyperliquid', 'hyperliquid_mainnet'] if exchange == 'hyperliquid_mainnet' else [exchange]\\n\""),
+            "research notebooks should stitch hyperliquid alias history together when using the canonical mainnet exchange"
+        )
+        assertTrue(
+            text.contains("\"  WHERE exchange IN ({exchange_sql})\\n\""),
+            "research notebooks should query canonical exchange aliases rather than a single exchange identifier"
+        )
+        assertTrue(
+            text.contains("\"  0.0 AS funding_rate\\n\""),
+            "research notebooks should degrade carry overlay gracefully when funding ingestion is unavailable"
+        )
+        assertTrue(
+            text.contains("\"spread_bps = (forward['spread_pct'].clip(lower=0) * 100.0)\\n\""),
+            "research notebooks should convert stored spread_pct values from percent units into basis points"
+        )
+        assertTrue(
+            text.contains("\"spread_bps = df['spread_pct'].clip(lower=0) * 100.0\\n\""),
+            "research notebooks should reuse percent-to-bps conversion consistently in execution realism calculations"
+        )
+        assertFalse(
+            text.contains("\"  SELECT time, funding_rate\\n\""),
+            "research notebooks should not reference a funding_rate market_data column that is absent from the deployed schema"
+        )
+        assertFalse(
+            text.contains("\"spread_bps = (forward['spread_pct'].clip(lower=0) * 10000.0)\\n\""),
+            "research notebooks should not overstate spreads by treating percent units as fractions"
         )
     }
 
