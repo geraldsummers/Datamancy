@@ -20,6 +20,8 @@ suspend fun TestRunner.playwrightE2ETests() {
                 throw Exception("Playwright tests directory not found: ${playwrightDir.absolutePath}")
             }
 
+            File("/app/test-results/screenshots").deleteRecursively()
+
             // Set environment variables for Playwright tests
             val ldapUrl = this@playwrightE2ETests.env.endpoints.ldap ?: "ldap://openldap:389"
             val autheliaUrl = this@playwrightE2ETests.env.endpoints.authelia.replace("https://", "http://").replace(":9091", "")
@@ -57,6 +59,7 @@ suspend fun TestRunner.playwrightE2ETests() {
             if (resultsDir != null) {
                 val playwrightReportDir = File(playwrightDir, "playwright-report")
                 val playwrightResultsDir = File(playwrightDir, "test-results")
+                val screenshotsDir = File("/app/test-results/screenshots")
                 val targetDir = File(resultsDir, "playwright")
                 targetDir.mkdirs()
 
@@ -68,6 +71,11 @@ suspend fun TestRunner.playwrightE2ETests() {
                 if (playwrightResultsDir.exists()) {
                     playwrightResultsDir.copyRecursively(File(targetDir, "test-results"), overwrite = true)
                     println("Copied Playwright test results to ${targetDir.absolutePath}/test-results")
+                }
+
+                if (screenshotsDir.exists()) {
+                    screenshotsDir.copyRecursively(File(targetDir, "screenshots"), overwrite = true)
+                    println("Copied Playwright screenshots to ${targetDir.absolutePath}/screenshots")
                 }
             }
 

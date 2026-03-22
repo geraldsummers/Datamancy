@@ -414,7 +414,7 @@ private suspend fun TestRunner.selectPaperVenueWithQuote(
         ?.toSet()
         ?: emptySet()
 
-    val paperExchanges = listOf("swyftx", "binance", "bybit", "coinbase", "dydx", "aster")
+    val paperExchanges = paperVenueCandidates()
     val symbols = listOf("BTC", "BTCUSDT")
 
     for (exchange in paperExchanges) {
@@ -431,6 +431,9 @@ private suspend fun TestRunner.selectPaperVenueWithQuote(
     }
     return null
 }
+
+internal fun paperVenueCandidates(): List<String> =
+    listOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster")
 
 private fun parseJsonObjectOrNull(raw: String): JsonObject? =
     runCatching { stagedFixtureJson.parseToJsonElement(raw).jsonObject }.getOrNull()
@@ -456,14 +459,25 @@ private fun extractErrorContext(json: JsonObject?, rawBody: String): String {
 private fun containsHyperliquidKeyFailureSignal(errorText: String): Boolean {
     val normalized = errorText.lowercase(Locale.US)
     val markers = listOf(
-        "user or api wallet",
-        "does not exist",
         "invalid signature",
         "invalid key",
         "missing hyperliquid credentials",
         "missing private key",
         "unable to derive address",
-        "hyperliquidkey is empty"
+        "hyperliquidkey is empty",
+        "provided hyperliquid address does not match private key"
+    )
+    return markers.any { normalized.contains(it) }
+}
+
+private fun containsHyperliquidProvisioningBlockerSignal(errorText: String): Boolean {
+    val normalized = errorText.lowercase(Locale.US)
+    val markers = listOf(
+        "user or api wallet",
+        "does not exist",
+        "must deposit before performing actions",
+        "account does not exist",
+        "user missing"
     )
     return markers.any { normalized.contains(it) }
 }
@@ -992,6 +1006,7 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                             "Expected explanatory error payload for status=${orderResult.response.status}, got: $body"
                         }
                         val credentialRejected = containsHyperliquidKeyFailureSignal(error)
+                        val provisioningBlocked = containsHyperliquidProvisioningBlockerSignal(error)
                         if (shouldFailOnHyperliquidCredentialError(config.strictHyperliquidCredentialChecks, error)) {
                             error("Hyperliquid testnet key/wallet was rejected by exchange path: $error")
                         }
@@ -1001,6 +1016,10 @@ suspend fun TestRunner.stagedTradingExecutionTests() = suite("Staged Trading Exe
                         if (credentialRejected) {
                             println(
                                 "      ~ Hyperliquid credentials were rejected by exchange path; strict mode was disabled for this run (set TRADING_E2E_HYPERLIQUID_STRICT_CREDENTIALS=true to fail, or leave it unset in live/hybrid mode to fail by default)."
+                            )
+                        } else if (provisioningBlocked) {
+                            println(
+                                "      ~ Hyperliquid testnet wallet is not provisioned on the exchange yet; routing/worker contract was reached and the exchange returned a controlled blocker (status=${orderResult.response.status.value}, error=$error$retrySuffix)"
                             )
                         } else {
                             println(

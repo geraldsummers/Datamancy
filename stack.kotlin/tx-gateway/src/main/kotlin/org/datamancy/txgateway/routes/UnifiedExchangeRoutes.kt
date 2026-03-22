@@ -28,8 +28,8 @@ import org.datamancy.txgateway.services.StrategyExecutionBaseline
 import org.datamancy.txgateway.services.TradingTelemetryMetrics
 import org.datamancy.txgateway.services.WorkerClient
 import org.datamancy.txgateway.services.parseBooleanFlag
+import org.datamancy.txgateway.services.resolveHyperliquidQuoteExchangeCandidates
 import org.datamancy.txgateway.services.resolveHyperliquidQuoteExchange
-import org.datamancy.txgateway.services.resolveHyperliquidQuoteExchangeForExecutionMode
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -1136,7 +1136,7 @@ fun Route.unifiedExchangeRoutes(
                     return@post
                 }
 
-                val requiredQuoteExchange = resolveRequiredQuoteExchange(
+                val allowedQuoteExchanges = resolveAllowedQuoteExchanges(
                     exchange = exchange,
                     executionMode = executionMode,
                     legacyHyperliquidQuoteExchange = requiredHyperliquidQuoteExchange
@@ -1206,18 +1206,18 @@ fun Route.unifiedExchangeRoutes(
                 }
                 if (
                     exchange == "hyperliquid" &&
-                    !requiredQuoteExchange.isNullOrBlank() &&
-                    !quoteSourceMatchesResolvedExchange(
+                    allowedQuoteExchanges.isNotEmpty() &&
+                    !quoteSourceMatchesAnyResolvedExchange(
                         source = quoteForRisk.source,
-                        expectedExchange = requiredQuoteExchange
+                        expectedExchanges = allowedQuoteExchanges
                     )
                 ) {
                     logger.warn(
-                        "Rejecting live order due to quote exchange mismatch for exchange={} symbol={} source={} expectedExchange={}",
+                        "Rejecting live order due to quote exchange mismatch for exchange={} symbol={} source={} expectedExchanges={}",
                         exchange,
                         orderRequest.symbol,
                         quoteForRisk.source,
-                        requiredQuoteExchange
+                        allowedQuoteExchanges.joinToString(",")
                     )
                     call.respond(
                         HttpStatusCode.ServiceUnavailable,
@@ -1226,7 +1226,7 @@ fun Route.unifiedExchangeRoutes(
                             "exchange" to exchange,
                             "symbol" to orderRequest.symbol,
                             "quoteSource" to quoteForRisk.source,
-                            "expectedQuoteExchange" to requiredQuoteExchange
+                            "expectedQuoteExchanges" to allowedQuoteExchanges.joinToString(",")
                         )
                     )
                     return@post
@@ -2109,19 +2109,23 @@ private fun resolveQuoteWithPaperFallback(
     return dbService.fetchLatestQuote(exchange = exchange, symbol = symbol, executionMode = executionMode)
 }
 
-private fun resolveRequiredQuoteExchange(
+private fun resolveAllowedQuoteExchanges(
     exchange: String,
     executionMode: String,
     legacyHyperliquidQuoteExchange: String?
-): String? {
-    if (exchange.lowercase() != "hyperliquid") return null
-    return resolveHyperliquidQuoteExchangeForExecutionMode(
+): List<String> {
+    if (exchange.lowercase() != "hyperliquid") return emptyList()
+    return resolveHyperliquidQuoteExchangeCandidates(
         requestedExecutionMode = executionMode,
         legacyQuoteExchange = legacyHyperliquidQuoteExchange,
         forwardPaperExchange = System.getenv("HYPERLIQUID_FORWARD_PAPER_QUOTE_EXCHANGE"),
         testnetExchange = System.getenv("HYPERLIQUID_TESTNET_QUOTE_EXCHANGE"),
         mainnetExchange = System.getenv("HYPERLIQUID_MAINNET_QUOTE_EXCHANGE"),
-        mainnetFlag = System.getenv("HYPERLIQUID_MAINNET")
+        mainnetFlag = System.getenv("HYPERLIQUID_MAINNET"),
+        allowCanonicalFallback = parseBooleanFlag(
+            raw = System.getenv("HYPERLIQUID_QUOTE_EXCHANGE_ALLOW_CANONICAL_FALLBACK"),
+            defaultValue = true
+        )
     )
 }
 
@@ -2133,7 +2137,17 @@ internal fun quoteSourceMatchesResolvedExchange(source: String, expectedExchange
     val expected = expectedExchange.trim().lowercase()
     if (expected.isBlank()) return true
     val normalizedSource = source.trim().lowercase()
+    if (!normalizedSource.contains("resolved_exchange=")) {
+        return expected == "hyperliquid"
+    }
     return normalizedSource.contains("resolved_exchange=$expected")
+}
+
+internal fun quoteSourceMatchesAnyResolvedExchange(source: String, expectedExchanges: Collection<String>): Boolean {
+    if (expectedExchanges.isEmpty()) return true
+    return expectedExchanges.any { expected ->
+        quoteSourceMatchesResolvedExchange(source = source, expectedExchange = expected)
+    }
 }
 
 private fun toBps(numerator: BigDecimal, denominator: BigDecimal): BigDecimal {

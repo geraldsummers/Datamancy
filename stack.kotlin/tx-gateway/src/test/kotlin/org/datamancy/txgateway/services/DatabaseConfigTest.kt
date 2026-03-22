@@ -103,4 +103,36 @@ class DatabaseConfigTest {
             )
         )
     }
+
+    @Test
+    fun `quote exchange candidates include mainnet fallback for testnet live`() {
+        assertEquals(
+            listOf("hyperliquid_testnet", "hyperliquid_mainnet", "hyperliquid"),
+            resolveHyperliquidQuoteExchangeCandidates(
+                requestedExecutionMode = "testnet_live",
+                legacyQuoteExchange = "hyperliquid",
+                forwardPaperExchange = "hyperliquid_mainnet",
+                testnetExchange = "hyperliquid_testnet",
+                mainnetExchange = "hyperliquid_mainnet",
+                mainnetFlag = "false",
+                allowCanonicalFallback = true
+            )
+        )
+    }
+
+    @Test
+    fun `quote exchange candidates keep forward paper aligned to live mainnet tape`() {
+        assertEquals(
+            listOf("hyperliquid_mainnet", "hyperliquid"),
+            resolveHyperliquidQuoteExchangeCandidates(
+                requestedExecutionMode = "forward_paper",
+                legacyQuoteExchange = "hyperliquid",
+                forwardPaperExchange = "hyperliquid_mainnet",
+                testnetExchange = "hyperliquid_testnet",
+                mainnetExchange = "hyperliquid_mainnet",
+                mainnetFlag = "false",
+                allowCanonicalFallback = true
+            )
+        )
+    }
 }

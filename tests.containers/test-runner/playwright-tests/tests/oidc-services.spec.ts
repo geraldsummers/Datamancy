@@ -1447,7 +1447,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
         loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
         ssoIdentifier: vaultwardenEmail.split('@').pop() || 'datamancy.net',
         ssoEmail: vaultwardenEmail,
-        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Create account|Set up your vault|Set master password|Confirm master password|Join organization|Set initial password/i,
+        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Send|Generator|Vaultwarden Web/i,
         postLogin: async (page) => {
           // Handle create account / master password setup after SSO
           const masterPassword = testUser.password;
@@ -1587,10 +1587,54 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             await page.waitForTimeout(1000);
           }
 
+          const onboardingSubmitButton = page.getByRole('button', {
+            name: /create account|save|continue|submit|finish|join/i,
+          }).first();
+          if (/#\/set-initial-password\b/i.test(page.url()) || await onboardingSubmitButton.isVisible().catch(() => false)) {
+            if (await newPasswordField.isVisible().catch(() => false)) {
+              await newPasswordField.fill(masterPassword);
+            }
+            if (await confirmNewPasswordField.isVisible().catch(() => false)) {
+              await confirmNewPasswordField.fill(masterPassword);
+            }
+            const hintField = page.locator('#input-password-form_new-password-hint').first();
+            if (await hintField.isVisible().catch(() => false)) {
+              await hintField.fill(`${testUser.username}-vault`);
+            }
+            if (await onboardingSubmitButton.isVisible().catch(() => false)) {
+              await onboardingSubmitButton.click({ force: true }).catch(() => {});
+            }
+            const onboardingForm = page.locator('form').first();
+            if (await onboardingForm.isVisible().catch(() => false)) {
+              await onboardingForm.evaluate((el) => {
+                const maybeSubmit = (el as { requestSubmit?: () => void } | null)?.requestSubmit;
+                if (typeof maybeSubmit === 'function') {
+                  maybeSubmit.call(el);
+                }
+              }).catch(() => {});
+            }
+
+            const onboardingCompleted = await page.waitForFunction(() => {
+              const text = document.body?.innerText || '';
+              const currentUrl = window.location.href;
+              return !/#\/set-initial-password\b/i.test(currentUrl)
+                || /My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i.test(text);
+            }, undefined, { timeout: 10000 }).then(() => true).catch(() => false);
+
+            if (!onboardingCompleted) {
+              const onboardingBody = (await page.textContent('body').catch(() => '')) || '';
+              throw new Error(
+                `Vaultwarden remained on onboarding after account creation submit. URL=${page.url()}, bodySnippet=${onboardingBody.slice(0, 300)}`
+              );
+            }
+          }
+
           const finalBody = (await page.textContent('body').catch(() => '')) || '';
-          const hasAuthenticatedUi = /My Vault|Vaults|Folders|Items|Search vault|Join organization|Create account|Set initial password/i.test(finalBody);
+          const hasAuthenticatedUi = /My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i.test(finalBody);
           if (!hasAuthenticatedUi) {
-            throw new Error(`Vaultwarden did not present authenticated/onboarding UI after OIDC. URL=${page.url()}`);
+            throw new Error(
+              `Vaultwarden did not present the actual vault UI after OIDC. URL=${page.url()}, bodySnippet=${finalBody.slice(0, 300)}`
+            );
           }
         },
         oidcLinkPatterns: [/single sign-on/i, /sso/i],

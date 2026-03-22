@@ -90,6 +90,7 @@ exec_as_test_user() {
 
 clear_playwright_outputs() {
     rm -rf "$PLAYWRIGHT_DIR/playwright-report" "$PLAYWRIGHT_DIR/test-results"
+    rm -rf "$RESULTS_DIR/screenshots"
 }
 
 sync_playwright_artifacts() {
@@ -101,6 +102,10 @@ sync_playwright_artifacts() {
 
     if [ -d "$PLAYWRIGHT_DIR/test-results" ]; then
         copy_tree "$PLAYWRIGHT_DIR/test-results" "$PLAYWRIGHT_RESULTS_DIR/test-results"
+    fi
+
+    if [ -d "$RESULTS_DIR/screenshots" ]; then
+        copy_tree "$RESULTS_DIR/screenshots" "$PLAYWRIGHT_RESULTS_DIR/screenshots"
     fi
 
     chown -R "${TEST_USER}:${TEST_USER}" "$PLAYWRIGHT_RESULTS_DIR"
@@ -115,6 +120,11 @@ restore_playwright_artifacts() {
     if [ -d "$PLAYWRIGHT_RESULTS_DIR/test-results" ]; then
         copy_tree "$PLAYWRIGHT_RESULTS_DIR/test-results" "$PLAYWRIGHT_DIR/test-results"
         chown -R "${TEST_USER}:${TEST_USER}" "$PLAYWRIGHT_DIR/test-results"
+    fi
+
+    if [ -d "$PLAYWRIGHT_RESULTS_DIR/screenshots" ]; then
+        copy_tree "$PLAYWRIGHT_RESULTS_DIR/screenshots" "$RESULTS_DIR/screenshots"
+        chown -R "${TEST_USER}:${TEST_USER}" "$RESULTS_DIR/screenshots"
     fi
 }
 

@@ -2036,7 +2036,7 @@ class ApplicationTest {
     }
 
     @Test
-    fun testLiveHyperliquidOrderRejectsWhenQuoteExchangeDoesNotMatchConfiguredEnvironment() = testApplication {
+    fun testLiveHyperliquidOrderRejectsWhenQuoteExchangeFallsOutsideAllowedFallbacks() = testApplication {
         lateinit var workerClient: WorkerClient
         application {
             val authService = mockk<AuthService>(relaxed = true)
@@ -2074,7 +2074,7 @@ class ApplicationTest {
                 ask = 73010.0,
                 last = 73005.0,
                 timestamp = freshQuoteTimestamp(),
-                source = "orderbook_data:canonical:resolved_exchange=hyperliquid_mainnet"
+                source = "orderbook_data:canonical:resolved_exchange=aster"
             )
 
             configureApp(

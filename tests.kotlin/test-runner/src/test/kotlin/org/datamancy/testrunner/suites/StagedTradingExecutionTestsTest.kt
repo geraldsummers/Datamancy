@@ -106,8 +106,9 @@ class StagedTradingExecutionTestsTest {
     }
 
     @Test
-    fun `hyperliquid credential failure handling respects strict mode`() {
-        val keyFailure = "User or API Wallet 0xabc does not exist."
+    fun `hyperliquid credential failure handling distinguishes malformed keys from provisioning blockers`() {
+        val keyFailure = "Invalid signature for Hyperliquid API wallet"
+        val provisioningBlocker = "User or API Wallet 0xabc does not exist."
         assertFalse(
             shouldFailOnHyperliquidCredentialError(
                 strictCredentialChecks = false,
@@ -118,6 +119,12 @@ class StagedTradingExecutionTestsTest {
             shouldFailOnHyperliquidCredentialError(
                 strictCredentialChecks = true,
                 errorText = keyFailure
+            )
+        )
+        assertFalse(
+            shouldFailOnHyperliquidCredentialError(
+                strictCredentialChecks = true,
+                errorText = provisioningBlocker
             )
         )
         assertFalse(
@@ -136,5 +143,13 @@ class StagedTradingExecutionTestsTest {
         )
 
         assertEquals(setOf("traderbot", "ops-bot"), users)
+    }
+
+    @Test
+    fun `paper venue candidates include hyperliquid for homogeneous forward paper checks`() {
+        val venues = paperVenueCandidates()
+
+        assertTrue("hyperliquid" in venues)
+        assertEquals(listOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster"), venues)
     }
 }

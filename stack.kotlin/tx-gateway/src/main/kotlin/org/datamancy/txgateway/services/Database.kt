@@ -627,49 +627,52 @@ class DatabaseService(
         val candidates = symbolCandidates(symbol)
         val exchangeCandidates = quoteExchangeCandidates(normalizedExchange, executionMode)
 
-        for (exchangeCandidate in exchangeCandidates) {
-            for (candidate in candidates) {
-                queryOrderbookQuote(exchangeCandidate, candidate)?.let { quote ->
-                    return normalizeResolvedQuote(
-                        quote = quote,
-                        requestedExchange = normalizedExchange,
-                        resolvedExchange = exchangeCandidate
-                    )
+        val orderbookQuotes = buildList {
+            exchangeCandidates.forEach { exchangeCandidate ->
+                candidates.forEach { candidate ->
+                    queryOrderbookQuote(exchangeCandidate, candidate)?.let { quote ->
+                        add(
+                            normalizeResolvedQuote(
+                                quote = quote,
+                                requestedExchange = normalizedExchange,
+                                resolvedExchange = exchangeCandidate
+                            )
+                        )
+                    }
                 }
             }
         }
+        freshestQuote(orderbookQuotes)?.let { return it }
 
-        for (exchangeCandidate in exchangeCandidates) {
-            for (candidate in candidates) {
-                queryMarketDataQuote(exchangeCandidate, candidate)?.let { quote ->
-                    return normalizeResolvedQuote(
-                        quote = quote,
-                        requestedExchange = normalizedExchange,
-                        resolvedExchange = exchangeCandidate
-                    )
+        val marketDataQuotes = buildList {
+            exchangeCandidates.forEach { exchangeCandidate ->
+                candidates.forEach { candidate ->
+                    queryMarketDataQuote(exchangeCandidate, candidate)?.let { quote ->
+                        add(
+                            normalizeResolvedQuote(
+                                quote = quote,
+                                requestedExchange = normalizedExchange,
+                                resolvedExchange = exchangeCandidate
+                            )
+                        )
+                    }
                 }
             }
         }
-
-        return null
+        return freshestQuote(marketDataQuotes)
     }
 
     private fun quoteExchangeCandidates(exchange: String, executionMode: String?): List<String> {
         if (exchange != "hyperliquid") return listOf(exchange)
-        val preferred = when (executionMode?.trim()?.lowercase()) {
-            "forward_paper" -> hyperliquidForwardPaperQuoteExchange
-            "testnet_live" -> hyperliquidTestnetQuoteExchange
-            "mainnet_live" -> hyperliquidMainnetQuoteExchange
-            else -> legacyHyperliquidQuoteExchange
-        }
-        val candidates = mutableListOf<String>()
-        if (!preferred.isNullOrBlank()) {
-            candidates += preferred
-        }
-        if (allowCanonicalHyperliquidFallback || candidates.isEmpty()) {
-            candidates += "hyperliquid"
-        }
-        return candidates.distinct()
+        return resolveHyperliquidQuoteExchangeCandidates(
+            requestedExecutionMode = executionMode,
+            legacyQuoteExchange = legacyHyperliquidQuoteExchange,
+            forwardPaperExchange = hyperliquidForwardPaperQuoteExchange,
+            testnetExchange = hyperliquidTestnetQuoteExchange,
+            mainnetExchange = hyperliquidMainnetQuoteExchange,
+            mainnetFlag = hyperliquidMainnetFlag,
+            allowCanonicalFallback = allowCanonicalHyperliquidFallback
+        )
     }
 
     private fun normalizeResolvedQuote(
@@ -685,6 +688,9 @@ class DatabaseService(
             source = taggedSource
         )
     }
+
+    private fun freshestQuote(quotes: List<LatestQuote>): LatestQuote? =
+        quotes.maxByOrNull { it.timestamp }
 
     private fun quoteDataSources(): List<HikariDataSource> {
         marketDataSource?.let { return listOf(it) }
@@ -2301,6 +2307,57 @@ internal fun resolveHyperliquidQuoteExchangeForExecutionMode(
         "mainnet_live" -> normalize(mainnetExchange) ?: "hyperliquid_mainnet"
         else -> legacy ?: resolveHyperliquidQuoteExchange(explicitExchange = null, mainnetFlag = mainnetFlag)
     }
+}
+
+internal fun resolveHyperliquidQuoteExchangeCandidates(
+    requestedExecutionMode: String?,
+    legacyQuoteExchange: String?,
+    forwardPaperExchange: String?,
+    testnetExchange: String?,
+    mainnetExchange: String?,
+    mainnetFlag: String?,
+    allowCanonicalFallback: Boolean
+): List<String> {
+    fun normalize(raw: String?): String? {
+        return raw
+            ?.trim()
+            ?.lowercase()
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    fun addIfPresent(target: MutableList<String>, raw: String?) {
+        normalize(raw)?.let(target::add)
+    }
+
+    val normalizedMode = normalize(requestedExecutionMode)
+    val legacy = normalize(legacyQuoteExchange)
+    val candidates = mutableListOf<String>()
+
+    when (normalizedMode) {
+        "forward_paper" -> {
+            addIfPresent(candidates, forwardPaperExchange)
+            addIfPresent(candidates, mainnetExchange)
+        }
+        "testnet_live" -> {
+            addIfPresent(candidates, testnetExchange)
+            addIfPresent(candidates, mainnetExchange)
+            addIfPresent(candidates, forwardPaperExchange)
+        }
+        "mainnet_live" -> {
+            addIfPresent(candidates, mainnetExchange)
+            addIfPresent(candidates, forwardPaperExchange)
+        }
+        else -> addIfPresent(
+            candidates,
+            legacy ?: resolveHyperliquidQuoteExchange(explicitExchange = null, mainnetFlag = mainnetFlag)
+        )
+    }
+
+    if (allowCanonicalFallback || candidates.isEmpty()) {
+        candidates += "hyperliquid"
+    }
+
+    return candidates.distinct()
 }
 
 internal fun parseBooleanFlag(raw: String?, defaultValue: Boolean): Boolean {

@@ -33,8 +33,8 @@ This document describes the expected page characteristics for each service after
 ### Vaultwarden
 - **URL Pattern**: `app.vaultwarden.datamancy.net`
 - **Page Title**: `Vaultwarden Web`
-- **UI Pattern**: `/My Vault|Vaults|Folders|Items|Search vault|Join organization|Create account|Set initial password/i`
-- **Validation**: OIDC flow must not end on `#/login` or `#/sso`
+- **UI Pattern**: `/My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i`
+- **Validation**: OIDC flow must not end on `#/login`, `#/sso`, or `#/set-initial-password`
 - **Note**: External URL only; include `#/sso?identifier=datamancy.net`
 
 ### Homepage

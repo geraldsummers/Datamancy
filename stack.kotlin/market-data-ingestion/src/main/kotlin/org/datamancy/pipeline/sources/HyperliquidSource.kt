@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.*
 import org.datamancy.pipeline.core.Source
+import java.io.IOException
 import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
@@ -34,7 +35,8 @@ class HyperliquidSource(
     private val candleIntervals: List<String> = listOf("1m", "5m", "15m", "1h"),
     private val subscribeToOrderbook: Boolean = false,
     private val subscribeToAssetCtx: Boolean = true,
-    private val url: String = "wss://api.hyperliquid.xyz/ws"
+    private val url: String = "wss://api.hyperliquid.xyz/ws",
+    private val receiveIdleTimeoutMs: Long = 120_000L
 ) : Source<HyperliquidMarketData> {
     override val name = "HyperliquidSource"
 
@@ -51,6 +53,7 @@ class HyperliquidSource(
             "Subscriptions - Trades: $subscribeToTrades, Candles: $subscribeToCandles (${candleIntervals.joinToString()}), " +
                 "Orderbook: $subscribeToOrderbook, AssetCtx: $subscribeToAssetCtx"
         }
+        logger.info { "WebSocket idle watchdog: ${receiveIdleTimeoutMs}ms" }
 
         try {
             client.webSocket(url) {
@@ -74,8 +77,9 @@ class HyperliquidSource(
                     }
                 }
 
-                // Process incoming messages
-                for (frame in incoming) {
+                // Force reconnection if the socket stops delivering market data frames without closing.
+                while (currentCoroutineContext().isActive) {
+                    val frame = awaitNextFrame()
                     when (frame) {
                         is Frame.Text -> {
                             val text = frame.readText()
@@ -94,6 +98,21 @@ class HyperliquidSource(
             throw e
         } finally {
             logger.info { "Hyperliquid WebSocket session ended" }
+        }
+    }
+
+    private suspend fun DefaultClientWebSocketSession.awaitNextFrame(): Frame {
+        return try {
+            withTimeout(receiveIdleTimeoutMs) {
+                incoming.receive()
+            }
+        } catch (e: TimeoutCancellationException) {
+            val message = "No WebSocket frames received for ${receiveIdleTimeoutMs}ms"
+            logger.warn { "$message; forcing reconnect" }
+            runCatching {
+                close(CloseReason(CloseReason.Codes.GOING_AWAY, "idle timeout"))
+            }
+            throw IOException(message, e)
         }
     }
 
