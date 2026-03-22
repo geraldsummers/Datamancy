@@ -17,19 +17,29 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pandas.io.sql")
 
 @dataclass(frozen=True)
 class StrategyParams:
-    direction: float
-    book_weight: float
-    micro_weight: float
-    flow_weight: float
-    momentum_weight: float
-    entry_z: float
-    exit_z: float
+    family: str
+    direction: float = 1.0
+    book_weight: float = 0.0
+    micro_weight: float = 0.0
+    flow_weight: float = 0.0
+    momentum_weight: float = 0.0
+    entry_z: float = 0.0
+    exit_z: float = 0.0
+    entry_quantile: float = 0.0
+    hold_bars: int = 0
+    spread_cap_quantile: float = 0.0
+    depth_floor_quantile: float = 0.0
 
     @property
     def label(self) -> str:
+        if self.family == "tail_short_v2":
+            return (
+                f"family={self.family},entry_q={self.entry_quantile:.2f},hold={self.hold_bars},"
+                f"spread_q={self.spread_cap_quantile:.2f},depth_q={self.depth_floor_quantile:.2f}"
+            )
         return (
-            f"dir={self.direction:.0f},book={self.book_weight:.2f},micro={self.micro_weight:.2f},flow={self.flow_weight:.2f},"
-            f"mom={self.momentum_weight:.2f},entry={self.entry_z:.2f},exit={self.exit_z:.2f}"
+            f"family={self.family},dir={self.direction:.0f},book={self.book_weight:.2f},micro={self.micro_weight:.2f},"
+            f"flow={self.flow_weight:.2f},mom={self.momentum_weight:.2f},entry={self.entry_z:.2f},exit={self.exit_z:.2f}"
         )
 
 
@@ -46,6 +56,7 @@ class CostScenario:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run walk-forward alpha proof against Datamancy market data")
     parser.add_argument("--exchange", default=os.getenv("ALPHA_PROOF_EXCHANGE", "hyperliquid_mainnet"))
+    parser.add_argument("--family", default=os.getenv("ALPHA_PROOF_FAMILY", "microstructure_v1"))
     parser.add_argument(
         "--symbols",
         default=os.getenv("ALPHA_PROOF_SYMBOLS", "BTC,ETH,SOL,AVAX,LINK"),
@@ -113,6 +124,12 @@ def sql_quote(value: str) -> str:
 def spread_pct_to_bps(series: pd.Series) -> pd.Series:
     # orderbook_data.spread_pct is stored in percent units, not fraction units.
     return (series.clip(lower=0) * 100.0).fillna(0.0)
+
+
+def depth_notional_usd(df: pd.DataFrame, depth_units: pd.Series) -> pd.Series:
+    # orderbook_data bid/ask depth columns are stored in base-asset size, not quote notional.
+    reference_price = df["mid_price"].replace(0, np.nan).fillna(df["close"]).replace(0, np.nan)
+    return (depth_units * reference_price).replace([np.inf, -np.inf], np.nan)
 
 
 def resolve_exchange_aliases(exchange: str) -> list[str]:
@@ -279,7 +296,7 @@ def engineer_features(frame: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def build_param_grid() -> list[StrategyParams]:
+def build_microstructure_param_grid() -> list[StrategyParams]:
     params: list[StrategyParams] = []
     weight_bases = [
         (0.45, 0.25, 0.25, 0.05),
@@ -294,6 +311,7 @@ def build_param_grid() -> list[StrategyParams]:
                 for exit_z in (0.1, 0.2, 0.3):
                     params.append(
                         StrategyParams(
+                            family="microstructure_v1",
                             direction=direction,
                             book_weight=book_weight,
                             micro_weight=micro_weight,
@@ -306,7 +324,33 @@ def build_param_grid() -> list[StrategyParams]:
     return params
 
 
-def simulate(frame: pd.DataFrame, params: StrategyParams, notional_usd: float, scenario: CostScenario) -> tuple[dict, pd.DataFrame]:
+def build_tail_short_param_grid() -> list[StrategyParams]:
+    params: list[StrategyParams] = []
+    for entry_quantile in (0.10, 0.15):
+        for hold_bars in (30, 45):
+            for spread_cap_quantile in (0.75, 0.80):
+                for depth_floor_quantile in (0.30, 0.40):
+                    params.append(
+                        StrategyParams(
+                            family="tail_short_v2",
+                            entry_quantile=entry_quantile,
+                            hold_bars=hold_bars,
+                            spread_cap_quantile=spread_cap_quantile,
+                            depth_floor_quantile=depth_floor_quantile,
+                        )
+                    )
+    return params
+
+
+def build_param_grid(family: str) -> list[StrategyParams]:
+    if family == "microstructure_v1":
+        return build_microstructure_param_grid()
+    if family == "tail_short_v2":
+        return build_tail_short_param_grid()
+    raise SystemExit(f"Unsupported alpha proof family: {family}")
+
+
+def simulate_microstructure(frame: pd.DataFrame, params: StrategyParams, notional_usd: float, scenario: CostScenario) -> tuple[dict, pd.DataFrame]:
     df = frame.copy()
     vol_median = df["vol_30m"].rolling(180).median().fillna(df["vol_30m"].median())
     regime = np.where(df["vol_30m"] > vol_median, df["rev_5m_z"], df["mom_30m_z"])
@@ -325,6 +369,7 @@ def simulate(frame: pd.DataFrame, params: StrategyParams, notional_usd: float, s
     turnover = desired.diff().abs().fillna(np.abs(desired.iloc[0]))
     spread_bps = spread_pct_to_bps(df["spread_pct"])
     depth = (df["bid_depth_10"] + df["ask_depth_10"]).replace(0, np.nan)
+    depth_usd = depth_notional_usd(df, depth).fillna(0.0)
     vol_norm = (df["vol_30m"] / vol_median.replace(0, np.nan)).replace([np.inf, -np.inf], np.nan).fillna(1.0)
     latency_ms = 110.0 + scenario.latency_ms_shift
 
@@ -335,7 +380,7 @@ def simulate(frame: pd.DataFrame, params: StrategyParams, notional_usd: float, s
         np.abs(score) * 0.8
     ).clip(0.5, 40.0)
     impact_bps = (
-        0.4 + (notional_usd / depth) * 10.0
+        0.4 + (notional_usd / depth_usd.replace(0, np.nan)) * 10.0
     ).replace([np.inf, -np.inf], np.nan).fillna(4.0).clip(0.3, 20.0) * scenario.impact_mult
     latency_bps = ((latency_ms / 100.0) * (0.08 + spread_bps / 200.0 + vol_norm * 0.15)).clip(0.0, 8.0)
     adverse_bps = (0.5 + np.abs(score) * 1.2 + latency_bps).clip(0.2, 12.0)
@@ -372,7 +417,8 @@ def simulate(frame: pd.DataFrame, params: StrategyParams, notional_usd: float, s
             "total_cost_bps": total_cost_bps,
             "position": desired,
             "vol_30m": df["vol_30m"],
-            "depth": depth.fillna(0.0),
+            "depth_usd": depth_usd,
+            "trade_flag": (effective_turnover > 0).astype(int),
         }
     )
 
@@ -389,8 +435,166 @@ def simulate(frame: pd.DataFrame, params: StrategyParams, notional_usd: float, s
     return metrics, result_frame
 
 
-def train_score(metrics: dict) -> float:
-    if metrics["trades"] < 6:
+def build_tail_short_score(df: pd.DataFrame) -> pd.Series:
+    return (
+        0.55 * df["book_imbalance_z"] +
+        0.25 * df["microprice_alpha_z"] +
+        0.20 * df["signed_flow_z"]
+    ).clip(-5.0, 5.0)
+
+
+def fit_strategy_state(frame: pd.DataFrame, params: StrategyParams) -> dict:
+    if params.family != "tail_short_v2":
+        return {}
+    score = build_tail_short_score(frame)
+    spread_bps = spread_pct_to_bps(frame["spread_pct"])
+    depth = (frame["bid_depth_10"] + frame["ask_depth_10"]).replace(0, np.nan)
+    depth_usd = depth_notional_usd(frame, depth)
+    return {
+        "entry_threshold": float(score.quantile(params.entry_quantile)),
+        "spread_cap_bps": float(spread_bps.quantile(params.spread_cap_quantile)),
+        "depth_floor_usd": float(depth_usd.quantile(params.depth_floor_quantile)),
+    }
+
+
+def simulate_tail_short(
+    frame: pd.DataFrame,
+    params: StrategyParams,
+    notional_usd: float,
+    scenario: CostScenario,
+    fit_state: dict | None = None,
+) -> tuple[dict, pd.DataFrame]:
+    df = frame.copy()
+    df["tail_short_score"] = build_tail_short_score(df)
+    spread_bps = spread_pct_to_bps(df["spread_pct"])
+    depth = (df["bid_depth_10"] + df["ask_depth_10"]).replace(0, np.nan)
+    depth_usd = depth_notional_usd(df, depth).fillna(0.0)
+    vol_median = df["vol_30m"].rolling(180).median().fillna(df["vol_30m"].median()).replace(0, np.nan)
+    vol_norm = (df["vol_30m"] / vol_median).replace([np.inf, -np.inf], np.nan).fillna(1.0)
+    state = fit_state or fit_strategy_state(df, params)
+
+    desired = pd.Series(0.0, index=df.index, dtype=float)
+    fill_ratio = pd.Series(1.0, index=df.index, dtype=float)
+    entry_turnover = pd.Series(0.0, index=df.index, dtype=float)
+    exit_turnover = pd.Series(0.0, index=df.index, dtype=float)
+    entry_cost_bps = pd.Series(0.0, index=df.index, dtype=float)
+    exit_cost_bps = pd.Series(0.0, index=df.index, dtype=float)
+    trade_costs: list[float] = []
+    trade_fills: list[float] = []
+    latency_ms = 75.0 + scenario.latency_ms_shift
+
+    i = 0
+    while i < len(df) - params.hold_bars - 1:
+        if (
+            df.iloc[i]["tail_short_score"] <= state["entry_threshold"]
+            and spread_bps.iloc[i] <= state["spread_cap_bps"]
+            and depth_usd.iloc[i] >= state["depth_floor_usd"]
+        ):
+            entry_i = i + 1
+            exit_i = entry_i + params.hold_bars
+            if exit_i >= len(df):
+                break
+
+            entry_depth_usd = max(depth_usd.iloc[entry_i], 1.0)
+            exit_depth_usd = max(depth_usd.iloc[exit_i], 1.0)
+            entry_fill = float(
+                np.clip(
+                    0.95
+                    - spread_bps.iloc[entry_i] / 60.0
+                    - vol_norm.iloc[entry_i] * 0.05
+                    - (notional_usd / entry_depth_usd) * 4.0
+                    - latency_ms / 10000.0,
+                    0.25,
+                    1.0,
+                )
+            )
+
+            desired.iloc[entry_i:exit_i] = -entry_fill
+            fill_ratio.iloc[entry_i:exit_i] = entry_fill
+            entry_turnover.iloc[entry_i] = entry_fill
+            exit_turnover.iloc[exit_i] = entry_fill
+
+            entry_spread_half = spread_bps.iloc[entry_i] / 2.0
+            exit_spread_half = spread_bps.iloc[exit_i] / 2.0
+            entry_impact = float(np.clip(0.2 + (notional_usd / entry_depth_usd) * 12.0, 0.2, 10.0)) * scenario.impact_mult
+            exit_impact = float(np.clip(0.2 + (notional_usd / exit_depth_usd) * 12.0, 0.2, 10.0)) * scenario.impact_mult
+            entry_slippage = float(
+                np.clip(
+                    0.4 + scenario.slippage_shift_bps * 0.35 + entry_spread_half * 0.20 + vol_norm.iloc[entry_i] * 0.45,
+                    0.3,
+                    8.0,
+                )
+            )
+            exit_slippage = float(
+                np.clip(
+                    0.6 + scenario.slippage_shift_bps + exit_spread_half * 0.25 + vol_norm.iloc[exit_i] * 0.55,
+                    0.3,
+                    10.0,
+                )
+            )
+            entry_cost = 1.0 + scenario.fee_shift_bps + entry_spread_half + entry_slippage + entry_impact
+            exit_cost = 4.0 + scenario.fee_shift_bps + exit_spread_half + exit_slippage + exit_impact
+            entry_cost_bps.iloc[entry_i] = entry_cost
+            exit_cost_bps.iloc[exit_i] = exit_cost
+            trade_costs.append(entry_cost + exit_cost)
+            trade_fills.append(entry_fill)
+            i = exit_i + 1
+            continue
+        i += 1
+
+    cost = (entry_turnover * entry_cost_bps + exit_turnover * exit_cost_bps) / 10000.0
+    strategy_ret = desired * (df["ret_fwd_1m"].fillna(0.0) + df["carry_overlay"].fillna(0.0)) - cost
+
+    eq = (1.0 + strategy_ret).cumprod()
+    peak = eq.cummax()
+    drawdown = (eq / peak - 1.0).min()
+    trades = int((entry_turnover > 0).sum())
+    active_rows = int((strategy_ret != 0).sum())
+    total_return = float(eq.iloc[-1] - 1.0) if not eq.empty else 0.0
+    sharpe = float((strategy_ret.mean() / (strategy_ret.std() + 1e-12)) * np.sqrt(60 * 24 * 365)) if not strategy_ret.empty else 0.0
+    edge_bps_per_trade = float(total_return * 10000.0 / max(trades, 1))
+
+    result_frame = pd.DataFrame(
+        {
+            "time": df["time"],
+            "strategy_ret": strategy_ret,
+            "fill_ratio": fill_ratio,
+            "total_cost_bps": entry_cost_bps + exit_cost_bps,
+            "position": desired,
+            "vol_30m": df["vol_30m"],
+            "depth_usd": depth_usd,
+            "trade_flag": (entry_turnover > 0).astype(int),
+        }
+    )
+
+    metrics = {
+        "net_return_pct": total_return * 100.0,
+        "max_drawdown_pct": float(drawdown * 100.0),
+        "sharpe": sharpe,
+        "trades": trades,
+        "win_rate": float((strategy_ret > 0).sum() / max(1, active_rows)),
+        "edge_bps_per_trade": edge_bps_per_trade,
+        "avg_total_cost_bps": float(np.mean(trade_costs)) if trade_costs else 0.0,
+        "avg_fill_ratio": float(np.mean(trade_fills)) if trade_fills else 1.0,
+    }
+    return metrics, result_frame
+
+
+def simulate(
+    frame: pd.DataFrame,
+    params: StrategyParams,
+    notional_usd: float,
+    scenario: CostScenario,
+    fit_state: dict | None = None,
+) -> tuple[dict, pd.DataFrame]:
+    if params.family == "tail_short_v2":
+        return simulate_tail_short(frame, params=params, notional_usd=notional_usd, scenario=scenario, fit_state=fit_state)
+    return simulate_microstructure(frame, params=params, notional_usd=notional_usd, scenario=scenario)
+
+
+def train_score(metrics: dict, params: StrategyParams) -> float:
+    min_trades = 3 if params.family == "tail_short_v2" else 6
+    if metrics["trades"] < min_trades:
         return -1_000_000.0 + metrics["trades"]
     return (
         metrics["edge_bps_per_trade"] +
@@ -428,17 +632,21 @@ def select_walkforward_params(
         best_params = None
         best_metrics = None
         best_score = None
+        best_fit_state = None
         for params in param_grid:
-            metrics, _ = simulate(train, params=params, notional_usd=notional_usd, scenario=baseline)
-            score = train_score(metrics)
+            fit_state = fit_strategy_state(train, params)
+            metrics, _ = simulate(train, params=params, notional_usd=notional_usd, scenario=baseline, fit_state=fit_state)
+            score = train_score(metrics, params=params)
             if best_score is None or score > best_score:
                 best_score = score
                 best_params = params
                 best_metrics = metrics
+                best_fit_state = fit_state
         assert best_params is not None and best_metrics is not None
         selected.append(
             {
                 "params": best_params,
+                "fit_state": best_fit_state or {},
                 "train_metrics": best_metrics,
                 "train_start": frame.iloc[train_start]["time"],
                 "train_end": frame.iloc[train_end - 1]["time"],
@@ -455,7 +663,7 @@ def regime_summary(result_frame: pd.DataFrame) -> list[dict]:
         return []
     summary = result_frame.copy()
     summary["vol_bucket"] = pd.qcut(summary["vol_30m"].rank(method="first"), 4, labels=["q1", "q2", "q3", "q4"])
-    summary["liq_bucket"] = pd.qcut(summary["depth"].rank(method="first"), 4, labels=["l1", "l2", "l3", "l4"])
+    summary["liq_bucket"] = pd.qcut(summary["depth_usd"].rank(method="first"), 4, labels=["l1", "l2", "l3", "l4"])
     grouped = summary.groupby(["vol_bucket", "liq_bucket"], observed=False).agg(
         net_return_pct=("strategy_ret", lambda values: float((((1.0 + values).prod()) - 1.0) * 100.0)),
         avg_cost_bps=("total_cost_bps", "mean"),
@@ -483,6 +691,7 @@ def evaluate_selected_windows(
             params=window["params"],
             notional_usd=notional_usd,
             scenario=scenario,
+            fit_state=window.get("fit_state") or {},
         )
         window_rows.append(
             {
@@ -533,21 +742,44 @@ def evaluate_selected_windows(
     overall_metrics["positive_window_ratio"] = (
         overall_metrics["positive_windows"] / max(1, overall_metrics["window_count"])
     )
+    overall_metrics["active_windows"] = sum(1 for row in window_rows if row["test_metrics"]["trades"] > 0)
+    overall_metrics["positive_active_windows"] = sum(
+        1 for row in window_rows if row["test_metrics"]["trades"] > 0 and row["test_metrics"]["net_return_pct"] > 0
+    )
+    overall_metrics["positive_active_window_ratio"] = (
+        overall_metrics["positive_active_windows"] / max(1, overall_metrics["active_windows"])
+    )
     return overall_metrics, window_rows, oos
 
 
-def acceptance(overall_metrics: dict, sensitivity_rows: Sequence[dict]) -> tuple[str, list[str]]:
+def acceptance(overall_metrics: dict, sensitivity_rows: Sequence[dict], family: str) -> tuple[str, list[str]]:
     reasons = []
-    if overall_metrics["window_count"] < 3:
-        reasons.append("fewer than 3 walk-forward windows")
-    if overall_metrics["net_return_pct"] <= 0:
-        reasons.append("non-positive aggregate OOS return")
-    if overall_metrics["edge_bps_per_trade"] <= 0:
-        reasons.append("non-positive aggregate edge per trade")
-    if overall_metrics["positive_window_ratio"] < 0.55:
-        reasons.append("less than 55% positive OOS windows")
-    if overall_metrics["max_drawdown_pct"] < -8.0:
-        reasons.append("aggregate OOS drawdown worse than -8%")
+    if family == "tail_short_v2":
+        if overall_metrics["window_count"] < 4:
+            reasons.append("fewer than 4 walk-forward windows")
+        if overall_metrics["active_windows"] < 4:
+            reasons.append("fewer than 4 active walk-forward windows")
+        if overall_metrics["trades"] < 8:
+            reasons.append("fewer than 8 aggregate OOS trades")
+        if overall_metrics["net_return_pct"] <= 0:
+            reasons.append("non-positive aggregate OOS return")
+        if overall_metrics["edge_bps_per_trade"] <= 0:
+            reasons.append("non-positive aggregate edge per trade")
+        if overall_metrics["positive_active_window_ratio"] < 0.60:
+            reasons.append("less than 60% positive active OOS windows")
+        if overall_metrics["max_drawdown_pct"] < -8.0:
+            reasons.append("aggregate OOS drawdown worse than -8%")
+    else:
+        if overall_metrics["window_count"] < 3:
+            reasons.append("fewer than 3 walk-forward windows")
+        if overall_metrics["net_return_pct"] <= 0:
+            reasons.append("non-positive aggregate OOS return")
+        if overall_metrics["edge_bps_per_trade"] <= 0:
+            reasons.append("non-positive aggregate edge per trade")
+        if overall_metrics["positive_window_ratio"] < 0.55:
+            reasons.append("less than 55% positive OOS windows")
+        if overall_metrics["max_drawdown_pct"] < -8.0:
+            reasons.append("aggregate OOS drawdown worse than -8%")
 
     worst_sensitivity = min((row["metrics"]["edge_bps_per_trade"] for row in sensitivity_rows), default=0.0)
     if worst_sensitivity < -0.5:
@@ -570,6 +802,7 @@ def persist_symbol_result(
     conn,
     strategy_name: str,
     symbol: str,
+    family: str,
     canonical_exchange: str,
     exchange_aliases: Sequence[str],
     lookback: str,
@@ -585,6 +818,7 @@ def persist_symbol_result(
     end_time = window_rows[-1]["test_end"]
     metrics_json = json.dumps(
         {
+            "family": family,
             "canonical_exchange": canonical_exchange,
             "exchange_aliases": list(exchange_aliases),
             "lookback": lookback,
@@ -593,6 +827,9 @@ def persist_symbol_result(
             "positive_windows": overall_metrics["positive_windows"],
             "window_count": overall_metrics["window_count"],
             "positive_window_ratio": overall_metrics["positive_window_ratio"],
+            "active_windows": overall_metrics.get("active_windows", 0),
+            "positive_active_windows": overall_metrics.get("positive_active_windows", 0),
+            "positive_active_window_ratio": overall_metrics.get("positive_active_window_ratio", 0.0),
             "selected_parameters": dict(Counter(row["params"].label for row in window_rows)),
             "regime_summary": regime_summary(oos_frame),
             "sensitivity": [
@@ -768,20 +1005,26 @@ def run_symbol(
         metrics, _, _ = evaluate_selected_windows(selected_windows, notional_usd=args.notional_usd, scenario=scenario)
         sensitivity.append({"scenario": scenario, "metrics": metrics})
 
-    proof_status, proof_reasons = acceptance(overall_metrics, sensitivity)
+    proof_status, proof_reasons = acceptance(overall_metrics, sensitivity, family=args.family)
     carry_overlay_enabled = bool(frame["funding_rate"].abs().sum() > 0)
     strategy_name = f"{args.strategy_prefix}_{symbol.lower()}"
     summary = {
         "symbol": symbol,
         "strategy_name": strategy_name,
+        "family": args.family,
         "status": proof_status,
         "bars": int(len(frame)),
         "windows": overall_metrics["window_count"],
         "positive_windows": overall_metrics["positive_windows"],
+        "active_windows": overall_metrics.get("active_windows", 0),
+        "positive_active_windows": overall_metrics.get("positive_active_windows", 0),
+        "trades": overall_metrics["trades"],
         "net_return_pct": overall_metrics["net_return_pct"],
         "edge_bps_per_trade": overall_metrics["edge_bps_per_trade"],
         "max_drawdown_pct": overall_metrics["max_drawdown_pct"],
         "sharpe": overall_metrics["sharpe"],
+        "avg_total_cost_bps": overall_metrics["avg_total_cost_bps"],
+        "avg_fill_ratio": overall_metrics["avg_fill_ratio"],
         "proof_reasons": proof_reasons,
         "exchange_aliases": list(exchange_aliases),
         "carry_overlay_enabled": carry_overlay_enabled,
@@ -801,6 +1044,7 @@ def run_symbol(
             conn,
             strategy_name=strategy_name,
             symbol=symbol,
+            family=args.family,
             canonical_exchange=args.exchange,
             exchange_aliases=exchange_aliases,
             lookback=args.lookback,
@@ -821,9 +1065,9 @@ def main() -> None:
     args = parse_args()
     symbols = [symbol.strip().upper() for symbol in args.symbols.split(",") if symbol.strip()]
     exchange_aliases = resolve_exchange_aliases(args.exchange)
-    param_grid = build_param_grid()
+    param_grid = build_param_grid(args.family)
     print(
-        f"[alpha-proof] exchange={args.exchange} aliases={exchange_aliases} symbols={symbols} "
+        f"[alpha-proof] family={args.family} exchange={args.exchange} aliases={exchange_aliases} symbols={symbols} "
         f"lookback={args.lookback} persist={args.persist} use_trade_flow={args.use_trade_flow}"
     )
     conn = connect(args)

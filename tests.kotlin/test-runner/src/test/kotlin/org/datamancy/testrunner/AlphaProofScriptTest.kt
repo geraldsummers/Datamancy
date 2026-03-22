@@ -40,6 +40,14 @@ class AlphaProofScriptTest {
             "alpha proof should convert stored spread_pct values from percent units into basis points exactly once"
         )
         assertTrue(
+            text.contains("orderbook_data bid/ask depth columns are stored in base-asset size, not quote notional"),
+            "alpha proof should document that orderbook depth is stored in base units so impact models do not treat it as USD notional"
+        )
+        assertTrue(
+            text.contains("return simulate_tail_short("),
+            "alpha proof should expose the slower downside-tail strategy family for lower-latency-sensitive alpha discovery"
+        )
+        assertTrue(
             text.contains("INSERT INTO strategy_backtest_runs"),
             "alpha proof should persist aggregate walk-forward evidence into strategy_backtest_runs"
         )

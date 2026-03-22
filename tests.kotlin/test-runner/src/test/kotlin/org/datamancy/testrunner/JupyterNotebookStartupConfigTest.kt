@@ -70,6 +70,14 @@ class JupyterNotebookStartupConfigTest {
             "research notebooks should convert stored spread_pct values from percent units into basis points"
         )
         assertTrue(
+            text.contains("\"       COALESCE(ob.mid_price, 0) AS mid_price,\\n\""),
+            "forward-test notebooks should carry orderbook mid_price so depth can be converted into quote notional for impact modelling"
+        )
+        assertTrue(
+            text.contains("\"depth_notional_usd = (depth_sum * forward['mid_price'].replace(0, np.nan).fillna(forward['close']).replace(0, np.nan))\\n\""),
+            "forward-test notebooks should convert top-of-book depth from base units into quote notional before estimating impact"
+        )
+        assertTrue(
             text.contains("\"spread_bps = df['spread_pct'].clip(lower=0) * 100.0\\n\""),
             "research notebooks should reuse percent-to-bps conversion consistently in execution realism calculations"
         )
