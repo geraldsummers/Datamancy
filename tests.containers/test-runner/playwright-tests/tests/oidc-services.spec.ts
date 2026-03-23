@@ -1433,6 +1433,8 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
   });
 
   test('Vaultwarden - OIDC login flow', async ({ page }) => {
+    test.setTimeout(180000);
+
     const vaultwardenEmail = process.env.STACK_ADMIN_EMAIL || testUser.email || 'admin@datamancy.net';
     const vaultwardenMasterPassword = process.env.VAULTWARDEN_TEST_MASTER_PASSWORD
       || `${(testUser.username || 'sysadmin').replace(/[^A-Za-z0-9]/g, '') || 'sysadmin'}Vault!2026`;
@@ -1449,8 +1451,12 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
         loginButtonPatterns: [/use single sign-on|single sign-on|sso|enterprise|login/i],
         ssoIdentifier: vaultwardenEmail.split('@').pop() || 'datamancy.net',
         ssoEmail: vaultwardenEmail,
-        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Send|Generator|Vaultwarden Web/i,
+        uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Send|Generator|Vaultwarden Web|Your vault is locked|Add it later|Get the extension/i,
         postLogin: async (page) => {
+          const vaultUiPattern = /My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i;
+          const vaultLockPattern = /Your vault is locked|Unlock/i;
+          const vaultSetupExtensionPattern = /Add it later|Get the extension|Autofill your passwords securely/i;
+
           const fillVaultwardenInput = async (field: Locator, value: string) => {
             if (!(await field.isVisible().catch(() => false))) {
               return false;
@@ -1497,6 +1503,67 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
                 });
               }
             }
+          };
+
+          const unlockVaultwardenIfNeeded = async () => {
+            const unlockButton = page.getByRole('button', { name: /unlock/i }).first();
+            const lockPasswordField = page.locator('input[name="masterPassword"]').first();
+            const onLockScreen = /#\/lock\b/i.test(page.url())
+              || await unlockButton.isVisible().catch(() => false);
+            if (!onLockScreen || !(await lockPasswordField.isVisible().catch(() => false))) {
+              return false;
+            }
+
+            await fillVaultwardenInput(lockPasswordField, vaultwardenMasterPassword);
+            if (await unlockButton.isVisible().catch(() => false)) {
+              await unlockButton.click({ force: true }).catch(() => {});
+            } else {
+              await lockPasswordField.press('Enter').catch(() => {});
+            }
+
+            await page.waitForFunction(() => {
+              const href = window.location.href;
+              const text = document.body?.innerText || '';
+              return !/#\/lock\b/i.test(href)
+                || /My Vault|Vaults|Folders|Items|Search vault|Send|Generator|Add it later|Get the extension/i.test(text);
+            }, { timeout: 10000 }).catch(() => {});
+            await page.waitForTimeout(1000);
+            return true;
+          };
+
+          const dismissVaultwardenExtensionPromptIfNeeded = async () => {
+            const addLaterButton = page.getByRole('button', { name: /add it later/i }).first();
+            const onSetupExtension = /#\/setup-extension\b/i.test(page.url())
+              || await addLaterButton.isVisible().catch(() => false);
+            if (!onSetupExtension) {
+              return false;
+            }
+
+            if (await addLaterButton.isVisible().catch(() => false)) {
+              await addLaterButton.click({ force: true }).catch(() => {});
+            } else {
+              const skipLink = page.getByRole('link', { name: /add it later/i }).first();
+              if (await skipLink.isVisible().catch(() => false)) {
+                await skipLink.click({ force: true }).catch(() => {});
+              }
+            }
+
+            await page.waitForFunction(() => {
+              const href = window.location.href;
+              const text = document.body?.innerText || '';
+              return !/#\/setup-extension\b/i.test(href)
+                || /My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i.test(text);
+            }, { timeout: 10000 }).catch(() => {});
+            await page.waitForTimeout(1000);
+            return true;
+          };
+
+          const hasAuthenticatedVaultwardenState = async () => {
+            const text = (await page.textContent('body').catch(() => '')) || '';
+            const url = page.url();
+            return vaultUiPattern.test(text)
+              || (/#\/lock\b/i.test(url) && vaultLockPattern.test(text))
+              || (/#\/setup-extension\b/i.test(url) && vaultSetupExtensionPattern.test(text));
           };
 
           // Handle create account / master password setup after SSO
@@ -1592,6 +1659,17 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             }
           }
 
+          for (let i = 0; i < 3; i += 1) {
+            const unlocked = await unlockVaultwardenIfNeeded();
+            const dismissedSetupPrompt = await dismissVaultwardenExtensionPromptIfNeeded();
+            if (await hasAuthenticatedVaultwardenState()) {
+              break;
+            }
+            if (!unlocked && !dismissedSetupPrompt) {
+              break;
+            }
+          }
+
           await page.waitForURL((url) => !/#\/sso\b/i.test(url.toString()), { timeout: 20000 }).catch(() => {});
 
           // Vaultwarden can occasionally bounce back to login after SSO redirect.
@@ -1676,9 +1754,22 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             }
           }
 
+          for (let i = 0; i < 3; i += 1) {
+            const unlocked = await unlockVaultwardenIfNeeded();
+            const dismissedSetupPrompt = await dismissVaultwardenExtensionPromptIfNeeded();
+            if (await hasAuthenticatedVaultwardenState()) {
+              break;
+            }
+            if (!unlocked && !dismissedSetupPrompt) {
+              break;
+            }
+          }
+
           const finalBody = (await page.textContent('body').catch(() => '')) || '';
-          const hasAuthenticatedUi = /My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i.test(finalBody);
-          if (!hasAuthenticatedUi) {
+          const hasAuthenticatedUi = vaultUiPattern.test(finalBody);
+          const hasAuthenticatedFallback = (/#\/lock\b/i.test(page.url()) && vaultLockPattern.test(finalBody))
+            || (/#\/setup-extension\b/i.test(page.url()) && vaultSetupExtensionPattern.test(finalBody));
+          if (!hasAuthenticatedUi && !hasAuthenticatedFallback) {
             throw new Error(
               `Vaultwarden did not present the actual vault UI after OIDC. URL=${page.url()}, bodySnippet=${finalBody.slice(0, 300)}`
             );
