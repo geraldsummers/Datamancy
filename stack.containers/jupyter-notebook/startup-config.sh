@@ -2375,8 +2375,10 @@ fun buildExchangePlans(catalog: List<ExchangeCatalogSnapshot>, config: ResearchC
         val aliases = when (exchange) {
             "hyperliquid" -> when (config.marketExchange.lowercase()) {
                 "hyperliquid_testnet" -> listOf("hyperliquid_testnet")
-                "hyperliquid", "hyperliquid_mainnet" -> listOf("hyperliquid_mainnet", "hyperliquid")
-                else -> listOf("hyperliquid_mainnet", "hyperliquid")
+                "hyperliquid" -> listOf("hyperliquid")
+                "hyperliquid_merged", "hyperliquid_mainnet_merged" -> listOf("hyperliquid_mainnet", "hyperliquid")
+                "hyperliquid_mainnet" -> listOf("hyperliquid_mainnet")
+                else -> listOf("hyperliquid_mainnet")
             }
             else -> listOf(exchange)
         }
