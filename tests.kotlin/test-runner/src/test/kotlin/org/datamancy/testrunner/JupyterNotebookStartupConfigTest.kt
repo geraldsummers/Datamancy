@@ -217,14 +217,19 @@ class JupyterNotebookStartupConfigTest {
             notebook.contains("ALPHA_ANALYTICS_URL") &&
                 notebook.contains("/api/v1/alpha/cross-sectional/default-config") &&
                 notebook.contains("/api/v1/alpha/cross-sectional/run") &&
-                notebook.contains("cross_sectional_alpha_service_last_run.json"),
+                notebook.contains("/api/v1/alpha/cross-sectional/search/default-config") &&
+                notebook.contains("/api/v1/alpha/cross-sectional/search/run") &&
+                notebook.contains("cross_sectional_alpha_service_last_run.json") &&
+                notebook.contains("cross_sectional_alpha_service_search.json"),
             "seeded alpha analytics client notebook should query the service over HTTP and persist the latest JSON snapshot"
         )
         assertTrue(
             notebook.contains("latest_signals") &&
                 notebook.contains("trend_watchlist") &&
-                notebook.contains("forward_summaries"),
-            "seeded alpha analytics client notebook should expose live watchlists and summary tables from the service response"
+                notebook.contains("forward_summaries") &&
+                notebook.contains("trend_leaderboard") &&
+                notebook.contains("reversion_leaderboard"),
+            "seeded alpha analytics client notebook should expose live watchlists, summary tables, and breathing search leaderboards"
         )
     }
 

@@ -171,6 +171,53 @@ data class ResearchConfig(
     val paperExecutionMode: String = env("DATAMANCY_CROSS_SECTIONAL_ORDER_MODE", "forward_paper")
 )
 
+@Serializable
+data class CrossSectionalSearchConfig(
+    val baseConfig: ResearchConfig = ResearchConfig(
+        persistBacktest = false,
+        persistForward = false,
+        enablePaperOrders = false
+    ),
+    val beamWidth: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_BEAM_WIDTH", 6),
+    val rounds: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_ROUNDS", 4),
+    val maxEvaluations: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_MAX_EVALUATIONS", 96),
+    val leaderboardSize: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_LEADERBOARD_SIZE", 8),
+    val minBacktestTrades: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_MIN_BACKTEST_TRADES", 8),
+    val minForwardTrades: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_MIN_FORWARD_TRADES", 3),
+    val minSearchFillRatio: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_SEARCH_MIN_FILL_RATIO", 0.6),
+    val maxSearchDrawdownPct: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_SEARCH_MAX_DRAWDOWN_PCT", 14.0),
+    val barMinutes: List<Int> = listOf(60, 120, 240, 480, 720),
+    val lookbackHours: List<Int> = listOf(720, 1080, 1440, 2160),
+    val forwardHours: List<Int> = listOf(48, 72, 96, 120),
+    val betaLookbackBars: List<Int> = listOf(48, 72, 96, 168, 240),
+    val trendLookbackBars: List<Int> = listOf(6, 12, 18, 24, 36, 48),
+    val trendSlowBars: List<Int> = listOf(18, 24, 36, 48, 72, 96),
+    val reversionLookbackBars: List<Int> = listOf(4, 8, 12, 16, 24),
+    val trendHoldBars: List<Int> = listOf(2, 3, 4, 6, 9),
+    val reversionHoldBars: List<Int> = listOf(1, 2, 3, 4, 6),
+    val topPerSide: List<Int> = listOf(1, 2, 3),
+    val trendEntryScore: List<Double> = listOf(0.8, 1.0, 1.2, 1.4, 1.6),
+    val reversionZEntry: List<Double> = listOf(1.5, 1.8, 2.15, 2.4, 2.8),
+    val reversionZExit: List<Double> = listOf(0.25, 0.45, 0.65, 0.85, 1.05),
+    val maxSpreadBps: List<Double> = listOf(6.0, 8.0, 11.0, 14.0),
+    val minDepthMultiple: List<Double> = listOf(8.0, 12.0, 16.0),
+    val minFillRatio: List<Double> = listOf(0.5, 0.58, 0.65, 0.75),
+    val minVolumeRatio: List<Double> = listOf(0.25, 0.35, 0.5),
+    val maxVolumeRatio: List<Double> = listOf(3.0, 4.5, 6.0),
+    val maxVolRegime: List<Double> = listOf(1.8, 2.35, 3.0),
+    val executionSafetyMarginBps: List<Double> = listOf(4.0, 8.0, 12.0),
+    val minExpectedNetEdgeBps: List<Double> = listOf(2.0, 4.0, 6.0, 8.0),
+    val trendMinFlowAlignment: List<Double> = listOf(0.0, 0.05, 0.08, 0.12, 0.18),
+    val reversionMaxContinuationPressure: List<Double> = listOf(0.08, 0.12, 0.18, 0.24, 0.32),
+    val calibrationLookbackHours: List<Int> = listOf(240, 360, 720, 1080),
+    val minCalibrationSamples: List<Int> = listOf(4, 6, 8, 12),
+    val strongCalibrationSamples: List<Int> = listOf(12, 16, 20),
+    val minCalibrationLowerBoundBps: List<Double> = listOf(0.0, 0.5, 1.0, 2.0),
+    val minCalibrationWinRate: List<Double> = listOf(0.5, 0.52, 0.55, 0.58),
+    val trendCooldownBars: List<Int> = listOf(0, 2, 4, 8),
+    val reversionCooldownBars: List<Int> = listOf(0, 1, 2, 4)
+)
+
 data class Bar(
     val exchange: String,
     val symbol: String,
@@ -2529,6 +2576,74 @@ data class CrossSectionalResearchResult(
     val calibrationExampleCounts: Map<String, Int>
 )
 
+data class ResearchDataKey(
+    val txGatewayUrl: String,
+    val marketExchange: String,
+    val executionExchangeOverride: String,
+    val barMinutes: Int,
+    val lookbackHours: Int,
+    val maxSymbols: Int,
+    val minBars: Int
+)
+
+data class ResearchDataContext(
+    val key: ResearchDataKey,
+    val exchangeCatalog: List<ExchangeCatalogSnapshot>,
+    val exchangePlans: List<ExchangePlan>,
+    val discoveredUniverse: Map<String, List<String>>,
+    val bars: List<Bar>,
+    val loadedAt: Instant
+)
+
+data class StrategyAggregateSnapshot(
+    val exchanges: List<String>,
+    val trades: Int,
+    val winRate: Double,
+    val netReturnPct: Double,
+    val maxDrawdownPct: Double,
+    val sharpe: Double,
+    val avgEdgeAfterCostBps: Double,
+    val avgTotalCostBps: Double,
+    val avgFillRatio: Double,
+    val avgSubmitToFillMs: Double
+)
+
+data class StrategySearchFitness(
+    val strategyKind: String,
+    val score: Double,
+    val passesFilters: Boolean,
+    val rejectionReasons: List<String>,
+    val backtest: StrategyAggregateSnapshot?,
+    val forward: StrategyAggregateSnapshot?
+)
+
+data class CrossSectionalSearchCandidate(
+    val rank: Int,
+    val combinedScore: Double,
+    val config: ResearchConfig,
+    val dataKey: ResearchDataKey,
+    val evaluatedAt: Instant,
+    val barsLoaded: Int,
+    val featureRows: Int,
+    val calibrationRows: Int,
+    val forwardRows: Int,
+    val trendHoldHours: Double,
+    val reversionHoldHours: Double,
+    val trendFitness: StrategySearchFitness,
+    val reversionFitness: StrategySearchFitness
+)
+
+data class CrossSectionalSearchResult(
+    val searchConfig: CrossSectionalSearchConfig,
+    val startedAt: Instant,
+    val completedAt: Instant,
+    val roundsCompleted: Int,
+    val evaluatedConfigs: Int,
+    val topTrendConfigs: List<CrossSectionalSearchCandidate>,
+    val topReversionConfigs: List<CrossSectionalSearchCandidate>,
+    val topCombinedConfigs: List<CrossSectionalSearchCandidate>
+)
+
 fun computeResearchDiagnostics(
     rows: List<FeatureRow>,
     config: ResearchConfig
@@ -2620,7 +2735,18 @@ fun computeResearchDiagnostics(
     )
 }
 
-fun runCrossSectionalResearch(config: ResearchConfig = ResearchConfig()): CrossSectionalResearchResult {
+fun researchDataKey(config: ResearchConfig): ResearchDataKey =
+    ResearchDataKey(
+        txGatewayUrl = config.txGatewayUrl,
+        marketExchange = config.marketExchange,
+        executionExchangeOverride = config.executionExchangeOverride,
+        barMinutes = config.barMinutes,
+        lookbackHours = config.lookbackHours,
+        maxSymbols = config.maxSymbols,
+        minBars = config.minBars
+    )
+
+fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
     val exchangeCatalog = fetchExchangeCatalog(config.txGatewayUrl)
     val exchangePlans = buildExchangePlans(exchangeCatalog, config)
 
@@ -2644,6 +2770,21 @@ fun runCrossSectionalResearch(config: ResearchConfig = ResearchConfig()): CrossS
         )
     }
 
+    return ResearchDataContext(
+        key = researchDataKey(config),
+        exchangeCatalog = exchangeCatalog,
+        exchangePlans = exchangePlans,
+        discoveredUniverse = discoveredUniverse,
+        bars = researchBars,
+        loadedAt = Instant.now()
+    )
+}
+
+fun evaluateCrossSectionalResearch(
+    context: ResearchDataContext,
+    config: ResearchConfig
+): CrossSectionalResearchResult {
+    val researchBars = context.bars
     val researchFeatureRows = engineerFeatures(researchBars, config)
     val diagnostics = computeResearchDiagnostics(researchFeatureRows, config)
     val heuristicSignals = latestSignalSnapshots(researchFeatureRows, config)
@@ -2800,9 +2941,9 @@ fun runCrossSectionalResearch(config: ResearchConfig = ResearchConfig()): CrossS
 
     return CrossSectionalResearchResult(
         config = config,
-        exchangeCatalog = exchangeCatalog,
-        exchangePlans = exchangePlans,
-        discoveredUniverse = discoveredUniverse,
+        exchangeCatalog = context.exchangeCatalog,
+        exchangePlans = context.exchangePlans,
+        discoveredUniverse = context.discoveredUniverse,
         barsLoaded = researchBars.size,
         featureRows = researchFeatureRows.size,
         diagnostics = diagnostics,
@@ -2814,5 +2955,548 @@ fun runCrossSectionalResearch(config: ResearchConfig = ResearchConfig()): CrossS
         calibrationRows = calibrationRowsCount,
         forwardRows = forwardRowsCount,
         calibrationExampleCounts = calibrationCounts
+    )
+}
+
+fun runCrossSectionalResearch(config: ResearchConfig = ResearchConfig()): CrossSectionalResearchResult =
+    evaluateCrossSectionalResearch(loadResearchDataContext(config), config)
+
+private data class SearchMutation(
+    val name: String,
+    val variants: (ResearchConfig) -> List<ResearchConfig>
+)
+
+private data class SearchEvaluation(
+    val config: ResearchConfig,
+    val result: CrossSectionalResearchResult,
+    val trendFitness: StrategySearchFitness,
+    val reversionFitness: StrategySearchFitness,
+    val combinedScore: Double,
+    val evaluatedAt: Instant
+)
+
+fun searchSafeConfig(config: ResearchConfig): ResearchConfig =
+    config.copy(
+        persistBacktest = false,
+        persistForward = false,
+        enablePaperOrders = false
+    )
+
+fun normalizeSearchConfig(searchConfig: CrossSectionalSearchConfig): CrossSectionalSearchConfig =
+    searchConfig.copy(
+        baseConfig = searchSafeConfig(searchConfig.baseConfig),
+        beamWidth = max(1, searchConfig.beamWidth),
+        rounds = max(1, searchConfig.rounds),
+        maxEvaluations = max(1, searchConfig.maxEvaluations),
+        leaderboardSize = max(1, searchConfig.leaderboardSize),
+        minBacktestTrades = max(1, searchConfig.minBacktestTrades),
+        minForwardTrades = max(1, searchConfig.minForwardTrades),
+        minSearchFillRatio = clamp(searchConfig.minSearchFillRatio, 0.0, 1.0),
+        maxSearchDrawdownPct = max(0.0, searchConfig.maxSearchDrawdownPct)
+    )
+
+fun isValidResearchConfig(config: ResearchConfig): Boolean {
+    val warmupBars = max(config.betaLookbackBars, max(config.trendSlowBars, config.reversionLookbackBars))
+    val minimumHours = max(
+        config.forwardHours + 1,
+        ((warmupBars * max(config.barMinutes, 1)) / 60) + 1
+    )
+    return config.barMinutes > 0 &&
+        config.lookbackHours >= minimumHours &&
+        config.forwardHours > 0 &&
+        config.betaLookbackBars > 1 &&
+        config.trendLookbackBars > 1 &&
+        config.trendSlowBars > config.trendLookbackBars &&
+        config.reversionLookbackBars > 1 &&
+        config.trendHoldBars > 0 &&
+        config.reversionHoldBars > 0 &&
+        config.topPerSide > 0 &&
+        config.notionalUsd > 0.0 &&
+        config.maxSymbols >= 2 &&
+        config.minBars > 0 &&
+        config.reversionZEntry > 0.0 &&
+        config.reversionZExit >= 0.0 &&
+        config.reversionZExit < config.reversionZEntry &&
+        config.maxSpreadBps > 0.0 &&
+        config.minDepthMultiple > 0.0 &&
+        config.minFillRatio in 0.0..1.0 &&
+        config.minVolumeRatio >= 0.0 &&
+        config.maxVolumeRatio > config.minVolumeRatio &&
+        config.maxVolRegime > 0.0 &&
+        config.executionSafetyMarginBps >= 0.0 &&
+        config.minExpectedNetEdgeBps >= 0.0 &&
+        config.calibrationLookbackHours > 0 &&
+        config.minCalibrationSamples > 0 &&
+        config.strongCalibrationSamples >= config.minCalibrationSamples &&
+        config.minCalibrationWinRate in 0.0..1.0 &&
+        config.trendCooldownBars >= 0 &&
+        config.reversionCooldownBars >= 0
+}
+
+private fun normalizeIntCandidates(
+    current: Int,
+    values: List<Int>,
+    predicate: (Int) -> Boolean = { it > 0 }
+): List<Int> =
+    (listOf(current) + values)
+        .filter(predicate)
+        .distinct()
+        .sorted()
+
+private fun normalizeDoubleCandidates(
+    current: Double,
+    values: List<Double>,
+    predicate: (Double) -> Boolean = { it > 0.0 }
+): List<Double> =
+    (listOf(current) + values)
+        .filter { it.isFinite() && predicate(it) }
+        .map { it.round(6) }
+        .distinct()
+        .sorted()
+
+private fun intMutation(
+    name: String,
+    values: List<Int>,
+    current: (ResearchConfig) -> Int,
+    apply: (ResearchConfig, Int) -> ResearchConfig,
+    predicate: (Int) -> Boolean = { it > 0 }
+): SearchMutation =
+    SearchMutation(name) { config ->
+        normalizeIntCandidates(current(config), values, predicate)
+            .asSequence()
+            .filter { it != current(config) }
+            .map { apply(config, it) }
+            .toList()
+    }
+
+private fun doubleMutation(
+    name: String,
+    values: List<Double>,
+    current: (ResearchConfig) -> Double,
+    apply: (ResearchConfig, Double) -> ResearchConfig,
+    predicate: (Double) -> Boolean = { it > 0.0 }
+): SearchMutation =
+    SearchMutation(name) { config ->
+        normalizeDoubleCandidates(current(config), values, predicate)
+            .asSequence()
+            .filter { abs(it - current(config)) > 1e-9 }
+            .map { apply(config, it) }
+            .toList()
+    }
+
+private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List<SearchMutation> =
+    listOf(
+        intMutation("barMinutes", searchConfig.barMinutes, { it.barMinutes }, { cfg, value -> cfg.copy(barMinutes = value) }),
+        intMutation("lookbackHours", searchConfig.lookbackHours, { it.lookbackHours }, { cfg, value -> cfg.copy(lookbackHours = value) }),
+        intMutation("forwardHours", searchConfig.forwardHours, { it.forwardHours }, { cfg, value -> cfg.copy(forwardHours = value) }),
+        intMutation("betaLookbackBars", searchConfig.betaLookbackBars, { it.betaLookbackBars }, { cfg, value -> cfg.copy(betaLookbackBars = value) }),
+        intMutation("trendLookbackBars", searchConfig.trendLookbackBars, { it.trendLookbackBars }, { cfg, value -> cfg.copy(trendLookbackBars = value) }),
+        intMutation("trendSlowBars", searchConfig.trendSlowBars, { it.trendSlowBars }, { cfg, value -> cfg.copy(trendSlowBars = value) }),
+        intMutation("reversionLookbackBars", searchConfig.reversionLookbackBars, { it.reversionLookbackBars }, { cfg, value -> cfg.copy(reversionLookbackBars = value) }),
+        intMutation("trendHoldBars", searchConfig.trendHoldBars, { it.trendHoldBars }, { cfg, value -> cfg.copy(trendHoldBars = value) }),
+        intMutation("reversionHoldBars", searchConfig.reversionHoldBars, { it.reversionHoldBars }, { cfg, value -> cfg.copy(reversionHoldBars = value) }),
+        intMutation("topPerSide", searchConfig.topPerSide, { it.topPerSide }, { cfg, value -> cfg.copy(topPerSide = value) }),
+        doubleMutation("trendEntryScore", searchConfig.trendEntryScore, { it.trendEntryScore }, { cfg, value -> cfg.copy(trendEntryScore = value) }),
+        doubleMutation("reversionZEntry", searchConfig.reversionZEntry, { it.reversionZEntry }, { cfg, value -> cfg.copy(reversionZEntry = value) }),
+        doubleMutation(
+            "reversionZExit",
+            searchConfig.reversionZExit,
+            { it.reversionZExit },
+            { cfg, value -> cfg.copy(reversionZExit = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation("maxSpreadBps", searchConfig.maxSpreadBps, { it.maxSpreadBps }, { cfg, value -> cfg.copy(maxSpreadBps = value) }),
+        doubleMutation("minDepthMultiple", searchConfig.minDepthMultiple, { it.minDepthMultiple }, { cfg, value -> cfg.copy(minDepthMultiple = value) }),
+        doubleMutation(
+            "minFillRatio",
+            searchConfig.minFillRatio,
+            { it.minFillRatio },
+            { cfg, value -> cfg.copy(minFillRatio = value) },
+            predicate = { it in 0.0..1.0 }
+        ),
+        doubleMutation(
+            "minVolumeRatio",
+            searchConfig.minVolumeRatio,
+            { it.minVolumeRatio },
+            { cfg, value -> cfg.copy(minVolumeRatio = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation("maxVolumeRatio", searchConfig.maxVolumeRatio, { it.maxVolumeRatio }, { cfg, value -> cfg.copy(maxVolumeRatio = value) }),
+        doubleMutation("maxVolRegime", searchConfig.maxVolRegime, { it.maxVolRegime }, { cfg, value -> cfg.copy(maxVolRegime = value) }),
+        doubleMutation(
+            "executionSafetyMarginBps",
+            searchConfig.executionSafetyMarginBps,
+            { it.executionSafetyMarginBps },
+            { cfg, value -> cfg.copy(executionSafetyMarginBps = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation(
+            "minExpectedNetEdgeBps",
+            searchConfig.minExpectedNetEdgeBps,
+            { it.minExpectedNetEdgeBps },
+            { cfg, value -> cfg.copy(minExpectedNetEdgeBps = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation(
+            "trendMinFlowAlignment",
+            searchConfig.trendMinFlowAlignment,
+            { it.trendMinFlowAlignment },
+            { cfg, value -> cfg.copy(trendMinFlowAlignment = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation(
+            "reversionMaxContinuationPressure",
+            searchConfig.reversionMaxContinuationPressure,
+            { it.reversionMaxContinuationPressure },
+            { cfg, value -> cfg.copy(reversionMaxContinuationPressure = value) },
+            predicate = { it >= 0.0 }
+        ),
+        intMutation("calibrationLookbackHours", searchConfig.calibrationLookbackHours, { it.calibrationLookbackHours }, { cfg, value -> cfg.copy(calibrationLookbackHours = value) }),
+        intMutation("minCalibrationSamples", searchConfig.minCalibrationSamples, { it.minCalibrationSamples }, { cfg, value -> cfg.copy(minCalibrationSamples = value) }),
+        intMutation("strongCalibrationSamples", searchConfig.strongCalibrationSamples, { it.strongCalibrationSamples }, { cfg, value -> cfg.copy(strongCalibrationSamples = value) }),
+        doubleMutation(
+            "minCalibrationLowerBoundBps",
+            searchConfig.minCalibrationLowerBoundBps,
+            { it.minCalibrationLowerBoundBps },
+            { cfg, value -> cfg.copy(minCalibrationLowerBoundBps = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation(
+            "minCalibrationWinRate",
+            searchConfig.minCalibrationWinRate,
+            { it.minCalibrationWinRate },
+            { cfg, value -> cfg.copy(minCalibrationWinRate = value) },
+            predicate = { it in 0.0..1.0 }
+        ),
+        intMutation(
+            "trendCooldownBars",
+            searchConfig.trendCooldownBars,
+            { it.trendCooldownBars },
+            { cfg, value -> cfg.copy(trendCooldownBars = value) },
+            predicate = { it >= 0 }
+        ),
+        intMutation(
+            "reversionCooldownBars",
+            searchConfig.reversionCooldownBars,
+            { it.reversionCooldownBars },
+            { cfg, value -> cfg.copy(reversionCooldownBars = value) },
+            predicate = { it >= 0 }
+        )
+    )
+
+fun aggregateStrategySnapshot(
+    summaries: List<StrategySummary>,
+    kind: StrategyKind
+): StrategyAggregateSnapshot? {
+    val relevant = summaries.filter {
+        it.strategyKind == kind.name.lowercase() &&
+            it.symbol == "ALL"
+    }
+    if (relevant.isEmpty()) return null
+    val totalTrades = relevant.sumOf { it.trades }
+    if (totalTrades <= 0) return null
+
+    fun weighted(selector: (StrategySummary) -> Double): Double =
+        relevant.sumOf { selector(it) * it.trades.toDouble() } / totalTrades.toDouble()
+
+    return StrategyAggregateSnapshot(
+        exchanges = relevant.map { it.exchange }.distinct().sorted(),
+        trades = totalTrades,
+        winRate = weighted { it.winRate }.round(4),
+        netReturnPct = weighted { it.netReturnPct }.round(4),
+        maxDrawdownPct = (relevant.maxOfOrNull { it.maxDrawdownPct } ?: 0.0).round(4),
+        sharpe = weighted { it.sharpe }.round(4),
+        avgEdgeAfterCostBps = weighted { it.avgEdgeAfterCostBps }.round(4),
+        avgTotalCostBps = weighted { it.avgTotalCostBps }.round(4),
+        avgFillRatio = weighted { it.avgFillRatio }.round(4),
+        avgSubmitToFillMs = weighted { it.avgSubmitToFillMs }.round(4)
+    )
+}
+
+fun computeStrategySearchFitness(
+    searchConfig: CrossSectionalSearchConfig,
+    kind: StrategyKind,
+    backtest: StrategyAggregateSnapshot?,
+    forward: StrategyAggregateSnapshot?
+): StrategySearchFitness {
+    val rejectionReasons = mutableListOf<String>()
+    val backtestTrades = backtest?.trades ?: 0
+    val forwardTrades = forward?.trades ?: 0
+    val realizedFill = forward?.avgFillRatio ?: backtest?.avgFillRatio ?: 0.0
+    val realizedDrawdown = max(backtest?.maxDrawdownPct ?: 0.0, forward?.maxDrawdownPct ?: 0.0)
+    val realizedEdge = forward?.avgEdgeAfterCostBps ?: backtest?.avgEdgeAfterCostBps ?: 0.0
+    val realizedReturn = forward?.netReturnPct ?: backtest?.netReturnPct ?: 0.0
+
+    if (backtest == null) rejectionReasons += "missing_backtest"
+    if (forward == null) rejectionReasons += "missing_forward"
+    if (backtestTrades < searchConfig.minBacktestTrades) rejectionReasons += "backtest_trades<${
+        searchConfig.minBacktestTrades
+    }"
+    if (forwardTrades < searchConfig.minForwardTrades) rejectionReasons += "forward_trades<${
+        searchConfig.minForwardTrades
+    }"
+    if (realizedFill < searchConfig.minSearchFillRatio) rejectionReasons += "fill_ratio<${searchConfig.minSearchFillRatio.round(3)}"
+    if (realizedDrawdown > searchConfig.maxSearchDrawdownPct) {
+        rejectionReasons += "drawdown>${searchConfig.maxSearchDrawdownPct.round(2)}"
+    }
+    if (realizedEdge <= 0.0) rejectionReasons += "non_positive_edge"
+    if (realizedReturn <= 0.0) rejectionReasons += "non_positive_return"
+
+    val backtestReturnScore = (backtest?.netReturnPct ?: 0.0) * 1.8
+    val forwardReturnScore = (forward?.netReturnPct ?: 0.0) * 3.4
+    val backtestEdgeScore = (backtest?.avgEdgeAfterCostBps ?: 0.0) * 0.45
+    val forwardEdgeScore = (forward?.avgEdgeAfterCostBps ?: 0.0) * 0.85
+    val backtestSharpeScore = (backtest?.sharpe ?: 0.0) * 2.5
+    val forwardSharpeScore = (forward?.sharpe ?: 0.0) * 5.0
+    val tradeSupportScore =
+        (min(backtestTrades.toDouble(), searchConfig.minBacktestTrades.toDouble()) / searchConfig.minBacktestTrades.toDouble()) * 10.0 +
+            (min(forwardTrades.toDouble(), searchConfig.minForwardTrades.toDouble()) / searchConfig.minForwardTrades.toDouble()) * 12.0
+    val costPenalty =
+        ((backtest?.avgTotalCostBps ?: 0.0) * 0.08) +
+            ((forward?.avgTotalCostBps ?: 0.0) * 0.16)
+    val drawdownPenalty =
+        ((backtest?.maxDrawdownPct ?: 0.0) * 0.45) +
+            ((forward?.maxDrawdownPct ?: 0.0) * 1.1)
+    val fillPenalty = max(0.0, searchConfig.minSearchFillRatio - realizedFill) * 45.0
+    val driftPenalty = max(
+        0.0,
+        (backtest?.avgEdgeAfterCostBps ?: 0.0) - (forward?.avgEdgeAfterCostBps ?: backtest?.avgEdgeAfterCostBps ?: 0.0)
+    ) * 0.4
+    val missingPenalty =
+        (if (backtest == null) 20.0 else 0.0) +
+            (if (forward == null) 24.0 else 0.0)
+    val rejectionPenalty = rejectionReasons.size.toDouble() * 9.0
+    val score = (
+        backtestReturnScore +
+            forwardReturnScore +
+            backtestEdgeScore +
+            forwardEdgeScore +
+            backtestSharpeScore +
+            forwardSharpeScore +
+            tradeSupportScore -
+            costPenalty -
+            drawdownPenalty -
+            fillPenalty -
+            driftPenalty -
+            missingPenalty -
+            rejectionPenalty
+        ).round(4)
+
+    return StrategySearchFitness(
+        strategyKind = kind.name.lowercase(),
+        score = score,
+        passesFilters = rejectionReasons.isEmpty(),
+        rejectionReasons = rejectionReasons,
+        backtest = backtest,
+        forward = forward
+    )
+}
+
+fun researchConfigFingerprint(config: ResearchConfig): String =
+    listOf(
+        config.txGatewayUrl,
+        config.marketExchange,
+        config.executionExchangeOverride,
+        config.barMinutes,
+        config.lookbackHours,
+        config.forwardHours,
+        config.betaLookbackBars,
+        config.trendLookbackBars,
+        config.trendSlowBars,
+        config.reversionLookbackBars,
+        config.trendHoldBars,
+        config.reversionHoldBars,
+        config.topPerSide,
+        config.notionalUsd.round(4),
+        config.maxSymbols,
+        config.minBars,
+        config.trendEntryScore.round(6),
+        config.reversionZEntry.round(6),
+        config.reversionZExit.round(6),
+        config.maxSpreadBps.round(6),
+        config.minDepthMultiple.round(6),
+        config.minFillRatio.round(6),
+        config.minVolumeRatio.round(6),
+        config.maxVolumeRatio.round(6),
+        config.maxVolRegime.round(6),
+        config.executionSafetyMarginBps.round(6),
+        config.minExpectedNetEdgeBps.round(6),
+        config.trendMinFlowAlignment.round(6),
+        config.reversionMaxContinuationPressure.round(6),
+        config.calibrationLookbackHours,
+        config.minCalibrationSamples,
+        config.strongCalibrationSamples,
+        config.minCalibrationLowerBoundBps.round(6),
+        config.minCalibrationWinRate.round(6),
+        config.trendCooldownBars,
+        config.reversionCooldownBars
+    ).joinToString("|")
+
+private fun buildSearchEvaluation(
+    searchConfig: CrossSectionalSearchConfig,
+    result: CrossSectionalResearchResult,
+    evaluatedAt: Instant = Instant.now()
+): SearchEvaluation {
+    val trendBacktest = aggregateStrategySnapshot(result.backtestSummaries, StrategyKind.TREND)
+    val trendForward = aggregateStrategySnapshot(result.forwardSummaries, StrategyKind.TREND)
+    val reversionBacktest = aggregateStrategySnapshot(result.backtestSummaries, StrategyKind.REVERSION)
+    val reversionForward = aggregateStrategySnapshot(result.forwardSummaries, StrategyKind.REVERSION)
+    val trendFitness = computeStrategySearchFitness(searchConfig, StrategyKind.TREND, trendBacktest, trendForward)
+    val reversionFitness = computeStrategySearchFitness(searchConfig, StrategyKind.REVERSION, reversionBacktest, reversionForward)
+    return SearchEvaluation(
+        config = result.config,
+        result = result,
+        trendFitness = trendFitness,
+        reversionFitness = reversionFitness,
+        combinedScore = (trendFitness.score + reversionFitness.score).round(4),
+        evaluatedAt = evaluatedAt
+    )
+}
+
+private fun toSearchCandidate(
+    evaluation: SearchEvaluation,
+    rank: Int
+): CrossSectionalSearchCandidate =
+    CrossSectionalSearchCandidate(
+        rank = rank,
+        combinedScore = evaluation.combinedScore.round(4),
+        config = evaluation.config,
+        dataKey = researchDataKey(evaluation.config),
+        evaluatedAt = evaluation.evaluatedAt,
+        barsLoaded = evaluation.result.barsLoaded,
+        featureRows = evaluation.result.featureRows,
+        calibrationRows = evaluation.result.calibrationRows,
+        forwardRows = evaluation.result.forwardRows,
+        trendHoldHours = ((evaluation.config.barMinutes.toDouble() * evaluation.config.trendHoldBars.toDouble()) / 60.0).round(4),
+        reversionHoldHours = ((evaluation.config.barMinutes.toDouble() * evaluation.config.reversionHoldBars.toDouble()) / 60.0).round(4),
+        trendFitness = evaluation.trendFitness,
+        reversionFitness = evaluation.reversionFitness
+    )
+
+private fun rankTrendEvaluations(evaluations: List<SearchEvaluation>): List<SearchEvaluation> =
+    evaluations.sortedWith(
+        compareByDescending<SearchEvaluation> { if (it.trendFitness.passesFilters) 1 else 0 }
+            .thenByDescending { it.trendFitness.score }
+            .thenByDescending { it.combinedScore }
+            .thenByDescending { it.result.forwardRows }
+            .thenByDescending { it.result.featureRows }
+    )
+
+private fun rankReversionEvaluations(evaluations: List<SearchEvaluation>): List<SearchEvaluation> =
+    evaluations.sortedWith(
+        compareByDescending<SearchEvaluation> { if (it.reversionFitness.passesFilters) 1 else 0 }
+            .thenByDescending { it.reversionFitness.score }
+            .thenByDescending { it.combinedScore }
+            .thenByDescending { it.result.forwardRows }
+            .thenByDescending { it.result.featureRows }
+    )
+
+private fun rankCombinedEvaluations(evaluations: List<SearchEvaluation>): List<SearchEvaluation> =
+    evaluations.sortedWith(
+        compareByDescending<SearchEvaluation> {
+            listOf(it.trendFitness.passesFilters, it.reversionFitness.passesFilters).count { passed -> passed }
+        }
+            .thenByDescending { it.combinedScore }
+            .thenByDescending { it.trendFitness.score }
+            .thenByDescending { it.reversionFitness.score }
+            .thenByDescending { it.result.forwardRows }
+    )
+
+private fun nextSearchSeeds(
+    evaluations: List<SearchEvaluation>,
+    searchConfig: CrossSectionalSearchConfig
+): List<ResearchConfig> {
+    val desiredSeeds = max(searchConfig.beamWidth * 2, searchConfig.beamWidth)
+    return (
+        rankTrendEvaluations(evaluations).take(searchConfig.beamWidth) +
+            rankReversionEvaluations(evaluations).take(searchConfig.beamWidth) +
+            rankCombinedEvaluations(evaluations).take(searchConfig.beamWidth)
+        )
+        .map { it.config }
+        .distinctBy(::researchConfigFingerprint)
+        .take(desiredSeeds)
+}
+
+fun searchCrossSectionalResearch(
+    searchConfig: CrossSectionalSearchConfig = CrossSectionalSearchConfig()
+): CrossSectionalSearchResult {
+    val contextCache = mutableMapOf<ResearchDataKey, ResearchDataContext>()
+    return searchCrossSectionalResearch(searchConfig) { candidate ->
+        val safeConfig = searchSafeConfig(candidate)
+        val key = researchDataKey(safeConfig)
+        val context = contextCache.getOrPut(key) { loadResearchDataContext(safeConfig) }
+        evaluateCrossSectionalResearch(context, safeConfig)
+    }
+}
+
+fun searchCrossSectionalResearch(
+    searchConfig: CrossSectionalSearchConfig,
+    evaluator: (ResearchConfig) -> CrossSectionalResearchResult
+): CrossSectionalSearchResult {
+    val normalizedSearch = normalizeSearchConfig(searchConfig)
+    val startedAt = Instant.now()
+    val mutations = buildSearchMutations(normalizedSearch)
+    val evaluations = linkedMapOf<String, SearchEvaluation>()
+
+    fun evaluateCandidate(candidate: ResearchConfig): SearchEvaluation? {
+        val safeConfig = searchSafeConfig(candidate)
+        if (!isValidResearchConfig(safeConfig)) return null
+        if (evaluations.size >= normalizedSearch.maxEvaluations) return null
+        val fingerprint = researchConfigFingerprint(safeConfig)
+        evaluations[fingerprint]?.let { return it }
+        val result = evaluator(safeConfig)
+        val evaluation = buildSearchEvaluation(normalizedSearch, result, Instant.now())
+        evaluations[fingerprint] = evaluation
+        return evaluation
+    }
+
+    evaluateCandidate(normalizedSearch.baseConfig)
+
+    var roundsCompleted = 0
+    var seeds = listOf(normalizedSearch.baseConfig)
+    while (
+        roundsCompleted < normalizedSearch.rounds &&
+        evaluations.size < normalizedSearch.maxEvaluations &&
+        seeds.isNotEmpty()
+    ) {
+        val remainingBudget = normalizedSearch.maxEvaluations - evaluations.size
+        val generation = seeds.asSequence()
+            .flatMap { seed ->
+                mutations.asSequence().flatMap { mutation ->
+                    mutation.variants(seed).asSequence()
+                }
+            }
+            .map(::searchSafeConfig)
+            .filter(::isValidResearchConfig)
+            .distinctBy(::researchConfigFingerprint)
+            .filter { researchConfigFingerprint(it) !in evaluations }
+            .take(remainingBudget)
+            .toList()
+
+        if (generation.isEmpty()) break
+        generation.forEach { evaluateCandidate(it) }
+        roundsCompleted += 1
+        seeds = nextSearchSeeds(evaluations.values.toList(), normalizedSearch)
+    }
+
+    val rankedTrend = rankTrendEvaluations(evaluations.values.toList())
+    val rankedReversion = rankReversionEvaluations(evaluations.values.toList())
+    val rankedCombined = rankCombinedEvaluations(evaluations.values.toList())
+
+    return CrossSectionalSearchResult(
+        searchConfig = normalizedSearch,
+        startedAt = startedAt,
+        completedAt = Instant.now(),
+        roundsCompleted = roundsCompleted,
+        evaluatedConfigs = evaluations.size,
+        topTrendConfigs = rankedTrend.take(normalizedSearch.leaderboardSize).mapIndexed { index, evaluation ->
+            toSearchCandidate(evaluation, index + 1)
+        },
+        topReversionConfigs = rankedReversion.take(normalizedSearch.leaderboardSize).mapIndexed { index, evaluation ->
+            toSearchCandidate(evaluation, index + 1)
+        },
+        topCombinedConfigs = rankedCombined.take(normalizedSearch.leaderboardSize).mapIndexed { index, evaluation ->
+            toSearchCandidate(evaluation, index + 1)
+        }
     )
 }

@@ -17,9 +17,12 @@ import io.ktor.server.routing.routing
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import org.datamancy.trading.analytics.crosssectional.CrossSectionalSearchConfig
+import org.datamancy.trading.analytics.crosssectional.CrossSectionalSearchResult
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalResearchResult
 import org.datamancy.trading.analytics.crosssectional.ResearchConfig
 import org.datamancy.trading.analytics.crosssectional.runCrossSectionalResearch
+import org.datamancy.trading.analytics.crosssectional.searchCrossSectionalResearch
 import org.slf4j.LoggerFactory
 import java.time.Instant
 
@@ -55,7 +58,8 @@ fun main() {
 }
 
 fun Application.configureAlphaAnalyticsApp(
-    runAnalysis: suspend (ResearchConfig) -> CrossSectionalResearchResult = ::runCrossSectionalResearch
+    runAnalysis: suspend (ResearchConfig) -> CrossSectionalResearchResult = ::runCrossSectionalResearch,
+    runSearch: suspend (CrossSectionalSearchConfig) -> CrossSectionalSearchResult = ::searchCrossSectionalResearch
 ) {
     routing {
         get("/health") {
@@ -75,7 +79,9 @@ fun Application.configureAlphaAnalyticsApp(
                         endpoints = listOf(
                             "/health",
                             "/api/v1/alpha/cross-sectional/default-config",
-                            "/api/v1/alpha/cross-sectional/run"
+                            "/api/v1/alpha/cross-sectional/run",
+                            "/api/v1/alpha/cross-sectional/search/default-config",
+                            "/api/v1/alpha/cross-sectional/search/run"
                         )
                     )
                 ),
@@ -87,6 +93,14 @@ fun Application.configureAlphaAnalyticsApp(
         get("/api/v1/alpha/cross-sectional/default-config") {
             call.respondText(
                 responseGson.toJson(ResearchConfig()),
+                ContentType.Application.Json,
+                HttpStatusCode.OK
+            )
+        }
+
+        get("/api/v1/alpha/cross-sectional/search/default-config") {
+            call.respondText(
+                responseGson.toJson(CrossSectionalSearchConfig()),
                 ContentType.Application.Json,
                 HttpStatusCode.OK
             )
@@ -121,6 +135,48 @@ fun Application.configureAlphaAnalyticsApp(
                 .getOrElse { ex ->
                     call.respondText(
                         responseGson.toJson(ErrorResponse("analysis failed: ${ex.message ?: ex::class.simpleName}")),
+                        ContentType.Application.Json,
+                        HttpStatusCode.InternalServerError
+                    )
+                    return@post
+                }
+
+            call.respondText(
+                responseGson.toJson(result),
+                ContentType.Application.Json,
+                HttpStatusCode.OK
+            )
+        }
+
+        post("/api/v1/alpha/cross-sectional/search/run") {
+            val body = call.receiveText().trim()
+            val config = try {
+                if (body.isBlank()) {
+                    CrossSectionalSearchConfig()
+                } else {
+                    requestJson.decodeFromString<CrossSectionalSearchConfig>(body)
+                }
+            } catch (e: SerializationException) {
+                call.respondText(
+                    responseGson.toJson(ErrorResponse("invalid request body: ${e.message ?: "serialization error"}")),
+                    ContentType.Application.Json,
+                    HttpStatusCode.BadRequest
+                )
+                return@post
+            } catch (e: IllegalArgumentException) {
+                call.respondText(
+                    responseGson.toJson(ErrorResponse("invalid request body: ${e.message ?: "illegal argument"}")),
+                    ContentType.Application.Json,
+                    HttpStatusCode.BadRequest
+                )
+                return@post
+            }
+
+            val result = runCatching { runSearch(config) }
+                .onFailure { logger.warn("Cross-sectional search run failed", it) }
+                .getOrElse { ex ->
+                    call.respondText(
+                        responseGson.toJson(ErrorResponse("search failed: ${ex.message ?: ex::class.simpleName}")),
                         ContentType.Application.Json,
                         HttpStatusCode.InternalServerError
                     )
