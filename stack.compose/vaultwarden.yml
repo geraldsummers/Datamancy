@@ -43,7 +43,7 @@ services:
       SSO_CALLBACK_PATH: /identity/connect/oidc-signin
       SSO_SIGNUPS_MATCH_EMAIL: true
       SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION: true
-      SMTP_HOST: mailserver
+      SMTP_HOST: mail.${DOMAIN}
       SMTP_FROM: vaultwarden@${MAIL_DOMAIN}
       SMTP_PORT: 587
       SMTP_SECURITY: starttls
