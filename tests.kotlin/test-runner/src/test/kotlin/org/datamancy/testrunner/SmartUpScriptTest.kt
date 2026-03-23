@@ -24,12 +24,32 @@ class SmartUpScriptTest {
             "smart-up should compare services against last deployed commit rather than synced build status"
         )
         assertTrue(
+            text.contains("last_deployed_config_hash"),
+            "smart-up should track deployed compose config hashes so shared compose files do not force sibling recreates"
+        )
+        assertTrue(
+            text.contains("config --hash '*' > \"\$COMPOSE_HASHES_FILE\""),
+            "smart-up should compute per-service compose hashes instead of relying on shared compose file commits"
+        )
+        assertTrue(
+            text.contains("com.docker.compose.config-hash"),
+            "smart-up should fall back to the deployed container config hash when migrating existing deploy state"
+        )
+        assertTrue(
             text.contains("Updated deploy status: \$STATUS_JSON"),
             "smart-up should persist deploy status after recreating changed services"
         )
         assertTrue(
-            text.contains("append_entry(name, \"build\" if needs_build else \"no-build\", \"\", \"force-one-shot\", build_key)"),
+            text.contains("\"force-one-shot\""),
             "smart-up should plan an explicit refresh path for one-shot services in the force-refresh list"
+        )
+        assertTrue(
+            text.contains("dependency-refresh:"),
+            "smart-up should plan dependent runtime recreates when a changed one-shot startup dependency requires them"
+        )
+        assertTrue(
+            text.contains("because startup dependency"),
+            "smart-up should explain startup-dependency-driven recreates in its output"
         )
         assertTrue(
             text.contains("info \"Refreshing one-shot reconciler ${'$'}service\""),
@@ -50,6 +70,10 @@ class SmartUpScriptTest {
         assertTrue(
             text.contains("docker compose -f \"${'$'}COMPOSE_FILE\" ps -a -q \"${'$'}1\""),
             "smart-up should inspect exited one-shot containers as well as running ones"
+        )
+        assertTrue(
+            text.contains("[\"git\", \"merge-base\", \"--is-ancestor\""),
+            "smart-up should migrate existing deploy state without treating older source commits as fresh changes"
         )
         assertTrue(
             text.contains("repair_dir_ownership()"),

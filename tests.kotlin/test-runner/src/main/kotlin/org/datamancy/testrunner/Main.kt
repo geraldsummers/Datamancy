@@ -295,7 +295,7 @@ private suspend fun runTestSuite(runner: TestRunner, suite: String) {
             runner.cachingLayerTests()
             runner.extendedCommunicationTests()
             runner.extendedProductivityTests()
-            runner.playwrightE2ETests()
+            // Browser coverage is run separately so `kt all` + `ts` does not duplicate Playwright.
 
             // runner.vaultTests()  // Vault removed from deployment
         }

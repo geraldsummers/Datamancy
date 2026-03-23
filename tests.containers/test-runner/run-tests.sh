@@ -53,6 +53,7 @@ print_usage() {
     echo "  run <suite>        Alias for kt"
     echo "  kt-list            List all available Kotlin test suites"
     echo "  smart              Run suites needing retest based on registry/status"
+    echo "                     Note: 'kt all' excludes Playwright; use 'ts' or 'kt playwright-e2e' for browser coverage"
     echo ""
     echo -e "${GREEN}TypeScript / Playwright:${NC}"
     echo "  ts                 Run all TypeScript tests (unit + e2e)"

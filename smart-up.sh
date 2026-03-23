@@ -202,13 +202,16 @@ SERVICES_LIST="$(docker compose -f "$COMPOSE_FILE" config --services)"
 EXISTING_SERVICES="$(docker compose -f "$COMPOSE_FILE" ps -a --services 2>/dev/null || true)"
 RUNNING_SERVICES="$(docker compose -f "$COMPOSE_FILE" ps --services --status running 2>/dev/null || true)"
 COMPOSE_CONFIG_JSON="$(mktemp)"
+COMPOSE_HASHES_FILE="$(mktemp)"
 docker compose -f "$COMPOSE_FILE" config --format json > "$COMPOSE_CONFIG_JSON"
+docker compose -f "$COMPOSE_FILE" config --hash '*' > "$COMPOSE_HASHES_FILE"
 
 tmp_plan="$(mktemp)"
-tmp_updated="$(mktemp)"
+tmp_deployed="$(mktemp)"
 
-python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$EXISTING_SERVICES" "$RUNNING_SERVICES" "$COMPOSE_CONFIG_JSON" "$FORCE_REFRESH_SERVICES" "$tmp_plan"
+python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$SERVICES_LIST" "$EXISTING_SERVICES" "$RUNNING_SERVICES" "$COMPOSE_CONFIG_JSON" "$COMPOSE_HASHES_FILE" "$FORCE_REFRESH_SERVICES" "$tmp_plan" "$COMPOSE_FILE"
 import json
+import subprocess
 import sys
 
 (
@@ -218,9 +221,11 @@ import sys
     existing_services_text,
     running_services_text,
     compose_json_path,
+    compose_hashes_path,
     force_refresh_services_text,
     out_path,
-) = sys.argv[1:9]
+    compose_file_path,
+) = sys.argv[1:10]
 services = {s.strip() for s in services_text.splitlines() if s.strip()}
 existing_services = {s.strip() for s in existing_services_text.splitlines() if s.strip()}
 running_services = {s.strip() for s in running_services_text.splitlines() if s.strip()}
@@ -234,6 +239,8 @@ with open(reg_path, "r", encoding="utf-8") as f:
     registry = json.load(f)
 with open(compose_json_path, "r", encoding="utf-8") as f:
     compose_config = json.load(f)
+with open(compose_hashes_path, "r", encoding="utf-8") as f:
+    compose_hash_lines = f.read().splitlines()
 
 status = {"components": {}}
 try:
@@ -244,24 +251,132 @@ except FileNotFoundError:
 
 status_components = status.get("components", {})
 compose_services = compose_config.get("services", {})
+compose_hashes = {}
+for raw_line in compose_hash_lines:
+    line = raw_line.strip()
+    if not line:
+        continue
+    parts = line.split(None, 1)
+    if len(parts) == 2:
+        compose_hashes[parts[0]] = parts[1]
 
 entries = []
 planned = set()
 order = 0
 
 
-def dependency_names(service_def):
+def git_last_change(paths):
+    clean_paths = [str(path).strip() for path in paths if str(path).strip()]
+    if not clean_paths:
+        return ""
+    result = subprocess.run(
+        ["git", "rev-list", "-1", "HEAD", "--", *clean_paths],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def git_is_ancestor(older, newer):
+    if not older or not newer:
+        return False
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", older, newer],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def dependency_specs(service_def):
     depends_on = service_def.get("depends_on") or {}
+    result = []
     if isinstance(depends_on, dict):
-        raw_names = depends_on.keys()
+        for raw_name, raw_spec in depends_on.items():
+            name = str(raw_name).strip()
+            if not name:
+                continue
+            condition = ""
+            if isinstance(raw_spec, dict):
+                condition = str(raw_spec.get("condition") or "").strip()
+            result.append({"name": name, "condition": condition})
     elif isinstance(depends_on, list):
-        raw_names = depends_on
-    else:
-        raw_names = []
-    return [str(name).strip() for name in raw_names if str(name).strip()]
+        for raw_name in depends_on:
+            name = str(raw_name).strip()
+            if name:
+                result.append({"name": name, "condition": ""})
+    return result
 
 
-def append_entry(name, build_flag, last_changed, reason, build_key):
+def dependency_names(service_def):
+    return [item["name"] for item in dependency_specs(service_def)]
+
+
+def current_source_commit(component):
+    if not isinstance(component, dict):
+        return ""
+    return git_last_change((component.get("config_dirs") or []) + (component.get("source_paths") or []))
+
+
+def current_runtime_config_hash(service_name):
+    if service_name not in existing_services:
+        return ""
+    compose_ps = subprocess.run(
+        ["docker", "compose", "-f", compose_file_path, "ps", "-a", "-q", service_name],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    container_id = compose_ps.stdout.strip().splitlines()[0] if compose_ps.stdout.strip() else ""
+    if not container_id:
+        return ""
+    inspect = subprocess.run(
+        [
+            "docker",
+            "inspect",
+            "-f",
+            '{{ index .Config.Labels "com.docker.compose.config-hash" }}',
+            container_id,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return inspect.stdout.strip() if inspect.returncode == 0 else ""
+
+
+def source_changed(current_commit, deploy_status):
+    if not current_commit:
+        return False
+    deployed_source_commit = (
+        deploy_status.get("last_deployed_source_commit")
+        or deploy_status.get("last_deployed_commit")
+        or deploy_status.get("last_built_commit")
+        or ""
+    )
+    if not deployed_source_commit:
+        return True
+    if deploy_status.get("last_deployed_source_commit"):
+        return current_commit != deployed_source_commit
+    return current_commit != deployed_source_commit and not git_is_ancestor(current_commit, deployed_source_commit)
+
+
+def config_changed(service_name, deploy_status):
+    desired_hash = compose_hashes.get(service_name, "")
+    if not desired_hash:
+        return False, ""
+    deployed_hash = (
+        deploy_status.get("last_deployed_config_hash")
+        or current_runtime_config_hash(service_name)
+    )
+    if not deployed_hash:
+        return False, desired_hash
+    return desired_hash != deployed_hash, desired_hash
+
+
+def append_entry(name, build_flag, last_changed, reason, build_key, source_commit, config_hash):
     global order
     service_def = compose_services.get(name) or {}
     restart_policy = str(service_def.get("restart") or "").strip().lower()
@@ -279,6 +394,8 @@ def append_entry(name, build_flag, last_changed, reason, build_key):
         "one_shot": one_shot,
         "is_test_service": is_test_service,
         "depends_on": dependency_names(service_def),
+        "source_commit": source_commit,
+        "config_hash": config_hash,
         "wait_mode": wait_mode,
         "timeout_seconds": timeout_seconds,
         "order": order,
@@ -289,13 +406,10 @@ def append_entry(name, build_flag, last_changed, reason, build_key):
 for name, comp in registry.get("components", {}).items():
     if name not in services:
         continue
-    last_changed = comp.get("last_changed_commit") or ""
     deploy_status = status_components.get(name) or {}
-    last_deployed = (
-        deploy_status.get("last_deployed_commit")
-        or deploy_status.get("last_built_commit")
-        or ""
-    )
+    source_commit = current_source_commit(comp)
+    config_drift, config_hash = config_changed(name, deploy_status)
+    change_token = source_commit or config_hash or comp.get("last_changed_commit") or ""
     missing_container = name not in existing_services
     restart_policy = str((compose_services.get(name) or {}).get("restart") or "").strip().lower()
     one_shot_service = restart_policy == "no"
@@ -307,32 +421,84 @@ for name, comp in registry.get("components", {}).items():
     service_def = compose_services.get(name) or {}
     needs_build = bool(service_def.get("build"))
     build_key = str(service_def.get("image") or name)
-    if last_changed and last_changed != last_deployed:
-        append_entry(name, "build" if needs_build else "no-build", last_changed, "changed", build_key)
+    if source_changed(source_commit, deploy_status) or config_drift:
+        append_entry(
+            name,
+            "build" if needs_build else "no-build",
+            change_token,
+            "changed",
+            build_key,
+            source_commit,
+            config_hash,
+        )
         planned.add(name)
     elif missing_container:
-        append_entry(name, "no-build", last_changed, "missing", "")
+        append_entry(name, "no-build", change_token, "missing", "", source_commit, config_hash)
         planned.add(name)
     elif stopped_container:
-        append_entry(name, "no-build", last_changed, "stopped", "")
+        append_entry(name, "no-build", change_token, "stopped", "", source_commit, config_hash)
         planned.add(name)
 
 for name in sorted(force_refresh_services):
     if name not in services or name in planned:
         continue
     service_def = compose_services.get(name) or {}
+    comp = registry.get("components", {}).get(name) or {}
+    source_commit = current_source_commit(comp)
+    config_hash = compose_hashes.get(name, "")
     restart_policy = str(service_def.get("restart") or "").strip().lower()
     one_shot_service = restart_policy == "no"
     needs_build = bool(service_def.get("build"))
     build_key = str(service_def.get("image") or name)
     if one_shot_service:
-        append_entry(name, "build" if needs_build else "no-build", "", "force-one-shot", build_key)
+        append_entry(name, "build" if needs_build else "no-build", "", "force-one-shot", build_key, source_commit, config_hash)
     elif name not in existing_services:
-        append_entry(name, "build" if needs_build else "no-build", "", "missing", build_key)
+        append_entry(name, "build" if needs_build else "no-build", "", "missing", build_key, source_commit, config_hash)
     elif name not in running_services:
-        append_entry(name, "build" if needs_build else "no-build", "", "stopped", build_key)
+        append_entry(name, "build" if needs_build else "no-build", "", "stopped", build_key, source_commit, config_hash)
     else:
-        append_entry(name, "build" if needs_build else "no-build", "", "refresh", build_key)
+        append_entry(name, "build" if needs_build else "no-build", "", "refresh", build_key, source_commit, config_hash)
+
+
+changed_one_shot_services = {
+    entry["name"]
+    for entry in entries
+    if entry["one_shot"] and entry["reason"] == "changed"
+}
+
+if changed_one_shot_services:
+    planning = True
+    while planning:
+        planning = False
+        planned_names = {entry["name"] for entry in entries}
+        for name in sorted(services):
+            if name in planned_names:
+                continue
+            service_def = compose_services.get(name) or {}
+            changed_startup_dependencies = [
+                dependency["name"]
+                for dependency in dependency_specs(service_def)
+                if dependency["condition"] == "service_completed_successfully"
+                and dependency["name"] in changed_one_shot_services
+            ]
+            if not changed_startup_dependencies:
+                continue
+            comp = registry.get("components", {}).get(name) or {}
+            source_commit = current_source_commit(comp)
+            config_hash = compose_hashes.get(name, "")
+            needs_build = bool(service_def.get("build"))
+            build_key = str(service_def.get("image") or name)
+            append_entry(
+                name,
+                "build" if needs_build else "no-build",
+                source_commit or config_hash,
+                f"dependency-refresh:{changed_startup_dependencies[0]}",
+                build_key,
+                source_commit,
+                config_hash,
+            )
+            planned.add(name)
+            planning = True
 
 planned_names = {entry["name"] for entry in entries}
 for entry in entries:
@@ -379,19 +545,20 @@ with open(out_path, "w", encoding="utf-8") as f:
     for entry in sorted_entries:
         f.write(
             f"{entry['name']}|{entry['build_flag']}|{entry['last_changed']}|{entry['reason']}|"
-            f"{entry['build_key']}|{entry['wait_mode']}|{entry['timeout_seconds']}\n"
+            f"{entry['build_key']}|{entry['wait_mode']}|{entry['timeout_seconds']}|"
+            f"{entry['source_commit']}|{entry['config_hash']}\n"
         )
 PY
 
 if [ ! -s "$tmp_plan" ]; then
     info "All services are up to date and tracked containers are already running"
-    rm -f "$tmp_plan" "$tmp_updated" "$COMPOSE_CONFIG_JSON"
+    rm -f "$tmp_plan" "$tmp_deployed" "$COMPOSE_CONFIG_JSON" "$COMPOSE_HASHES_FILE"
     exit 0
 fi
 
 declare -A built_keys=()
 
-while IFS='|' read -r service build_flag last_changed reason build_key wait_mode timeout_seconds; do
+while IFS='|' read -r service build_flag last_changed reason build_key wait_mode timeout_seconds source_commit config_hash; do
     if [ -z "$service" ]; then
         continue
     fi
@@ -407,6 +574,8 @@ while IFS='|' read -r service build_flag last_changed reason build_key wait_mode
         info "Refreshing one-shot reconciler $service"
     elif [ "$reason" = "refresh" ]; then
         info "Refreshing $service"
+    elif [[ "$reason" == dependency-refresh:* ]]; then
+        info "Refreshing $service because startup dependency ${reason#dependency-refresh:} changed"
     else
         info "Updating $service (changed: $last_changed)"
     fi
@@ -447,21 +616,18 @@ while IFS='|' read -r service build_flag last_changed reason build_key wait_mode
     else
         wait_for_service_ready "$service" "$wait_mode" "$timeout_seconds"
     fi
-    if [ "$reason" = "changed" ]; then
-        echo "$service" >> "$tmp_updated"
+    if [ "$DRY_RUN" != "1" ]; then
+        printf '%s|%s|%s\n' "$service" "${source_commit:-}" "${config_hash:-}" >> "$tmp_deployed"
     fi
 done < "$tmp_plan"
 
-if [ -s "$tmp_updated" ] && [ "$DRY_RUN" != "1" ]; then
-    python3 - <<'PY' "$REGISTRY_JSON" "$STATUS_JSON" "$tmp_updated"
+if [ -s "$tmp_deployed" ] && [ "$DRY_RUN" != "1" ]; then
+    python3 - <<'PY' "$STATUS_JSON" "$tmp_deployed"
 import json
 import sys
 from datetime import datetime, timezone
 
-reg_path, status_path, updated_path = sys.argv[1:4]
-with open(reg_path, "r", encoding="utf-8") as f:
-    registry = json.load(f)
-
+status_path, deployed_path = sys.argv[1:3]
 try:
     with open(status_path, "r", encoding="utf-8") as f:
         status = json.load(f)
@@ -470,17 +636,21 @@ except FileNotFoundError:
 
 status.setdefault("components", {})
 
-with open(updated_path, "r", encoding="utf-8") as f:
-    updated = {line.strip() for line in f if line.strip()}
-
 now = datetime.now(timezone.utc).isoformat()
-for name in updated:
-    comp = registry.get("components", {}).get(name, {})
-    last_changed = comp.get("last_changed_commit") or ""
-    status["components"][name] = {
-        "last_deployed_commit": last_changed,
-        "last_deployed_at": now,
-    }
+with open(deployed_path, "r", encoding="utf-8") as f:
+    for raw_line in f:
+        line = raw_line.strip()
+        if not line:
+            continue
+        name, source_commit, config_hash = (line.split("|", 2) + ["", ""])[:3]
+        current = status["components"].get(name, {})
+        current.update({
+            "last_deployed_commit": source_commit or current.get("last_deployed_commit") or "",
+            "last_deployed_source_commit": source_commit,
+            "last_deployed_config_hash": config_hash,
+            "last_deployed_at": now,
+        })
+        status["components"][name] = current
 
 with open(status_path, "w", encoding="utf-8") as f:
     json.dump(status, f, indent=2, sort_keys=True)
@@ -488,4 +658,4 @@ PY
     info "Updated deploy status: $STATUS_JSON"
 fi
 
-rm -f "$tmp_plan" "$tmp_updated" "$COMPOSE_CONFIG_JSON"
+rm -f "$tmp_plan" "$tmp_deployed" "$COMPOSE_CONFIG_JSON" "$COMPOSE_HASHES_FILE"
