@@ -171,9 +171,60 @@ class JupyterNotebookStartupConfigTest {
         )
         assertTrue(
             notebook.contains("DATAMANCY_CROSS_SECTIONAL_MARKET_EXCHANGE") &&
+                notebook.contains("Research diagnostics") &&
                 notebook.contains("persistForwardTelemetry") &&
                 notebook.contains("paperTradeTopSignals"),
-            "seeded Kotlin notebook should cover beta-aware data selection, forward telemetry, and paper-order plumbing"
+            "seeded Kotlin notebook should cover diagnostics, beta-aware data selection, forward telemetry, and paper-order plumbing"
+        )
+    }
+
+    @Test
+    fun `startup config seeds alpha analytics service client notebook`() {
+        val tempHome = Files.createTempDirectory("jupyter-alpha-service-notebook-seed-test")
+        val notebookDir = Files.createDirectories(tempHome.resolve("work/datamancy-notebooks"))
+
+        val script = firstPythonHeredoc(startupConfigText())
+            .replace(
+                """home_dir = Path("/home/jovyan")""",
+                """home_dir = Path(r"${pythonPathLiteral(tempHome)}")"""
+            )
+            .replace(
+                """notebook_dir = "/home/jovyan/work/datamancy-notebooks"""",
+                """notebook_dir = r"${pythonPathLiteral(notebookDir)}""""
+            )
+        val scriptPath = tempHome.resolve("startup-config-first-heredoc.py")
+        Files.writeString(scriptPath, script)
+
+        val process = ProcessBuilder("python3", scriptPath.toString())
+            .directory(repoRoot().toFile())
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        assertTrue(process.waitFor(30, TimeUnit.SECONDS), "startup-config python heredoc should finish promptly")
+        assertEquals(0, process.exitValue(), output)
+
+        val notebookPath = notebookDir.resolve("19_cross_sectional_alpha_service_client.ipynb")
+        assertTrue(Files.exists(notebookPath), "first startup-config heredoc should seed the alpha analytics service client notebook")
+
+        val notebook = Files.readString(notebookPath)
+        assertTrue(
+            notebook.contains("\"display_name\": \"Python 3\"") &&
+                notebook.contains("\"language\": \"python\"") &&
+                notebook.contains("\"name\": \"python3\""),
+            "seeded alpha analytics client notebook should target the Python kernel"
+        )
+        assertTrue(
+            notebook.contains("ALPHA_ANALYTICS_URL") &&
+                notebook.contains("/api/v1/alpha/cross-sectional/default-config") &&
+                notebook.contains("/api/v1/alpha/cross-sectional/run") &&
+                notebook.contains("cross_sectional_alpha_service_last_run.json"),
+            "seeded alpha analytics client notebook should query the service over HTTP and persist the latest JSON snapshot"
+        )
+        assertTrue(
+            notebook.contains("latest_signals") &&
+                notebook.contains("trend_watchlist") &&
+                notebook.contains("forward_summaries"),
+            "seeded alpha analytics client notebook should expose live watchlists and summary tables from the service response"
         )
     }
 

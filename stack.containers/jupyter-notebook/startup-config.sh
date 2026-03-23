@@ -37,6 +37,7 @@ env_values = {
     "DEFAULT_LLM_MODEL": "qwen2.5-0.5b",
     "DEFAULT_EMBEDDING_MODEL": "embed-small",
     "LANGCHAIN_TRACING_V2": "false",
+    "ALPHA_ANALYTICS_URL": os.getenv("ALPHA_ANALYTICS_URL", "http://alpha-analytics-service:8080"),
     "POSTGRES_HOST": os.getenv("POSTGRES_HOST", "postgres"),
     "POSTGRES_PORT": os.getenv("POSTGRES_PORT", "5432"),
     "POSTGRES_DB": os.getenv("POSTGRES_DB", "datamancy"),
@@ -114,12 +115,30 @@ NOTEBOOK_ALIAS_MIGRATIONS = {
                 "10. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
                 "11. Push only top-ranked symbols into live execution workflows.\n",
                 "6. Run `08_empirical_intraday_strategy_research.ipynb` for execution-aware intraday research.\n"
+                "7. Run `19_cross_sectional_alpha_service_client.ipynb` as the default thin notebook client against `alpha-analytics-service`.\n"
+                "8. Use `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` only when you need notebook-local engine debugging.\n"
+                "9. Run `16_strict_alpha_backtest_proof.ipynb` to persist the canonical walk-forward alpha proof.\n"
+                "10. Run `17_strict_forward_alpha_proof.ipynb` to forward-paper the exact fixed strategy definition.\n"
+                "11. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
+                "12. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
+                "13. Push only top-ranked symbols into live execution workflows.\n",
+            ),
+            (
+                "6. Run `08_empirical_intraday_strategy_research.ipynb` for execution-aware intraday research.\n"
                 "7. Run `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` to estimate BTC/ETH beta and rank residual trend/reversion candidates.\n"
                 "8. Run `16_strict_alpha_backtest_proof.ipynb` to persist the canonical walk-forward alpha proof.\n"
                 "9. Run `17_strict_forward_alpha_proof.ipynb` to forward-paper the exact fixed strategy definition.\n"
                 "10. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
                 "11. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
                 "12. Push only top-ranked symbols into live execution workflows.\n",
+                "6. Run `08_empirical_intraday_strategy_research.ipynb` for execution-aware intraday research.\n"
+                "7. Run `19_cross_sectional_alpha_service_client.ipynb` as the default thin notebook client against `alpha-analytics-service`.\n"
+                "8. Use `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` only when you need notebook-local engine debugging.\n"
+                "9. Run `16_strict_alpha_backtest_proof.ipynb` to persist the canonical walk-forward alpha proof.\n"
+                "10. Run `17_strict_forward_alpha_proof.ipynb` to forward-paper the exact fixed strategy definition.\n"
+                "11. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
+                "12. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
+                "13. Push only top-ranked symbols into live execution workflows.\n",
             ),
         ],
     },
@@ -226,12 +245,13 @@ write_notebook(
             "4. Run `05_llm_rss_sentiment_backfill.ipynb` to refresh sentiment features.\n"
             "5. Run `06_profitability_and_risk_attribution.ipynb` to quantify net profitability drivers.\n"
             "6. Run `08_empirical_intraday_strategy_research.ipynb` for execution-aware intraday research.\n"
-            "7. Run `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` to estimate BTC/ETH beta and rank residual trend/reversion candidates.\n"
-            "8. Run `16_strict_alpha_backtest_proof.ipynb` to persist the canonical walk-forward alpha proof.\n"
-            "9. Run `17_strict_forward_alpha_proof.ipynb` to forward-paper the exact fixed strategy definition.\n"
-            "10. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
-            "11. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
-            "12. Push only top-ranked symbols into live execution workflows.\n"
+            "7. Run `19_cross_sectional_alpha_service_client.ipynb` as the default thin notebook client against `alpha-analytics-service`.\n"
+            "8. Use `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` only when you need notebook-local engine debugging.\n"
+            "9. Run `16_strict_alpha_backtest_proof.ipynb` to persist the canonical walk-forward alpha proof.\n"
+            "10. Run `17_strict_forward_alpha_proof.ipynb` to forward-paper the exact fixed strategy definition.\n"
+            "11. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
+            "12. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
+            "13. Push only top-ranked symbols into live execution workflows.\n"
         ),
         code_cell(
             "import os\n"
@@ -4360,6 +4380,102 @@ println("Latest beta estimates, flow state, and heuristic expected net edge on $
 heuristicSignals
 '''
 
+cross_sectional_kotlin_diagnostics = '''
+val groupedFeatureBuckets = researchFeatureRows.groupBy { it.exchange to it.time }
+val warmupFloor = max(researchConfig.betaLookbackBars, researchConfig.trendSlowBars)
+val liquidRows = researchFeatureRows.filter { it.liquid }
+
+val liquidFailureCounts = mapOf(
+    "warmup" to researchFeatureRows.count { it.barIndex < warmupFloor },
+    "spread" to researchFeatureRows.count { it.spreadBps > researchConfig.maxSpreadBps },
+    "depth" to researchFeatureRows.count { it.depthUsd < researchConfig.notionalUsd * researchConfig.minDepthMultiple },
+    "volume" to researchFeatureRows.count { it.volume <= 0.0 },
+    "volumeRatioFloor" to researchFeatureRows.count { it.volumeRatio < researchConfig.minVolumeRatio },
+    "volumeRatioCap" to researchFeatureRows.count { it.volumeRatio > researchConfig.maxVolumeRatio },
+    "volRegime" to researchFeatureRows.count { it.volRegime > researchConfig.maxVolRegime },
+    "baseSymbols" to researchFeatureRows.count { it.symbol in setOf("BTC", "ETH") }
+)
+
+val rankEligibleCounts = mapOf(
+    "trendLong" to researchFeatureRows.count {
+        it.liquid &&
+            it.trendLongRank <= researchConfig.topPerSide &&
+            it.trendScore >= researchConfig.trendEntryScore &&
+            abs(it.residualZ) <= researchConfig.reversionZEntry * 1.5
+    },
+    "trendShort" to researchFeatureRows.count {
+        it.liquid &&
+            it.trendShortRank <= researchConfig.topPerSide &&
+            it.trendScore <= -researchConfig.trendEntryScore &&
+            abs(it.residualZ) <= researchConfig.reversionZEntry * 1.5
+    },
+    "reversionLong" to researchFeatureRows.count {
+        it.liquid &&
+            it.reversionLongRank <= researchConfig.topPerSide &&
+            it.residualZ <= -researchConfig.reversionZEntry &&
+            it.reversionScore > 0.0
+    },
+    "reversionShort" to researchFeatureRows.count {
+        it.liquid &&
+            it.reversionShortRank <= researchConfig.topPerSide &&
+            it.residualZ >= researchConfig.reversionZEntry &&
+            it.reversionScore > 0.0
+    }
+)
+
+val trendSeeds = groupedFeatureBuckets.values.flatMap { seedCandidateRows(StrategyKind.TREND, it, researchConfig) }
+val reversionSeeds = groupedFeatureBuckets.values.flatMap { seedCandidateRows(StrategyKind.REVERSION, it, researchConfig) }
+
+println("Research diagnostics")
+println(
+    gson.toJson(
+        mapOf(
+            "barMinutes" to researchConfig.barMinutes,
+            "warmupFloorBars" to warmupFloor,
+            "totalRows" to researchFeatureRows.size,
+            "liquidRows" to liquidRows.size,
+            "rowsPerSymbol" to researchFeatureRows.groupBy { it.symbol }.mapValues { (_, rows) -> rows.size },
+            "liquidPerSymbol" to researchFeatureRows.groupBy { it.symbol }.mapValues { (_, rows) -> rows.count { it.liquid } },
+            "liquidFailureCounts" to liquidFailureCounts,
+            "rankEligibleCounts" to rankEligibleCounts,
+            "seedCounts" to mapOf(
+                "trend" to trendSeeds.size,
+                "reversion" to reversionSeeds.size
+            )
+        )
+    )
+)
+
+mapOf(
+    "topTrendSeeds" to trendSeeds.sortedByDescending { it.expectedNetEdgeBps }.take(8).map {
+        mapOf(
+            "time" to it.row.time.toString(),
+            "symbol" to it.row.symbol,
+            "side" to it.side,
+            "trendScore" to it.row.trendScore.round(4),
+            "flowSignal" to it.row.flowSignal.round(4),
+            "residualZ" to it.row.residualZ.round(4),
+            "volumeRatio" to it.row.volumeRatio.round(4),
+            "expectedNetEdgeBps" to it.expectedNetEdgeBps.round(4),
+            "expectedRoundTripCostBps" to it.expectedRoundTripCostBps.round(4)
+        )
+    },
+    "topReversionSeeds" to reversionSeeds.sortedByDescending { it.expectedNetEdgeBps }.take(8).map {
+        mapOf(
+            "time" to it.row.time.toString(),
+            "symbol" to it.row.symbol,
+            "side" to it.side,
+            "reversionScore" to it.row.reversionScore.round(4),
+            "flowSignal" to it.row.flowSignal.round(4),
+            "residualZ" to it.row.residualZ.round(4),
+            "volumeRatio" to it.row.volumeRatio.round(4),
+            "expectedNetEdgeBps" to it.expectedNetEdgeBps.round(4),
+            "expectedRoundTripCostBps" to it.expectedRoundTripCostBps.round(4)
+        )
+    }
+)
+'''
+
 cross_sectional_kotlin_backtest = '''
 val trendStrategyName = "cross_section_beta_trend_v1"
 val reversionStrategyName = "cross_section_beta_reversion_v1"
@@ -4546,16 +4662,203 @@ write_kotlin_notebook(
             "- BTC and ETH beta estimation per symbol\n"
             "- beta-adjusted trend following inputs on configurable higher-timeframe bars\n"
             "- beta-adjusted mean reversion inputs on configurable higher-timeframe bars\n"
+            "- research diagnostics for warmup, liquidity, and candidate gating\n"
             "- realistic backtest and forward-test persistence into Grafana-facing tables\n"
             "- optional tx-gateway paper orders\n\n"
-            "The default research posture is now slower swing-style trading on 60 minute bars, targeting roughly 8-72 hour holds. Override `DATAMANCY_CROSS_SECTIONAL_BAR_MINUTES` plus the hold/lookback env vars when you want to sweep 30m, 1h, or 4h research bars. Today the exchange catalog resolves to Hyperliquid, but the notebook is written against the integrated exchange interface so the same workflow can absorb new venues as they are plugged into the stack."
+            "The default research posture is now slower swing-style trading on 60 minute bars, targeting roughly 8-72 hour holds. Override `DATAMANCY_CROSS_SECTIONAL_BAR_MINUTES` plus the hold/lookback env vars when you want to sweep 30m, 1h, or 4h research bars. Today the exchange catalog resolves to Hyperliquid, but the notebook is written against the integrated exchange interface so the same workflow can absorb new venues as they are plugged into the stack. Use `19_cross_sectional_alpha_service_client.ipynb` for normal operator research once `alpha-analytics-service` is deployed; this Kotlin notebook remains the local engine debug surface."
         ),
         code_cell(cross_sectional_kotlin_bootstrap),
         code_cell(cross_sectional_kotlin_engine),
         code_cell(cross_sectional_kotlin_discovery),
+        code_cell(cross_sectional_kotlin_diagnostics),
         code_cell(cross_sectional_kotlin_backtest),
         code_cell(cross_sectional_kotlin_forward),
         code_cell(cross_sectional_kotlin_paper),
+    ]
+)
+
+write_notebook(
+    "19_cross_sectional_alpha_service_client.ipynb",
+    [
+        markdown_cell(
+            "# Cross-Sectional Alpha Service Client\n\n"
+            "This is the thin operator notebook for the extracted `alpha-analytics-service`.\n\n"
+            "Use it to:\n"
+            "- pull the service default config\n"
+            "- override beta, trend, and mean-reversion research parameters from notebook cells\n"
+            "- run the server-side engine over HTTP instead of embedding heavy analysis code in the notebook kernel\n"
+            "- inspect diagnostics, backtest summaries, forward summaries, and live candidate watchlists\n\n"
+            "Use `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` only when you need notebook-local engine debugging."
+        ),
+        code_cell(
+            "import json\n"
+            "import os\n"
+            "from pathlib import Path\n"
+            "from urllib import error, request\n"
+            "\n"
+            "import pandas as pd\n"
+            "from IPython.display import display\n"
+            "\n"
+            "ALPHA_ANALYTICS_URL = os.getenv('ALPHA_ANALYTICS_URL', 'http://alpha-analytics-service:8080').rstrip('/')\n"
+            "\n"
+            "def alpha_request(method, path, payload=None, timeout=3600):\n"
+            "    body = None if payload is None else json.dumps(payload).encode('utf-8')\n"
+            "    req = request.Request(\n"
+            "        f\"{ALPHA_ANALYTICS_URL}{path}\",\n"
+            "        data=body,\n"
+            "        headers={\n"
+            "            'Accept': 'application/json',\n"
+            "            'Content-Type': 'application/json',\n"
+            "        },\n"
+            "        method=method,\n"
+            "    )\n"
+            "    try:\n"
+            "        with request.urlopen(req, timeout=timeout) as response:\n"
+            "            return json.loads(response.read().decode('utf-8'))\n"
+            "    except error.HTTPError as exc:\n"
+            "        body_text = exc.read().decode('utf-8', errors='replace')\n"
+            "        raise RuntimeError(f'alpha service request failed: {exc.code} {body_text}') from exc\n"
+            "\n"
+            "def alpha_get(path, timeout=60):\n"
+            "    return alpha_request('GET', path, timeout=timeout)\n"
+            "\n"
+            "def alpha_post(path, payload, timeout=3600):\n"
+            "    return alpha_request('POST', path, payload=payload, timeout=timeout)\n"
+            "\n"
+            "def env_int(name, default):\n"
+            "    value = os.getenv(name)\n"
+            "    return int(value) if value not in (None, '') else default\n"
+            "\n"
+            "def env_float(name, default):\n"
+            "    value = os.getenv(name)\n"
+            "    return float(value) if value not in (None, '') else default\n"
+            "\n"
+            "def env_bool(name, default):\n"
+            "    value = os.getenv(name)\n"
+            "    if value in (None, ''):\n"
+            "        return default\n"
+            "    return value.strip().lower() in {'1', 'true', 'yes', 'on'}\n"
+            "\n"
+            "def compact_frame(records, sort_by=None, ascending=False):\n"
+            "    frame = pd.DataFrame(records)\n"
+            "    if frame.empty:\n"
+            "        return frame\n"
+            "    if sort_by and sort_by in frame.columns:\n"
+            "        frame = frame.sort_values(sort_by, ascending=ascending)\n"
+            "    return frame.reset_index(drop=True)\n"
+            "\n"
+            "def expand_summary_metrics(records):\n"
+            "    frame = pd.DataFrame(records)\n"
+            "    if frame.empty:\n"
+            "        return frame\n"
+            "    metrics = frame['metricsJson'].apply(lambda raw: json.loads(raw) if isinstance(raw, str) and raw else {})\n"
+            "    metrics_frame = pd.json_normalize(metrics).add_prefix('metric.')\n"
+            "    return pd.concat([frame.drop(columns=['metricsJson']), metrics_frame], axis=1)\n"
+            "\n"
+            "service_root = alpha_get('/')\n"
+            "service_health = alpha_get('/health')\n"
+            "default_config = alpha_get('/api/v1/alpha/cross-sectional/default-config')\n"
+            "\n"
+            "pd.Series({\n"
+            "    'service': service_root.get('service'),\n"
+            "    'status': service_health.get('status'),\n"
+            "    'base_url': ALPHA_ANALYTICS_URL,\n"
+            "    'default_exchange': default_config.get('marketExchange'),\n"
+            "    'default_bar_minutes': default_config.get('barMinutes'),\n"
+            "})\n"
+        ),
+        code_cell(
+            "request_config = {\n"
+            "    **default_config,\n"
+            "    'marketExchange': os.getenv('DATAMANCY_CROSS_SECTIONAL_MARKET_EXCHANGE', default_config['marketExchange']),\n"
+            "    'executionExchangeOverride': os.getenv('DATAMANCY_CROSS_SECTIONAL_EXECUTION_EXCHANGE', default_config.get('executionExchangeOverride', '')),\n"
+            "    'barMinutes': env_int('DATAMANCY_CROSS_SECTIONAL_BAR_MINUTES', default_config['barMinutes']),\n"
+            "    'lookbackHours': env_int('DATAMANCY_CROSS_SECTIONAL_LOOKBACK_HOURS', default_config['lookbackHours']),\n"
+            "    'forwardHours': env_int('DATAMANCY_CROSS_SECTIONAL_FORWARD_HOURS', default_config['forwardHours']),\n"
+            "    'betaLookbackBars': env_int('DATAMANCY_CROSS_SECTIONAL_BETA_LOOKBACK_BARS', default_config['betaLookbackBars']),\n"
+            "    'trendLookbackBars': env_int('DATAMANCY_CROSS_SECTIONAL_TREND_LOOKBACK_BARS', default_config['trendLookbackBars']),\n"
+            "    'trendSlowBars': env_int('DATAMANCY_CROSS_SECTIONAL_TREND_SLOW_BARS', default_config['trendSlowBars']),\n"
+            "    'reversionLookbackBars': env_int('DATAMANCY_CROSS_SECTIONAL_REVERSION_LOOKBACK_BARS', default_config['reversionLookbackBars']),\n"
+            "    'trendHoldBars': env_int('DATAMANCY_CROSS_SECTIONAL_TREND_HOLD_BARS', default_config['trendHoldBars']),\n"
+            "    'reversionHoldBars': env_int('DATAMANCY_CROSS_SECTIONAL_REVERSION_HOLD_BARS', default_config['reversionHoldBars']),\n"
+            "    'trendEntryScore': env_float('DATAMANCY_CROSS_SECTIONAL_TREND_ENTRY_SCORE', default_config['trendEntryScore']),\n"
+            "    'reversionZEntry': env_float('DATAMANCY_CROSS_SECTIONAL_REVERSION_Z_ENTRY', default_config['reversionZEntry']),\n"
+            "    'minExpectedNetEdgeBps': env_float('DATAMANCY_CROSS_SECTIONAL_MIN_EXPECTED_NET_EDGE_BPS', default_config['minExpectedNetEdgeBps']),\n"
+            "    'topPerSide': env_int('DATAMANCY_CROSS_SECTIONAL_TOP_PER_SIDE', default_config['topPerSide']),\n"
+            "    'persistBacktest': env_bool('DATAMANCY_CROSS_SECTIONAL_PERSIST_BACKTEST', default_config['persistBacktest']),\n"
+            "    'persistForward': env_bool('DATAMANCY_CROSS_SECTIONAL_PERSIST_FORWARD', default_config['persistForward']),\n"
+            "    'enablePaperOrders': env_bool('DATAMANCY_CROSS_SECTIONAL_ENABLE_PAPER_ORDERS', default_config['enablePaperOrders']),\n"
+            "    'paperExecutionMode': os.getenv('DATAMANCY_CROSS_SECTIONAL_ORDER_MODE', default_config['paperExecutionMode']),\n"
+            "}\n"
+            "\n"
+            "pd.Series(request_config)\n"
+        ),
+        code_cell(
+            "result = alpha_post('/api/v1/alpha/cross-sectional/run', request_config, timeout=3600)\n"
+            "\n"
+            "pd.Series({\n"
+            "    'barsLoaded': result['barsLoaded'],\n"
+            "    'featureRows': result['featureRows'],\n"
+            "    'calibrationRows': result['calibrationRows'],\n"
+            "    'forwardRows': result['forwardRows'],\n"
+            "    'latestSignals': len(result['latestSignals']),\n"
+            "    'backtestSummaries': len(result['backtestSummaries']),\n"
+            "    'forwardSummaries': len(result['forwardSummaries']),\n"
+            "    'forwardCutoff': result['forwardCutoff'],\n"
+            "})\n"
+        ),
+        code_cell(
+            "diagnostics = result['diagnostics']\n"
+            "diagnostic_rows = [\n"
+            "    {'metric': 'barMinutes', 'value': diagnostics['barMinutes']},\n"
+            "    {'metric': 'warmupFloorBars', 'value': diagnostics['warmupFloorBars']},\n"
+            "    {'metric': 'totalRows', 'value': diagnostics['totalRows']},\n"
+            "    {'metric': 'liquidRows', 'value': diagnostics['liquidRows']},\n"
+            "]\n"
+            "diagnostic_rows.extend({'metric': f'rowsPerSymbol.{key}', 'value': value} for key, value in diagnostics['rowsPerSymbol'].items())\n"
+            "diagnostic_rows.extend({'metric': f'liquidPerSymbol.{key}', 'value': value} for key, value in diagnostics['liquidPerSymbol'].items())\n"
+            "diagnostic_rows.extend({'metric': f'liquidFailureCounts.{key}', 'value': value} for key, value in diagnostics['liquidFailureCounts'].items())\n"
+            "diagnostic_rows.extend({'metric': f'rankEligibleCounts.{key}', 'value': value} for key, value in diagnostics['rankEligibleCounts'].items())\n"
+            "diagnostic_rows.extend({'metric': f'seedCounts.{key}', 'value': value} for key, value in diagnostics['seedCounts'].items())\n"
+            "\n"
+            "display(compact_frame(diagnostic_rows, sort_by='metric', ascending=True))\n"
+            "display(compact_frame(diagnostics['topTrendSeeds'], sort_by='expectedNetEdgeBps'))\n"
+            "display(compact_frame(diagnostics['topReversionSeeds'], sort_by='expectedNetEdgeBps'))\n"
+            "pd.Series({\n"
+            "    'trendSeedRows': len(diagnostics['topTrendSeeds']),\n"
+            "    'reversionSeedRows': len(diagnostics['topReversionSeeds']),\n"
+            "})\n"
+        ),
+        code_cell(
+            "latest_signals = compact_frame(result['latestSignals'])\n"
+            "trend_watchlist = latest_signals[latest_signals['trendAction'] != 'SKIP'].sort_values('trendExpectedNetEdgeBps', ascending=False).reset_index(drop=True) if not latest_signals.empty else latest_signals\n"
+            "reversion_watchlist = latest_signals[latest_signals['reversionAction'] != 'SKIP'].sort_values('reversionExpectedNetEdgeBps', ascending=False).reset_index(drop=True) if not latest_signals.empty else latest_signals\n"
+            "\n"
+            "display(latest_signals)\n"
+            "display(trend_watchlist)\n"
+            "display(reversion_watchlist)\n"
+            "pd.Series({\n"
+            "    'latestSignals': len(latest_signals),\n"
+            "    'trendCandidates': len(trend_watchlist),\n"
+            "    'reversionCandidates': len(reversion_watchlist),\n"
+            "})\n"
+        ),
+        code_cell(
+            "backtest_summaries = expand_summary_metrics(result['backtestSummaries'])\n"
+            "forward_summaries = expand_summary_metrics(result['forwardSummaries'])\n"
+            "\n"
+            "display(backtest_summaries.sort_values('sharpe', ascending=False).reset_index(drop=True) if not backtest_summaries.empty else backtest_summaries)\n"
+            "display(forward_summaries.sort_values('avgEdgeAfterCostBps', ascending=False).reset_index(drop=True) if not forward_summaries.empty else forward_summaries)\n"
+            "pd.Series({\n"
+            "    'backtestSummaryRows': len(backtest_summaries),\n"
+            "    'forwardSummaryRows': len(forward_summaries),\n"
+            "})\n"
+        ),
+        code_cell(
+            "snapshot_path = Path('cross_sectional_alpha_service_last_run.json')\n"
+            "snapshot_path.write_text(json.dumps(result, indent=2) + '\\n', encoding='utf-8')\n"
+            "snapshot_path\n"
+        ),
     ]
 )
 
