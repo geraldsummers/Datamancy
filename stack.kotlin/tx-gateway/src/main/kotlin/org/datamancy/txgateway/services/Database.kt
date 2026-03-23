@@ -135,7 +135,7 @@ object TxAuditLog : Table("tx_audit_log") {
     val response = text("response").nullable()
     val status = varchar("status", 32) // "success", "error"
     val errorMessage = text("error_message").nullable()
-    val timestamp = timestamp("timestamp").default(Instant.now())
+    val timestamp = timestamp("timestamp").clientDefault { Instant.now() }
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -144,7 +144,7 @@ object EvmNonces : Table("evm_nonces") {
     val chainId = long("chain_id")
     val fromAddress = varchar("from_address", 42)
     val nonce = long("nonce")
-    val lastUpdated = timestamp("last_updated").default(Instant.now())
+    val lastUpdated = timestamp("last_updated").clientDefault { Instant.now() }
 
     override val primaryKey = PrimaryKey(chainId, fromAddress)
 }
@@ -160,7 +160,7 @@ object EvmPendingTxs : Table("evm_pending_txs") {
     val originalGasPrice = varchar("original_gas_price", 64)
     val currentGasPrice = varchar("current_gas_price", 64)
     val replacementCount = integer("replacement_count").default(0)
-    val submittedAt = timestamp("submitted_at").default(Instant.now())
+    val submittedAt = timestamp("submitted_at").clientDefault { Instant.now() }
     val confirmedAt = timestamp("confirmed_at").nullable()
     val replacedByTxHash = varchar("replaced_by_tx_hash", 66).nullable()
 
