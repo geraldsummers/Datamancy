@@ -38,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--family", default=os.getenv("FORWARD_ALPHA_PROOF_FAMILY", "tail_short_v2"))
     parser.add_argument("--fixed-param-label", default=os.getenv("FORWARD_ALPHA_PROOF_FIXED_PARAM_LABEL"))
     parser.add_argument("--symbols", default=os.getenv("FORWARD_ALPHA_PROOF_SYMBOLS", "SOL"))
-    parser.add_argument("--lookback", default=os.getenv("FORWARD_ALPHA_PROOF_LOOKBACK", "96 hours"))
+    parser.add_argument("--lookback", default=os.getenv("FORWARD_ALPHA_PROOF_LOOKBACK"))
     parser.add_argument(
         "--calibration-hours",
         type=int,
@@ -50,9 +50,14 @@ def parse_args() -> argparse.Namespace:
         default=int(os.getenv("FORWARD_ALPHA_PROOF_FORWARD_HOURS", "24")),
     )
     parser.add_argument(
+        "--lookback-buffer-hours",
+        type=int,
+        default=int(os.getenv("FORWARD_ALPHA_PROOF_LOOKBACK_BUFFER_HOURS", "4")),
+    )
+    parser.add_argument(
         "--max-gap-minutes",
         type=float,
-        default=float(os.getenv("FORWARD_ALPHA_PROOF_MAX_GAP_MINUTES", "1.5")),
+        default=float(os.getenv("FORWARD_ALPHA_PROOF_MAX_GAP_MINUTES", "3")),
     )
     parser.add_argument(
         "--max-staleness-minutes",
@@ -102,13 +107,23 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=float(os.getenv("FORWARD_ALPHA_PROOF_LATENCY_MS_JITTER", "40")),
     )
+    parser.add_argument(
+        "--min-forward-trades",
+        type=int,
+        default=int(os.getenv("FORWARD_ALPHA_PROOF_MIN_FORWARD_TRADES", "3")),
+    )
     parser.add_argument("--rng-seed", type=int, default=int(os.getenv("FORWARD_ALPHA_PROOF_RNG_SEED", "7")))
     parser.add_argument("--db-host", default=os.getenv("POSTGRES_HOST", "postgres"))
     parser.add_argument("--db-port", type=int, default=int(os.getenv("POSTGRES_PORT", "5432")))
     parser.add_argument("--db-name", default=os.getenv("POSTGRES_DB", "datamancy"))
     parser.add_argument("--db-user", default=os.getenv("POSTGRES_USER", "pipeline_user"))
     parser.add_argument("--db-password", default=os.getenv("POSTGRES_PASSWORD", ""))
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.lookback:
+        buffered_hours = max(0, args.lookback_buffer_hours)
+        total_hours = max(1, args.calibration_hours + args.forward_hours + buffered_hours)
+        args.lookback = f"{total_hours} hours"
+    return args
 
 
 def clip(value: float, lower: float, upper: float) -> float:
@@ -284,6 +299,7 @@ def summarize_forward(
     calibration_frame: pd.DataFrame,
     forward_frame: pd.DataFrame,
     baseline_backtest_edge_bps: float | None,
+    min_forward_trades: int,
 ) -> dict:
     avg_trade_edge = float(mean(trade["edge_after_cost_bps"] for trade in trades)) if trades else 0.0
     avg_trade_cost = float(mean(trade["total_cost_bps"] for trade in trades)) if trades else 0.0
@@ -291,17 +307,25 @@ def summarize_forward(
     avg_submit_fill = float(mean(trade["submit_to_fill_ms"] for trade in trades)) if trades else 0.0
     trade_count = len(trades)
     positive_trades = sum(1 for trade in trades if trade["edge_after_cost_bps"] > 0)
+    positive_return = metrics["net_return_pct"] > 0
+    positive_avg_trade_edge = avg_trade_edge > 0
+    sample_sufficient = trade_count >= min_forward_trades
 
-    status = "forward_rejected"
     reasons = []
-    if trade_count < 3:
-        reasons.append("fewer than 3 forward trades")
-    if metrics["net_return_pct"] <= 0:
+    if not sample_sufficient:
+        reasons.append(f"fewer than {min_forward_trades} forward trades")
+    if not positive_return:
         reasons.append("non-positive forward return")
-    if avg_trade_edge <= 0:
+    if not positive_avg_trade_edge:
         reasons.append("non-positive average trade edge after cost")
-    if not reasons:
+
+    if sample_sufficient and positive_return and positive_avg_trade_edge:
         status = "forward_pass"
+        reasons = []
+    elif not sample_sufficient:
+        status = "forward_inconclusive"
+    else:
+        status = "forward_rejected"
 
     return {
         "strategy_name": strategy_name,
@@ -314,6 +338,10 @@ def summarize_forward(
         "calibration_bars": int(len(calibration_frame)),
         "forward_start": forward_frame.iloc[0]["time"] if not forward_frame.empty else None,
         "forward_end": forward_frame.iloc[-1]["time"] if not forward_frame.empty else None,
+        "min_forward_trades": min_forward_trades,
+        "sample_sufficient": sample_sufficient,
+        "positive_return": positive_return,
+        "positive_avg_trade_edge": positive_avg_trade_edge,
         "trades": trade_count,
         "positive_trades": positive_trades,
         "net_return_pct": metrics["net_return_pct"],
@@ -387,6 +415,10 @@ def persist_forward_summary(
             "bars": summary.get("bars"),
             "requiredBars": summary.get("required_bars"),
             "calibrationBars": summary.get("calibration_bars"),
+            "minForwardTrades": summary.get("min_forward_trades"),
+            "sampleSufficient": summary.get("sample_sufficient"),
+            "positiveReturn": summary.get("positive_return"),
+            "positiveAvgTradeEdge": summary.get("positive_avg_trade_edge"),
             "forwardStart": summary.get("forward_start"),
             "forwardEnd": summary.get("forward_end"),
             "trades": summary.get("trades"),
@@ -769,6 +801,7 @@ def run_symbol(
         calibration_frame=calibration,
         forward_frame=forward,
         baseline_backtest_edge_bps=baseline_backtest_edge_bps,
+        min_forward_trades=args.min_forward_trades,
     )
     summary["fit_state"] = fit_state
     summary["latest_bar_age_minutes"] = latest_bar_age_minutes
