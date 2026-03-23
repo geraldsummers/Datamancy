@@ -73,6 +73,26 @@ def write_notebook(name: str, cells):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(notebook, f, indent=1)
 
+def write_kotlin_notebook(name: str, cells):
+    path = os.path.join(notebook_dir, name)
+    if os.path.exists(path):
+        return
+    notebook = {
+        "cells": cells,
+        "metadata": {
+            "kernelspec": {"display_name": "Kotlin", "language": "kotlin", "name": "kotlin"},
+            "language_info": {
+                "name": "kotlin",
+                "file_extension": ".kt",
+                "mimetype": "text/x-kotlin"
+            }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(notebook, f, indent=1)
+
 RESEARCH_ALIAS_PREFIX = (
     "exchange = os.getenv('DATAMANCY_RESEARCH_EXCHANGE', 'hyperliquid_mainnet').strip() or 'hyperliquid_mainnet'\n"
     "exchange_aliases = ['hyperliquid', 'hyperliquid_mainnet'] if exchange == 'hyperliquid_mainnet' else [exchange]\n"
@@ -86,6 +106,21 @@ NOTEBOOK_ALIAS_MIGRATIONS = {
         "replace": [
             ("setup_sql = text('''\n", "setup_sql = text(f'''\n"),
             ("  WHERE exchange = 'hyperliquid'\n", "  WHERE exchange IN ({exchange_sql})\n"),
+            (
+                "6. Run `08_empirical_intraday_strategy_research.ipynb` for execution-aware intraday research.\n"
+                "7. Run `16_strict_alpha_backtest_proof.ipynb` to persist the canonical walk-forward alpha proof.\n"
+                "8. Run `17_strict_forward_alpha_proof.ipynb` to forward-paper the exact fixed strategy definition.\n"
+                "9. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
+                "10. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
+                "11. Push only top-ranked symbols into live execution workflows.\n",
+                "6. Run `08_empirical_intraday_strategy_research.ipynb` for execution-aware intraday research.\n"
+                "7. Run `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` to estimate BTC/ETH beta and rank residual trend/reversion candidates.\n"
+                "8. Run `16_strict_alpha_backtest_proof.ipynb` to persist the canonical walk-forward alpha proof.\n"
+                "9. Run `17_strict_forward_alpha_proof.ipynb` to forward-paper the exact fixed strategy definition.\n"
+                "10. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
+                "11. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
+                "12. Push only top-ranked symbols into live execution workflows.\n",
+            ),
         ],
     },
     "01_quant_backtest_from_market_data.ipynb": {
@@ -191,11 +226,12 @@ write_notebook(
             "4. Run `05_llm_rss_sentiment_backfill.ipynb` to refresh sentiment features.\n"
             "5. Run `06_profitability_and_risk_attribution.ipynb` to quantify net profitability drivers.\n"
             "6. Run `08_empirical_intraday_strategy_research.ipynb` for execution-aware intraday research.\n"
-            "7. Run `16_strict_alpha_backtest_proof.ipynb` to persist the canonical walk-forward alpha proof.\n"
-            "8. Run `17_strict_forward_alpha_proof.ipynb` to forward-paper the exact fixed strategy definition.\n"
-            "9. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
-            "10. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
-            "11. Push only top-ranked symbols into live execution workflows.\n"
+            "7. Run `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` to estimate BTC/ETH beta and rank residual trend/reversion candidates.\n"
+            "8. Run `16_strict_alpha_backtest_proof.ipynb` to persist the canonical walk-forward alpha proof.\n"
+            "9. Run `17_strict_forward_alpha_proof.ipynb` to forward-paper the exact fixed strategy definition.\n"
+            "10. Run `09_cross_venue_paper_execution_playbook.ipynb` to execute safe paper orders across venues.\n"
+            "11. Use `15_forward_test_mainnet_data.ipynb` only for exploratory cost tinkering, not proof promotion.\n"
+            "12. Push only top-ranked symbols into live execution workflows.\n"
         ),
         code_cell(
             "import os\n"
@@ -1796,6 +1832,1854 @@ write_notebook(
             "else:\n"
             "    print('Set TX_AUTH_TOKEN to fetch trade history.')\n"
         )
+    ]
+)
+
+cross_sectional_kotlin_bootstrap = '''
+@file:DependsOn("org.postgresql:postgresql:42.7.5")
+@file:DependsOn("com.google.code.gson:gson:2.11.0")
+
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import java.net.URI
+import java.net.URLEncoder
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.nio.charset.StandardCharsets
+import java.sql.Connection
+import java.sql.DriverManager
+import java.sql.PreparedStatement
+import java.sql.ResultSet
+import java.sql.Timestamp
+import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.round
+import kotlin.math.sqrt
+
+fun env(name: String, default: String = ""): String =
+    System.getenv(name)?.trim()?.takeIf { it.isNotEmpty() } ?: default
+
+fun envInt(name: String, default: Int): Int =
+    env(name, default.toString()).toIntOrNull() ?: default
+
+fun envDouble(name: String, default: Double): Double =
+    env(name, default.toString()).toDoubleOrNull() ?: default
+
+fun envBoolean(name: String, default: Boolean): Boolean {
+    val raw = env(name, if (default) "true" else "false").lowercase()
+    return raw in setOf("1", "true", "yes", "on")
+}
+
+fun clamp(value: Double, lower: Double, upper: Double): Double =
+    max(lower, min(upper, value))
+
+fun Double.round(decimals: Int = 4): Double {
+    val scale = 10.0.pow(decimals.toDouble())
+    return round(this * scale) / scale
+}
+
+fun sqlList(values: List<String>): String =
+    values.joinToString(",") { "'" + it.replace("'", "''") + "'" }
+
+fun urlEncode(value: String): String =
+    URLEncoder.encode(value, StandardCharsets.UTF_8)
+
+fun mean(values: List<Double>): Double =
+    if (values.isEmpty()) 0.0 else values.average()
+
+fun stdev(values: List<Double>): Double {
+    if (values.size < 2) return 0.0
+    val mu = mean(values)
+    val variance = values.sumOf { (it - mu).pow(2.0) } / values.size.toDouble()
+    return sqrt(max(variance, 0.0))
+}
+
+fun rollingSum(values: List<Double>, endIndex: Int, window: Int): Double {
+    if (values.isEmpty() || endIndex < 0) return 0.0
+    val start = max(0, endIndex - window + 1)
+    return values.subList(start, endIndex + 1).sum()
+}
+
+fun deterministicJitter(time: Instant, salt: Int): Double {
+    val bucket = (time.epochSecond / 60L) + salt.toLong() * 13L
+    return abs((bucket % 37L) - 18L).toDouble()
+}
+
+fun JsonObject.string(name: String): String? =
+    get(name)?.takeIf { !it.isJsonNull }?.asString
+
+fun JsonObject.bool(name: String): Boolean? =
+    get(name)?.takeIf { !it.isJsonNull }?.asBoolean
+
+fun JsonObject.double(name: String): Double? =
+    get(name)?.takeIf { !it.isJsonNull }?.asDouble
+
+fun JsonObject.obj(name: String): JsonObject? =
+    getAsJsonObject(name)
+
+fun JsonObject.array(name: String): JsonArray? =
+    getAsJsonArray(name)
+
+data class ExchangeCapabilitiesSnapshot(
+    val paperOrder: Boolean,
+    val liveOrder: Boolean,
+    val nativeOrderAdapter: Boolean,
+    val marketDataIngress: Boolean,
+    val bestQuoteDefault: Boolean
+)
+
+data class ExchangeCatalogSnapshot(
+    val apiName: String,
+    val implementationStatus: String,
+    val defaultExecutionMode: String,
+    val supportedExecutionModes: List<String>,
+    val capabilities: ExchangeCapabilitiesSnapshot,
+    val notes: String
+)
+
+data class ExchangePlan(
+    val exchange: String,
+    val marketAliases: List<String>
+)
+
+data class ResearchConfig(
+    val txGatewayUrl: String = env("TX_GATEWAY_URL", "http://tx-gateway:8080"),
+    val txAuthToken: String = env("TX_AUTH_TOKEN", ""),
+    val marketExchange: String = env("DATAMANCY_CROSS_SECTIONAL_MARKET_EXCHANGE", "hyperliquid_mainnet"),
+    val executionExchangeOverride: String = env("DATAMANCY_CROSS_SECTIONAL_EXECUTION_EXCHANGE", ""),
+    val lookbackHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_LOOKBACK_HOURS", 96),
+    val forwardHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_FORWARD_HOURS", 12),
+    val betaLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_BETA_LOOKBACK_BARS", 240),
+    val trendLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_LOOKBACK_BARS", 60),
+    val trendSlowBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_SLOW_BARS", 240),
+    val reversionLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_LOOKBACK_BARS", 60),
+    val trendHoldBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_HOLD_BARS", 45),
+    val reversionHoldBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_HOLD_BARS", 20),
+    val topPerSide: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TOP_PER_SIDE", 1),
+    val notionalUsd: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_NOTIONAL_USD", 5000.0),
+    val maxSymbols: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_SYMBOLS", 8),
+    val minBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MIN_BARS", 360),
+    val trendEntryScore: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_ENTRY_SCORE", 0.85),
+    val reversionZEntry: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_Z_ENTRY", 1.75),
+    val reversionZExit: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_Z_EXIT", 0.35),
+    val maxSpreadBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_SPREAD_BPS", 18.0),
+    val minDepthMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_DEPTH_MULTIPLE", 8.0),
+    val persistBacktest: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_PERSIST_BACKTEST", true),
+    val persistForward: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_PERSIST_FORWARD", true),
+    val enablePaperOrders: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_ENABLE_PAPER_ORDERS", false),
+    val paperExecutionMode: String = env("DATAMANCY_CROSS_SECTIONAL_ORDER_MODE", "forward_paper")
+)
+
+data class Bar(
+    val exchange: String,
+    val symbol: String,
+    val time: Instant,
+    val close: Double,
+    val volume: Double,
+    val spreadPct: Double,
+    val bidDepth10: Double,
+    val askDepth10: Double,
+    val midPrice: Double
+)
+
+data class BasePoint(
+    val exchange: String,
+    val symbol: String,
+    val time: Instant,
+    val barIndex: Int,
+    val close: Double,
+    val volume: Double,
+    val spreadPct: Double,
+    val spreadBps: Double,
+    val bidDepth10: Double,
+    val askDepth10: Double,
+    val midPrice: Double,
+    val depthUsd: Double,
+    val ret1m: Double,
+    val vol30: Double
+)
+
+data class UnrankedFeature(
+    val exchange: String,
+    val symbol: String,
+    val time: Instant,
+    val barIndex: Int,
+    val close: Double,
+    val volume: Double,
+    val spreadPct: Double,
+    val spreadBps: Double,
+    val depthUsd: Double,
+    val midPrice: Double,
+    val ret1m: Double,
+    val vol30: Double,
+    val volBps: Double,
+    val btcRet1m: Double,
+    val ethRet1m: Double,
+    val betaBtc: Double,
+    val betaEth: Double,
+    val residualRet: Double,
+    val residualMomFast: Double,
+    val residualMomSlow: Double,
+    val residualZ: Double,
+    val rawTrend: Double,
+    val liquid: Boolean
+)
+
+data class FeatureRow(
+    val exchange: String,
+    val symbol: String,
+    val time: Instant,
+    val barIndex: Int,
+    val close: Double,
+    val volume: Double,
+    val spreadPct: Double,
+    val spreadBps: Double,
+    val depthUsd: Double,
+    val midPrice: Double,
+    val ret1m: Double,
+    val vol30: Double,
+    val volBps: Double,
+    val btcRet1m: Double,
+    val ethRet1m: Double,
+    val betaBtc: Double,
+    val betaEth: Double,
+    val residualRet: Double,
+    val residualMomFast: Double,
+    val residualMomSlow: Double,
+    val residualZ: Double,
+    val breadth: Double,
+    val rawTrend: Double,
+    val trendScore: Double,
+    val reversionScore: Double,
+    val liquid: Boolean,
+    val trendLongRank: Int,
+    val trendShortRank: Int,
+    val reversionLongRank: Int,
+    val reversionShortRank: Int
+)
+
+data class SignalSnapshot(
+    val exchange: String,
+    val symbol: String,
+    val time: String,
+    val lastPrice: Double,
+    val betaBtc: Double,
+    val betaEth: Double,
+    val residualZ: Double,
+    val trendScore: Double,
+    val reversionScore: Double,
+    val breadth: Double,
+    val spreadBps: Double,
+    val depthUsd: Double,
+    val liquid: Boolean,
+    val trendAction: String,
+    val reversionAction: String
+)
+
+data class ExecutionEstimate(
+    val fillRatio: Double,
+    val feeBps: Double,
+    val feeTier: String,
+    val feeTierAdjustmentBps: Double,
+    val makerFeeBps: Double,
+    val takerFeeBps: Double,
+    val spreadCostBps: Double,
+    val slippageBps: Double,
+    val impactBps: Double,
+    val adverseSelectionBps: Double,
+    val fundingDriftBps: Double,
+    val basisDriftBps: Double,
+    val totalCostBps: Double,
+    val estimatedFeeUsd: Double,
+    val estimatedCostUsd: Double
+)
+
+data class TradeRecord(
+    val strategyName: String,
+    val strategyKind: String,
+    val exchange: String,
+    val symbol: String,
+    val side: String,
+    val entryTime: Instant,
+    val exitTime: Instant,
+    val entryPrice: Double,
+    val exitPrice: Double,
+    val holdBars: Int,
+    val grossReturnFraction: Double,
+    val netReturnFraction: Double,
+    val fillRatio: Double,
+    val feeBps: Double,
+    val feeTier: String,
+    val feeTierAdjustmentBps: Double,
+    val makerFeeBps: Double,
+    val takerFeeBps: Double,
+    val spreadCostBps: Double,
+    val slippageBps: Double,
+    val impactBps: Double,
+    val adverseSelectionBps: Double,
+    val fundingDriftBps: Double,
+    val basisDriftBps: Double,
+    val totalCostBps: Double,
+    val edgeAfterCostBps: Double,
+    val estimatedFeeUsd: Double,
+    val estimatedCostUsd: Double,
+    val entryTrendScore: Double,
+    val entryResidualZ: Double,
+    val betaBtc: Double,
+    val betaEth: Double,
+    val decisionLatencyMs: Double,
+    val submitToAckMs: Double,
+    val submitToFillMs: Double,
+    val p50RoundtripMs: Double,
+    val p95RoundtripMs: Double,
+    val p99RoundtripMs: Double,
+    val jitterMs: Double
+)
+
+data class StrategySummary(
+    val strategyName: String,
+    val strategyKind: String,
+    val exchange: String,
+    val symbol: String,
+    val timeframe: String,
+    val startTime: Instant,
+    val endTime: Instant,
+    val trades: Int,
+    val winRate: Double,
+    val netReturnPct: Double,
+    val maxDrawdownPct: Double,
+    val sharpe: Double,
+    val avgEdgeAfterCostBps: Double,
+    val avgTotalCostBps: Double,
+    val avgSlippageBps: Double,
+    val avgFillRatio: Double,
+    val avgSubmitToFillMs: Double,
+    val notes: String,
+    val metricsJson: String
+)
+
+enum class StrategyKind {
+    TREND,
+    REVERSION
+}
+
+data class OpenPosition(
+    val strategyName: String,
+    val strategyKind: StrategyKind,
+    val exchange: String,
+    val symbol: String,
+    val side: Int,
+    val entryRow: FeatureRow,
+    val entryEstimate: ExecutionEstimate
+)
+
+val gson: Gson = GsonBuilder().setPrettyPrinting().create()
+val httpClient: HttpClient = HttpClient.newBuilder()
+    .connectTimeout(Duration.ofSeconds(10))
+    .build()
+
+Class.forName("org.postgresql.Driver")
+val pgHost = env("POSTGRES_HOST", "postgres")
+val pgPort = env("POSTGRES_PORT", "5432")
+val pgDb = env("POSTGRES_DB", "datamancy")
+val pgUser = env("POSTGRES_USER", "pipeline_user")
+val pgPassword = env("POSTGRES_PASSWORD", "")
+val jdbcUrl = "jdbc:postgresql://$pgHost:$pgPort/$pgDb"
+
+fun pgConnection(): Connection =
+    DriverManager.getConnection(jdbcUrl, pgUser, pgPassword)
+
+var researchConfig = ResearchConfig()
+println("Research config")
+println(gson.toJson(researchConfig))
+'''
+
+cross_sectional_kotlin_engine = '''
+fun twoFactorBetas(window: List<Triple<Double, Double, Double>>): Pair<Double, Double> {
+    if (window.size < 30) return 0.0 to 0.0
+    val yMean = mean(window.map { it.first })
+    val x1Mean = mean(window.map { it.second })
+    val x2Mean = mean(window.map { it.third })
+
+    var s11 = 0.0
+    var s22 = 0.0
+    var s12 = 0.0
+    var sy1 = 0.0
+    var sy2 = 0.0
+
+    for ((yRaw, x1Raw, x2Raw) in window) {
+        val y = yRaw - yMean
+        val x1 = x1Raw - x1Mean
+        val x2 = x2Raw - x2Mean
+        s11 += x1 * x1
+        s22 += x2 * x2
+        s12 += x1 * x2
+        sy1 += y * x1
+        sy2 += y * x2
+    }
+
+    val determinant = (s11 * s22) - (s12 * s12)
+    if (abs(determinant) < 1e-9) {
+        val beta1 = if (abs(s11) < 1e-9) 0.0 else sy1 / s11
+        val beta2 = if (abs(s22) < 1e-9) 0.0 else sy2 / s22
+        return beta1 to beta2
+    }
+
+    val betaBtc = ((sy1 * s22) - (sy2 * s12)) / determinant
+    val betaEth = ((sy2 * s11) - (sy1 * s12)) / determinant
+    return betaBtc to betaEth
+}
+
+fun fetchExchangeCatalog(txBase: String): List<ExchangeCatalogSnapshot> =
+    runCatching {
+        val request = HttpRequest.newBuilder(URI.create("${txBase.removeSuffix("/")}/api/v1/exchanges"))
+            .GET()
+            .timeout(Duration.ofSeconds(15))
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() !in 200..299) {
+            error("Exchange catalog returned status ${response.statusCode()}")
+        }
+        val payload = JsonParser.parseString(response.body()).asJsonObject
+        payload.array("exchanges")
+            ?.map { element ->
+                val obj = element.asJsonObject
+                val caps = obj.obj("capabilities") ?: JsonObject()
+                ExchangeCatalogSnapshot(
+                    apiName = obj.string("apiName") ?: obj.string("name") ?: "unknown",
+                    implementationStatus = (obj.string("implementationStatus") ?: "placeholder").uppercase(),
+                    defaultExecutionMode = obj.string("defaultExecutionMode") ?: "forward_paper",
+                    supportedExecutionModes = obj.array("supportedExecutionModes")
+                        ?.map { it.asString }
+                        ?.filter { it.isNotBlank() }
+                        ?: emptyList(),
+                    capabilities = ExchangeCapabilitiesSnapshot(
+                        paperOrder = caps.bool("paperOrder") ?: false,
+                        liveOrder = caps.bool("liveOrder") ?: false,
+                        nativeOrderAdapter = caps.bool("nativeOrderAdapter") ?: false,
+                        marketDataIngress = caps.bool("marketDataIngress") ?: false,
+                        bestQuoteDefault = caps.bool("bestQuoteDefault") ?: false
+                    ),
+                    notes = obj.string("notes") ?: ""
+                )
+            }
+            ?: emptyList()
+    }.getOrElse { ex ->
+        println("Exchange catalog unavailable, falling back to Hyperliquid only: ${ex.message}")
+        listOf(
+            ExchangeCatalogSnapshot(
+                apiName = "hyperliquid",
+                implementationStatus = "INTEGRATED",
+                defaultExecutionMode = "forward_paper",
+                supportedExecutionModes = listOf("backtest", "forward_paper", "testnet_live"),
+                capabilities = ExchangeCapabilitiesSnapshot(
+                    paperOrder = true,
+                    liveOrder = true,
+                    nativeOrderAdapter = true,
+                    marketDataIngress = true,
+                    bestQuoteDefault = true
+                ),
+                notes = "Fallback exchange selection"
+            )
+        )
+    }
+
+fun buildExchangePlans(catalog: List<ExchangeCatalogSnapshot>, config: ResearchConfig): List<ExchangePlan> {
+    val overrideExchange = config.executionExchangeOverride.trim().lowercase()
+    val selected = if (overrideExchange.isNotEmpty()) {
+        listOf(overrideExchange)
+    } else {
+        catalog
+            .filter {
+                it.implementationStatus == "INTEGRATED" ||
+                    it.capabilities.marketDataIngress ||
+                    it.capabilities.bestQuoteDefault
+            }
+            .map { it.apiName.lowercase() }
+            .distinct()
+            .ifEmpty { listOf("hyperliquid") }
+    }
+
+    return selected.map { exchange ->
+        val aliases = when (exchange) {
+            "hyperliquid" -> when (config.marketExchange.lowercase()) {
+                "hyperliquid_testnet" -> listOf("hyperliquid_testnet")
+                "hyperliquid", "hyperliquid_mainnet" -> listOf("hyperliquid_mainnet", "hyperliquid")
+                else -> listOf("hyperliquid_mainnet", "hyperliquid")
+            }
+            else -> listOf(exchange)
+        }
+        ExchangePlan(exchange = exchange, marketAliases = aliases.distinct())
+    }
+}
+
+fun discoverSymbols(aliases: List<String>, lookbackHours: Int, maxSymbols: Int, minBars: Int): List<String> {
+    val aliasSql = sqlList(aliases)
+    val sql = """
+        SELECT symbol,
+               COUNT(*) AS bars,
+               COALESCE(AVG(volume), 0) AS avg_volume
+        FROM market_data
+        WHERE exchange IN ($aliasSql)
+          AND data_type = 'candle_1m'
+          AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+        GROUP BY symbol
+        HAVING COUNT(*) >= $minBars
+        ORDER BY bars DESC, avg_volume DESC, symbol ASC
+        LIMIT $maxSymbols
+    """.trimIndent()
+
+    val discovered = mutableListOf<String>()
+    pgConnection().use { conn ->
+        conn.prepareStatement(sql).use { stmt ->
+            stmt.executeQuery().use { rs ->
+                while (rs.next()) {
+                    discovered += rs.getString("symbol")
+                }
+            }
+        }
+    }
+
+    val universe = (listOf("BTC", "ETH") + discovered).distinct()
+    return universe
+}
+
+fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, lookbackHours: Int): List<Bar> {
+    if (symbols.isEmpty()) return emptyList()
+    val aliasSql = sqlList(aliases)
+    val symbolSql = sqlList(symbols)
+    val preferredAlias = aliases.first()
+    val sql = """
+        WITH candle_ranked AS (
+            SELECT
+                symbol,
+                date_trunc('minute', time) AS bucket_time,
+                close,
+                COALESCE(volume, 0) AS volume,
+                exchange,
+                ROW_NUMBER() OVER (
+                    PARTITION BY symbol, date_trunc('minute', time)
+                    ORDER BY CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END, time DESC
+                ) AS rn
+            FROM market_data
+            WHERE exchange IN ($aliasSql)
+              AND data_type = 'candle_1m'
+              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND symbol IN ($symbolSql)
+        ),
+        orderbook_ranked AS (
+            SELECT
+                symbol,
+                date_trunc('minute', time) AS bucket_time,
+                COALESCE(spread_pct, 0) AS spread_pct,
+                COALESCE(bid_depth_10, 0) AS bid_depth_10,
+                COALESCE(ask_depth_10, 0) AS ask_depth_10,
+                COALESCE(NULLIF(mid_price, 0), 0) AS mid_price,
+                exchange,
+                ROW_NUMBER() OVER (
+                    PARTITION BY symbol, date_trunc('minute', time)
+                    ORDER BY CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END, time DESC
+                ) AS rn
+            FROM orderbook_data
+            WHERE exchange IN ($aliasSql)
+              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND symbol IN ($symbolSql)
+        )
+        SELECT
+            c.symbol,
+            c.bucket_time,
+            c.close,
+            c.volume,
+            COALESCE(o.spread_pct, 0) AS spread_pct,
+            COALESCE(o.bid_depth_10, 0) AS bid_depth_10,
+            COALESCE(o.ask_depth_10, 0) AS ask_depth_10,
+            COALESCE(NULLIF(o.mid_price, 0), c.close) AS mid_price
+        FROM candle_ranked c
+        LEFT JOIN orderbook_ranked o
+          ON o.symbol = c.symbol
+         AND o.bucket_time = c.bucket_time
+         AND o.rn = 1
+        WHERE c.rn = 1
+        ORDER BY c.bucket_time ASC, c.symbol ASC
+    """.trimIndent()
+
+    return buildList {
+        pgConnection().use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        add(
+                            Bar(
+                                exchange = exchange,
+                                symbol = rs.getString("symbol"),
+                                time = rs.getTimestamp("bucket_time").toInstant(),
+                                close = rs.getDouble("close"),
+                                volume = rs.getDouble("volume"),
+                                spreadPct = rs.getDouble("spread_pct"),
+                                bidDepth10 = rs.getDouble("bid_depth_10"),
+                                askDepth10 = rs.getDouble("ask_depth_10"),
+                                midPrice = rs.getDouble("mid_price")
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> {
+    if (bars.isEmpty()) return emptyList()
+
+    val seriesByKey = bars.groupBy { it.exchange to it.symbol }
+        .mapValues { (_, value) -> value.sortedBy { it.time } }
+
+    val baseByKey = seriesByKey.mapValues { (key, series) ->
+        val returns = ArrayDeque<Double>()
+        series.mapIndexed { index, bar ->
+            val previous = series.getOrNull(index - 1)
+            val ret1m = if (previous == null || previous.close <= 0.0) 0.0 else (bar.close / previous.close) - 1.0
+            returns.addLast(ret1m)
+            if (returns.size > 30) {
+                returns.removeFirst()
+            }
+            val vol30 = stdev(returns.toList())
+            val spreadBps = max(bar.spreadPct, 0.0) * 100.0
+            val midPrice = max(bar.midPrice, bar.close)
+            val depthUsd = max((max(bar.bidDepth10, 0.0) + max(bar.askDepth10, 0.0)) * midPrice, 0.0)
+            BasePoint(
+                exchange = key.first,
+                symbol = key.second,
+                time = bar.time,
+                barIndex = index,
+                close = bar.close,
+                volume = bar.volume,
+                spreadPct = bar.spreadPct,
+                spreadBps = spreadBps,
+                bidDepth10 = bar.bidDepth10,
+                askDepth10 = bar.askDepth10,
+                midPrice = midPrice,
+                depthUsd = depthUsd,
+                ret1m = ret1m,
+                vol30 = vol30
+            )
+        }
+    }
+
+    val baseLookup = mutableMapOf<Triple<String, String, Instant>, BasePoint>()
+    baseByKey.values.flatten().forEach { point ->
+        baseLookup[Triple(point.exchange, point.symbol, point.time)] = point
+    }
+
+    val unranked = mutableListOf<UnrankedFeature>()
+    for ((key, series) in baseByKey) {
+        val exchange = key.first
+        val residuals = mutableListOf<Double>()
+        val dislocations = mutableListOf<Double>()
+
+        for (i in series.indices) {
+            val point = series[i]
+            val betaWindow = buildList {
+                val start = max(0, i - config.betaLookbackBars + 1)
+                for (j in start..i) {
+                    val row = series[j]
+                    val btc = baseLookup[Triple(exchange, "BTC", row.time)] ?: continue
+                    val eth = baseLookup[Triple(exchange, "ETH", row.time)] ?: continue
+                    add(Triple(row.ret1m, btc.ret1m, eth.ret1m))
+                }
+            }
+
+            val (betaBtc, betaEth) = twoFactorBetas(betaWindow)
+            val btcRet = baseLookup[Triple(exchange, "BTC", point.time)]?.ret1m ?: 0.0
+            val ethRet = baseLookup[Triple(exchange, "ETH", point.time)]?.ret1m ?: 0.0
+            val residualRet = point.ret1m - (betaBtc * btcRet) - (betaEth * ethRet)
+            residuals += residualRet
+
+            val residualMomFast = rollingSum(residuals, residuals.lastIndex, config.trendLookbackBars)
+            val residualMomSlow = rollingSum(residuals, residuals.lastIndex, config.trendSlowBars)
+            val dislocation = rollingSum(residuals, residuals.lastIndex, config.reversionLookbackBars)
+            dislocations += dislocation
+            val dislocationWindow = dislocations.subList(max(0, dislocations.size - config.betaLookbackBars), dislocations.size)
+            val dislocationMean = mean(dislocationWindow)
+            val dislocationStd = stdev(dislocationWindow)
+            val residualZ = if (dislocationStd < 1e-9) 0.0 else (dislocation - dislocationMean) / dislocationStd
+            val fastScale = max(point.vol30 * sqrt(config.trendLookbackBars.toDouble()), 1e-6)
+            val slowScale = max(point.vol30 * sqrt(config.trendSlowBars.toDouble()), 1e-6)
+            val rawTrend = ((residualMomFast / fastScale) * 0.7) + ((residualMomSlow / slowScale) * 0.3) - (point.spreadBps / 50.0)
+            val liquid = point.spreadBps <= config.maxSpreadBps &&
+                point.depthUsd >= config.notionalUsd * config.minDepthMultiple &&
+                point.barIndex >= max(config.betaLookbackBars, config.trendSlowBars)
+
+            unranked += UnrankedFeature(
+                exchange = exchange,
+                symbol = point.symbol,
+                time = point.time,
+                barIndex = point.barIndex,
+                close = point.close,
+                volume = point.volume,
+                spreadPct = point.spreadPct,
+                spreadBps = point.spreadBps,
+                depthUsd = point.depthUsd,
+                midPrice = point.midPrice,
+                ret1m = point.ret1m,
+                vol30 = point.vol30,
+                volBps = point.vol30 * 10000.0,
+                btcRet1m = btcRet,
+                ethRet1m = ethRet,
+                betaBtc = betaBtc,
+                betaEth = betaEth,
+                residualRet = residualRet,
+                residualMomFast = residualMomFast,
+                residualMomSlow = residualMomSlow,
+                residualZ = residualZ,
+                rawTrend = rawTrend,
+                liquid = liquid
+            )
+        }
+    }
+
+    val grouped = unranked.groupBy { it.exchange to it.time }
+    val orderedKeys = grouped.keys.sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
+    val finalRows = mutableListOf<FeatureRow>()
+
+    for (groupKey in orderedKeys) {
+        val bucket = grouped[groupKey].orEmpty()
+        if (bucket.isEmpty()) continue
+        val breadth = bucket.count { it.rawTrend > 0.0 }.toDouble() / bucket.size.toDouble()
+        val trendScores = bucket.associateWith { row ->
+            val depthBonus = min(row.depthUsd / max(config.notionalUsd * 12.0, 1.0), 0.5)
+            row.rawTrend + ((breadth - 0.5) * 1.5) + depthBonus
+        }
+        val reversionScores = bucket.associateWith { row ->
+            abs(row.residualZ) - (row.spreadBps / 60.0) - (max(0.0, abs(breadth - 0.5) - 0.2) * 3.0)
+        }
+        val trendLongRanks = trendScores.entries
+            .filter { it.key.liquid }
+            .sortedByDescending { it.value }
+            .mapIndexed { index, entry -> entry.key to index + 1 }
+            .toMap()
+        val trendShortRanks = trendScores.entries
+            .filter { it.key.liquid }
+            .sortedBy { it.value }
+            .mapIndexed { index, entry -> entry.key to index + 1 }
+            .toMap()
+        val reversionLongRanks = bucket
+            .filter { it.liquid && it.residualZ < 0.0 }
+            .sortedBy { it.residualZ }
+            .mapIndexed { index, row -> row to index + 1 }
+            .toMap()
+        val reversionShortRanks = bucket
+            .filter { it.liquid && it.residualZ > 0.0 }
+            .sortedByDescending { it.residualZ }
+            .mapIndexed { index, row -> row to index + 1 }
+            .toMap()
+
+        bucket.forEach { row ->
+            finalRows += FeatureRow(
+                exchange = row.exchange,
+                symbol = row.symbol,
+                time = row.time,
+                barIndex = row.barIndex,
+                close = row.close,
+                volume = row.volume,
+                spreadPct = row.spreadPct,
+                spreadBps = row.spreadBps,
+                depthUsd = row.depthUsd,
+                midPrice = row.midPrice,
+                ret1m = row.ret1m,
+                vol30 = row.vol30,
+                volBps = row.volBps,
+                btcRet1m = row.btcRet1m,
+                ethRet1m = row.ethRet1m,
+                betaBtc = row.betaBtc,
+                betaEth = row.betaEth,
+                residualRet = row.residualRet,
+                residualMomFast = row.residualMomFast,
+                residualMomSlow = row.residualMomSlow,
+                residualZ = row.residualZ,
+                breadth = breadth,
+                rawTrend = row.rawTrend,
+                trendScore = trendScores[row] ?: row.rawTrend,
+                reversionScore = reversionScores[row] ?: 0.0,
+                liquid = row.liquid,
+                trendLongRank = trendLongRanks[row] ?: Int.MAX_VALUE,
+                trendShortRank = trendShortRanks[row] ?: Int.MAX_VALUE,
+                reversionLongRank = reversionLongRanks[row] ?: Int.MAX_VALUE,
+                reversionShortRank = reversionShortRanks[row] ?: Int.MAX_VALUE
+            )
+        }
+    }
+
+    return finalRows.sortedWith(compareBy<FeatureRow> { it.time }.thenBy { it.exchange }.thenBy { it.symbol })
+}
+
+fun latestSignalSnapshots(rows: List<FeatureRow>, config: ResearchConfig): List<SignalSnapshot> =
+    rows.groupBy { it.exchange to it.symbol }
+        .values
+        .mapNotNull { series -> series.maxByOrNull { it.time } }
+        .map { row ->
+            val trendAction = when {
+                row.liquid && row.trendLongRank <= config.topPerSide && row.trendScore >= config.trendEntryScore -> "LONG"
+                row.liquid && row.trendShortRank <= config.topPerSide && row.trendScore <= -config.trendEntryScore -> "SHORT"
+                else -> "FLAT"
+            }
+            val reversionAction = when {
+                row.liquid && row.reversionLongRank <= config.topPerSide && row.residualZ <= -config.reversionZEntry && row.reversionScore > 0 -> "LONG"
+                row.liquid && row.reversionShortRank <= config.topPerSide && row.residualZ >= config.reversionZEntry && row.reversionScore > 0 -> "SHORT"
+                else -> "FLAT"
+            }
+            SignalSnapshot(
+                exchange = row.exchange,
+                symbol = row.symbol,
+                time = row.time.toString(),
+                lastPrice = row.close.round(4),
+                betaBtc = row.betaBtc.round(4),
+                betaEth = row.betaEth.round(4),
+                residualZ = row.residualZ.round(4),
+                trendScore = row.trendScore.round(4),
+                reversionScore = row.reversionScore.round(4),
+                breadth = row.breadth.round(4),
+                spreadBps = row.spreadBps.round(2),
+                depthUsd = row.depthUsd.round(2),
+                liquid = row.liquid,
+                trendAction = trendAction,
+                reversionAction = reversionAction
+            )
+        }
+        .sortedWith(compareByDescending<SignalSnapshot> { abs(it.trendScore) }.thenBy { it.exchange }.thenBy { it.symbol })
+
+fun buildExecutionEstimate(row: FeatureRow, notionalUsd: Double): ExecutionEstimate {
+    val spreadHalfBps = row.spreadBps / 2.0
+    val depthPressure = notionalUsd / max(row.depthUsd, notionalUsd)
+    val volatilityPenalty = min(row.volBps / 90.0, 3.0)
+    val fillRatio = clamp(0.985 - (spreadHalfBps / 35.0) - (depthPressure * 2.5) - (volatilityPenalty * 0.04), 0.25, 1.0)
+    val feeBps = 4.0
+    val slippageBps = clamp(0.35 + (spreadHalfBps * 0.20) + (depthPressure * 10.0) + (volatilityPenalty * 0.55), 0.25, 14.0)
+    val impactBps = clamp(0.20 + (depthPressure * 18.0), 0.10, 18.0)
+    val adverseSelectionBps = clamp(abs(row.residualZ) * 0.15, 0.0, 3.0)
+    val totalCostBps = feeBps + spreadHalfBps + slippageBps + impactBps + adverseSelectionBps
+    return ExecutionEstimate(
+        fillRatio = fillRatio,
+        feeBps = feeBps,
+        feeTier = "retail",
+        feeTierAdjustmentBps = 0.0,
+        makerFeeBps = 1.0,
+        takerFeeBps = 4.0,
+        spreadCostBps = spreadHalfBps,
+        slippageBps = slippageBps,
+        impactBps = impactBps,
+        adverseSelectionBps = adverseSelectionBps,
+        fundingDriftBps = 0.0,
+        basisDriftBps = 0.0,
+        totalCostBps = totalCostBps,
+        estimatedFeeUsd = notionalUsd * feeBps / 10000.0,
+        estimatedCostUsd = notionalUsd * totalCostBps / 10000.0
+    )
+}
+
+fun shouldExitPosition(kind: StrategyKind, position: OpenPosition, current: FeatureRow, config: ResearchConfig): Boolean =
+    when (kind) {
+        StrategyKind.TREND -> {
+            val ageBars = current.barIndex - position.entryRow.barIndex
+            ageBars >= config.trendHoldBars || (current.trendScore * position.side.toDouble()) <= 0.15
+        }
+        StrategyKind.REVERSION -> {
+            val ageBars = current.barIndex - position.entryRow.barIndex
+            ageBars >= config.reversionHoldBars ||
+                abs(current.residualZ) <= config.reversionZExit ||
+                (current.residualZ * position.side.toDouble()) >= 0.15
+        }
+    }
+
+fun candidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: ResearchConfig): List<Pair<FeatureRow, Int>> =
+    when (kind) {
+        StrategyKind.TREND -> {
+            val longs = bucket
+                .filter {
+                    it.liquid &&
+                        it.trendLongRank <= config.topPerSide &&
+                        it.trendScore >= config.trendEntryScore &&
+                        abs(it.residualZ) <= config.reversionZEntry * 1.5
+                }
+                .sortedBy { it.trendLongRank }
+                .map { it to 1 }
+            val shorts = bucket
+                .filter {
+                    it.liquid &&
+                        it.trendShortRank <= config.topPerSide &&
+                        it.trendScore <= -config.trendEntryScore &&
+                        abs(it.residualZ) <= config.reversionZEntry * 1.5
+                }
+                .sortedBy { it.trendShortRank }
+                .map { it to -1 }
+            longs + shorts
+        }
+        StrategyKind.REVERSION -> {
+            val longs = bucket
+                .filter {
+                    it.liquid &&
+                        it.reversionLongRank <= config.topPerSide &&
+                        it.residualZ <= -config.reversionZEntry &&
+                        it.reversionScore > 0.0
+                }
+                .sortedBy { it.reversionLongRank }
+                .map { it to 1 }
+            val shorts = bucket
+                .filter {
+                    it.liquid &&
+                        it.reversionShortRank <= config.topPerSide &&
+                        it.residualZ >= config.reversionZEntry &&
+                        it.reversionScore > 0.0
+                }
+                .sortedBy { it.reversionShortRank }
+                .map { it to -1 }
+            longs + shorts
+        }
+    }
+
+fun simulateStrategy(strategyName: String, kind: StrategyKind, rows: List<FeatureRow>, config: ResearchConfig): List<TradeRecord> {
+    if (rows.isEmpty()) return emptyList()
+    val grouped = rows.groupBy { it.exchange to it.time }
+    val orderedKeys = grouped.keys.sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
+    val positions = mutableMapOf<String, OpenPosition>()
+    val trades = mutableListOf<TradeRecord>()
+
+    for (key in orderedKeys) {
+        val exchange = key.first
+        val bucket = grouped[key].orEmpty()
+        val rowBySymbol = bucket.associateBy { it.symbol }
+
+        for ((positionKey, position) in positions.toMap()) {
+            if (position.exchange != exchange) continue
+            val current = rowBySymbol[position.symbol] ?: continue
+            if (!shouldExitPosition(kind, position, current, config)) continue
+
+            val exitEstimate = buildExecutionEstimate(current, config.notionalUsd)
+            val effectiveFill = min(position.entryEstimate.fillRatio, exitEstimate.fillRatio)
+            val grossReturn = position.side * ((current.close / position.entryRow.close) - 1.0) * effectiveFill
+            val totalCostBps = position.entryEstimate.totalCostBps + exitEstimate.totalCostBps
+            val netReturn = grossReturn - (totalCostBps / 10000.0)
+            val signalMagnitude = when (kind) {
+                StrategyKind.TREND -> abs(position.entryRow.trendScore)
+                StrategyKind.REVERSION -> abs(position.entryRow.residualZ)
+            }
+            val jitter = deterministicJitter(current.time, position.side)
+            val decisionLatencyMs = clamp(6.0 + (signalMagnitude * 7.0) + (jitter * 0.6), 4.0, 60.0)
+            val submitToAckMs = clamp(55.0 + (current.spreadBps * 1.1) + ((config.notionalUsd / max(current.depthUsd, config.notionalUsd)) * 120.0) + (jitter * 1.5), 20.0, 900.0)
+            val submitToFillMs = clamp(submitToAckMs + ((1.0 - effectiveFill) * 260.0) + 18.0, 30.0, 1800.0)
+            val p50RoundtripMs = clamp(submitToAckMs + 12.0, 20.0, 1000.0)
+            val p95RoundtripMs = clamp(submitToAckMs * 2.0, 25.0, 1800.0)
+            val p99RoundtripMs = clamp(submitToAckMs * 3.0, 30.0, 2500.0)
+
+            trades += TradeRecord(
+                strategyName = strategyName,
+                strategyKind = kind.name.lowercase(),
+                exchange = exchange,
+                symbol = position.symbol,
+                side = if (position.side > 0) "BUY" else "SELL",
+                entryTime = position.entryRow.time,
+                exitTime = current.time,
+                entryPrice = position.entryRow.close,
+                exitPrice = current.close,
+                holdBars = current.barIndex - position.entryRow.barIndex,
+                grossReturnFraction = grossReturn,
+                netReturnFraction = netReturn,
+                fillRatio = effectiveFill,
+                feeBps = position.entryEstimate.feeBps + exitEstimate.feeBps,
+                feeTier = position.entryEstimate.feeTier,
+                feeTierAdjustmentBps = 0.0,
+                makerFeeBps = position.entryEstimate.makerFeeBps,
+                takerFeeBps = position.entryEstimate.takerFeeBps,
+                spreadCostBps = position.entryEstimate.spreadCostBps + exitEstimate.spreadCostBps,
+                slippageBps = position.entryEstimate.slippageBps + exitEstimate.slippageBps,
+                impactBps = position.entryEstimate.impactBps + exitEstimate.impactBps,
+                adverseSelectionBps = position.entryEstimate.adverseSelectionBps + exitEstimate.adverseSelectionBps,
+                fundingDriftBps = 0.0,
+                basisDriftBps = 0.0,
+                totalCostBps = totalCostBps,
+                edgeAfterCostBps = netReturn * 10000.0,
+                estimatedFeeUsd = position.entryEstimate.estimatedFeeUsd + exitEstimate.estimatedFeeUsd,
+                estimatedCostUsd = position.entryEstimate.estimatedCostUsd + exitEstimate.estimatedCostUsd,
+                entryTrendScore = position.entryRow.trendScore,
+                entryResidualZ = position.entryRow.residualZ,
+                betaBtc = position.entryRow.betaBtc,
+                betaEth = position.entryRow.betaEth,
+                decisionLatencyMs = decisionLatencyMs,
+                submitToAckMs = submitToAckMs,
+                submitToFillMs = submitToFillMs,
+                p50RoundtripMs = p50RoundtripMs,
+                p95RoundtripMs = p95RoundtripMs,
+                p99RoundtripMs = p99RoundtripMs,
+                jitterMs = jitter
+            )
+            positions.remove(positionKey)
+        }
+
+        candidateRows(kind, bucket, config).forEach { (candidate, side) ->
+            val positionKey = "${candidate.exchange}|${candidate.symbol}"
+            if (positions.containsKey(positionKey)) return@forEach
+            val entryEstimate = buildExecutionEstimate(candidate, config.notionalUsd)
+            if (entryEstimate.fillRatio < 0.35) return@forEach
+            positions[positionKey] = OpenPosition(
+                strategyName = strategyName,
+                strategyKind = kind,
+                exchange = candidate.exchange,
+                symbol = candidate.symbol,
+                side = side,
+                entryRow = candidate,
+                entryEstimate = entryEstimate
+            )
+        }
+    }
+
+    val latestByExchangeSymbol = rows.groupBy { it.exchange to it.symbol }
+        .mapValues { (_, series) -> series.maxByOrNull { it.time } }
+
+    for ((positionKey, position) in positions.toMap()) {
+        val current = latestByExchangeSymbol[position.exchange to position.symbol] ?: continue
+        if (current.time == position.entryRow.time) continue
+        val exitEstimate = buildExecutionEstimate(current, config.notionalUsd)
+        val effectiveFill = min(position.entryEstimate.fillRatio, exitEstimate.fillRatio)
+        val grossReturn = position.side * ((current.close / position.entryRow.close) - 1.0) * effectiveFill
+        val totalCostBps = position.entryEstimate.totalCostBps + exitEstimate.totalCostBps
+        val netReturn = grossReturn - (totalCostBps / 10000.0)
+        val signalMagnitude = when (kind) {
+            StrategyKind.TREND -> abs(position.entryRow.trendScore)
+            StrategyKind.REVERSION -> abs(position.entryRow.residualZ)
+        }
+        val jitter = deterministicJitter(current.time, position.side)
+        val decisionLatencyMs = clamp(6.0 + (signalMagnitude * 7.0) + (jitter * 0.6), 4.0, 60.0)
+        val submitToAckMs = clamp(55.0 + (current.spreadBps * 1.1) + ((config.notionalUsd / max(current.depthUsd, config.notionalUsd)) * 120.0) + (jitter * 1.5), 20.0, 900.0)
+        val submitToFillMs = clamp(submitToAckMs + ((1.0 - effectiveFill) * 260.0) + 18.0, 30.0, 1800.0)
+        val p50RoundtripMs = clamp(submitToAckMs + 12.0, 20.0, 1000.0)
+        val p95RoundtripMs = clamp(submitToAckMs * 2.0, 25.0, 1800.0)
+        val p99RoundtripMs = clamp(submitToAckMs * 3.0, 30.0, 2500.0)
+
+        trades += TradeRecord(
+            strategyName = strategyName,
+            strategyKind = kind.name.lowercase(),
+            exchange = position.exchange,
+            symbol = position.symbol,
+            side = if (position.side > 0) "BUY" else "SELL",
+            entryTime = position.entryRow.time,
+            exitTime = current.time,
+            entryPrice = position.entryRow.close,
+            exitPrice = current.close,
+            holdBars = current.barIndex - position.entryRow.barIndex,
+            grossReturnFraction = grossReturn,
+            netReturnFraction = netReturn,
+            fillRatio = effectiveFill,
+            feeBps = position.entryEstimate.feeBps + exitEstimate.feeBps,
+            feeTier = position.entryEstimate.feeTier,
+            feeTierAdjustmentBps = 0.0,
+            makerFeeBps = position.entryEstimate.makerFeeBps,
+            takerFeeBps = position.entryEstimate.takerFeeBps,
+            spreadCostBps = position.entryEstimate.spreadCostBps + exitEstimate.spreadCostBps,
+            slippageBps = position.entryEstimate.slippageBps + exitEstimate.slippageBps,
+            impactBps = position.entryEstimate.impactBps + exitEstimate.impactBps,
+            adverseSelectionBps = position.entryEstimate.adverseSelectionBps + exitEstimate.adverseSelectionBps,
+            fundingDriftBps = 0.0,
+            basisDriftBps = 0.0,
+            totalCostBps = totalCostBps,
+            edgeAfterCostBps = netReturn * 10000.0,
+            estimatedFeeUsd = position.entryEstimate.estimatedFeeUsd + exitEstimate.estimatedFeeUsd,
+            estimatedCostUsd = position.entryEstimate.estimatedCostUsd + exitEstimate.estimatedCostUsd,
+            entryTrendScore = position.entryRow.trendScore,
+            entryResidualZ = position.entryRow.residualZ,
+            betaBtc = position.entryRow.betaBtc,
+            betaEth = position.entryRow.betaEth,
+            decisionLatencyMs = decisionLatencyMs,
+            submitToAckMs = submitToAckMs,
+            submitToFillMs = submitToFillMs,
+            p50RoundtripMs = p50RoundtripMs,
+            p95RoundtripMs = p95RoundtripMs,
+            p99RoundtripMs = p99RoundtripMs,
+            jitterMs = jitter
+        )
+        positions.remove(positionKey)
+    }
+
+    return trades.sortedBy { it.entryTime }
+}
+
+fun buildStrategySummaries(
+    strategyName: String,
+    strategyKind: StrategyKind,
+    trades: List<TradeRecord>,
+    timeframe: String,
+    notes: String
+): List<StrategySummary> {
+    if (trades.isEmpty()) return emptyList()
+
+    fun summarize(exchange: String, symbol: String, bucket: List<TradeRecord>): StrategySummary {
+        val sorted = bucket.sortedBy { it.entryTime }
+        var equity = 1.0
+        var peak = 1.0
+        var maxDrawdown = 0.0
+        val returns = mutableListOf<Double>()
+        sorted.forEach { trade ->
+            equity *= (1.0 + trade.netReturnFraction)
+            peak = max(peak, equity)
+            maxDrawdown = max(maxDrawdown, 1.0 - (equity / peak))
+            returns += trade.netReturnFraction
+        }
+        val netReturnPct = ((equity - 1.0) * 100.0).round(4)
+        val winRate = sorted.count { it.netReturnFraction > 0.0 }.toDouble() / sorted.size.toDouble()
+        val sharpe = run {
+            val sigma = stdev(returns)
+            if (sigma < 1e-9) 0.0 else (mean(returns) / sigma) * sqrt(sorted.size.toDouble())
+        }
+        val avgEdgeAfterCostBps = mean(sorted.map { it.edgeAfterCostBps })
+        val avgTotalCostBps = mean(sorted.map { it.totalCostBps })
+        val avgSlippageBps = mean(sorted.map { it.slippageBps })
+        val avgFillRatio = mean(sorted.map { it.fillRatio })
+        val avgSubmitToFillMs = mean(sorted.map { it.submitToFillMs })
+        val avgBetaBtc = mean(sorted.map { it.betaBtc })
+        val avgBetaEth = mean(sorted.map { it.betaEth })
+        val metricsJson = gson.toJson(
+            mapOf(
+                "exchange" to exchange,
+                "strategyKind" to strategyKind.name.lowercase(),
+                "avg_edge_after_cost_bps" to avgEdgeAfterCostBps.round(4),
+                "avg_total_cost_bps" to avgTotalCostBps.round(4),
+                "avg_slippage_bps" to avgSlippageBps.round(4),
+                "avg_fill_ratio" to avgFillRatio.round(4),
+                "avg_submit_to_fill_ms" to avgSubmitToFillMs.round(4),
+                "avg_beta_btc" to avgBetaBtc.round(4),
+                "avg_beta_eth" to avgBetaEth.round(4),
+                "source" to "cross-sectional-beta-kotlin"
+            )
+        )
+        return StrategySummary(
+            strategyName = strategyName,
+            strategyKind = strategyKind.name.lowercase(),
+            exchange = exchange,
+            symbol = symbol,
+            timeframe = timeframe,
+            startTime = sorted.first().entryTime,
+            endTime = sorted.last().exitTime,
+            trades = sorted.size,
+            winRate = winRate,
+            netReturnPct = netReturnPct,
+            maxDrawdownPct = (maxDrawdown * 100.0).round(4),
+            sharpe = sharpe.round(4),
+            avgEdgeAfterCostBps = avgEdgeAfterCostBps.round(4),
+            avgTotalCostBps = avgTotalCostBps.round(4),
+            avgSlippageBps = avgSlippageBps.round(4),
+            avgFillRatio = avgFillRatio.round(4),
+            avgSubmitToFillMs = avgSubmitToFillMs.round(4),
+            notes = notes,
+            metricsJson = metricsJson
+        )
+    }
+
+    val perSymbol = trades.groupBy { it.exchange to it.symbol }
+        .map { (key, bucket) -> summarize(key.first, key.second, bucket) }
+    val perExchange = trades.groupBy { it.exchange }
+        .map { (exchange, bucket) -> summarize(exchange, "ALL", bucket) }
+    return perSymbol + perExchange
+}
+
+fun ensureAnalyticsTables(conn: Connection) {
+    conn.createStatement().use { stmt ->
+        stmt.execute(
+            """
+            CREATE TABLE IF NOT EXISTS strategy_backtest_runs (
+                id BIGSERIAL PRIMARY KEY,
+                run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                timeframe TEXT NOT NULL,
+                start_time TIMESTAMPTZ NOT NULL,
+                end_time TIMESTAMPTZ NOT NULL,
+                trades INTEGER NOT NULL DEFAULT 0,
+                win_rate DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                net_return_pct DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                max_drawdown_pct DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                sharpe DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                notes TEXT,
+                metrics JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+            """.trimIndent()
+        )
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_backtest_run_at ON strategy_backtest_runs (run_at DESC)")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_backtest_symbol_time ON strategy_backtest_runs (symbol, timeframe, run_at DESC)")
+        stmt.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_strategy_backtest_dedupe
+            ON strategy_backtest_runs (strategy_name, symbol, timeframe, start_time, end_time)
+            """.trimIndent()
+        )
+        stmt.execute(
+            """
+            CREATE TABLE IF NOT EXISTS strategy_latency_metrics (
+                id BIGSERIAL PRIMARY KEY,
+                observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                exchange TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                decision_latency_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
+                submit_to_ack_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
+                submit_to_fill_ms DOUBLE PRECISION,
+                p50_roundtrip_ms DOUBLE PRECISION,
+                p95_roundtrip_ms DOUBLE PRECISION,
+                p99_roundtrip_ms DOUBLE PRECISION,
+                jitter_ms DOUBLE PRECISION,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+            """.trimIndent()
+        )
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_latency_time ON strategy_latency_metrics (observed_at DESC)")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_latency_strategy_time ON strategy_latency_metrics (strategy_name, observed_at DESC)")
+        stmt.execute(
+            """
+            CREATE TABLE IF NOT EXISTS strategy_execution_costs (
+                id BIGSERIAL PRIMARY KEY,
+                observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                exchange TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                side TEXT NOT NULL,
+                fee_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                fee_tier TEXT NOT NULL DEFAULT 'retail',
+                fee_tier_adjustment_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                maker_fee_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                taker_fee_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                spread_cost_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                slippage_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                impact_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                adverse_selection_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                funding_drift_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                basis_drift_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                total_cost_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                edge_after_cost_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                estimated_fee_usd DOUBLE PRECISION,
+                estimated_cost_usd DOUBLE PRECISION,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+            """.trimIndent()
+        )
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_execution_costs_time ON strategy_execution_costs (observed_at DESC)")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_execution_costs_strategy_time ON strategy_execution_costs (strategy_name, observed_at DESC)")
+        stmt.execute(
+            """
+            CREATE TABLE IF NOT EXISTS strategy_live_backtest_drift (
+                id BIGSERIAL PRIMARY KEY,
+                observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                live_edge_bps DOUBLE PRECISION,
+                backtest_edge_bps DOUBLE PRECISION,
+                fill_quality_delta_bps DOUBLE PRECISION,
+                slippage_drift_bps DOUBLE PRECISION,
+                latency_drift_ms DOUBLE PRECISION,
+                drift_score DOUBLE PRECISION,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+            """.trimIndent()
+        )
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_drift_time ON strategy_live_backtest_drift (observed_at DESC)")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_drift_strategy_time ON strategy_live_backtest_drift (strategy_name, observed_at DESC)")
+    }
+}
+
+fun persistBacktestSummaries(summaries: List<StrategySummary>) {
+    if (summaries.isEmpty()) return
+    pgConnection().use { conn ->
+        ensureAnalyticsTables(conn)
+        conn.prepareStatement(
+            """
+            INSERT INTO strategy_backtest_runs (
+                strategy_name, symbol, timeframe, start_time, end_time,
+                trades, win_rate, net_return_pct, max_drawdown_pct, sharpe, notes, metrics
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb))
+            ON CONFLICT (strategy_name, symbol, timeframe, start_time, end_time)
+            DO UPDATE SET
+                trades = EXCLUDED.trades,
+                win_rate = EXCLUDED.win_rate,
+                net_return_pct = EXCLUDED.net_return_pct,
+                max_drawdown_pct = EXCLUDED.max_drawdown_pct,
+                sharpe = EXCLUDED.sharpe,
+                notes = EXCLUDED.notes,
+                metrics = EXCLUDED.metrics,
+                run_at = NOW()
+            """.trimIndent()
+        ).use { stmt ->
+            summaries.forEach { summary ->
+                stmt.setString(1, summary.strategyName)
+                stmt.setString(2, summary.symbol)
+                stmt.setString(3, summary.timeframe)
+                stmt.setTimestamp(4, Timestamp.from(summary.startTime))
+                stmt.setTimestamp(5, Timestamp.from(summary.endTime))
+                stmt.setInt(6, summary.trades)
+                stmt.setDouble(7, summary.winRate)
+                stmt.setDouble(8, summary.netReturnPct)
+                stmt.setDouble(9, summary.maxDrawdownPct)
+                stmt.setDouble(10, summary.sharpe)
+                stmt.setString(11, summary.notes)
+                stmt.setString(12, summary.metricsJson)
+                stmt.addBatch()
+            }
+            stmt.executeBatch()
+        }
+    }
+}
+
+fun persistForwardTelemetry(trades: List<TradeRecord>, baselines: Map<Triple<String, String, String>, StrategySummary>, source: String) {
+    if (trades.isEmpty()) return
+    pgConnection().use { conn ->
+        ensureAnalyticsTables(conn)
+        conn.autoCommit = false
+
+        val grouped = trades.groupBy { Triple(it.strategyName, it.exchange, it.symbol) }
+        grouped.forEach { (scope, bucket) ->
+            val firstObservedAt = bucket.minOf { it.entryTime }
+            val lastObservedAt = bucket.maxOf { it.entryTime }
+            conn.prepareStatement(
+                """
+                DELETE FROM strategy_execution_costs
+                WHERE strategy_name = ? AND exchange = ? AND symbol = ?
+                  AND observed_at BETWEEN ? AND ?
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.setString(1, scope.first)
+                stmt.setString(2, scope.second)
+                stmt.setString(3, scope.third)
+                stmt.setTimestamp(4, Timestamp.from(firstObservedAt))
+                stmt.setTimestamp(5, Timestamp.from(lastObservedAt))
+                stmt.executeUpdate()
+            }
+            conn.prepareStatement(
+                """
+                DELETE FROM strategy_latency_metrics
+                WHERE strategy_name = ? AND exchange = ? AND symbol = ?
+                  AND observed_at BETWEEN ? AND ?
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.setString(1, scope.first)
+                stmt.setString(2, scope.second)
+                stmt.setString(3, scope.third)
+                stmt.setTimestamp(4, Timestamp.from(firstObservedAt))
+                stmt.setTimestamp(5, Timestamp.from(lastObservedAt))
+                stmt.executeUpdate()
+            }
+            conn.prepareStatement(
+                """
+                DELETE FROM strategy_live_backtest_drift
+                WHERE strategy_name = ? AND symbol = ?
+                  AND observed_at BETWEEN ? AND ?
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.setString(1, scope.first)
+                stmt.setString(2, scope.third)
+                stmt.setTimestamp(3, Timestamp.from(firstObservedAt))
+                stmt.setTimestamp(4, Timestamp.from(lastObservedAt))
+                stmt.executeUpdate()
+            }
+        }
+
+        conn.prepareStatement(
+            """
+            INSERT INTO strategy_latency_metrics (
+                observed_at, strategy_name, exchange, symbol,
+                decision_latency_ms, submit_to_ack_ms, submit_to_fill_ms,
+                p50_roundtrip_ms, p95_roundtrip_ms, p99_roundtrip_ms,
+                jitter_ms, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb))
+            """.trimIndent()
+        ).use { latencyStmt ->
+            conn.prepareStatement(
+                """
+                INSERT INTO strategy_execution_costs (
+                    observed_at, strategy_name, exchange, symbol, side,
+                    fee_bps, fee_tier, fee_tier_adjustment_bps,
+                    maker_fee_bps, taker_fee_bps,
+                    spread_cost_bps, slippage_bps, impact_bps,
+                    adverse_selection_bps, funding_drift_bps, basis_drift_bps,
+                    total_cost_bps, edge_after_cost_bps,
+                    estimated_fee_usd, estimated_cost_usd, metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb))
+                """.trimIndent()
+            ).use { costStmt ->
+                conn.prepareStatement(
+                    """
+                    INSERT INTO strategy_live_backtest_drift (
+                        observed_at, strategy_name, symbol,
+                        live_edge_bps, backtest_edge_bps,
+                        fill_quality_delta_bps, slippage_drift_bps,
+                        latency_drift_ms, drift_score, metadata
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb))
+                    """.trimIndent()
+                ).use { driftStmt ->
+                    trades.forEach { trade ->
+                        val baseline = baselines[Triple(trade.strategyName, trade.exchange, trade.symbol)]
+                            ?: baselines[Triple(trade.strategyName, trade.exchange, "ALL")]
+                        val metadataJson = gson.toJson(
+                            mapOf(
+                                "source" to source,
+                                "strategyKind" to trade.strategyKind,
+                                "fillRatio" to trade.fillRatio.round(4),
+                                "betaBtc" to trade.betaBtc.round(4),
+                                "betaEth" to trade.betaEth.round(4),
+                                "entryTrendScore" to trade.entryTrendScore.round(4),
+                                "entryResidualZ" to trade.entryResidualZ.round(4),
+                                "executionMode" to researchConfig.paperExecutionMode
+                            )
+                        )
+
+                        latencyStmt.setTimestamp(1, Timestamp.from(trade.entryTime))
+                        latencyStmt.setString(2, trade.strategyName)
+                        latencyStmt.setString(3, trade.exchange)
+                        latencyStmt.setString(4, trade.symbol)
+                        latencyStmt.setDouble(5, trade.decisionLatencyMs)
+                        latencyStmt.setDouble(6, trade.submitToAckMs)
+                        latencyStmt.setDouble(7, trade.submitToFillMs)
+                        latencyStmt.setDouble(8, trade.p50RoundtripMs)
+                        latencyStmt.setDouble(9, trade.p95RoundtripMs)
+                        latencyStmt.setDouble(10, trade.p99RoundtripMs)
+                        latencyStmt.setDouble(11, trade.jitterMs)
+                        latencyStmt.setString(12, metadataJson)
+                        latencyStmt.addBatch()
+
+                        costStmt.setTimestamp(1, Timestamp.from(trade.entryTime))
+                        costStmt.setString(2, trade.strategyName)
+                        costStmt.setString(3, trade.exchange)
+                        costStmt.setString(4, trade.symbol)
+                        costStmt.setString(5, trade.side)
+                        costStmt.setDouble(6, trade.feeBps)
+                        costStmt.setString(7, trade.feeTier)
+                        costStmt.setDouble(8, trade.feeTierAdjustmentBps)
+                        costStmt.setDouble(9, trade.makerFeeBps)
+                        costStmt.setDouble(10, trade.takerFeeBps)
+                        costStmt.setDouble(11, trade.spreadCostBps)
+                        costStmt.setDouble(12, trade.slippageBps)
+                        costStmt.setDouble(13, trade.impactBps)
+                        costStmt.setDouble(14, trade.adverseSelectionBps)
+                        costStmt.setDouble(15, trade.fundingDriftBps)
+                        costStmt.setDouble(16, trade.basisDriftBps)
+                        costStmt.setDouble(17, trade.totalCostBps)
+                        costStmt.setDouble(18, trade.edgeAfterCostBps)
+                        costStmt.setDouble(19, trade.estimatedFeeUsd)
+                        costStmt.setDouble(20, trade.estimatedCostUsd)
+                        costStmt.setString(21, metadataJson)
+                        costStmt.addBatch()
+
+                        val fillQualityDelta = ((baseline?.avgFillRatio ?: trade.fillRatio) - trade.fillRatio) * 10000.0
+                        val slippageDrift = trade.slippageBps - (baseline?.avgSlippageBps ?: trade.slippageBps)
+                        val latencyDrift = trade.submitToFillMs - (baseline?.avgSubmitToFillMs ?: trade.submitToFillMs)
+                        val edgeDecay = if (baseline == null) 0.0 else max(0.0, baseline.avgEdgeAfterCostBps - trade.edgeAfterCostBps)
+                        val driftScore = max(0.0, fillQualityDelta) + max(0.0, slippageDrift) + max(0.0, latencyDrift) / 10.0 + edgeDecay
+
+                        driftStmt.setTimestamp(1, Timestamp.from(trade.entryTime))
+                        driftStmt.setString(2, trade.strategyName)
+                        driftStmt.setString(3, trade.symbol)
+                        driftStmt.setDouble(4, trade.edgeAfterCostBps)
+                        driftStmt.setObject(5, baseline?.avgEdgeAfterCostBps)
+                        driftStmt.setDouble(6, fillQualityDelta)
+                        driftStmt.setDouble(7, slippageDrift)
+                        driftStmt.setDouble(8, latencyDrift)
+                        driftStmt.setDouble(9, driftScore)
+                        driftStmt.setString(10, metadataJson)
+                        driftStmt.addBatch()
+                    }
+
+                    latencyStmt.executeBatch()
+                    costStmt.executeBatch()
+                    driftStmt.executeBatch()
+                }
+            }
+        }
+
+        conn.commit()
+    }
+}
+
+fun fetchUserProfile(txBase: String, token: String): JsonObject? =
+    runCatching {
+        val request = HttpRequest.newBuilder(URI.create("${txBase.removeSuffix("/")}/api/v1/user"))
+            .header("Authorization", "Bearer $token")
+            .GET()
+            .timeout(Duration.ofSeconds(15))
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() !in 200..299) {
+            error("User profile returned status ${response.statusCode()}")
+        }
+        JsonParser.parseString(response.body()).asJsonObject
+    }.getOrElse { ex ->
+        println("User profile unavailable: ${ex.message}")
+        null
+    }
+
+fun requestBestQuote(txBase: String, symbol: String, side: String, exchanges: List<String>, executionMode: String): JsonObject? =
+    runCatching {
+        val query = listOf(
+            "symbol=${urlEncode(symbol)}",
+            "side=${urlEncode(side)}",
+            "exchanges=${urlEncode(exchanges.joinToString(","))}",
+            "executionMode=${urlEncode(executionMode)}"
+        ).joinToString("&")
+        val request = HttpRequest.newBuilder(URI.create("${txBase.removeSuffix("/")}/api/v1/exchanges/best-quote?$query"))
+            .GET()
+            .timeout(Duration.ofSeconds(15))
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() !in 200..299) {
+            error("Best quote returned status ${response.statusCode()}")
+        }
+        JsonParser.parseString(response.body()).asJsonObject
+    }.getOrElse { ex ->
+        println("Best quote unavailable for $symbol/$side: ${ex.message}")
+        null
+    }
+
+fun submitPaperOrder(txBase: String, token: String, exchange: String, symbol: String, side: String, size: Double, executionMode: String): JsonObject? =
+    runCatching {
+        val payload = gson.toJson(
+            mapOf(
+                "symbol" to symbol,
+                "side" to side.uppercase(),
+                "type" to "MARKET",
+                "size" to size.toString(),
+                "executionMode" to executionMode,
+                "reduceOnly" to false,
+                "postOnly" to false,
+                "urgencyClass" to "normal"
+            )
+        )
+        val request = HttpRequest.newBuilder(URI.create("${txBase.removeSuffix("/")}/api/v1/exchanges/$exchange/order"))
+            .header("Authorization", "Bearer $token")
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(payload))
+            .timeout(Duration.ofSeconds(20))
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() !in 200..299) {
+            error("Paper order returned status ${response.statusCode()}: ${response.body()}")
+        }
+        JsonParser.parseString(response.body()).asJsonObject
+    }.getOrElse { ex ->
+        println("Paper order failed for $exchange/$symbol: ${ex.message}")
+        null
+    }
+
+fun paperTradeTopSignals(
+    latestSignals: List<SignalSnapshot>,
+    catalog: List<ExchangeCatalogSnapshot>,
+    config: ResearchConfig
+): List<Map<String, Any?>> {
+    val integrated = catalog
+        .filter { it.capabilities.paperOrder && (it.implementationStatus == "INTEGRATED" || it.capabilities.bestQuoteDefault) }
+        .map { it.apiName.lowercase() }
+        .distinct()
+        .ifEmpty { listOf("hyperliquid") }
+
+    val profile = if (config.txAuthToken.isBlank()) null else fetchUserProfile(config.txGatewayUrl, config.txAuthToken)
+    val allowedModes = profile?.array("allowedTradingModes")?.map { it.asString.lowercase() }?.toSet() ?: emptySet()
+    val allowedExchanges = profile?.array("allowedExchanges")?.map { it.asString.lowercase() }?.toSet()
+
+    val candidates = latestSignals
+        .mapNotNull { signal ->
+            val preferredAction = when {
+                signal.trendAction != "FLAT" -> signal.trendAction
+                signal.reversionAction != "FLAT" -> signal.reversionAction
+                else -> null
+            } ?: return@mapNotNull null
+            mapOf(
+                "exchange" to signal.exchange,
+                "symbol" to signal.symbol,
+                "action" to preferredAction,
+                "trendScore" to signal.trendScore,
+                "residualZ" to signal.residualZ,
+                "price" to signal.lastPrice
+            )
+        }
+        .sortedByDescending { max(abs((it["trendScore"] as Double)), abs((it["residualZ"] as Double))) }
+        .take(2)
+
+    if (candidates.isEmpty()) {
+        println("No paper-trade candidates qualified.")
+        return emptyList()
+    }
+
+    if (config.txAuthToken.isBlank()) {
+        println("Set TX_AUTH_TOKEN to enable paper order submission. Returning execution plans only.")
+    } else if (config.paperExecutionMode.lowercase() !in allowedModes) {
+        println("Account is not provisioned for ${config.paperExecutionMode}; allowed=$allowedModes")
+        return emptyList()
+    }
+
+    return candidates.map { candidate ->
+        val symbol = candidate["symbol"] as String
+        val action = candidate["action"] as String
+        val side = if (action == "LONG") "buy" else "sell"
+        val executionExchanges = integrated.filter { exchange ->
+            allowedExchanges == null || exchange in allowedExchanges
+        }
+        val bestQuote = requestBestQuote(
+            txBase = config.txGatewayUrl,
+            symbol = symbol,
+            side = side,
+            exchanges = executionExchanges.ifEmpty { integrated },
+            executionMode = config.paperExecutionMode
+        )
+        val selectedExchange = bestQuote?.string("selectedExchange") ?: candidate["exchange"] as String
+        val normalizedSymbol = bestQuote?.string("normalizedSymbol") ?: symbol
+        val quote = bestQuote?.obj("quote")
+        val lastPrice = quote?.double("last") ?: quote?.double("ask") ?: quote?.double("bid") ?: (candidate["price"] as Double)
+        val size = max(config.notionalUsd / max(lastPrice, 1.0), 0.001).round(6)
+        val order = if (config.enablePaperOrders && config.txAuthToken.isNotBlank()) {
+            submitPaperOrder(
+                txBase = config.txGatewayUrl,
+                token = config.txAuthToken,
+                exchange = selectedExchange,
+                symbol = normalizedSymbol,
+                side = side,
+                size = size,
+                executionMode = config.paperExecutionMode
+            )
+        } else {
+            null
+        }
+        mapOf(
+            "symbol" to normalizedSymbol,
+            "requestedAction" to action,
+            "selectedExchange" to selectedExchange,
+            "executionMode" to config.paperExecutionMode,
+            "size" to size,
+            "quoteBid" to (quote?.double("bid")?.round(4)),
+            "quoteAsk" to (quote?.double("ask")?.round(4)),
+            "quoteLast" to lastPrice.round(4),
+            "orderId" to order?.string("orderId"),
+            "status" to order?.string("status"),
+            "simulated" to order?.bool("simulated")
+        )
+    }
+}
+'''
+
+cross_sectional_kotlin_discovery = '''
+val exchangeCatalog = fetchExchangeCatalog(researchConfig.txGatewayUrl)
+val exchangePlans = buildExchangePlans(exchangeCatalog, researchConfig)
+
+println("Integrated exchange plans")
+println(gson.toJson(exchangePlans))
+
+val discoveredUniverse = exchangePlans.associate { plan ->
+    plan.exchange to discoverSymbols(
+        aliases = plan.marketAliases,
+        lookbackHours = researchConfig.lookbackHours,
+        maxSymbols = researchConfig.maxSymbols,
+        minBars = researchConfig.minBars
+    )
+}
+
+println("Discovered symbol universe")
+println(gson.toJson(discoveredUniverse))
+
+val researchBars = exchangePlans.flatMap { plan ->
+    val symbols = discoveredUniverse[plan.exchange].orEmpty()
+    loadBars(
+        exchange = plan.exchange,
+        aliases = plan.marketAliases,
+        symbols = symbols,
+        lookbackHours = researchConfig.lookbackHours
+    )
+}
+
+println("Loaded ${researchBars.size} bars")
+
+val researchFeatureRows = engineerFeatures(researchBars, researchConfig)
+println("Engineered ${researchFeatureRows.size} feature rows")
+
+val latestSignals = latestSignalSnapshots(researchFeatureRows, researchConfig)
+println("Latest beta estimates, trend state, and reversion state")
+latestSignals
+'''
+
+cross_sectional_kotlin_backtest = '''
+val trendStrategyName = "cross_section_beta_trend_v1"
+val reversionStrategyName = "cross_section_beta_reversion_v1"
+
+val trendTrades = simulateStrategy(
+    strategyName = trendStrategyName,
+    kind = StrategyKind.TREND,
+    rows = researchFeatureRows,
+    config = researchConfig
+)
+
+val reversionTrades = simulateStrategy(
+    strategyName = reversionStrategyName,
+    kind = StrategyKind.REVERSION,
+    rows = researchFeatureRows,
+    config = researchConfig
+)
+
+val backtestSummaries =
+    buildStrategySummaries(
+        strategyName = trendStrategyName,
+        strategyKind = StrategyKind.TREND,
+        trades = trendTrades,
+        timeframe = "candle_1m",
+        notes = "beta-adjusted cross-sectional trend following"
+    ) +
+    buildStrategySummaries(
+        strategyName = reversionStrategyName,
+        strategyKind = StrategyKind.REVERSION,
+        trades = reversionTrades,
+        timeframe = "candle_1m",
+        notes = "beta-adjusted cross-sectional mean reversion"
+    )
+
+if (researchConfig.persistBacktest && backtestSummaries.isNotEmpty()) {
+    persistBacktestSummaries(backtestSummaries)
+    println("Persisted ${backtestSummaries.size} backtest summary rows to strategy_backtest_runs")
+} else {
+    println("Backtest persistence disabled or no summaries available.")
+}
+
+println("Backtest strategy summaries")
+backtestSummaries
+'''
+
+cross_sectional_kotlin_forward = '''
+val forwardCutoff = researchFeatureRows.maxOfOrNull { it.time }
+    ?.minus(researchConfig.forwardHours.toLong(), ChronoUnit.HOURS)
+
+if (forwardCutoff == null) {
+    println("No feature rows available for forward test.")
+    emptyList<StrategySummary>()
+} else {
+    val calibrationRows = researchFeatureRows.filter { it.time.isBefore(forwardCutoff) }
+    val forwardRows = researchFeatureRows.filter { !it.time.isBefore(forwardCutoff) }
+
+    println("Forward cutoff: $forwardCutoff")
+    println("Calibration rows: ${calibrationRows.size}, forward rows: ${forwardRows.size}")
+
+    val calibrationTrendTrades = simulateStrategy(
+        strategyName = trendStrategyName,
+        kind = StrategyKind.TREND,
+        rows = calibrationRows,
+        config = researchConfig
+    )
+    val calibrationReversionTrades = simulateStrategy(
+        strategyName = reversionStrategyName,
+        kind = StrategyKind.REVERSION,
+        rows = calibrationRows,
+        config = researchConfig
+    )
+
+    val calibrationSummaries =
+        buildStrategySummaries(
+            strategyName = trendStrategyName,
+            strategyKind = StrategyKind.TREND,
+            trades = calibrationTrendTrades,
+            timeframe = "candle_1m",
+            notes = "calibration slice"
+        ) +
+        buildStrategySummaries(
+            strategyName = reversionStrategyName,
+            strategyKind = StrategyKind.REVERSION,
+            trades = calibrationReversionTrades,
+            timeframe = "candle_1m",
+            notes = "calibration slice"
+        )
+
+    val baselineMap = calibrationSummaries.associateBy { Triple(it.strategyName, it.exchange, it.symbol) }
+
+    val forwardTrendTrades = simulateStrategy(
+        strategyName = trendStrategyName,
+        kind = StrategyKind.TREND,
+        rows = forwardRows,
+        config = researchConfig
+    )
+    val forwardReversionTrades = simulateStrategy(
+        strategyName = reversionStrategyName,
+        kind = StrategyKind.REVERSION,
+        rows = forwardRows,
+        config = researchConfig
+    )
+
+    val forwardTrades = forwardTrendTrades + forwardReversionTrades
+    val forwardSummaries =
+        buildStrategySummaries(
+            strategyName = trendStrategyName,
+            strategyKind = StrategyKind.TREND,
+            trades = forwardTrendTrades,
+            timeframe = "forward_1m",
+            notes = "forward slice"
+        ) +
+        buildStrategySummaries(
+            strategyName = reversionStrategyName,
+            strategyKind = StrategyKind.REVERSION,
+            trades = forwardReversionTrades,
+            timeframe = "forward_1m",
+            notes = "forward slice"
+        )
+
+    if (researchConfig.persistForward && forwardTrades.isNotEmpty()) {
+        persistForwardTelemetry(
+            trades = forwardTrades,
+            baselines = baselineMap,
+            source = "kotlin-cross-sectional-forward"
+        )
+        println("Persisted ${forwardTrades.size} forward trades into latency / execution cost / drift tables")
+    } else {
+        println("Forward telemetry persistence disabled or no forward trades qualified.")
+    }
+
+    println("Forward strategy summaries")
+    forwardSummaries
+}
+'''
+
+cross_sectional_kotlin_paper = '''
+val paperPlans = paperTradeTopSignals(
+    latestSignals = latestSignals,
+    catalog = exchangeCatalog,
+    config = researchConfig
+)
+
+println(
+    if (researchConfig.enablePaperOrders) {
+        "Paper order results"
+    } else {
+        "Paper order dry-run plans (set DATAMANCY_CROSS_SECTIONAL_ENABLE_PAPER_ORDERS=true and TX_AUTH_TOKEN to submit)"
+    }
+)
+
+paperPlans
+'''
+
+write_kotlin_notebook(
+    "18_cross_sectional_beta_trend_reversion_kotlin.ipynb",
+    [
+        markdown_cell(
+            "# Cross-Sectional Beta, Trend, + Mean Reversion (Kotlin)\n\n"
+            "This notebook gives one Kotlin-first research surface for:\n"
+            "- exchange discovery via the tx-gateway catalog\n"
+            "- BTC and ETH beta estimation per symbol\n"
+            "- beta-adjusted trend following inputs\n"
+            "- beta-adjusted mean reversion inputs\n"
+            "- realistic backtest and forward-test persistence into Grafana-facing tables\n"
+            "- optional tx-gateway paper orders\n\n"
+            "Today the exchange catalog resolves to Hyperliquid, but the notebook is written against the integrated exchange interface so the same workflow can absorb new venues as they are plugged into the stack."
+        ),
+        code_cell(cross_sectional_kotlin_bootstrap),
+        code_cell(cross_sectional_kotlin_engine),
+        code_cell(cross_sectional_kotlin_discovery),
+        code_cell(cross_sectional_kotlin_backtest),
+        code_cell(cross_sectional_kotlin_forward),
+        code_cell(cross_sectional_kotlin_paper),
     ]
 )
 

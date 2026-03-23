@@ -19,7 +19,7 @@ class UnifiedExchangeClient internal constructor(
 ) {
     private val logger = LoggerFactory.getLogger(UnifiedExchangeClient::class.java)
 
-    private val supported = listOf(
+    private val known = listOf(
         ExchangeId.SWYFTX,
         ExchangeId.BINANCE,
         ExchangeId.BYBIT,
@@ -28,10 +28,25 @@ class UnifiedExchangeClient internal constructor(
         ExchangeId.HYPERLIQUID,
         ExchangeId.ASTER
     )
+    private val integrated = listOf(ExchangeId.HYPERLIQUID)
     private val maxGatewayQuoteAge = Duration.ofMinutes(10)
     private val futureQuoteSkewTolerance = Duration.ofSeconds(5)
 
-    fun supportedExchanges(): List<ExchangeId> = supported
+    fun knownExchanges(): List<ExchangeId> = known
+
+    fun supportedExchanges(): List<ExchangeId> = integrated
+
+    internal fun defaultExchange(): ExchangeId? = integrated.firstOrNull()
+
+    suspend fun catalog(): ApiResult<List<ExchangeCatalogEntry>> {
+        return when (val result = httpClient.get<Map<String, Any?>>("/api/v1/exchanges")) {
+            is ApiResult.Success -> parseCatalog(result.data)
+            is ApiResult.Error -> ApiResult.Error(
+                "Exchange catalog unavailable: ${result.message}",
+                result.code
+            )
+        }
+    }
 
     suspend fun quote(
         exchange: ExchangeId,
@@ -84,7 +99,7 @@ class UnifiedExchangeClient internal constructor(
     suspend fun bestQuote(
         symbol: String,
         side: Side,
-        exchanges: List<ExchangeId> = supported,
+        exchanges: List<ExchangeId> = integrated,
         executionMode: TradingMode = TradingMode.FORWARD_PAPER
     ): ApiResult<UnifiedQuote> {
         val candidates = mutableListOf<UnifiedQuote>()
@@ -113,7 +128,7 @@ class UnifiedExchangeClient internal constructor(
     suspend fun bestQuoteViaGateway(
         symbol: String,
         side: Side,
-        exchanges: List<ExchangeId> = supported,
+        exchanges: List<ExchangeId> = integrated,
         executionMode: TradingMode = TradingMode.FORWARD_PAPER
     ): ApiResult<UnifiedQuote> {
         val exchangeCsv = exchanges.distinct().joinToString(",") { it.apiName }
@@ -235,6 +250,48 @@ class UnifiedExchangeClient internal constructor(
         }
     }
 
+    private fun parseCatalog(payload: Map<String, Any?>): ApiResult<List<ExchangeCatalogEntry>> {
+        val exchangeNodes = payload["exchanges"] as? List<*>
+            ?: return ApiResult.Error("Invalid exchange catalog payload")
+        val entries = exchangeNodes.mapNotNull { raw ->
+            parseCatalogEntry(raw as? Map<*, *>)
+        }
+        if (entries.isEmpty() && exchangeNodes.isNotEmpty()) {
+            return ApiResult.Error("No valid exchange catalog entries found")
+        }
+        return ApiResult.Success(entries)
+    }
+
+    private fun parseCatalogEntry(raw: Map<*, *>?): ExchangeCatalogEntry? {
+        val exchangeName = raw?.get("apiName")?.toString()?.trim()?.lowercase() ?: return null
+        val exchange = ExchangeId.entries.firstOrNull { it.apiName == exchangeName } ?: return null
+        val implementationStatus = ExchangeImplementationStatus.fromApi(raw["implementationStatus"]?.toString())
+        val defaultExecutionMode = raw["defaultExecutionMode"]
+            ?.toString()
+            ?.toTradingModeOrNull()
+            ?: TradingMode.FORWARD_PAPER
+        val supportedExecutionModes = (raw["supportedExecutionModes"] as? List<*>)
+            ?.mapNotNull { it?.toString()?.toTradingModeOrNull() }
+            ?.ifEmpty { listOf(defaultExecutionMode) }
+            ?: listOf(defaultExecutionMode)
+        val capabilityNode = raw["capabilities"] as? Map<*, *>
+        val capabilities = ExchangeCapabilities(
+            paperOrder = capabilityNode?.get("paperOrder").toBooleanStrictOrFalse(),
+            liveOrder = capabilityNode?.get("liveOrder").toBooleanStrictOrFalse(),
+            nativeOrderAdapter = capabilityNode?.get("nativeOrderAdapter").toBooleanStrictOrFalse(),
+            marketDataIngress = capabilityNode?.get("marketDataIngress").toBooleanStrictOrFalse(),
+            bestQuoteDefault = capabilityNode?.get("bestQuoteDefault").toBooleanStrictOrFalse()
+        )
+        return ExchangeCatalogEntry(
+            exchange = exchange,
+            implementationStatus = implementationStatus,
+            defaultExecutionMode = defaultExecutionMode,
+            supportedExecutionModes = supportedExecutionModes,
+            capabilities = capabilities,
+            notes = raw["notes"]?.toString().orEmpty()
+        )
+    }
+
     private fun parseBestQuotePayload(
         payload: Map<String, Any?>,
         allowedExchangeNames: Set<String>
@@ -274,8 +331,18 @@ private fun Any?.toBigDecimalOrNull(): BigDecimal? = when (this) {
     else -> null
 }
 
+private fun Any?.toBooleanStrictOrFalse(): Boolean = when (this) {
+    is Boolean -> this
+    is String -> this.trim().equals("true", ignoreCase = true)
+    else -> false
+}
+
 private fun String.parseBigDecimalOrNull(): BigDecimal? = runCatching {
     trim().takeIf { it.isNotEmpty() }?.let { BigDecimal(it) }
+}.getOrNull()
+
+private fun String.toTradingModeOrNull(): TradingMode? = runCatching {
+    TradingMode.valueOf(trim().uppercase())
 }.getOrNull()
 
 private fun String.encodeForQuery(): String = URLEncoder.encode(this, StandardCharsets.UTF_8)

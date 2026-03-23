@@ -108,6 +108,7 @@ The Jupyter container seeds practical trading research notebooks in `/home/jovya
 - `15_forward_test_mainnet_data.ipynb` (exploratory forward-test harness against live/mainnet market data with paper-execution realism and optional persistence into execution/drift telemetry tables)
 - `16_strict_alpha_backtest_proof.ipynb` (canonical walk-forward backtest proof surface for `scripts/trading/alpha_proof.py`)
 - `17_strict_forward_alpha_proof.ipynb` (canonical forward-paper proof surface for `scripts/trading/forward_alpha_proof.py`)
+- `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` (Kotlin-first cross-sectional engine for integrated exchanges with BTC/ETH beta estimation, residual trend and mean-reversion signals, realistic backtest/forward telemetry, and optional paper routing)
 
 Notebook persistence defaults are conservative (`persist_* = False` in several notebooks).
 Enable persistence flags when you want notebooks to feed Grafana-facing strategy tables:
@@ -241,17 +242,28 @@ setups.forEach { s ->
 
 ### Unified Multi-Exchange Mux
 
-The SDK now exposes a unified exchange surface for:
+The SDK exposes a unified exchange registry for:
 `swyftx`, `binance`, `bybit`, `coinbase`, `dydx`, `hyperliquid`, `aster`.
 
-Order routing behavior:
-- `hyperliquid`: live worker-backed execution
-- all other venues: unified quote/routing shape is preserved, but order adapters are currently disabled
+Current integration status:
+- `supportedExchanges()`: venues with integrated default paths today
+- `knownExchanges()`: reserved venue ids that can be plugged in without changing client code
+- `catalog()`: gateway-reported capability map so notebooks can branch on what is actually wired
+
+Execution behavior today:
+- `hyperliquid`: worker-backed market data + paper/live execution
+- all other venue ids: paper simulation only; native market-data ingress and live order adapters are not wired yet
 
 ```kotlin
 val tx = TxGateway.create(url = "http://tx-gateway:8080", token = authToken)
-val venues = tx.exchanges.supportedExchanges()
-println("Venues: ${venues.joinToString { it.apiName }}")
+val integrated = tx.exchanges.supportedExchanges()
+println("Integrated: ${integrated.joinToString { it.apiName }}")
+
+val known = tx.exchanges.knownExchanges()
+println("Known ids: ${known.joinToString { it.apiName }}")
+
+val catalog = tx.exchanges.catalog()
+println(catalog)
 
 val bestBuy = tx.exchanges.bestQuote(
     symbol = "BTC-PERP",
@@ -375,6 +387,7 @@ When the notebook image starts, Datamancy now seeds:
 - `~/work/datamancy-notebooks/15_forward_test_mainnet_data.ipynb`
 - `~/work/datamancy-notebooks/16_strict_alpha_backtest_proof.ipynb`
 - `~/work/datamancy-notebooks/17_strict_forward_alpha_proof.ipynb`
+- `~/work/datamancy-notebooks/18_cross_sectional_beta_trend_reversion_kotlin.ipynb`
 
 These notebooks are wired to the stack Postgres database (`datamancy`) and include:
 

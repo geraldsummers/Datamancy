@@ -41,8 +41,12 @@ import java.util.UUID
 private val logger = LoggerFactory.getLogger("UnifiedExchangeRoutes")
 private val dynamicJson = Gson()
 
-private val supportedExchanges = TradingPermissionCatalog.supportedExchanges
+private val knownExchanges = TradingPermissionCatalog.knownExchanges
+private val paperOrderExchanges = TradingPermissionCatalog.paperOrderExchanges
+private val marketDataIngressExchanges = TradingPermissionCatalog.marketDataIngressExchanges
+private val nativeOrderExchanges = TradingPermissionCatalog.nativeOrderExchanges
 private val liveOrderExchanges = TradingPermissionCatalog.liveOrderExchanges
+private val defaultBestQuoteExchanges = TradingPermissionCatalog.bestQuoteDefaultExchanges.toList()
 private val mainnetReservedGroups = TradingPermissionCatalog.mainnetReservedGroups
 private val tradingAdminGroups = TradingPermissionCatalog.tradingAdminGroups
 private val maxQuoteAgeMs: Long = System.getenv("TX_GATEWAY_MAX_QUOTE_AGE_MS")
@@ -100,12 +104,24 @@ private data class HistoryItem(
 )
 
 @Serializable
+private data class ExchangeCapabilities(
+    val paperOrder: Boolean,
+    val liveOrder: Boolean,
+    val nativeOrderAdapter: Boolean,
+    val marketDataIngress: Boolean,
+    val bestQuoteDefault: Boolean
+)
+
+@Serializable
 private data class ExchangeDescriptor(
     val name: String,
     val apiName: String,
+    val implementationStatus: String,
     val liveOrder: Boolean,
+    val capabilities: ExchangeCapabilities,
     val supportedExecutionModes: List<String>,
-    val defaultExecutionMode: String
+    val defaultExecutionMode: String,
+    val notes: String
 )
 
 @Serializable
@@ -574,13 +590,22 @@ fun Route.unifiedExchangeRoutes(
 
         route("/exchanges") {
             get {
-                val payload = supportedExchanges.map { exchange ->
+                val payload = knownExchanges.map { exchange ->
                     ExchangeDescriptor(
                         name = exchange,
                         apiName = exchange,
+                        implementationStatus = TradingPermissionCatalog.implementationStatus(exchange),
                         liveOrder = liveOrderExchanges.contains(exchange),
+                        capabilities = ExchangeCapabilities(
+                            paperOrder = paperOrderExchanges.contains(exchange),
+                            liveOrder = liveOrderExchanges.contains(exchange),
+                            nativeOrderAdapter = nativeOrderExchanges.contains(exchange),
+                            marketDataIngress = marketDataIngressExchanges.contains(exchange),
+                            bestQuoteDefault = exchange in defaultBestQuoteExchanges
+                        ),
                         supportedExecutionModes = supportedExecutionModes(exchange),
-                        defaultExecutionMode = defaultExecutionModeForExchange(exchange)
+                        defaultExecutionMode = defaultExecutionModeForExchange(exchange),
+                        notes = TradingPermissionCatalog.implementationNotes(exchange)
                     )
                 }
                 call.respond(HttpStatusCode.OK, ExchangeCatalogResponse(exchanges = payload))
@@ -614,8 +639,8 @@ fun Route.unifiedExchangeRoutes(
                     ?.distinct()
                     ?.ifEmpty { null }
 
-                val exchangesToScan = requestedExchanges ?: supportedExchanges
-                val unsupported = exchangesToScan.filterNot { it in supportedExchanges }
+                val exchangesToScan = requestedExchanges ?: defaultBestQuoteExchanges
+                val unsupported = exchangesToScan.filterNot { it in knownExchanges }
                 if (unsupported.isNotEmpty()) {
                     call.respond(
                         HttpStatusCode.BadRequest,
@@ -726,7 +751,7 @@ fun Route.unifiedExchangeRoutes(
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing exchange"))
                         return@get
                     }
-                if (exchange !in supportedExchanges) {
+                if (exchange !in knownExchanges) {
                     call.respond(
                         HttpStatusCode.NotFound,
                         mapOf("error" to "Unsupported exchange: $exchange")
@@ -832,7 +857,7 @@ fun Route.unifiedExchangeRoutes(
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing exchange"))
                         return@post
                     }
-                if (exchange !in supportedExchanges) {
+                if (exchange !in knownExchanges) {
                     call.respond(
                         HttpStatusCode.NotFound,
                         mapOf("error" to "Unsupported exchange: $exchange")

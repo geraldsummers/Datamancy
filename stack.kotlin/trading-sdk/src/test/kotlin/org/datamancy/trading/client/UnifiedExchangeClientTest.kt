@@ -40,10 +40,20 @@ class UnifiedExchangeClientTest {
     }
 
     @Test
-    fun `supported exchange list includes all configured venues`() {
+    fun `known exchange list includes all configured venue ids`() {
         val venues = ExchangeId.entries.map { it.apiName }.toSet()
         val expected = setOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster")
         assertTrue(expected.all { it in venues }, "Missing exchanges: ${expected - venues}")
+    }
+
+    @Test
+    fun `supported exchange list only exposes integrated venues by default`() {
+        val client = UnifiedExchangeClient(TradingHttpClient("http://localhost:1", "token"))
+        assertEquals(listOf(ExchangeId.HYPERLIQUID), client.supportedExchanges())
+        assertEquals(
+            setOf("swyftx", "binance", "bybit", "coinbase", "dydx", "hyperliquid", "aster"),
+            client.knownExchanges().map { it.apiName }.toSet()
+        )
     }
 
     @Test

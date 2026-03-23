@@ -31,7 +31,7 @@ data class PermissionNormalization(
 
 object TradingPermissionCatalog {
     private val defaultChainFallback = listOf("base", "arbitrum", "optimism")
-    val supportedExchanges = listOf(
+    val knownExchanges = listOf(
         "swyftx",
         "binance",
         "bybit",
@@ -40,12 +40,17 @@ object TradingPermissionCatalog {
         "hyperliquid",
         "aster"
     )
+    val supportedExchanges = knownExchanges
+    val paperOrderExchanges = knownExchanges.toSet()
+    val marketDataIngressExchanges = setOf("hyperliquid")
+    val bestQuoteDefaultExchanges = marketDataIngressExchanges
+    val nativeOrderExchanges = setOf("hyperliquid")
     val liveOrderExchanges = setOf("hyperliquid")
     val supportedTradingModes = listOf("backtest", "forward_paper", "testnet_live", "mainnet_live")
     val defaultAllowedChains = parseCsv(System.getenv("LDAP_DEFAULT_ALLOWED_CHAINS")).ifEmpty { defaultChainFallback }
     val defaultAllowedExchanges =
-        parseCsv(System.getenv("LDAP_DEFAULT_ALLOWED_EXCHANGES")).filter { it in supportedExchanges }.ifEmpty {
-            supportedExchanges
+        parseCsv(System.getenv("LDAP_DEFAULT_ALLOWED_EXCHANGES")).filter { it in knownExchanges }.ifEmpty {
+            knownExchanges
         }
     val defaultAllowedTradingModes =
         parseCsv(System.getenv("LDAP_DEFAULT_ALLOWED_TRADING_MODES")).filter { it in supportedTradingModes }.ifEmpty {
@@ -53,6 +58,26 @@ object TradingPermissionCatalog {
         }
     val mainnetReservedGroups = parseCsv(System.getenv("LDAP_MAINNET_ALLOWED_GROUPS")).toSet().ifEmpty { setOf("admins") }
     val tradingAdminGroups = parseCsv(System.getenv("LDAP_TRADING_ADMIN_GROUPS")).toSet().ifEmpty { setOf("admins") }
+
+    fun implementationStatus(exchange: String): String {
+        val normalized = normalizeValue(exchange)
+        return when {
+            normalized in nativeOrderExchanges && normalized in marketDataIngressExchanges -> "integrated"
+            normalized in paperOrderExchanges -> "paper_only"
+            else -> "placeholder"
+        }
+    }
+
+    fun implementationNotes(exchange: String): String {
+        return when (implementationStatus(exchange)) {
+            "integrated" ->
+                "Worker-backed execution and continuous market-data ingress are wired for this venue."
+            "paper_only" ->
+                "Venue id is reserved in the unified API, but native adapters are not wired; only gateway paper simulation is available."
+            else ->
+                "Venue id is reserved for future adapters and should not be treated as implemented."
+        }
+    }
 
     fun supportedExecutionModes(exchange: String): List<String> {
         return if (normalizeValue(exchange) == "hyperliquid") {
@@ -75,7 +100,7 @@ object TradingPermissionCatalog {
     fun normalizeExchanges(rawValues: List<String>, defaultIfEmpty: Boolean): PermissionNormalization {
         return normalize(
             rawValues = rawValues,
-            allowedValues = supportedExchanges.toSet(),
+            allowedValues = knownExchanges.toSet(),
             defaultValues = if (defaultIfEmpty) defaultAllowedExchanges else emptyList()
         )
     }

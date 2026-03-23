@@ -130,6 +130,54 @@ class JupyterNotebookStartupConfigTest {
     }
 
     @Test
+    fun `startup config seeds kotlin cross sectional beta notebook`() {
+        val tempHome = Files.createTempDirectory("jupyter-kotlin-notebook-seed-test")
+        val notebookDir = Files.createDirectories(tempHome.resolve("work/datamancy-notebooks"))
+
+        val script = firstPythonHeredoc(startupConfigText())
+            .replace(
+                """home_dir = Path("/home/jovyan")""",
+                """home_dir = Path(r"${pythonPathLiteral(tempHome)}")"""
+            )
+            .replace(
+                """notebook_dir = "/home/jovyan/work/datamancy-notebooks"""",
+                """notebook_dir = r"${pythonPathLiteral(notebookDir)}""""
+            )
+        val scriptPath = tempHome.resolve("startup-config-first-heredoc.py")
+        Files.writeString(scriptPath, script)
+
+        val process = ProcessBuilder("python3", scriptPath.toString())
+            .directory(repoRoot().toFile())
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        assertTrue(process.waitFor(30, TimeUnit.SECONDS), "startup-config python heredoc should finish promptly")
+        assertEquals(0, process.exitValue(), output)
+
+        val notebookPath = notebookDir.resolve("18_cross_sectional_beta_trend_reversion_kotlin.ipynb")
+        assertTrue(Files.exists(notebookPath), "first startup-config heredoc should seed the Kotlin cross-sectional notebook")
+
+        val notebook = Files.readString(notebookPath)
+        assertTrue(
+            notebook.contains("\"display_name\": \"Kotlin\"") &&
+                notebook.contains("\"language\": \"kotlin\"") &&
+                notebook.contains("\"name\": \"kotlin\""),
+            "seeded cross-sectional notebook should target the Kotlin kernel"
+        )
+        assertTrue(
+            notebook.contains("cross_section_beta_trend_v1") &&
+                notebook.contains("cross_section_beta_reversion_v1"),
+            "seeded Kotlin notebook should carry both trend and mean-reversion strategy families"
+        )
+        assertTrue(
+            notebook.contains("DATAMANCY_CROSS_SECTIONAL_MARKET_EXCHANGE") &&
+                notebook.contains("persistForwardTelemetry") &&
+                notebook.contains("paperTradeTopSignals"),
+            "seeded Kotlin notebook should cover beta-aware data selection, forward telemetry, and paper-order plumbing"
+        )
+    }
+
+    @Test
     fun `research notebook migration rewrites persisted legacy hyperliquid aliases`() {
         val tempHome = Files.createTempDirectory("jupyter-startup-config-test")
         val notebookDir = Files.createDirectories(tempHome.resolve("work/datamancy-notebooks"))

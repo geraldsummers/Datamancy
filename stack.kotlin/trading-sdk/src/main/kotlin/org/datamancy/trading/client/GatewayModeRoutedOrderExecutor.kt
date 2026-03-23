@@ -33,7 +33,13 @@ class GatewayModeRoutedOrderExecutor(
         }
 
         val targetExchange = resolveExchange(request)
-            ?: return ApiResult.Error("Unsupported exchange: ${request.exchange}")
+            ?: return ApiResult.Error(
+                if (request.exchange.isBlank()) {
+                    "No integrated exchange is configured for mode routing"
+                } else {
+                    "Unsupported exchange: ${request.exchange}"
+                }
+            )
         val gatewayRequest = UnifiedOrderRequest(
             exchange = targetExchange,
             symbol = request.symbol,
@@ -76,11 +82,7 @@ class GatewayModeRoutedOrderExecutor(
         if (rawExchange.isNotBlank() && requested == null) {
             return null
         }
-        return when (request.mode) {
-            TradingMode.FORWARD_PAPER -> requested ?: ExchangeId.HYPERLIQUID
-            TradingMode.TESTNET_LIVE,
-            TradingMode.MAINNET_LIVE -> requested ?: ExchangeId.HYPERLIQUID
-            TradingMode.BACKTEST -> requested ?: ExchangeId.HYPERLIQUID
-        }
+        val defaultExchange = exchangeClient.defaultExchange()
+        return requested ?: defaultExchange
     }
 }

@@ -248,6 +248,62 @@ class TxGatewayTest {
     }
 
     @Test
+    fun `test exchange catalog distinguishes integrated and paper only venues`() = runBlocking {
+        val mockResponse = """
+            {
+              "exchanges": [
+                {
+                  "name": "hyperliquid",
+                  "apiName": "hyperliquid",
+                  "implementationStatus": "integrated",
+                  "liveOrder": true,
+                  "capabilities": {
+                    "paperOrder": true,
+                    "liveOrder": true,
+                    "nativeOrderAdapter": true,
+                    "marketDataIngress": true,
+                    "bestQuoteDefault": true
+                  },
+                  "supportedExecutionModes": ["forward_paper", "testnet_live", "mainnet_live"],
+                  "defaultExecutionMode": "forward_paper",
+                  "notes": "Worker-backed execution and continuous market-data ingress are wired for this venue."
+                },
+                {
+                  "name": "binance",
+                  "apiName": "binance",
+                  "implementationStatus": "paper_only",
+                  "liveOrder": false,
+                  "capabilities": {
+                    "paperOrder": true,
+                    "liveOrder": false,
+                    "nativeOrderAdapter": false,
+                    "marketDataIngress": false,
+                    "bestQuoteDefault": false
+                  },
+                  "supportedExecutionModes": ["forward_paper"],
+                  "defaultExecutionMode": "forward_paper",
+                  "notes": "Venue id is reserved in the unified API, but native adapters are not wired; only gateway paper simulation is available."
+                }
+              ]
+            }
+        """.trimIndent()
+        mockServer.enqueue(MockResponse().setBody(mockResponse).setResponseCode(200))
+
+        val result = gateway.exchanges.catalog()
+
+        assertTrue(result is ApiResult.Success)
+        val entries = (result as ApiResult.Success).data
+        assertEquals(2, entries.size)
+        assertEquals(ExchangeImplementationStatus.INTEGRATED, entries[0].implementationStatus)
+        assertEquals(ExchangeId.HYPERLIQUID, entries[0].exchange)
+        assertEquals(listOf(TradingMode.FORWARD_PAPER, TradingMode.TESTNET_LIVE, TradingMode.MAINNET_LIVE), entries[0].supportedExecutionModes)
+        assertEquals(ExchangeImplementationStatus.PAPER_ONLY, entries[1].implementationStatus)
+        assertEquals(ExchangeId.BINANCE, entries[1].exchange)
+        assertTrue(entries[1].capabilities.paperOrder)
+        assertTrue(!entries[1].capabilities.nativeOrderAdapter)
+    }
+
+    @Test
     fun `test unified exchange quote forwards execution mode query parameter`() = runBlocking {
         val mockResponse = """
             {

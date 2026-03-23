@@ -282,6 +282,18 @@ class ApplicationTest {
             Regex("\\{[^}]*\"apiName\"\\s*:\\s*\"hyperliquid\"[^}]*\"liveOrder\"\\s*:\\s*true").containsMatchIn(body),
             body
         )
+        assertTrue(
+            Regex("\\{[^}]*\"apiName\"\\s*:\\s*\"hyperliquid\"[^}]*\"implementationStatus\"\\s*:\\s*\"integrated\"").containsMatchIn(body),
+            body
+        )
+        assertTrue(
+            Regex("\\{[^}]*\"apiName\"\\s*:\\s*\"binance\"[^}]*\"implementationStatus\"\\s*:\\s*\"paper_only\"").containsMatchIn(body),
+            body
+        )
+        assertTrue(
+            Regex("\\{[^}]*\"apiName\"\\s*:\\s*\"binance\"[^}]*\"nativeOrderAdapter\"\\s*:\\s*false").containsMatchIn(body),
+            body
+        )
     }
 
     @Test
