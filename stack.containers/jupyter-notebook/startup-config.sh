@@ -1994,6 +1994,11 @@ data class ResearchConfig(
     val minExpectedNetEdgeBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_EXPECTED_NET_EDGE_BPS", 6.0),
     val trendMinFlowAlignment: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_MIN_FLOW_ALIGNMENT", 0.08),
     val reversionMaxContinuationPressure: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_MAX_CONTINUATION_PRESSURE", 0.18),
+    val calibrationLookbackHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_CALIBRATION_LOOKBACK_HOURS", 72),
+    val minCalibrationSamples: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_SAMPLES", 8),
+    val strongCalibrationSamples: Int = envInt("DATAMANCY_CROSS_SECTIONAL_STRONG_CALIBRATION_SAMPLES", 24),
+    val minCalibrationLowerBoundBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_LOWER_BOUND_BPS", 1.5),
+    val minCalibrationWinRate: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_WIN_RATE", 0.51),
     val trendCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_COOLDOWN_BARS", 18),
     val reversionCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_COOLDOWN_BARS", 10),
     val persistBacktest: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_PERSIST_BACKTEST", true),
@@ -2123,6 +2128,10 @@ data class SignalSnapshot(
     val volRegime: Double,
     val trendExpectedNetEdgeBps: Double,
     val reversionExpectedNetEdgeBps: Double,
+    val trendCalibrationSamples: Int,
+    val reversionCalibrationSamples: Int,
+    val trendCalibrationLowerBoundBps: Double,
+    val reversionCalibrationLowerBoundBps: Double,
     val liquid: Boolean,
     val trendAction: String,
     val reversionAction: String
@@ -2180,6 +2189,10 @@ data class TradeRecord(
     val expectedGrossEdgeBps: Double,
     val expectedRoundTripCostBps: Double,
     val expectedNetEdgeBps: Double,
+    val calibrationSamples: Int,
+    val calibrationWinRate: Double,
+    val calibrationLowerBoundBps: Double,
+    val calibrationScope: String,
     val entryImbalance: Double,
     val entryFlowSignal: Double,
     val entryVolumeRatio: Double,
@@ -2232,7 +2245,11 @@ data class OpenPosition(
     val entryEstimate: ExecutionEstimate,
     val expectedGrossEdgeBps: Double,
     val expectedRoundTripCostBps: Double,
-    val expectedNetEdgeBps: Double
+    val expectedNetEdgeBps: Double,
+    val calibrationSamples: Int,
+    val calibrationWinRate: Double,
+    val calibrationLowerBoundBps: Double,
+    val calibrationScope: String
 )
 
 data class EntryCandidate(
@@ -2241,7 +2258,56 @@ data class EntryCandidate(
     val entryEstimate: ExecutionEstimate,
     val expectedGrossEdgeBps: Double,
     val expectedRoundTripCostBps: Double,
-    val expectedNetEdgeBps: Double
+    val expectedNetEdgeBps: Double,
+    val calibrationSamples: Int,
+    val calibrationWinRate: Double,
+    val calibrationLowerBoundBps: Double,
+    val calibrationScope: String
+)
+
+data class CalibrationKey(
+    val strategyKind: StrategyKind,
+    val exchange: String,
+    val symbol: String,
+    val side: Int,
+    val regimeBucket: String,
+    val signalBucket: String,
+    val confirmationBucket: String
+)
+
+data class CalibrationExample(
+    val key: CalibrationKey,
+    val entryTime: Instant,
+    val availableAt: Instant,
+    val grossEdgeBps: Double,
+    val netEdgeBps: Double,
+    val totalCostBps: Double,
+    val fillRatio: Double
+)
+
+data class CalibrationStats(
+    val samples: Int,
+    val winRate: Double,
+    val avgGrossEdgeBps: Double,
+    val avgNetEdgeBps: Double,
+    val avgTotalCostBps: Double,
+    val avgFillRatio: Double,
+    val lowerBoundNetEdgeBps: Double,
+    val scope: String
+)
+
+data class CalibrationAccumulator(
+    var samples: Int = 0,
+    var wins: Int = 0,
+    var sumGrossEdgeBps: Double = 0.0,
+    var sumNetEdgeBps: Double = 0.0,
+    var sumNetEdgeSqBps: Double = 0.0,
+    var sumTotalCostBps: Double = 0.0,
+    var sumFillRatio: Double = 0.0
+)
+
+data class CalibrationState(
+    val scoped: MutableMap<CalibrationKey, CalibrationAccumulator> = mutableMapOf()
 )
 
 val gson: Gson = GsonBuilder().setPrettyPrinting().create()
@@ -2789,92 +2855,6 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
     return finalRows.sortedWith(compareBy<FeatureRow> { it.time }.thenBy { it.exchange }.thenBy { it.symbol })
 }
 
-fun latestSignalSnapshots(rows: List<FeatureRow>, config: ResearchConfig): List<SignalSnapshot> =
-    rows.groupBy { it.exchange to it.symbol }
-        .values
-        .mapNotNull { series -> series.maxByOrNull { it.time } }
-        .map { row ->
-            val trendLong = if (
-                row.liquid &&
-                    row.trendLongRank <= config.topPerSide &&
-                    row.trendScore >= config.trendEntryScore
-            ) {
-                buildEntryCandidate(StrategyKind.TREND, row, 1, config)
-            } else {
-                null
-            }
-            val trendShort = if (
-                row.liquid &&
-                    row.trendShortRank <= config.topPerSide &&
-                    row.trendScore <= -config.trendEntryScore
-            ) {
-                buildEntryCandidate(StrategyKind.TREND, row, -1, config)
-            } else {
-                null
-            }
-            val reversionLong = if (
-                row.liquid &&
-                    row.reversionLongRank <= config.topPerSide &&
-                    row.residualZ <= -config.reversionZEntry &&
-                    row.reversionScore > 0.0
-            ) {
-                buildEntryCandidate(StrategyKind.REVERSION, row, 1, config)
-            } else {
-                null
-            }
-            val reversionShort = if (
-                row.liquid &&
-                    row.reversionShortRank <= config.topPerSide &&
-                    row.residualZ >= config.reversionZEntry &&
-                    row.reversionScore > 0.0
-            ) {
-                buildEntryCandidate(StrategyKind.REVERSION, row, -1, config)
-            } else {
-                null
-            }
-            val trendCandidate = listOfNotNull(trendLong, trendShort).maxByOrNull { it.expectedNetEdgeBps }
-            val reversionCandidate = listOfNotNull(reversionLong, reversionShort).maxByOrNull { it.expectedNetEdgeBps }
-            val trendAction = when (trendCandidate?.side) {
-                1 -> "LONG"
-                -1 -> "SHORT"
-                else -> "FLAT"
-            }
-            val reversionAction = when (reversionCandidate?.side) {
-                1 -> "LONG"
-                -1 -> "SHORT"
-                else -> "FLAT"
-            }
-            SignalSnapshot(
-                exchange = row.exchange,
-                symbol = row.symbol,
-                time = row.time.toString(),
-                lastPrice = row.close.round(4),
-                betaBtc = row.betaBtc.round(4),
-                betaEth = row.betaEth.round(4),
-                residualZ = row.residualZ.round(4),
-                trendScore = row.trendScore.round(4),
-                reversionScore = row.reversionScore.round(4),
-                breadth = row.breadth.round(4),
-                spreadBps = row.spreadBps.round(2),
-                depthUsd = row.depthUsd.round(2),
-                imbalance = row.imbalance.round(4),
-                flowSignal = row.flowSignal.round(4),
-                volumeRatio = row.volumeRatio.round(4),
-                volRegime = row.volRegime.round(4),
-                trendExpectedNetEdgeBps = (trendCandidate?.expectedNetEdgeBps ?: 0.0).round(2),
-                reversionExpectedNetEdgeBps = (reversionCandidate?.expectedNetEdgeBps ?: 0.0).round(2),
-                liquid = row.liquid,
-                trendAction = trendAction,
-                reversionAction = reversionAction
-            )
-        }
-        .sortedWith(
-            compareByDescending<SignalSnapshot> { max(it.trendExpectedNetEdgeBps, it.reversionExpectedNetEdgeBps) }
-                .thenByDescending { abs(it.trendScore) }
-                .thenBy { it.exchange }
-                .thenBy { it.symbol }
-        )
-
 fun buildExecutionEstimate(row: FeatureRow, notionalUsd: Double, side: Int, kind: StrategyKind): ExecutionEstimate {
     val spreadHalfBps = row.spreadBps / 2.0
     val depthPressure = notionalUsd / max(row.depthUsd, notionalUsd)
@@ -2959,7 +2939,167 @@ fun buildExpectedRoundTripCostBps(row: FeatureRow, entryEstimate: ExecutionEstim
     return (entryEstimate.totalCostBps * 2.0) + regimeBuffer + flowBuffer
 }
 
-fun buildEntryCandidate(kind: StrategyKind, row: FeatureRow, side: Int, config: ResearchConfig): EntryCandidate? {
+fun breadthTilt(row: FeatureRow): Double =
+    (row.breadth - 0.5) * 2.0
+
+fun calibrationRegimeBucket(row: FeatureRow): String =
+    when {
+        row.volRegime < 0.95 -> "calm"
+        row.volRegime < 1.45 -> "normal"
+        else -> "stress"
+    }
+
+fun calibrationSignalBucket(kind: StrategyKind, row: FeatureRow): String =
+    when (kind) {
+        StrategyKind.TREND -> when {
+            abs(row.trendScore) < 1.35 -> "entry"
+            abs(row.trendScore) < 1.90 -> "strong"
+            else -> "extreme"
+        }
+        StrategyKind.REVERSION -> when {
+            abs(row.residualZ) < 2.60 -> "entry"
+            abs(row.residualZ) < 3.30 -> "deep"
+            else -> "extreme"
+        }
+    }
+
+fun calibrationConfirmationBucket(kind: StrategyKind, row: FeatureRow, side: Int, config: ResearchConfig): String {
+    val flowAlignment = side.toDouble() * row.flowSignal
+    val fastAlignment = side.toDouble() * direction(row.residualMomFast)
+    val slowAlignment = side.toDouble() * direction(row.residualMomSlow)
+    val continuationPressure = direction(row.residualZ) * row.flowSignal
+    return when (kind) {
+        StrategyKind.TREND -> when {
+            flowAlignment >= config.trendMinFlowAlignment && fastAlignment > 0.0 && slowAlignment > 0.0 -> "confirmed"
+            flowAlignment >= -0.04 && (fastAlignment > 0.0 || slowAlignment > 0.0) -> "mixed"
+            else -> "fragile"
+        }
+        StrategyKind.REVERSION -> when {
+            flowAlignment >= 0.08 && fastAlignment > 0.0 -> "confirmed"
+            continuationPressure <= (config.reversionMaxContinuationPressure * 0.55) &&
+                flowAlignment >= -0.04 &&
+                abs(row.rawTrend) < (config.trendEntryScore * 0.95) -> "stall"
+            else -> "fragile"
+        }
+    }
+}
+
+fun calibrationBaseKey(kind: StrategyKind, row: FeatureRow, side: Int, config: ResearchConfig): CalibrationKey =
+    CalibrationKey(
+        strategyKind = kind,
+        exchange = row.exchange,
+        symbol = row.symbol,
+        side = side,
+        regimeBucket = calibrationRegimeBucket(row),
+        signalBucket = calibrationSignalBucket(kind, row),
+        confirmationBucket = calibrationConfirmationBucket(kind, row, side, config)
+    )
+
+fun calibrationScopesForKey(key: CalibrationKey): List<Pair<String, CalibrationKey>> =
+    listOf(
+        "symbol_regime_signal_confirmation" to key,
+        "market_regime_signal_confirmation" to key.copy(symbol = "ALL"),
+        "symbol_regime_confirmation" to key.copy(signalBucket = "ALL"),
+        "market_regime_confirmation" to key.copy(symbol = "ALL", signalBucket = "ALL"),
+        "symbol_confirmation" to key.copy(regimeBucket = "ALL", signalBucket = "ALL"),
+        "market_confirmation" to key.copy(symbol = "ALL", regimeBucket = "ALL", signalBucket = "ALL"),
+        "symbol_all" to key.copy(regimeBucket = "ALL", signalBucket = "ALL", confirmationBucket = "ALL"),
+        "market_all" to key.copy(symbol = "ALL", regimeBucket = "ALL", signalBucket = "ALL", confirmationBucket = "ALL")
+    )
+
+fun calibrationScopesForRow(
+    kind: StrategyKind,
+    row: FeatureRow,
+    side: Int,
+    config: ResearchConfig
+): List<Pair<String, CalibrationKey>> =
+    calibrationScopesForKey(calibrationBaseKey(kind, row, side, config))
+
+fun CalibrationAccumulator.applyExample(example: CalibrationExample, multiplier: Int) {
+    val factor = multiplier.toDouble()
+    samples += multiplier
+    wins += if (example.netEdgeBps > 0.0) multiplier else 0
+    sumGrossEdgeBps += example.grossEdgeBps * factor
+    sumNetEdgeBps += example.netEdgeBps * factor
+    sumNetEdgeSqBps += example.netEdgeBps.pow(2.0) * factor
+    sumTotalCostBps += example.totalCostBps * factor
+    sumFillRatio += example.fillRatio * factor
+}
+
+fun CalibrationAccumulator.toStats(scope: String): CalibrationStats? {
+    if (samples <= 0) return null
+    val sampleCount = samples.toDouble()
+    val avgNetEdgeBps = sumNetEdgeBps / sampleCount
+    val variance = max((sumNetEdgeSqBps / sampleCount) - avgNetEdgeBps.pow(2.0), 0.0)
+    val stderr = sqrt(variance / sampleCount)
+    return CalibrationStats(
+        samples = samples,
+        winRate = wins.toDouble() / sampleCount,
+        avgGrossEdgeBps = sumGrossEdgeBps / sampleCount,
+        avgNetEdgeBps = avgNetEdgeBps,
+        avgTotalCostBps = sumTotalCostBps / sampleCount,
+        avgFillRatio = sumFillRatio / sampleCount,
+        lowerBoundNetEdgeBps = avgNetEdgeBps - (1.28 * stderr),
+        scope = scope
+    )
+}
+
+fun addCalibrationExample(state: CalibrationState, example: CalibrationExample) {
+    calibrationScopesForKey(example.key).forEach { (_, scopedKey) ->
+        state.scoped.getOrPut(scopedKey) { CalibrationAccumulator() }.applyExample(example, 1)
+    }
+}
+
+fun removeCalibrationExample(state: CalibrationState, example: CalibrationExample) {
+    calibrationScopesForKey(example.key).forEach { (_, scopedKey) ->
+        val accumulator = state.scoped[scopedKey] ?: return@forEach
+        accumulator.applyExample(example, -1)
+        if (accumulator.samples <= 0) {
+            state.scoped.remove(scopedKey)
+        }
+    }
+}
+
+fun buildCalibrationState(examples: List<CalibrationExample>): CalibrationState {
+    val state = CalibrationState()
+    examples.forEach { addCalibrationExample(state, it) }
+    return state
+}
+
+fun blendCalibrationStats(primary: CalibrationStats, fallback: CalibrationStats, config: ResearchConfig): CalibrationStats {
+    if (primary.scope == fallback.scope) return primary
+    val weight = clamp(primary.samples.toDouble() / max(config.strongCalibrationSamples, 1).toDouble(), 0.0, 1.0)
+    return CalibrationStats(
+        samples = primary.samples,
+        winRate = (primary.winRate * weight) + (fallback.winRate * (1.0 - weight)),
+        avgGrossEdgeBps = (primary.avgGrossEdgeBps * weight) + (fallback.avgGrossEdgeBps * (1.0 - weight)),
+        avgNetEdgeBps = (primary.avgNetEdgeBps * weight) + (fallback.avgNetEdgeBps * (1.0 - weight)),
+        avgTotalCostBps = (primary.avgTotalCostBps * weight) + (fallback.avgTotalCostBps * (1.0 - weight)),
+        avgFillRatio = (primary.avgFillRatio * weight) + (fallback.avgFillRatio * (1.0 - weight)),
+        lowerBoundNetEdgeBps = (primary.lowerBoundNetEdgeBps * weight) + (fallback.lowerBoundNetEdgeBps * (1.0 - weight)),
+        scope = primary.scope
+    )
+}
+
+fun resolveCalibration(
+    state: CalibrationState?,
+    kind: StrategyKind,
+    row: FeatureRow,
+    side: Int,
+    config: ResearchConfig
+): CalibrationStats? {
+    if (state == null) return null
+    val scopedStats = calibrationScopesForRow(kind, row, side, config)
+        .mapNotNull { (scope, key) -> state.scoped[key]?.toStats(scope) }
+    if (scopedStats.isEmpty()) return null
+    val fallback = scopedStats.last()
+    val primary = scopedStats.firstOrNull { it.samples >= config.minCalibrationSamples }
+        ?: fallback.takeIf { it.samples >= config.minCalibrationSamples }
+        ?: return null
+    return blendCalibrationStats(primary, fallback, config)
+}
+
+fun buildStructuralCandidate(kind: StrategyKind, row: FeatureRow, side: Int, config: ResearchConfig): EntryCandidate? {
     if (!row.liquid) return null
     if (row.volumeRatio < config.minVolumeRatio || row.volumeRatio > config.maxVolumeRatio) return null
     if (row.volRegime > config.maxVolRegime) return null
@@ -2973,27 +3113,30 @@ fun buildEntryCandidate(kind: StrategyKind, row: FeatureRow, side: Int, config: 
     }
     val expectedRoundTripCostBps = buildExpectedRoundTripCostBps(row, entryEstimate)
     val expectedNetEdgeBps = expectedGrossEdgeBps - expectedRoundTripCostBps
-    val safetyMarginBps = config.executionSafetyMarginBps + (max(0.0, row.volRegime - 1.0) * 2.5)
-    val breadthTilt = (row.breadth - 0.5) * 2.0
+    val rowBreadthTilt = breadthTilt(row)
     val continuationPressure = direction(row.residualZ) * row.flowSignal
-
-    if (expectedNetEdgeBps < config.minExpectedNetEdgeBps) return null
-    if (expectedGrossEdgeBps < expectedRoundTripCostBps + safetyMarginBps) return null
 
     when (kind) {
         StrategyKind.TREND -> {
             val flowAlignment = side.toDouble() * row.flowSignal
-            val breadthAlignment = side.toDouble() * breadthTilt
+            val breadthAlignment = side.toDouble() * rowBreadthTilt
+            if ((side.toDouble() * row.trendScore) < config.trendEntryScore) return null
+            if ((side.toDouble() * row.rawTrend) <= 0.0) return null
             if (flowAlignment < config.trendMinFlowAlignment) return null
-            if (breadthAlignment < -0.08) return null
-            if (abs(row.residualZ) > config.reversionZEntry * 1.15) return null
-            if (abs(row.rawTrend) < config.trendEntryScore) return null
+            if (breadthAlignment < -0.05) return null
+            if ((side.toDouble() * direction(row.residualMomFast)) <= 0.0) return null
+            if ((side.toDouble() * direction(row.residualMomSlow)) <= 0.0) return null
+            if (abs(row.residualZ) > config.reversionZEntry * 1.05) return null
         }
         StrategyKind.REVERSION -> {
-            if (abs(row.rawTrend) > config.trendEntryScore * 1.30) return null
-            if (continuationPressure > config.reversionMaxContinuationPressure) return null
-            if (direction(row.residualZ) * breadthTilt > 0.22) return null
-            if ((side.toDouble() * row.flowSignal) < -0.35) return null
+            if (side > 0 && row.residualZ > -config.reversionZEntry) return null
+            if (side < 0 && row.residualZ < config.reversionZEntry) return null
+            if (row.reversionScore <= 0.0) return null
+            if (abs(row.rawTrend) > config.trendEntryScore * 1.10) return null
+            if (continuationPressure > (config.reversionMaxContinuationPressure * 0.75)) return null
+            if (direction(row.residualZ) * rowBreadthTilt > 0.15) return null
+            if ((side.toDouble() * row.flowSignal) < -0.08) return null
+            if ((side.toDouble() * direction(row.residualMomFast)) < 0.0 && abs(row.rawTrend) > (config.trendEntryScore * 0.85)) return null
         }
     }
 
@@ -3003,7 +3146,49 @@ fun buildEntryCandidate(kind: StrategyKind, row: FeatureRow, side: Int, config: 
         entryEstimate = entryEstimate,
         expectedGrossEdgeBps = expectedGrossEdgeBps,
         expectedRoundTripCostBps = expectedRoundTripCostBps,
-        expectedNetEdgeBps = expectedNetEdgeBps
+        expectedNetEdgeBps = expectedNetEdgeBps,
+        calibrationSamples = 0,
+        calibrationWinRate = 0.0,
+        calibrationLowerBoundBps = 0.0,
+        calibrationScope = "heuristic"
+    )
+}
+
+fun buildEntryCandidate(
+    kind: StrategyKind,
+    row: FeatureRow,
+    side: Int,
+    config: ResearchConfig,
+    calibrationState: CalibrationState? = null
+): EntryCandidate? {
+    val seed = buildStructuralCandidate(kind, row, side, config) ?: return null
+    val safetyMarginBps = config.executionSafetyMarginBps + (max(0.0, row.volRegime - 1.0) * 2.5)
+
+    if (calibrationState == null) {
+        if (seed.expectedNetEdgeBps < config.minExpectedNetEdgeBps) return null
+        if (seed.expectedGrossEdgeBps < seed.expectedRoundTripCostBps + safetyMarginBps) return null
+        return seed
+    }
+
+    val calibration = resolveCalibration(calibrationState, kind, row, side, config) ?: return null
+    if (calibration.avgFillRatio < config.minFillRatio) return null
+    if (calibration.winRate < config.minCalibrationWinRate) return null
+    if (calibration.lowerBoundNetEdgeBps < config.minCalibrationLowerBoundBps) return null
+    if (calibration.avgNetEdgeBps < config.minExpectedNetEdgeBps) return null
+
+    val calibratedGrossEdgeBps = max(
+        calibration.avgGrossEdgeBps,
+        seed.expectedRoundTripCostBps + calibration.avgNetEdgeBps
+    )
+    if (calibratedGrossEdgeBps < seed.expectedRoundTripCostBps + safetyMarginBps) return null
+
+    return seed.copy(
+        expectedGrossEdgeBps = calibratedGrossEdgeBps.round(4),
+        expectedNetEdgeBps = calibration.avgNetEdgeBps.round(4),
+        calibrationSamples = calibration.samples,
+        calibrationWinRate = calibration.winRate.round(4),
+        calibrationLowerBoundBps = calibration.lowerBoundNetEdgeBps.round(4),
+        calibrationScope = calibration.scope
     )
 }
 
@@ -3025,7 +3210,7 @@ fun shouldExitPosition(kind: StrategyKind, position: OpenPosition, current: Feat
         }
     }
 
-fun candidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: ResearchConfig): List<EntryCandidate> =
+fun seedCandidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: ResearchConfig): List<EntryCandidate> =
     when (kind) {
         StrategyKind.TREND -> {
             val longs = bucket
@@ -3035,7 +3220,7 @@ fun candidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: Research
                         it.trendScore >= config.trendEntryScore &&
                         abs(it.residualZ) <= config.reversionZEntry * 1.5
                 }
-                .mapNotNull { buildEntryCandidate(StrategyKind.TREND, it, 1, config) }
+                .mapNotNull { buildStructuralCandidate(StrategyKind.TREND, it, 1, config) }
                 .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.trendLongRank })
             val shorts = bucket
                 .filter {
@@ -3044,7 +3229,7 @@ fun candidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: Research
                         it.trendScore <= -config.trendEntryScore &&
                         abs(it.residualZ) <= config.reversionZEntry * 1.5
                 }
-                .mapNotNull { buildEntryCandidate(StrategyKind.TREND, it, -1, config) }
+                .mapNotNull { buildStructuralCandidate(StrategyKind.TREND, it, -1, config) }
                 .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.trendShortRank })
             (longs + shorts).sortedByDescending { it.expectedNetEdgeBps }
         }
@@ -3056,7 +3241,7 @@ fun candidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: Research
                         it.residualZ <= -config.reversionZEntry &&
                         it.reversionScore > 0.0
                 }
-                .mapNotNull { buildEntryCandidate(StrategyKind.REVERSION, it, 1, config) }
+                .mapNotNull { buildStructuralCandidate(StrategyKind.REVERSION, it, 1, config) }
                 .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.reversionLongRank })
             val shorts = bucket
                 .filter {
@@ -3065,13 +3250,317 @@ fun candidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: Research
                         it.residualZ >= config.reversionZEntry &&
                         it.reversionScore > 0.0
                 }
-                .mapNotNull { buildEntryCandidate(StrategyKind.REVERSION, it, -1, config) }
+                .mapNotNull { buildStructuralCandidate(StrategyKind.REVERSION, it, -1, config) }
                 .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.reversionShortRank })
             (longs + shorts).sortedByDescending { it.expectedNetEdgeBps }
         }
     }
 
-fun simulateStrategy(strategyName: String, kind: StrategyKind, rows: List<FeatureRow>, config: ResearchConfig): List<TradeRecord> {
+fun candidateRows(
+    kind: StrategyKind,
+    bucket: List<FeatureRow>,
+    config: ResearchConfig,
+    calibrationState: CalibrationState? = null
+): List<EntryCandidate> =
+    when (kind) {
+        StrategyKind.TREND -> {
+            val longs = bucket
+                .filter {
+                    it.liquid &&
+                        it.trendLongRank <= config.topPerSide &&
+                        it.trendScore >= config.trendEntryScore &&
+                        abs(it.residualZ) <= config.reversionZEntry * 1.5
+                }
+                .mapNotNull { buildEntryCandidate(StrategyKind.TREND, it, 1, config, calibrationState) }
+                .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.trendLongRank })
+            val shorts = bucket
+                .filter {
+                    it.liquid &&
+                        it.trendShortRank <= config.topPerSide &&
+                        it.trendScore <= -config.trendEntryScore &&
+                        abs(it.residualZ) <= config.reversionZEntry * 1.5
+                }
+                .mapNotNull { buildEntryCandidate(StrategyKind.TREND, it, -1, config, calibrationState) }
+                .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.trendShortRank })
+            (longs + shorts).sortedByDescending { it.expectedNetEdgeBps }
+        }
+        StrategyKind.REVERSION -> {
+            val longs = bucket
+                .filter {
+                    it.liquid &&
+                        it.reversionLongRank <= config.topPerSide &&
+                        it.residualZ <= -config.reversionZEntry &&
+                        it.reversionScore > 0.0
+                }
+                .mapNotNull { buildEntryCandidate(StrategyKind.REVERSION, it, 1, config, calibrationState) }
+                .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.reversionLongRank })
+            val shorts = bucket
+                .filter {
+                    it.liquid &&
+                        it.reversionShortRank <= config.topPerSide &&
+                        it.residualZ >= config.reversionZEntry &&
+                        it.reversionScore > 0.0
+                }
+                .mapNotNull { buildEntryCandidate(StrategyKind.REVERSION, it, -1, config, calibrationState) }
+                .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.reversionShortRank })
+            (longs + shorts).sortedByDescending { it.expectedNetEdgeBps }
+        }
+    }
+
+fun latestSignalSnapshots(
+    rows: List<FeatureRow>,
+    config: ResearchConfig,
+    calibrationState: CalibrationState? = null
+): List<SignalSnapshot> =
+    rows.groupBy { it.exchange to it.symbol }
+        .values
+        .mapNotNull { series -> series.maxByOrNull { it.time } }
+        .map { row ->
+            val trendLong = if (
+                row.liquid &&
+                    row.trendLongRank <= config.topPerSide &&
+                    row.trendScore >= config.trendEntryScore
+            ) {
+                buildEntryCandidate(StrategyKind.TREND, row, 1, config, calibrationState)
+            } else {
+                null
+            }
+            val trendShort = if (
+                row.liquid &&
+                    row.trendShortRank <= config.topPerSide &&
+                    row.trendScore <= -config.trendEntryScore
+            ) {
+                buildEntryCandidate(StrategyKind.TREND, row, -1, config, calibrationState)
+            } else {
+                null
+            }
+            val reversionLong = if (
+                row.liquid &&
+                    row.reversionLongRank <= config.topPerSide &&
+                    row.residualZ <= -config.reversionZEntry &&
+                    row.reversionScore > 0.0
+            ) {
+                buildEntryCandidate(StrategyKind.REVERSION, row, 1, config, calibrationState)
+            } else {
+                null
+            }
+            val reversionShort = if (
+                row.liquid &&
+                    row.reversionShortRank <= config.topPerSide &&
+                    row.residualZ >= config.reversionZEntry &&
+                    row.reversionScore > 0.0
+            ) {
+                buildEntryCandidate(StrategyKind.REVERSION, row, -1, config, calibrationState)
+            } else {
+                null
+            }
+            val trendCandidate = listOfNotNull(trendLong, trendShort).maxByOrNull { it.expectedNetEdgeBps }
+            val reversionCandidate = listOfNotNull(reversionLong, reversionShort).maxByOrNull { it.expectedNetEdgeBps }
+            SignalSnapshot(
+                exchange = row.exchange,
+                symbol = row.symbol,
+                time = row.time.toString(),
+                lastPrice = row.close.round(4),
+                betaBtc = row.betaBtc.round(4),
+                betaEth = row.betaEth.round(4),
+                residualZ = row.residualZ.round(4),
+                trendScore = row.trendScore.round(4),
+                reversionScore = row.reversionScore.round(4),
+                breadth = row.breadth.round(4),
+                spreadBps = row.spreadBps.round(2),
+                depthUsd = row.depthUsd.round(2),
+                imbalance = row.imbalance.round(4),
+                flowSignal = row.flowSignal.round(4),
+                volumeRatio = row.volumeRatio.round(4),
+                volRegime = row.volRegime.round(4),
+                trendExpectedNetEdgeBps = (trendCandidate?.expectedNetEdgeBps ?: 0.0).round(2),
+                reversionExpectedNetEdgeBps = (reversionCandidate?.expectedNetEdgeBps ?: 0.0).round(2),
+                trendCalibrationSamples = trendCandidate?.calibrationSamples ?: 0,
+                reversionCalibrationSamples = reversionCandidate?.calibrationSamples ?: 0,
+                trendCalibrationLowerBoundBps = (trendCandidate?.calibrationLowerBoundBps ?: 0.0).round(2),
+                reversionCalibrationLowerBoundBps = (reversionCandidate?.calibrationLowerBoundBps ?: 0.0).round(2),
+                liquid = row.liquid,
+                trendAction = when (trendCandidate?.side) {
+                    1 -> "LONG"
+                    -1 -> "SHORT"
+                    else -> "FLAT"
+                },
+                reversionAction = when (reversionCandidate?.side) {
+                    1 -> "LONG"
+                    -1 -> "SHORT"
+                    else -> "FLAT"
+                }
+            )
+        }
+        .sortedWith(
+            compareByDescending<SignalSnapshot> { max(it.trendExpectedNetEdgeBps, it.reversionExpectedNetEdgeBps) }
+                .thenByDescending { max(it.trendCalibrationLowerBoundBps, it.reversionCalibrationLowerBoundBps) }
+                .thenByDescending { abs(it.trendScore) }
+                .thenBy { it.exchange }
+                .thenBy { it.symbol }
+        )
+
+fun buildTradeRecord(position: OpenPosition, current: FeatureRow, config: ResearchConfig): TradeRecord {
+    val kind = position.strategyKind
+    val exitEstimate = buildExecutionEstimate(current, config.notionalUsd, -position.side, kind)
+    val effectiveFill = min(position.entryEstimate.fillRatio, exitEstimate.fillRatio)
+    val grossReturn = position.side * ((current.close / position.entryRow.close) - 1.0) * effectiveFill
+    val totalCostBps = position.entryEstimate.totalCostBps + exitEstimate.totalCostBps
+    val netReturn = grossReturn - (totalCostBps / 10000.0)
+    val signalMagnitude = when (kind) {
+        StrategyKind.TREND -> abs(position.entryRow.trendScore)
+        StrategyKind.REVERSION -> abs(position.entryRow.residualZ)
+    }
+    val jitter = deterministicJitter(current.time, position.side)
+    val decisionLatencyMs = clamp(6.0 + (signalMagnitude * 7.0) + (jitter * 0.6), 4.0, 60.0)
+    val submitToAckMs = clamp(
+        55.0 +
+            (current.spreadBps * 1.1) +
+            ((config.notionalUsd / max(current.depthUsd, config.notionalUsd)) * 120.0) +
+            (jitter * 1.5),
+        20.0,
+        900.0
+    )
+    val submitToFillMs = clamp(submitToAckMs + ((1.0 - effectiveFill) * 260.0) + 18.0, 30.0, 1800.0)
+    val p50RoundtripMs = clamp(submitToAckMs + 12.0, 20.0, 1000.0)
+    val p95RoundtripMs = clamp(submitToAckMs * 2.0, 25.0, 1800.0)
+    val p99RoundtripMs = clamp(submitToAckMs * 3.0, 30.0, 2500.0)
+
+    return TradeRecord(
+        strategyName = position.strategyName,
+        strategyKind = kind.name.lowercase(),
+        exchange = position.exchange,
+        symbol = position.symbol,
+        side = if (position.side > 0) "BUY" else "SELL",
+        entryTime = position.entryRow.time,
+        exitTime = current.time,
+        entryPrice = position.entryRow.close,
+        exitPrice = current.close,
+        holdBars = current.barIndex - position.entryRow.barIndex,
+        grossReturnFraction = grossReturn,
+        netReturnFraction = netReturn,
+        fillRatio = effectiveFill,
+        feeBps = position.entryEstimate.feeBps + exitEstimate.feeBps,
+        feeTier = position.entryEstimate.feeTier,
+        feeTierAdjustmentBps = position.entryEstimate.feeTierAdjustmentBps + exitEstimate.feeTierAdjustmentBps,
+        makerFeeBps = position.entryEstimate.makerFeeBps + exitEstimate.makerFeeBps,
+        takerFeeBps = position.entryEstimate.takerFeeBps + exitEstimate.takerFeeBps,
+        spreadCostBps = position.entryEstimate.spreadCostBps + exitEstimate.spreadCostBps,
+        slippageBps = position.entryEstimate.slippageBps + exitEstimate.slippageBps,
+        impactBps = position.entryEstimate.impactBps + exitEstimate.impactBps,
+        adverseSelectionBps = position.entryEstimate.adverseSelectionBps + exitEstimate.adverseSelectionBps,
+        fundingDriftBps = 0.0,
+        basisDriftBps = 0.0,
+        totalCostBps = totalCostBps,
+        edgeAfterCostBps = netReturn * 10000.0,
+        estimatedFeeUsd = position.entryEstimate.estimatedFeeUsd + exitEstimate.estimatedFeeUsd,
+        estimatedCostUsd = position.entryEstimate.estimatedCostUsd + exitEstimate.estimatedCostUsd,
+        entryTrendScore = position.entryRow.trendScore,
+        entryResidualZ = position.entryRow.residualZ,
+        expectedGrossEdgeBps = position.expectedGrossEdgeBps,
+        expectedRoundTripCostBps = position.expectedRoundTripCostBps,
+        expectedNetEdgeBps = position.expectedNetEdgeBps,
+        calibrationSamples = position.calibrationSamples,
+        calibrationWinRate = position.calibrationWinRate,
+        calibrationLowerBoundBps = position.calibrationLowerBoundBps,
+        calibrationScope = position.calibrationScope,
+        entryImbalance = position.entryRow.imbalance,
+        entryFlowSignal = position.entryRow.flowSignal,
+        entryVolumeRatio = position.entryRow.volumeRatio,
+        entryVolRegime = position.entryRow.volRegime,
+        betaBtc = position.entryRow.betaBtc,
+        betaEth = position.entryRow.betaEth,
+        decisionLatencyMs = decisionLatencyMs,
+        submitToAckMs = submitToAckMs,
+        submitToFillMs = submitToFillMs,
+        p50RoundtripMs = p50RoundtripMs,
+        p95RoundtripMs = p95RoundtripMs,
+        p99RoundtripMs = p99RoundtripMs,
+        jitterMs = jitter
+    )
+}
+
+fun simulateIndependentTrade(
+    strategyName: String,
+    kind: StrategyKind,
+    candidate: EntryCandidate,
+    series: List<FeatureRow>,
+    startIndex: Int,
+    config: ResearchConfig
+): TradeRecord? {
+    if (series.isEmpty() || startIndex !in series.indices) return null
+    val position = OpenPosition(
+        strategyName = strategyName,
+        strategyKind = kind,
+        exchange = candidate.row.exchange,
+        symbol = candidate.row.symbol,
+        side = candidate.side,
+        entryRow = candidate.row,
+        entryEstimate = candidate.entryEstimate,
+        expectedGrossEdgeBps = candidate.expectedGrossEdgeBps,
+        expectedRoundTripCostBps = candidate.expectedRoundTripCostBps,
+        expectedNetEdgeBps = candidate.expectedNetEdgeBps,
+        calibrationSamples = candidate.calibrationSamples,
+        calibrationWinRate = candidate.calibrationWinRate,
+        calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
+        calibrationScope = candidate.calibrationScope
+    )
+    for (index in (startIndex + 1) until series.size) {
+        val current = series[index]
+        if (shouldExitPosition(kind, position, current, config)) {
+            return buildTradeRecord(position, current, config)
+        }
+    }
+    val last = series.lastOrNull() ?: return null
+    return if (last.time == candidate.row.time) null else buildTradeRecord(position, last, config)
+}
+
+fun buildCalibrationExamples(
+    strategyName: String,
+    kind: StrategyKind,
+    rows: List<FeatureRow>,
+    config: ResearchConfig
+): List<CalibrationExample> {
+    if (rows.isEmpty()) return emptyList()
+    val grouped = rows.groupBy { it.exchange to it.time }
+    val orderedKeys = grouped.keys.sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
+    val seriesByExchangeSymbol = rows.groupBy { it.exchange to it.symbol }
+        .mapValues { (_, series) -> series.sortedBy { it.time } }
+    val indexLookup = mutableMapOf<Triple<String, String, Instant>, Int>()
+    seriesByExchangeSymbol.forEach { (key, series) ->
+        series.forEachIndexed { index, row ->
+            indexLookup[Triple(key.first, key.second, row.time)] = index
+        }
+    }
+
+    val examples = mutableListOf<CalibrationExample>()
+    for (key in orderedKeys) {
+        val bucket = grouped[key].orEmpty()
+        seedCandidateRows(kind, bucket, config).forEach { candidate ->
+            val series = seriesByExchangeSymbol[candidate.row.exchange to candidate.row.symbol] ?: return@forEach
+            val startIndex = indexLookup[Triple(candidate.row.exchange, candidate.row.symbol, candidate.row.time)] ?: return@forEach
+            val trade = simulateIndependentTrade(strategyName, kind, candidate, series, startIndex, config) ?: return@forEach
+            examples += CalibrationExample(
+                key = calibrationBaseKey(kind, candidate.row, candidate.side, config),
+                entryTime = candidate.row.time,
+                availableAt = trade.exitTime,
+                grossEdgeBps = trade.grossReturnFraction * 10000.0,
+                netEdgeBps = trade.edgeAfterCostBps,
+                totalCostBps = trade.totalCostBps,
+                fillRatio = trade.fillRatio
+            )
+        }
+    }
+    return examples.sortedBy { it.availableAt }
+}
+
+fun simulateStrategy(
+    strategyName: String,
+    kind: StrategyKind,
+    rows: List<FeatureRow>,
+    config: ResearchConfig,
+    calibrationState: CalibrationState? = null
+): List<TradeRecord> {
     if (rows.isEmpty()) return emptyList()
     val grouped = rows.groupBy { it.exchange to it.time }
     val orderedKeys = grouped.keys.sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
@@ -3088,72 +3577,7 @@ fun simulateStrategy(strategyName: String, kind: StrategyKind, rows: List<Featur
             if (position.exchange != exchange) continue
             val current = rowBySymbol[position.symbol] ?: continue
             if (!shouldExitPosition(kind, position, current, config)) continue
-
-            val exitEstimate = buildExecutionEstimate(current, config.notionalUsd, -position.side, kind)
-            val effectiveFill = min(position.entryEstimate.fillRatio, exitEstimate.fillRatio)
-            val grossReturn = position.side * ((current.close / position.entryRow.close) - 1.0) * effectiveFill
-            val totalCostBps = position.entryEstimate.totalCostBps + exitEstimate.totalCostBps
-            val netReturn = grossReturn - (totalCostBps / 10000.0)
-            val signalMagnitude = when (kind) {
-                StrategyKind.TREND -> abs(position.entryRow.trendScore)
-                StrategyKind.REVERSION -> abs(position.entryRow.residualZ)
-            }
-            val jitter = deterministicJitter(current.time, position.side)
-            val decisionLatencyMs = clamp(6.0 + (signalMagnitude * 7.0) + (jitter * 0.6), 4.0, 60.0)
-            val submitToAckMs = clamp(55.0 + (current.spreadBps * 1.1) + ((config.notionalUsd / max(current.depthUsd, config.notionalUsd)) * 120.0) + (jitter * 1.5), 20.0, 900.0)
-            val submitToFillMs = clamp(submitToAckMs + ((1.0 - effectiveFill) * 260.0) + 18.0, 30.0, 1800.0)
-            val p50RoundtripMs = clamp(submitToAckMs + 12.0, 20.0, 1000.0)
-            val p95RoundtripMs = clamp(submitToAckMs * 2.0, 25.0, 1800.0)
-            val p99RoundtripMs = clamp(submitToAckMs * 3.0, 30.0, 2500.0)
-
-            trades += TradeRecord(
-                strategyName = strategyName,
-                strategyKind = kind.name.lowercase(),
-                exchange = exchange,
-                symbol = position.symbol,
-                side = if (position.side > 0) "BUY" else "SELL",
-                entryTime = position.entryRow.time,
-                exitTime = current.time,
-                entryPrice = position.entryRow.close,
-                exitPrice = current.close,
-                holdBars = current.barIndex - position.entryRow.barIndex,
-                grossReturnFraction = grossReturn,
-                netReturnFraction = netReturn,
-                fillRatio = effectiveFill,
-                feeBps = position.entryEstimate.feeBps + exitEstimate.feeBps,
-                feeTier = position.entryEstimate.feeTier,
-                feeTierAdjustmentBps = position.entryEstimate.feeTierAdjustmentBps + exitEstimate.feeTierAdjustmentBps,
-                makerFeeBps = position.entryEstimate.makerFeeBps + exitEstimate.makerFeeBps,
-                takerFeeBps = position.entryEstimate.takerFeeBps + exitEstimate.takerFeeBps,
-                spreadCostBps = position.entryEstimate.spreadCostBps + exitEstimate.spreadCostBps,
-                slippageBps = position.entryEstimate.slippageBps + exitEstimate.slippageBps,
-                impactBps = position.entryEstimate.impactBps + exitEstimate.impactBps,
-                adverseSelectionBps = position.entryEstimate.adverseSelectionBps + exitEstimate.adverseSelectionBps,
-                fundingDriftBps = 0.0,
-                basisDriftBps = 0.0,
-                totalCostBps = totalCostBps,
-                edgeAfterCostBps = netReturn * 10000.0,
-                estimatedFeeUsd = position.entryEstimate.estimatedFeeUsd + exitEstimate.estimatedFeeUsd,
-                estimatedCostUsd = position.entryEstimate.estimatedCostUsd + exitEstimate.estimatedCostUsd,
-                entryTrendScore = position.entryRow.trendScore,
-                entryResidualZ = position.entryRow.residualZ,
-                expectedGrossEdgeBps = position.expectedGrossEdgeBps,
-                expectedRoundTripCostBps = position.expectedRoundTripCostBps,
-                expectedNetEdgeBps = position.expectedNetEdgeBps,
-                entryImbalance = position.entryRow.imbalance,
-                entryFlowSignal = position.entryRow.flowSignal,
-                entryVolumeRatio = position.entryRow.volumeRatio,
-                entryVolRegime = position.entryRow.volRegime,
-                betaBtc = position.entryRow.betaBtc,
-                betaEth = position.entryRow.betaEth,
-                decisionLatencyMs = decisionLatencyMs,
-                submitToAckMs = submitToAckMs,
-                submitToFillMs = submitToFillMs,
-                p50RoundtripMs = p50RoundtripMs,
-                p95RoundtripMs = p95RoundtripMs,
-                p99RoundtripMs = p99RoundtripMs,
-                jitterMs = jitter
-            )
+            trades += buildTradeRecord(position, current, config)
             positions.remove(positionKey)
             cooldownUntilBar[positionKey] = current.barIndex + when (kind) {
                 StrategyKind.TREND -> config.trendCooldownBars
@@ -3161,7 +3585,7 @@ fun simulateStrategy(strategyName: String, kind: StrategyKind, rows: List<Featur
             }
         }
 
-        candidateRows(kind, bucket, config).forEach { candidate ->
+        candidateRows(kind, bucket, config, calibrationState).forEach { candidate ->
             val positionKey = "${candidate.row.exchange}|${candidate.row.symbol}"
             if (positions.containsKey(positionKey)) return@forEach
             if ((cooldownUntilBar[positionKey] ?: Int.MIN_VALUE) > candidate.row.barIndex) return@forEach
@@ -3175,7 +3599,11 @@ fun simulateStrategy(strategyName: String, kind: StrategyKind, rows: List<Featur
                 entryEstimate = candidate.entryEstimate,
                 expectedGrossEdgeBps = candidate.expectedGrossEdgeBps,
                 expectedRoundTripCostBps = candidate.expectedRoundTripCostBps,
-                expectedNetEdgeBps = candidate.expectedNetEdgeBps
+                expectedNetEdgeBps = candidate.expectedNetEdgeBps,
+                calibrationSamples = candidate.calibrationSamples,
+                calibrationWinRate = candidate.calibrationWinRate,
+                calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
+                calibrationScope = candidate.calibrationScope
             )
         }
     }
@@ -3186,71 +3614,89 @@ fun simulateStrategy(strategyName: String, kind: StrategyKind, rows: List<Featur
     for ((positionKey, position) in positions.toMap()) {
         val current = latestByExchangeSymbol[position.exchange to position.symbol] ?: continue
         if (current.time == position.entryRow.time) continue
-        val exitEstimate = buildExecutionEstimate(current, config.notionalUsd, -position.side, kind)
-        val effectiveFill = min(position.entryEstimate.fillRatio, exitEstimate.fillRatio)
-        val grossReturn = position.side * ((current.close / position.entryRow.close) - 1.0) * effectiveFill
-        val totalCostBps = position.entryEstimate.totalCostBps + exitEstimate.totalCostBps
-        val netReturn = grossReturn - (totalCostBps / 10000.0)
-        val signalMagnitude = when (kind) {
-            StrategyKind.TREND -> abs(position.entryRow.trendScore)
-            StrategyKind.REVERSION -> abs(position.entryRow.residualZ)
-        }
-        val jitter = deterministicJitter(current.time, position.side)
-        val decisionLatencyMs = clamp(6.0 + (signalMagnitude * 7.0) + (jitter * 0.6), 4.0, 60.0)
-        val submitToAckMs = clamp(55.0 + (current.spreadBps * 1.1) + ((config.notionalUsd / max(current.depthUsd, config.notionalUsd)) * 120.0) + (jitter * 1.5), 20.0, 900.0)
-        val submitToFillMs = clamp(submitToAckMs + ((1.0 - effectiveFill) * 260.0) + 18.0, 30.0, 1800.0)
-        val p50RoundtripMs = clamp(submitToAckMs + 12.0, 20.0, 1000.0)
-        val p95RoundtripMs = clamp(submitToAckMs * 2.0, 25.0, 1800.0)
-        val p99RoundtripMs = clamp(submitToAckMs * 3.0, 30.0, 2500.0)
+        trades += buildTradeRecord(position, current, config)
+        positions.remove(positionKey)
+    }
 
-        trades += TradeRecord(
-            strategyName = strategyName,
-            strategyKind = kind.name.lowercase(),
-            exchange = position.exchange,
-            symbol = position.symbol,
-            side = if (position.side > 0) "BUY" else "SELL",
-            entryTime = position.entryRow.time,
-            exitTime = current.time,
-            entryPrice = position.entryRow.close,
-            exitPrice = current.close,
-            holdBars = current.barIndex - position.entryRow.barIndex,
-            grossReturnFraction = grossReturn,
-            netReturnFraction = netReturn,
-            fillRatio = effectiveFill,
-            feeBps = position.entryEstimate.feeBps + exitEstimate.feeBps,
-            feeTier = position.entryEstimate.feeTier,
-            feeTierAdjustmentBps = position.entryEstimate.feeTierAdjustmentBps + exitEstimate.feeTierAdjustmentBps,
-            makerFeeBps = position.entryEstimate.makerFeeBps + exitEstimate.makerFeeBps,
-            takerFeeBps = position.entryEstimate.takerFeeBps + exitEstimate.takerFeeBps,
-            spreadCostBps = position.entryEstimate.spreadCostBps + exitEstimate.spreadCostBps,
-            slippageBps = position.entryEstimate.slippageBps + exitEstimate.slippageBps,
-            impactBps = position.entryEstimate.impactBps + exitEstimate.impactBps,
-            adverseSelectionBps = position.entryEstimate.adverseSelectionBps + exitEstimate.adverseSelectionBps,
-            fundingDriftBps = 0.0,
-            basisDriftBps = 0.0,
-            totalCostBps = totalCostBps,
-            edgeAfterCostBps = netReturn * 10000.0,
-            estimatedFeeUsd = position.entryEstimate.estimatedFeeUsd + exitEstimate.estimatedFeeUsd,
-            estimatedCostUsd = position.entryEstimate.estimatedCostUsd + exitEstimate.estimatedCostUsd,
-            entryTrendScore = position.entryRow.trendScore,
-            entryResidualZ = position.entryRow.residualZ,
-            expectedGrossEdgeBps = position.expectedGrossEdgeBps,
-            expectedRoundTripCostBps = position.expectedRoundTripCostBps,
-            expectedNetEdgeBps = position.expectedNetEdgeBps,
-            entryImbalance = position.entryRow.imbalance,
-            entryFlowSignal = position.entryRow.flowSignal,
-            entryVolumeRatio = position.entryRow.volumeRatio,
-            entryVolRegime = position.entryRow.volRegime,
-            betaBtc = position.entryRow.betaBtc,
-            betaEth = position.entryRow.betaEth,
-            decisionLatencyMs = decisionLatencyMs,
-            submitToAckMs = submitToAckMs,
-            submitToFillMs = submitToFillMs,
-            p50RoundtripMs = p50RoundtripMs,
-            p95RoundtripMs = p95RoundtripMs,
-            p99RoundtripMs = p99RoundtripMs,
-            jitterMs = jitter
-        )
+    return trades.sortedBy { it.entryTime }
+}
+
+fun simulateStrategyWalkForward(
+    strategyName: String,
+    kind: StrategyKind,
+    rows: List<FeatureRow>,
+    config: ResearchConfig
+): List<TradeRecord> {
+    if (rows.isEmpty()) return emptyList()
+    val grouped = rows.groupBy { it.exchange to it.time }
+    val orderedKeys = grouped.keys.sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
+    val positions = mutableMapOf<String, OpenPosition>()
+    val cooldownUntilBar = mutableMapOf<String, Int>()
+    val trades = mutableListOf<TradeRecord>()
+    val calibrationExamples = buildCalibrationExamples(strategyName, kind, rows, config)
+    val calibrationState = CalibrationState()
+    val activeExamples = ArrayDeque<CalibrationExample>()
+    var exampleIndex = 0
+
+    for (key in orderedKeys) {
+        val currentTime = key.second
+        while (exampleIndex < calibrationExamples.size && calibrationExamples[exampleIndex].availableAt.isBefore(currentTime)) {
+            val example = calibrationExamples[exampleIndex]
+            activeExamples.addLast(example)
+            addCalibrationExample(calibrationState, example)
+            exampleIndex += 1
+        }
+        val cutoff = currentTime.minus(config.calibrationLookbackHours.toLong(), ChronoUnit.HOURS)
+        while (activeExamples.isNotEmpty() && activeExamples.first().availableAt.isBefore(cutoff)) {
+            removeCalibrationExample(calibrationState, activeExamples.removeFirst())
+        }
+
+        val exchange = key.first
+        val bucket = grouped[key].orEmpty()
+        val rowBySymbol = bucket.associateBy { it.symbol }
+
+        for ((positionKey, position) in positions.toMap()) {
+            if (position.exchange != exchange) continue
+            val current = rowBySymbol[position.symbol] ?: continue
+            if (!shouldExitPosition(kind, position, current, config)) continue
+            trades += buildTradeRecord(position, current, config)
+            positions.remove(positionKey)
+            cooldownUntilBar[positionKey] = current.barIndex + when (kind) {
+                StrategyKind.TREND -> config.trendCooldownBars
+                StrategyKind.REVERSION -> config.reversionCooldownBars
+            }
+        }
+
+        candidateRows(kind, bucket, config, calibrationState).forEach { candidate ->
+            val positionKey = "${candidate.row.exchange}|${candidate.row.symbol}"
+            if (positions.containsKey(positionKey)) return@forEach
+            if ((cooldownUntilBar[positionKey] ?: Int.MIN_VALUE) > candidate.row.barIndex) return@forEach
+            positions[positionKey] = OpenPosition(
+                strategyName = strategyName,
+                strategyKind = kind,
+                exchange = candidate.row.exchange,
+                symbol = candidate.row.symbol,
+                side = candidate.side,
+                entryRow = candidate.row,
+                entryEstimate = candidate.entryEstimate,
+                expectedGrossEdgeBps = candidate.expectedGrossEdgeBps,
+                expectedRoundTripCostBps = candidate.expectedRoundTripCostBps,
+                expectedNetEdgeBps = candidate.expectedNetEdgeBps,
+                calibrationSamples = candidate.calibrationSamples,
+                calibrationWinRate = candidate.calibrationWinRate,
+                calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
+                calibrationScope = candidate.calibrationScope
+            )
+        }
+    }
+
+    val latestByExchangeSymbol = rows.groupBy { it.exchange to it.symbol }
+        .mapValues { (_, series) -> series.maxByOrNull { it.time } }
+
+    for ((positionKey, position) in positions.toMap()) {
+        val current = latestByExchangeSymbol[position.exchange to position.symbol] ?: continue
+        if (current.time == position.entryRow.time) continue
+        trades += buildTradeRecord(position, current, config)
         positions.remove(positionKey)
     }
 
@@ -3294,6 +3740,14 @@ fun buildStrategySummaries(
         val avgExpectedGrossEdgeBps = mean(sorted.map { it.expectedGrossEdgeBps })
         val avgExpectedNetEdgeBps = mean(sorted.map { it.expectedNetEdgeBps })
         val edgePredictionErrorBps = avgEdgeAfterCostBps - avgExpectedNetEdgeBps
+        val avgCalibrationSamples = mean(sorted.map { it.calibrationSamples.toDouble() })
+        val avgCalibrationWinRate = mean(sorted.map { it.calibrationWinRate })
+        val avgCalibrationLowerBoundBps = mean(sorted.map { it.calibrationLowerBoundBps })
+        val dominantCalibrationScope = sorted.groupingBy { it.calibrationScope }
+            .eachCount()
+            .maxByOrNull { it.value }
+            ?.key
+            ?: "heuristic"
         val avgEntryImbalance = mean(sorted.map { it.entryImbalance })
         val avgEntryFlowSignal = mean(sorted.map { it.entryFlowSignal })
         val avgEntryVolumeRatio = mean(sorted.map { it.entryVolumeRatio })
@@ -3312,6 +3766,10 @@ fun buildStrategySummaries(
                 "avg_submit_to_fill_ms" to avgSubmitToFillMs.round(4),
                 "avg_beta_btc" to avgBetaBtc.round(4),
                 "avg_beta_eth" to avgBetaEth.round(4),
+                "avg_calibration_samples" to avgCalibrationSamples.round(4),
+                "avg_calibration_win_rate" to avgCalibrationWinRate.round(4),
+                "avg_calibration_lower_bound_bps" to avgCalibrationLowerBoundBps.round(4),
+                "dominant_calibration_scope" to dominantCalibrationScope,
                 "avg_entry_imbalance" to avgEntryImbalance.round(4),
                 "avg_entry_flow_signal" to avgEntryFlowSignal.round(4),
                 "avg_entry_volume_ratio" to avgEntryVolumeRatio.round(4),
@@ -3595,6 +4053,10 @@ fun persistForwardTelemetry(trades: List<TradeRecord>, baselines: Map<Triple<Str
                                 "expectedGrossEdgeBps" to trade.expectedGrossEdgeBps.round(4),
                                 "expectedRoundTripCostBps" to trade.expectedRoundTripCostBps.round(4),
                                 "expectedNetEdgeBps" to trade.expectedNetEdgeBps.round(4),
+                                "calibrationSamples" to trade.calibrationSamples,
+                                "calibrationWinRate" to trade.calibrationWinRate.round(4),
+                                "calibrationLowerBoundBps" to trade.calibrationLowerBoundBps.round(4),
+                                "calibrationScope" to trade.calibrationScope,
                                 "entryImbalance" to trade.entryImbalance.round(4),
                                 "entryFlowSignal" to trade.entryFlowSignal.round(4),
                                 "entryVolumeRatio" to trade.entryVolumeRatio.round(4),
@@ -3886,23 +4348,24 @@ println("Loaded ${researchBars.size} bars")
 val researchFeatureRows = engineerFeatures(researchBars, researchConfig)
 println("Engineered ${researchFeatureRows.size} feature rows")
 
-val latestSignals = latestSignalSnapshots(researchFeatureRows, researchConfig)
-println("Latest beta estimates, flow state, and expected net edge")
-latestSignals
+val heuristicSignals = latestSignalSnapshots(researchFeatureRows, researchConfig)
+var latestSignals = heuristicSignals
+println("Latest beta estimates, flow state, and heuristic expected net edge")
+heuristicSignals
 '''
 
 cross_sectional_kotlin_backtest = '''
 val trendStrategyName = "cross_section_beta_trend_v1"
 val reversionStrategyName = "cross_section_beta_reversion_v1"
 
-val trendTrades = simulateStrategy(
+val trendTrades = simulateStrategyWalkForward(
     strategyName = trendStrategyName,
     kind = StrategyKind.TREND,
     rows = researchFeatureRows,
     config = researchConfig
 )
 
-val reversionTrades = simulateStrategy(
+val reversionTrades = simulateStrategyWalkForward(
     strategyName = reversionStrategyName,
     kind = StrategyKind.REVERSION,
     rows = researchFeatureRows,
@@ -3915,14 +4378,14 @@ val backtestSummaries =
         strategyKind = StrategyKind.TREND,
         trades = trendTrades,
         timeframe = "candle_1m",
-        notes = "beta-adjusted cross-sectional trend with flow and cost gating"
+        notes = "beta-adjusted cross-sectional trend with causal calibration gating"
     ) +
     buildStrategySummaries(
         strategyName = reversionStrategyName,
         strategyKind = StrategyKind.REVERSION,
         trades = reversionTrades,
         timeframe = "candle_1m",
-        notes = "beta-adjusted cross-sectional mean reversion with flow and cost gating"
+        notes = "beta-adjusted cross-sectional mean reversion with causal calibration gating"
     )
 
 if (researchConfig.persistBacktest && backtestSummaries.isNotEmpty()) {
@@ -3950,13 +4413,29 @@ if (forwardCutoff == null) {
     println("Forward cutoff: $forwardCutoff")
     println("Calibration rows: ${calibrationRows.size}, forward rows: ${forwardRows.size}")
 
-    val calibrationTrendTrades = simulateStrategy(
+    val calibrationTrendExamples = buildCalibrationExamples(
         strategyName = trendStrategyName,
         kind = StrategyKind.TREND,
         rows = calibrationRows,
         config = researchConfig
     )
-    val calibrationReversionTrades = simulateStrategy(
+    val calibrationReversionExamples = buildCalibrationExamples(
+        strategyName = reversionStrategyName,
+        kind = StrategyKind.REVERSION,
+        rows = calibrationRows,
+        config = researchConfig
+    )
+    val forwardCalibrationState = buildCalibrationState(calibrationTrendExamples + calibrationReversionExamples)
+
+    println("Calibration examples: trend=${calibrationTrendExamples.size}, reversion=${calibrationReversionExamples.size}")
+
+    val calibrationTrendTrades = simulateStrategyWalkForward(
+        strategyName = trendStrategyName,
+        kind = StrategyKind.TREND,
+        rows = calibrationRows,
+        config = researchConfig
+    )
+    val calibrationReversionTrades = simulateStrategyWalkForward(
         strategyName = reversionStrategyName,
         kind = StrategyKind.REVERSION,
         rows = calibrationRows,
@@ -3969,14 +4448,14 @@ if (forwardCutoff == null) {
             strategyKind = StrategyKind.TREND,
             trades = calibrationTrendTrades,
             timeframe = "candle_1m",
-            notes = "calibration slice with flow and cost gating"
+            notes = "calibration slice with causal calibration gating"
         ) +
         buildStrategySummaries(
             strategyName = reversionStrategyName,
             strategyKind = StrategyKind.REVERSION,
             trades = calibrationReversionTrades,
             timeframe = "candle_1m",
-            notes = "calibration slice with flow and cost gating"
+            notes = "calibration slice with causal calibration gating"
         )
 
     val baselineMap = calibrationSummaries.associateBy { Triple(it.strategyName, it.exchange, it.symbol) }
@@ -3985,13 +4464,15 @@ if (forwardCutoff == null) {
         strategyName = trendStrategyName,
         kind = StrategyKind.TREND,
         rows = forwardRows,
-        config = researchConfig
+        config = researchConfig,
+        calibrationState = forwardCalibrationState
     )
     val forwardReversionTrades = simulateStrategy(
         strategyName = reversionStrategyName,
         kind = StrategyKind.REVERSION,
         rows = forwardRows,
-        config = researchConfig
+        config = researchConfig,
+        calibrationState = forwardCalibrationState
     )
 
     val forwardTrades = forwardTrendTrades + forwardReversionTrades
@@ -4001,15 +4482,19 @@ if (forwardCutoff == null) {
             strategyKind = StrategyKind.TREND,
             trades = forwardTrendTrades,
             timeframe = "forward_1m",
-            notes = "forward slice with flow and cost gating"
+            notes = "forward slice with calibrated promotion gating"
         ) +
         buildStrategySummaries(
             strategyName = reversionStrategyName,
             strategyKind = StrategyKind.REVERSION,
             trades = forwardReversionTrades,
             timeframe = "forward_1m",
-            notes = "forward slice with flow and cost gating"
+            notes = "forward slice with calibrated promotion gating"
         )
+
+    latestSignals = latestSignalSnapshots(researchFeatureRows, researchConfig, forwardCalibrationState)
+    println("Latest beta estimates, flow state, and calibrated expected net edge")
+    latestSignals
 
     if (researchConfig.persistForward && forwardTrades.isNotEmpty()) {
         persistForwardTelemetry(
