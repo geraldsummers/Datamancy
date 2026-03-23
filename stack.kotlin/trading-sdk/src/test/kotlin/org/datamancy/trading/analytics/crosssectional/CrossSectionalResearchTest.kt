@@ -2,6 +2,7 @@ package org.datamancy.trading.analytics.crosssectional
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import java.time.Instant
 
@@ -198,6 +199,58 @@ class CrossSectionalResearchTest {
         assertTrue(result.evaluatedConfigs >= 4)
     }
 
+    @Test
+    fun `engineerFeatures backfills conservative execution proxies when orderbooks are missing`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 1,
+            trendLookbackBars = 1,
+            trendSlowBars = 1,
+            reversionLookbackBars = 1,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val t0 = Instant.parse("2026-03-20T00:00:00Z")
+        val t1 = Instant.parse("2026-03-20T04:00:00Z")
+        val bars = listOf(
+            bar(symbol = "BTC", time = t0, close = 100.0, volume = 5_000.0, executionObserved = false),
+            bar(symbol = "BTC", time = t1, close = 101.0, volume = 5_200.0, spreadPct = 0.02, depthUnitsPerSide = 1_100.0),
+            bar(symbol = "ETH", time = t0, close = 80.0, volume = 4_000.0, executionObserved = false),
+            bar(symbol = "ETH", time = t1, close = 81.0, volume = 4_300.0, spreadPct = 0.03, depthUnitsPerSide = 950.0),
+            bar(symbol = "SOL", time = t0, close = 20.0, volume = 8_000.0, executionObserved = false),
+            bar(symbol = "SOL", time = t1, close = 20.5, volume = 8_400.0, spreadPct = 0.06, depthUnitsPerSide = 3_200.0)
+        )
+
+        val proxied = engineerFeatures(bars, config)
+            .first { it.symbol == "SOL" && it.time == t0 }
+
+        assertFalse(proxied.executionObserved)
+        assertTrue(proxied.spreadBps > 0.0)
+        assertTrue(proxied.depthUsd > config.notionalUsd)
+    }
+
+    @Test
+    fun `buildExecutionEstimate penalizes proxy backed rows`() {
+        val observed = featureRow(
+            symbol = "SOL",
+            liquid = true,
+            barIndex = 16,
+            trendScore = 1.35,
+            trendLongRank = 1,
+            trendExpectedGrossEdgeBps = 36.0,
+            depthUsd = 420_000.0,
+            spreadBps = 0.8,
+            spreadPct = 0.008,
+            executionObserved = true
+        )
+        val proxied = observed.copy(executionObserved = false)
+
+        val observedEstimate = buildExecutionEstimate(observed, notionalUsd = 5_000.0, side = 1, kind = StrategyKind.TREND)
+        val proxyEstimate = buildExecutionEstimate(proxied, notionalUsd = 5_000.0, side = 1, kind = StrategyKind.TREND)
+
+        assertTrue(proxyEstimate.fillRatio < observedEstimate.fillRatio)
+        assertTrue(proxyEstimate.totalCostBps > observedEstimate.totalCostBps)
+    }
+
     private fun featureRow(
         symbol: String,
         liquid: Boolean,
@@ -214,7 +267,8 @@ class CrossSectionalResearchTest {
         depthUsd: Double = 250_000.0,
         spreadBps: Double = 0.5,
         spreadPct: Double = 0.005,
-        imbalance: Double = 0.15
+        imbalance: Double = 0.15,
+        executionObserved: Boolean = true
     ) = FeatureRow(
         exchange = "hyperliquid",
         symbol = symbol,
@@ -252,7 +306,29 @@ class CrossSectionalResearchTest {
         trendLongRank = trendLongRank,
         trendShortRank = Int.MAX_VALUE,
         reversionLongRank = Int.MAX_VALUE,
-        reversionShortRank = Int.MAX_VALUE
+        reversionShortRank = Int.MAX_VALUE,
+        executionObserved = executionObserved
+    )
+
+    private fun bar(
+        symbol: String,
+        time: Instant,
+        close: Double,
+        volume: Double,
+        spreadPct: Double = 0.0,
+        depthUnitsPerSide: Double = 0.0,
+        executionObserved: Boolean = true
+    ) = Bar(
+        exchange = "hyperliquid",
+        symbol = symbol,
+        time = time,
+        close = close,
+        volume = volume,
+        spreadPct = spreadPct,
+        bidDepth10 = depthUnitsPerSide,
+        askDepth10 = depthUnitsPerSide,
+        midPrice = close,
+        executionObserved = executionObserved
     )
 
     private fun tradeRecord(

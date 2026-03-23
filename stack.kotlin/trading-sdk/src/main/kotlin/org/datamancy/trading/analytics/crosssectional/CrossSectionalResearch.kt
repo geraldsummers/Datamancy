@@ -66,6 +66,17 @@ fun urlEncode(value: String): String =
 fun mean(values: List<Double>): Double =
     if (values.isEmpty()) 0.0 else values.average()
 
+fun percentile(values: List<Double>, quantile: Double): Double {
+    if (values.isEmpty()) return 0.0
+    val sorted = values.sorted()
+    val position = clamp(quantile, 0.0, 1.0) * (sorted.lastIndex.toDouble())
+    val lower = position.toInt()
+    val upper = ceil(position).toInt()
+    if (lower == upper) return sorted[lower]
+    val weight = position - lower.toDouble()
+    return (sorted[lower] * (1.0 - weight)) + (sorted[upper] * weight)
+}
+
 fun stdev(values: List<Double>): Double {
     if (values.size < 2) return 0.0
     val mu = mean(values)
@@ -243,7 +254,8 @@ data class Bar(
     val spreadPct: Double,
     val bidDepth10: Double,
     val askDepth10: Double,
-    val midPrice: Double
+    val midPrice: Double,
+    val executionObserved: Boolean = true
 )
 
 data class BasePoint(
@@ -260,7 +272,8 @@ data class BasePoint(
     val midPrice: Double,
     val depthUsd: Double,
     val ret1m: Double,
-    val vol30: Double
+    val vol30: Double,
+    val executionObserved: Boolean = true
 )
 
 data class UnrankedFeature(
@@ -293,7 +306,8 @@ data class UnrankedFeature(
     val rawTrend: Double,
     val trendExpectedGrossEdgeBps: Double,
     val reversionExpectedGrossEdgeBps: Double,
-    val liquid: Boolean
+    val liquid: Boolean,
+    val executionObserved: Boolean = true
 )
 
 data class FeatureRow(
@@ -333,7 +347,8 @@ data class FeatureRow(
     val trendLongRank: Int,
     val trendShortRank: Int,
     val reversionLongRank: Int,
-    val reversionShortRank: Int
+    val reversionShortRank: Int,
+    val executionObserved: Boolean = true
 )
 
 data class SignalSnapshot(
@@ -380,6 +395,12 @@ data class ExecutionEstimate(
     val totalCostBps: Double,
     val estimatedFeeUsd: Double,
     val estimatedCostUsd: Double
+)
+
+private data class ExecutionProxyProfile(
+    val spreadBps: Double,
+    val depthToVolumeRatio: Double,
+    val depthFloorUsd: Double
 )
 
 data class TradeRecord(
@@ -960,7 +981,8 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
             COALESCE(o.spread_pct, 0) AS spread_pct,
             COALESCE(o.bid_depth_10, 0) AS bid_depth_10,
             COALESCE(o.ask_depth_10, 0) AS ask_depth_10,
-            COALESCE(NULLIF(o.mid_price, 0), c.close) AS mid_price
+            COALESCE(NULLIF(o.mid_price, 0), c.close) AS mid_price,
+            CASE WHEN o.symbol IS NULL THEN FALSE ELSE TRUE END AS execution_observed
         FROM candles c
         LEFT JOIN orderbook_snapshots o
           ON o.symbol = c.symbol
@@ -983,7 +1005,8 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
                                 spreadPct = rs.getDouble("spread_pct"),
                                 bidDepth10 = rs.getDouble("bid_depth_10"),
                                 askDepth10 = rs.getDouble("ask_depth_10"),
-                                midPrice = rs.getDouble("mid_price")
+                                midPrice = rs.getDouble("mid_price"),
+                                executionObserved = rs.getBoolean("execution_observed")
                             )
                         )
                     }
@@ -993,14 +1016,72 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
     }
 }
 
+private fun observedSpreadBps(bar: Bar): Double =
+    max(bar.spreadPct, 0.0) * 100.0
+
+private fun observedMidPrice(bar: Bar): Double =
+    max(bar.midPrice, bar.close)
+
+private fun observedDepthUsd(bar: Bar): Double =
+    max((max(bar.bidDepth10, 0.0) + max(bar.askDepth10, 0.0)) * observedMidPrice(bar), 0.0)
+
+private fun observedVolumeUsd(bar: Bar): Double =
+    max(bar.volume * observedMidPrice(bar), 0.0)
+
+// Use live-observed execution shapes as conservative priors when historical bars lack orderbook snapshots.
+private fun buildExecutionProxyProfiles(
+    bars: List<Bar>,
+    config: ResearchConfig
+): Pair<Map<Pair<String, String>, ExecutionProxyProfile>, ExecutionProxyProfile> {
+    val observedBars = bars.filter { it.executionObserved && observedSpreadBps(it) > 0.0 && observedDepthUsd(it) > 0.0 }
+
+    fun buildProfile(samples: List<Bar>): ExecutionProxyProfile {
+        if (samples.isEmpty()) {
+            return ExecutionProxyProfile(
+                spreadBps = max(config.maxSpreadBps * 0.9, 0.5),
+                depthToVolumeRatio = 0.03,
+                depthFloorUsd = config.notionalUsd * 2.0
+            )
+        }
+
+        val spreads = samples.map(::observedSpreadBps)
+        val depths = samples.map(::observedDepthUsd)
+        val depthRatios = samples.map { sample ->
+            observedDepthUsd(sample) / max(observedVolumeUsd(sample), config.notionalUsd)
+        }
+
+        return ExecutionProxyProfile(
+            spreadBps = max(percentile(spreads, 0.75) * 1.15, 0.25),
+            depthToVolumeRatio = max(percentile(depthRatios, 0.25) * 0.85, 0.02),
+            depthFloorUsd = max(percentile(depths, 0.25) * 0.75, config.notionalUsd * 2.0)
+        )
+    }
+
+    val marketProfile = buildProfile(observedBars)
+    val symbolProfiles = observedBars.groupBy { it.exchange to it.symbol }
+        .mapValues { (_, samples) ->
+            buildProfile(samples).let { profile ->
+                ExecutionProxyProfile(
+                    spreadBps = max(profile.spreadBps, marketProfile.spreadBps * 0.85),
+                    depthToVolumeRatio = max(profile.depthToVolumeRatio, marketProfile.depthToVolumeRatio * 0.65),
+                    depthFloorUsd = max(profile.depthFloorUsd, marketProfile.depthFloorUsd * 0.65)
+                )
+            }
+        }
+
+    return symbolProfiles to marketProfile
+}
+
 fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> {
     if (bars.isEmpty()) return emptyList()
 
     val seriesByKey = bars.groupBy { it.exchange to it.symbol }
         .mapValues { (_, value) -> value.sortedBy { it.time } }
+    val (executionProxyByKey, marketExecutionProxy) = buildExecutionProxyProfiles(bars, config)
 
     val baseByKey = seriesByKey.mapValues { (key, series) ->
         val returns = ArrayDeque<Double>()
+        val executionProxy = executionProxyByKey[key] ?: marketExecutionProxy
         series.mapIndexed { index, bar ->
             val previous = series.getOrNull(index - 1)
             val ret1m = if (previous == null || previous.close <= 0.0) 0.0 else (bar.close / previous.close) - 1.0
@@ -1009,9 +1090,21 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 returns.removeFirst()
             }
             val vol30 = stdev(returns.toList())
-            val spreadBps = max(bar.spreadPct, 0.0) * 100.0
-            val midPrice = max(bar.midPrice, bar.close)
-            val depthUsd = max((max(bar.bidDepth10, 0.0) + max(bar.askDepth10, 0.0)) * midPrice, 0.0)
+            val midPrice = observedMidPrice(bar)
+            val rawSpreadBps = observedSpreadBps(bar)
+            val rawDepthUsd = observedDepthUsd(bar)
+            val executionObserved = bar.executionObserved && rawSpreadBps > 0.0 && rawDepthUsd > 0.0
+            val volumeUsd = max(observedVolumeUsd(bar), config.notionalUsd)
+            val proxyDepthUsd = max(
+                executionProxy.depthFloorUsd,
+                volumeUsd * executionProxy.depthToVolumeRatio
+            )
+            val proxyDepthUnits = proxyDepthUsd / max(midPrice, 1e-6)
+            val spreadBps = if (executionObserved) rawSpreadBps else executionProxy.spreadBps
+            val spreadPct = if (executionObserved) max(bar.spreadPct, 0.0) else executionProxy.spreadBps / 10000.0
+            val bidDepth10 = if (executionObserved) max(bar.bidDepth10, 0.0) else proxyDepthUnits / 2.0
+            val askDepth10 = if (executionObserved) max(bar.askDepth10, 0.0) else proxyDepthUnits / 2.0
+            val depthUsd = if (executionObserved) rawDepthUsd else proxyDepthUsd
             BasePoint(
                 exchange = key.first,
                 symbol = key.second,
@@ -1019,14 +1112,15 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 barIndex = index,
                 close = bar.close,
                 volume = bar.volume,
-                spreadPct = bar.spreadPct,
+                spreadPct = spreadPct,
                 spreadBps = spreadBps,
-                bidDepth10 = bar.bidDepth10,
-                askDepth10 = bar.askDepth10,
+                bidDepth10 = bidDepth10,
+                askDepth10 = askDepth10,
                 midPrice = midPrice,
                 depthUsd = depthUsd,
                 ret1m = ret1m,
-                vol30 = vol30
+                vol30 = vol30,
+                executionObserved = executionObserved
             )
         }
     }
@@ -1151,7 +1245,8 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 rawTrend = rawTrend,
                 trendExpectedGrossEdgeBps = trendExpectedGrossEdgeBps,
                 reversionExpectedGrossEdgeBps = reversionExpectedGrossEdgeBps,
-                liquid = liquid
+                liquid = liquid,
+                executionObserved = point.executionObserved
             )
         }
     }
@@ -1270,7 +1365,8 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 trendLongRank = trendLongRanks[row] ?: Int.MAX_VALUE,
                 trendShortRank = trendShortRanks[row] ?: Int.MAX_VALUE,
                 reversionLongRank = reversionLongRanks[row] ?: Int.MAX_VALUE,
-                reversionShortRank = reversionShortRanks[row] ?: Int.MAX_VALUE
+                reversionShortRank = reversionShortRanks[row] ?: Int.MAX_VALUE,
+                executionObserved = row.executionObserved
             )
         }
     }
@@ -1287,7 +1383,7 @@ fun buildExecutionEstimate(row: FeatureRow, notionalUsd: Double, side: Int, kind
     val flowAgainstTrade = max(0.0, -side.toDouble() * row.flowSignal)
     val makerFeeBps = 1.0
     val takerFeeBps = 4.0
-    val makerShare = clamp(
+    var makerShare = clamp(
         (if (kind == StrategyKind.REVERSION) 0.62 else 0.52) -
             (depthPressure * 0.32) -
             (volatilityPenalty * 0.03) -
@@ -1297,8 +1393,7 @@ fun buildExecutionEstimate(row: FeatureRow, notionalUsd: Double, side: Int, kind
         0.12,
         0.88
     )
-    val feeBps = (makerFeeBps * makerShare) + (takerFeeBps * (1.0 - makerShare))
-    val fillRatio = clamp(
+    var fillRatio = clamp(
         0.96 -
             (spreadHalfBps / 30.0) -
             (depthPressure * 2.8) -
@@ -1309,7 +1404,7 @@ fun buildExecutionEstimate(row: FeatureRow, notionalUsd: Double, side: Int, kind
         0.25,
         1.0
     )
-    val slippageBps = clamp(
+    var slippageBps = clamp(
         0.20 +
             (spreadHalfBps * 0.18) +
             (depthPressure * 9.0) +
@@ -1320,7 +1415,7 @@ fun buildExecutionEstimate(row: FeatureRow, notionalUsd: Double, side: Int, kind
         0.15,
         18.0
     )
-    val impactBps = clamp(
+    var impactBps = clamp(
         0.15 +
             (depthPressure * 14.0) +
             (max(0.0, row.volumeRatio - 2.0) * 0.9) +
@@ -1328,7 +1423,7 @@ fun buildExecutionEstimate(row: FeatureRow, notionalUsd: Double, side: Int, kind
         0.10,
         22.0
     )
-    val adverseSelectionBps = clamp(
+    var adverseSelectionBps = clamp(
         (abs(row.residualZ) * 0.35) +
             (flowAgainstTrade * 2.5) +
             (max(0.0, row.volRegime - 1.0) * 2.2) +
@@ -1336,6 +1431,14 @@ fun buildExecutionEstimate(row: FeatureRow, notionalUsd: Double, side: Int, kind
         0.0,
         10.0
     )
+    if (!row.executionObserved) {
+        makerShare = clamp(makerShare - 0.10, 0.05, 0.78)
+        fillRatio = clamp(fillRatio - 0.08, 0.18, 0.96)
+        slippageBps = clamp((slippageBps * 1.18) + 0.9, 0.25, 24.0)
+        impactBps = clamp((impactBps * 1.20) + 1.1, 0.15, 28.0)
+        adverseSelectionBps = clamp((adverseSelectionBps * 1.15) + 0.6, 0.0, 12.0)
+    }
+    val feeBps = (makerFeeBps * makerShare) + (takerFeeBps * (1.0 - makerShare))
     val totalCostBps = feeBps + spreadHalfBps + slippageBps + impactBps + adverseSelectionBps
     return ExecutionEstimate(
         fillRatio = fillRatio,
