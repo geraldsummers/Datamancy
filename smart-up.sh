@@ -225,7 +225,7 @@ import sys
     force_refresh_services_text,
     out_path,
     compose_file_path,
-) = sys.argv[1:10]
+) = sys.argv[1:11]
 services = {s.strip() for s in services_text.splitlines() if s.strip()}
 existing_services = {s.strip() for s in existing_services_text.splitlines() if s.strip()}
 running_services = {s.strip() for s in running_services_text.splitlines() if s.strip()}
