@@ -254,6 +254,29 @@ class WorkerClient(
         }
     }
 
+    fun getHyperliquidMarkets(): List<Map<String, Any?>> {
+        val request = requestBuilder("$hyperliquidWorkerUrl/markets")
+            .get()
+            .build()
+
+        logger.info("Fetching Hyperliquid market catalog")
+
+        client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string() ?: "{}"
+            if (!response.isSuccessful) {
+                throw RuntimeException("Hyperliquid worker error: HTTP ${response.code} - $responseBody")
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            val payload = gson.fromJson(responseBody, Map::class.java) as Map<String, Any?>
+            val markets = payload["markets"] as? List<*> ?: return emptyList()
+            return markets.mapNotNull { entry ->
+                val raw = entry as? Map<*, *> ?: return@mapNotNull null
+                raw.entries.associate { (key, value) -> key.toString() to value }
+            }
+        }
+    }
+
     fun healthCheck(): Pair<Boolean, Boolean> {
         val evmHealthy = try {
             val request = Request.Builder()

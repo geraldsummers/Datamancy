@@ -309,6 +309,22 @@ CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 SELECT create_hypertable('market_data', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('orderbook_data', 'time', if_not_exists => TRUE);
 
+-- Create the candle-first discovery index after hypertable conversion.
+-- CONCURRENTLY is not supported on Timescale hypertables during reconcile runs,
+-- so use Timescale's per-chunk indexing mode instead.
+CREATE INDEX IF NOT EXISTS idx_market_data_candle_exchange_type_time_symbol
+    ON market_data (exchange, data_type, time DESC, symbol)
+    INCLUDE (close, volume)
+    WITH (timescaledb.transaction_per_chunk)
+    WHERE data_type LIKE 'candle_%';
+
+-- Create a covering orderbook index for bar-bucket joins so depth/spread reads
+-- can stay inside the index during research scans.
+CREATE INDEX IF NOT EXISTS idx_orderbook_data_symbol_exchange_time_covering
+    ON orderbook_data (symbol, exchange, time DESC)
+    INCLUDE (spread_pct, bid_depth_10, ask_depth_10, mid_price)
+    WITH (timescaledb.transaction_per_chunk);
+
 -- Enable compression on hypertables (optional, for better storage efficiency)
 ALTER TABLE market_data SET (
   timescaledb.compress,

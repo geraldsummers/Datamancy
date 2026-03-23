@@ -297,6 +297,47 @@ class ApplicationTest {
     }
 
     @Test
+    fun testUnifiedMarketsEndpoint() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = quoteAwareDbService()
+            every { workerClient.getHyperliquidMarkets() } returns listOf(
+                mapOf(
+                    "symbol" to "BTC",
+                    "maxLeverage" to 50.0,
+                    "szDecimals" to 5.0
+                )
+            )
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/exchanges/hyperliquid/markets")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"exchange\":\"hyperliquid\"") || body.contains("\"exchange\": \"hyperliquid\""), body)
+        assertTrue(body.contains("\"symbol\":\"BTC\"") || body.contains("\"symbol\": \"BTC\""), body)
+        assertTrue(body.contains("\"maxLeverage\":\"50\"") || body.contains("\"maxLeverage\": \"50\""), body)
+    }
+
+    @Test
+    fun testUnifiedMarketsEndpointRejectsUnavailableVenue() = testApplication {
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            val workerClient = mockk<WorkerClient>(relaxed = true)
+            val dbService = quoteAwareDbService()
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.get("/api/v1/exchanges/binance/markets")
+        assertEquals(HttpStatusCode.NotImplemented, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("Market catalog unavailable"), body)
+    }
+
+    @Test
     fun testUnifiedQuoteEndpoint() = testApplication {
         application {
             val authService = mockk<AuthService>(relaxed = true)

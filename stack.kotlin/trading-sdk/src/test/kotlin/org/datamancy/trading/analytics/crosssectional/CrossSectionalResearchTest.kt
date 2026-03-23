@@ -7,6 +7,23 @@ import java.time.Instant
 
 class CrossSectionalResearchTest {
     @Test
+    fun `selectResearchCandleSource chooses coarsest supported base interval`() {
+        assertEquals(CandleSource("1m", 1), selectResearchCandleSource(1))
+        assertEquals(CandleSource("5m", 5), selectResearchCandleSource(10))
+        assertEquals(CandleSource("15m", 15), selectResearchCandleSource(30))
+        assertEquals(CandleSource("1h", 60), selectResearchCandleSource(60))
+        assertEquals(CandleSource("1h", 60), selectResearchCandleSource(240))
+    }
+
+    @Test
+    fun `scaleRequiredSourceBars preserves minimum wall clock coverage`() {
+        assertEquals(360, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 1))
+        assertEquals(72, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 5))
+        assertEquals(24, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 15))
+        assertEquals(6, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 60))
+    }
+
+    @Test
     fun `buildStrategySummaries carries bar minutes into metrics`() {
         val config = ResearchConfig(barMinutes = 60, persistBacktest = false, persistForward = false)
         val trade = tradeRecord(

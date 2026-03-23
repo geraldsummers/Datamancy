@@ -21,6 +21,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -103,6 +104,21 @@ fun JsonObject.obj(name: String): JsonObject? =
 
 fun JsonObject.array(name: String): JsonArray? =
     getAsJsonArray(name)
+
+data class CandleSource(
+    val intervalLabel: String,
+    val minutes: Int
+)
+
+data class ExchangeMarketSnapshot(
+    val symbol: String
+)
+
+data class SymbolLiquiditySnapshot(
+    val symbol: String,
+    val bars: Int,
+    val avgVolume: Double
+)
 
 data class ExchangeCapabilitiesSnapshot(
     val paperOrder: Boolean,
@@ -540,6 +556,13 @@ val jdbcUrl = "jdbc:postgresql://$pgHost:$pgPort/$pgDb"
 fun pgConnection(): Connection =
     DriverManager.getConnection(jdbcUrl, pgUser, pgPassword)
 
+inline fun <T> timedMillis(block: () -> T): Pair<T, Long> {
+    val started = System.nanoTime()
+    val result = block()
+    val elapsedMs = (System.nanoTime() - started) / 1_000_000
+    return result to elapsedMs
+}
+
 fun twoFactorBetas(window: List<Triple<Double, Double, Double>>): Pair<Double, Double> {
     if (window.size < 30) return 0.0 to 0.0
     val yMean = mean(window.map { it.first })
@@ -629,6 +652,33 @@ fun fetchExchangeCatalog(txBase: String): List<ExchangeCatalogSnapshot> =
         )
     }
 
+fun fetchExchangeMarkets(txBase: String, exchange: String): List<ExchangeMarketSnapshot> =
+    runCatching {
+        val request = HttpRequest.newBuilder(
+            URI.create("${txBase.removeSuffix("/")}/api/v1/exchanges/${urlEncode(exchange)}/markets")
+        )
+            .GET()
+            .timeout(Duration.ofSeconds(15))
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() !in 200..299) {
+            error("Exchange markets returned status ${response.statusCode()}")
+        }
+        val payload = JsonParser.parseString(response.body()).asJsonObject
+        payload.array("markets")
+            ?.mapNotNull { element ->
+                val obj = element.asJsonObject
+                val symbol = obj.string("symbol")?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
+                    ?: return@mapNotNull null
+                ExchangeMarketSnapshot(symbol = symbol)
+            }
+            ?.distinctBy { it.symbol }
+            ?: emptyList()
+    }.getOrElse { ex ->
+        println("Exchange market catalog unavailable for $exchange: ${ex.message}")
+        emptyList()
+    }
+
 fun buildExchangePlans(catalog: List<ExchangeCatalogSnapshot>, config: ResearchConfig): List<ExchangePlan> {
     val overrideExchange = config.executionExchangeOverride.trim().lowercase()
     val selected = if (overrideExchange.isNotEmpty()) {
@@ -660,18 +710,122 @@ fun buildExchangePlans(catalog: List<ExchangeCatalogSnapshot>, config: ResearchC
     }
 }
 
-fun discoverSymbols(aliases: List<String>, lookbackHours: Int, maxSymbols: Int, minBars: Int): List<String> {
+fun selectResearchCandleSource(barMinutes: Int): CandleSource =
+    when {
+        barMinutes >= 60 && barMinutes % 60 == 0 -> CandleSource(intervalLabel = "1h", minutes = 60)
+        barMinutes >= 15 && barMinutes % 15 == 0 -> CandleSource(intervalLabel = "15m", minutes = 15)
+        barMinutes >= 5 && barMinutes % 5 == 0 -> CandleSource(intervalLabel = "5m", minutes = 5)
+        else -> CandleSource(intervalLabel = "1m", minutes = 1)
+    }
+
+fun scaleRequiredSourceBars(minBars: Int, sourceMinutes: Int): Int =
+    max(1, ceil(minBars.toDouble() / max(sourceMinutes, 1).toDouble()).toInt())
+
+fun queryDiscoveredSymbolLiquidity(
+    aliases: List<String>,
+    symbols: List<String>,
+    lookbackHours: Int,
+    source: CandleSource,
+    scaledMinBars: Int
+): List<SymbolLiquiditySnapshot> {
+    if (symbols.isEmpty()) return emptyList()
     val aliasSql = sqlList(aliases)
+    val symbolSql = sqlList(symbols)
     val sql = """
         SELECT symbol,
                COUNT(*) AS bars,
                COALESCE(AVG(volume), 0) AS avg_volume
         FROM market_data
         WHERE exchange IN ($aliasSql)
-          AND data_type = 'candle_1m'
+          AND data_type = 'candle_${source.intervalLabel}'
+          AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+          AND symbol IN ($symbolSql)
+        GROUP BY symbol
+        HAVING COUNT(*) >= $scaledMinBars
+    """.trimIndent()
+
+    return buildList {
+        pgConnection().use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        add(
+                            SymbolLiquiditySnapshot(
+                                symbol = rs.getString("symbol"),
+                                bars = rs.getInt("bars"),
+                                avgVolume = rs.getDouble("avg_volume")
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun discoverSymbolsFromMarketCatalog(
+    aliases: List<String>,
+    candidateSymbols: List<String>,
+    lookbackHours: Int,
+    maxSymbols: Int,
+    minBars: Int,
+    barMinutes: Int
+): List<String> {
+    val normalizedSymbols = candidateSymbols
+        .map { it.trim().uppercase() }
+        .filter { it.isNotEmpty() }
+        .distinct()
+    if (normalizedSymbols.isEmpty()) return emptyList()
+
+    val source = selectResearchCandleSource(barMinutes)
+    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes)
+    val batchSize = min(64, max(16, maxSymbols * 4))
+    val ranked = normalizedSymbols
+        .chunked(batchSize)
+        .flatMap { batch ->
+            queryDiscoveredSymbolLiquidity(
+                aliases = aliases,
+                symbols = batch,
+                lookbackHours = lookbackHours,
+                source = source,
+                scaledMinBars = scaledMinBars
+            )
+        }
+        .distinctBy { it.symbol }
+        .sortedWith(
+            compareByDescending<SymbolLiquiditySnapshot> { it.bars }
+                .thenByDescending { it.avgVolume }
+                .thenBy { it.symbol }
+        )
+        .map { it.symbol }
+
+    return if (ranked.isNotEmpty()) {
+        ranked.take(maxSymbols)
+    } else {
+        normalizedSymbols.take(maxSymbols)
+    }
+}
+
+fun discoverSymbolsByAggregate(
+    aliases: List<String>,
+    lookbackHours: Int,
+    maxSymbols: Int,
+    minBars: Int,
+    barMinutes: Int
+): List<String> {
+    val aliasSql = sqlList(aliases)
+    val source = selectResearchCandleSource(barMinutes)
+    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes)
+    val sql = """
+        SELECT symbol,
+               COUNT(*) AS bars,
+               COALESCE(AVG(volume), 0) AS avg_volume
+        FROM market_data
+        WHERE exchange IN ($aliasSql)
+          AND data_type = 'candle_${source.intervalLabel}'
           AND time >= NOW() - INTERVAL '${lookbackHours} hours'
         GROUP BY symbol
-        HAVING COUNT(*) >= $minBars
+        HAVING COUNT(*) >= $scaledMinBars
         ORDER BY bars DESC, avg_volume DESC, symbol ASC
         LIMIT $maxSymbols
     """.trimIndent()
@@ -687,6 +841,48 @@ fun discoverSymbols(aliases: List<String>, lookbackHours: Int, maxSymbols: Int, 
         }
     }
 
+    return discovered
+}
+
+fun discoverSymbols(
+    txBase: String,
+    exchange: String,
+    aliases: List<String>,
+    lookbackHours: Int,
+    maxSymbols: Int,
+    minBars: Int,
+    barMinutes: Int
+): List<String> {
+    val markets = fetchExchangeMarkets(txBase, exchange).map { it.symbol }
+    val discovered = if (markets.isNotEmpty()) {
+        val ranked = discoverSymbolsFromMarketCatalog(
+            aliases = aliases,
+            candidateSymbols = markets,
+            lookbackHours = lookbackHours,
+            maxSymbols = maxSymbols,
+            minBars = minBars,
+            barMinutes = barMinutes
+        )
+        println(
+            "Cross-sectional universe discovery exchange=$exchange source=market_catalog " +
+                "markets=${markets.size} discovered=${ranked.size}"
+        )
+        ranked
+    } else {
+        val ranked = discoverSymbolsByAggregate(
+            aliases = aliases,
+            lookbackHours = lookbackHours,
+            maxSymbols = maxSymbols,
+            minBars = minBars,
+            barMinutes = barMinutes
+        )
+        println(
+            "Cross-sectional universe discovery exchange=$exchange source=market_data_aggregate " +
+                "discovered=${ranked.size}"
+        )
+        ranked
+    }
+
     val universe = (listOf("BTC", "ETH") + discovered).distinct()
     return universe
 }
@@ -697,7 +893,7 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
     val symbolSql = sqlList(symbols)
     val preferredAlias = aliases.first()
     val bucketSeconds = max(barMinutes, 1) * 60
-    val bucketInterval = "${max(barMinutes, 1)} minutes"
+    val source = selectResearchCandleSource(barMinutes)
     val sql = """
         WITH candle_rows AS (
             SELECT
@@ -709,7 +905,7 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
                 time
             FROM market_data
             WHERE exchange IN ($aliasSql)
-              AND data_type = 'candle_1m'
+              AND data_type = 'candle_${source.intervalLabel}'
               AND time >= NOW() - INTERVAL '${lookbackHours} hours'
               AND symbol IN ($symbolSql)
         ),
@@ -720,6 +916,36 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
                 close,
                 SUM(volume) OVER (PARTITION BY symbol, bucket_time) AS volume
             FROM candle_rows
+            ORDER BY
+                symbol,
+                bucket_time,
+                CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END,
+                time DESC
+        ),
+        orderbook_rows AS (
+            SELECT
+                symbol,
+                to_timestamp(floor(extract(epoch from time) / $bucketSeconds) * $bucketSeconds) AS bucket_time,
+                COALESCE(spread_pct, 0) AS spread_pct,
+                COALESCE(bid_depth_10, 0) AS bid_depth_10,
+                COALESCE(ask_depth_10, 0) AS ask_depth_10,
+                COALESCE(NULLIF(mid_price, 0), 0) AS mid_price,
+                exchange,
+                time
+            FROM orderbook_data
+            WHERE exchange IN ($aliasSql)
+              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND symbol IN ($symbolSql)
+        ),
+        orderbook_snapshots AS (
+            SELECT DISTINCT ON (symbol, bucket_time)
+                symbol,
+                bucket_time,
+                spread_pct,
+                bid_depth_10,
+                ask_depth_10,
+                mid_price
+            FROM orderbook_rows
             ORDER BY
                 symbol,
                 bucket_time,
@@ -736,22 +962,9 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
             COALESCE(o.ask_depth_10, 0) AS ask_depth_10,
             COALESCE(NULLIF(o.mid_price, 0), c.close) AS mid_price
         FROM candles c
-        LEFT JOIN LATERAL (
-            SELECT
-                COALESCE(spread_pct, 0) AS spread_pct,
-                COALESCE(bid_depth_10, 0) AS bid_depth_10,
-                COALESCE(ask_depth_10, 0) AS ask_depth_10,
-                COALESCE(NULLIF(mid_price, 0), c.close) AS mid_price
-            FROM orderbook_data o
-            WHERE o.symbol = c.symbol
-              AND o.exchange IN ($aliasSql)
-              AND o.time >= c.bucket_time
-              AND o.time < c.bucket_time + INTERVAL '$bucketInterval'
-            ORDER BY
-                CASE WHEN o.exchange = '$preferredAlias' THEN 0 ELSE 1 END,
-                o.time DESC
-            LIMIT 1
-        ) o ON TRUE
+        LEFT JOIN orderbook_snapshots o
+          ON o.symbol = c.symbol
+         AND o.bucket_time = c.bucket_time
         ORDER BY c.bucket_time ASC, c.symbol ASC
     """.trimIndent()
 
@@ -2747,28 +2960,42 @@ fun researchDataKey(config: ResearchConfig): ResearchDataKey =
     )
 
 fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
-    val exchangeCatalog = fetchExchangeCatalog(config.txGatewayUrl)
+    val (exchangeCatalog, exchangeCatalogMs) = timedMillis {
+        fetchExchangeCatalog(config.txGatewayUrl)
+    }
     val exchangePlans = buildExchangePlans(exchangeCatalog, config)
 
-    val discoveredUniverse = exchangePlans.associate { plan ->
-        plan.exchange to discoverSymbols(
-            aliases = plan.marketAliases,
-            lookbackHours = config.lookbackHours,
-            maxSymbols = config.maxSymbols,
-            minBars = config.minBars
-        )
+    val (discoveredUniverse, discoveryMs) = timedMillis {
+        exchangePlans.associate { plan ->
+            plan.exchange to discoverSymbols(
+                txBase = config.txGatewayUrl,
+                exchange = plan.exchange,
+                aliases = plan.marketAliases,
+                lookbackHours = config.lookbackHours,
+                maxSymbols = config.maxSymbols,
+                minBars = config.minBars,
+                barMinutes = config.barMinutes
+            )
+        }
     }
 
-    val researchBars = exchangePlans.flatMap { plan ->
-        val symbols = discoveredUniverse[plan.exchange].orEmpty()
-        loadBars(
-            exchange = plan.exchange,
-            aliases = plan.marketAliases,
-            symbols = symbols,
-            lookbackHours = config.lookbackHours,
-            barMinutes = config.barMinutes
-        )
+    val (researchBars, loadBarsMs) = timedMillis {
+        exchangePlans.flatMap { plan ->
+            val symbols = discoveredUniverse[plan.exchange].orEmpty()
+            loadBars(
+                exchange = plan.exchange,
+                aliases = plan.marketAliases,
+                symbols = symbols,
+                lookbackHours = config.lookbackHours,
+                barMinutes = config.barMinutes
+            )
+        }
     }
+    val totalSymbols = discoveredUniverse.values.sumOf { it.size }
+    println(
+        "Cross-sectional data load exchangePlans=${exchangePlans.size} totalSymbols=$totalSymbols " +
+            "bars=${researchBars.size} catalogMs=$exchangeCatalogMs discoveryMs=$discoveryMs loadBarsMs=$loadBarsMs"
+    )
 
     return ResearchDataContext(
         key = researchDataKey(config),

@@ -130,6 +130,19 @@ private data class ExchangeCatalogResponse(
 )
 
 @Serializable
+private data class ExchangeMarketDescriptor(
+    val symbol: String,
+    val attributes: Map<String, String> = emptyMap()
+)
+
+@Serializable
+private data class ExchangeMarketsResponse(
+    val exchange: String,
+    val count: Int,
+    val markets: List<ExchangeMarketDescriptor>
+)
+
+@Serializable
 private data class ErrorResponse(
     val error: String
 )
@@ -847,6 +860,54 @@ fun Route.unifiedExchangeRoutes(
                         last = quote.last,
                         timestamp = quote.timestamp.toString(),
                         source = quote.source
+                    )
+                )
+            }
+
+            get("/{exchange}/markets") {
+                val exchange = call.parameters["exchange"]?.lowercase()
+                    ?: run {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing exchange"))
+                        return@get
+                    }
+                if (exchange !in knownExchanges) {
+                    call.respond(
+                        HttpStatusCode.NotFound,
+                        mapOf("error" to "Unsupported exchange: $exchange")
+                    )
+                    return@get
+                }
+                if (exchange !in marketDataIngressExchanges) {
+                    call.respond(
+                        HttpStatusCode.NotImplemented,
+                        ErrorResponse("Market catalog unavailable for exchange: $exchange")
+                    )
+                    return@get
+                }
+
+                val markets = runCatching {
+                    when (exchange) {
+                        "hyperliquid" -> workerClient.getHyperliquidMarkets()
+                        else -> emptyList()
+                    }
+                }.getOrElse { ex ->
+                    logger.warn("Failed to fetch market catalog for exchange={}", exchange, ex)
+                    call.respond(
+                        HttpStatusCode.BadGateway,
+                        ErrorResponse("Failed to fetch market catalog for exchange: $exchange")
+                    )
+                    return@get
+                }
+
+                val normalized = markets.mapNotNull(::normalizeExchangeMarketDescriptor)
+                    .sortedBy { it.symbol }
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    ExchangeMarketsResponse(
+                        exchange = exchange,
+                        count = normalized.size,
+                        markets = normalized
                     )
                 )
             }
@@ -2603,6 +2664,26 @@ private fun buildAdminWalletLinkFindings(
     }
     return findings.distinct()
 }
+
+private fun normalizeExchangeMarketDescriptor(raw: Map<String, Any?>): ExchangeMarketDescriptor? {
+    val symbol = raw["symbol"]?.toString()?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val attributes = raw.entries
+        .asSequence()
+        .filter { (key, value) -> key != "symbol" && value != null }
+        .map { (key, value) -> key to formatMarketAttributeValue(value) }
+        .filter { (_, value) -> value.isNotEmpty() }
+        .associate { it }
+    return ExchangeMarketDescriptor(symbol = symbol, attributes = attributes)
+}
+
+private fun formatMarketAttributeValue(value: Any?): String =
+    when (value) {
+        null -> ""
+        is String -> value.trim()
+        is Number -> BigDecimal(value.toString()).stripTrailingZeros().toPlainString()
+        is Boolean -> value.toString()
+        else -> dynamicJson.toJson(value)
+    }
 
 private data class AuthorizedTradingUser(
     val username: String,

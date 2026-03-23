@@ -45,6 +45,10 @@ CREATE INDEX IF NOT EXISTS idx_market_data_time ON market_data (time DESC);
 CREATE INDEX IF NOT EXISTS idx_market_data_symbol_time ON market_data (symbol, time DESC);
 CREATE INDEX IF NOT EXISTS idx_market_data_type_time ON market_data (data_type, time DESC);
 CREATE INDEX IF NOT EXISTS idx_market_data_symbol_type ON market_data (symbol, data_type, time DESC);
+CREATE INDEX IF NOT EXISTS idx_market_data_candle_exchange_type_time_symbol
+    ON market_data (exchange, data_type, time DESC, symbol)
+    INCLUDE (close, volume)
+    WHERE data_type LIKE 'candle_%';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_trade_unique
     ON market_data (time, symbol, exchange, data_type, trade_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_candle_unique
@@ -92,6 +96,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_orderbook_time_symbol_exchange_unique
 CREATE INDEX IF NOT EXISTS idx_orderbook_time ON orderbook_data (time DESC);
 CREATE INDEX IF NOT EXISTS idx_orderbook_symbol_time ON orderbook_data (symbol, time DESC);
 CREATE INDEX IF NOT EXISTS idx_orderbook_spread ON orderbook_data (symbol, spread_pct);
+CREATE INDEX IF NOT EXISTS idx_orderbook_data_symbol_exchange_time_covering
+    ON orderbook_data (symbol, exchange, time DESC)
+    INCLUDE (spread_pct, bid_depth_10, ask_depth_10, mid_price);
 
 -- =============================================================================
 -- STRATEGY & POSITION TRACKING TABLES

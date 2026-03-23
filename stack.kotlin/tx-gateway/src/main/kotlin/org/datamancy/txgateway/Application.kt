@@ -266,6 +266,7 @@ fun Application.configureApp(
                     "/api/v1/accounts/trading/homogeneity",
                     "/api/v1/exchanges",
                     "/api/v1/exchanges/best-quote?symbol=BTC&side=buy&executionMode=forward_paper",
+                    "/api/v1/exchanges/{exchange}/markets",
                     "/api/v1/exchanges/{exchange}/quote?symbol=BTC&executionMode=forward_paper",
                     "/api/v1/exchanges/{exchange}/order",
                     "/api/v1/hyperliquid/cancel/{orderId}",
