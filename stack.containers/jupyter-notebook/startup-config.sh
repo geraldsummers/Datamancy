@@ -1969,14 +1969,15 @@ data class ResearchConfig(
     val txAuthToken: String = env("TX_AUTH_TOKEN", ""),
     val marketExchange: String = env("DATAMANCY_CROSS_SECTIONAL_MARKET_EXCHANGE", "hyperliquid_mainnet"),
     val executionExchangeOverride: String = env("DATAMANCY_CROSS_SECTIONAL_EXECUTION_EXCHANGE", ""),
-    val lookbackHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_LOOKBACK_HOURS", 96),
-    val forwardHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_FORWARD_HOURS", 12),
-    val betaLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_BETA_LOOKBACK_BARS", 240),
-    val trendLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_LOOKBACK_BARS", 60),
-    val trendSlowBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_SLOW_BARS", 240),
-    val reversionLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_LOOKBACK_BARS", 60),
-    val trendHoldBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_HOLD_BARS", 45),
-    val reversionHoldBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_HOLD_BARS", 20),
+    val barMinutes: Int = envInt("DATAMANCY_CROSS_SECTIONAL_BAR_MINUTES", 60),
+    val lookbackHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_LOOKBACK_HOURS", 1080),
+    val forwardHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_FORWARD_HOURS", 72),
+    val betaLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_BETA_LOOKBACK_BARS", 168),
+    val trendLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_LOOKBACK_BARS", 24),
+    val trendSlowBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_SLOW_BARS", 96),
+    val reversionLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_LOOKBACK_BARS", 12),
+    val trendHoldBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_HOLD_BARS", 24),
+    val reversionHoldBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_HOLD_BARS", 8),
     val topPerSide: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TOP_PER_SIDE", 1),
     val notionalUsd: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_NOTIONAL_USD", 5000.0),
     val maxSymbols: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_SYMBOLS", 8),
@@ -1991,16 +1992,16 @@ data class ResearchConfig(
     val maxVolumeRatio: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_VOLUME_RATIO", 4.5),
     val maxVolRegime: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_VOL_REGIME", 2.35),
     val executionSafetyMarginBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_EXECUTION_SAFETY_MARGIN_BPS", 8.0),
-    val minExpectedNetEdgeBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_EXPECTED_NET_EDGE_BPS", 6.0),
+    val minExpectedNetEdgeBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_EXPECTED_NET_EDGE_BPS", 4.0),
     val trendMinFlowAlignment: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_MIN_FLOW_ALIGNMENT", 0.08),
     val reversionMaxContinuationPressure: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_MAX_CONTINUATION_PRESSURE", 0.18),
-    val calibrationLookbackHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_CALIBRATION_LOOKBACK_HOURS", 72),
-    val minCalibrationSamples: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_SAMPLES", 8),
-    val strongCalibrationSamples: Int = envInt("DATAMANCY_CROSS_SECTIONAL_STRONG_CALIBRATION_SAMPLES", 24),
-    val minCalibrationLowerBoundBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_LOWER_BOUND_BPS", 1.5),
+    val calibrationLookbackHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_CALIBRATION_LOOKBACK_HOURS", 720),
+    val minCalibrationSamples: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_SAMPLES", 4),
+    val strongCalibrationSamples: Int = envInt("DATAMANCY_CROSS_SECTIONAL_STRONG_CALIBRATION_SAMPLES", 12),
+    val minCalibrationLowerBoundBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_LOWER_BOUND_BPS", 0.5),
     val minCalibrationWinRate: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_WIN_RATE", 0.51),
-    val trendCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_COOLDOWN_BARS", 18),
-    val reversionCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_COOLDOWN_BARS", 10),
+    val trendCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_COOLDOWN_BARS", 8),
+    val reversionCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_COOLDOWN_BARS", 4),
     val persistBacktest: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_PERSIST_BACKTEST", true),
     val persistForward: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_PERSIST_FORWARD", true),
     val enablePaperOrders: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_ENABLE_PAPER_ORDERS", false),
@@ -2483,16 +2484,18 @@ fun discoverSymbols(aliases: List<String>, lookbackHours: Int, maxSymbols: Int, 
     return universe
 }
 
-fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, lookbackHours: Int): List<Bar> {
+fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, lookbackHours: Int, barMinutes: Int): List<Bar> {
     if (symbols.isEmpty()) return emptyList()
     val aliasSql = sqlList(aliases)
     val symbolSql = sqlList(symbols)
     val preferredAlias = aliases.first()
+    val bucketSeconds = max(barMinutes, 1) * 60
+    val bucketInterval = "${max(barMinutes, 1)} minutes"
     val sql = """
         WITH candle_rows AS (
             SELECT
                 symbol,
-                date_trunc('minute', time) AS bucket_time,
+                to_timestamp(floor(extract(epoch from time) / $bucketSeconds) * $bucketSeconds) AS bucket_time,
                 close,
                 COALESCE(volume, 0) AS volume,
                 exchange,
@@ -2508,7 +2511,7 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
                 symbol,
                 bucket_time,
                 close,
-                volume
+                SUM(volume) OVER (PARTITION BY symbol, bucket_time) AS volume
             FROM candle_rows
             ORDER BY
                 symbol,
@@ -2536,7 +2539,7 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
             WHERE o.symbol = c.symbol
               AND o.exchange IN ($aliasSql)
               AND o.time >= c.bucket_time
-              AND o.time < c.bucket_time + INTERVAL '1 minute'
+              AND o.time < c.bucket_time + INTERVAL '$bucketInterval'
             ORDER BY
                 CASE WHEN o.exchange = '$preferredAlias' THEN 0 ELSE 1 END,
                 o.time DESC
@@ -3756,6 +3759,7 @@ fun buildStrategySummaries(
             mapOf(
                 "exchange" to exchange,
                 "strategyKind" to strategyKind.name.lowercase(),
+                "bar_minutes" to researchConfig.barMinutes,
                 "avg_edge_after_cost_bps" to avgEdgeAfterCostBps.round(4),
                 "avg_expected_gross_edge_bps" to avgExpectedGrossEdgeBps.round(4),
                 "avg_expected_net_edge_bps" to avgExpectedNetEdgeBps.round(4),
@@ -4045,6 +4049,7 @@ fun persistForwardTelemetry(trades: List<TradeRecord>, baselines: Map<Triple<Str
                             mapOf(
                                 "source" to source,
                                 "strategyKind" to trade.strategyKind,
+                                "barMinutes" to researchConfig.barMinutes,
                                 "fillRatio" to trade.fillRatio.round(4),
                                 "betaBtc" to trade.betaBtc.round(4),
                                 "betaEth" to trade.betaEth.round(4),
@@ -4339,18 +4344,19 @@ val researchBars = exchangePlans.flatMap { plan ->
         exchange = plan.exchange,
         aliases = plan.marketAliases,
         symbols = symbols,
-        lookbackHours = researchConfig.lookbackHours
+        lookbackHours = researchConfig.lookbackHours,
+        barMinutes = researchConfig.barMinutes
     )
 }
 
-println("Loaded ${researchBars.size} bars")
+println("Loaded ${researchBars.size} ${researchConfig.barMinutes}m bars")
 
 val researchFeatureRows = engineerFeatures(researchBars, researchConfig)
-println("Engineered ${researchFeatureRows.size} feature rows")
+println("Engineered ${researchFeatureRows.size} ${researchConfig.barMinutes}m feature rows")
 
 val heuristicSignals = latestSignalSnapshots(researchFeatureRows, researchConfig)
 var latestSignals = heuristicSignals
-println("Latest beta estimates, flow state, and heuristic expected net edge")
+println("Latest beta estimates, flow state, and heuristic expected net edge on ${researchConfig.barMinutes}m bars")
 heuristicSignals
 '''
 
@@ -4377,15 +4383,15 @@ val backtestSummaries =
         strategyName = trendStrategyName,
         strategyKind = StrategyKind.TREND,
         trades = trendTrades,
-        timeframe = "candle_1m",
-        notes = "beta-adjusted cross-sectional trend with causal calibration gating"
+        timeframe = "candle_${researchConfig.barMinutes}m",
+        notes = "${researchConfig.barMinutes}m beta-adjusted cross-sectional trend with causal calibration gating"
     ) +
     buildStrategySummaries(
         strategyName = reversionStrategyName,
         strategyKind = StrategyKind.REVERSION,
         trades = reversionTrades,
-        timeframe = "candle_1m",
-        notes = "beta-adjusted cross-sectional mean reversion with causal calibration gating"
+        timeframe = "candle_${researchConfig.barMinutes}m",
+        notes = "${researchConfig.barMinutes}m beta-adjusted cross-sectional mean reversion with causal calibration gating"
     )
 
 if (researchConfig.persistBacktest && backtestSummaries.isNotEmpty()) {
@@ -4447,15 +4453,15 @@ if (forwardCutoff == null) {
             strategyName = trendStrategyName,
             strategyKind = StrategyKind.TREND,
             trades = calibrationTrendTrades,
-            timeframe = "candle_1m",
-            notes = "calibration slice with causal calibration gating"
+            timeframe = "candle_${researchConfig.barMinutes}m",
+            notes = "${researchConfig.barMinutes}m calibration slice with causal calibration gating"
         ) +
         buildStrategySummaries(
             strategyName = reversionStrategyName,
             strategyKind = StrategyKind.REVERSION,
             trades = calibrationReversionTrades,
-            timeframe = "candle_1m",
-            notes = "calibration slice with causal calibration gating"
+            timeframe = "candle_${researchConfig.barMinutes}m",
+            notes = "${researchConfig.barMinutes}m calibration slice with causal calibration gating"
         )
 
     val baselineMap = calibrationSummaries.associateBy { Triple(it.strategyName, it.exchange, it.symbol) }
@@ -4481,19 +4487,19 @@ if (forwardCutoff == null) {
             strategyName = trendStrategyName,
             strategyKind = StrategyKind.TREND,
             trades = forwardTrendTrades,
-            timeframe = "forward_1m",
-            notes = "forward slice with calibrated promotion gating"
+            timeframe = "forward_${researchConfig.barMinutes}m",
+            notes = "forward ${researchConfig.barMinutes}m slice with calibrated promotion gating"
         ) +
         buildStrategySummaries(
             strategyName = reversionStrategyName,
             strategyKind = StrategyKind.REVERSION,
             trades = forwardReversionTrades,
-            timeframe = "forward_1m",
-            notes = "forward slice with calibrated promotion gating"
+            timeframe = "forward_${researchConfig.barMinutes}m",
+            notes = "forward ${researchConfig.barMinutes}m slice with calibrated promotion gating"
         )
 
     latestSignals = latestSignalSnapshots(researchFeatureRows, researchConfig, forwardCalibrationState)
-    println("Latest beta estimates, flow state, and calibrated expected net edge")
+    println("Latest beta estimates, flow state, and calibrated expected net edge on ${researchConfig.barMinutes}m bars")
     latestSignals
 
     if (researchConfig.persistForward && forwardTrades.isNotEmpty()) {
@@ -4538,11 +4544,11 @@ write_kotlin_notebook(
             "This notebook gives one Kotlin-first research surface for:\n"
             "- exchange discovery via the tx-gateway catalog\n"
             "- BTC and ETH beta estimation per symbol\n"
-            "- beta-adjusted trend following inputs\n"
-            "- beta-adjusted mean reversion inputs\n"
+            "- beta-adjusted trend following inputs on configurable higher-timeframe bars\n"
+            "- beta-adjusted mean reversion inputs on configurable higher-timeframe bars\n"
             "- realistic backtest and forward-test persistence into Grafana-facing tables\n"
             "- optional tx-gateway paper orders\n\n"
-            "Today the exchange catalog resolves to Hyperliquid, but the notebook is written against the integrated exchange interface so the same workflow can absorb new venues as they are plugged into the stack."
+            "The default research posture is now slower swing-style trading on 60 minute bars, targeting roughly 8-72 hour holds. Override `DATAMANCY_CROSS_SECTIONAL_BAR_MINUTES` plus the hold/lookback env vars when you want to sweep 30m, 1h, or 4h research bars. Today the exchange catalog resolves to Hyperliquid, but the notebook is written against the integrated exchange interface so the same workflow can absorb new venues as they are plugged into the stack."
         ),
         code_cell(cross_sectional_kotlin_bootstrap),
         code_cell(cross_sectional_kotlin_engine),
