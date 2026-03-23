@@ -238,9 +238,11 @@ class MarketDataIngestionRunner {
                     activityTimeoutMs = hyperliquidChannelActivityTimeoutMs,
                     candleStaleMultiplier = hyperliquidCandleStaleMultiplier
                 )
-                repairRecentCandleHistory(continuityWatchdog)
 
                 coroutineScope {
+                    val candleRepairJob = launch {
+                        repairRecentCandleHistory(continuityWatchdog)
+                    }
                     val streamCollector = async {
                         source.fetch()
                             .onEach { data ->
@@ -270,6 +272,7 @@ class MarketDataIngestionRunner {
                         streamCollector.await()
                     } finally {
                         continuityMonitor.cancelAndJoin()
+                        candleRepairJob.cancelAndJoin()
                     }
                 }
 
