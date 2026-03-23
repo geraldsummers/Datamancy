@@ -76,6 +76,20 @@ class LdapService(
         return getSearchResultEntry(username)?.getAttributeValue("evmAddress")
     }
 
+    fun getEvmKeyRef(username: String): String? {
+        return getSearchResultEntry(username)
+            ?.getAttributeValue("evmKeyRef")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    fun getHyperliquidKeyRef(username: String): String? {
+        return getSearchResultEntry(username)
+            ?.getAttributeValue("hyperliquidKeyRef")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    }
+
     fun healthCheck() {
         val rootDSE = executeWithReconnect("LDAP health check") { it.rootDSE }
         require(rootDSE != null) { "LDAP connection not healthy" }

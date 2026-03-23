@@ -16,7 +16,8 @@ fun Route.hyperliquidRoutes(
     authService: AuthService,
     ldapService: LdapService,
     workerClient: WorkerClient,
-    dbService: DatabaseService
+    dbService: DatabaseService,
+    credentialResolver: CredentialResolver
 ) {
     route("/api/v1/hyperliquid") {
 
@@ -45,7 +46,7 @@ fun Route.hyperliquidRoutes(
                 return@post
             }
 
-            val hyperliquidKey = call.requireHyperliquidCredential() ?: return@post
+            val hyperliquidKey = call.requireHyperliquidCredential(credentialResolver, username) ?: return@post
 
             try {
                 val result = workerClient.cancelHyperliquidOrder(
@@ -63,7 +64,7 @@ fun Route.hyperliquidRoutes(
 
         post("/cancel-all") {
             val username = call.requireAuthenticatedUsername(authService) ?: return@post
-            val hyperliquidKey = call.requireHyperliquidCredential() ?: return@post
+            val hyperliquidKey = call.requireHyperliquidCredential(credentialResolver, username) ?: return@post
             val symbol = call.request.queryParameters["symbol"]?.trim()?.takeIf { it.isNotEmpty() }
 
             try {
@@ -81,7 +82,7 @@ fun Route.hyperliquidRoutes(
 
         get("/positions") {
             val username = call.requireAuthenticatedUsername(authService) ?: return@get
-            val hyperliquidKey = call.requireHyperliquidCredential() ?: return@get
+            val hyperliquidKey = call.requireHyperliquidCredential(credentialResolver, username) ?: return@get
 
             try {
                 val positions = workerClient.getHyperliquidPositions(username, hyperliquidKey)
@@ -94,7 +95,7 @@ fun Route.hyperliquidRoutes(
 
         get("/orders") {
             val username = call.requireAuthenticatedUsername(authService) ?: return@get
-            val hyperliquidKey = call.requireHyperliquidCredential() ?: return@get
+            val hyperliquidKey = call.requireHyperliquidCredential(credentialResolver, username) ?: return@get
             val symbol = call.request.queryParameters["symbol"]?.trim()?.takeIf { it.isNotEmpty() }
 
             try {
@@ -112,7 +113,7 @@ fun Route.hyperliquidRoutes(
 
         get("/balance") {
             val username = call.requireAuthenticatedUsername(authService) ?: return@get
-            val hyperliquidKey = call.requireHyperliquidCredential() ?: return@get
+            val hyperliquidKey = call.requireHyperliquidCredential(credentialResolver, username) ?: return@get
 
             try {
                 val balance = workerClient.getHyperliquidBalance(username, hyperliquidKey)
@@ -125,7 +126,7 @@ fun Route.hyperliquidRoutes(
 
         post("/close") {
             val username = call.requireAuthenticatedUsername(authService) ?: return@post
-            val hyperliquidKey = call.requireHyperliquidCredential() ?: return@post
+            val hyperliquidKey = call.requireHyperliquidCredential(credentialResolver, username) ?: return@post
             val body = runCatching { call.receive<Map<String, String?>>() }.getOrNull().orEmpty()
             val symbol = body["symbol"]?.trim()
             if (symbol.isNullOrBlank()) {
@@ -148,7 +149,7 @@ fun Route.hyperliquidRoutes(
 
         post("/close-all") {
             val username = call.requireAuthenticatedUsername(authService) ?: return@post
-            val hyperliquidKey = call.requireHyperliquidCredential() ?: return@post
+            val hyperliquidKey = call.requireHyperliquidCredential(credentialResolver, username) ?: return@post
             try {
                 val result = workerClient.closeAllHyperliquidPositions(
                     username = username,
@@ -183,10 +184,14 @@ private suspend fun RoutingCall.requireAuthenticatedUsername(authService: AuthSe
     return username
 }
 
-private suspend fun RoutingCall.requireHyperliquidCredential(): String? {
-    val hyperliquidKey = request.headers["X-Credential-hyperliquid"]
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
+private suspend fun RoutingCall.requireHyperliquidCredential(
+    credentialResolver: CredentialResolver,
+    username: String
+): String? {
+    val hyperliquidKey = credentialResolver.resolveHyperliquidCredential(
+        username = username,
+        providedCredential = request.headers["X-Credential-hyperliquid"]
+    )
     if (hyperliquidKey == null) {
         respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
         return null

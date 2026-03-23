@@ -1449,6 +1449,18 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
         ssoEmail: vaultwardenEmail,
         uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Send|Generator|Vaultwarden Web/i,
         postLogin: async (page) => {
+          const disableBreachCheck = async () => {
+            const breachCheck = page.getByRole('checkbox', { name: /check known data breaches/i }).first();
+            if (await breachCheck.isVisible().catch(() => false)) {
+              const isChecked = await breachCheck.isChecked().catch(() => false);
+              if (isChecked) {
+                await breachCheck.uncheck({ force: true }).catch(async () => {
+                  await breachCheck.click({ force: true }).catch(() => {});
+                });
+              }
+            }
+          };
+
           // Handle create account / master password setup after SSO
           const masterPassword = testUser.password;
           const newPasswordField = page.locator('#input-password-form_new-password');
@@ -1481,6 +1493,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               if (await confirmPasswordField.isVisible().catch(() => false)) {
                 await confirmPasswordField.fill(masterPassword);
               }
+              await disableBreachCheck();
               if (await createAccountButton.first().isVisible().catch(() => false)) {
                 await createAccountButton.first().click({ force: true });
               } else {
@@ -1516,6 +1529,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
                 await passwordFields.nth(1).fill(masterPassword);
               }
             }
+            await disableBreachCheck();
             const submitButton = page.getByRole('button', { name: /submit|save|continue|finish|join/i });
             if (await submitButton.first().isVisible().catch(() => false)) {
               await submitButton.first().click();
@@ -1601,6 +1615,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             if (await hintField.isVisible().catch(() => false)) {
               await hintField.fill(`${testUser.username}-vault`);
             }
+            await disableBreachCheck();
             if (await onboardingSubmitButton.isVisible().catch(() => false)) {
               await onboardingSubmitButton.click({ force: true }).catch(() => {});
             }

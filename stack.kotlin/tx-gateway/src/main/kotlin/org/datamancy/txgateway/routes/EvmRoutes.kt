@@ -19,7 +19,8 @@ fun Route.evmRoutes(
     authService: AuthService,
     ldapService: LdapService,
     workerClient: WorkerClient,
-    dbService: DatabaseService
+    dbService: DatabaseService,
+    credentialResolver: CredentialResolver
 ) {
     route("/api/v1/evm") {
 
@@ -78,7 +79,10 @@ fun Route.evmRoutes(
             }
 
             // Extract ephemeral EVM private key from headers
-            val evmKey = call.request.headers["X-Credential-evm"]
+            val evmKey = credentialResolver.resolveEvmCredential(
+                username = username,
+                providedCredential = call.request.headers["X-Credential-evm"]
+            )
             if (evmKey == null) {
                 call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing EVM credentials"))
                 return@post

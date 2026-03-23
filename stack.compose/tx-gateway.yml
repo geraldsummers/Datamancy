@@ -26,6 +26,7 @@ services:
       authelia:
         condition: service_healthy
     environment:
+      DATAMANCY_CREDENTIAL_STORE_FILE: /run/datamancy/credentials.env
       PORT: 8080
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -63,6 +64,8 @@ services:
       HYPERLIQUID_MAINNET_QUOTE_EXCHANGE: ${HYPERLIQUID_MAINNET_QUOTE_EXCHANGE:-hyperliquid_mainnet}
       HYPERLIQUID_QUOTE_EXCHANGE_ALLOW_CANONICAL_FALLBACK: ${HYPERLIQUID_QUOTE_EXCHANGE_ALLOW_CANONICAL_FALLBACK:-true}
       WORKER_SHARED_TOKEN: ${WORKER_SHARED_TOKEN}
+    volumes:
+      - ./.env:/run/datamancy/credentials.env:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health/db"]
       interval: 30s

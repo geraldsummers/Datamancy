@@ -15,6 +15,7 @@ import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import org.datamancy.txgateway.models.OrderRequest
 import org.datamancy.txgateway.services.AuthService
+import org.datamancy.txgateway.services.CredentialResolver
 import org.datamancy.txgateway.services.DatabaseService
 import org.datamancy.txgateway.services.LdapService
 import org.datamancy.txgateway.services.LatestQuote
@@ -389,7 +390,8 @@ fun Route.unifiedExchangeRoutes(
     requiredHyperliquidQuoteExchange: String? = resolveHyperliquidQuoteExchange(
         explicitExchange = System.getenv("HYPERLIQUID_QUOTE_EXCHANGE"),
         mainnetFlag = System.getenv("HYPERLIQUID_MAINNET")
-    )
+    ),
+    credentialResolver: CredentialResolver = CredentialResolver(ldapService = ldapService)
 ) {
     val riskEngine = RiskEngineService(dbService)
     route("/api/v1") {
@@ -1284,9 +1286,11 @@ fun Route.unifiedExchangeRoutes(
                     return@post
                 }
 
-                val hyperliquidKey = call.request.headers["X-Credential-hyperliquid"]
-                    ?.trim()
-                    ?.takeIf { it.isNotEmpty() }
+                val hyperliquidKey = credentialResolver.resolveHyperliquidCredential(
+                    username = username,
+                    providedCredential = call.request.headers["X-Credential-hyperliquid"],
+                    executionMode = executionMode
+                )
                 if (hyperliquidKey == null) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
                     return@post

@@ -9,6 +9,7 @@ import io.ktor.server.testing.*
 import io.mockk.mockk
 import io.mockk.verify
 import org.datamancy.txgateway.services.*
+import java.io.File
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -71,6 +72,15 @@ class ApplicationTest {
     )
 
     private fun freshQuoteTimestamp(): Instant = Instant.now().minusSeconds(5)
+
+    private fun credentialStore(vararg entries: Pair<String, String>): File {
+        val file = kotlin.io.path.createTempFile(prefix = "datamancy-credential-store-", suffix = ".env").toFile()
+        file.writeText(
+            entries.joinToString(separator = "\n", postfix = "\n") { (key, value) -> "$key=$value" }
+        )
+        file.deleteOnExit()
+        return file
+    }
 
     private fun riskPolicyRecord(
         username: String = "trader1",
@@ -161,7 +171,17 @@ class ApplicationTest {
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
             val dbService = quoteAwareDbService()
-            configureApp(authService, ldapService, workerClient, dbService)
+            configureApp(
+                authService,
+                ldapService,
+                workerClient,
+                dbService,
+                credentialResolver = CredentialResolver(
+                    ldapService = ldapService,
+                    envProvider = { null },
+                    credentialStoreFile = null
+                )
+            )
         }
 
         val response = client.get("/health")
@@ -177,7 +197,17 @@ class ApplicationTest {
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
             val dbService = quoteAwareDbService()
-            configureApp(authService, ldapService, workerClient, dbService)
+            configureApp(
+                authService,
+                ldapService,
+                workerClient,
+                dbService,
+                credentialResolver = CredentialResolver(
+                    ldapService = ldapService,
+                    envProvider = { null },
+                    credentialStoreFile = null
+                )
+            )
         }
 
         val response = client.get("/")
@@ -194,7 +224,17 @@ class ApplicationTest {
             val ldapService = mockk<LdapService>(relaxed = true)
             val workerClient = mockk<WorkerClient>(relaxed = true)
             val dbService = quoteAwareDbService()
-            configureApp(authService, ldapService, workerClient, dbService)
+            configureApp(
+                authService,
+                ldapService,
+                workerClient,
+                dbService,
+                credentialResolver = CredentialResolver(
+                    ldapService = ldapService,
+                    envProvider = { null },
+                    credentialStoreFile = null
+                )
+            )
         }
 
         val response = client.get("/api/v1/health")
@@ -1929,7 +1969,17 @@ class ApplicationTest {
                 source = "orderbook_data:canonical"
             )
 
-            configureApp(authService, ldapService, workerClient, dbService)
+            configureApp(
+                authService,
+                ldapService,
+                workerClient,
+                dbService,
+                credentialResolver = CredentialResolver(
+                    ldapService = ldapService,
+                    envProvider = { null },
+                    credentialStoreFile = null
+                )
+            )
         }
 
         val response = client.post("/api/v1/exchanges/hyperliquid/order") {
@@ -1943,6 +1993,70 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(body.contains("Missing Hyperliquid credentials"), body)
         verify(exactly = 0) { workerClient.submitHyperliquidOrder(any()) }
+    }
+
+    @Test
+    fun testLiveHyperliquidOrderResolvesCredentialFromLdapKeyRef() = testApplication {
+        lateinit var workerClient: WorkerClient
+        val store = credentialStore("TRADER1_HYPERLIQUID_TESTNET" to "ref-test-key")
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = quoteAwareDbService()
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo()
+            every { ldapService.getHyperliquidKeyRef("trader1") } returns "TRADER1_HYPERLIQUID_TESTNET"
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            stubAllowingRiskState(dbService, username = "trader1", openExposureUsd = "0")
+            every { workerClient.submitHyperliquidOrder(any()) } returns mapOf(
+                "orderId" to "live-1",
+                "status" to "FILLED",
+                "executedNotionalUsd" to "3210.55"
+            )
+            every { workerClient.getHyperliquidBalance("trader1", "ref-test-key") } returns mapOf(
+                "accountValue" to "12000.25"
+            )
+            every { workerClient.getHyperliquidPositions("trader1", "ref-test-key") } returns emptyList<Map<String, String>>()
+
+            configureApp(
+                authService,
+                ldapService,
+                workerClient,
+                dbService,
+                credentialResolver = CredentialResolver(
+                    ldapService = ldapService,
+                    envProvider = { null },
+                    credentialStoreFile = store
+                )
+            )
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.1","executionMode":"testnet_live"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        verify(exactly = 1) {
+            workerClient.submitHyperliquidOrder(match { payload ->
+                payload["hyperliquidKey"] == "ref-test-key"
+            })
+        }
+        verify(exactly = 1) { workerClient.getHyperliquidBalance("trader1", "ref-test-key") }
     }
 
     @Test
@@ -2271,6 +2385,90 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(body.contains("\"closed\":2") || body.contains("\"closed\": 2"), body)
         verify(exactly = 1) { workerClient.closeAllHyperliquidPositions("trader1", "test-key") }
+    }
+
+    @Test
+    fun testHyperliquidOrdersRouteResolvesCredentialFromLdapKeyRef() = testApplication {
+        lateinit var workerClient: WorkerClient
+        val store = credentialStore("TRADER1_HYPERLIQUID_TESTNET" to "ref-test-key")
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = quoteAwareDbService()
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getHyperliquidKeyRef("trader1") } returns "TRADER1_HYPERLIQUID_TESTNET"
+            every { workerClient.getHyperliquidOrders("trader1", "ref-test-key", "BTC") } returns listOf(
+                mapOf("orderId" to "1", "symbol" to "BTC")
+            )
+
+            configureApp(
+                authService,
+                ldapService,
+                workerClient,
+                dbService,
+                credentialResolver = CredentialResolver(
+                    ldapService = ldapService,
+                    envProvider = { null },
+                    credentialStoreFile = store
+                )
+            )
+        }
+
+        val response = client.get("/api/v1/hyperliquid/orders?symbol=BTC") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        verify(exactly = 1) { workerClient.getHyperliquidOrders("trader1", "ref-test-key", "BTC") }
+    }
+
+    @Test
+    fun testEvmTransferResolvesCredentialFromLdapKeyRef() = testApplication {
+        lateinit var workerClient: WorkerClient
+        val store = credentialStore("TRADER1_EVM_KEY" to "evm-ref-key")
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            val dbService = quoteAwareDbService()
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo()
+            every { ldapService.getEvmKeyRef("trader1") } returns "TRADER1_EVM_KEY"
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { workerClient.submitEvmTransfer(any()) } returns mapOf("status" to "submitted")
+
+            configureApp(
+                authService,
+                ldapService,
+                workerClient,
+                dbService,
+                credentialResolver = CredentialResolver(
+                    ldapService = ldapService,
+                    envProvider = { null },
+                    credentialStoreFile = store
+                )
+            )
+        }
+
+        val response = client.post("/api/v1/evm/transfer") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"toAddress":"0x1234567890123456789012345678901234567890","amount":"1.0","token":"USDC","chain":"base"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        verify(exactly = 1) {
+            workerClient.submitEvmTransfer(match { payload ->
+                payload["evmPrivateKey"] == "evm-ref-key"
+            })
+        }
     }
 
     @Test
