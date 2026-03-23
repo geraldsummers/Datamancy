@@ -7,6 +7,9 @@ ADMIN_PW="${LDAP_ADMIN_PASSWORD:?}"
 STACK_ADMIN_USER="${STACK_ADMIN_USER:-}"
 STACK_ADMIN_EMAIL="${STACK_ADMIN_EMAIL:-}"
 STACK_ADMIN_PASSWORD="${STACK_ADMIN_PASSWORD:-}"
+MAIL_DOMAIN="${MAIL_DOMAIN:-datamancy.net}"
+VAULTWARDEN_SMTP_PASSWORD="${VAULTWARDEN_SMTP_PASSWORD:-}"
+SEAFILE_EMAIL_PASSWORD="${SEAFILE_EMAIL_PASSWORD:-}"
 LDAP_DEFAULT_ALLOWED_CHAINS="${LDAP_DEFAULT_ALLOWED_CHAINS:-base,arbitrum,optimism}"
 LDAP_DEFAULT_ALLOWED_EXCHANGES="${LDAP_DEFAULT_ALLOWED_EXCHANGES:-swyftx,binance,bybit,coinbase,dydx,hyperliquid,aster}"
 LDAP_DEFAULT_ALLOWED_TRADING_MODES="${LDAP_DEFAULT_ALLOWED_TRADING_MODES:-backtest,forward_paper,testnet_live}"
@@ -289,6 +292,72 @@ ensure_group_membership() {
   ensure_group_contains_member "$GROUP_NAME" "$STACK_ADMIN_DN"
 }
 
+ensure_service_mail_user() {
+  USERNAME="$1"
+  DISPLAY_NAME="$2"
+  EMAIL="$3"
+  PASSWORD="$4"
+
+  if [ -z "$EMAIL" ] || [ -z "$PASSWORD" ]; then
+    echo "[ldap-ensure] Skipping mail service user ${USERNAME}; email or password is empty"
+    return 0
+  fi
+
+  USER_DN="uid=${USERNAME},ou=users,${LDAP_BASE_DN}"
+  SAFE_ID="$(safe_file_id "$USERNAME")"
+  PASSWORD_VALUE="$PASSWORD"
+  if command -v slappasswd >/dev/null 2>&1; then
+    PASSWORD_VALUE="$(slappasswd -s "$PASSWORD")"
+  fi
+
+  if entry_exists "$USER_DN"; then
+    echo "[ldap-ensure] Synchronizing mail service user: $USERNAME"
+    cat <<EOF >/tmp/${SAFE_ID}_mail_service_modify.ldif
+dn: ${USER_DN}
+changetype: modify
+replace: mail
+mail: ${EMAIL}
+-
+replace: cn
+cn: ${DISPLAY_NAME}
+-
+replace: sn
+sn: Service
+-
+replace: givenName
+givenName: ${DISPLAY_NAME}
+-
+replace: displayName
+displayName: ${DISPLAY_NAME}
+-
+replace: userPassword
+userPassword: ${PASSWORD_VALUE}
+EOF
+    run_ldap_cmd "mail service user sync ${USERNAME}" \
+      ldapmodify -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_mail_service_modify.ldif
+  else
+    echo "[ldap-ensure] Creating mail service user: $USERNAME"
+    cat <<EOF >/tmp/${SAFE_ID}_mail_service_add.ldif
+dn: ${USER_DN}
+objectClass: inetOrgPerson
+uid: ${USERNAME}
+cn: ${DISPLAY_NAME}
+sn: Service
+givenName: ${DISPLAY_NAME}
+mail: ${EMAIL}
+displayName: ${DISPLAY_NAME}
+userPassword: ${PASSWORD_VALUE}
+EOF
+    run_ldap_cmd "mail service user create ${USERNAME}" \
+      ldapadd -x -H ldap://ldap:389 -D "$ADMIN_DN" -w "$ADMIN_PW" -f /tmp/${SAFE_ID}_mail_service_add.ldif
+  fi
+
+  ensure_group_lacks_member "users" "$USER_DN"
+  ensure_group_lacks_member "admins" "$USER_DN"
+  ensure_group_lacks_member "openwebui-admin" "$USER_DN"
+  ensure_group_lacks_member "planka-admin" "$USER_DN"
+}
+
 if [ -z "$STACK_ADMIN_USER" ] || [ -z "$STACK_ADMIN_PASSWORD" ]; then
   echo "[ldap-ensure] STACK_ADMIN_* variables not set; skipping stack admin sync"
 else
@@ -339,6 +408,10 @@ EOF
   ensure_group_membership "planka-admin"
   ensure_user_trading_profile "$STACK_ADMIN_USER"
 fi
+
+echo "[ldap-ensure] Ensuring mail service identities"
+ensure_service_mail_user "vaultwarden-smtp" "Vaultwarden SMTP" "vaultwarden@${MAIL_DOMAIN}" "$VAULTWARDEN_SMTP_PASSWORD"
+ensure_service_mail_user "seafile-smtp" "Seafile SMTP" "seafile@${MAIL_DOMAIN}" "$SEAFILE_EMAIL_PASSWORD"
 
 echo "[ldap-ensure] Ensuring managed trading profiles"
 sanitize_csv_to_lines "$LDAP_MANAGED_TRADING_USERS" | while IFS= read -r managed_user; do

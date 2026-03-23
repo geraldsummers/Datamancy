@@ -1868,6 +1868,7 @@ fun processConfigTemplates(
                 .replace("{{STACK_ADMIN_USER}}", sanitized.adminUser)
                 .replace("{{VAULTWARDEN_ORG_NAME}}", sanitized.vaultwardenOrgName)
                 .replace("{{VAULTWARDEN_ORG_IDENTIFIER}}", sanitized.vaultwardenOrgIdentifier)
+                .replace("{{VAULTWARDEN_ORG_ID}}", sanitized.vaultwardenOrgId)
                 .replace("{{GENERATION_TIMESTAMP}}", Instant.now().toString())
                 .replace("{{LDAP_DEFAULT_ALLOWED_CHAINS_LDIF}}", csvToLdifValues("allowedChains", ldapDefaultAllowedChains))
                 .replace("{{LDAP_DEFAULT_ALLOWED_EXCHANGES_LDIF}}", csvToLdifValues("allowedExchanges", ldapDefaultAllowedExchanges))
