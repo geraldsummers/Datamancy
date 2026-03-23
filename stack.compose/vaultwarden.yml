@@ -49,11 +49,13 @@ services:
       SMTP_SECURITY: starttls
       SMTP_USERNAME: vaultwarden@${MAIL_DOMAIN}
       SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD}
-      SSL_CERT_FILE: /certs/pki/authorities/local/root.crt
+      SSL_CERT_FILE: /ca/caddy-ca.crt
+      CURL_CA_BUNDLE: /ca/caddy-ca.crt
       ROCKET_TLS_INSECURE_SKIP_VERIFICATION: ${VAULTWARDEN_TLS_INSECURE_SKIP_VERIFY:-false}
     volumes:
       - vaultwarden_data:/data
       - caddy_certs:/certs:ro
+      - caddy_ca:/ca:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/alive || exit 1"]
       interval: 60s

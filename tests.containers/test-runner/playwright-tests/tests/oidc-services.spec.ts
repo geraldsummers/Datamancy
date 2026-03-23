@@ -1434,6 +1434,8 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
 
   test('Vaultwarden - OIDC login flow', async ({ page }) => {
     const vaultwardenEmail = process.env.STACK_ADMIN_EMAIL || testUser.email || 'admin@datamancy.net';
+    const vaultwardenMasterPassword = process.env.VAULTWARDEN_TEST_MASTER_PASSWORD
+      || `${(testUser.username || 'sysadmin').replace(/[^A-Za-z0-9]/g, '') || 'sysadmin'}Vault!2026`;
     await testOIDCService(
       page,
       'Vaultwarden',
@@ -1449,6 +1451,42 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
         ssoEmail: vaultwardenEmail,
         uiPatternOverride: /My Vault|Vaults|Folders|Items|Search vault|Send|Generator|Vaultwarden Web/i,
         postLogin: async (page) => {
+          const fillVaultwardenInput = async (field: Locator, value: string) => {
+            if (!(await field.isVisible().catch(() => false))) {
+              return false;
+            }
+            await field.scrollIntoViewIfNeeded().catch(() => {});
+            await field.click({ force: true }).catch(() => {});
+            await field.fill(value, { force: true }).catch(() => {});
+            await field.evaluate((el, nextValue) => {
+              const input = el as HTMLInputElement | HTMLTextAreaElement;
+              input.focus();
+              input.value = nextValue;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              input.blur();
+            }, value).catch(() => {});
+            await expect(field).toHaveValue(value, { timeout: 5000 }).catch(() => {});
+            return true;
+          };
+
+          const collectVaultwardenValidationErrors = async () => {
+            const texts = await page.locator('[role="alert"], .text-danger, .error').allTextContents().catch(() => []);
+            return texts.map((entry) => entry.trim()).filter(Boolean).join(' | ');
+          };
+
+          const waitForVaultwardenOnboardingReady = async () => {
+            await page.waitForFunction(() => {
+              const password = document.querySelector('#input-password-form_new-password') as HTMLInputElement | null;
+              const confirm = document.querySelector('#input-password-form_new-password-confirm') as HTMLInputElement | null;
+              const submit = document.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+              const isUsable = (element: HTMLInputElement | HTMLButtonElement) =>
+                !element.disabled && element.getAttribute('aria-disabled') !== 'true';
+              return !!password && !!confirm && !!submit && isUsable(password) && isUsable(confirm) && isUsable(submit);
+            }, { timeout: 15000 }).catch(() => {});
+            await page.waitForTimeout(500);
+          };
+
           const disableBreachCheck = async () => {
             const breachCheck = page.getByRole('checkbox', { name: /check known data breaches/i }).first();
             if (await breachCheck.isVisible().catch(() => false)) {
@@ -1462,56 +1500,84 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
           };
 
           // Handle create account / master password setup after SSO
-          const masterPassword = testUser.password;
+          const masterPassword = vaultwardenMasterPassword;
           const newPasswordField = page.locator('#input-password-form_new-password');
           const confirmNewPasswordField = page.locator('#input-password-form_new-password-confirm');
+          const hintField = page.locator('#input-password-form_new-password-hint').first();
           const masterPasswordField = page.getByLabel(/master password/i).or(
             page.locator('input[type="password"]').first()
           );
           const confirmPasswordField = page.getByLabel(/confirm master password/i).or(
             page.locator('input[type="password"]').nth(1)
           );
+          const joinHeader = page.locator('h1', { hasText: /join organization/i });
+
+          const populateVaultwardenOnboarding = async () => {
+            await waitForVaultwardenOnboardingReady();
+            let populated = false;
+            populated = (await fillVaultwardenInput(newPasswordField, masterPassword)) || populated;
+            populated = (await fillVaultwardenInput(confirmNewPasswordField, masterPassword)) || populated;
+            populated = (await fillVaultwardenInput(masterPasswordField, masterPassword)) || populated;
+            populated = (await fillVaultwardenInput(confirmPasswordField, masterPassword)) || populated;
+            if (await hintField.isVisible().catch(() => false)) {
+              populated = (await fillVaultwardenInput(
+                hintField,
+                `${(testUser.username || 'vaultwarden').replace(/[^A-Za-z0-9]/g, '') || 'vaultwarden'}-vault`
+              )) || populated;
+            }
+            await disableBreachCheck();
+            return populated;
+          };
+
+          const submitVaultwardenOnboarding = async () => {
+            const submitButton = page.getByRole('button', {
+              name: /create account|save|continue|submit|finish|join/i,
+            }).first();
+            if (await submitButton.isVisible().catch(() => false)) {
+              await submitButton.scrollIntoViewIfNeeded().catch(() => {});
+              await submitButton.click({ force: true }).catch(() => {});
+            }
+            const fallbackSubmit = page.locator('button[type="submit"]').first();
+            if (await fallbackSubmit.isVisible().catch(() => false)) {
+              await fallbackSubmit.click({ force: true }).catch(() => {});
+            }
+            if (await confirmNewPasswordField.isVisible().catch(() => false)) {
+              await confirmNewPasswordField.press('Enter').catch(() => {});
+            } else if (await masterPasswordField.isVisible().catch(() => false)) {
+              await masterPasswordField.press('Enter').catch(() => {});
+            }
+            const onboardingForm = page.locator('form').first();
+            if (await onboardingForm.isVisible().catch(() => false)) {
+              await onboardingForm.evaluate((el) => {
+                const form = el as HTMLFormElement;
+                if (typeof form.requestSubmit === 'function') {
+                  form.requestSubmit();
+                } else {
+                  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                }
+              }).catch(() => {});
+            }
+            await page.waitForTimeout(1500);
+          };
 
           for (let i = 0; i < 5; i++) {
             const onSetup = /#\/set-initial-password\b/i.test(page.url());
-            const createAccountButton = page.getByRole('button', { name: /create account|save|continue|submit/i });
+            const onJoinOrganization = await joinHeader.first().isVisible().catch(() => false);
             const hasPasswordField = await masterPasswordField.isVisible().catch(() => false);
-            if (onSetup || hasPasswordField) {
-              if (onSetup) {
-                await newPasswordField.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
-                await confirmNewPasswordField.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+            if (onSetup || onJoinOrganization || hasPasswordField) {
+              const populated = await populateVaultwardenOnboarding();
+              if (populated) {
+                await submitVaultwardenOnboarding();
               }
-              if (await newPasswordField.isVisible().catch(() => false)) {
-                await newPasswordField.fill(masterPassword);
+              const onboardingCompleted = await page.waitForFunction(() => {
+                const currentUrl = window.location.href;
+                const text = document.body?.innerText || '';
+                return !/#\/set-initial-password\b/i.test(currentUrl)
+                  || /My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i.test(text);
+              }, undefined, { timeout: 5000 }).then(() => true).catch(() => false);
+              if (onboardingCompleted) {
+                break;
               }
-              if (await confirmNewPasswordField.isVisible().catch(() => false)) {
-                await confirmNewPasswordField.fill(masterPassword);
-              }
-              if (await masterPasswordField.isVisible().catch(() => false)) {
-                await masterPasswordField.fill(masterPassword);
-              }
-              if (await confirmPasswordField.isVisible().catch(() => false)) {
-                await confirmPasswordField.fill(masterPassword);
-              }
-              await disableBreachCheck();
-              if (await createAccountButton.first().isVisible().catch(() => false)) {
-                await createAccountButton.first().click({ force: true });
-              } else {
-                const fallbackSubmit = page.locator('button[type="submit"]').first();
-                if (await fallbackSubmit.isVisible().catch(() => false)) {
-                  await fallbackSubmit.click({ force: true });
-                }
-              }
-              const form = page.locator('form').first();
-              if (await form.isVisible().catch(() => false)) {
-                await form.evaluate((el) => {
-                  const maybeSubmit = (el as { requestSubmit?: () => void } | null)?.requestSubmit;
-                  if (typeof maybeSubmit === 'function') {
-                    maybeSubmit.call(el);
-                  }
-                }).catch(() => {});
-              }
-              await page.waitForTimeout(2000);
             }
             if (!/#\/(sso|set-initial-password)\b/i.test(page.url())) {
               break;
@@ -1519,27 +1585,11 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             await page.waitForTimeout(1000);
           }
 
-          const joinHeader = page.locator('h1', { hasText: /join organization/i });
           if (await joinHeader.first().isVisible().catch(() => false)) {
-            const passwordFields = page.locator('input[type="password"]');
-            const masterPassword = testUser.password;
-            if (await passwordFields.first().isVisible().catch(() => false)) {
-              await passwordFields.nth(0).fill(masterPassword);
-              if (await passwordFields.nth(1).isVisible().catch(() => false)) {
-                await passwordFields.nth(1).fill(masterPassword);
-              }
+            const populated = await populateVaultwardenOnboarding();
+            if (populated) {
+              await submitVaultwardenOnboarding();
             }
-            await disableBreachCheck();
-            const submitButton = page.getByRole('button', { name: /submit|save|continue|finish|join/i });
-            if (await submitButton.first().isVisible().catch(() => false)) {
-              await submitButton.first().click();
-            } else {
-              const fallbackSubmit = page.locator('button[type="submit"]').first();
-              if (await fallbackSubmit.isVisible().catch(() => false)) {
-                await fallbackSubmit.click();
-              }
-            }
-            await page.waitForTimeout(2000);
           }
 
           await page.waitForURL((url) => !/#\/sso\b/i.test(url.toString()), { timeout: 20000 }).catch(() => {});
@@ -1605,28 +1655,9 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             name: /create account|save|continue|submit|finish|join/i,
           }).first();
           if (/#\/set-initial-password\b/i.test(page.url()) || await onboardingSubmitButton.isVisible().catch(() => false)) {
-            if (await newPasswordField.isVisible().catch(() => false)) {
-              await newPasswordField.fill(masterPassword);
-            }
-            if (await confirmNewPasswordField.isVisible().catch(() => false)) {
-              await confirmNewPasswordField.fill(masterPassword);
-            }
-            const hintField = page.locator('#input-password-form_new-password-hint').first();
-            if (await hintField.isVisible().catch(() => false)) {
-              await hintField.fill(`${testUser.username}-vault`);
-            }
-            await disableBreachCheck();
-            if (await onboardingSubmitButton.isVisible().catch(() => false)) {
-              await onboardingSubmitButton.click({ force: true }).catch(() => {});
-            }
-            const onboardingForm = page.locator('form').first();
-            if (await onboardingForm.isVisible().catch(() => false)) {
-              await onboardingForm.evaluate((el) => {
-                const maybeSubmit = (el as { requestSubmit?: () => void } | null)?.requestSubmit;
-                if (typeof maybeSubmit === 'function') {
-                  maybeSubmit.call(el);
-                }
-              }).catch(() => {});
+            const populated = await populateVaultwardenOnboarding();
+            if (populated) {
+              await submitVaultwardenOnboarding();
             }
 
             const onboardingCompleted = await page.waitForFunction(() => {
@@ -1638,8 +1669,9 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
 
             if (!onboardingCompleted) {
               const onboardingBody = (await page.textContent('body').catch(() => '')) || '';
+              const validationErrors = await collectVaultwardenValidationErrors();
               throw new Error(
-                `Vaultwarden remained on onboarding after account creation submit. URL=${page.url()}, bodySnippet=${onboardingBody.slice(0, 300)}`
+                `Vaultwarden remained on onboarding after account creation submit. URL=${page.url()}, validationErrors=${validationErrors || 'none'}, bodySnippet=${onboardingBody.slice(0, 300)}`
               );
             }
           }
