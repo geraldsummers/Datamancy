@@ -105,7 +105,9 @@ The Jupyter container seeds practical trading research notebooks in `/home/jovya
 - `12_walk_forward_backtests_with_regime_slices.ipynb`
 - `13_sensitivity_sweeps_fees_slippage_latency.ipynb`
 - `14_live_vs_backtest_drift_dashboard.ipynb`
-- `15_forward_test_mainnet_data.ipynb` (forward-test harness against live/mainnet market data with paper-execution realism and optional persistence into execution/drift telemetry tables)
+- `15_forward_test_mainnet_data.ipynb` (exploratory forward-test harness against live/mainnet market data with paper-execution realism and optional persistence into execution/drift telemetry tables)
+- `16_strict_alpha_backtest_proof.ipynb` (canonical walk-forward backtest proof surface for `scripts/trading/alpha_proof.py`)
+- `17_strict_forward_alpha_proof.ipynb` (canonical forward-paper proof surface for `scripts/trading/forward_alpha_proof.py`)
 
 Notebook persistence defaults are conservative (`persist_* = False` in several notebooks).
 Enable persistence flags when you want notebooks to feed Grafana-facing strategy tables:
@@ -371,6 +373,8 @@ When the notebook image starts, Datamancy now seeds:
 - `~/work/datamancy-notebooks/13_sensitivity_sweeps_fees_slippage_latency.ipynb`
 - `~/work/datamancy-notebooks/14_live_vs_backtest_drift_dashboard.ipynb`
 - `~/work/datamancy-notebooks/15_forward_test_mainnet_data.ipynb`
+- `~/work/datamancy-notebooks/16_strict_alpha_backtest_proof.ipynb`
+- `~/work/datamancy-notebooks/17_strict_forward_alpha_proof.ipynb`
 
 These notebooks are wired to the stack Postgres database (`datamancy`) and include:
 

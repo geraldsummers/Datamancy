@@ -330,6 +330,125 @@ def summarize_forward(
     }
 
 
+def normalize_timestamp(value) -> pd.Timestamp:
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is None:
+        return ts.tz_localize("UTC")
+    return ts.tz_convert("UTC")
+
+
+def persist_forward_summary(
+    conn,
+    strategy_name: str,
+    symbol: str,
+    execution_exchange: str,
+    family: str,
+    fixed_param_label: str,
+    market_data_exchange: str,
+    calibration_hours: int,
+    forward_hours: int,
+    baseline_backtest_edge_bps: float | None,
+    summary: dict,
+    trades_persisted: bool,
+) -> None:
+    observed_at_raw = summary.get("forward_end")
+    if observed_at_raw is None:
+        observed_at_raw = (summary.get("contiguity") or {}).get("latest_segment_end")
+    if observed_at_raw is None:
+        observed_at_raw = pd.Timestamp.now(tz="UTC")
+
+    observed_at = normalize_timestamp(observed_at_raw)
+    if trades_persisted:
+        observed_at = observed_at + pd.Timedelta(microseconds=1)
+
+    live_edge_bps = summary.get("avg_edge_after_cost_bps")
+    if live_edge_bps is not None:
+        live_edge_bps = float(live_edge_bps)
+
+    drift_score = None
+    if baseline_backtest_edge_bps is not None:
+        comparison_edge = live_edge_bps if live_edge_bps is not None else 0.0
+        drift_score = max(0.0, baseline_backtest_edge_bps - comparison_edge)
+
+    metadata_json = json.dumps(
+        {
+            "source": "forward-alpha-proof",
+            "recordType": "summary",
+            "family": family,
+            "fixed_param_label": fixed_param_label,
+            "marketDataMode": "mainnet_live",
+            "executionMode": "forward_paper",
+            "marketDataExchange": market_data_exchange,
+            "executionExchange": execution_exchange,
+            "calibrationHours": calibration_hours,
+            "forwardHours": forward_hours,
+            "status": summary.get("status"),
+            "reasons": summary.get("reasons", []),
+            "bars": summary.get("bars"),
+            "requiredBars": summary.get("required_bars"),
+            "calibrationBars": summary.get("calibration_bars"),
+            "forwardStart": summary.get("forward_start"),
+            "forwardEnd": summary.get("forward_end"),
+            "trades": summary.get("trades"),
+            "positiveTrades": summary.get("positive_trades"),
+            "netReturnPct": summary.get("net_return_pct"),
+            "maxDrawdownPct": summary.get("max_drawdown_pct"),
+            "sharpe": summary.get("sharpe"),
+            "avgTotalCostBps": summary.get("avg_total_cost_bps"),
+            "avgEdgeAfterCostBps": summary.get("avg_edge_after_cost_bps"),
+            "avgFillRatio": summary.get("avg_fill_ratio"),
+            "avgSubmitToFillMs": summary.get("avg_submit_to_fill_ms"),
+            "baselineBacktestEdgeBps": baseline_backtest_edge_bps,
+            "edgeDeltaVsBacktestBps": summary.get("edge_delta_vs_backtest_bps"),
+            "latestBarAgeMinutes": summary.get("latest_bar_age_minutes"),
+            "contiguity": summary.get("contiguity"),
+            "fitState": summary.get("fit_state"),
+            "tradesPersisted": trades_persisted,
+        },
+        default=_json_default,
+    )
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM strategy_live_backtest_drift
+            WHERE strategy_name = %s
+              AND symbol = %s
+              AND metadata ->> 'source' = 'forward-alpha-proof'
+              AND COALESCE(metadata ->> 'recordType', '') = 'summary'
+            """,
+            (strategy_name, symbol),
+        )
+        cur.execute(
+            """
+            INSERT INTO strategy_live_backtest_drift (
+                observed_at, strategy_name, symbol,
+                live_edge_bps, backtest_edge_bps,
+                fill_quality_delta_bps, slippage_drift_bps,
+                latency_drift_ms, drift_score, metadata
+            ) VALUES (
+                %s, %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s, CAST(%s AS jsonb)
+            )
+            """,
+            (
+                observed_at.to_pydatetime(),
+                strategy_name,
+                symbol,
+                live_edge_bps,
+                baseline_backtest_edge_bps,
+                None,
+                None,
+                None,
+                drift_score,
+                metadata_json,
+            ),
+        )
+    conn.commit()
+
+
 def persist_forward_records(
     conn,
     strategy_name: str,
@@ -396,6 +515,7 @@ def persist_forward_records(
                     "executionExchange": execution_exchange,
                     "calibrationHours": calibration_hours,
                     "forwardHours": forward_hours,
+                    "recordType": "trade",
                     "tradeIndex": index,
                     "entryTime": trade["observed_at"],
                     "exitTime": trade["exit_time"],
@@ -541,41 +661,82 @@ def run_symbol(
 ) -> dict:
     raw = load_market_frame(conn, exchange_aliases=exchange_aliases, symbol=symbol, lookback=args.lookback, use_trade_flow=args.use_trade_flow)
     frame = engineer_features(raw)
+    strategy_name = args.strategy_name or f"{args.strategy_prefix}_{symbol.lower()}"
+    validate_strategy_name_family(
+        strategy_name=strategy_name,
+        family=args.family,
+        allow_mismatch=args.allow_strategy_name_mismatch,
+    )
+    baseline_backtest_edge_bps = load_baseline_backtest_edge(conn, strategy_name=strategy_name, symbol=symbol)
     segments, contiguity = split_contiguous_segments(frame, max_gap_minutes=args.max_gap_minutes)
     latest_bar_age_minutes = timestamp_age_minutes(frame.iloc[-1]["time"]) if not frame.empty else None
     required_bars = (args.calibration_hours + args.forward_hours) * 60
-    if len(frame) < required_bars:
-        return {
+
+    def finalize_early(status: str, reasons: list[str], **extra) -> dict:
+        summary = {
+            "strategy_name": strategy_name,
             "symbol": symbol,
-            "status": "insufficient_data",
-            "bars": int(len(frame)),
-            "required_bars": required_bars,
-            "latest_bar_age_minutes": latest_bar_age_minutes,
-            "contiguity": contiguity,
+            "family": args.family,
+            "fixed_param_label": args.fixed_param_label,
+            "status": status,
+            "reasons": reasons,
+            "baseline_backtest_edge_bps": baseline_backtest_edge_bps,
+            "edge_delta_vs_backtest_bps": None,
+            "persisted_trade_rows": 0,
+            **extra,
         }
+        if args.persist:
+            persist_forward_summary(
+                conn=conn,
+                strategy_name=strategy_name,
+                symbol=symbol,
+                execution_exchange=execution_exchange,
+                family=args.family,
+                fixed_param_label=args.fixed_param_label,
+                market_data_exchange=args.exchange,
+                calibration_hours=args.calibration_hours,
+                forward_hours=args.forward_hours,
+                baseline_backtest_edge_bps=baseline_backtest_edge_bps,
+                summary=summary,
+                trades_persisted=False,
+            )
+            summary["persisted_summary_row"] = True
+        else:
+            summary["persisted_summary_row"] = False
+        return summary
+
+    if len(frame) < required_bars:
+        return finalize_early(
+            "insufficient_data",
+            reasons=["fewer than required recent bars in lookback window"],
+            bars=int(len(frame)),
+            required_bars=required_bars,
+            latest_bar_age_minutes=latest_bar_age_minutes,
+            contiguity=contiguity,
+        )
 
     if latest_bar_age_minutes is None or latest_bar_age_minutes > args.max_staleness_minutes:
-        return {
-            "symbol": symbol,
-            "status": "stale_recent_data",
-            "bars": int(len(frame)),
-            "required_bars": required_bars,
-            "latest_bar_age_minutes": latest_bar_age_minutes,
-            "max_staleness_minutes": args.max_staleness_minutes,
-            "contiguity": contiguity,
-        }
+        return finalize_early(
+            "stale_recent_data",
+            reasons=["latest bar age exceeds max staleness allowance"],
+            bars=int(len(frame)),
+            required_bars=required_bars,
+            latest_bar_age_minutes=latest_bar_age_minutes,
+            max_staleness_minutes=args.max_staleness_minutes,
+            contiguity=contiguity,
+        )
 
     latest_segment = segments[-1] if segments else frame
     if len(latest_segment) < required_bars:
-        return {
-            "symbol": symbol,
-            "status": "insufficient_contiguous_recent_data",
-            "bars": int(len(frame)),
-            "required_bars": required_bars,
-            "latest_segment_bars": int(len(latest_segment)),
-            "latest_bar_age_minutes": latest_bar_age_minutes,
-            "contiguity": contiguity,
-        }
+        return finalize_early(
+            "insufficient_contiguous_recent_data",
+            reasons=["latest contiguous segment shorter than calibration + forward requirement"],
+            bars=int(len(frame)),
+            required_bars=required_bars,
+            latest_segment_bars=int(len(latest_segment)),
+            latest_bar_age_minutes=latest_bar_age_minutes,
+            contiguity=contiguity,
+        )
 
     scoped = latest_segment.tail(required_bars).reset_index(drop=True)
     calibration_bars = args.calibration_hours * 60
@@ -598,13 +759,6 @@ def run_symbol(
         rng=rng,
     )
 
-    strategy_name = args.strategy_name or f"{args.strategy_prefix}_{symbol.lower()}"
-    validate_strategy_name_family(
-        strategy_name=strategy_name,
-        family=args.family,
-        allow_mismatch=args.allow_strategy_name_mismatch,
-    )
-    baseline_backtest_edge_bps = load_baseline_backtest_edge(conn, strategy_name=strategy_name, symbol=symbol)
     summary = summarize_forward(
         metrics=metrics,
         trades=trades,
@@ -620,6 +774,7 @@ def run_symbol(
     summary["latest_bar_age_minutes"] = latest_bar_age_minutes
     summary["contiguity"] = contiguity
 
+    trades_persisted = False
     if args.persist and trades:
         persist_forward_records(
             conn=conn,
@@ -636,8 +791,27 @@ def run_symbol(
             baseline_backtest_edge_bps=baseline_backtest_edge_bps,
         )
         summary["persisted_trade_rows"] = len(trades)
+        trades_persisted = True
     else:
         summary["persisted_trade_rows"] = 0
+    if args.persist:
+        persist_forward_summary(
+            conn=conn,
+            strategy_name=strategy_name,
+            symbol=symbol,
+            execution_exchange=execution_exchange,
+            family=args.family,
+            fixed_param_label=args.fixed_param_label,
+            market_data_exchange=args.exchange,
+            calibration_hours=args.calibration_hours,
+            forward_hours=args.forward_hours,
+            baseline_backtest_edge_bps=baseline_backtest_edge_bps,
+            summary=summary,
+            trades_persisted=trades_persisted,
+        )
+        summary["persisted_summary_row"] = True
+    else:
+        summary["persisted_summary_row"] = False
     return summary
 
 
