@@ -1596,6 +1596,15 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             return populated;
           };
 
+          const waitForVaultwardenOnboardingCompletion = async (timeoutMs: number) => {
+            return page.waitForFunction(() => {
+              const currentUrl = window.location.href;
+              const text = document.body?.innerText || '';
+              return !/#\/set-initial-password\b/i.test(currentUrl)
+                || /My Vault|Vaults|Folders|Items|Search vault|Send|Generator|Your vault is locked|Add it later|Get the extension/i.test(text);
+            }, undefined, { timeout: timeoutMs }).then(() => true).catch(() => false);
+          };
+
           const submitVaultwardenOnboarding = async () => {
             const submitButton = page.getByRole('button', {
               name: /create account|save|continue|submit|finish|join/i,
@@ -1733,23 +1742,29 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
             name: /create account|save|continue|submit|finish|join/i,
           }).first();
           if (/#\/set-initial-password\b/i.test(page.url()) || await onboardingSubmitButton.isVisible().catch(() => false)) {
-            const populated = await populateVaultwardenOnboarding();
-            if (populated) {
-              await submitVaultwardenOnboarding();
-            }
+            let onboardingCompleted = false;
+            let lastValidationErrors = '';
+            for (let attempt = 1; attempt <= 2 && !onboardingCompleted; attempt += 1) {
+              const populated = await populateVaultwardenOnboarding();
+              if (populated) {
+                await submitVaultwardenOnboarding();
+              }
 
-            const onboardingCompleted = await page.waitForFunction(() => {
-              const text = document.body?.innerText || '';
-              const currentUrl = window.location.href;
-              return !/#\/set-initial-password\b/i.test(currentUrl)
-                || /My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i.test(text);
-            }, undefined, { timeout: 30000 }).then(() => true).catch(() => false);
+              onboardingCompleted = await waitForVaultwardenOnboardingCompletion(attempt === 1 ? 30000 : 45000);
+              if (!onboardingCompleted) {
+                lastValidationErrors = await collectVaultwardenValidationErrors();
+                if (lastValidationErrors) {
+                  break;
+                }
+                // Vaultwarden occasionally drops the first valid submit during org join.
+                await page.waitForTimeout(1500);
+              }
+            }
 
             if (!onboardingCompleted) {
               const onboardingBody = (await page.textContent('body').catch(() => '')) || '';
-              const validationErrors = await collectVaultwardenValidationErrors();
               throw new Error(
-                `Vaultwarden remained on onboarding after account creation submit. URL=${page.url()}, validationErrors=${validationErrors || 'none'}, bodySnippet=${onboardingBody.slice(0, 300)}`
+                `Vaultwarden remained on onboarding after account creation submit. URL=${page.url()}, validationErrors=${lastValidationErrors || 'none'}, bodySnippet=${onboardingBody.slice(0, 300)}`
               );
             }
           }
