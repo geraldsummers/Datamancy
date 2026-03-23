@@ -131,6 +131,20 @@ data class SymbolLiquiditySnapshot(
     val avgVolume: Double
 )
 
+private data class ResearchUniverseCandidate(
+    val exchange: String,
+    val symbol: String,
+    val totalBars: Int,
+    val recentBars: Int,
+    val recentObservedBars: Int,
+    val recentTradableBars: Int,
+    val recentTradableRatio: Double,
+    val recentObservedRatio: Double,
+    val avgRecentDepthUsd: Double,
+    val avgRecentVolumeUsd: Double,
+    val avgRecentSpreadBps: Double
+)
+
 data class ExchangeCapabilitiesSnapshot(
     val paperOrder: Boolean,
     val liveOrder: Boolean,
@@ -908,6 +922,79 @@ fun discoverSymbols(
     return universe
 }
 
+private fun discoveryCandidateLimit(maxSymbols: Int): Int =
+    min(max(maxSymbols * 3, maxSymbols + 8), 48)
+
+private fun universeSelectionWindowHours(config: ResearchConfig): Int =
+    max(max(config.forwardHours * 2, 72), max((config.barMinutes * 12) / 60, 24))
+
+fun selectResearchUniverseFromBars(
+    bars: List<Bar>,
+    config: ResearchConfig
+): Map<String, List<String>> {
+    if (bars.isEmpty()) return emptyMap()
+
+    val latestTime = bars.maxOfOrNull { it.time } ?: return emptyMap()
+    val recentCutoff = latestTime.minus(universeSelectionWindowHours(config).toLong(), ChronoUnit.HOURS)
+    val benchmarkSymbols = setOf("BTC", "ETH")
+    val grouped = bars.groupBy { it.exchange to it.symbol }
+
+    val ranked = grouped.mapNotNull { (key, series) ->
+        val exchange = key.first
+        val symbol = key.second
+        val ordered = series.sortedBy { it.time }
+        val recent = ordered.filter { !it.time.isBefore(recentCutoff) }
+        val observedRecent = recent.filter { it.executionObserved && observedSpreadBps(it) > 0.0 && observedDepthUsd(it) > 0.0 }
+        val tradableRecent = observedRecent.filter {
+            observedSpreadBps(it) <= config.maxSpreadBps &&
+                observedDepthUsd(it) >= config.notionalUsd * config.minDepthMultiple
+        }
+        val recentBars = recent.size
+        val recentObservedBars = observedRecent.size
+        val recentTradableBars = tradableRecent.size
+        if (symbol !in benchmarkSymbols && ordered.isEmpty()) return@mapNotNull null
+
+        ResearchUniverseCandidate(
+            exchange = exchange,
+            symbol = symbol,
+            totalBars = ordered.size,
+            recentBars = recentBars,
+            recentObservedBars = recentObservedBars,
+            recentTradableBars = recentTradableBars,
+            recentTradableRatio = recentTradableBars.toDouble() / max(recentBars, 1).toDouble(),
+            recentObservedRatio = recentObservedBars.toDouble() / max(recentBars, 1).toDouble(),
+            avgRecentDepthUsd = if (observedRecent.isEmpty()) 0.0 else mean(observedRecent.map(::observedDepthUsd)),
+            avgRecentVolumeUsd = if (recent.isEmpty()) 0.0 else mean(recent.map(::observedVolumeUsd)),
+            avgRecentSpreadBps = if (observedRecent.isEmpty()) Double.POSITIVE_INFINITY else mean(observedRecent.map(::observedSpreadBps))
+        )
+    }
+
+    return ranked.groupBy { it.exchange }
+        .mapValues { (_, candidates) ->
+            val benchmarks = candidates
+                .filter { it.symbol in benchmarkSymbols }
+                .sortedBy { it.symbol }
+                .map { it.symbol }
+            val selected = candidates
+                .filter { it.symbol !in benchmarkSymbols }
+                .sortedWith(
+                    compareByDescending<ResearchUniverseCandidate> { it.recentTradableBars }
+                        .thenByDescending { it.recentTradableRatio }
+                        .thenByDescending { it.recentObservedBars }
+                        .thenByDescending { it.recentObservedRatio }
+                        .thenByDescending { it.avgRecentDepthUsd }
+                        .thenByDescending { it.avgRecentVolumeUsd }
+                        .thenBy { it.avgRecentSpreadBps }
+                        .thenByDescending { it.totalBars }
+                        .thenBy { it.symbol }
+                )
+                .take(config.maxSymbols)
+                .map { it.symbol }
+
+            (benchmarks + selected).distinct()
+        }
+}
+
 fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, lookbackHours: Int, barMinutes: Int): List<Bar> {
     if (symbols.isEmpty()) return emptyList()
     val aliasSql = sqlList(aliases)
@@ -1607,6 +1694,30 @@ fun blendCalibrationStats(primary: CalibrationStats, fallback: CalibrationStats,
     )
 }
 
+fun conservativeCalibrationNetEdgeBps(
+    calibration: CalibrationStats,
+    config: ResearchConfig
+): Double {
+    val confidence = clamp(
+        (calibration.samples - config.minCalibrationSamples).toDouble() /
+            max(config.strongCalibrationSamples - config.minCalibrationSamples, 1).toDouble(),
+        0.0,
+        1.0
+    )
+    val scopeBonus = when {
+        calibration.scope.startsWith("symbol_regime_signal_confirmation") -> 0.10
+        calibration.scope.startsWith("symbol_regime") || calibration.scope.startsWith("symbol_confirmation") -> 0.05
+        calibration.scope.startsWith("market_regime") -> 0.02
+        else -> 0.0
+    }
+    val avgWeight = clamp(0.15 + (confidence * 0.35) + scopeBonus, 0.15, 0.60)
+    return max(
+        (calibration.lowerBoundNetEdgeBps * (1.0 - avgWeight)) +
+            (calibration.avgNetEdgeBps * avgWeight),
+        0.0
+    )
+}
+
 fun resolveCalibration(
     state: CalibrationState?,
     kind: StrategyKind,
@@ -1700,17 +1811,18 @@ fun buildEntryCandidate(
     if (calibration.avgFillRatio < config.minFillRatio) return null
     if (calibration.winRate < config.minCalibrationWinRate) return null
     if (calibration.lowerBoundNetEdgeBps < config.minCalibrationLowerBoundBps) return null
-    if (calibration.avgNetEdgeBps < config.minExpectedNetEdgeBps) return null
-
-    val calibratedGrossEdgeBps = max(
-        calibration.avgGrossEdgeBps,
-        seed.expectedRoundTripCostBps + calibration.avgNetEdgeBps
+    val calibratedNetEdgeBps = min(
+        seed.expectedNetEdgeBps,
+        conservativeCalibrationNetEdgeBps(calibration, config)
     )
-    if (calibratedGrossEdgeBps < seed.expectedRoundTripCostBps + safetyMarginBps) return null
+    if (calibratedNetEdgeBps < config.minExpectedNetEdgeBps) return null
+
+    val calibratedGrossEdgeBps = seed.expectedRoundTripCostBps + calibratedNetEdgeBps
+    if (calibratedNetEdgeBps < safetyMarginBps) return null
 
     return seed.copy(
         expectedGrossEdgeBps = calibratedGrossEdgeBps.round(4),
-        expectedNetEdgeBps = calibration.avgNetEdgeBps.round(4),
+        expectedNetEdgeBps = calibratedNetEdgeBps.round(4),
         calibrationSamples = calibration.samples,
         calibrationWinRate = calibration.winRate.round(4),
         calibrationLowerBoundBps = calibration.lowerBoundNetEdgeBps.round(4),
@@ -3067,6 +3179,7 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
         fetchExchangeCatalog(config.txGatewayUrl)
     }
     val exchangePlans = buildExchangePlans(exchangeCatalog, config)
+    val discoveryMaxSymbols = discoveryCandidateLimit(config.maxSymbols)
 
     val (discoveredUniverse, discoveryMs) = timedMillis {
         exchangePlans.associate { plan ->
@@ -3075,7 +3188,7 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
                 exchange = plan.exchange,
                 aliases = plan.marketAliases,
                 lookbackHours = config.lookbackHours,
-                maxSymbols = config.maxSymbols,
+                maxSymbols = discoveryMaxSymbols,
                 minBars = config.minBars,
                 barMinutes = config.barMinutes
             )
@@ -3094,18 +3207,35 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
             )
         }
     }
-    val totalSymbols = discoveredUniverse.values.sumOf { it.size }
+    val refinedUniverse = selectResearchUniverseFromBars(researchBars, config)
+        .takeIf { it.isNotEmpty() }
+        ?: discoveredUniverse
+    val refinedBars = researchBars.filter { bar ->
+        bar.symbol in refinedUniverse[bar.exchange].orEmpty()
+    }
+    val totalCandidateSymbols = discoveredUniverse.values.sumOf { it.size }
+    val totalSelectedSymbols = refinedUniverse.values.sumOf { it.size }
+    refinedUniverse.forEach { (exchange, symbols) ->
+        val candidateSymbols = discoveredUniverse[exchange].orEmpty()
+        println(
+            "Cross-sectional universe refinement exchange=$exchange " +
+                "candidates=${candidateSymbols.size} selected=${symbols.size} " +
+                "symbols=${symbols.joinToString(",")}"
+        )
+    }
     println(
-        "Cross-sectional data load exchangePlans=${exchangePlans.size} totalSymbols=$totalSymbols " +
-            "bars=${researchBars.size} catalogMs=$exchangeCatalogMs discoveryMs=$discoveryMs loadBarsMs=$loadBarsMs"
+        "Cross-sectional data load exchangePlans=${exchangePlans.size} " +
+            "candidateSymbols=$totalCandidateSymbols selectedSymbols=$totalSelectedSymbols " +
+            "candidateBars=${researchBars.size} selectedBars=${refinedBars.size} " +
+            "catalogMs=$exchangeCatalogMs discoveryMs=$discoveryMs loadBarsMs=$loadBarsMs"
     )
 
     return ResearchDataContext(
         key = researchDataKey(config),
         exchangeCatalog = exchangeCatalog,
         exchangePlans = exchangePlans,
-        discoveredUniverse = discoveredUniverse,
-        bars = researchBars,
+        discoveredUniverse = refinedUniverse,
+        bars = refinedBars,
         loadedAt = Instant.now()
     )
 }
@@ -3747,6 +3877,18 @@ private fun nextSearchSeeds(
         .take(desiredSeeds)
 }
 
+private fun roundEvaluationBudget(
+    searchConfig: CrossSectionalSearchConfig,
+    evaluatedConfigs: Int,
+    roundsCompleted: Int
+): Int {
+    val remainingBudget = max(searchConfig.maxEvaluations - evaluatedConfigs, 0)
+    if (remainingBudget <= 0) return 0
+    val remainingRounds = max(searchConfig.rounds - roundsCompleted, 1)
+    val evenSplit = ceil(remainingBudget.toDouble() / remainingRounds.toDouble()).toInt()
+    return min(remainingBudget, max(searchConfig.beamWidth, evenSplit))
+}
+
 fun searchCrossSectionalResearch(
     searchConfig: CrossSectionalSearchConfig = CrossSectionalSearchConfig()
 ): CrossSectionalSearchResult {
@@ -3790,6 +3932,7 @@ fun searchCrossSectionalResearch(
         seeds.isNotEmpty()
     ) {
         val remainingBudget = normalizedSearch.maxEvaluations - evaluations.size
+        val roundBudget = roundEvaluationBudget(normalizedSearch, evaluations.size, roundsCompleted)
         val generation = seeds.asSequence()
             .flatMap { seed ->
                 mutations.asSequence().flatMap { mutation ->
@@ -3800,11 +3943,15 @@ fun searchCrossSectionalResearch(
             .filter(::isValidResearchConfig)
             .distinctBy(::researchConfigFingerprint)
             .filter { researchConfigFingerprint(it) !in evaluations }
-            .take(remainingBudget)
+            .take(min(remainingBudget, roundBudget))
             .toList()
 
         if (generation.isEmpty()) break
         generation.forEach { evaluateCandidate(it) }
+        println(
+            "Cross-sectional search round=${roundsCompleted + 1} " +
+                "seeds=${seeds.size} evaluated=${generation.size} total=${evaluations.size}"
+        )
         roundsCompleted += 1
         seeds = nextSearchSeeds(evaluations.values.toList(), normalizedSearch)
     }
