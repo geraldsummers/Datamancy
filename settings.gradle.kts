@@ -42,8 +42,10 @@ project(":test-runner").projectDir = file("tests.kotlin/test-runner")
 // Trading system
 include(":trading-sdk")
 include(":tx-gateway")
+include(":alpha-analytics-service")
 project(":trading-sdk").projectDir = file("stack.kotlin/trading-sdk")
 project(":tx-gateway").projectDir = file("stack.kotlin/tx-gateway")
+project(":alpha-analytics-service").projectDir = file("stack.kotlin/alpha-analytics-service")
 
 // Deprecated: stack-tests (replaced by test-runner)
 // include(":stack-tests")

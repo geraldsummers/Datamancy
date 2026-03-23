@@ -117,6 +117,7 @@ c.Spawner.environment = {
     'POSTGRES_DB': os.environ.get('POSTGRES_DB', 'datamancy'),
     'POSTGRES_USER': os.environ.get('POSTGRES_USER', 'pipeline_user'),
     'POSTGRES_PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+    'ALPHA_ANALYTICS_URL': os.environ.get('ALPHA_ANALYTICS_URL', 'http://alpha-analytics-service:8080'),
     'DATAMANCY_FORWARD_TEST_STRATEGY_NAME': os.environ.get('DATAMANCY_FORWARD_TEST_STRATEGY_NAME', 'tx_gateway_forward_mainnet_data'),
     'DATAMANCY_FORWARD_TEST_EXCHANGE': os.environ.get('DATAMANCY_FORWARD_TEST_EXCHANGE', 'hyperliquid_mainnet'),
     'DATAMANCY_FORWARD_TEST_SYMBOL': os.environ.get('DATAMANCY_FORWARD_TEST_SYMBOL', 'BTC'),

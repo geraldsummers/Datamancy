@@ -1,0 +1,38 @@
+services:
+  alpha-analytics-service:
+    image: datamancy/alpha-analytics-service:local-build
+    build:
+      context: .
+      dockerfile: ./stack.containers/alpha-analytics-service/Dockerfile
+    container_name: alpha-analytics-service
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - litellm
+      - trading
+      - postgres
+      - monitoring
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-datamancy-reconcile:
+        condition: service_completed_successfully
+      tx-gateway:
+        condition: service_started
+    environment:
+      PORT: 8080
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+      TX_GATEWAY_URL: http://tx-gateway:8080
+      DATAMANCY_CROSS_SECTIONAL_MARKET_EXCHANGE: ${DATAMANCY_CROSS_SECTIONAL_MARKET_EXCHANGE:-hyperliquid_mainnet}
+      DATAMANCY_CROSS_SECTIONAL_BAR_MINUTES: ${DATAMANCY_CROSS_SECTIONAL_BAR_MINUTES:-60}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
