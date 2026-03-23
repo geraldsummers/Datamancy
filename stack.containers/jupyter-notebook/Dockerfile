@@ -64,6 +64,12 @@ RUN pip install --no-cache-dir \
     'chromadb>=0.5.0' \
     'faiss-cpu>=1.8.0'
 
+RUN mkdir -p /opt/datamancy/jars && \
+    curl -fsSL -o /opt/datamancy/jars/postgresql-42.7.5.jar \
+      https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar && \
+    curl -fsSL -o /opt/datamancy/jars/gson-2.11.0.jar \
+      https://repo1.maven.org/maven2/com/google/code/gson/gson/2.11.0/gson-2.11.0.jar
+
 # Install Web3 wallet extension
 COPY --chown=${NB_UID}:${NB_GID} stack.containers/jupyterlab-web3-wallet /tmp/jupyterlab-web3-wallet
 WORKDIR /tmp/jupyterlab-web3-wallet
@@ -89,6 +95,13 @@ RUN mkdir -p /usr/local/bin/start-notebook.d && \
 # Prebuild JupyterLab assets to avoid slow first-start builds per user.
 RUN jupyter lab build --minimize=False && \
     jupyter lab clean
+
+# Root-level installs above leave parts of ~/.local unreadable to the notebook user.
+# Fix ownership explicitly so nbconvert/Jupyter config discovery works in one-off runs
+# and in JupyterHub-spawned servers.
+RUN mkdir -p /home/jovyan/.local/share/jupyter /home/jovyan/.ipython && \
+    chown -R ${NB_UID}:${NB_GID} /home/jovyan/.local /home/jovyan/.ipython && \
+    chmod -R u+rwX,g+rX /home/jovyan/.local /home/jovyan/.ipython
 
 USER ${NB_UID}
 WORKDIR /home/jovyan

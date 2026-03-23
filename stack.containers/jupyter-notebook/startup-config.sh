@@ -1836,8 +1836,8 @@ write_notebook(
 )
 
 cross_sectional_kotlin_bootstrap = '''
-@file:DependsOn("org.postgresql:postgresql:42.7.5")
-@file:DependsOn("com.google.code.gson:gson:2.11.0")
+@file:DependsOn("/opt/datamancy/jars/postgresql-42.7.5.jar")
+@file:DependsOn("/opt/datamancy/jars/gson-2.11.0.jar")
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -2359,40 +2359,32 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
     val symbolSql = sqlList(symbols)
     val preferredAlias = aliases.first()
     val sql = """
-        WITH candle_ranked AS (
+        WITH candle_rows AS (
             SELECT
                 symbol,
                 date_trunc('minute', time) AS bucket_time,
                 close,
                 COALESCE(volume, 0) AS volume,
                 exchange,
-                ROW_NUMBER() OVER (
-                    PARTITION BY symbol, date_trunc('minute', time)
-                    ORDER BY CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END, time DESC
-                ) AS rn
+                time
             FROM market_data
             WHERE exchange IN ($aliasSql)
               AND data_type = 'candle_1m'
               AND time >= NOW() - INTERVAL '${lookbackHours} hours'
               AND symbol IN ($symbolSql)
         ),
-        orderbook_ranked AS (
-            SELECT
+        candles AS (
+            SELECT DISTINCT ON (symbol, bucket_time)
                 symbol,
-                date_trunc('minute', time) AS bucket_time,
-                COALESCE(spread_pct, 0) AS spread_pct,
-                COALESCE(bid_depth_10, 0) AS bid_depth_10,
-                COALESCE(ask_depth_10, 0) AS ask_depth_10,
-                COALESCE(NULLIF(mid_price, 0), 0) AS mid_price,
-                exchange,
-                ROW_NUMBER() OVER (
-                    PARTITION BY symbol, date_trunc('minute', time)
-                    ORDER BY CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END, time DESC
-                ) AS rn
-            FROM orderbook_data
-            WHERE exchange IN ($aliasSql)
-              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
-              AND symbol IN ($symbolSql)
+                bucket_time,
+                close,
+                volume
+            FROM candle_rows
+            ORDER BY
+                symbol,
+                bucket_time,
+                CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END,
+                time DESC
         )
         SELECT
             c.symbol,
@@ -2403,12 +2395,23 @@ fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, loo
             COALESCE(o.bid_depth_10, 0) AS bid_depth_10,
             COALESCE(o.ask_depth_10, 0) AS ask_depth_10,
             COALESCE(NULLIF(o.mid_price, 0), c.close) AS mid_price
-        FROM candle_ranked c
-        LEFT JOIN orderbook_ranked o
-          ON o.symbol = c.symbol
-         AND o.bucket_time = c.bucket_time
-         AND o.rn = 1
-        WHERE c.rn = 1
+        FROM candles c
+        LEFT JOIN LATERAL (
+            SELECT
+                COALESCE(spread_pct, 0) AS spread_pct,
+                COALESCE(bid_depth_10, 0) AS bid_depth_10,
+                COALESCE(ask_depth_10, 0) AS ask_depth_10,
+                COALESCE(NULLIF(mid_price, 0), c.close) AS mid_price
+            FROM orderbook_data o
+            WHERE o.symbol = c.symbol
+              AND o.exchange IN ($aliasSql)
+              AND o.time >= c.bucket_time
+              AND o.time < c.bucket_time + INTERVAL '1 minute'
+            ORDER BY
+                CASE WHEN o.exchange = '$preferredAlias' THEN 0 ELSE 1 END,
+                o.time DESC
+            LIMIT 1
+        ) o ON TRUE
         ORDER BY c.bucket_time ASC, c.symbol ASC
     """.trimIndent()
 
