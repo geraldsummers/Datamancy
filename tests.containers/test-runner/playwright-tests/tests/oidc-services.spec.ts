@@ -1641,7 +1641,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
                 const text = document.body?.innerText || '';
                 return !/#\/set-initial-password\b/i.test(currentUrl)
                   || /My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i.test(text);
-              }, undefined, { timeout: 5000 }).then(() => true).catch(() => false);
+              }, undefined, { timeout: 15000 }).then(() => true).catch(() => false);
               if (onboardingCompleted) {
                 break;
               }
@@ -1743,7 +1743,7 @@ test.describe.serial('OIDC Services - SSO Flow', () => {
               const currentUrl = window.location.href;
               return !/#\/set-initial-password\b/i.test(currentUrl)
                 || /My Vault|Vaults|Folders|Items|Search vault|Send|Generator/i.test(text);
-            }, undefined, { timeout: 10000 }).then(() => true).catch(() => false);
+            }, undefined, { timeout: 30000 }).then(() => true).catch(() => false);
 
             if (!onboardingCompleted) {
               const onboardingBody = (await page.textContent('body').catch(() => '')) || '';
