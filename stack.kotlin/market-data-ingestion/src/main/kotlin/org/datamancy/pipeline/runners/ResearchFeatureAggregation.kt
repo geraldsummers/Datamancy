@@ -23,6 +23,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES = 180L
 internal const val MIN_RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES = 1L
 internal const val DEFAULT_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 6L
 internal const val MIN_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 1L
+internal const val DEFAULT_RESEARCH_FEATURES_HISTORICAL_CATCHUP_WINDOWS_PER_CYCLE = 8
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -68,6 +69,32 @@ internal fun chunkAggregationWindows(
         cursor = chunkEnd
     }
     return windows
+}
+
+internal fun planHistoricalCatchUpWindows(
+    rawStartInclusive: Instant?,
+    featureStartInclusive: Instant?,
+    now: Instant,
+    bootstrapHours: Long,
+    refreshOverlapMinutes: Long,
+    backfillChunkHours: Long,
+    maxWindowsPerCycle: Int = DEFAULT_RESEARCH_FEATURES_HISTORICAL_CATCHUP_WINDOWS_PER_CYCLE
+): List<AggregationWindow> {
+    if (rawStartInclusive == null || featureStartInclusive == null) return emptyList()
+    if (maxWindowsPerCycle <= 0) return emptyList()
+
+    val catchUpFloor = maxOf(rawStartInclusive, now.minus(bootstrapHours, ChronoUnit.HOURS))
+    if (!catchUpFloor.isBefore(featureStartInclusive)) return emptyList()
+
+    val catchUpEndExclusive = minOf(
+        now,
+        featureStartInclusive.plus(refreshOverlapMinutes, ChronoUnit.MINUTES)
+    )
+    if (!catchUpFloor.isBefore(catchUpEndExclusive)) return emptyList()
+
+    return prioritizeRecentAggregationWindows(
+        chunkAggregationWindows(catchUpFloor, catchUpEndExclusive, backfillChunkHours)
+    ).take(maxWindowsPerCycle)
 }
 
 internal class ResearchFeatureAggregator(
@@ -137,6 +164,7 @@ internal class ResearchFeatureAggregator(
                         continue
                     }
                 }
+                catchUpHistoricalWindows()
                 refreshRecentWindow()
             } catch (e: CancellationException) {
                 throw e
@@ -218,6 +246,58 @@ internal class ResearchFeatureAggregator(
             val rows = upsertWindow(conn, start, end)
             researchFeatureLogger.info {
                 "research_features_1m refresh exchange=$exchangeId window=$start..$end rows=$rows"
+            }
+        }
+    }
+
+    private suspend fun catchUpHistoricalWindows() = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            if (!ensureSchema(conn)) {
+                return@withContext
+            }
+            val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+            val earliestRaw = queryBoundary(
+                conn = conn,
+                sql = """
+                    SELECT MIN(time)
+                    FROM market_data
+                    WHERE exchange = ?
+                      AND data_type = 'candle_1m'
+                """.trimIndent()
+            )
+            val earliestFeature = queryBoundary(
+                conn = conn,
+                sql = """
+                    SELECT MIN(time)
+                    FROM research_features_1m
+                    WHERE exchange = ?
+                """.trimIndent()
+            )
+            val windows = planHistoricalCatchUpWindows(
+                rawStartInclusive = earliestRaw,
+                featureStartInclusive = earliestFeature,
+                now = now,
+                bootstrapHours = bootstrapHours,
+                refreshOverlapMinutes = refreshOverlapMinutes,
+                backfillChunkHours = backfillChunkHours
+            )
+            if (windows.isEmpty()) {
+                return@withContext
+            }
+
+            var totalRows = 0
+            windows.forEachIndexed { index, window ->
+                val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                totalRows += rows
+                researchFeatureLogger.info {
+                    "research_features_1m historical_catchup exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
+                        "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
+                }
+            }
+
+            researchFeatureLogger.info {
+                "research_features_1m historical_catchup complete exchange=$exchangeId " +
+                    "windows=${windows.size} totalRows=$totalRows"
             }
         }
     }

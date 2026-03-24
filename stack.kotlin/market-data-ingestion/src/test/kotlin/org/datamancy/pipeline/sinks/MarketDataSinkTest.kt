@@ -2,6 +2,8 @@ package org.datamancy.pipeline.sinks
 
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
+import org.datamancy.pipeline.sources.HyperliquidCandle
+import java.time.Instant
 import javax.sql.DataSource
 import kotlin.test.*
 
@@ -91,4 +93,61 @@ class MarketDataSinkTest {
 
         assertTrue(missing.isEmpty())
     }
+
+    @Test
+    fun `candle flush normalization sorts keys and keeps latest duplicate`() {
+        val normalized = normalizeCandleFlushBatch(
+            listOf(
+                candle(
+                    time = "2026-03-24T10:02:00Z",
+                    symbol = "SOL",
+                    interval = "1m",
+                    close = 3.0
+                ),
+                candle(
+                    time = "2026-03-24T10:01:00Z",
+                    symbol = "BTC",
+                    interval = "1m",
+                    close = 1.0
+                ),
+                candle(
+                    time = "2026-03-24T10:01:00Z",
+                    symbol = "BTC",
+                    interval = "1m",
+                    close = 2.0
+                ),
+                candle(
+                    time = "2026-03-24T10:00:00Z",
+                    symbol = "ETH",
+                    interval = "1m",
+                    close = 4.0
+                )
+            )
+        )
+
+        assertEquals(3, normalized.size)
+        assertEquals(Instant.parse("2026-03-24T10:00:00Z"), normalized[0].time)
+        assertEquals("ETH", normalized[0].symbol)
+        assertEquals(Instant.parse("2026-03-24T10:01:00Z"), normalized[1].time)
+        assertEquals("BTC", normalized[1].symbol)
+        assertEquals(2.0, normalized[1].close)
+        assertEquals("SOL", normalized[2].symbol)
+    }
+
+    private fun candle(
+        time: String,
+        symbol: String,
+        interval: String,
+        close: Double
+    ) = HyperliquidCandle(
+        time = Instant.parse(time),
+        symbol = symbol,
+        interval = interval,
+        open = close,
+        high = close,
+        low = close,
+        close = close,
+        volume = 1.0,
+        numTrades = 1
+    )
 }

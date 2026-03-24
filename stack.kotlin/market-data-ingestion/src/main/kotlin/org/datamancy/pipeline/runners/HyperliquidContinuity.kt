@@ -65,6 +65,11 @@ internal fun resolveHyperliquidBackfillOverlapBars(explicitOverlapBars: Int?): I
     return overlapBars.coerceAtLeast(0)
 }
 
+private fun normalizedBackfillOverlapBars(maxBars: Int, overlapBars: Int): Int {
+    val normalizedMaxBars = resolveHyperliquidBackfillMaxBars(maxBars)
+    return resolveHyperliquidBackfillOverlapBars(overlapBars).coerceAtMost(normalizedMaxBars - 1)
+}
+
 internal fun candleIntervalToMillis(interval: String): Long {
     val normalized = interval.trim()
     return when {
@@ -103,7 +108,7 @@ internal fun planCandleBackfillWindow(
     val intervalMs = candleIntervalToMillis(interval)
     val requestedLookbackMs = resolveHyperliquidBackfillLookbackHours(lookbackHours) * 60L * 60L * 1000L
     val lookbackBars = ceil(requestedLookbackMs.toDouble() / intervalMs.toDouble()).toInt()
-    val requestedBars = (lookbackBars + resolveHyperliquidBackfillOverlapBars(overlapBars))
+    val requestedBars = (lookbackBars + normalizedBackfillOverlapBars(maxBars, overlapBars))
         .coerceAtLeast(MIN_HYPERLIQUID_BACKFILL_MAX_BARS)
         .coerceAtMost(resolveHyperliquidBackfillMaxBars(maxBars))
     val latestBoundary = alignDownToIntervalBoundary(now, intervalMs)
@@ -115,6 +120,68 @@ internal fun planCandleBackfillWindow(
         startTime = latestBoundary.minusMillis((requestedBars - 1L) * intervalMs),
         endTime = now
     )
+}
+
+internal fun planCandleBackfillWindows(
+    symbol: String,
+    interval: String,
+    now: Instant,
+    lookbackHours: Long,
+    maxBars: Int,
+    overlapBars: Int
+): List<CandleBackfillWindow> {
+    val intervalMs = candleIntervalToMillis(interval)
+    val normalizedMaxBars = resolveHyperliquidBackfillMaxBars(maxBars)
+    val normalizedOverlapBars = normalizedBackfillOverlapBars(normalizedMaxBars, overlapBars)
+    val requestedLookbackMs = resolveHyperliquidBackfillLookbackHours(lookbackHours) * 60L * 60L * 1000L
+    val totalBars = ceil(requestedLookbackMs.toDouble() / intervalMs.toDouble()).toInt().coerceAtLeast(1)
+    val latestBoundary = alignDownToIntervalBoundary(now, intervalMs)
+    val oldestBoundary = latestBoundary.minusMillis((totalBars - 1L) * intervalMs)
+    val overlapOffsetMs = (normalizedOverlapBars.toLong() - 1L) * intervalMs
+    val newestWindow = planCandleBackfillWindow(
+        symbol = symbol,
+        interval = interval,
+        now = now,
+        lookbackHours = lookbackHours,
+        maxBars = maxBars,
+        overlapBars = overlapBars
+    )
+
+    val windows = mutableListOf(newestWindow)
+    var currentStart = newestWindow.startTime
+    while (currentStart.isAfter(oldestBoundary)) {
+        val nextEndBoundary = currentStart.plusMillis(overlapOffsetMs)
+        val nextStartBoundary = maxOf(
+            oldestBoundary,
+            nextEndBoundary.minusMillis((normalizedMaxBars - 1L) * intervalMs)
+        )
+        val requestedBars = (((nextEndBoundary.toEpochMilli() - nextStartBoundary.toEpochMilli()) / intervalMs) + 1L)
+            .toInt()
+            .coerceAtLeast(1)
+        val nextEndTime = minOf(
+            now,
+            nextEndBoundary.plusMillis(intervalMs).minusMillis(1L)
+        )
+        windows += CandleBackfillWindow(
+            symbol = symbol,
+            interval = interval,
+            intervalMs = intervalMs,
+            requestedBars = requestedBars,
+            startTime = nextStartBoundary,
+            endTime = nextEndTime
+        )
+        currentStart = nextStartBoundary
+    }
+
+    return windows.distinctBy { window ->
+        listOf(
+            window.symbol,
+            window.interval,
+            window.startTime.toEpochMilli(),
+            window.endTime.toEpochMilli(),
+            window.requestedBars
+        ).joinToString("|")
+    }
 }
 
 internal class HyperliquidContinuityException(message: String) : IllegalStateException(message)
@@ -130,7 +197,7 @@ internal class HyperliquidContinuityWatchdog(
     private val trackedSymbols = symbols.map(String::trim).filter(String::isNotEmpty).distinct()
     private val trackedIntervals = candleIntervals.map(String::trim).filter(String::isNotEmpty).distinct()
 
-    private val lastOtherActivityAt = mutableMapOf<String, Instant>()
+    private val lastTradeActivityAt = mutableMapOf<String, Instant>()
     private val lastCandleMarketTime = mutableMapOf<String, Instant>()
     private val lastCandleReceivedAt = mutableMapOf<String, Instant>()
 
@@ -138,11 +205,11 @@ internal class HyperliquidContinuityWatchdog(
         when (data) {
             is HyperliquidMarketData.Trades -> {
                 data.trades.map { it.symbol }.distinct().forEach { symbol ->
-                    updateOtherActivity(symbol, receivedAt)
+                    updateTradeActivity(symbol, receivedAt)
                 }
             }
-            is HyperliquidMarketData.Orderbook -> updateOtherActivity(data.orderbook.symbol, receivedAt)
-            is HyperliquidMarketData.AssetContext -> updateOtherActivity(data.assetContext.symbol, receivedAt)
+            is HyperliquidMarketData.Orderbook -> Unit
+            is HyperliquidMarketData.AssetContext -> Unit
             is HyperliquidMarketData.Candle -> recordCandle(data.candle, receivedAt)
         }
     }
@@ -160,11 +227,11 @@ internal class HyperliquidContinuityWatchdog(
         }
     }
 
-    private fun updateOtherActivity(symbol: String, receivedAt: Instant) {
+    private fun updateTradeActivity(symbol: String, receivedAt: Instant) {
         if (symbol !in trackedSymbols) return
-        val existing = lastOtherActivityAt[symbol]
+        val existing = lastTradeActivityAt[symbol]
         if (existing == null || receivedAt.isAfter(existing)) {
-            lastOtherActivityAt[symbol] = receivedAt
+            lastTradeActivityAt[symbol] = receivedAt
         }
     }
 
@@ -182,9 +249,9 @@ internal class HyperliquidContinuityWatchdog(
         val issues = mutableListOf<String>()
 
         trackedSymbols.forEach { symbol ->
-            val otherActivityAt = lastOtherActivityAt[symbol] ?: return@forEach
-            val otherActivityAgeMs = ageMs(otherActivityAt, now)
-            if (otherActivityAgeMs > activityTimeoutMs) {
+            val tradeActivityAt = lastTradeActivityAt[symbol] ?: return@forEach
+            val tradeActivityAgeMs = ageMs(tradeActivityAt, now)
+            if (tradeActivityAgeMs > activityTimeoutMs) {
                 return@forEach
             }
 
@@ -199,14 +266,14 @@ internal class HyperliquidContinuityWatchdog(
 
                 if (candleMarketTime == null) {
                     if (ageMs(startedAt, now) > allowedLagMs) {
-                        issues += "$symbol/$interval never produced a candle while non-candle channels remained active"
+                        issues += "$symbol/$interval never produced a candle while trades remained active"
                     }
                     return@forEach
                 }
 
                 val candleAgeMs = ageMs(candleMarketTime, now)
-                if (candleAgeMs > allowedLagMs) {
-                    val receiveAgeMs = lastCandleReceivedAt[key]?.let { ageMs(it, now) } ?: -1L
+                val receiveAgeMs = lastCandleReceivedAt[key]?.let { ageMs(it, now) } ?: Long.MAX_VALUE
+                if (candleAgeMs > allowedLagMs && receiveAgeMs > allowedLagMs) {
                     issues += buildString {
                         append("$symbol/$interval stale")
                         append(" last_bar=")
@@ -215,8 +282,8 @@ internal class HyperliquidContinuityWatchdog(
                         append(candleAgeMs)
                         append(" receive_age_ms=")
                         append(receiveAgeMs)
-                        append(" other_activity_age_ms=")
-                        append(otherActivityAgeMs)
+                        append(" trade_activity_age_ms=")
+                        append(tradeActivityAgeMs)
                     }
                 }
             }
@@ -250,6 +317,22 @@ internal class HyperliquidCandleBackfillClient(
             overlapBars = overlapBars
         )
         return fetchWindow(window)
+    }
+
+    suspend fun fetchHistoricalCandles(symbol: String, interval: String, now: Instant = nowProvider()): List<HyperliquidCandle> {
+        return planCandleBackfillWindows(
+            symbol = symbol,
+            interval = interval,
+            now = now,
+            lookbackHours = lookbackHours,
+            maxBars = maxBarsPerRequest,
+            overlapBars = overlapBars
+        )
+            .flatMap { fetchWindow(it) }
+            .distinctBy { candle ->
+                listOf(candle.symbol, candle.interval, candle.time.toEpochMilli()).joinToString("|")
+            }
+            .sortedBy { it.time }
     }
 
     fun close() {

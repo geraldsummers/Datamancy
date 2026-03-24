@@ -2,6 +2,8 @@ package org.datamancy.pipeline.sinks
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.datamancy.pipeline.core.Sink
 import org.datamancy.pipeline.sources.HyperliquidAssetContext
@@ -14,9 +16,31 @@ import java.math.BigDecimal
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.Timestamp
+import java.time.Instant
 import javax.sql.DataSource
 
 private val logger = KotlinLogging.logger {}
+
+internal data class CandleFlushKey(
+    val time: Instant,
+    val symbol: String,
+    val interval: String
+)
+
+internal fun normalizeCandleFlushBatch(candles: List<HyperliquidCandle>): List<HyperliquidCandle> {
+    if (candles.size <= 1) {
+        return candles
+    }
+
+    val deduplicated = LinkedHashMap<CandleFlushKey, HyperliquidCandle>(candles.size)
+    candles.forEach { candle ->
+        deduplicated[CandleFlushKey(candle.time, candle.symbol, candle.interval)] = candle
+    }
+
+    return deduplicated.values.sortedWith(
+        compareBy<HyperliquidCandle>({ it.time }, { it.symbol }, { it.interval })
+    )
+}
 
 /**
  * Sink implementation for writing market data to TimescaleDB.
@@ -64,6 +88,7 @@ class MarketDataSink(
     private val orderbookBatch = mutableListOf<HyperliquidOrderbook>()
     private val assetContextBatch = mutableListOf<HyperliquidAssetContext>()
     private val batchLock = Any()
+    private val candleFlushLock = Mutex()
 
     private var tradeCount = 0L
     private var candleCount = 0L
@@ -215,12 +240,13 @@ class MarketDataSink(
     /**
      * Write accumulated candles to market_data table
      */
-    private suspend fun flushCandles() = withContext(Dispatchers.IO) {
+    private suspend fun flushCandles() = candleFlushLock.withLock {
         val candles = synchronized(batchLock) {
             if (candleBatch.isEmpty()) emptyList()
             else candleBatch.toList().also { candleBatch.clear() }
         }
-        if (candles.isEmpty()) return@withContext
+        val normalizedCandles = normalizeCandleFlushBatch(candles)
+        if (normalizedCandles.isEmpty()) return@withLock
 
         val sql = """
             INSERT INTO market_data (time, symbol, exchange, data_type, open, high, low, close, volume, num_trades)
@@ -234,41 +260,45 @@ class MarketDataSink(
                 num_trades = EXCLUDED.num_trades
         """.trimIndent()
 
-        try {
-            dataSource.connection.use { conn ->
-                conn.autoCommit = false
-                try {
-                    conn.prepareStatement(sql).use { stmt ->
-                        candles.forEach { candle ->
-                            val dataType = "candle_${candle.interval}" // e.g., 'candle_1m', 'candle_5m'
-                            stmt.setTimestamp(1, Timestamp.from(candle.time))
-                            stmt.setString(2, candle.symbol)
-                            stmt.setString(3, exchange)
-                            stmt.setString(4, dataType)
-                            stmt.setBigDecimal(5, BigDecimal.valueOf(candle.open))
-                            stmt.setBigDecimal(6, BigDecimal.valueOf(candle.high))
-                            stmt.setBigDecimal(7, BigDecimal.valueOf(candle.low))
-                            stmt.setBigDecimal(8, BigDecimal.valueOf(candle.close))
-                            stmt.setBigDecimal(9, BigDecimal.valueOf(candle.volume))
-                            stmt.setInt(10, candle.numTrades)
-                            stmt.addBatch()
+        withContext(Dispatchers.IO) {
+            try {
+                dataSource.connection.use { conn ->
+                    conn.autoCommit = false
+                    try {
+                        conn.prepareStatement(sql).use { stmt ->
+                            normalizedCandles.forEach { candle ->
+                                val dataType = "candle_${candle.interval}" // e.g., 'candle_1m', 'candle_5m'
+                                stmt.setTimestamp(1, Timestamp.from(candle.time))
+                                stmt.setString(2, candle.symbol)
+                                stmt.setString(3, exchange)
+                                stmt.setString(4, dataType)
+                                stmt.setBigDecimal(5, BigDecimal.valueOf(candle.open))
+                                stmt.setBigDecimal(6, BigDecimal.valueOf(candle.high))
+                                stmt.setBigDecimal(7, BigDecimal.valueOf(candle.low))
+                                stmt.setBigDecimal(8, BigDecimal.valueOf(candle.close))
+                                stmt.setBigDecimal(9, BigDecimal.valueOf(candle.volume))
+                                stmt.setInt(10, candle.numTrades)
+                                stmt.addBatch()
+                            }
+                            stmt.executeBatch()
                         }
-                        stmt.executeBatch()
+                        conn.commit()
+                        candleCount += normalizedCandles.size
+                        logger.debug {
+                            "Flushed ${normalizedCandles.size} candles to market_data (total: $candleCount)"
+                        }
+                    } catch (e: Exception) {
+                        conn.rollback()
+                        logger.error(e) { "Failed to flush candles batch: ${e.message}" }
+                        throw e
                     }
-                    conn.commit()
-                    candleCount += candles.size
-                    logger.debug { "Flushed ${candles.size} candles to market_data (total: $candleCount)" }
-                } catch (e: Exception) {
-                    conn.rollback()
-                    logger.error(e) { "Failed to flush candles batch: ${e.message}" }
-                    throw e
                 }
+            } catch (e: Exception) {
+                synchronized(batchLock) {
+                    candleBatch.addAll(0, normalizedCandles)
+                }
+                throw e
             }
-        } catch (e: Exception) {
-            synchronized(batchLock) {
-                candleBatch.addAll(0, candles)
-            }
-            throw e
         }
     }
 

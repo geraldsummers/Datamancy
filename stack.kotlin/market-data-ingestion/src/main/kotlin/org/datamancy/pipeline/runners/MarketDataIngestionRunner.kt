@@ -62,6 +62,7 @@ class MarketDataIngestionRunner {
     private var ingestionJob: Job? = null
     private var flushJob: Job? = null
     private var researchFeaturesJob: Job? = null
+    private var historicalBackfillJob: Job? = null
 
     private val postgresHost = System.getenv("POSTGRES_HOST") ?: "postgres"
     private val postgresPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
@@ -279,6 +280,9 @@ class MarketDataIngestionRunner {
 
         researchFeaturesJob = scope.launch {
             researchFeatureAggregator.runLoop()
+        }
+        historicalBackfillJob = scope.launch {
+            runHistoricalCandleBackfillPass()
         }
 
         logger.info { "Pipeline started successfully" }
@@ -667,6 +671,7 @@ class MarketDataIngestionRunner {
         ingestionJob?.cancel()
         flushJob?.cancel()
         researchFeaturesJob?.cancel()
+        historicalBackfillJob?.cancel()
 
         // Flush remaining data
         runBlocking {
@@ -744,6 +749,9 @@ class MarketDataIngestionRunner {
                     continuityWatchdog.seedBackfilledCandles(candles)
                     fetchedCandles += candles.size
                     repairedStreams++
+                } catch (e: CancellationException) {
+                    logger.info { "Recent candle repair cancelled while processing $symbol/$interval" }
+                    throw e
                 } catch (e: Exception) {
                     logger.error(e) { "Candle backfill failed for $symbol/$interval: ${e.message}" }
                 }
@@ -752,6 +760,9 @@ class MarketDataIngestionRunner {
 
         try {
             sink.flush()
+        } catch (e: CancellationException) {
+            logger.info { "Recent candle repair flush cancelled" }
+            throw e
         } catch (e: Exception) {
             logger.error(e) { "Failed to flush backfilled candles: ${e.message}" }
             throw e
@@ -760,6 +771,69 @@ class MarketDataIngestionRunner {
         logger.info {
             "Recent candle repair pass completed: $repairedStreams streams, " +
                 "$fetchedCandles candles fetched in ${java.time.Duration.between(sessionStart, java.time.Instant.now()).seconds}s"
+        }
+    }
+
+    private suspend fun runHistoricalCandleBackfillPass() {
+        val startedAt = java.time.Instant.now()
+        val universe = activeUniverse ?: resolveUniverseSnapshot(previous = emptyList())
+        val totalStreams = universe.symbols.size * candleIntervals.size
+        var completedStreams = 0
+        var fetchedCandles = 0
+
+        logger.info {
+            "Starting historical Hyperliquid candle backfill source=${universe.source} " +
+                "symbols=${universe.symbols.size} intervals=${candleIntervals.joinToString()} " +
+                "configuredLookbackHours=$hyperliquidBackfillLookbackHours"
+        }
+
+        for ((symbolIndex, symbol) in universe.symbols.withIndex()) {
+            currentCoroutineContext().ensureActive()
+            for (interval in candleIntervals) {
+                currentCoroutineContext().ensureActive()
+                try {
+                    val candles = candleBackfillClient.fetchHistoricalCandles(
+                        symbol = symbol,
+                        interval = interval,
+                        now = java.time.Instant.now()
+                    )
+                    if (candles.isEmpty()) {
+                        logger.warn { "Historical candle backfill returned no data for $symbol/$interval" }
+                        completedStreams += 1
+                        continue
+                    }
+
+                    candles.forEach { candle ->
+                        sink.write(HyperliquidMarketData.Candle(candle))
+                    }
+                    fetchedCandles += candles.size
+                    completedStreams += 1
+                    sink.flush()
+
+                    logger.info {
+                        "Historical candle backfill stream=$completedStreams/$totalStreams " +
+                            "symbol=$symbol interval=$interval candles=${candles.size} symbolIndex=${symbolIndex + 1}/${universe.symbols.size}"
+                    }
+                } catch (e: CancellationException) {
+                    logger.info { "Historical candle backfill cancelled while processing $symbol/$interval" }
+                    throw e
+                } catch (e: Exception) {
+                    completedStreams += 1
+                    logger.error(e) { "Historical candle backfill failed for $symbol/$interval: ${e.message}" }
+                }
+            }
+        }
+
+        try {
+            sink.flush()
+        } catch (e: CancellationException) {
+            logger.info { "Historical candle backfill final flush cancelled" }
+            throw e
+        }
+
+        logger.info {
+            "Historical candle backfill completed streams=$completedStreams/$totalStreams " +
+                "candles=$fetchedCandles durationSeconds=${java.time.Duration.between(startedAt, java.time.Instant.now()).seconds}"
         }
     }
 }
