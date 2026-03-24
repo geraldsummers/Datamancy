@@ -108,6 +108,152 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `computeStrategyRobustness captures symbol and regime breadth`() {
+        val trades = listOf(
+            tradeRecord(
+                entryTime = Instant.parse("2026-03-20T00:00:00Z"),
+                exitTime = Instant.parse("2026-03-20T04:00:00Z"),
+                edgeAfterCostBps = 12.0,
+                expectedNetEdgeBps = 8.0,
+                grossReturnFraction = 0.004,
+                netReturnFraction = 0.003
+            ).copy(symbol = "SOL", entryVolRegime = 0.8),
+            tradeRecord(
+                entryTime = Instant.parse("2026-03-20T05:00:00Z"),
+                exitTime = Instant.parse("2026-03-20T09:00:00Z"),
+                edgeAfterCostBps = 10.0,
+                expectedNetEdgeBps = 7.0,
+                grossReturnFraction = 0.0035,
+                netReturnFraction = 0.0025
+            ).copy(symbol = "SOL", entryVolRegime = 0.9),
+            tradeRecord(
+                entryTime = Instant.parse("2026-03-20T10:00:00Z"),
+                exitTime = Instant.parse("2026-03-20T14:00:00Z"),
+                edgeAfterCostBps = 8.0,
+                expectedNetEdgeBps = 6.0,
+                grossReturnFraction = 0.003,
+                netReturnFraction = 0.002
+            ).copy(symbol = "TAO", entryVolRegime = 1.1),
+            tradeRecord(
+                entryTime = Instant.parse("2026-03-20T15:00:00Z"),
+                exitTime = Instant.parse("2026-03-20T19:00:00Z"),
+                edgeAfterCostBps = 7.5,
+                expectedNetEdgeBps = 5.5,
+                grossReturnFraction = 0.0028,
+                netReturnFraction = 0.0018
+            ).copy(symbol = "TAO", entryVolRegime = 1.2),
+            tradeRecord(
+                entryTime = Instant.parse("2026-03-20T20:00:00Z"),
+                exitTime = Instant.parse("2026-03-21T00:00:00Z"),
+                edgeAfterCostBps = -5.0,
+                expectedNetEdgeBps = 2.0,
+                grossReturnFraction = -0.003,
+                netReturnFraction = -0.004
+            ).copy(symbol = "APT", entryVolRegime = 1.8),
+            tradeRecord(
+                entryTime = Instant.parse("2026-03-21T01:00:00Z"),
+                exitTime = Instant.parse("2026-03-21T05:00:00Z"),
+                edgeAfterCostBps = -4.2,
+                expectedNetEdgeBps = 2.0,
+                grossReturnFraction = -0.0025,
+                netReturnFraction = -0.0035
+            ).copy(symbol = "APT", entryVolRegime = 1.9)
+        )
+
+        val robustness = assertNotNull(computeStrategyRobustness(StrategyKind.TREND, trades))
+
+        assertEquals(3, robustness.symbolCount)
+        assertEquals(3, robustness.regimeCount)
+        assertEquals(listOf("calm", "normal", "stress"), robustness.regimeSlices.map { it.label })
+        assertTrue(robustness.largestSymbolTradeShare < 0.4)
+        assertEquals((2.0 / 3.0).round(4), robustness.profitableSymbolShare)
+        assertEquals((2.0 / 3.0).round(4), robustness.profitableRegimeShare)
+        assertTrue(robustness.worstRegimeEdgeAfterCostBps < 0.0)
+        assertTrue(robustness.stabilityScore > 0.0)
+    }
+
+    @Test
+    fun `computeStrategySearchFitness penalizes concentrated symbol dependency`() {
+        val searchConfig = CrossSectionalSearchConfig(
+            minBacktestTrades = 8,
+            minForwardTrades = 3,
+            minSearchFillRatio = 0.6,
+            maxSearchDrawdownPct = 14.0
+        )
+        val aggregate = StrategyAggregateSnapshot(
+            exchanges = listOf("hyperliquid"),
+            trades = 18,
+            winRate = 0.62,
+            netReturnPct = 6.8,
+            maxDrawdownPct = 3.2,
+            sharpe = 1.8,
+            avgEdgeAfterCostBps = 11.4,
+            avgTotalCostBps = 5.6,
+            avgFillRatio = 0.79,
+            avgSubmitToFillMs = 92.0
+        )
+        val forward = StrategyAggregateSnapshot(
+            exchanges = listOf("hyperliquid"),
+            trades = 5,
+            winRate = 0.6,
+            netReturnPct = 1.8,
+            maxDrawdownPct = 1.4,
+            sharpe = 1.2,
+            avgEdgeAfterCostBps = 8.6,
+            avgTotalCostBps = 5.3,
+            avgFillRatio = 0.77,
+            avgSubmitToFillMs = 88.0
+        )
+
+        val concentratedFitness = computeStrategySearchFitness(
+            searchConfig = searchConfig,
+            kind = StrategyKind.TREND,
+            backtest = aggregate,
+            forward = forward,
+            backtestRobustness = robustnessSnapshot(
+                largestSymbolTradeShare = 0.92,
+                largestRegimeTradeShare = 0.58,
+                profitableSymbolShare = 0.67,
+                profitableRegimeShare = 0.67,
+                stabilityScore = 41.0
+            ),
+            forwardRobustness = robustnessSnapshot(
+                largestSymbolTradeShare = 0.9,
+                largestRegimeTradeShare = 0.6,
+                profitableSymbolShare = 0.67,
+                profitableRegimeShare = 0.67,
+                stabilityScore = 39.0
+            )
+        )
+        val diversifiedFitness = computeStrategySearchFitness(
+            searchConfig = searchConfig,
+            kind = StrategyKind.TREND,
+            backtest = aggregate,
+            forward = forward,
+            backtestRobustness = robustnessSnapshot(
+                largestSymbolTradeShare = 0.42,
+                largestRegimeTradeShare = 0.48,
+                profitableSymbolShare = 0.67,
+                profitableRegimeShare = 0.67,
+                stabilityScore = 77.0
+            ),
+            forwardRobustness = robustnessSnapshot(
+                largestSymbolTradeShare = 0.45,
+                largestRegimeTradeShare = 0.5,
+                profitableSymbolShare = 0.67,
+                profitableRegimeShare = 0.67,
+                stabilityScore = 74.0
+            )
+        )
+
+        assertFalse(concentratedFitness.passesFilters)
+        assertTrue(concentratedFitness.rejectionReasons.any { it.startsWith("symbol_concentration") })
+        assertTrue(diversifiedFitness.passesFilters)
+        assertTrue(diversifiedFitness.score > concentratedFitness.score)
+        assertTrue(diversifiedFitness.robustnessScore > concentratedFitness.robustnessScore)
+    }
+
+    @Test
     fun `search engine ranks trend and reversion leaders independently`() {
         val baseConfig = ResearchConfig(
             marketExchange = "hyperliquid_mainnet",
@@ -754,6 +900,42 @@ class CrossSectionalResearchTest {
         avgSubmitToFillMs = 90.0,
         notes = "test",
             metricsJson = """{"bar_minutes": ${config.barMinutes}}"""
+    )
+
+    private fun robustnessSnapshot(
+        strategyKind: String = "trend",
+        totalTrades: Int = 18,
+        symbolCount: Int = 3,
+        regimeCount: Int = 3,
+        effectiveSymbolCount: Double = 2.6,
+        effectiveRegimeCount: Double = 2.4,
+        largestSymbolTradeShare: Double = 0.42,
+        largestRegimeTradeShare: Double = 0.5,
+        profitableSymbolShare: Double = 0.67,
+        profitableRegimeShare: Double = 0.67,
+        worstSymbolNetReturnPct: Double = -0.8,
+        worstSymbolEdgeAfterCostBps: Double = -1.2,
+        worstRegimeNetReturnPct: Double = -0.5,
+        worstRegimeEdgeAfterCostBps: Double = -0.9,
+        stabilityScore: Double = 72.0
+    ) = StrategyRobustnessSnapshot(
+        strategyKind = strategyKind,
+        totalTrades = totalTrades,
+        symbolCount = symbolCount,
+        regimeCount = regimeCount,
+        effectiveSymbolCount = effectiveSymbolCount,
+        effectiveRegimeCount = effectiveRegimeCount,
+        largestSymbolTradeShare = largestSymbolTradeShare,
+        largestRegimeTradeShare = largestRegimeTradeShare,
+        profitableSymbolShare = profitableSymbolShare,
+        profitableRegimeShare = profitableRegimeShare,
+        worstSymbolNetReturnPct = worstSymbolNetReturnPct,
+        worstSymbolEdgeAfterCostBps = worstSymbolEdgeAfterCostBps,
+        worstRegimeNetReturnPct = worstRegimeNetReturnPct,
+        worstRegimeEdgeAfterCostBps = worstRegimeEdgeAfterCostBps,
+        stabilityScore = stabilityScore,
+        symbolSlices = emptyList(),
+        regimeSlices = emptyList()
     )
 
     private fun fakeTwoStepSearchResult(config: ResearchConfig): CrossSectionalResearchResult {

@@ -1555,12 +1555,18 @@ fun buildExpectedRoundTripCostBps(row: FeatureRow, entryEstimate: ExecutionEstim
 fun breadthTilt(row: FeatureRow): Double =
     (row.breadth - 0.5) * 2.0
 
-fun calibrationRegimeBucket(row: FeatureRow): String =
+fun volatilityRegimeBucket(volRegime: Double): String =
     when {
-        row.volRegime < 0.95 -> "calm"
-        row.volRegime < 1.45 -> "normal"
+        volRegime < 0.95 -> "calm"
+        volRegime < 1.45 -> "normal"
         else -> "stress"
     }
+
+fun calibrationRegimeBucket(row: FeatureRow): String =
+    volatilityRegimeBucket(row.volRegime)
+
+fun tradeRegimeBucket(trade: TradeRecord): String =
+    volatilityRegimeBucket(trade.entryVolRegime)
 
 fun calibrationSignalBucket(kind: StrategyKind, row: FeatureRow): String =
     when (kind) {
@@ -2447,6 +2453,131 @@ fun buildStrategySummaries(
     return perSymbol + perExchange
 }
 
+private fun effectiveSliceCount(counts: List<Int>): Double {
+    val total = counts.sum().toDouble()
+    if (total <= 0.0) return 0.0
+    val hhi = counts.sumOf { count ->
+        val share = count.toDouble() / total
+        share * share
+    }
+    if (hhi <= 0.0) return 0.0
+    return (1.0 / hhi).round(4)
+}
+
+private fun summarizeTradeSlice(label: String, trades: List<TradeRecord>): StrategySliceSnapshot {
+    val sorted = trades.sortedBy { it.entryTime }
+    var equity = 1.0
+    var peak = 1.0
+    var maxDrawdown = 0.0
+    sorted.forEach { trade ->
+        equity *= (1.0 + trade.netReturnFraction)
+        peak = max(peak, equity)
+        maxDrawdown = max(maxDrawdown, 1.0 - (equity / peak))
+    }
+    return StrategySliceSnapshot(
+        label = label,
+        trades = sorted.size,
+        winRate = (sorted.count { it.netReturnFraction > 0.0 }.toDouble() / max(sorted.size, 1).toDouble()).round(4),
+        netReturnPct = ((equity - 1.0) * 100.0).round(4),
+        maxDrawdownPct = (maxDrawdown * 100.0).round(4),
+        avgEdgeAfterCostBps = mean(sorted.map { it.edgeAfterCostBps }).round(4),
+        avgFillRatio = mean(sorted.map { it.fillRatio }).round(4)
+    )
+}
+
+fun computeStrategyRobustness(
+    kind: StrategyKind,
+    trades: List<TradeRecord>
+): StrategyRobustnessSnapshot? {
+    if (trades.isEmpty()) return null
+
+    val totalTrades = trades.size
+    val multipleExchanges = trades.map { it.exchange }.distinct().size > 1
+    val symbolSlices = trades.groupBy { it.exchange to it.symbol }
+        .map { (key, bucket) ->
+            val label = if (multipleExchanges) "${key.first}:${key.second}" else key.second
+            summarizeTradeSlice(label, bucket)
+        }
+        .sortedWith(
+            compareByDescending<StrategySliceSnapshot> { it.trades }
+                .thenByDescending { it.avgEdgeAfterCostBps }
+                .thenBy { it.label }
+        )
+    val regimeOrder = mapOf("calm" to 0, "normal" to 1, "stress" to 2)
+    val regimeSlices = trades.groupBy(::tradeRegimeBucket)
+        .map { (bucket, bucketTrades) -> summarizeTradeSlice(bucket, bucketTrades) }
+        .sortedWith(
+            compareBy<StrategySliceSnapshot> { regimeOrder[it.label] ?: Int.MAX_VALUE }
+                .thenByDescending { it.trades }
+        )
+
+    val symbolCount = symbolSlices.size
+    val regimeCount = regimeSlices.size
+    val effectiveSymbolCount = effectiveSliceCount(symbolSlices.map { it.trades })
+    val effectiveRegimeCount = effectiveSliceCount(regimeSlices.map { it.trades })
+    val largestSymbolTradeShare =
+        ((symbolSlices.maxOfOrNull { it.trades } ?: 0).toDouble() / max(totalTrades, 1).toDouble()).round(4)
+    val largestRegimeTradeShare =
+        ((regimeSlices.maxOfOrNull { it.trades } ?: 0).toDouble() / max(totalTrades, 1).toDouble()).round(4)
+    val profitableSymbolShare = if (symbolCount == 0) {
+        0.0
+    } else {
+        symbolSlices.count { it.netReturnPct > 0.0 && it.avgEdgeAfterCostBps > 0.0 }.toDouble() / symbolCount.toDouble()
+    }.round(4)
+    val profitableRegimeShare = if (regimeCount == 0) {
+        0.0
+    } else {
+        regimeSlices.count { it.netReturnPct > 0.0 && it.avgEdgeAfterCostBps > 0.0 }.toDouble() / regimeCount.toDouble()
+    }.round(4)
+    val worstSymbolNetReturnPct = (symbolSlices.minOfOrNull { it.netReturnPct } ?: 0.0).round(4)
+    val worstSymbolEdgeAfterCostBps = (symbolSlices.minOfOrNull { it.avgEdgeAfterCostBps } ?: 0.0).round(4)
+    val worstRegimeNetReturnPct = (regimeSlices.minOfOrNull { it.netReturnPct } ?: 0.0).round(4)
+    val worstRegimeEdgeAfterCostBps = (regimeSlices.minOfOrNull { it.avgEdgeAfterCostBps } ?: 0.0).round(4)
+
+    val normalizedSymbolBreadth = if (symbolCount <= 1) {
+        0.0
+    } else {
+        clamp((effectiveSymbolCount - 1.0) / (symbolCount.toDouble() - 1.0), 0.0, 1.0)
+    }
+    val normalizedRegimeBreadth = if (regimeCount <= 1) {
+        0.0
+    } else {
+        clamp((effectiveRegimeCount - 1.0) / (regimeCount.toDouble() - 1.0), 0.0, 1.0)
+    }
+    val worstSlicePenalty = clamp(
+        (max(0.0, -worstSymbolEdgeAfterCostBps) + max(0.0, -worstRegimeEdgeAfterCostBps)) / 16.0,
+        0.0,
+        1.0
+    )
+    val stabilityScore = (
+        (normalizedSymbolBreadth * 30.0) +
+            (normalizedRegimeBreadth * 25.0) +
+            (profitableSymbolShare * 20.0) +
+            (profitableRegimeShare * 15.0) +
+            ((1.0 - worstSlicePenalty) * 10.0)
+        ).round(4)
+
+    return StrategyRobustnessSnapshot(
+        strategyKind = kind.name.lowercase(),
+        totalTrades = totalTrades,
+        symbolCount = symbolCount,
+        regimeCount = regimeCount,
+        effectiveSymbolCount = effectiveSymbolCount,
+        effectiveRegimeCount = effectiveRegimeCount,
+        largestSymbolTradeShare = largestSymbolTradeShare,
+        largestRegimeTradeShare = largestRegimeTradeShare,
+        profitableSymbolShare = profitableSymbolShare,
+        profitableRegimeShare = profitableRegimeShare,
+        worstSymbolNetReturnPct = worstSymbolNetReturnPct,
+        worstSymbolEdgeAfterCostBps = worstSymbolEdgeAfterCostBps,
+        worstRegimeNetReturnPct = worstRegimeNetReturnPct,
+        worstRegimeEdgeAfterCostBps = worstRegimeEdgeAfterCostBps,
+        stabilityScore = stabilityScore,
+        symbolSlices = symbolSlices,
+        regimeSlices = regimeSlices
+    )
+}
+
 fun ensureAnalyticsTables(conn: Connection) {
     conn.createStatement().use { stmt ->
         stmt.execute(
@@ -2986,6 +3117,36 @@ data class ResearchDiagnostics(
     val topReversionSeeds: List<ResearchSeedSnapshot>
 )
 
+data class StrategySliceSnapshot(
+    val label: String,
+    val trades: Int,
+    val winRate: Double,
+    val netReturnPct: Double,
+    val maxDrawdownPct: Double,
+    val avgEdgeAfterCostBps: Double,
+    val avgFillRatio: Double
+)
+
+data class StrategyRobustnessSnapshot(
+    val strategyKind: String,
+    val totalTrades: Int,
+    val symbolCount: Int,
+    val regimeCount: Int,
+    val effectiveSymbolCount: Double,
+    val effectiveRegimeCount: Double,
+    val largestSymbolTradeShare: Double,
+    val largestRegimeTradeShare: Double,
+    val profitableSymbolShare: Double,
+    val profitableRegimeShare: Double,
+    val worstSymbolNetReturnPct: Double,
+    val worstSymbolEdgeAfterCostBps: Double,
+    val worstRegimeNetReturnPct: Double,
+    val worstRegimeEdgeAfterCostBps: Double,
+    val stabilityScore: Double,
+    val symbolSlices: List<StrategySliceSnapshot>,
+    val regimeSlices: List<StrategySliceSnapshot>
+)
+
 data class CrossSectionalResearchResult(
     val config: ResearchConfig,
     val exchangeCatalog: List<ExchangeCatalogSnapshot>,
@@ -3001,7 +3162,9 @@ data class CrossSectionalResearchResult(
     val forwardCutoff: Instant?,
     val calibrationRows: Int,
     val forwardRows: Int,
-    val calibrationExampleCounts: Map<String, Int>
+    val calibrationExampleCounts: Map<String, Int>,
+    val backtestRobustness: Map<String, StrategyRobustnessSnapshot> = emptyMap(),
+    val forwardRobustness: Map<String, StrategyRobustnessSnapshot> = emptyMap()
 )
 
 data class ResearchDataKey(
@@ -3042,7 +3205,10 @@ data class StrategySearchFitness(
     val passesFilters: Boolean,
     val rejectionReasons: List<String>,
     val backtest: StrategyAggregateSnapshot?,
-    val forward: StrategyAggregateSnapshot?
+    val forward: StrategyAggregateSnapshot?,
+    val robustnessScore: Double = 0.0,
+    val backtestRobustness: StrategyRobustnessSnapshot? = null,
+    val forwardRobustness: StrategyRobustnessSnapshot? = null
 )
 
 data class CrossSectionalSearchCandidate(
@@ -3282,6 +3448,14 @@ fun evaluateCrossSectionalResearch(
             timeframe = "candle_${config.barMinutes}m",
             notes = "${config.barMinutes}m beta-adjusted cross-sectional mean reversion with causal calibration gating"
         )
+    val backtestRobustness = mutableMapOf<String, StrategyRobustnessSnapshot>().apply {
+        computeStrategyRobustness(StrategyKind.TREND, trendTrades)?.let {
+            put(StrategyKind.TREND.name.lowercase(), it)
+        }
+        computeStrategyRobustness(StrategyKind.REVERSION, reversionTrades)?.let {
+            put(StrategyKind.REVERSION.name.lowercase(), it)
+        }
+    }
 
     if (config.persistBacktest && backtestSummaries.isNotEmpty()) {
         persistBacktestSummaries(backtestSummaries)
@@ -3295,6 +3469,7 @@ fun evaluateCrossSectionalResearch(
     var calibrationRowsCount = 0
     var forwardRowsCount = 0
     var calibrationCounts = emptyMap<String, Int>()
+    var forwardRobustness = emptyMap<String, StrategyRobustnessSnapshot>()
 
     if (forwardCutoff != null) {
         val calibrationRows = researchFeatureRows.filter { it.time.isBefore(forwardCutoff) }
@@ -3386,6 +3561,14 @@ fun evaluateCrossSectionalResearch(
                 timeframe = "forward_${config.barMinutes}m",
                 notes = "forward ${config.barMinutes}m slice with calibrated promotion gating"
             )
+        forwardRobustness = mutableMapOf<String, StrategyRobustnessSnapshot>().apply {
+            computeStrategyRobustness(StrategyKind.TREND, forwardTrendTrades)?.let {
+                put(StrategyKind.TREND.name.lowercase(), it)
+            }
+            computeStrategyRobustness(StrategyKind.REVERSION, forwardReversionTrades)?.let {
+                put(StrategyKind.REVERSION.name.lowercase(), it)
+            }
+        }
 
         latestSignals = latestSignalSnapshots(researchFeatureRows, config, forwardCalibrationState)
 
@@ -3414,7 +3597,9 @@ fun evaluateCrossSectionalResearch(
         forwardCutoff = forwardCutoff,
         calibrationRows = calibrationRowsCount,
         forwardRows = forwardRowsCount,
-        calibrationExampleCounts = calibrationCounts
+        calibrationExampleCounts = calibrationCounts,
+        backtestRobustness = backtestRobustness,
+        forwardRobustness = forwardRobustness
     )
 }
 
@@ -3677,7 +3862,9 @@ fun computeStrategySearchFitness(
     searchConfig: CrossSectionalSearchConfig,
     kind: StrategyKind,
     backtest: StrategyAggregateSnapshot?,
-    forward: StrategyAggregateSnapshot?
+    forward: StrategyAggregateSnapshot?,
+    backtestRobustness: StrategyRobustnessSnapshot? = null,
+    forwardRobustness: StrategyRobustnessSnapshot? = null
 ): StrategySearchFitness {
     val rejectionReasons = mutableListOf<String>()
     val backtestTrades = backtest?.trades ?: 0
@@ -3686,6 +3873,26 @@ fun computeStrategySearchFitness(
     val realizedDrawdown = max(backtest?.maxDrawdownPct ?: 0.0, forward?.maxDrawdownPct ?: 0.0)
     val realizedEdge = forward?.avgEdgeAfterCostBps ?: backtest?.avgEdgeAfterCostBps ?: 0.0
     val realizedReturn = forward?.netReturnPct ?: backtest?.netReturnPct ?: 0.0
+    val primaryRobustness = backtestRobustness ?: forwardRobustness
+    val profitableSymbolShare = primaryRobustness?.profitableSymbolShare ?: 1.0
+    val profitableRegimeShare = primaryRobustness?.profitableRegimeShare ?: 1.0
+    val largestSymbolTradeShare = primaryRobustness?.largestSymbolTradeShare ?: 0.0
+    val largestRegimeTradeShare = primaryRobustness?.largestRegimeTradeShare ?: 0.0
+    val worstSymbolEdgeAfterCostBps = listOfNotNull(
+        backtestRobustness?.worstSymbolEdgeAfterCostBps,
+        forwardRobustness?.worstSymbolEdgeAfterCostBps
+    ).minOrNull() ?: 0.0
+    val worstRegimeEdgeAfterCostBps = listOfNotNull(
+        backtestRobustness?.worstRegimeEdgeAfterCostBps,
+        forwardRobustness?.worstRegimeEdgeAfterCostBps
+    ).minOrNull() ?: 0.0
+    val robustnessScore = listOfNotNull(
+        backtestRobustness?.stabilityScore,
+        forwardRobustness?.stabilityScore
+    ).takeIf { it.isNotEmpty() }
+        ?.average()
+        ?.round(4)
+        ?: 0.0
 
     if (backtest == null) rejectionReasons += "missing_backtest"
     if (forward == null) rejectionReasons += "missing_forward"
@@ -3701,6 +3908,18 @@ fun computeStrategySearchFitness(
     }
     if (realizedEdge <= 0.0) rejectionReasons += "non_positive_edge"
     if (realizedReturn <= 0.0) rejectionReasons += "non_positive_return"
+    if ((backtestRobustness?.symbolCount ?: 0) >= 2 && largestSymbolTradeShare > 0.85) {
+        rejectionReasons += "symbol_concentration>${0.85.round(2)}"
+    }
+    if ((backtestRobustness?.regimeCount ?: 0) >= 2 && largestRegimeTradeShare > 0.9) {
+        rejectionReasons += "regime_concentration>${0.9.round(2)}"
+    }
+    if ((backtestRobustness?.symbolCount ?: 0) >= 3 && profitableSymbolShare < 0.34) {
+        rejectionReasons += "symbol_fragile"
+    }
+    if ((backtestRobustness?.regimeCount ?: 0) >= 3 && profitableRegimeShare < 0.34) {
+        rejectionReasons += "regime_fragile"
+    }
 
     val backtestReturnScore = (backtest?.netReturnPct ?: 0.0) * 1.8
     val forwardReturnScore = (forward?.netReturnPct ?: 0.0) * 3.4
@@ -3722,6 +3941,18 @@ fun computeStrategySearchFitness(
         0.0,
         (backtest?.avgEdgeAfterCostBps ?: 0.0) - (forward?.avgEdgeAfterCostBps ?: backtest?.avgEdgeAfterCostBps ?: 0.0)
     ) * 0.4
+    val robustnessBonus =
+        ((backtestRobustness?.stabilityScore ?: 0.0) * 0.12) +
+            ((forwardRobustness?.stabilityScore ?: 0.0) * 0.16)
+    val concentrationPenalty =
+        (max(0.0, largestSymbolTradeShare - 0.55) * 28.0) +
+            (max(0.0, largestRegimeTradeShare - 0.65) * 18.0)
+    val fragilityPenalty =
+        (max(0.0, 0.55 - profitableSymbolShare) * 20.0) +
+            (max(0.0, 0.55 - profitableRegimeShare) * 16.0)
+    val worstSlicePenalty =
+        (max(0.0, -worstSymbolEdgeAfterCostBps) * 0.8) +
+            (max(0.0, -worstRegimeEdgeAfterCostBps) * 0.9)
     val missingPenalty =
         (if (backtest == null) 20.0 else 0.0) +
             (if (forward == null) 24.0 else 0.0)
@@ -3738,8 +3969,12 @@ fun computeStrategySearchFitness(
             drawdownPenalty -
             fillPenalty -
             driftPenalty -
+            concentrationPenalty -
+            fragilityPenalty -
+            worstSlicePenalty -
             missingPenalty -
-            rejectionPenalty
+            rejectionPenalty +
+            robustnessBonus
         ).round(4)
 
     return StrategySearchFitness(
@@ -3748,7 +3983,10 @@ fun computeStrategySearchFitness(
         passesFilters = rejectionReasons.isEmpty(),
         rejectionReasons = rejectionReasons,
         backtest = backtest,
-        forward = forward
+        forward = forward,
+        robustnessScore = robustnessScore,
+        backtestRobustness = backtestRobustness,
+        forwardRobustness = forwardRobustness
     )
 }
 
@@ -3801,8 +4039,22 @@ private fun buildSearchEvaluation(
     val trendForward = aggregateStrategySnapshot(result.forwardSummaries, StrategyKind.TREND)
     val reversionBacktest = aggregateStrategySnapshot(result.backtestSummaries, StrategyKind.REVERSION)
     val reversionForward = aggregateStrategySnapshot(result.forwardSummaries, StrategyKind.REVERSION)
-    val trendFitness = computeStrategySearchFitness(searchConfig, StrategyKind.TREND, trendBacktest, trendForward)
-    val reversionFitness = computeStrategySearchFitness(searchConfig, StrategyKind.REVERSION, reversionBacktest, reversionForward)
+    val trendFitness = computeStrategySearchFitness(
+        searchConfig = searchConfig,
+        kind = StrategyKind.TREND,
+        backtest = trendBacktest,
+        forward = trendForward,
+        backtestRobustness = result.backtestRobustness[StrategyKind.TREND.name.lowercase()],
+        forwardRobustness = result.forwardRobustness[StrategyKind.TREND.name.lowercase()]
+    )
+    val reversionFitness = computeStrategySearchFitness(
+        searchConfig = searchConfig,
+        kind = StrategyKind.REVERSION,
+        backtest = reversionBacktest,
+        forward = reversionForward,
+        backtestRobustness = result.backtestRobustness[StrategyKind.REVERSION.name.lowercase()],
+        forwardRobustness = result.forwardRobustness[StrategyKind.REVERSION.name.lowercase()]
+    )
     return SearchEvaluation(
         config = result.config,
         result = result,
