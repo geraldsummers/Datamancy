@@ -164,3 +164,91 @@ CREATE INDEX IF NOT EXISTS idx_strategy_live_backtest_drift_time
     ON strategy_live_backtest_drift(observed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_strategy_live_backtest_drift_strategy_time
     ON strategy_live_backtest_drift(strategy_name, observed_at DESC);
+
+CREATE TABLE IF NOT EXISTS strategy_universe_profiles (
+    id BIGSERIAL PRIMARY KEY,
+    run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    strategy_name TEXT NOT NULL,
+    exchange TEXT NOT NULL,
+    stage TEXT NOT NULL DEFAULT 'research',
+    timeframe TEXT NOT NULL,
+    candidate_symbols INTEGER NOT NULL DEFAULT 0,
+    selected_symbols INTEGER NOT NULL DEFAULT 0,
+    benchmark_symbols INTEGER NOT NULL DEFAULT 0,
+    candidate_avg_tradable_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    selected_avg_tradable_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    candidate_avg_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    selected_avg_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    candidate_avg_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+    selected_avg_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+    candidate_median_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+    selected_median_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+    candidate_avg_depth_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+    selected_avg_depth_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+    candidate_avg_volume_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+    selected_avg_volume_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+    candidate_observed_execution_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+    selected_observed_execution_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+    candidate_tradable_execution_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+    selected_tradable_execution_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+    deep_liquidity_symbols INTEGER NOT NULL DEFAULT 0,
+    core_liquidity_symbols INTEGER NOT NULL DEFAULT 0,
+    tradable_liquidity_symbols INTEGER NOT NULL DEFAULT 0,
+    fragile_liquidity_symbols INTEGER NOT NULL DEFAULT 0,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_strategy_universe_profiles_run_at
+    ON strategy_universe_profiles(run_at DESC);
+CREATE INDEX IF NOT EXISTS idx_strategy_universe_profiles_strategy_time
+    ON strategy_universe_profiles(strategy_name, run_at DESC);
+CREATE INDEX IF NOT EXISTS idx_strategy_universe_profiles_stage_time
+    ON strategy_universe_profiles(stage, run_at DESC);
+
+CREATE TABLE IF NOT EXISTS strategy_portfolio_profiles (
+    id BIGSERIAL PRIMARY KEY,
+    run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    strategy_name TEXT NOT NULL,
+    strategy_kind TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    policy_max_concurrent_positions INTEGER NOT NULL DEFAULT 0,
+    policy_max_concurrent_longs INTEGER NOT NULL DEFAULT 0,
+    policy_max_concurrent_shorts INTEGER NOT NULL DEFAULT 0,
+    policy_max_net_exposure_fraction DOUBLE PRECISION NOT NULL DEFAULT 0,
+    policy_max_abs_beta_btc DOUBLE PRECISION NOT NULL DEFAULT 0,
+    policy_max_abs_beta_eth DOUBLE PRECISION NOT NULL DEFAULT 0,
+    max_concurrent_positions INTEGER NOT NULL DEFAULT 0,
+    max_concurrent_longs INTEGER NOT NULL DEFAULT 0,
+    max_concurrent_shorts INTEGER NOT NULL DEFAULT 0,
+    avg_concurrent_positions DOUBLE PRECISION NOT NULL DEFAULT 0,
+    avg_concurrent_longs DOUBLE PRECISION NOT NULL DEFAULT 0,
+    avg_concurrent_shorts DOUBLE PRECISION NOT NULL DEFAULT 0,
+    max_gross_exposure_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+    avg_gross_exposure_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+    max_net_exposure_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+    avg_net_exposure_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+    max_abs_net_exposure_fraction DOUBLE PRECISION NOT NULL DEFAULT 0,
+    avg_abs_net_exposure_fraction DOUBLE PRECISION NOT NULL DEFAULT 0,
+    max_abs_beta_btc DOUBLE PRECISION NOT NULL DEFAULT 0,
+    avg_abs_beta_btc DOUBLE PRECISION NOT NULL DEFAULT 0,
+    max_abs_beta_eth DOUBLE PRECISION NOT NULL DEFAULT 0,
+    avg_abs_beta_eth DOUBLE PRECISION NOT NULL DEFAULT 0,
+    avg_capacity_utilization DOUBLE PRECISION NOT NULL DEFAULT 0,
+    max_capacity_utilization DOUBLE PRECISION NOT NULL DEFAULT 0,
+    trades INTEGER NOT NULL DEFAULT 0,
+    candidate_entries INTEGER NOT NULL DEFAULT 0,
+    accepted_entries INTEGER NOT NULL DEFAULT 0,
+    rejected_open_symbol INTEGER NOT NULL DEFAULT 0,
+    rejected_gross_limit INTEGER NOT NULL DEFAULT 0,
+    rejected_long_limit INTEGER NOT NULL DEFAULT 0,
+    rejected_short_limit INTEGER NOT NULL DEFAULT 0,
+    rejected_net_limit INTEGER NOT NULL DEFAULT 0,
+    rejected_beta_limit INTEGER NOT NULL DEFAULT 0,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_run_at
+    ON strategy_portfolio_profiles(run_at DESC);
+CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_strategy_time
+    ON strategy_portfolio_profiles(strategy_name, run_at DESC);
+CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_stage_time
+    ON strategy_portfolio_profiles(stage, run_at DESC);

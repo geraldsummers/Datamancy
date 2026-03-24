@@ -18,11 +18,15 @@ import org.datamancy.trading.analytics.crosssectional.CrossSectionalResearchResu
 import org.datamancy.trading.analytics.crosssectional.ExchangeCatalogSnapshot
 import org.datamancy.trading.analytics.crosssectional.ExchangeCapabilitiesSnapshot
 import org.datamancy.trading.analytics.crosssectional.ExchangePlan
+import org.datamancy.trading.analytics.crosssectional.PortfolioConstraintSnapshot
+import org.datamancy.trading.analytics.crosssectional.PortfolioProfileSnapshot
 import org.datamancy.trading.analytics.crosssectional.ResearchConfig
 import org.datamancy.trading.analytics.crosssectional.ResearchDataKey
 import org.datamancy.trading.analytics.crosssectional.ResearchDiagnostics
 import org.datamancy.trading.analytics.crosssectional.StrategyAggregateSnapshot
 import org.datamancy.trading.analytics.crosssectional.StrategySearchFitness
+import org.datamancy.trading.analytics.crosssectional.UniverseLiquidityBucketSnapshot
+import org.datamancy.trading.analytics.crosssectional.UniverseProfileSnapshot
 import java.time.Instant
 
 class ApplicationTest {
@@ -166,7 +170,39 @@ class ApplicationTest {
                     marketAliases = listOf(config.marketExchange)
                 )
             ),
+            candidateUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL", "TAO")),
             discoveredUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL")),
+            universeProfiles = listOf(
+                UniverseProfileSnapshot(
+                    exchange = "hyperliquid",
+                    candidateSymbols = 4,
+                    selectedSymbols = 3,
+                    benchmarkSymbols = 2,
+                    candidateAvgRecentTradableRatio = 0.72,
+                    selectedAvgRecentTradableRatio = 0.83,
+                    candidateAvgRecentObservedRatio = 0.86,
+                    selectedAvgRecentObservedRatio = 0.91,
+                    candidateAvgRecentSpreadBps = 1.8,
+                    selectedAvgRecentSpreadBps = 1.2,
+                    candidateMedianRecentSpreadBps = 1.5,
+                    selectedMedianRecentSpreadBps = 1.0,
+                    candidateAvgRecentDepthUsd = 450_000.0,
+                    selectedAvgRecentDepthUsd = 540_000.0,
+                    candidateAvgRecentVolumeUsd = 1_900_000.0,
+                    selectedAvgRecentVolumeUsd = 2_200_000.0,
+                    candidateObservedExecutionShare = 0.84,
+                    selectedObservedExecutionShare = 0.92,
+                    candidateTradableExecutionShare = 0.69,
+                    selectedTradableExecutionShare = 0.81,
+                    liquidityBuckets = listOf(
+                        UniverseLiquidityBucketSnapshot("deep", 2, 1.0, 700_000.0, 2_400_000.0, 0.92),
+                        UniverseLiquidityBucketSnapshot("core", 1, 1.5, 420_000.0, 1_800_000.0, 0.76),
+                        UniverseLiquidityBucketSnapshot("fragile", 1, 2.9, 160_000.0, 800_000.0, 0.42)
+                    ),
+                    selectedUniverse = listOf("BTC", "ETH", "SOL"),
+                    topCandidates = listOf("SOL", "TAO")
+                )
+            ),
             barsLoaded = 42,
             featureRows = 36,
             diagnostics = ResearchDiagnostics(
@@ -189,7 +225,40 @@ class ApplicationTest {
             forwardCutoff = null,
             calibrationRows = 0,
             forwardRows = 0,
-            calibrationExampleCounts = emptyMap()
+            calibrationExampleCounts = emptyMap(),
+            backtestPortfolioProfiles = mapOf(
+                "trend" to PortfolioProfileSnapshot(
+                    strategyKind = "trend",
+                    stage = "backtest",
+                    exchanges = listOf("hyperliquid"),
+                    trades = 0,
+                    policyMaxConcurrentPositions = 6,
+                    policyMaxConcurrentLongs = 3,
+                    policyMaxConcurrentShorts = 3,
+                    policyMaxNetExposureFraction = 0.4,
+                    policyMaxAbsBetaBtc = 0.65,
+                    policyMaxAbsBetaEth = 0.65,
+                    maxConcurrentPositions = 0,
+                    maxConcurrentLongs = 0,
+                    maxConcurrentShorts = 0,
+                    avgConcurrentPositions = 0.0,
+                    avgConcurrentLongs = 0.0,
+                    avgConcurrentShorts = 0.0,
+                    maxGrossExposureUsd = 0.0,
+                    avgGrossExposureUsd = 0.0,
+                    maxNetExposureUsd = 0.0,
+                    avgNetExposureUsd = 0.0,
+                    maxAbsNetExposureFraction = 0.0,
+                    avgAbsNetExposureFraction = 0.0,
+                    maxAbsBetaBtc = 0.0,
+                    avgAbsBetaBtc = 0.0,
+                    maxAbsBetaEth = 0.0,
+                    avgAbsBetaEth = 0.0,
+                    avgCapacityUtilization = 0.0,
+                    maxCapacityUtilization = 0.0,
+                    entryConstraints = PortfolioConstraintSnapshot(0, 0, 0, 0, 0, 0, 0, 0)
+                )
+            )
         )
     }
 
@@ -279,6 +348,7 @@ class ApplicationTest {
                 executionExchangeOverride = candidateConfig.executionExchangeOverride,
                 barMinutes = candidateConfig.barMinutes,
                 lookbackHours = candidateConfig.lookbackHours,
+                discoveryMaxSymbols = candidateConfig.discoveryMaxSymbols,
                 maxSymbols = candidateConfig.maxSymbols,
                 minBars = candidateConfig.minBars
             ),

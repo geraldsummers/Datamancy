@@ -1,0 +1,723 @@
+{
+  "uid": "alpha-lab",
+  "title": "Alpha Lab",
+  "tags": [
+    "trading",
+    "alpha",
+    "research",
+    "cross-sectional"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-14d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "alpha_lab_strategy",
+        "type": "query",
+        "label": "Strategy",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT strategy_name AS __text, strategy_name AS __value FROM (SELECT DISTINCT strategy_name FROM strategy_universe_profiles UNION SELECT DISTINCT strategy_name FROM strategy_portfolio_profiles UNION SELECT DISTINCT strategy_name FROM strategy_backtest_runs) strategies ORDER BY 1",
+        "definition": "SELECT strategy_name AS __text, strategy_name AS __value FROM (SELECT DISTINCT strategy_name FROM strategy_universe_profiles UNION SELECT DISTINCT strategy_name FROM strategy_portfolio_profiles UNION SELECT DISTINCT strategy_name FROM strategy_backtest_runs) strategies ORDER BY 1",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "cross_section_beta_trend_v1",
+          "value": "cross_section_beta_trend_v1"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "alpha_lab_exchange",
+        "type": "query",
+        "label": "Exchange",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM strategy_universe_profiles WHERE strategy_name = '${alpha_lab_strategy}') exchanges ORDER BY 1",
+        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM strategy_universe_profiles WHERE strategy_name = '${alpha_lab_strategy}') exchanges ORDER BY 1",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "__all",
+          "value": "__all"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "alpha_lab_stage",
+        "type": "query",
+        "label": "Portfolio Stage",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT stage AS __text, stage AS __value FROM (SELECT DISTINCT stage FROM strategy_portfolio_profiles WHERE strategy_name = '${alpha_lab_strategy}') stages ORDER BY 1",
+        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT stage AS __text, stage AS __value FROM (SELECT DISTINCT stage FROM strategy_portfolio_profiles WHERE strategy_name = '${alpha_lab_strategy}') stages ORDER BY 1",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "__all",
+          "value": "__all"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Latest Candidate Scan",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT MAX(run_at) AS run_at FROM strategy_universe_profiles WHERE strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') AND $__timeFilter(run_at)) SELECT COALESCE(SUM(candidate_symbols), 0) AS value FROM strategy_universe_profiles u JOIN latest l ON u.run_at = l.run_at WHERE strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR u.exchange = '${alpha_lab_exchange}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Latest Selected Universe",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT MAX(run_at) AS run_at FROM strategy_universe_profiles WHERE strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') AND $__timeFilter(run_at)) SELECT COALESCE(SUM(selected_symbols), 0) AS value FROM strategy_universe_profiles u JOIN latest l ON u.run_at = l.run_at WHERE strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR u.exchange = '${alpha_lab_exchange}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Latest Acceptance Rate",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT MAX(run_at) AS run_at FROM strategy_portfolio_profiles WHERE strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') AND $__timeFilter(run_at)) SELECT ROUND(COALESCE((SUM(accepted_entries)::numeric / NULLIF(SUM(candidate_entries), 0)) * 100, 0), 2) AS value FROM strategy_portfolio_profiles p JOIN latest l ON p.run_at = l.run_at WHERE strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR p.stage = '${alpha_lab_stage}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Latest Peak Slot Usage",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT MAX(run_at) AS run_at FROM strategy_portfolio_profiles WHERE strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') AND $__timeFilter(run_at)) SELECT ROUND(COALESCE(MAX((max_concurrent_positions::double precision / NULLIF(policy_max_concurrent_positions, 0)) * 100), 0), 2) AS value FROM strategy_portfolio_profiles p JOIN latest l ON p.run_at = l.run_at WHERE strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR p.stage = '${alpha_lab_stage}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Universe Breadth Over Time",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX(candidate_symbols) AS \"Candidate Scan\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX(selected_symbols) AS \"Selected Universe\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Selection Quality Ratios (%)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(selected_avg_tradable_ratio) * 100 AS \"Selected Tradable %\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(selected_observed_execution_share) * 100 AS \"Selected Observed %\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", ROUND(AVG((selected_symbols::double precision / NULLIF(candidate_symbols, 0)) * 100), 2) AS \"Selection Rate %\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Spread Profile (bps)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(candidate_avg_spread_bps) AS \"Candidate Avg Spread\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(selected_avg_spread_bps) AS \"Selected Avg Spread\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(candidate_median_spread_bps) AS \"Candidate Median Spread\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(selected_median_spread_bps) AS \"Selected Median Spread\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 12
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Depth / Volume Profile (USD)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(candidate_avg_depth_usd) AS \"Candidate Depth\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(selected_avg_depth_usd) AS \"Selected Depth\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(candidate_avg_volume_usd) AS \"Candidate Volume\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(selected_avg_volume_usd) AS \"Selected Volume\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 12
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Liquidity Bucket Mix",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(deep_liquidity_symbols) AS \"Deep\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(core_liquidity_symbols) AS \"Core\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(tradable_liquidity_symbols) AS \"Tradable\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(fragile_liquidity_symbols) AS \"Fragile\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 12
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Portfolio Budget Usage (%)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(avg_capacity_utilization) * 100 AS \"Avg Slot Usage %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX((max_concurrent_positions::double precision / NULLIF(policy_max_concurrent_positions, 0)) * 100) AS \"Peak Slot Usage %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX((max_abs_net_exposure_fraction / NULLIF(policy_max_net_exposure_fraction, 0)) * 100) AS \"Peak Net Budget %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX((max_abs_beta_btc / NULLIF(policy_max_abs_beta_btc, 0)) * 100) AS \"BTC Beta Budget %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "E",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX((max_abs_beta_eth / NULLIF(policy_max_abs_beta_eth, 0)) * 100) AS \"ETH Beta Budget %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Entry Funnel + Rejections",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(candidate_entries) AS \"Candidates\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(accepted_entries) AS \"Accepted\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(rejected_gross_limit) AS \"Rejected Gross\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(rejected_net_limit) AS \"Rejected Net\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "E",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(rejected_beta_limit) AS \"Rejected Beta\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "F",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(rejected_open_symbol) AS \"Rejected Open Symbol\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${alpha_lab_strategy}' AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      }
+    },
+    {
+      "type": "table",
+      "title": "Latest Universe Manifest",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  run_at,\n  exchange,\n  candidate_symbols,\n  selected_symbols,\n  ROUND((selected_avg_tradable_ratio * 100)::numeric, 2) AS selected_tradable_pct,\n  ROUND((selected_observed_execution_share * 100)::numeric, 2) AS selected_observed_pct,\n  ROUND(selected_median_spread_bps::numeric, 2) AS selected_median_spread_bps,\n  array_to_string(ARRAY(SELECT jsonb_array_elements_text(metadata -> 'selected_universe')), ', ') AS selected_universe,\n  array_to_string(ARRAY(SELECT jsonb_array_elements_text(metadata -> 'top_candidates')), ', ') AS top_candidates\nFROM strategy_universe_profiles\nWHERE $__timeFilter(run_at)\n  AND strategy_name = '${alpha_lab_strategy}'\n  AND ('${alpha_lab_exchange}' = '__all' OR exchange = '${alpha_lab_exchange}')\nORDER BY run_at DESC\nLIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      }
+    },
+    {
+      "type": "table",
+      "title": "Latest Portfolio Policy + Utilization",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  run_at,\n  stage,\n  timeframe,\n  policy_max_concurrent_positions,\n  max_concurrent_positions AS peak_positions,\n  ROUND((avg_capacity_utilization * 100)::numeric, 2) AS avg_capacity_pct,\n  ROUND((max_capacity_utilization * 100)::numeric, 2) AS peak_capacity_pct,\n  ROUND((policy_max_net_exposure_fraction * 100)::numeric, 2) AS policy_net_pct,\n  ROUND((max_abs_net_exposure_fraction * 100)::numeric, 2) AS peak_net_pct,\n  ROUND(policy_max_abs_beta_btc::numeric, 3) AS policy_beta_btc,\n  ROUND(max_abs_beta_btc::numeric, 3) AS peak_beta_btc,\n  ROUND(policy_max_abs_beta_eth::numeric, 3) AS policy_beta_eth,\n  ROUND(max_abs_beta_eth::numeric, 3) AS peak_beta_eth,\n  candidate_entries,\n  accepted_entries,\n  rejected_open_symbol,\n  rejected_gross_limit,\n  rejected_long_limit,\n  rejected_short_limit,\n  rejected_net_limit,\n  rejected_beta_limit\nFROM strategy_portfolio_profiles\nWHERE $__timeFilter(run_at)\n  AND strategy_name = '${alpha_lab_strategy}'\n  AND ('${alpha_lab_stage}' = '__all' OR stage = '${alpha_lab_stage}')\nORDER BY run_at DESC\nLIMIT 30"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      }
+    },
+    {
+      "type": "table",
+      "title": "Run Leaderboard",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  run_at,\n  strategy_name,\n  timeframe,\n  symbol,\n  trades,\n  ROUND((win_rate * 100)::numeric, 2) AS win_rate_pct,\n  ROUND(net_return_pct::numeric, 2) AS net_return_pct,\n  ROUND(avg_edge_after_cost_bps::numeric, 2) AS edge_after_cost_bps,\n  ROUND(avg_total_cost_bps::numeric, 2) AS total_cost_bps,\n  ROUND((avg_fill_ratio * 100)::numeric, 2) AS fill_ratio_pct,\n  ROUND(max_drawdown_pct::numeric, 2) AS max_drawdown_pct,\n  ROUND(sharpe::numeric, 3) AS sharpe\nFROM strategy_backtest_runs\nWHERE $__timeFilter(run_at)\n  AND strategy_name = '${alpha_lab_strategy}'\nORDER BY run_at DESC, net_return_pct DESC\nLIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      }
+    }
+  ]
+}

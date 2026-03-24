@@ -308,6 +308,8 @@ class CrossSectionalResearchTest {
             trendHoldBars = listOf(4),
             reversionHoldBars = listOf(2),
             topPerSide = listOf(1),
+            maxSymbols = listOf(baseConfig.maxSymbols),
+            discoveryMaxSymbols = listOf(baseConfig.discoveryMaxSymbols),
             trendEntryScore = listOf(1.0),
             reversionZEntry = listOf(1.6, 2.15),
             reversionZExit = listOf(0.45),
@@ -327,7 +329,13 @@ class CrossSectionalResearchTest {
             minCalibrationLowerBoundBps = listOf(0.5),
             minCalibrationWinRate = listOf(0.52),
             trendCooldownBars = listOf(2),
-            reversionCooldownBars = listOf(1)
+            reversionCooldownBars = listOf(1),
+            maxConcurrentPositions = listOf(baseConfig.maxConcurrentPositions),
+            maxConcurrentLongs = listOf(baseConfig.maxConcurrentLongs),
+            maxConcurrentShorts = listOf(baseConfig.maxConcurrentShorts),
+            maxNetExposureFraction = listOf(baseConfig.maxNetExposureFraction),
+            maxPortfolioBetaBtcAbs = listOf(baseConfig.maxPortfolioBetaBtcAbs),
+            maxPortfolioBetaEthAbs = listOf(baseConfig.maxPortfolioBetaEthAbs)
         )
 
         val result = searchCrossSectionalResearch(searchConfig) { config ->
@@ -647,6 +655,143 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `buildUniverseProfiles captures candidate versus selected breadth`() {
+        val config = ResearchConfig(
+            barMinutes = 240,
+            forwardHours = 72,
+            maxSymbols = 2,
+            minDepthMultiple = 8.0,
+            maxSpreadBps = 4.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val start = Instant.parse("2026-03-20T00:00:00Z")
+        val bars = buildList {
+            listOf("BTC", "ETH", "SOL", "TAO").forEachIndexed { offset, symbol ->
+                repeat(6) { index ->
+                    add(
+                        bar(
+                            symbol = symbol,
+                            time = start.plusSeconds(index * 14_400L),
+                            close = 100.0 + offset,
+                            volume = 6_000.0 + (offset * 1_000.0),
+                            spreadPct = 0.01 + (offset * 0.002),
+                            depthUnitsPerSide = 450.0 + (offset * 40.0),
+                            executionObserved = true
+                        )
+                    )
+                }
+            }
+        }
+
+        val profiles = buildUniverseProfiles(
+            candidates = rankResearchUniverseCandidates(bars, config),
+            selectedUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL")),
+            config = config
+        )
+        val profile = profiles.single()
+
+        assertEquals(4, profile.candidateSymbols)
+        assertEquals(3, profile.selectedSymbols)
+        assertEquals(listOf("BTC", "ETH", "SOL"), profile.selectedUniverse)
+        assertTrue(profile.topCandidates.isNotEmpty())
+        assertTrue(profile.liquidityBuckets.isNotEmpty())
+    }
+
+    @Test
+    fun `simulateStrategy respects portfolio capacity and ranks strongest candidate first`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 4,
+            trendLookbackBars = 2,
+            trendSlowBars = 4,
+            reversionLookbackBars = 2,
+            trendHoldBars = 1,
+            topPerSide = 2,
+            maxConcurrentPositions = 1,
+            maxConcurrentLongs = 1,
+            maxConcurrentShorts = 1,
+            maxNetExposureFraction = 1.0,
+            maxPortfolioBetaBtcAbs = 1.0,
+            maxPortfolioBetaEthAbs = 1.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val t0 = Instant.parse("2026-03-23T10:00:00Z")
+        val t1 = t0.plusSeconds(3_600L)
+        val rows = listOf(
+            featureRow(symbol = "SOL", liquid = true, barIndex = 10, trendScore = 1.5, trendLongRank = 1, trendExpectedGrossEdgeBps = 42.0)
+                .copy(time = t0, close = 100.0),
+            featureRow(symbol = "TAO", liquid = true, barIndex = 10, trendScore = 1.45, trendLongRank = 2, trendExpectedGrossEdgeBps = 34.0)
+                .copy(time = t0, close = 120.0),
+            featureRow(symbol = "SOL", liquid = true, barIndex = 11, trendScore = 0.0, trendLongRank = Int.MAX_VALUE, trendExpectedGrossEdgeBps = 0.0)
+                .copy(time = t1, close = 101.0),
+            featureRow(symbol = "TAO", liquid = true, barIndex = 11, trendScore = 0.0, trendLongRank = Int.MAX_VALUE, trendExpectedGrossEdgeBps = 0.0)
+                .copy(time = t1, close = 121.0)
+        )
+
+        val trades = simulateStrategy(
+            strategyName = "cross_section_beta_trend_v1",
+            kind = StrategyKind.TREND,
+            rows = rows,
+            config = config
+        )
+
+        assertEquals(1, trades.size)
+        assertEquals("SOL", trades.single().symbol)
+    }
+
+    @Test
+    fun `simulateStrategy rejects candidates that breach portfolio beta budget`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 4,
+            trendLookbackBars = 2,
+            trendSlowBars = 4,
+            reversionLookbackBars = 2,
+            trendHoldBars = 1,
+            topPerSide = 1,
+            maxConcurrentPositions = 2,
+            maxConcurrentLongs = 2,
+            maxConcurrentShorts = 2,
+            maxNetExposureFraction = 1.0,
+            maxPortfolioBetaBtcAbs = 0.05,
+            maxPortfolioBetaEthAbs = 1.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val t0 = Instant.parse("2026-03-23T10:00:00Z")
+        val t1 = t0.plusSeconds(3_600L)
+        val rows = listOf(
+            featureRow(
+                symbol = "SOL",
+                liquid = true,
+                barIndex = 10,
+                trendScore = 1.5,
+                trendLongRank = 1,
+                trendExpectedGrossEdgeBps = 42.0,
+                betaBtc = 0.6
+            ).copy(time = t0, close = 100.0),
+            featureRow(
+                symbol = "SOL",
+                liquid = true,
+                barIndex = 11,
+                trendScore = 0.0,
+                trendLongRank = Int.MAX_VALUE,
+                trendExpectedGrossEdgeBps = 0.0,
+                betaBtc = 0.6
+            ).copy(time = t1, close = 101.0)
+        )
+
+        val trades = simulateStrategy(
+            strategyName = "cross_section_beta_trend_v1",
+            kind = StrategyKind.TREND,
+            rows = rows,
+            config = config
+        )
+
+        assertTrue(trades.isEmpty())
+    }
+
+    @Test
     fun `buildEntryCandidate caps calibrated edge at structural edge and shrinks to conservative calibration`() {
         val config = ResearchConfig(
             betaLookbackBars = 8,
@@ -714,6 +859,7 @@ class CrossSectionalResearchTest {
         symbol: String,
         liquid: Boolean,
         barIndex: Int,
+        time: Instant = Instant.parse("2026-03-23T10:00:00Z"),
         trendScore: Double,
         trendLongRank: Int = Int.MAX_VALUE,
         residualZ: Double = 0.0,
@@ -727,11 +873,13 @@ class CrossSectionalResearchTest {
         spreadBps: Double = 0.5,
         spreadPct: Double = 0.005,
         imbalance: Double = 0.15,
+        betaBtc: Double = 0.3,
+        betaEth: Double = 0.5,
         executionObserved: Boolean = true
     ) = FeatureRow(
         exchange = "hyperliquid",
         symbol = symbol,
-        time = Instant.parse("2026-03-23T10:00:00Z"),
+        time = time,
         barIndex = barIndex,
         close = 100.0,
         volume = 50_000.0,
@@ -744,8 +892,8 @@ class CrossSectionalResearchTest {
         volBps = 40.0,
         btcRet1m = 0.001,
         ethRet1m = 0.001,
-        betaBtc = 0.3,
-        betaEth = 0.5,
+        betaBtc = betaBtc,
+        betaEth = betaEth,
         residualRet = 0.001,
         residualMomFast = residualMomFast,
         residualMomSlow = residualMomSlow,
@@ -929,7 +1077,9 @@ class CrossSectionalResearchTest {
                 )
             ),
             exchangePlans = listOf(ExchangePlan(exchange = "hyperliquid", marketAliases = listOf(config.marketExchange))),
+            candidateUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL", "TAO")),
             discoveredUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL")),
+            universeProfiles = listOf(universeProfile()),
             barsLoaded = 240,
             featureRows = 180,
             diagnostics = ResearchDiagnostics(
@@ -952,7 +1102,15 @@ class CrossSectionalResearchTest {
             forwardCutoff = Instant.parse("2026-03-23T00:00:00Z"),
             calibrationRows = 120,
             forwardRows = 60,
-            calibrationExampleCounts = mapOf("trend" to 10, "reversion" to 9)
+            calibrationExampleCounts = mapOf("trend" to 10, "reversion" to 9),
+            backtestPortfolioProfiles = mapOf(
+                "trend" to portfolioProfile("trend", "backtest"),
+                "reversion" to portfolioProfile("reversion", "backtest")
+            ),
+            forwardPortfolioProfiles = mapOf(
+                "trend" to portfolioProfile("trend", "forward"),
+                "reversion" to portfolioProfile("reversion", "forward")
+            )
         )
     }
 
@@ -1034,7 +1192,9 @@ class CrossSectionalResearchTest {
                 )
             ),
             exchangePlans = listOf(ExchangePlan(exchange = "hyperliquid", marketAliases = listOf(config.marketExchange))),
+            candidateUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL", "TAO")),
             discoveredUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL")),
+            universeProfiles = listOf(universeProfile()),
             barsLoaded = 240,
             featureRows = 180,
             diagnostics = ResearchDiagnostics(
@@ -1057,7 +1217,15 @@ class CrossSectionalResearchTest {
             forwardCutoff = Instant.parse("2026-03-23T00:00:00Z"),
             calibrationRows = 120,
             forwardRows = 60,
-            calibrationExampleCounts = mapOf("trend" to 10, "reversion" to 9)
+            calibrationExampleCounts = mapOf("trend" to 10, "reversion" to 9),
+            backtestPortfolioProfiles = mapOf(
+                "trend" to portfolioProfile("trend", "backtest"),
+                "reversion" to portfolioProfile("reversion", "backtest")
+            ),
+            forwardPortfolioProfiles = mapOf(
+                "trend" to portfolioProfile("trend", "forward"),
+                "reversion" to portfolioProfile("reversion", "forward")
+            )
         )
     }
 
@@ -1206,7 +1374,9 @@ class CrossSectionalResearchTest {
                 )
             ),
             exchangePlans = listOf(ExchangePlan(exchange = "hyperliquid", marketAliases = listOf(config.marketExchange))),
+            candidateUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL", "TAO")),
             discoveredUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL")),
+            universeProfiles = listOf(universeProfile()),
             barsLoaded = 240,
             featureRows = 180,
             diagnostics = ResearchDiagnostics(
@@ -1229,7 +1399,86 @@ class CrossSectionalResearchTest {
             forwardCutoff = Instant.parse("2026-03-23T00:00:00Z"),
             calibrationRows = 120,
             forwardRows = 60,
-            calibrationExampleCounts = mapOf("trend" to 10, "reversion" to 9)
+            calibrationExampleCounts = mapOf("trend" to 10, "reversion" to 9),
+            backtestPortfolioProfiles = mapOf(
+                "trend" to portfolioProfile("trend", "backtest"),
+                "reversion" to portfolioProfile("reversion", "backtest")
+            ),
+            forwardPortfolioProfiles = mapOf(
+                "trend" to portfolioProfile("trend", "forward"),
+                "reversion" to portfolioProfile("reversion", "forward")
+            )
         )
     }
+
+    private fun universeProfile() = UniverseProfileSnapshot(
+        exchange = "hyperliquid",
+        candidateSymbols = 4,
+        selectedSymbols = 3,
+        benchmarkSymbols = 2,
+        candidateAvgRecentTradableRatio = 0.71,
+        selectedAvgRecentTradableRatio = 0.82,
+        candidateAvgRecentObservedRatio = 0.86,
+        selectedAvgRecentObservedRatio = 0.92,
+        candidateAvgRecentSpreadBps = 1.6,
+        selectedAvgRecentSpreadBps = 1.2,
+        candidateMedianRecentSpreadBps = 1.4,
+        selectedMedianRecentSpreadBps = 1.1,
+        candidateAvgRecentDepthUsd = 420_000.0,
+        selectedAvgRecentDepthUsd = 520_000.0,
+        candidateAvgRecentVolumeUsd = 1_800_000.0,
+        selectedAvgRecentVolumeUsd = 2_100_000.0,
+        candidateObservedExecutionShare = 0.84,
+        selectedObservedExecutionShare = 0.91,
+        candidateTradableExecutionShare = 0.68,
+        selectedTradableExecutionShare = 0.8,
+        liquidityBuckets = listOf(
+            UniverseLiquidityBucketSnapshot("deep", 2, 1.0, 700_000.0, 2_400_000.0, 0.92),
+            UniverseLiquidityBucketSnapshot("core", 1, 1.5, 420_000.0, 1_800_000.0, 0.76),
+            UniverseLiquidityBucketSnapshot("fragile", 1, 2.9, 160_000.0, 800_000.0, 0.42)
+        ),
+        selectedUniverse = listOf("BTC", "ETH", "SOL"),
+        topCandidates = listOf("SOL", "TAO")
+    )
+
+    private fun portfolioProfile(kind: String, stage: String) = PortfolioProfileSnapshot(
+        strategyKind = kind,
+        stage = stage,
+        exchanges = listOf("hyperliquid"),
+        trades = 12,
+        policyMaxConcurrentPositions = 4,
+        policyMaxConcurrentLongs = 2,
+        policyMaxConcurrentShorts = 2,
+        policyMaxNetExposureFraction = 0.4,
+        policyMaxAbsBetaBtc = 0.35,
+        policyMaxAbsBetaEth = 0.4,
+        maxConcurrentPositions = 3,
+        maxConcurrentLongs = 2,
+        maxConcurrentShorts = 1,
+        avgConcurrentPositions = 1.8,
+        avgConcurrentLongs = 1.1,
+        avgConcurrentShorts = 0.7,
+        maxGrossExposureUsd = 15_000.0,
+        avgGrossExposureUsd = 9_000.0,
+        maxNetExposureUsd = 5_000.0,
+        avgNetExposureUsd = 2_200.0,
+        maxAbsNetExposureFraction = 0.33,
+        avgAbsNetExposureFraction = 0.18,
+        maxAbsBetaBtc = 0.21,
+        avgAbsBetaBtc = 0.12,
+        maxAbsBetaEth = 0.24,
+        avgAbsBetaEth = 0.14,
+        avgCapacityUtilization = 0.45,
+        maxCapacityUtilization = 0.75,
+        entryConstraints = PortfolioConstraintSnapshot(
+            candidateEntries = 16,
+            acceptedEntries = 12,
+            rejectedOpenSymbol = 1,
+            rejectedGrossLimit = 1,
+            rejectedLongLimit = 1,
+            rejectedShortLimit = 0,
+            rejectedNetLimit = 1,
+            rejectedBetaLimit = 0
+        )
+    )
 }

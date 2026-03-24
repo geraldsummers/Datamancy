@@ -67,6 +67,32 @@ class GrafanaTradingDashboardConfigTest {
         )
     }
 
+    @Test
+    fun `alpha lab dashboard is wired to universe and portfolio profile telemetry`() {
+        val alphaLab = dashboardText("stack.config/grafana/provisioning/dashboards/alpha-lab.json")
+
+        assertTrue(
+            alphaLab.contains("\"name\": \"alpha_lab_strategy\""),
+            "alpha lab dashboard should define the alpha_lab_strategy selector"
+        )
+        assertTrue(
+            alphaLab.contains("\"type\": \"query\""),
+            "alpha lab dashboard selectors should be query backed"
+        )
+        assertTrue(
+            alphaLab.contains("SELECT strategy_name AS __text, strategy_name AS __value FROM (SELECT DISTINCT strategy_name FROM strategy_universe_profiles UNION SELECT DISTINCT strategy_name FROM strategy_portfolio_profiles UNION SELECT DISTINCT strategy_name FROM strategy_backtest_runs)"),
+            "alpha lab dashboard should discover strategy names from persisted research telemetry tables"
+        )
+        assertTrue(
+            alphaLab.contains("strategy_universe_profiles"),
+            "alpha lab dashboard should visualize universe profile telemetry"
+        )
+        assertTrue(
+            alphaLab.contains("strategy_portfolio_profiles"),
+            "alpha lab dashboard should visualize portfolio profile telemetry"
+        )
+    }
+
     private fun dashboardText(relativePath: String): String {
         return Files.readString(findRepoRoot().resolve(relativePath))
     }

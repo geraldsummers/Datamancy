@@ -131,7 +131,7 @@ data class SymbolLiquiditySnapshot(
     val avgVolume: Double
 )
 
-private data class ResearchUniverseCandidate(
+internal data class ResearchUniverseCandidate(
     val exchange: String,
     val symbol: String,
     val totalBars: Int,
@@ -143,6 +143,84 @@ private data class ResearchUniverseCandidate(
     val avgRecentDepthUsd: Double,
     val avgRecentVolumeUsd: Double,
     val avgRecentSpreadBps: Double
+)
+
+data class UniverseLiquidityBucketSnapshot(
+    val label: String,
+    val symbols: Int,
+    val avgSpreadBps: Double,
+    val avgDepthUsd: Double,
+    val avgVolumeUsd: Double,
+    val avgTradableRatio: Double
+)
+
+data class UniverseProfileSnapshot(
+    val exchange: String,
+    val candidateSymbols: Int,
+    val selectedSymbols: Int,
+    val benchmarkSymbols: Int,
+    val candidateAvgRecentTradableRatio: Double,
+    val selectedAvgRecentTradableRatio: Double,
+    val candidateAvgRecentObservedRatio: Double,
+    val selectedAvgRecentObservedRatio: Double,
+    val candidateAvgRecentSpreadBps: Double,
+    val selectedAvgRecentSpreadBps: Double,
+    val candidateMedianRecentSpreadBps: Double,
+    val selectedMedianRecentSpreadBps: Double,
+    val candidateAvgRecentDepthUsd: Double,
+    val selectedAvgRecentDepthUsd: Double,
+    val candidateAvgRecentVolumeUsd: Double,
+    val selectedAvgRecentVolumeUsd: Double,
+    val candidateObservedExecutionShare: Double,
+    val selectedObservedExecutionShare: Double,
+    val candidateTradableExecutionShare: Double,
+    val selectedTradableExecutionShare: Double,
+    val liquidityBuckets: List<UniverseLiquidityBucketSnapshot>,
+    val selectedUniverse: List<String>,
+    val topCandidates: List<String>
+)
+
+data class PortfolioConstraintSnapshot(
+    val candidateEntries: Int,
+    val acceptedEntries: Int,
+    val rejectedOpenSymbol: Int,
+    val rejectedGrossLimit: Int,
+    val rejectedLongLimit: Int,
+    val rejectedShortLimit: Int,
+    val rejectedNetLimit: Int,
+    val rejectedBetaLimit: Int
+)
+
+data class PortfolioProfileSnapshot(
+    val strategyKind: String,
+    val stage: String,
+    val exchanges: List<String>,
+    val trades: Int,
+    val policyMaxConcurrentPositions: Int,
+    val policyMaxConcurrentLongs: Int,
+    val policyMaxConcurrentShorts: Int,
+    val policyMaxNetExposureFraction: Double,
+    val policyMaxAbsBetaBtc: Double,
+    val policyMaxAbsBetaEth: Double,
+    val maxConcurrentPositions: Int,
+    val maxConcurrentLongs: Int,
+    val maxConcurrentShorts: Int,
+    val avgConcurrentPositions: Double,
+    val avgConcurrentLongs: Double,
+    val avgConcurrentShorts: Double,
+    val maxGrossExposureUsd: Double,
+    val avgGrossExposureUsd: Double,
+    val maxNetExposureUsd: Double,
+    val avgNetExposureUsd: Double,
+    val maxAbsNetExposureFraction: Double,
+    val avgAbsNetExposureFraction: Double,
+    val maxAbsBetaBtc: Double,
+    val avgAbsBetaBtc: Double,
+    val maxAbsBetaEth: Double,
+    val avgAbsBetaEth: Double,
+    val avgCapacityUtilization: Double,
+    val maxCapacityUtilization: Double,
+    val entryConstraints: PortfolioConstraintSnapshot
 )
 
 data class ExchangeCapabilitiesSnapshot(
@@ -185,6 +263,7 @@ data class ResearchConfig(
     val topPerSide: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TOP_PER_SIDE", 1),
     val notionalUsd: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_NOTIONAL_USD", 5000.0),
     val maxSymbols: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_SYMBOLS", 8),
+    val discoveryMaxSymbols: Int = envInt("DATAMANCY_CROSS_SECTIONAL_DISCOVERY_MAX_SYMBOLS", 0),
     val minBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MIN_BARS", 360),
     val trendEntryScore: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_ENTRY_SCORE", 1.05),
     val reversionZEntry: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_Z_ENTRY", 2.15),
@@ -206,6 +285,12 @@ data class ResearchConfig(
     val minCalibrationWinRate: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_WIN_RATE", 0.51),
     val trendCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_COOLDOWN_BARS", 8),
     val reversionCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_COOLDOWN_BARS", 4),
+    val maxConcurrentPositions: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_CONCURRENT_POSITIONS", 6),
+    val maxConcurrentLongs: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_CONCURRENT_LONGS", 3),
+    val maxConcurrentShorts: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_CONCURRENT_SHORTS", 3),
+    val maxNetExposureFraction: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_NET_EXPOSURE_FRACTION", 0.4),
+    val maxPortfolioBetaBtcAbs: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_PORTFOLIO_BETA_BTC_ABS", 0.65),
+    val maxPortfolioBetaEthAbs: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_PORTFOLIO_BETA_ETH_ABS", 0.65),
     val persistBacktest: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_PERSIST_BACKTEST", true),
     val persistForward: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_PERSIST_FORWARD", true),
     val enablePaperOrders: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_ENABLE_PAPER_ORDERS", false),
@@ -237,6 +322,8 @@ data class CrossSectionalSearchConfig(
     val trendHoldBars: List<Int> = listOf(2, 3, 4, 6, 9),
     val reversionHoldBars: List<Int> = listOf(1, 2, 3, 4, 6),
     val topPerSide: List<Int> = listOf(1, 2, 3),
+    val maxSymbols: List<Int> = listOf(8, 12, 16, 24, 36),
+    val discoveryMaxSymbols: List<Int> = listOf(0, 24, 48, 96),
     val trendEntryScore: List<Double> = listOf(0.8, 1.0, 1.2, 1.4, 1.6),
     val reversionZEntry: List<Double> = listOf(1.5, 1.8, 2.15, 2.4, 2.8),
     val reversionZExit: List<Double> = listOf(0.25, 0.45, 0.65, 0.85, 1.05),
@@ -256,7 +343,13 @@ data class CrossSectionalSearchConfig(
     val minCalibrationLowerBoundBps: List<Double> = listOf(0.0, 0.5, 1.0, 2.0),
     val minCalibrationWinRate: List<Double> = listOf(0.5, 0.52, 0.55, 0.58),
     val trendCooldownBars: List<Int> = listOf(0, 2, 4, 8),
-    val reversionCooldownBars: List<Int> = listOf(0, 1, 2, 4)
+    val reversionCooldownBars: List<Int> = listOf(0, 1, 2, 4),
+    val maxConcurrentPositions: List<Int> = listOf(4, 6, 8, 12),
+    val maxConcurrentLongs: List<Int> = listOf(2, 3, 4, 6),
+    val maxConcurrentShorts: List<Int> = listOf(2, 3, 4, 6),
+    val maxNetExposureFraction: List<Double> = listOf(0.25, 0.4, 0.5, 0.75),
+    val maxPortfolioBetaBtcAbs: List<Double> = listOf(0.35, 0.5, 0.65, 0.9),
+    val maxPortfolioBetaEthAbs: List<Double> = listOf(0.35, 0.5, 0.65, 0.9)
 )
 
 data class Bar(
@@ -512,6 +605,31 @@ data class OpenPosition(
     val calibrationWinRate: Double,
     val calibrationLowerBoundBps: Double,
     val calibrationScope: String
+)
+
+private data class PortfolioConstraintCounters(
+    var candidateEntries: Int = 0,
+    var acceptedEntries: Int = 0,
+    var rejectedOpenSymbol: Int = 0,
+    var rejectedGrossLimit: Int = 0,
+    var rejectedLongLimit: Int = 0,
+    var rejectedShortLimit: Int = 0,
+    var rejectedNetLimit: Int = 0,
+    var rejectedBetaLimit: Int = 0
+)
+
+private data class PortfolioTelemetryPoint(
+    val grossPositions: Int,
+    val longPositions: Int,
+    val shortPositions: Int,
+    val netPositions: Int,
+    val betaBtcUnits: Double,
+    val betaEthUnits: Double
+)
+
+private data class StrategySimulationResult(
+    val trades: List<TradeRecord>,
+    val portfolioProfile: PortfolioProfileSnapshot
 )
 
 data class EntryCandidate(
@@ -814,7 +932,11 @@ fun discoverSymbolsFromMarketCatalog(
 
     val source = selectResearchCandleSource(barMinutes)
     val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes)
-    val batchSize = min(64, max(16, maxSymbols * 4))
+    val batchSize = if (maxSymbols > 0) {
+        min(64, max(16, maxSymbols * 4))
+    } else {
+        64
+    }
     val ranked = normalizedSymbols
         .chunked(batchSize)
         .flatMap { batch ->
@@ -835,9 +957,9 @@ fun discoverSymbolsFromMarketCatalog(
         .map { it.symbol }
 
     return if (ranked.isNotEmpty()) {
-        ranked.take(maxSymbols)
+        if (maxSymbols > 0) ranked.take(maxSymbols) else ranked
     } else {
-        normalizedSymbols.take(maxSymbols)
+        if (maxSymbols > 0) normalizedSymbols.take(maxSymbols) else normalizedSymbols
     }
 }
 
@@ -862,7 +984,7 @@ fun discoverSymbolsByAggregate(
         GROUP BY symbol
         HAVING COUNT(*) >= $scaledMinBars
         ORDER BY bars DESC, avg_volume DESC, symbol ASC
-        LIMIT $maxSymbols
+        ${if (maxSymbols > 0) "LIMIT $maxSymbols" else ""}
     """.trimIndent()
 
     val discovered = mutableListOf<String>()
@@ -922,24 +1044,27 @@ fun discoverSymbols(
     return universe
 }
 
-private fun discoveryCandidateLimit(maxSymbols: Int): Int =
-    min(max(maxSymbols * 3, maxSymbols + 8), 48)
+private fun discoveryCandidateLimit(maxSymbols: Int, discoveryMaxSymbols: Int): Int =
+    when {
+        discoveryMaxSymbols > 0 -> max(discoveryMaxSymbols, maxSymbols)
+        else -> 0
+    }
 
 private fun universeSelectionWindowHours(config: ResearchConfig): Int =
     max(max(config.forwardHours * 2, 72), max((config.barMinutes * 12) / 60, 24))
 
-fun selectResearchUniverseFromBars(
+internal fun rankResearchUniverseCandidates(
     bars: List<Bar>,
     config: ResearchConfig
-): Map<String, List<String>> {
-    if (bars.isEmpty()) return emptyMap()
+): List<ResearchUniverseCandidate> {
+    if (bars.isEmpty()) return emptyList()
 
-    val latestTime = bars.maxOfOrNull { it.time } ?: return emptyMap()
+    val latestTime = bars.maxOfOrNull { it.time } ?: return emptyList()
     val recentCutoff = latestTime.minus(universeSelectionWindowHours(config).toLong(), ChronoUnit.HOURS)
     val benchmarkSymbols = setOf("BTC", "ETH")
     val grouped = bars.groupBy { it.exchange to it.symbol }
 
-    val ranked = grouped.mapNotNull { (key, series) ->
+    return grouped.mapNotNull { (key, series) ->
         val exchange = key.first
         val symbol = key.second
         val ordered = series.sortedBy { it.time }
@@ -968,8 +1093,16 @@ fun selectResearchUniverseFromBars(
             avgRecentSpreadBps = if (observedRecent.isEmpty()) Double.POSITIVE_INFINITY else mean(observedRecent.map(::observedSpreadBps))
         )
     }
+}
 
-    return ranked.groupBy { it.exchange }
+internal fun selectResearchUniverseFromCandidates(
+    candidates: List<ResearchUniverseCandidate>,
+    config: ResearchConfig
+): Map<String, List<String>> {
+    if (candidates.isEmpty()) return emptyMap()
+    val benchmarkSymbols = setOf("BTC", "ETH")
+
+    return candidates.groupBy { it.exchange }
         .mapValues { (_, candidates) ->
             val benchmarks = candidates
                 .filter { it.symbol in benchmarkSymbols }
@@ -993,6 +1126,110 @@ fun selectResearchUniverseFromBars(
 
             (benchmarks + selected).distinct()
         }
+}
+
+fun selectResearchUniverseFromBars(
+    bars: List<Bar>,
+    config: ResearchConfig
+): Map<String, List<String>> =
+    selectResearchUniverseFromCandidates(rankResearchUniverseCandidates(bars, config), config)
+
+private fun universeLiquidityBucket(candidate: ResearchUniverseCandidate, config: ResearchConfig): String =
+    when {
+        candidate.recentTradableRatio >= 0.75 &&
+            candidate.avgRecentDepthUsd >= (config.notionalUsd * config.minDepthMultiple * 6.0) &&
+            candidate.avgRecentSpreadBps <= (config.maxSpreadBps * 0.55) -> "deep"
+        candidate.recentTradableRatio >= 0.60 &&
+            candidate.avgRecentDepthUsd >= (config.notionalUsd * config.minDepthMultiple * 3.0) &&
+            candidate.avgRecentSpreadBps <= (config.maxSpreadBps * 0.8) -> "core"
+        candidate.recentTradableRatio >= 0.35 &&
+            candidate.avgRecentDepthUsd >= (config.notionalUsd * config.minDepthMultiple) -> "tradable"
+        else -> "fragile"
+    }
+
+internal fun buildUniverseProfiles(
+    candidates: List<ResearchUniverseCandidate>,
+    selectedUniverse: Map<String, List<String>>,
+    config: ResearchConfig
+): List<UniverseProfileSnapshot> {
+    if (candidates.isEmpty()) return emptyList()
+
+    fun sanitized(value: Double): Double =
+        if (value.isFinite()) value else max(config.maxSpreadBps * 4.0, 0.0)
+
+    fun avg(candidates: List<ResearchUniverseCandidate>, selector: (ResearchUniverseCandidate) -> Double): Double =
+        mean(candidates.map { sanitized(selector(it)) })
+
+    fun median(candidates: List<ResearchUniverseCandidate>, selector: (ResearchUniverseCandidate) -> Double): Double =
+        percentile(candidates.map { sanitized(selector(it)) }, 0.5)
+
+    fun share(sumNumerator: Int, sumDenominator: Int): Double =
+        if (sumDenominator <= 0) 0.0 else sumNumerator.toDouble() / sumDenominator.toDouble()
+
+    return candidates.groupBy { it.exchange }
+        .map { (exchange, exchangeCandidates) ->
+            val selectedSymbols = selectedUniverse[exchange].orEmpty().toSet()
+            val selectedCandidates = exchangeCandidates.filter { it.symbol in selectedSymbols }
+            val orderedCandidates = exchangeCandidates.sortedWith(
+                compareByDescending<ResearchUniverseCandidate> { it.recentTradableBars }
+                    .thenByDescending { it.recentTradableRatio }
+                    .thenByDescending { it.avgRecentDepthUsd }
+                    .thenByDescending { it.avgRecentVolumeUsd }
+                    .thenBy { it.avgRecentSpreadBps }
+                    .thenBy { it.symbol }
+            )
+            val liquidityBuckets = orderedCandidates.groupBy { universeLiquidityBucket(it, config) }
+                .map { (label, bucket) ->
+                    UniverseLiquidityBucketSnapshot(
+                        label = label,
+                        symbols = bucket.size,
+                        avgSpreadBps = avg(bucket) { it.avgRecentSpreadBps }.round(4),
+                        avgDepthUsd = avg(bucket) { it.avgRecentDepthUsd }.round(4),
+                        avgVolumeUsd = avg(bucket) { it.avgRecentVolumeUsd }.round(4),
+                        avgTradableRatio = avg(bucket) { it.recentTradableRatio }.round(4)
+                    )
+                }
+                .sortedBy { listOf("deep", "core", "tradable", "fragile").indexOf(it.label).let { idx -> if (idx >= 0) idx else Int.MAX_VALUE } }
+
+            UniverseProfileSnapshot(
+                exchange = exchange,
+                candidateSymbols = orderedCandidates.size,
+                selectedSymbols = selectedCandidates.size,
+                benchmarkSymbols = orderedCandidates.count { it.symbol in setOf("BTC", "ETH") },
+                candidateAvgRecentTradableRatio = avg(orderedCandidates) { it.recentTradableRatio }.round(4),
+                selectedAvgRecentTradableRatio = avg(selectedCandidates) { it.recentTradableRatio }.round(4),
+                candidateAvgRecentObservedRatio = avg(orderedCandidates) { it.recentObservedRatio }.round(4),
+                selectedAvgRecentObservedRatio = avg(selectedCandidates) { it.recentObservedRatio }.round(4),
+                candidateAvgRecentSpreadBps = avg(orderedCandidates) { it.avgRecentSpreadBps }.round(4),
+                selectedAvgRecentSpreadBps = avg(selectedCandidates) { it.avgRecentSpreadBps }.round(4),
+                candidateMedianRecentSpreadBps = median(orderedCandidates) { it.avgRecentSpreadBps }.round(4),
+                selectedMedianRecentSpreadBps = median(selectedCandidates) { it.avgRecentSpreadBps }.round(4),
+                candidateAvgRecentDepthUsd = avg(orderedCandidates) { it.avgRecentDepthUsd }.round(4),
+                selectedAvgRecentDepthUsd = avg(selectedCandidates) { it.avgRecentDepthUsd }.round(4),
+                candidateAvgRecentVolumeUsd = avg(orderedCandidates) { it.avgRecentVolumeUsd }.round(4),
+                selectedAvgRecentVolumeUsd = avg(selectedCandidates) { it.avgRecentVolumeUsd }.round(4),
+                candidateObservedExecutionShare = share(
+                    orderedCandidates.sumOf { it.recentObservedBars },
+                    orderedCandidates.sumOf { it.recentBars }
+                ).round(4),
+                selectedObservedExecutionShare = share(
+                    selectedCandidates.sumOf { it.recentObservedBars },
+                    selectedCandidates.sumOf { it.recentBars }
+                ).round(4),
+                candidateTradableExecutionShare = share(
+                    orderedCandidates.sumOf { it.recentTradableBars },
+                    orderedCandidates.sumOf { it.recentBars }
+                ).round(4),
+                selectedTradableExecutionShare = share(
+                    selectedCandidates.sumOf { it.recentTradableBars },
+                    selectedCandidates.sumOf { it.recentBars }
+                ).round(4),
+                liquidityBuckets = liquidityBuckets,
+                selectedUniverse = selectedCandidates.map { it.symbol }.sorted(),
+                topCandidates = orderedCandidates.take(12).map { it.symbol }
+            )
+        }
+        .sortedBy { it.exchange }
 }
 
 fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, lookbackHours: Int, barMinutes: Int): List<Bar> {
@@ -2198,22 +2435,226 @@ fun buildCalibrationExamples(
     return examples.sortedBy { it.availableAt }
 }
 
-fun simulateStrategy(
+private fun effectiveLongCapacity(config: ResearchConfig): Int =
+    min(max(config.maxConcurrentLongs, 1), max(config.maxConcurrentPositions, 1))
+
+private fun effectiveShortCapacity(config: ResearchConfig): Int =
+    min(max(config.maxConcurrentShorts, 1), max(config.maxConcurrentPositions, 1))
+
+private fun currentBetaBtcUnits(positions: Collection<OpenPosition>): Double =
+    positions.sumOf { it.side.toDouble() * it.entryRow.betaBtc }
+
+private fun currentBetaEthUnits(positions: Collection<OpenPosition>): Double =
+    positions.sumOf { it.side.toDouble() * it.entryRow.betaEth }
+
+private fun currentNetUnits(positions: Collection<OpenPosition>): Int =
+    positions.sumOf { it.side }
+
+private fun portfolioTelemetryPoint(
+    positions: Collection<OpenPosition>
+): PortfolioTelemetryPoint {
+    val grossPositions = positions.size
+    val longPositions = positions.count { it.side > 0 }
+    val shortPositions = positions.count { it.side < 0 }
+    return PortfolioTelemetryPoint(
+        grossPositions = grossPositions,
+        longPositions = longPositions,
+        shortPositions = shortPositions,
+        netPositions = longPositions - shortPositions,
+        betaBtcUnits = currentBetaBtcUnits(positions),
+        betaEthUnits = currentBetaEthUnits(positions)
+    )
+}
+
+private fun portfolioAcceptanceScore(
+    positions: Collection<OpenPosition>,
+    candidate: EntryCandidate,
+    config: ResearchConfig
+): Double {
+    val capacity = max(config.maxConcurrentPositions, 1).toDouble()
+    val currentNetFraction = abs(currentNetUnits(positions)).toDouble() / capacity
+    val candidateNetFraction = abs(currentNetUnits(positions) + candidate.side).toDouble() / capacity
+    val currentBetaPenalty =
+        (abs(currentBetaBtcUnits(positions)) / capacity) +
+            (abs(currentBetaEthUnits(positions)) / capacity)
+    val candidateBetaPenalty =
+        (abs(currentBetaBtcUnits(positions) + (candidate.side.toDouble() * candidate.row.betaBtc)) / capacity) +
+            (abs(currentBetaEthUnits(positions) + (candidate.side.toDouble() * candidate.row.betaEth)) / capacity)
+    val balanceBonus = (currentNetFraction - candidateNetFraction) * 6.0
+    val betaBonus = (currentBetaPenalty - candidateBetaPenalty) * 10.0
+    val capacityPenalty = (positions.size.toDouble() / capacity) * 0.75
+    return candidate.expectedNetEdgeBps + balanceBonus + betaBonus - capacityPenalty
+}
+
+private fun canAddCandidateToPortfolio(
+    positions: Map<String, OpenPosition>,
+    candidate: EntryCandidate,
+    config: ResearchConfig,
+    counters: PortfolioConstraintCounters
+): Boolean {
+    counters.candidateEntries += 1
+    val positionKey = "${candidate.row.exchange}|${candidate.row.symbol}"
+    if (positions.containsKey(positionKey)) {
+        counters.rejectedOpenSymbol += 1
+        return false
+    }
+
+    val grossAfter = positions.size + 1
+    if (grossAfter > config.maxConcurrentPositions) {
+        counters.rejectedGrossLimit += 1
+        return false
+    }
+
+    val longAfter = positions.values.count { it.side > 0 } + if (candidate.side > 0) 1 else 0
+    val shortAfter = positions.values.count { it.side < 0 } + if (candidate.side < 0) 1 else 0
+    if (candidate.side > 0 && longAfter > effectiveLongCapacity(config)) {
+        counters.rejectedLongLimit += 1
+        return false
+    }
+    if (candidate.side < 0 && shortAfter > effectiveShortCapacity(config)) {
+        counters.rejectedShortLimit += 1
+        return false
+    }
+
+    val capacity = max(config.maxConcurrentPositions, 1).toDouble()
+    val nextNetFraction = abs(currentNetUnits(positions.values) + candidate.side).toDouble() / capacity
+    if (nextNetFraction > config.maxNetExposureFraction + 1e-9) {
+        counters.rejectedNetLimit += 1
+        return false
+    }
+
+    val nextBetaBtc = abs(currentBetaBtcUnits(positions.values) + (candidate.side.toDouble() * candidate.row.betaBtc)) / capacity
+    val nextBetaEth = abs(currentBetaEthUnits(positions.values) + (candidate.side.toDouble() * candidate.row.betaEth)) / capacity
+    if (nextBetaBtc > config.maxPortfolioBetaBtcAbs + 1e-9 || nextBetaEth > config.maxPortfolioBetaEthAbs + 1e-9) {
+        counters.rejectedBetaLimit += 1
+        return false
+    }
+
+    counters.acceptedEntries += 1
+    return true
+}
+
+private fun buildPortfolioProfile(
+    kind: StrategyKind,
+    stage: String,
+    exchanges: List<String>,
+    trades: List<TradeRecord>,
+    telemetry: List<PortfolioTelemetryPoint>,
+    counters: PortfolioConstraintCounters,
+    config: ResearchConfig
+): PortfolioProfileSnapshot {
+    val samples = if (telemetry.isEmpty()) {
+        listOf(PortfolioTelemetryPoint(0, 0, 0, 0, 0.0, 0.0))
+    } else {
+        telemetry
+    }
+    val capacity = max(config.maxConcurrentPositions, 1).toDouble()
+    val grossSeries = samples.map { it.grossPositions.toDouble() }
+    val longSeries = samples.map { it.longPositions.toDouble() }
+    val shortSeries = samples.map { it.shortPositions.toDouble() }
+    val netSeries = samples.map { abs(it.netPositions).toDouble() }
+    val betaBtcSeries = samples.map { abs(it.betaBtcUnits) / capacity }
+    val betaEthSeries = samples.map { abs(it.betaEthUnits) / capacity }
+    val utilizationSeries = samples.map { it.grossPositions.toDouble() / capacity }
+
+    return PortfolioProfileSnapshot(
+        strategyKind = kind.name.lowercase(),
+        stage = stage,
+        exchanges = exchanges,
+        trades = trades.size,
+        policyMaxConcurrentPositions = config.maxConcurrentPositions,
+        policyMaxConcurrentLongs = effectiveLongCapacity(config),
+        policyMaxConcurrentShorts = effectiveShortCapacity(config),
+        policyMaxNetExposureFraction = config.maxNetExposureFraction.round(4),
+        policyMaxAbsBetaBtc = config.maxPortfolioBetaBtcAbs.round(4),
+        policyMaxAbsBetaEth = config.maxPortfolioBetaEthAbs.round(4),
+        maxConcurrentPositions = samples.maxOfOrNull { it.grossPositions } ?: 0,
+        maxConcurrentLongs = samples.maxOfOrNull { it.longPositions } ?: 0,
+        maxConcurrentShorts = samples.maxOfOrNull { it.shortPositions } ?: 0,
+        avgConcurrentPositions = mean(grossSeries).round(4),
+        avgConcurrentLongs = mean(longSeries).round(4),
+        avgConcurrentShorts = mean(shortSeries).round(4),
+        maxGrossExposureUsd = ((samples.maxOfOrNull { it.grossPositions } ?: 0).toDouble() * config.notionalUsd).round(4),
+        avgGrossExposureUsd = (mean(grossSeries) * config.notionalUsd).round(4),
+        maxNetExposureUsd = ((samples.maxOfOrNull { abs(it.netPositions) } ?: 0).toDouble() * config.notionalUsd).round(4),
+        avgNetExposureUsd = (mean(netSeries) * config.notionalUsd).round(4),
+        maxAbsNetExposureFraction = (netSeries.maxOrNull()?.div(capacity) ?: 0.0).round(4),
+        avgAbsNetExposureFraction = (mean(netSeries) / capacity).round(4),
+        maxAbsBetaBtc = (betaBtcSeries.maxOrNull() ?: 0.0).round(4),
+        avgAbsBetaBtc = mean(betaBtcSeries).round(4),
+        maxAbsBetaEth = (betaEthSeries.maxOrNull() ?: 0.0).round(4),
+        avgAbsBetaEth = mean(betaEthSeries).round(4),
+        avgCapacityUtilization = mean(utilizationSeries).round(4),
+        maxCapacityUtilization = (utilizationSeries.maxOrNull() ?: 0.0).round(4),
+        entryConstraints = PortfolioConstraintSnapshot(
+            candidateEntries = counters.candidateEntries,
+            acceptedEntries = counters.acceptedEntries,
+            rejectedOpenSymbol = counters.rejectedOpenSymbol,
+            rejectedGrossLimit = counters.rejectedGrossLimit,
+            rejectedLongLimit = counters.rejectedLongLimit,
+            rejectedShortLimit = counters.rejectedShortLimit,
+            rejectedNetLimit = counters.rejectedNetLimit,
+            rejectedBetaLimit = counters.rejectedBetaLimit
+        )
+    )
+}
+
+private fun buildOpenPosition(
+    strategyName: String,
+    kind: StrategyKind,
+    candidate: EntryCandidate
+): OpenPosition =
+    OpenPosition(
+        strategyName = strategyName,
+        strategyKind = kind,
+        exchange = candidate.row.exchange,
+        symbol = candidate.row.symbol,
+        side = candidate.side,
+        entryRow = candidate.row,
+        entryEstimate = candidate.entryEstimate,
+        expectedGrossEdgeBps = candidate.expectedGrossEdgeBps,
+        expectedRoundTripCostBps = candidate.expectedRoundTripCostBps,
+        expectedNetEdgeBps = candidate.expectedNetEdgeBps,
+        calibrationSamples = candidate.calibrationSamples,
+        calibrationWinRate = candidate.calibrationWinRate,
+        calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
+        calibrationScope = candidate.calibrationScope
+    )
+
+private fun simulateStrategyWithPortfolio(
     strategyName: String,
     kind: StrategyKind,
     rows: List<FeatureRow>,
     config: ResearchConfig,
-    calibrationState: CalibrationState? = null
-): List<TradeRecord> {
-    if (rows.isEmpty()) return emptyList()
+    stage: String,
+    bucketCandidates: (List<FeatureRow>, Instant) -> List<EntryCandidate>
+): StrategySimulationResult {
+    if (rows.isEmpty()) {
+        return StrategySimulationResult(
+            trades = emptyList(),
+            portfolioProfile = buildPortfolioProfile(
+                kind = kind,
+                stage = stage,
+                exchanges = emptyList(),
+                trades = emptyList(),
+                telemetry = emptyList(),
+                counters = PortfolioConstraintCounters(),
+                config = config
+            )
+        )
+    }
+
     val grouped = rows.groupBy { it.exchange to it.time }
     val orderedKeys = grouped.keys.sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
     val positions = mutableMapOf<String, OpenPosition>()
     val cooldownUntilBar = mutableMapOf<String, Int>()
     val trades = mutableListOf<TradeRecord>()
+    val telemetry = mutableListOf<PortfolioTelemetryPoint>()
+    val counters = PortfolioConstraintCounters()
 
     for (key in orderedKeys) {
         val exchange = key.first
+        val currentTime = key.second
         val bucket = grouped[key].orEmpty()
         val rowBySymbol = bucket.associateBy { it.symbol }
 
@@ -2229,27 +2670,29 @@ fun simulateStrategy(
             }
         }
 
-        candidateRows(kind, bucket, config, calibrationState).forEach { candidate ->
+        val pendingCandidates = bucketCandidates(bucket, currentTime).toMutableList()
+        while (pendingCandidates.isNotEmpty()) {
+            val candidate = pendingCandidates.maxWithOrNull(
+                compareBy<EntryCandidate>(
+                    { portfolioAcceptanceScore(positions.values, it, config) },
+                    { it.expectedNetEdgeBps },
+                    { -it.row.barIndex },
+                    { it.row.symbol }
+                )
+            ) ?: break
+            pendingCandidates.remove(candidate)
+
             val positionKey = "${candidate.row.exchange}|${candidate.row.symbol}"
-            if (positions.containsKey(positionKey)) return@forEach
-            if ((cooldownUntilBar[positionKey] ?: Int.MIN_VALUE) > candidate.row.barIndex) return@forEach
-            positions[positionKey] = OpenPosition(
-                strategyName = strategyName,
-                strategyKind = kind,
-                exchange = candidate.row.exchange,
-                symbol = candidate.row.symbol,
-                side = candidate.side,
-                entryRow = candidate.row,
-                entryEstimate = candidate.entryEstimate,
-                expectedGrossEdgeBps = candidate.expectedGrossEdgeBps,
-                expectedRoundTripCostBps = candidate.expectedRoundTripCostBps,
-                expectedNetEdgeBps = candidate.expectedNetEdgeBps,
-                calibrationSamples = candidate.calibrationSamples,
-                calibrationWinRate = candidate.calibrationWinRate,
-                calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
-                calibrationScope = candidate.calibrationScope
-            )
+            if ((cooldownUntilBar[positionKey] ?: Int.MIN_VALUE) > candidate.row.barIndex) {
+                continue
+            }
+            if (!canAddCandidateToPortfolio(positions, candidate, config, counters)) {
+                continue
+            }
+            positions[positionKey] = buildOpenPosition(strategyName, kind, candidate)
         }
+
+        telemetry += portfolioTelemetryPoint(positions.values)
     }
 
     val latestByExchangeSymbol = rows.groupBy { it.exchange to it.symbol }
@@ -2262,28 +2705,79 @@ fun simulateStrategy(
         positions.remove(positionKey)
     }
 
-    return trades.sortedBy { it.entryTime }
+    return StrategySimulationResult(
+        trades = trades.sortedBy { it.entryTime },
+        portfolioProfile = buildPortfolioProfile(
+            kind = kind,
+            stage = stage,
+            exchanges = rows.map { it.exchange }.distinct().sorted(),
+            trades = trades,
+            telemetry = telemetry,
+            counters = counters,
+            config = config
+        )
+    )
 }
 
-fun simulateStrategyWalkForward(
+private fun simulateStrategyResult(
+    strategyName: String,
+    kind: StrategyKind,
+    rows: List<FeatureRow>,
+    config: ResearchConfig,
+    calibrationState: CalibrationState? = null
+): StrategySimulationResult =
+    simulateStrategyWithPortfolio(
+        strategyName = strategyName,
+        kind = kind,
+        rows = rows,
+        config = config,
+        stage = "backtest"
+    ) { bucket, _ ->
+        candidateRows(kind, bucket, config, calibrationState)
+    }
+
+fun simulateStrategy(
+    strategyName: String,
+    kind: StrategyKind,
+    rows: List<FeatureRow>,
+    config: ResearchConfig,
+    calibrationState: CalibrationState? = null
+): List<TradeRecord> =
+    simulateStrategyResult(strategyName, kind, rows, config, calibrationState).trades
+
+private fun simulateStrategyWalkForwardResult(
     strategyName: String,
     kind: StrategyKind,
     rows: List<FeatureRow>,
     config: ResearchConfig
-): List<TradeRecord> {
-    if (rows.isEmpty()) return emptyList()
-    val grouped = rows.groupBy { it.exchange to it.time }
-    val orderedKeys = grouped.keys.sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
-    val positions = mutableMapOf<String, OpenPosition>()
-    val cooldownUntilBar = mutableMapOf<String, Int>()
-    val trades = mutableListOf<TradeRecord>()
+): StrategySimulationResult {
+    if (rows.isEmpty()) {
+        return StrategySimulationResult(
+            trades = emptyList(),
+            portfolioProfile = buildPortfolioProfile(
+                kind = kind,
+                stage = "forward",
+                exchanges = emptyList(),
+                trades = emptyList(),
+                telemetry = emptyList(),
+                counters = PortfolioConstraintCounters(),
+                config = config
+            )
+        )
+    }
+
     val calibrationExamples = buildCalibrationExamples(strategyName, kind, rows, config)
     val calibrationState = CalibrationState()
     val activeExamples = ArrayDeque<CalibrationExample>()
     var exampleIndex = 0
 
-    for (key in orderedKeys) {
-        val currentTime = key.second
+    return simulateStrategyWithPortfolio(
+        strategyName = strategyName,
+        kind = kind,
+        rows = rows,
+        config = config,
+        stage = "forward"
+    ) { bucket, currentTime ->
         while (exampleIndex < calibrationExamples.size && calibrationExamples[exampleIndex].availableAt.isBefore(currentTime)) {
             val example = calibrationExamples[exampleIndex]
             activeExamples.addLast(example)
@@ -2294,58 +2788,17 @@ fun simulateStrategyWalkForward(
         while (activeExamples.isNotEmpty() && activeExamples.first().availableAt.isBefore(cutoff)) {
             removeCalibrationExample(calibrationState, activeExamples.removeFirst())
         }
-
-        val exchange = key.first
-        val bucket = grouped[key].orEmpty()
-        val rowBySymbol = bucket.associateBy { it.symbol }
-
-        for ((positionKey, position) in positions.toMap()) {
-            if (position.exchange != exchange) continue
-            val current = rowBySymbol[position.symbol] ?: continue
-            if (!shouldExitPosition(kind, position, current, config)) continue
-            trades += buildTradeRecord(position, current, config)
-            positions.remove(positionKey)
-            cooldownUntilBar[positionKey] = current.barIndex + when (kind) {
-                StrategyKind.TREND -> config.trendCooldownBars
-                StrategyKind.REVERSION -> config.reversionCooldownBars
-            }
-        }
-
-        candidateRows(kind, bucket, config, calibrationState).forEach { candidate ->
-            val positionKey = "${candidate.row.exchange}|${candidate.row.symbol}"
-            if (positions.containsKey(positionKey)) return@forEach
-            if ((cooldownUntilBar[positionKey] ?: Int.MIN_VALUE) > candidate.row.barIndex) return@forEach
-            positions[positionKey] = OpenPosition(
-                strategyName = strategyName,
-                strategyKind = kind,
-                exchange = candidate.row.exchange,
-                symbol = candidate.row.symbol,
-                side = candidate.side,
-                entryRow = candidate.row,
-                entryEstimate = candidate.entryEstimate,
-                expectedGrossEdgeBps = candidate.expectedGrossEdgeBps,
-                expectedRoundTripCostBps = candidate.expectedRoundTripCostBps,
-                expectedNetEdgeBps = candidate.expectedNetEdgeBps,
-                calibrationSamples = candidate.calibrationSamples,
-                calibrationWinRate = candidate.calibrationWinRate,
-                calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
-                calibrationScope = candidate.calibrationScope
-            )
-        }
+        candidateRows(kind, bucket, config, calibrationState)
     }
-
-    val latestByExchangeSymbol = rows.groupBy { it.exchange to it.symbol }
-        .mapValues { (_, series) -> series.maxByOrNull { it.time } }
-
-    for ((positionKey, position) in positions.toMap()) {
-        val current = latestByExchangeSymbol[position.exchange to position.symbol] ?: continue
-        if (current.time == position.entryRow.time) continue
-        trades += buildTradeRecord(position, current, config)
-        positions.remove(positionKey)
-    }
-
-    return trades.sortedBy { it.entryTime }
 }
+
+fun simulateStrategyWalkForward(
+    strategyName: String,
+    kind: StrategyKind,
+    rows: List<FeatureRow>,
+    config: ResearchConfig
+): List<TradeRecord> =
+    simulateStrategyWalkForwardResult(strategyName, kind, rows, config).trades
 
 fun buildStrategySummaries(
     config: ResearchConfig,
@@ -2678,6 +3131,102 @@ fun ensureAnalyticsTables(conn: Connection) {
         )
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_drift_time ON strategy_live_backtest_drift (observed_at DESC)")
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_drift_strategy_time ON strategy_live_backtest_drift (strategy_name, observed_at DESC)")
+        stmt.execute(
+            """
+            CREATE TABLE IF NOT EXISTS strategy_universe_profiles (
+                id BIGSERIAL PRIMARY KEY,
+                run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                exchange TEXT NOT NULL,
+                stage TEXT NOT NULL DEFAULT 'research',
+                timeframe TEXT NOT NULL,
+                candidate_symbols INTEGER NOT NULL DEFAULT 0,
+                selected_symbols INTEGER NOT NULL DEFAULT 0,
+                benchmark_symbols INTEGER NOT NULL DEFAULT 0,
+                candidate_avg_tradable_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+                selected_avg_tradable_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+                candidate_avg_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+                selected_avg_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+                candidate_avg_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                selected_avg_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                candidate_median_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                selected_median_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0,
+                candidate_avg_depth_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+                selected_avg_depth_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+                candidate_avg_volume_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+                selected_avg_volume_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+                candidate_observed_execution_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+                selected_observed_execution_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+                candidate_tradable_execution_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+                selected_tradable_execution_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+                deep_liquidity_symbols INTEGER NOT NULL DEFAULT 0,
+                core_liquidity_symbols INTEGER NOT NULL DEFAULT 0,
+                tradable_liquidity_symbols INTEGER NOT NULL DEFAULT 0,
+                fragile_liquidity_symbols INTEGER NOT NULL DEFAULT 0,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+            """.trimIndent()
+        )
+        stmt.execute("ALTER TABLE strategy_universe_profiles ADD COLUMN IF NOT EXISTS candidate_median_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0")
+        stmt.execute("ALTER TABLE strategy_universe_profiles ADD COLUMN IF NOT EXISTS selected_median_spread_bps DOUBLE PRECISION NOT NULL DEFAULT 0")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_universe_profiles_run_at ON strategy_universe_profiles (run_at DESC)")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_universe_profiles_strategy_time ON strategy_universe_profiles (strategy_name, run_at DESC)")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_universe_profiles_stage_time ON strategy_universe_profiles (stage, run_at DESC)")
+        stmt.execute(
+            """
+            CREATE TABLE IF NOT EXISTS strategy_portfolio_profiles (
+                id BIGSERIAL PRIMARY KEY,
+                run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                strategy_name TEXT NOT NULL,
+                strategy_kind TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                timeframe TEXT NOT NULL,
+                policy_max_concurrent_positions INTEGER NOT NULL DEFAULT 0,
+                policy_max_concurrent_longs INTEGER NOT NULL DEFAULT 0,
+                policy_max_concurrent_shorts INTEGER NOT NULL DEFAULT 0,
+                policy_max_net_exposure_fraction DOUBLE PRECISION NOT NULL DEFAULT 0,
+                policy_max_abs_beta_btc DOUBLE PRECISION NOT NULL DEFAULT 0,
+                policy_max_abs_beta_eth DOUBLE PRECISION NOT NULL DEFAULT 0,
+                max_concurrent_positions INTEGER NOT NULL DEFAULT 0,
+                max_concurrent_longs INTEGER NOT NULL DEFAULT 0,
+                max_concurrent_shorts INTEGER NOT NULL DEFAULT 0,
+                avg_concurrent_positions DOUBLE PRECISION NOT NULL DEFAULT 0,
+                avg_concurrent_longs DOUBLE PRECISION NOT NULL DEFAULT 0,
+                avg_concurrent_shorts DOUBLE PRECISION NOT NULL DEFAULT 0,
+                max_gross_exposure_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+                avg_gross_exposure_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+                max_net_exposure_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+                avg_net_exposure_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+                max_abs_net_exposure_fraction DOUBLE PRECISION NOT NULL DEFAULT 0,
+                avg_abs_net_exposure_fraction DOUBLE PRECISION NOT NULL DEFAULT 0,
+                max_abs_beta_btc DOUBLE PRECISION NOT NULL DEFAULT 0,
+                avg_abs_beta_btc DOUBLE PRECISION NOT NULL DEFAULT 0,
+                max_abs_beta_eth DOUBLE PRECISION NOT NULL DEFAULT 0,
+                avg_abs_beta_eth DOUBLE PRECISION NOT NULL DEFAULT 0,
+                avg_capacity_utilization DOUBLE PRECISION NOT NULL DEFAULT 0,
+                max_capacity_utilization DOUBLE PRECISION NOT NULL DEFAULT 0,
+                trades INTEGER NOT NULL DEFAULT 0,
+                candidate_entries INTEGER NOT NULL DEFAULT 0,
+                accepted_entries INTEGER NOT NULL DEFAULT 0,
+                rejected_open_symbol INTEGER NOT NULL DEFAULT 0,
+                rejected_gross_limit INTEGER NOT NULL DEFAULT 0,
+                rejected_long_limit INTEGER NOT NULL DEFAULT 0,
+                rejected_short_limit INTEGER NOT NULL DEFAULT 0,
+                rejected_net_limit INTEGER NOT NULL DEFAULT 0,
+                rejected_beta_limit INTEGER NOT NULL DEFAULT 0,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+            )
+            """.trimIndent()
+        )
+        stmt.execute("ALTER TABLE strategy_portfolio_profiles ADD COLUMN IF NOT EXISTS policy_max_concurrent_positions INTEGER NOT NULL DEFAULT 0")
+        stmt.execute("ALTER TABLE strategy_portfolio_profiles ADD COLUMN IF NOT EXISTS policy_max_concurrent_longs INTEGER NOT NULL DEFAULT 0")
+        stmt.execute("ALTER TABLE strategy_portfolio_profiles ADD COLUMN IF NOT EXISTS policy_max_concurrent_shorts INTEGER NOT NULL DEFAULT 0")
+        stmt.execute("ALTER TABLE strategy_portfolio_profiles ADD COLUMN IF NOT EXISTS policy_max_net_exposure_fraction DOUBLE PRECISION NOT NULL DEFAULT 0")
+        stmt.execute("ALTER TABLE strategy_portfolio_profiles ADD COLUMN IF NOT EXISTS policy_max_abs_beta_btc DOUBLE PRECISION NOT NULL DEFAULT 0")
+        stmt.execute("ALTER TABLE strategy_portfolio_profiles ADD COLUMN IF NOT EXISTS policy_max_abs_beta_eth DOUBLE PRECISION NOT NULL DEFAULT 0")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_run_at ON strategy_portfolio_profiles (run_at DESC)")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_strategy_time ON strategy_portfolio_profiles (strategy_name, run_at DESC)")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_stage_time ON strategy_portfolio_profiles (stage, run_at DESC)")
     }
 }
 
@@ -2716,6 +3265,193 @@ fun persistBacktestSummaries(summaries: List<StrategySummary>) {
                 stmt.setDouble(10, summary.sharpe)
                 stmt.setString(11, summary.notes)
                 stmt.setString(12, summary.metricsJson)
+                stmt.addBatch()
+            }
+            stmt.executeBatch()
+        }
+    }
+}
+
+fun persistUniverseProfiles(
+    config: ResearchConfig,
+    timeframe: String,
+    strategyNames: Collection<String>,
+    profiles: List<UniverseProfileSnapshot>,
+    stage: String = "research"
+) {
+    if (strategyNames.isEmpty() || profiles.isEmpty()) return
+    val fingerprint = researchConfigFingerprint(config)
+    pgConnection().use { conn ->
+        ensureAnalyticsTables(conn)
+        conn.prepareStatement(
+            """
+            INSERT INTO strategy_universe_profiles (
+                strategy_name, exchange, stage, timeframe,
+                candidate_symbols, selected_symbols, benchmark_symbols,
+                candidate_avg_tradable_ratio, selected_avg_tradable_ratio,
+                candidate_avg_observed_ratio, selected_avg_observed_ratio,
+                candidate_avg_spread_bps, selected_avg_spread_bps,
+                candidate_median_spread_bps, selected_median_spread_bps,
+                candidate_avg_depth_usd, selected_avg_depth_usd,
+                candidate_avg_volume_usd, selected_avg_volume_usd,
+                candidate_observed_execution_share, selected_observed_execution_share,
+                candidate_tradable_execution_share, selected_tradable_execution_share,
+                deep_liquidity_symbols, core_liquidity_symbols,
+                tradable_liquidity_symbols, fragile_liquidity_symbols,
+                metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb))
+            """.trimIndent()
+        ).use { stmt ->
+            strategyNames.forEach { strategyName ->
+                profiles.forEach { profile ->
+                    val bucketMap = profile.liquidityBuckets.associateBy { it.label }
+                    val metadataJson = gson.toJson(
+                        mapOf(
+                            "config_fingerprint" to fingerprint,
+                            "candidate_scan_limit" to config.discoveryMaxSymbols,
+                            "selected_universe_limit" to config.maxSymbols,
+                            "selected_universe" to profile.selectedUniverse,
+                            "top_candidates" to profile.topCandidates,
+                            "liquidity_buckets" to profile.liquidityBuckets
+                        )
+                    )
+                    stmt.setString(1, strategyName)
+                    stmt.setString(2, profile.exchange)
+                    stmt.setString(3, stage)
+                    stmt.setString(4, timeframe)
+                    stmt.setInt(5, profile.candidateSymbols)
+                    stmt.setInt(6, profile.selectedSymbols)
+                    stmt.setInt(7, profile.benchmarkSymbols)
+                    stmt.setDouble(8, profile.candidateAvgRecentTradableRatio)
+                    stmt.setDouble(9, profile.selectedAvgRecentTradableRatio)
+                    stmt.setDouble(10, profile.candidateAvgRecentObservedRatio)
+                    stmt.setDouble(11, profile.selectedAvgRecentObservedRatio)
+                    stmt.setDouble(12, profile.candidateAvgRecentSpreadBps)
+                    stmt.setDouble(13, profile.selectedAvgRecentSpreadBps)
+                    stmt.setDouble(14, profile.candidateMedianRecentSpreadBps)
+                    stmt.setDouble(15, profile.selectedMedianRecentSpreadBps)
+                    stmt.setDouble(16, profile.candidateAvgRecentDepthUsd)
+                    stmt.setDouble(17, profile.selectedAvgRecentDepthUsd)
+                    stmt.setDouble(18, profile.candidateAvgRecentVolumeUsd)
+                    stmt.setDouble(19, profile.selectedAvgRecentVolumeUsd)
+                    stmt.setDouble(20, profile.candidateObservedExecutionShare)
+                    stmt.setDouble(21, profile.selectedObservedExecutionShare)
+                    stmt.setDouble(22, profile.candidateTradableExecutionShare)
+                    stmt.setDouble(23, profile.selectedTradableExecutionShare)
+                    stmt.setInt(24, bucketMap["deep"]?.symbols ?: 0)
+                    stmt.setInt(25, bucketMap["core"]?.symbols ?: 0)
+                    stmt.setInt(26, bucketMap["tradable"]?.symbols ?: 0)
+                    stmt.setInt(27, bucketMap["fragile"]?.symbols ?: 0)
+                    stmt.setString(28, metadataJson)
+                    stmt.addBatch()
+                }
+            }
+            stmt.executeBatch()
+        }
+    }
+}
+
+fun persistPortfolioProfiles(
+    config: ResearchConfig,
+    timeframe: String,
+    strategyNames: Map<String, String>,
+    profiles: Map<String, PortfolioProfileSnapshot>
+) {
+    if (strategyNames.isEmpty() || profiles.isEmpty()) return
+    val fingerprint = researchConfigFingerprint(config)
+    pgConnection().use { conn ->
+        ensureAnalyticsTables(conn)
+        conn.prepareStatement(
+            """
+            INSERT INTO strategy_portfolio_profiles (
+                strategy_name, strategy_kind, stage, timeframe,
+                policy_max_concurrent_positions, policy_max_concurrent_longs, policy_max_concurrent_shorts,
+                policy_max_net_exposure_fraction, policy_max_abs_beta_btc, policy_max_abs_beta_eth,
+                max_concurrent_positions, max_concurrent_longs, max_concurrent_shorts,
+                avg_concurrent_positions, avg_concurrent_longs, avg_concurrent_shorts,
+                max_gross_exposure_usd, avg_gross_exposure_usd,
+                max_net_exposure_usd, avg_net_exposure_usd,
+                max_abs_net_exposure_fraction, avg_abs_net_exposure_fraction,
+                max_abs_beta_btc, avg_abs_beta_btc,
+                max_abs_beta_eth, avg_abs_beta_eth,
+                avg_capacity_utilization, max_capacity_utilization,
+                trades, candidate_entries, accepted_entries,
+                rejected_open_symbol, rejected_gross_limit,
+                rejected_long_limit, rejected_short_limit,
+                rejected_net_limit, rejected_beta_limit,
+                metadata
+            ) VALUES (
+                ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?, ?,
+                ?, ?,
+                ?, ?, ?, ?,
+                CAST(? AS jsonb)
+            )
+            """.trimIndent()
+        ).use { stmt ->
+            profiles.forEach { (kind, profile) ->
+                val strategyName = strategyNames[kind] ?: return@forEach
+                val metadataJson = gson.toJson(
+                    mapOf(
+                        "config_fingerprint" to fingerprint,
+                        "exchanges" to profile.exchanges,
+                        "policy" to mapOf(
+                            "max_concurrent_positions" to profile.policyMaxConcurrentPositions,
+                            "max_concurrent_longs" to profile.policyMaxConcurrentLongs,
+                            "max_concurrent_shorts" to profile.policyMaxConcurrentShorts,
+                            "max_net_exposure_fraction" to profile.policyMaxNetExposureFraction,
+                            "max_abs_beta_btc" to profile.policyMaxAbsBetaBtc,
+                            "max_abs_beta_eth" to profile.policyMaxAbsBetaEth
+                        )
+                    )
+                )
+                stmt.setString(1, strategyName)
+                stmt.setString(2, profile.strategyKind)
+                stmt.setString(3, profile.stage)
+                stmt.setString(4, timeframe)
+                stmt.setInt(5, profile.policyMaxConcurrentPositions)
+                stmt.setInt(6, profile.policyMaxConcurrentLongs)
+                stmt.setInt(7, profile.policyMaxConcurrentShorts)
+                stmt.setDouble(8, profile.policyMaxNetExposureFraction)
+                stmt.setDouble(9, profile.policyMaxAbsBetaBtc)
+                stmt.setDouble(10, profile.policyMaxAbsBetaEth)
+                stmt.setInt(11, profile.maxConcurrentPositions)
+                stmt.setInt(12, profile.maxConcurrentLongs)
+                stmt.setInt(13, profile.maxConcurrentShorts)
+                stmt.setDouble(14, profile.avgConcurrentPositions)
+                stmt.setDouble(15, profile.avgConcurrentLongs)
+                stmt.setDouble(16, profile.avgConcurrentShorts)
+                stmt.setDouble(17, profile.maxGrossExposureUsd)
+                stmt.setDouble(18, profile.avgGrossExposureUsd)
+                stmt.setDouble(19, profile.maxNetExposureUsd)
+                stmt.setDouble(20, profile.avgNetExposureUsd)
+                stmt.setDouble(21, profile.maxAbsNetExposureFraction)
+                stmt.setDouble(22, profile.avgAbsNetExposureFraction)
+                stmt.setDouble(23, profile.maxAbsBetaBtc)
+                stmt.setDouble(24, profile.avgAbsBetaBtc)
+                stmt.setDouble(25, profile.maxAbsBetaEth)
+                stmt.setDouble(26, profile.avgAbsBetaEth)
+                stmt.setDouble(27, profile.avgCapacityUtilization)
+                stmt.setDouble(28, profile.maxCapacityUtilization)
+                stmt.setInt(29, profile.trades)
+                stmt.setInt(30, profile.entryConstraints.candidateEntries)
+                stmt.setInt(31, profile.entryConstraints.acceptedEntries)
+                stmt.setInt(32, profile.entryConstraints.rejectedOpenSymbol)
+                stmt.setInt(33, profile.entryConstraints.rejectedGrossLimit)
+                stmt.setInt(34, profile.entryConstraints.rejectedLongLimit)
+                stmt.setInt(35, profile.entryConstraints.rejectedShortLimit)
+                stmt.setInt(36, profile.entryConstraints.rejectedNetLimit)
+                stmt.setInt(37, profile.entryConstraints.rejectedBetaLimit)
+                stmt.setString(38, metadataJson)
                 stmt.addBatch()
             }
             stmt.executeBatch()
@@ -3151,7 +3887,9 @@ data class CrossSectionalResearchResult(
     val config: ResearchConfig,
     val exchangeCatalog: List<ExchangeCatalogSnapshot>,
     val exchangePlans: List<ExchangePlan>,
+    val candidateUniverse: Map<String, List<String>>,
     val discoveredUniverse: Map<String, List<String>>,
+    val universeProfiles: List<UniverseProfileSnapshot>,
     val barsLoaded: Int,
     val featureRows: Int,
     val diagnostics: ResearchDiagnostics,
@@ -3163,6 +3901,8 @@ data class CrossSectionalResearchResult(
     val calibrationRows: Int,
     val forwardRows: Int,
     val calibrationExampleCounts: Map<String, Int>,
+    val backtestPortfolioProfiles: Map<String, PortfolioProfileSnapshot> = emptyMap(),
+    val forwardPortfolioProfiles: Map<String, PortfolioProfileSnapshot> = emptyMap(),
     val backtestRobustness: Map<String, StrategyRobustnessSnapshot> = emptyMap(),
     val forwardRobustness: Map<String, StrategyRobustnessSnapshot> = emptyMap()
 )
@@ -3173,6 +3913,7 @@ data class ResearchDataKey(
     val executionExchangeOverride: String,
     val barMinutes: Int,
     val lookbackHours: Int,
+    val discoveryMaxSymbols: Int,
     val maxSymbols: Int,
     val minBars: Int
 )
@@ -3181,7 +3922,9 @@ data class ResearchDataContext(
     val key: ResearchDataKey,
     val exchangeCatalog: List<ExchangeCatalogSnapshot>,
     val exchangePlans: List<ExchangePlan>,
+    val candidateUniverse: Map<String, List<String>>,
     val discoveredUniverse: Map<String, List<String>>,
+    val universeProfiles: List<UniverseProfileSnapshot>,
     val bars: List<Bar>,
     val loadedAt: Instant
 )
@@ -3336,6 +4079,7 @@ fun researchDataKey(config: ResearchConfig): ResearchDataKey =
         executionExchangeOverride = config.executionExchangeOverride,
         barMinutes = config.barMinutes,
         lookbackHours = config.lookbackHours,
+        discoveryMaxSymbols = config.discoveryMaxSymbols,
         maxSymbols = config.maxSymbols,
         minBars = config.minBars
     )
@@ -3345,9 +4089,9 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
         fetchExchangeCatalog(config.txGatewayUrl)
     }
     val exchangePlans = buildExchangePlans(exchangeCatalog, config)
-    val discoveryMaxSymbols = discoveryCandidateLimit(config.maxSymbols)
+    val discoveryMaxSymbols = discoveryCandidateLimit(config.maxSymbols, config.discoveryMaxSymbols)
 
-    val (discoveredUniverse, discoveryMs) = timedMillis {
+    val (candidateUniverse, discoveryMs) = timedMillis {
         exchangePlans.associate { plan ->
             plan.exchange to discoverSymbols(
                 txBase = config.txGatewayUrl,
@@ -3363,7 +4107,7 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
 
     val (researchBars, loadBarsMs) = timedMillis {
         exchangePlans.flatMap { plan ->
-            val symbols = discoveredUniverse[plan.exchange].orEmpty()
+            val symbols = candidateUniverse[plan.exchange].orEmpty()
             loadBars(
                 exchange = plan.exchange,
                 aliases = plan.marketAliases,
@@ -3373,16 +4117,18 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
             )
         }
     }
-    val refinedUniverse = selectResearchUniverseFromBars(researchBars, config)
+    val rankedUniverseCandidates = rankResearchUniverseCandidates(researchBars, config)
+    val refinedUniverse = selectResearchUniverseFromCandidates(rankedUniverseCandidates, config)
         .takeIf { it.isNotEmpty() }
-        ?: discoveredUniverse
+        ?: candidateUniverse
     val refinedBars = researchBars.filter { bar ->
         bar.symbol in refinedUniverse[bar.exchange].orEmpty()
     }
-    val totalCandidateSymbols = discoveredUniverse.values.sumOf { it.size }
+    val universeProfiles = buildUniverseProfiles(rankedUniverseCandidates, refinedUniverse, config)
+    val totalCandidateSymbols = candidateUniverse.values.sumOf { it.size }
     val totalSelectedSymbols = refinedUniverse.values.sumOf { it.size }
     refinedUniverse.forEach { (exchange, symbols) ->
-        val candidateSymbols = discoveredUniverse[exchange].orEmpty()
+        val candidateSymbols = candidateUniverse[exchange].orEmpty()
         println(
             "Cross-sectional universe refinement exchange=$exchange " +
                 "candidates=${candidateSymbols.size} selected=${symbols.size} " +
@@ -3400,7 +4146,9 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
         key = researchDataKey(config),
         exchangeCatalog = exchangeCatalog,
         exchangePlans = exchangePlans,
+        candidateUniverse = candidateUniverse,
         discoveredUniverse = refinedUniverse,
+        universeProfiles = universeProfiles,
         bars = refinedBars,
         loadedAt = Instant.now()
     )
@@ -3417,14 +4165,18 @@ fun evaluateCrossSectionalResearch(
 
     val trendStrategyName = "cross_section_beta_trend_v1"
     val reversionStrategyName = "cross_section_beta_reversion_v1"
+    val strategyNamesByKind = mapOf(
+        StrategyKind.TREND.name.lowercase() to trendStrategyName,
+        StrategyKind.REVERSION.name.lowercase() to reversionStrategyName
+    )
 
-    val trendTrades = simulateStrategyWalkForward(
+    val trendBacktest = simulateStrategyWalkForwardResult(
         strategyName = trendStrategyName,
         kind = StrategyKind.TREND,
         rows = researchFeatureRows,
         config = config
     )
-    val reversionTrades = simulateStrategyWalkForward(
+    val reversionBacktest = simulateStrategyWalkForwardResult(
         strategyName = reversionStrategyName,
         kind = StrategyKind.REVERSION,
         rows = researchFeatureRows,
@@ -3436,7 +4188,7 @@ fun evaluateCrossSectionalResearch(
             config = config,
             strategyName = trendStrategyName,
             strategyKind = StrategyKind.TREND,
-            trades = trendTrades,
+            trades = trendBacktest.trades,
             timeframe = "candle_${config.barMinutes}m",
             notes = "${config.barMinutes}m beta-adjusted cross-sectional trend with causal calibration gating"
         ) +
@@ -3444,21 +4196,39 @@ fun evaluateCrossSectionalResearch(
             config = config,
             strategyName = reversionStrategyName,
             strategyKind = StrategyKind.REVERSION,
-            trades = reversionTrades,
+            trades = reversionBacktest.trades,
             timeframe = "candle_${config.barMinutes}m",
             notes = "${config.barMinutes}m beta-adjusted cross-sectional mean reversion with causal calibration gating"
         )
+    val backtestPortfolioProfiles = mapOf(
+        StrategyKind.TREND.name.lowercase() to trendBacktest.portfolioProfile,
+        StrategyKind.REVERSION.name.lowercase() to reversionBacktest.portfolioProfile
+    )
     val backtestRobustness = mutableMapOf<String, StrategyRobustnessSnapshot>().apply {
-        computeStrategyRobustness(StrategyKind.TREND, trendTrades)?.let {
+        computeStrategyRobustness(StrategyKind.TREND, trendBacktest.trades)?.let {
             put(StrategyKind.TREND.name.lowercase(), it)
         }
-        computeStrategyRobustness(StrategyKind.REVERSION, reversionTrades)?.let {
+        computeStrategyRobustness(StrategyKind.REVERSION, reversionBacktest.trades)?.let {
             put(StrategyKind.REVERSION.name.lowercase(), it)
         }
     }
 
     if (config.persistBacktest && backtestSummaries.isNotEmpty()) {
         persistBacktestSummaries(backtestSummaries)
+        persistPortfolioProfiles(
+            config = config,
+            timeframe = "candle_${config.barMinutes}m",
+            strategyNames = strategyNamesByKind,
+            profiles = backtestPortfolioProfiles
+        )
+    }
+    if ((config.persistBacktest || config.persistForward) && context.universeProfiles.isNotEmpty()) {
+        persistUniverseProfiles(
+            config = config,
+            timeframe = "candle_${config.barMinutes}m",
+            strategyNames = strategyNamesByKind.values,
+            profiles = context.universeProfiles
+        )
     }
 
     val forwardCutoff = researchFeatureRows.maxOfOrNull { it.time }
@@ -3469,6 +4239,7 @@ fun evaluateCrossSectionalResearch(
     var calibrationRowsCount = 0
     var forwardRowsCount = 0
     var calibrationCounts = emptyMap<String, Int>()
+    var forwardPortfolioProfiles = emptyMap<String, PortfolioProfileSnapshot>()
     var forwardRobustness = emptyMap<String, StrategyRobustnessSnapshot>()
 
     if (forwardCutoff != null) {
@@ -3495,13 +4266,13 @@ fun evaluateCrossSectionalResearch(
         )
         val forwardCalibrationState = buildCalibrationState(calibrationTrendExamples + calibrationReversionExamples)
 
-        val calibrationTrendTrades = simulateStrategyWalkForward(
+        val calibrationTrendBacktest = simulateStrategyWalkForwardResult(
             strategyName = trendStrategyName,
             kind = StrategyKind.TREND,
             rows = calibrationRows,
             config = config
         )
-        val calibrationReversionTrades = simulateStrategyWalkForward(
+        val calibrationReversionBacktest = simulateStrategyWalkForwardResult(
             strategyName = reversionStrategyName,
             kind = StrategyKind.REVERSION,
             rows = calibrationRows,
@@ -3513,7 +4284,7 @@ fun evaluateCrossSectionalResearch(
                 config = config,
                 strategyName = trendStrategyName,
                 strategyKind = StrategyKind.TREND,
-                trades = calibrationTrendTrades,
+                trades = calibrationTrendBacktest.trades,
                 timeframe = "candle_${config.barMinutes}m",
                 notes = "${config.barMinutes}m calibration slice with causal calibration gating"
             ) +
@@ -3521,21 +4292,21 @@ fun evaluateCrossSectionalResearch(
                 config = config,
                 strategyName = reversionStrategyName,
                 strategyKind = StrategyKind.REVERSION,
-                trades = calibrationReversionTrades,
+                trades = calibrationReversionBacktest.trades,
                 timeframe = "candle_${config.barMinutes}m",
                 notes = "${config.barMinutes}m calibration slice with causal calibration gating"
             )
 
         val baselineMap = calibrationSummaries.associateBy { Triple(it.strategyName, it.exchange, it.symbol) }
 
-        val forwardTrendTrades = simulateStrategy(
+        val forwardTrend = simulateStrategyResult(
             strategyName = trendStrategyName,
             kind = StrategyKind.TREND,
             rows = forwardRows,
             config = config,
             calibrationState = forwardCalibrationState
         )
-        val forwardReversionTrades = simulateStrategy(
+        val forwardReversion = simulateStrategyResult(
             strategyName = reversionStrategyName,
             kind = StrategyKind.REVERSION,
             rows = forwardRows,
@@ -3543,7 +4314,13 @@ fun evaluateCrossSectionalResearch(
             calibrationState = forwardCalibrationState
         )
 
+        val forwardTrendTrades = forwardTrend.trades
+        val forwardReversionTrades = forwardReversion.trades
         val forwardTrades = forwardTrendTrades + forwardReversionTrades
+        forwardPortfolioProfiles = mapOf(
+            StrategyKind.TREND.name.lowercase() to forwardTrend.portfolioProfile,
+            StrategyKind.REVERSION.name.lowercase() to forwardReversion.portfolioProfile
+        )
         forwardSummaries =
             buildStrategySummaries(
                 config = config,
@@ -3579,6 +4356,12 @@ fun evaluateCrossSectionalResearch(
                 baselines = baselineMap,
                 source = "alpha-analytics-service"
             )
+            persistPortfolioProfiles(
+                config = config,
+                timeframe = "forward_${config.barMinutes}m",
+                strategyNames = strategyNamesByKind,
+                profiles = forwardPortfolioProfiles
+            )
         }
     }
 
@@ -3586,7 +4369,9 @@ fun evaluateCrossSectionalResearch(
         config = config,
         exchangeCatalog = context.exchangeCatalog,
         exchangePlans = context.exchangePlans,
+        candidateUniverse = context.candidateUniverse,
         discoveredUniverse = context.discoveredUniverse,
+        universeProfiles = context.universeProfiles,
         barsLoaded = researchBars.size,
         featureRows = researchFeatureRows.size,
         diagnostics = diagnostics,
@@ -3598,6 +4383,8 @@ fun evaluateCrossSectionalResearch(
         calibrationRows = calibrationRowsCount,
         forwardRows = forwardRowsCount,
         calibrationExampleCounts = calibrationCounts,
+        backtestPortfolioProfiles = backtestPortfolioProfiles,
+        forwardPortfolioProfiles = forwardPortfolioProfiles,
         backtestRobustness = backtestRobustness,
         forwardRobustness = forwardRobustness
     )
@@ -3659,6 +4446,7 @@ fun isValidResearchConfig(config: ResearchConfig): Boolean {
         config.topPerSide > 0 &&
         config.notionalUsd > 0.0 &&
         config.maxSymbols >= 2 &&
+        config.discoveryMaxSymbols >= 0 &&
         config.minBars > 0 &&
         config.reversionZEntry > 0.0 &&
         config.reversionZExit >= 0.0 &&
@@ -3676,7 +4464,13 @@ fun isValidResearchConfig(config: ResearchConfig): Boolean {
         config.strongCalibrationSamples >= config.minCalibrationSamples &&
         config.minCalibrationWinRate in 0.0..1.0 &&
         config.trendCooldownBars >= 0 &&
-        config.reversionCooldownBars >= 0
+        config.reversionCooldownBars >= 0 &&
+        config.maxConcurrentPositions > 0 &&
+        config.maxConcurrentLongs in 1..config.maxConcurrentPositions &&
+        config.maxConcurrentShorts in 1..config.maxConcurrentPositions &&
+        config.maxNetExposureFraction in 0.0..1.0 &&
+        config.maxPortfolioBetaBtcAbs >= 0.0 &&
+        config.maxPortfolioBetaEthAbs >= 0.0
 }
 
 private fun normalizeIntCandidates(
@@ -3745,6 +4539,15 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
         intMutation("lookbackHours", "timeframe", searchConfig.lookbackHours, { it.lookbackHours }, { cfg, value -> cfg.copy(lookbackHours = value) }),
         intMutation("forwardHours", "timeframe", searchConfig.forwardHours, { it.forwardHours }, { cfg, value -> cfg.copy(forwardHours = value) }),
         intMutation("betaLookbackBars", "timeframe", searchConfig.betaLookbackBars, { it.betaLookbackBars }, { cfg, value -> cfg.copy(betaLookbackBars = value) }),
+        intMutation("maxSymbols", "universe_breadth", searchConfig.maxSymbols, { it.maxSymbols }, { cfg, value -> cfg.copy(maxSymbols = value) }, predicate = { it >= 2 }),
+        intMutation(
+            "discoveryMaxSymbols",
+            "universe_breadth",
+            searchConfig.discoveryMaxSymbols,
+            { it.discoveryMaxSymbols },
+            { cfg, value -> cfg.copy(discoveryMaxSymbols = value) },
+            predicate = { it >= 0 }
+        ),
         doubleMutation("trendEntryScore", "trend_signal", searchConfig.trendEntryScore, { it.trendEntryScore }, { cfg, value -> cfg.copy(trendEntryScore = value) }),
         doubleMutation(
             "trendMinFlowAlignment",
@@ -3791,6 +4594,51 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
             { it.reversionCooldownBars },
             { cfg, value -> cfg.copy(reversionCooldownBars = value) },
             predicate = { it >= 0 }
+        ),
+        intMutation(
+            "maxConcurrentPositions",
+            "portfolio_policy",
+            searchConfig.maxConcurrentPositions,
+            { it.maxConcurrentPositions },
+            { cfg, value -> cfg.copy(maxConcurrentPositions = value) }
+        ),
+        intMutation(
+            "maxConcurrentLongs",
+            "portfolio_policy",
+            searchConfig.maxConcurrentLongs,
+            { it.maxConcurrentLongs },
+            { cfg, value -> cfg.copy(maxConcurrentLongs = value) }
+        ),
+        intMutation(
+            "maxConcurrentShorts",
+            "portfolio_policy",
+            searchConfig.maxConcurrentShorts,
+            { it.maxConcurrentShorts },
+            { cfg, value -> cfg.copy(maxConcurrentShorts = value) }
+        ),
+        doubleMutation(
+            "maxNetExposureFraction",
+            "portfolio_policy",
+            searchConfig.maxNetExposureFraction,
+            { it.maxNetExposureFraction },
+            { cfg, value -> cfg.copy(maxNetExposureFraction = value) },
+            predicate = { it in 0.0..1.0 }
+        ),
+        doubleMutation(
+            "maxPortfolioBetaBtcAbs",
+            "portfolio_policy",
+            searchConfig.maxPortfolioBetaBtcAbs,
+            { it.maxPortfolioBetaBtcAbs },
+            { cfg, value -> cfg.copy(maxPortfolioBetaBtcAbs = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation(
+            "maxPortfolioBetaEthAbs",
+            "portfolio_policy",
+            searchConfig.maxPortfolioBetaEthAbs,
+            { it.maxPortfolioBetaEthAbs },
+            { cfg, value -> cfg.copy(maxPortfolioBetaEthAbs = value) },
+            predicate = { it >= 0.0 }
         ),
         intMutation("topPerSide", "execution_liquidity", searchConfig.topPerSide, { it.topPerSide }, { cfg, value -> cfg.copy(topPerSide = value) }),
         doubleMutation("maxSpreadBps", "execution_liquidity", searchConfig.maxSpreadBps, { it.maxSpreadBps }, { cfg, value -> cfg.copy(maxSpreadBps = value) }),
@@ -4028,6 +4876,7 @@ fun researchConfigFingerprint(config: ResearchConfig): String =
         config.topPerSide,
         config.notionalUsd.round(4),
         config.maxSymbols,
+        config.discoveryMaxSymbols,
         config.minBars,
         config.trendEntryScore.round(6),
         config.reversionZEntry.round(6),
@@ -4048,7 +4897,13 @@ fun researchConfigFingerprint(config: ResearchConfig): String =
         config.minCalibrationLowerBoundBps.round(6),
         config.minCalibrationWinRate.round(6),
         config.trendCooldownBars,
-        config.reversionCooldownBars
+        config.reversionCooldownBars,
+        config.maxConcurrentPositions,
+        config.maxConcurrentLongs,
+        config.maxConcurrentShorts,
+        config.maxNetExposureFraction.round(6),
+        config.maxPortfolioBetaBtcAbs.round(6),
+        config.maxPortfolioBetaEthAbs.round(6)
     ).joinToString("|")
 
 private fun buildSearchEvaluation(
