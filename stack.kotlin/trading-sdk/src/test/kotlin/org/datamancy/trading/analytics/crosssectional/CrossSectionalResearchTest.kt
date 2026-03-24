@@ -346,6 +346,94 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `search engine covers reversion mutations under tight budgets`() {
+        val baseConfig = ResearchConfig(
+            marketExchange = "hyperliquid_mainnet",
+            barMinutes = 60,
+            lookbackHours = 720,
+            forwardHours = 72,
+            betaLookbackBars = 72,
+            trendLookbackBars = 12,
+            trendSlowBars = 48,
+            reversionLookbackBars = 8,
+            trendHoldBars = 4,
+            reversionHoldBars = 2,
+            topPerSide = 1,
+            trendEntryScore = 1.0,
+            reversionZEntry = 2.15,
+            reversionZExit = 0.45,
+            maxSpreadBps = 8.0,
+            minDepthMultiple = 10.0,
+            minFillRatio = 0.58,
+            minVolumeRatio = 0.35,
+            maxVolumeRatio = 4.5,
+            maxVolRegime = 2.0,
+            executionSafetyMarginBps = 8.0,
+            minExpectedNetEdgeBps = 4.0,
+            trendMinFlowAlignment = 0.08,
+            reversionMaxContinuationPressure = 0.18,
+            calibrationLookbackHours = 360,
+            minCalibrationSamples = 4,
+            strongCalibrationSamples = 12,
+            minCalibrationLowerBoundBps = 0.5,
+            minCalibrationWinRate = 0.52,
+            trendCooldownBars = 2,
+            reversionCooldownBars = 1,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val searchConfig = CrossSectionalSearchConfig(
+            baseConfig = baseConfig,
+            beamWidth = 1,
+            rounds = 1,
+            maxEvaluations = 4,
+            leaderboardSize = 1,
+            minBacktestTrades = 8,
+            minForwardTrades = 3,
+            barMinutes = listOf(60, 240),
+            lookbackHours = listOf(720, 1080),
+            forwardHours = listOf(72),
+            betaLookbackBars = listOf(72),
+            trendLookbackBars = listOf(12),
+            trendSlowBars = listOf(48),
+            reversionLookbackBars = listOf(8),
+            trendHoldBars = listOf(4),
+            reversionHoldBars = listOf(2),
+            topPerSide = listOf(1),
+            trendEntryScore = listOf(1.0, 1.4),
+            reversionZEntry = listOf(1.6, 2.15),
+            reversionZExit = listOf(0.45),
+            maxSpreadBps = listOf(8.0, 11.0),
+            minDepthMultiple = listOf(10.0),
+            minFillRatio = listOf(0.58),
+            minVolumeRatio = listOf(0.35),
+            maxVolumeRatio = listOf(4.5),
+            maxVolRegime = listOf(2.0),
+            executionSafetyMarginBps = listOf(8.0),
+            minExpectedNetEdgeBps = listOf(4.0),
+            trendMinFlowAlignment = listOf(0.08),
+            reversionMaxContinuationPressure = listOf(0.18),
+            calibrationLookbackHours = listOf(360, 720),
+            minCalibrationSamples = listOf(4),
+            strongCalibrationSamples = listOf(12),
+            minCalibrationLowerBoundBps = listOf(0.5),
+            minCalibrationWinRate = listOf(0.52),
+            trendCooldownBars = listOf(2),
+            reversionCooldownBars = listOf(1)
+        )
+
+        val result = searchCrossSectionalResearch(searchConfig) { config ->
+            fakeCoverageSearchResult(config)
+        }
+
+        val topReversion = result.topReversionConfigs.first()
+
+        assertEquals(4, result.evaluatedConfigs)
+        assertEquals(1.6, topReversion.config.reversionZEntry)
+        assertTrue(topReversion.reversionFitness.passesFilters)
+    }
+
+    @Test
     fun `search engine budgets evaluations across rounds to reach multi step winners`() {
         val baseConfig = ResearchConfig(
             marketExchange = "hyperliquid_mainnet",
@@ -822,6 +910,111 @@ class CrossSectionalResearchTest {
             avgTotalCostBps = 4.9,
             avgFillRatio = 0.73
         )
+        return CrossSectionalResearchResult(
+            config = config,
+            exchangeCatalog = listOf(
+                ExchangeCatalogSnapshot(
+                    apiName = "hyperliquid",
+                    implementationStatus = "INTEGRATED",
+                    defaultExecutionMode = "forward_paper",
+                    supportedExecutionModes = listOf("backtest", "forward_paper"),
+                    capabilities = ExchangeCapabilitiesSnapshot(
+                        paperOrder = true,
+                        liveOrder = true,
+                        nativeOrderAdapter = true,
+                        marketDataIngress = true,
+                        bestQuoteDefault = true
+                    ),
+                    notes = "test"
+                )
+            ),
+            exchangePlans = listOf(ExchangePlan(exchange = "hyperliquid", marketAliases = listOf(config.marketExchange))),
+            discoveredUniverse = mapOf("hyperliquid" to listOf("BTC", "ETH", "SOL")),
+            barsLoaded = 240,
+            featureRows = 180,
+            diagnostics = ResearchDiagnostics(
+                barMinutes = config.barMinutes,
+                warmupFloorBars = config.trendSlowBars,
+                totalRows = 180,
+                liquidRows = 96,
+                rowsPerSymbol = mapOf("SOL" to 60),
+                liquidPerSymbol = mapOf("SOL" to 48),
+                liquidFailureCounts = mapOf("warmup" to 8),
+                rankEligibleCounts = mapOf("trendLong" to 3),
+                seedCounts = mapOf("trend" to 4, "reversion" to 4),
+                topTrendSeeds = emptyList(),
+                topReversionSeeds = emptyList()
+            ),
+            heuristicSignals = emptyList(),
+            latestSignals = emptyList(),
+            backtestSummaries = listOf(trendBacktest, reversionBacktest),
+            forwardSummaries = listOf(trendForward, reversionForward),
+            forwardCutoff = Instant.parse("2026-03-23T00:00:00Z"),
+            calibrationRows = 120,
+            forwardRows = 60,
+            calibrationExampleCounts = mapOf("trend" to 10, "reversion" to 9)
+        )
+    }
+
+    private fun fakeCoverageSearchResult(config: ResearchConfig): CrossSectionalResearchResult {
+        val trendBoost =
+            (if (config.barMinutes == 240) 0.8 else 0.0) +
+                (if (config.trendEntryScore == 1.4) 0.6 else 0.0)
+        val reversionBoost = if (config.reversionZEntry == 1.6) 4.5 else 0.0
+
+        val trendBacktest = summary(
+            config = config,
+            strategyName = "cross_section_beta_trend_v1",
+            strategyKind = "trend",
+            timeframe = "candle_${config.barMinutes}m",
+            trades = 9,
+            netReturnPct = 1.8 + trendBoost,
+            maxDrawdownPct = 2.2,
+            sharpe = 0.9 + (trendBoost * 0.2),
+            avgEdgeAfterCostBps = 4.2 + (trendBoost * 1.4),
+            avgTotalCostBps = 5.2,
+            avgFillRatio = 0.73
+        )
+        val trendForward = summary(
+            config = config,
+            strategyName = "cross_section_beta_trend_v1",
+            strategyKind = "trend",
+            timeframe = "forward_${config.barMinutes}m",
+            trades = 3,
+            netReturnPct = 0.4 + (trendBoost * 0.5),
+            maxDrawdownPct = 0.8,
+            sharpe = 0.5 + (trendBoost * 0.2),
+            avgEdgeAfterCostBps = 3.2 + (trendBoost * 1.0),
+            avgTotalCostBps = 4.9,
+            avgFillRatio = 0.71
+        )
+        val reversionBacktest = summary(
+            config = config,
+            strategyName = "cross_section_beta_reversion_v1",
+            strategyKind = "reversion",
+            timeframe = "candle_${config.barMinutes}m",
+            trades = 11,
+            netReturnPct = 1.9 + reversionBoost,
+            maxDrawdownPct = 2.0,
+            sharpe = 0.8 + reversionBoost,
+            avgEdgeAfterCostBps = 4.1 + (reversionBoost * 2.0),
+            avgTotalCostBps = 5.0,
+            avgFillRatio = 0.75
+        )
+        val reversionForward = summary(
+            config = config,
+            strategyName = "cross_section_beta_reversion_v1",
+            strategyKind = "reversion",
+            timeframe = "forward_${config.barMinutes}m",
+            trades = 4,
+            netReturnPct = 0.6 + reversionBoost,
+            maxDrawdownPct = 0.9,
+            sharpe = 0.6 + reversionBoost,
+            avgEdgeAfterCostBps = 3.8 + (reversionBoost * 1.7),
+            avgTotalCostBps = 4.8,
+            avgFillRatio = 0.74
+        )
+
         return CrossSectionalResearchResult(
             config = config,
             exchangeCatalog = listOf(

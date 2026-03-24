@@ -3608,6 +3608,7 @@ fun runCrossSectionalResearch(config: ResearchConfig = ResearchConfig()): CrossS
 
 private data class SearchMutation(
     val name: String,
+    val group: String,
     val variants: (ResearchConfig) -> List<ResearchConfig>
 )
 
@@ -3699,14 +3700,22 @@ private fun normalizeDoubleCandidates(
         .distinct()
         .sorted()
 
+private fun <T> rotate(values: List<T>, offset: Int): List<T> {
+    if (values.isEmpty()) return values
+    val normalized = ((offset % values.size) + values.size) % values.size
+    if (normalized == 0) return values
+    return values.drop(normalized) + values.take(normalized)
+}
+
 private fun intMutation(
     name: String,
+    group: String,
     values: List<Int>,
     current: (ResearchConfig) -> Int,
     apply: (ResearchConfig, Int) -> ResearchConfig,
     predicate: (Int) -> Boolean = { it > 0 }
 ): SearchMutation =
-    SearchMutation(name) { config ->
+    SearchMutation(name, group) { config ->
         normalizeIntCandidates(current(config), values, predicate)
             .asSequence()
             .filter { it != current(config) }
@@ -3716,12 +3725,13 @@ private fun intMutation(
 
 private fun doubleMutation(
     name: String,
+    group: String,
     values: List<Double>,
     current: (ResearchConfig) -> Double,
     apply: (ResearchConfig, Double) -> ResearchConfig,
     predicate: (Double) -> Boolean = { it > 0.0 }
 ): SearchMutation =
-    SearchMutation(name) { config ->
+    SearchMutation(name, group) { config ->
         normalizeDoubleCandidates(current(config), values, predicate)
             .asSequence()
             .filter { abs(it - current(config)) > 1e-9 }
@@ -3731,29 +3741,63 @@ private fun doubleMutation(
 
 private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List<SearchMutation> =
     listOf(
-        intMutation("barMinutes", searchConfig.barMinutes, { it.barMinutes }, { cfg, value -> cfg.copy(barMinutes = value) }),
-        intMutation("lookbackHours", searchConfig.lookbackHours, { it.lookbackHours }, { cfg, value -> cfg.copy(lookbackHours = value) }),
-        intMutation("forwardHours", searchConfig.forwardHours, { it.forwardHours }, { cfg, value -> cfg.copy(forwardHours = value) }),
-        intMutation("betaLookbackBars", searchConfig.betaLookbackBars, { it.betaLookbackBars }, { cfg, value -> cfg.copy(betaLookbackBars = value) }),
-        intMutation("trendLookbackBars", searchConfig.trendLookbackBars, { it.trendLookbackBars }, { cfg, value -> cfg.copy(trendLookbackBars = value) }),
-        intMutation("trendSlowBars", searchConfig.trendSlowBars, { it.trendSlowBars }, { cfg, value -> cfg.copy(trendSlowBars = value) }),
-        intMutation("reversionLookbackBars", searchConfig.reversionLookbackBars, { it.reversionLookbackBars }, { cfg, value -> cfg.copy(reversionLookbackBars = value) }),
-        intMutation("trendHoldBars", searchConfig.trendHoldBars, { it.trendHoldBars }, { cfg, value -> cfg.copy(trendHoldBars = value) }),
-        intMutation("reversionHoldBars", searchConfig.reversionHoldBars, { it.reversionHoldBars }, { cfg, value -> cfg.copy(reversionHoldBars = value) }),
-        intMutation("topPerSide", searchConfig.topPerSide, { it.topPerSide }, { cfg, value -> cfg.copy(topPerSide = value) }),
-        doubleMutation("trendEntryScore", searchConfig.trendEntryScore, { it.trendEntryScore }, { cfg, value -> cfg.copy(trendEntryScore = value) }),
-        doubleMutation("reversionZEntry", searchConfig.reversionZEntry, { it.reversionZEntry }, { cfg, value -> cfg.copy(reversionZEntry = value) }),
+        intMutation("barMinutes", "timeframe", searchConfig.barMinutes, { it.barMinutes }, { cfg, value -> cfg.copy(barMinutes = value) }),
+        intMutation("lookbackHours", "timeframe", searchConfig.lookbackHours, { it.lookbackHours }, { cfg, value -> cfg.copy(lookbackHours = value) }),
+        intMutation("forwardHours", "timeframe", searchConfig.forwardHours, { it.forwardHours }, { cfg, value -> cfg.copy(forwardHours = value) }),
+        intMutation("betaLookbackBars", "timeframe", searchConfig.betaLookbackBars, { it.betaLookbackBars }, { cfg, value -> cfg.copy(betaLookbackBars = value) }),
+        doubleMutation("trendEntryScore", "trend_signal", searchConfig.trendEntryScore, { it.trendEntryScore }, { cfg, value -> cfg.copy(trendEntryScore = value) }),
+        doubleMutation(
+            "trendMinFlowAlignment",
+            "trend_signal",
+            searchConfig.trendMinFlowAlignment,
+            { it.trendMinFlowAlignment },
+            { cfg, value -> cfg.copy(trendMinFlowAlignment = value) },
+            predicate = { it >= 0.0 }
+        ),
+        intMutation("trendLookbackBars", "trend_signal", searchConfig.trendLookbackBars, { it.trendLookbackBars }, { cfg, value -> cfg.copy(trendLookbackBars = value) }),
+        intMutation("trendSlowBars", "trend_signal", searchConfig.trendSlowBars, { it.trendSlowBars }, { cfg, value -> cfg.copy(trendSlowBars = value) }),
+        intMutation("trendHoldBars", "trend_signal", searchConfig.trendHoldBars, { it.trendHoldBars }, { cfg, value -> cfg.copy(trendHoldBars = value) }),
+        intMutation(
+            "trendCooldownBars",
+            "trend_signal",
+            searchConfig.trendCooldownBars,
+            { it.trendCooldownBars },
+            { cfg, value -> cfg.copy(trendCooldownBars = value) },
+            predicate = { it >= 0 }
+        ),
+        doubleMutation("reversionZEntry", "reversion_signal", searchConfig.reversionZEntry, { it.reversionZEntry }, { cfg, value -> cfg.copy(reversionZEntry = value) }),
         doubleMutation(
             "reversionZExit",
+            "reversion_signal",
             searchConfig.reversionZExit,
             { it.reversionZExit },
             { cfg, value -> cfg.copy(reversionZExit = value) },
             predicate = { it >= 0.0 }
         ),
-        doubleMutation("maxSpreadBps", searchConfig.maxSpreadBps, { it.maxSpreadBps }, { cfg, value -> cfg.copy(maxSpreadBps = value) }),
-        doubleMutation("minDepthMultiple", searchConfig.minDepthMultiple, { it.minDepthMultiple }, { cfg, value -> cfg.copy(minDepthMultiple = value) }),
+        doubleMutation(
+            "reversionMaxContinuationPressure",
+            "reversion_signal",
+            searchConfig.reversionMaxContinuationPressure,
+            { it.reversionMaxContinuationPressure },
+            { cfg, value -> cfg.copy(reversionMaxContinuationPressure = value) },
+            predicate = { it >= 0.0 }
+        ),
+        intMutation("reversionLookbackBars", "reversion_signal", searchConfig.reversionLookbackBars, { it.reversionLookbackBars }, { cfg, value -> cfg.copy(reversionLookbackBars = value) }),
+        intMutation("reversionHoldBars", "reversion_signal", searchConfig.reversionHoldBars, { it.reversionHoldBars }, { cfg, value -> cfg.copy(reversionHoldBars = value) }),
+        intMutation(
+            "reversionCooldownBars",
+            "reversion_signal",
+            searchConfig.reversionCooldownBars,
+            { it.reversionCooldownBars },
+            { cfg, value -> cfg.copy(reversionCooldownBars = value) },
+            predicate = { it >= 0 }
+        ),
+        intMutation("topPerSide", "execution_liquidity", searchConfig.topPerSide, { it.topPerSide }, { cfg, value -> cfg.copy(topPerSide = value) }),
+        doubleMutation("maxSpreadBps", "execution_liquidity", searchConfig.maxSpreadBps, { it.maxSpreadBps }, { cfg, value -> cfg.copy(maxSpreadBps = value) }),
+        doubleMutation("minDepthMultiple", "execution_liquidity", searchConfig.minDepthMultiple, { it.minDepthMultiple }, { cfg, value -> cfg.copy(minDepthMultiple = value) }),
         doubleMutation(
             "minFillRatio",
+            "execution_liquidity",
             searchConfig.minFillRatio,
             { it.minFillRatio },
             { cfg, value -> cfg.copy(minFillRatio = value) },
@@ -3761,15 +3805,17 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
         ),
         doubleMutation(
             "minVolumeRatio",
+            "execution_liquidity",
             searchConfig.minVolumeRatio,
             { it.minVolumeRatio },
             { cfg, value -> cfg.copy(minVolumeRatio = value) },
             predicate = { it >= 0.0 }
         ),
-        doubleMutation("maxVolumeRatio", searchConfig.maxVolumeRatio, { it.maxVolumeRatio }, { cfg, value -> cfg.copy(maxVolumeRatio = value) }),
-        doubleMutation("maxVolRegime", searchConfig.maxVolRegime, { it.maxVolRegime }, { cfg, value -> cfg.copy(maxVolRegime = value) }),
+        doubleMutation("maxVolumeRatio", "execution_liquidity", searchConfig.maxVolumeRatio, { it.maxVolumeRatio }, { cfg, value -> cfg.copy(maxVolumeRatio = value) }),
+        doubleMutation("maxVolRegime", "execution_liquidity", searchConfig.maxVolRegime, { it.maxVolRegime }, { cfg, value -> cfg.copy(maxVolRegime = value) }),
         doubleMutation(
             "executionSafetyMarginBps",
+            "execution_liquidity",
             searchConfig.executionSafetyMarginBps,
             { it.executionSafetyMarginBps },
             { cfg, value -> cfg.copy(executionSafetyMarginBps = value) },
@@ -3777,30 +3823,18 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
         ),
         doubleMutation(
             "minExpectedNetEdgeBps",
+            "execution_liquidity",
             searchConfig.minExpectedNetEdgeBps,
             { it.minExpectedNetEdgeBps },
             { cfg, value -> cfg.copy(minExpectedNetEdgeBps = value) },
             predicate = { it >= 0.0 }
         ),
-        doubleMutation(
-            "trendMinFlowAlignment",
-            searchConfig.trendMinFlowAlignment,
-            { it.trendMinFlowAlignment },
-            { cfg, value -> cfg.copy(trendMinFlowAlignment = value) },
-            predicate = { it >= 0.0 }
-        ),
-        doubleMutation(
-            "reversionMaxContinuationPressure",
-            searchConfig.reversionMaxContinuationPressure,
-            { it.reversionMaxContinuationPressure },
-            { cfg, value -> cfg.copy(reversionMaxContinuationPressure = value) },
-            predicate = { it >= 0.0 }
-        ),
-        intMutation("calibrationLookbackHours", searchConfig.calibrationLookbackHours, { it.calibrationLookbackHours }, { cfg, value -> cfg.copy(calibrationLookbackHours = value) }),
-        intMutation("minCalibrationSamples", searchConfig.minCalibrationSamples, { it.minCalibrationSamples }, { cfg, value -> cfg.copy(minCalibrationSamples = value) }),
-        intMutation("strongCalibrationSamples", searchConfig.strongCalibrationSamples, { it.strongCalibrationSamples }, { cfg, value -> cfg.copy(strongCalibrationSamples = value) }),
+        intMutation("calibrationLookbackHours", "calibration", searchConfig.calibrationLookbackHours, { it.calibrationLookbackHours }, { cfg, value -> cfg.copy(calibrationLookbackHours = value) }),
+        intMutation("minCalibrationSamples", "calibration", searchConfig.minCalibrationSamples, { it.minCalibrationSamples }, { cfg, value -> cfg.copy(minCalibrationSamples = value) }),
+        intMutation("strongCalibrationSamples", "calibration", searchConfig.strongCalibrationSamples, { it.strongCalibrationSamples }, { cfg, value -> cfg.copy(strongCalibrationSamples = value) }),
         doubleMutation(
             "minCalibrationLowerBoundBps",
+            "calibration",
             searchConfig.minCalibrationLowerBoundBps,
             { it.minCalibrationLowerBoundBps },
             { cfg, value -> cfg.copy(minCalibrationLowerBoundBps = value) },
@@ -3808,24 +3842,11 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
         ),
         doubleMutation(
             "minCalibrationWinRate",
+            "calibration",
             searchConfig.minCalibrationWinRate,
             { it.minCalibrationWinRate },
             { cfg, value -> cfg.copy(minCalibrationWinRate = value) },
             predicate = { it in 0.0..1.0 }
-        ),
-        intMutation(
-            "trendCooldownBars",
-            searchConfig.trendCooldownBars,
-            { it.trendCooldownBars },
-            { cfg, value -> cfg.copy(trendCooldownBars = value) },
-            predicate = { it >= 0 }
-        ),
-        intMutation(
-            "reversionCooldownBars",
-            searchConfig.reversionCooldownBars,
-            { it.reversionCooldownBars },
-            { cfg, value -> cfg.copy(reversionCooldownBars = value) },
-            predicate = { it >= 0 }
         )
     )
 
@@ -4141,6 +4162,115 @@ private fun roundEvaluationBudget(
     return min(remainingBudget, max(searchConfig.beamWidth, evenSplit))
 }
 
+private data class SearchMutationCandidate(
+    val seedFingerprint: String,
+    val mutationName: String,
+    val mutationGroup: String,
+    val config: ResearchConfig
+)
+
+private fun buildSeedMutationCandidates(
+    seed: ResearchConfig,
+    mutations: List<SearchMutation>,
+    roundIndex: Int
+): List<SearchMutationCandidate> {
+    if (mutations.isEmpty()) return emptyList()
+
+    val seedFingerprint = researchConfigFingerprint(seed)
+    val preferredGroups = listOf("timeframe", "trend_signal", "reversion_signal", "execution_liquidity", "calibration")
+    val discoveredGroups = mutations.map { it.group }.distinct()
+    val orderedGroups = rotate(
+        preferredGroups.filter { it in discoveredGroups } + discoveredGroups.filter { it !in preferredGroups },
+        roundIndex
+    )
+    val seedOffset = abs(seedFingerprint.hashCode())
+    val perGroupCandidates = orderedGroups.map { group ->
+        val groupMutations = mutations.filter { it.group == group }
+        val rotatedMutations = rotate(groupMutations, seedOffset + roundIndex)
+        val mutationIterators = rotatedMutations.map { mutation ->
+            mutation.variants(seed)
+                .map { candidate ->
+                    SearchMutationCandidate(
+                        seedFingerprint = seedFingerprint,
+                        mutationName = mutation.name,
+                        mutationGroup = mutation.group,
+                        config = candidate
+                    )
+                }
+                .iterator()
+        }.toMutableList()
+
+        buildList {
+            var progressed = true
+            while (progressed) {
+                progressed = false
+                mutationIterators.forEach { iterator ->
+                    if (iterator.hasNext()) {
+                        add(iterator.next())
+                        progressed = true
+                    }
+                }
+            }
+        }
+    }
+
+    val groupIterators = perGroupCandidates.map { it.iterator() }.toMutableList()
+    return buildList {
+        var progressed = true
+        while (progressed) {
+            progressed = false
+            groupIterators.forEach { iterator ->
+                if (iterator.hasNext()) {
+                    add(iterator.next())
+                    progressed = true
+                }
+            }
+        }
+    }
+}
+
+private fun buildSearchGeneration(
+    seeds: List<ResearchConfig>,
+    mutations: List<SearchMutation>,
+    roundsCompleted: Int,
+    limit: Int,
+    evaluatedFingerprints: Set<String>
+): List<SearchMutationCandidate> {
+    if (limit <= 0 || seeds.isEmpty() || mutations.isEmpty()) return emptyList()
+
+    val rotatedSeeds = rotate(
+        seeds.distinctBy(::researchConfigFingerprint),
+        roundsCompleted
+    )
+    val seedIterators = rotatedSeeds.mapIndexed { index, seed ->
+        buildSeedMutationCandidates(seed, mutations, roundsCompleted + index).iterator()
+    }.toMutableList()
+    val seenFingerprints = evaluatedFingerprints.toMutableSet()
+
+    return buildList {
+        while (size < limit) {
+            var progressed = false
+            seedIterators.forEach { iterator ->
+                while (iterator.hasNext() && size < limit) {
+                    val candidate = iterator.next()
+                    val safeConfig = searchSafeConfig(candidate.config)
+                    if (!isValidResearchConfig(safeConfig)) {
+                        continue
+                    }
+                    val fingerprint = researchConfigFingerprint(safeConfig)
+                    if (!seenFingerprints.add(fingerprint)) {
+                        continue
+                    }
+                    add(candidate.copy(config = safeConfig))
+                    progressed = true
+                    break
+                }
+            }
+            if (!progressed) break
+        }
+    }
+}
+
 fun searchCrossSectionalResearch(
     searchConfig: CrossSectionalSearchConfig = CrossSectionalSearchConfig()
 ): CrossSectionalSearchResult {
@@ -4185,24 +4315,27 @@ fun searchCrossSectionalResearch(
     ) {
         val remainingBudget = normalizedSearch.maxEvaluations - evaluations.size
         val roundBudget = roundEvaluationBudget(normalizedSearch, evaluations.size, roundsCompleted)
-        val generation = seeds.asSequence()
-            .flatMap { seed ->
-                mutations.asSequence().flatMap { mutation ->
-                    mutation.variants(seed).asSequence()
-                }
-            }
-            .map(::searchSafeConfig)
-            .filter(::isValidResearchConfig)
-            .distinctBy(::researchConfigFingerprint)
-            .filter { researchConfigFingerprint(it) !in evaluations }
-            .take(min(remainingBudget, roundBudget))
-            .toList()
+        val generation = buildSearchGeneration(
+            seeds = seeds,
+            mutations = mutations,
+            roundsCompleted = roundsCompleted,
+            limit = min(remainingBudget, roundBudget),
+            evaluatedFingerprints = evaluations.keys
+        )
 
         if (generation.isEmpty()) break
-        generation.forEach { evaluateCandidate(it) }
+        generation.forEach { evaluateCandidate(it.config) }
+        val mutationCoverage = generation.groupingBy { it.mutationGroup }
+            .eachCount()
+            .toSortedMap()
+            .entries
+            .joinToString(",") { (group, count) -> "$group:$count" }
+        val mutationSample = generation.take(6)
+            .joinToString(",") { "${it.mutationGroup}:${it.mutationName}" }
         println(
             "Cross-sectional search round=${roundsCompleted + 1} " +
-                "seeds=${seeds.size} evaluated=${generation.size} total=${evaluations.size}"
+                "seeds=${seeds.size} evaluated=${generation.size} total=${evaluations.size} " +
+                "mutationCoverage=$mutationCoverage mutationSample=$mutationSample"
         )
         roundsCompleted += 1
         seeds = nextSearchSeeds(evaluations.values.toList(), normalizedSearch)
