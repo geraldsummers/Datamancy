@@ -237,6 +237,34 @@ def build_query(exchange_aliases: Sequence[str], use_trade_flow: bool) -> str:
     GROUP BY 1
 )
 """ if use_trade_flow else ""
+    orderbook_cte = f"""
+,orderbook AS (
+    SELECT DISTINCT ON (minute)
+        minute,
+        spread_pct,
+        bid_depth_10,
+        ask_depth_10,
+        mid_price,
+        best_bid,
+        best_ask
+    FROM (
+        SELECT
+            date_trunc('minute', time) AS minute,
+            spread_pct,
+            bid_depth_10,
+            ask_depth_10,
+            mid_price,
+            best_bid,
+            best_ask,
+            time
+        FROM orderbook_data
+        WHERE exchange IN ({aliases})
+          AND symbol = %(symbol)s
+          AND time >= NOW() - CAST(%(lookback)s AS interval)
+    ) snapshots
+    ORDER BY minute, time DESC
+)
+"""
     funding_cte = f"""
 ,funding AS (
     SELECT time, funding_rate
@@ -267,6 +295,7 @@ WITH candles AS (
       AND time >= NOW() - CAST(%(lookback)s AS interval)
 )
 {trade_flow_cte}
+{orderbook_cte}
 {funding_cte}
 SELECT
     c.time,
@@ -284,16 +313,8 @@ SELECT
     o.best_ask,
     COALESCE(f.funding_rate, 0.0) AS funding_rate
 FROM candles c
-{trade_flow_join}LEFT JOIN LATERAL (
-    SELECT spread_pct, bid_depth_10, ask_depth_10, mid_price, best_bid, best_ask
-    FROM orderbook_data o
-    WHERE o.exchange IN ({aliases})
-      AND o.symbol = %(symbol)s
-      AND o.time >= c.time
-      AND o.time < c.time + INTERVAL '1 minute'
-    ORDER BY o.time DESC
-    LIMIT 1
-) o ON TRUE
+{trade_flow_join}LEFT JOIN orderbook o
+  ON o.minute = c.time
 LEFT JOIN LATERAL (
     SELECT funding_rate
     FROM funding f
