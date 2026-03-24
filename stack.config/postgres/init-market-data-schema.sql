@@ -161,7 +161,9 @@ ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS candle_observed BOOLEA
 ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS trade_observed BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS orderbook_observed BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS asset_context_observed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+-- Avoid non-constant defaults on repeated ALTER runs against a compressed hypertable.
+-- Fresh rows still populate this column from the aggregation pipeline.
+ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
 
 -- Quantified RSS sentiment scores that can be correlated with market moves
 CREATE TABLE IF NOT EXISTS rss_sentiment_signals (

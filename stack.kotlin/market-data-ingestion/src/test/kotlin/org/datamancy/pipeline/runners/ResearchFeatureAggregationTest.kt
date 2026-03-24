@@ -24,6 +24,21 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `recent aggregation prioritization processes newest windows first`() {
+        val windows = chunkAggregationWindows(
+            startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+            endExclusive = Instant.parse("2026-03-20T18:00:00Z"),
+            chunkHours = 6
+        )
+
+        val prioritized = prioritizeRecentAggregationWindows(windows)
+
+        assertEquals(Instant.parse("2026-03-20T12:00:00Z"), prioritized.first().startInclusive)
+        assertEquals(Instant.parse("2026-03-20T18:00:00Z"), prioritized.first().endExclusive)
+        assertEquals(Instant.parse("2026-03-20T00:00:00Z"), prioritized.last().startInclusive)
+    }
+
+    @Test
     fun `refresh overlap clamps to minimum`() {
         assertEquals(MIN_RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES, resolveResearchFeaturesRefreshOverlapMinutes(0L))
     }

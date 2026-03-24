@@ -21,7 +21,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_REFRESH_INTERVAL_MS = 60_000L
 internal const val MIN_RESEARCH_FEATURES_REFRESH_INTERVAL_MS = 15_000L
 internal const val DEFAULT_RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES = 180L
 internal const val MIN_RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES = 1L
-internal const val DEFAULT_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 24L
+internal const val DEFAULT_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 6L
 internal const val MIN_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 1L
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
@@ -48,6 +48,10 @@ internal data class AggregationWindow(
     val startInclusive: Instant,
     val endExclusive: Instant
 )
+
+internal fun prioritizeRecentAggregationWindows(windows: List<AggregationWindow>): List<AggregationWindow> {
+    return windows.asReversed()
+}
 
 internal fun chunkAggregationWindows(
     startInclusive: Instant,
@@ -127,8 +131,11 @@ internal class ResearchFeatureAggregator(
         while (coroutineContext.isActive) {
             try {
                 if (!bootstrapCompleted) {
-                    bootstrap()
-                    bootstrapCompleted = true
+                    bootstrapCompleted = bootstrap()
+                    if (!bootstrapCompleted) {
+                        delay(refreshIntervalMs)
+                        continue
+                    }
                 }
                 refreshRecentWindow()
             } catch (e: CancellationException) {
@@ -142,10 +149,10 @@ internal class ResearchFeatureAggregator(
         }
     }
 
-    private suspend fun bootstrap() = withContext(Dispatchers.IO) {
+    private suspend fun bootstrap(): Boolean = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             if (!ensureSchema(conn)) {
-                return@withContext
+                return@withContext false
             }
             val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
             val earliestRaw = queryBoundary(
@@ -156,7 +163,12 @@ internal class ResearchFeatureAggregator(
                     WHERE exchange = ?
                       AND data_type = 'candle_1m'
                 """.trimIndent()
-            ) ?: return@withContext
+            ) ?: run {
+                researchFeatureLogger.info {
+                    "research_features_1m bootstrap waiting for raw candle data exchange=$exchangeId"
+                }
+                return@withContext false
+            }
             val bootstrapFloor = now.minus(bootstrapHours, ChronoUnit.HOURS)
             val requestedStart = maxOf(earliestRaw, bootstrapFloor)
             val latestFeature = queryBoundary(
@@ -175,9 +187,11 @@ internal class ResearchFeatureAggregator(
                 researchFeatureLogger.info {
                     "research_features_1m bootstrap already current for $exchangeId up to ${latestFeature ?: now}"
                 }
-                return@withContext
+                return@withContext true
             }
-            val windows = chunkAggregationWindows(start, now, backfillChunkHours)
+            val windows = prioritizeRecentAggregationWindows(
+                chunkAggregationWindows(start, now, backfillChunkHours)
+            )
             var totalRows = 0
             windows.forEachIndexed { index, window ->
                 val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
@@ -190,6 +204,7 @@ internal class ResearchFeatureAggregator(
             researchFeatureLogger.info {
                 "research_features_1m bootstrap complete exchange=$exchangeId windows=${windows.size} totalRows=$totalRows"
             }
+            return@withContext true
         }
     }
 

@@ -5,8 +5,11 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onEach
 import org.datamancy.pipeline.sinks.MarketDataSink
+import org.datamancy.pipeline.sources.HyperliquidMarketData
 import org.datamancy.pipeline.sources.HyperliquidSource
 import org.postgresql.ds.PGSimpleDataSource
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.pow
 import kotlin.time.Duration.Companion.seconds
 
@@ -67,6 +70,9 @@ class MarketDataIngestionRunner {
     private val postgresPassword = System.getenv("POSTGRES_PASSWORD") ?: ""
     private val batchSize = System.getenv("MARKET_DATA_BATCH_SIZE")?.toIntOrNull() ?: 250
     private val flushIntervalSeconds = System.getenv("MARKET_DATA_FLUSH_SECONDS")?.toLongOrNull() ?: 10
+    private val hyperliquidSymbolsPerConnection = System.getenv("HYPERLIQUID_SYMBOLS_PER_CONNECTION")?.toIntOrNull()
+        ?.coerceAtLeast(1)
+        ?: 8
 
     private val staticSymbols = parseSymbolList(System.getenv("HYPERLIQUID_SYMBOLS"))
     private val candleIntervals = System.getenv("CANDLE_INTERVALS")?.split(",")?.map { it.trim() }
@@ -148,8 +154,9 @@ class MarketDataIngestionRunner {
     private lateinit var universeResolver: HyperliquidUniverseResolver
     private lateinit var researchFeatureAggregator: ResearchFeatureAggregator
     private lateinit var sink: MarketDataSink
+    private val activeSourcesLock = Any()
     @Volatile
-    private var activeSource: HyperliquidSource? = null
+    private var activeSources: List<HyperliquidSource> = emptyList()
     @Volatile
     private var activeUniverse: HyperliquidUniverseSnapshot? = null
 
@@ -161,6 +168,7 @@ class MarketDataIngestionRunner {
         logger.info { "Starting Hyperliquid Market Data Ingestion Pipeline" }
         logger.info { "=" * 80 }
         logger.info { "Universe Mode: $hyperliquidUniverseMode" }
+        logger.info { "Symbols Per Connection: $hyperliquidSymbolsPerConnection" }
         if (staticSymbols.isNotEmpty()) {
             logger.info { "Static Symbols Override: ${staticSymbols.joinToString()}" }
         }
@@ -308,18 +316,19 @@ class MarketDataIngestionRunner {
         val maxReconnectDelay = 60.seconds
 
         while (scope.isActive) {
-            var messagesInSession = 0
-            var sessionSource: HyperliquidSource? = null
+            val messagesInSession = AtomicInteger(0)
+            val sessionProducedData = AtomicBoolean(false)
+            var sessionRestartReason: IngestionSessionRestartReason? = null
             try {
                 val universe = resolveUniverseSnapshot(
                     previous = activeUniverse?.symbols.orEmpty()
                 )
                 activeUniverse = universe
+                val symbolShards = universe.symbols.chunked(hyperliquidSymbolsPerConnection)
                 logger.info {
-                    "Connecting to Hyperliquid WebSocket... universeSource=${universe.source} symbols=${universe.symbols.size}"
+                    "Connecting to Hyperliquid WebSocket... universeSource=${universe.source} " +
+                        "symbols=${universe.symbols.size} shards=${symbolShards.size}"
                 }
-                sessionSource = createSource(universe.symbols)
-                activeSource = sessionSource
                 val continuityWatchdog = HyperliquidContinuityWatchdog(
                     symbols = universe.symbols,
                     candleIntervals = candleIntervals,
@@ -327,60 +336,95 @@ class MarketDataIngestionRunner {
                     candleStaleMultiplier = hyperliquidCandleStaleMultiplier
                 )
 
-                coroutineScope {
+                supervisorScope {
+                    val sessionRestart = CompletableDeferred<IngestionSessionRestartReason>()
                     val candleRepairJob = launch {
                         repairRecentCandleHistory(universe.symbols, continuityWatchdog)
                     }
                     val universeRefreshJob = launch {
                         refreshUniverseDuringSession(
-                            currentUniverse = universe,
-                            source = sessionSource
-                        )
+                            currentUniverse = universe
+                        ) { refreshed ->
+                            activeUniverse = refreshed
+                            completeSessionRestart(
+                                sessionRestart,
+                                IngestionSessionRestartReason(
+                                    code = "universe_refresh",
+                                    description = "Universe changed from ${universe.symbols.size} to ${refreshed.symbols.size} symbols"
+                                )
+                            )
+                        }
                     }
-                    val streamCollector = async {
-                        sessionSource.fetch()
-                            .onEach { data ->
-                                messagesInSession++
+                    val streamCollectors = symbolShards.mapIndexed { shardIndex, shardSymbols ->
+                        launch {
+                            runShardLoop(
+                                shardIndex = shardIndex,
+                                shardCount = symbolShards.size,
+                                shardSymbols = shardSymbols,
+                                sessionRestart = sessionRestart
+                            ) { data ->
+                                messagesInSession.incrementAndGet()
+                                sessionProducedData.set(true)
                                 continuityWatchdog.record(data)
-                                if (messagesInSession == 1 && reconnectAttempt > 0) {
-                                    reconnectAttempt = 0
-                                    logger.info { "WebSocket stream produced data; reconnection backoff reset" }
-                                }
                                 sink.write(data)
                             }
-                            .catch { e ->
-                                logger.error(e) { "Error in data stream: ${e.message}" }
-                                // Flush any pending data before reconnecting
-                                sink.flush()
-                                throw e
-                            }
-                            .collect { }
+                        }
+                    }
+                    val streamCompletionWatcher = launch {
+                        streamCollectors.joinAll()
+                        completeSessionRestart(
+                            sessionRestart,
+                            IngestionSessionRestartReason(
+                                code = "all_shards_stopped",
+                                description = "All Hyperliquid shards stopped after ${messagesInSession.get()} messages"
+                            )
+                        )
                     }
                     val continuityMonitor = launch {
-                        while (isActive) {
+                        while (isActive && !sessionRestart.isCompleted) {
                             delay(hyperliquidFreshnessCheckIntervalMs)
-                            continuityWatchdog.assertHealthy()
+                            try {
+                                continuityWatchdog.assertHealthy()
+                            } catch (e: HyperliquidContinuityException) {
+                                logger.error(e) { "Hyperliquid continuity watchdog triggered: ${e.message}" }
+                                completeSessionRestart(
+                                    sessionRestart,
+                                    IngestionSessionRestartReason(
+                                        code = "continuity_failure",
+                                        description = e.message ?: "Hyperliquid continuity watchdog failed"
+                                    )
+                                )
+                                return@launch
+                            }
                         }
                     }
                     try {
-                        streamCollector.await()
+                        sessionRestartReason = sessionRestart.await()
                     } finally {
+                        streamCollectors.forEach { it.cancelAndJoin() }
+                        streamCompletionWatcher.cancelAndJoin()
                         universeRefreshJob.cancelAndJoin()
                         continuityMonitor.cancelAndJoin()
                         candleRepairJob.cancelAndJoin()
                     }
                 }
 
-                // If we reach here, the stream completed (shouldn't happen normally)
-                logger.warn {
-                    "WebSocket stream completed unexpectedly (messagesInSession=$messagesInSession)"
+                val restartReason = sessionRestartReason ?: IngestionSessionRestartReason(
+                    code = "unknown",
+                    description = "Session restart completed without an explicit reason"
+                )
+                if (restartReason.code == "universe_refresh") {
+                    reconnectAttempt = 0
+                    logger.info { "${restartReason.description}; reconnecting immediately" }
+                    continue
                 }
-                try {
-                    sink.flush()
-                } catch (flushError: Exception) {
-                    logger.error(flushError) {
-                        "Failed to flush pending data after unexpected stream completion: ${flushError.message}"
-                    }
+                if (sessionProducedData.get() && reconnectAttempt > 0) {
+                    reconnectAttempt = 0
+                    logger.info { "WebSocket stream produced data before restart; reconnection backoff reset" }
+                }
+                logger.warn {
+                    "Hyperliquid ingestion session restarting reason=${restartReason.code} " +
+                        "messagesInSession=${messagesInSession.get()} detail=${restartReason.description}"
                 }
                 reconnectAttempt++
                 val reconnectDelayMs = reconnectBackoffDelayMs(
@@ -388,7 +432,7 @@ class MarketDataIngestionRunner {
                     maxDelayMs = maxReconnectDelay.inWholeMilliseconds
                 )
                 logger.info {
-                    "Reconnecting in ${reconnectDelayMs}ms after unexpected stream completion (attempt $reconnectAttempt)..."
+                    "Reconnecting in ${reconnectDelayMs}ms after ${restartReason.code} (attempt $reconnectAttempt)..."
                 }
                 delay(reconnectDelayMs)
 
@@ -405,6 +449,10 @@ class MarketDataIngestionRunner {
                     logger.error(flushError) { "Failed to flush pending data: ${flushError.message}" }
                 }
 
+                if (sessionProducedData.get() && reconnectAttempt > 0) {
+                    reconnectAttempt = 0
+                    logger.info { "WebSocket stream produced data before failure; reconnection backoff reset" }
+                }
                 // Exponential backoff for reconnection
                 reconnectAttempt++
                 val reconnectDelayMs = reconnectBackoffDelayMs(
@@ -414,13 +462,7 @@ class MarketDataIngestionRunner {
                 logger.info { "Reconnecting in ${reconnectDelayMs}ms (attempt $reconnectAttempt)..." }
                 delay(reconnectDelayMs)
             } finally {
-                activeSource = null
-                sessionSource?.let { source ->
-                    runCatching { source.close() }
-                        .onFailure { ex ->
-                            logger.warn(ex) { "Failed to close Hyperliquid source cleanly: ${ex.message}" }
-                        }
-                }
+                closeActiveSources()
             }
         }
     }
@@ -452,9 +494,96 @@ class MarketDataIngestionRunner {
         )
     }
 
+    private suspend fun runShardLoop(
+        shardIndex: Int,
+        shardCount: Int,
+        shardSymbols: List<String>,
+        sessionRestart: CompletableDeferred<IngestionSessionRestartReason>,
+        onData: suspend (HyperliquidMarketData) -> Unit
+    ) {
+        var reconnectAttempt = 0
+
+        while (currentCoroutineContext().isActive && !sessionRestart.isCompleted) {
+            if (reconnectAttempt == 0 && shardIndex > 0) {
+                delay((shardIndex * 250L).coerceAtMost(5_000L))
+            }
+
+            val source = createSource(shardSymbols)
+            registerActiveSource(source)
+            try {
+                logger.info {
+                    "Starting Hyperliquid shard=${shardIndex + 1}/$shardCount symbols=${shardSymbols.size}"
+                }
+                var shardRecovered = reconnectAttempt == 0
+                source.fetch()
+                    .onEach { data ->
+                        if (!shardRecovered) {
+                            reconnectAttempt = 0
+                            shardRecovered = true
+                            logger.info {
+                                "Hyperliquid shard=${shardIndex + 1}/$shardCount recovered and is receiving data again"
+                            }
+                        }
+                        onData(data)
+                    }
+                    .catch { e ->
+                        if (sessionRestart.isCompleted || !currentCoroutineContext().isActive) {
+                            throw e
+                        }
+                        logger.error(e) {
+                            "Error in data stream shard=${shardIndex + 1}/$shardCount: ${e.message}"
+                        }
+                        try {
+                            sink.flush()
+                        } catch (flushError: Exception) {
+                            logger.error(flushError) {
+                                "Failed to flush pending data after shard failure shard=${shardIndex + 1}/$shardCount: ${flushError.message}"
+                            }
+                        }
+                        throw e
+                    }
+                    .collect { }
+
+                if (!currentCoroutineContext().isActive || sessionRestart.isCompleted) {
+                    return
+                }
+                logger.warn {
+                    "Hyperliquid shard=${shardIndex + 1}/$shardCount completed unexpectedly; reconnecting"
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                if (sessionRestart.isCompleted || !currentCoroutineContext().isActive) {
+                    return
+                }
+            } finally {
+                unregisterActiveSource(source)
+                runCatching { source.close() }
+                    .onFailure { ex ->
+                        logger.warn(ex) {
+                            "Failed to close Hyperliquid shard=${shardIndex + 1}/$shardCount cleanly: ${ex.message}"
+                        }
+                    }
+            }
+
+            if (!currentCoroutineContext().isActive || sessionRestart.isCompleted) {
+                return
+            }
+            reconnectAttempt++
+            val reconnectDelayMs = reconnectBackoffDelayMs(
+                reconnectAttempt = reconnectAttempt,
+                maxDelayMs = 30_000L
+            )
+            logger.info {
+                "Reconnecting Hyperliquid shard=${shardIndex + 1}/$shardCount in ${reconnectDelayMs}ms (attempt $reconnectAttempt)"
+            }
+            delay(reconnectDelayMs)
+        }
+    }
+
     private suspend fun refreshUniverseDuringSession(
         currentUniverse: HyperliquidUniverseSnapshot,
-        source: HyperliquidSource
+        onUniverseChanged: (HyperliquidUniverseSnapshot) -> Unit
     ) {
         if (hyperliquidUniverseMode != HyperliquidUniverseMode.CATALOG) {
             return
@@ -471,13 +600,36 @@ class MarketDataIngestionRunner {
             }
             val refreshed = refreshedResult.getOrThrow()
             if (refreshed.symbols != currentUniverse.symbols) {
-                activeUniverse = refreshed
                 logger.info {
                     "Hyperliquid universe changed from ${currentUniverse.symbols.size} to ${refreshed.symbols.size} symbols; reconnecting stream"
                 }
-                source.close()
+                onUniverseChanged(refreshed)
                 return
             }
+        }
+    }
+
+    private fun registerActiveSource(source: HyperliquidSource) {
+        synchronized(activeSourcesLock) {
+            activeSources = activeSources + source
+        }
+    }
+
+    private fun unregisterActiveSource(source: HyperliquidSource) {
+        synchronized(activeSourcesLock) {
+            activeSources = activeSources.filterNot { it === source }
+        }
+    }
+
+    private fun closeActiveSources() {
+        val sources = synchronized(activeSourcesLock) {
+            activeSources.also { activeSources = emptyList() }
+        }
+        sources.forEach { source ->
+            runCatching { source.close() }
+                .onFailure { ex ->
+                    logger.warn(ex) { "Failed to close Hyperliquid source cleanly: ${ex.message}" }
+                }
         }
     }
 
@@ -526,13 +678,7 @@ class MarketDataIngestionRunner {
                     logger.error(e) { "Failed to flush pending data during shutdown: ${e.message}" }
                 }
             }
-            activeSource?.let { source ->
-                try {
-                    source.close()
-                } catch (e: Exception) {
-                    logger.warn(e) { "Failed to close Hyperliquid source cleanly: ${e.message}" }
-                }
-            }
+            closeActiveSources()
             if (::candleBackfillClient.isInitialized) {
                 try {
                     candleBackfillClient.close()
@@ -627,6 +773,20 @@ internal fun resolveHyperliquidWsUrl(explicitUrl: String?, mainnet: Boolean): St
 internal fun resolveHyperliquidIdleTimeoutMs(explicitTimeoutMs: Long?): Long {
     val timeoutMs = explicitTimeoutMs ?: DEFAULT_HYPERLIQUID_IDLE_TIMEOUT_MS
     return timeoutMs.coerceAtLeast(MIN_HYPERLIQUID_IDLE_TIMEOUT_MS)
+}
+
+internal data class IngestionSessionRestartReason(
+    val code: String,
+    val description: String
+)
+
+internal fun completeSessionRestart(
+    sessionRestart: CompletableDeferred<IngestionSessionRestartReason>,
+    reason: IngestionSessionRestartReason
+) {
+    if (!sessionRestart.isCompleted) {
+        sessionRestart.complete(reason)
+    }
 }
 
 internal fun reconnectBackoffDelayMs(reconnectAttempt: Int, maxDelayMs: Long): Long {
