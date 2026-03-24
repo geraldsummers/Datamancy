@@ -771,6 +771,88 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `engineerFeatures surfaces persistent medium term residual trends`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 4,
+            trendLookbackBars = 2,
+            trendSlowBars = 4,
+            reversionLookbackBars = 2,
+            minDepthMultiple = 1.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val start = Instant.parse("2026-03-20T00:00:00Z")
+        val bars = buildList {
+            repeat(18) { index ->
+                val time = start.plusSeconds(index * 3_600L)
+                add(bar(symbol = "BTC", time = time, close = 100.0, volume = 5_000.0, spreadPct = 0.01, depthUnitsPerSide = 500.0))
+                add(bar(symbol = "ETH", time = time, close = 80.0, volume = 4_000.0, spreadPct = 0.01, depthUnitsPerSide = 450.0))
+                add(
+                    bar(
+                        symbol = "SOL",
+                        time = time,
+                        close = 20.0 + (index * 0.6),
+                        volume = 8_000.0,
+                        spreadPct = 0.02,
+                        depthUnitsPerSide = 1_500.0
+                    )
+                )
+            }
+        }
+
+        val latest = engineerFeatures(bars, config).last { it.symbol == "SOL" }
+
+        assertTrue(latest.mediumTrendScore > 0.8)
+        assertTrue(latest.trendPersistence >= 0.75)
+        assertTrue(latest.trendScore > 0.0)
+    }
+
+    @Test
+    fun `engineerFeatures boosts pullback reentry context inside medium term trends`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 4,
+            trendLookbackBars = 2,
+            trendSlowBars = 4,
+            reversionLookbackBars = 2,
+            minDepthMultiple = 1.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val start = Instant.parse("2026-03-20T00:00:00Z")
+        val bars = buildList {
+            repeat(18) { index ->
+                val time = start.plusSeconds(index * 3_600L)
+                add(bar(symbol = "BTC", time = time, close = 100.0, volume = 5_000.0, spreadPct = 0.01, depthUnitsPerSide = 500.0))
+                add(bar(symbol = "ETH", time = time, close = 80.0, volume = 4_000.0, spreadPct = 0.01, depthUnitsPerSide = 450.0))
+                val solClose = when {
+                    index < 14 -> 20.0 + (index * 0.75)
+                    index == 14 -> 29.8
+                    index == 15 -> 29.1
+                    index == 16 -> 28.5
+                    else -> 28.2
+                }
+                add(
+                    bar(
+                        symbol = "SOL",
+                        time = time,
+                        close = solClose,
+                        volume = 8_500.0,
+                        spreadPct = 0.02,
+                        depthUnitsPerSide = 1_500.0
+                    )
+                )
+            }
+        }
+
+        val latest = engineerFeatures(bars, config).last { it.symbol == "SOL" }
+
+        assertTrue(latest.mediumTrendScore > 0.0)
+        assertTrue(latest.trendPullback > 0.0)
+        assertTrue(latest.residualZ < 0.0)
+        assertTrue(latest.reversionScore > 0.0)
+    }
+
+    @Test
     fun `buildExecutionEstimate penalizes proxy backed rows`() {
         val observed = featureRow(
             symbol = "SOL",
@@ -1314,6 +1396,12 @@ class CrossSectionalResearchTest {
         rawTrend: Double = 0.6,
         residualMomFast: Double = 0.5,
         residualMomSlow: Double = 0.5,
+        residualMomMedium: Double = residualMomSlow,
+        residualMomLong: Double = residualMomSlow,
+        mediumTrendScore: Double = rawTrend,
+        trendPersistence: Double = 0.75,
+        trendPullback: Double = 0.0,
+        trendExhaustion: Double = 0.0,
         trendExpectedGrossEdgeBps: Double = 12.0,
         volumeRatio: Double = 0.8,
         depthUsd: Double = 250_000.0,
@@ -1344,6 +1432,8 @@ class CrossSectionalResearchTest {
         residualRet = 0.001,
         residualMomFast = residualMomFast,
         residualMomSlow = residualMomSlow,
+        residualMomMedium = residualMomMedium,
+        residualMomLong = residualMomLong,
         residualZ = residualZ,
         imbalance = imbalance,
         volumeRatio = volumeRatio,
@@ -1351,6 +1441,10 @@ class CrossSectionalResearchTest {
         volRegime = 1.0,
         flowSignal = flowSignal,
         breadth = 0.55,
+        mediumTrendScore = mediumTrendScore,
+        trendPersistence = trendPersistence,
+        trendPullback = trendPullback,
+        trendExhaustion = trendExhaustion,
         rawTrend = rawTrend,
         trendScore = trendScore,
         reversionScore = 0.4,

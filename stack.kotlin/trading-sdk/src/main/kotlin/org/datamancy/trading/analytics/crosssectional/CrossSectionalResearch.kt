@@ -413,12 +413,18 @@ data class UnrankedFeature(
     val residualRet: Double,
     val residualMomFast: Double,
     val residualMomSlow: Double,
+    val residualMomMedium: Double,
+    val residualMomLong: Double,
     val residualZ: Double,
     val imbalance: Double,
     val volumeRatio: Double,
     val depthRatio: Double,
     val volRegime: Double,
     val flowSignal: Double,
+    val mediumTrendScore: Double,
+    val trendPersistence: Double,
+    val trendPullback: Double,
+    val trendExhaustion: Double,
     val rawTrend: Double,
     val trendExpectedGrossEdgeBps: Double,
     val reversionExpectedGrossEdgeBps: Double,
@@ -447,6 +453,8 @@ data class FeatureRow(
     val residualRet: Double,
     val residualMomFast: Double,
     val residualMomSlow: Double,
+    val residualMomMedium: Double,
+    val residualMomLong: Double,
     val residualZ: Double,
     val imbalance: Double,
     val volumeRatio: Double,
@@ -454,6 +462,10 @@ data class FeatureRow(
     val volRegime: Double,
     val flowSignal: Double,
     val breadth: Double,
+    val mediumTrendScore: Double,
+    val trendPersistence: Double,
+    val trendPullback: Double,
+    val trendExhaustion: Double,
     val rawTrend: Double,
     val trendScore: Double,
     val reversionScore: Double,
@@ -475,6 +487,10 @@ data class SignalSnapshot(
     val betaBtc: Double,
     val betaEth: Double,
     val residualZ: Double,
+    val mediumTrendScore: Double,
+    val trendPersistence: Double,
+    val trendPullback: Double,
+    val trendExhaustion: Double,
     val trendScore: Double,
     val reversionScore: Double,
     val breadth: Double,
@@ -1969,6 +1985,8 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
         baseLookup[Triple(point.exchange, point.symbol, point.time)] = point
     }
 
+    val mediumTrendBars = max(config.trendSlowBars * 3, config.reversionLookbackBars * 6)
+    val longTrendBars = max(config.trendSlowBars * 6, mediumTrendBars * 2)
     val unranked = mutableListOf<UnrankedFeature>()
     for ((key, series) in baseByKey) {
         val exchange = key.first
@@ -1998,6 +2016,8 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
 
             val residualMomFast = rollingSum(residuals, residuals.lastIndex, config.trendLookbackBars)
             val residualMomSlow = rollingSum(residuals, residuals.lastIndex, config.trendSlowBars)
+            val residualMomMedium = rollingSum(residuals, residuals.lastIndex, mediumTrendBars)
+            val residualMomLong = rollingSum(residuals, residuals.lastIndex, longTrendBars)
             val dislocation = rollingSum(residuals, residuals.lastIndex, config.reversionLookbackBars)
             dislocations += dislocation
             val dislocationWindow = dislocations.subList(max(0, dislocations.size - config.betaLookbackBars), dislocations.size)
@@ -2022,26 +2042,55 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
             )
             val fastScale = max(point.vol30 * sqrt(config.trendLookbackBars.toDouble()), 1e-6)
             val slowScale = max(point.vol30 * sqrt(config.trendSlowBars.toDouble()), 1e-6)
-            val rawTrend = ((residualMomFast / fastScale) * 0.7) +
-                ((residualMomSlow / slowScale) * 0.3) +
-                (flowSignal * 0.12) -
+            val mediumScale = max(point.vol30 * sqrt(mediumTrendBars.toDouble()), 1e-6)
+            val longScale = max(point.vol30 * sqrt(longTrendBars.toDouble()), 1e-6)
+            val normalizedFast = residualMomFast / fastScale
+            val normalizedSlow = residualMomSlow / slowScale
+            val normalizedMedium = residualMomMedium / mediumScale
+            val normalizedLong = residualMomLong / longScale
+            val mediumTrendScore = (normalizedSlow * 0.20) +
+                (normalizedMedium * 0.45) +
+                (normalizedLong * 0.35)
+            val mediumTrendDirection = direction(mediumTrendScore)
+            val trendPersistence = if (mediumTrendDirection == 0.0) {
+                0.0
+            } else {
+                listOf(normalizedFast, normalizedSlow, normalizedMedium, normalizedLong)
+                    .count { direction(it) == mediumTrendDirection }
+                    .toDouble() / 4.0
+            }
+            val trendPullback = if (mediumTrendDirection == 0.0) 0.0 else max(0.0, -(mediumTrendDirection * residualZ))
+            val trendExhaustion = if (mediumTrendDirection == 0.0) 0.0 else max(0.0, mediumTrendDirection * residualZ)
+            val rawTrend = (normalizedFast * 0.25) +
+                (normalizedSlow * 0.15) +
+                (mediumTrendScore * 0.60) +
+                (flowSignal * 0.12) +
+                (mediumTrendDirection * max(0.0, trendPersistence - 0.5) * 0.55) +
+                (mediumTrendDirection * min(trendPullback, 1.5) * 0.12) -
                 (point.spreadBps / 55.0)
             val volBps = point.vol30 * 10000.0
+            val mediumAlignment = mediumTrendDirection * direction(residualZ)
+            val trendReentryBias = max(0.0, abs(mediumTrendScore) - abs(normalizedFast)) * max(0.0, -mediumAlignment)
+            val trendExhaustionBias = max(0.0, abs(mediumTrendScore) - 0.6) * max(0.0, mediumAlignment)
             val trendExpectedGrossEdgeBps = clamp(
-                (abs(rawTrend) * max(volBps, 4.0) * 0.55 * sqrt(config.trendHoldBars.toDouble() / 15.0)) +
+                (abs(mediumTrendScore) * max(volBps, 4.0) * 0.58 * sqrt(config.trendHoldBars.toDouble() / 12.0)) +
                     (max(0.0, direction(rawTrend) * flowSignal) * 7.0) +
+                    (max(0.0, trendPersistence - 0.5) * 14.0) +
+                    (min(trendPullback, 1.25) * 4.5) +
                     (max(0.0, depthRatio - 1.0) * 2.0) +
                     (max(0.0, min(volumeRatio, 3.0) - 1.0) * 2.5) -
-                    (max(0.0, abs(residualZ) - 1.0) * 5.0) -
+                    (max(0.0, trendExhaustion - 1.25) * 6.0) -
                     (max(0.0, volRegime - 1.6) * 5.0),
                 0.0,
                 220.0
             )
             val reversionExpectedGrossEdgeBps = clamp(
-                (abs(residualZ) * max(volBps, 4.0) * 0.70 * sqrt(config.reversionHoldBars.toDouble() / 10.0)) +
+                (abs(residualZ) * max(volBps, 4.0) * 0.62 * sqrt(config.reversionHoldBars.toDouble() / 10.0)) +
                     (max(0.0, -(direction(residualZ) * flowSignal)) * 8.0) +
+                    (trendReentryBias * 8.5) +
+                    (trendExhaustionBias * 6.0) +
                     (max(0.0, depthRatio - 1.0) * 2.0) -
-                    (max(0.0, abs(rawTrend) - 0.85) * 6.5) -
+                    (max(0.0, abs(rawTrend) - 1.25) * 4.5) -
                     (max(0.0, volRegime - 1.45) * 6.0),
                 0.0,
                 220.0
@@ -2075,12 +2124,18 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 residualRet = residualRet,
                 residualMomFast = residualMomFast,
                 residualMomSlow = residualMomSlow,
+                residualMomMedium = residualMomMedium,
+                residualMomLong = residualMomLong,
                 residualZ = residualZ,
                 imbalance = imbalance,
                 volumeRatio = volumeRatio,
                 depthRatio = depthRatio,
                 volRegime = volRegime,
                 flowSignal = flowSignal,
+                mediumTrendScore = mediumTrendScore,
+                trendPersistence = trendPersistence,
+                trendPullback = trendPullback,
+                trendExhaustion = trendExhaustion,
                 rawTrend = rawTrend,
                 trendExpectedGrossEdgeBps = trendExpectedGrossEdgeBps,
                 reversionExpectedGrossEdgeBps = reversionExpectedGrossEdgeBps,
@@ -2101,30 +2156,40 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
         val breadth = clamp((breadthTilt + 1.0) / 2.0, 0.0, 1.0)
         val marketStress = mean(bucket.map { it.volRegime })
         val trendScores = bucket.associateWith { row ->
-            val flowAlignment = direction(row.rawTrend) * row.flowSignal
-            val breadthAlignment = direction(row.rawTrend) * breadthTilt
+            val mediumDirection = direction(row.mediumTrendScore)
+            val trendReference = if (abs(row.mediumTrendScore) > abs(row.rawTrend)) row.mediumTrendScore else row.rawTrend
+            val flowAlignment = direction(trendReference) * row.flowSignal
+            val breadthAlignment = direction(trendReference) * breadthTilt
             row.rawTrend +
+                (row.mediumTrendScore * 0.85) +
+                (mediumDirection * max(0.0, row.trendPersistence - 0.5) * 0.70) +
+                (mediumDirection * min(row.trendPullback, 1.25) * 0.18) +
                 (breadthAlignment * 0.9) +
                 (max(0.0, flowAlignment) * 0.65) -
                 (max(0.0, -flowAlignment) * 1.0) +
                 min(max(0.0, row.depthRatio - 1.0) * 0.35, 0.55) +
                 (max(0.0, min(row.volumeRatio, 3.0) - 1.0) * 0.22) -
-                (max(0.0, abs(row.residualZ) - 1.0) * 0.45) -
+                (max(0.0, row.trendExhaustion - 1.1) * 0.55) -
                 (max(0.0, row.volRegime - 1.7) * 0.45)
         }
         val reversionScores = bucket.associateWith { row ->
             val continuationPressure = direction(row.residualZ) * row.flowSignal
             val breadthContinuation = direction(row.residualZ) * breadthTilt
+            val mediumAlignment = direction(row.mediumTrendScore) * direction(row.residualZ)
+            val reentryBonus = max(0.0, abs(row.mediumTrendScore) - abs(row.rawTrend)) * max(0.0, -mediumAlignment)
+            val exhaustionBonus = max(0.0, abs(row.mediumTrendScore) - 0.6) * max(0.0, mediumAlignment)
             abs(row.residualZ) +
+                (reentryBonus * 0.95) +
+                (exhaustionBonus * 0.80) +
                 (max(0.0, -continuationPressure) * 0.95) -
                 (max(0.0, continuationPressure) * 1.25) -
-                (max(0.0, abs(row.rawTrend) - 0.75) * 0.85) -
+                (max(0.0, abs(row.rawTrend) - 1.15) * 0.65) -
                 (row.spreadBps / 35.0) -
                 (max(0.0, breadthContinuation) * 1.15) -
                 (max(0.0, row.volRegime - 1.55) * 0.60)
         }
         val trendExpectedEdges = bucket.associateWith { row ->
-            val breadthAlignment = direction(row.rawTrend) * breadthTilt
+            val breadthAlignment = direction(if (abs(row.mediumTrendScore) > abs(row.rawTrend)) row.mediumTrendScore else row.rawTrend) * breadthTilt
             clamp(
                 row.trendExpectedGrossEdgeBps +
                     (max(0.0, breadthAlignment) * 6.0) -
@@ -2188,6 +2253,8 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 residualRet = row.residualRet,
                 residualMomFast = row.residualMomFast,
                 residualMomSlow = row.residualMomSlow,
+                residualMomMedium = row.residualMomMedium,
+                residualMomLong = row.residualMomLong,
                 residualZ = row.residualZ,
                 imbalance = row.imbalance,
                 volumeRatio = row.volumeRatio,
@@ -2195,6 +2262,10 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 volRegime = row.volRegime,
                 flowSignal = row.flowSignal,
                 breadth = breadth,
+                mediumTrendScore = row.mediumTrendScore,
+                trendPersistence = row.trendPersistence,
+                trendPullback = row.trendPullback,
+                trendExhaustion = row.trendExhaustion,
                 rawTrend = row.rawTrend,
                 trendScore = trendScores[row] ?: row.rawTrend,
                 reversionScore = reversionScores[row] ?: 0.0,
@@ -2323,8 +2394,8 @@ fun tradeRegimeBucket(trade: TradeRecord): String =
 fun calibrationSignalBucket(kind: StrategyKind, row: FeatureRow): String =
     when (kind) {
         StrategyKind.TREND -> when {
-            abs(row.trendScore) < 1.35 -> "entry"
-            abs(row.trendScore) < 1.90 -> "strong"
+            max(abs(row.trendScore), abs(row.mediumTrendScore)) < 1.35 -> "entry"
+            max(abs(row.trendScore), abs(row.mediumTrendScore)) < 1.90 -> "strong"
             else -> "extreme"
         }
         StrategyKind.REVERSION -> when {
@@ -2338,14 +2409,18 @@ fun calibrationConfirmationBucket(kind: StrategyKind, row: FeatureRow, side: Int
     val flowAlignment = side.toDouble() * row.flowSignal
     val fastAlignment = side.toDouble() * direction(row.residualMomFast)
     val slowAlignment = side.toDouble() * direction(row.residualMomSlow)
+    val mediumAlignment = side.toDouble() * direction(row.mediumTrendScore)
     val continuationPressure = direction(row.residualZ) * row.flowSignal
     return when (kind) {
         StrategyKind.TREND -> when {
-            flowAlignment >= config.trendMinFlowAlignment && fastAlignment > 0.0 && slowAlignment > 0.0 -> "confirmed"
-            flowAlignment >= -0.04 && (fastAlignment > 0.0 || slowAlignment > 0.0) -> "mixed"
+            flowAlignment >= config.trendMinFlowAlignment &&
+                slowAlignment > 0.0 &&
+                mediumAlignment > 0.0 -> "confirmed"
+            flowAlignment >= -0.04 && (fastAlignment > 0.0 || slowAlignment > 0.0 || mediumAlignment > 0.0) -> "mixed"
             else -> "fragile"
         }
         StrategyKind.REVERSION -> when {
+            row.trendPullback >= 0.35 || row.trendExhaustion >= 0.55 -> "confirmed"
             flowAlignment >= 0.08 && fastAlignment > 0.0 -> "confirmed"
             continuationPressure <= (config.reversionMaxContinuationPressure * 0.55) &&
                 flowAlignment >= -0.04 &&
@@ -2515,23 +2590,41 @@ fun buildStructuralCandidate(kind: StrategyKind, row: FeatureRow, side: Int, con
         StrategyKind.TREND -> {
             val flowAlignment = side.toDouble() * row.flowSignal
             val breadthAlignment = side.toDouble() * rowBreadthTilt
+            val mediumAlignment = side.toDouble() * row.mediumTrendScore
+            val pullbackAllowance = if (mediumAlignment > 0.55 && row.trendPersistence >= 0.5) 1.45 else 1.05
             if ((side.toDouble() * row.trendScore) < config.trendEntryScore) return null
-            if ((side.toDouble() * row.rawTrend) <= 0.0) return null
-            if (flowAlignment < config.trendMinFlowAlignment) return null
-            if (breadthAlignment < -0.05) return null
-            if ((side.toDouble() * direction(row.residualMomFast)) <= 0.0) return null
+            if ((side.toDouble() * row.rawTrend) <= 0.0 && mediumAlignment < 0.35) return null
+            if (mediumAlignment <= 0.0) return null
+            if (flowAlignment < config.trendMinFlowAlignment && mediumAlignment < 0.65) return null
+            if (breadthAlignment < -0.05 && mediumAlignment < 0.65) return null
+            if ((side.toDouble() * direction(row.residualMomFast)) <= 0.0 && mediumAlignment < 0.75) return null
             if ((side.toDouble() * direction(row.residualMomSlow)) <= 0.0) return null
-            if (abs(row.residualZ) > config.reversionZEntry * 1.05) return null
+            if ((side.toDouble() * direction(row.residualMomMedium)) <= 0.0) return null
+            if (abs(row.residualZ) > config.reversionZEntry * pullbackAllowance) return null
         }
         StrategyKind.REVERSION -> {
+            val trendAwareRawTrendCap = if (row.trendPullback > 0.35 || row.trendExhaustion > 0.75) {
+                config.trendEntryScore * 1.55
+            } else {
+                config.trendEntryScore * 1.10
+            }
+            val continuationCap = if (row.trendPullback > 0.35 || row.trendExhaustion > 0.75) {
+                config.reversionMaxContinuationPressure * 1.10
+            } else {
+                config.reversionMaxContinuationPressure * 0.75
+            }
+            val breadthCap = if (row.trendPullback > 0.35 || row.trendExhaustion > 0.75) 0.30 else 0.15
             if (side > 0 && row.residualZ > -config.reversionZEntry) return null
             if (side < 0 && row.residualZ < config.reversionZEntry) return null
             if (row.reversionScore <= 0.0) return null
-            if (abs(row.rawTrend) > config.trendEntryScore * 1.10) return null
-            if (continuationPressure > (config.reversionMaxContinuationPressure * 0.75)) return null
-            if (direction(row.residualZ) * rowBreadthTilt > 0.15) return null
-            if ((side.toDouble() * row.flowSignal) < -0.08) return null
-            if ((side.toDouble() * direction(row.residualMomFast)) < 0.0 && abs(row.rawTrend) > (config.trendEntryScore * 0.85)) return null
+            if (abs(row.rawTrend) > trendAwareRawTrendCap) return null
+            if (continuationPressure > continuationCap) return null
+            if (direction(row.residualZ) * rowBreadthTilt > breadthCap) return null
+            if ((side.toDouble() * row.flowSignal) < -0.08 && row.trendPullback < 0.35 && row.trendExhaustion < 0.55) return null
+            if ((side.toDouble() * direction(row.residualMomFast)) < 0.0 &&
+                abs(row.rawTrend) > (config.trendEntryScore * 0.85) &&
+                row.trendPullback < 0.35
+            ) return null
         }
     }
 
@@ -2603,8 +2696,9 @@ private fun baseExitTriggered(
         StrategyKind.TREND -> {
             val ageBars = current.barIndex - position.entryRow.barIndex
             ageBars >= config.trendHoldBars ||
-                (current.trendScore * position.side.toDouble()) <= 0.12 ||
-                (position.side.toDouble() * current.flowSignal) < -0.18 ||
+                ((current.trendScore * position.side.toDouble()) <= 0.12 &&
+                    (current.mediumTrendScore * position.side.toDouble()) <= 0.10) ||
+                ((position.side.toDouble() * current.flowSignal) < -0.18 && current.trendPullback < 0.35) ||
                 current.volRegime > (config.maxVolRegime * 1.15)
         }
         StrategyKind.REVERSION -> {
@@ -2825,6 +2919,10 @@ fun latestSignalSnapshots(
                 betaBtc = row.betaBtc.round(4),
                 betaEth = row.betaEth.round(4),
                 residualZ = row.residualZ.round(4),
+                mediumTrendScore = row.mediumTrendScore.round(4),
+                trendPersistence = row.trendPersistence.round(4),
+                trendPullback = row.trendPullback.round(4),
+                trendExhaustion = row.trendExhaustion.round(4),
                 trendScore = row.trendScore.round(4),
                 reversionScore = row.reversionScore.round(4),
                 breadth = row.breadth.round(4),
@@ -5861,6 +5959,84 @@ private fun buildReversionSearchSeed(
     )
 }
 
+private fun prioritizedMediumSeedBarMinutes(searchConfig: CrossSectionalSearchConfig): List<Int> {
+    val barMinutes = searchConfig.barMinutes.distinct().filter { it >= 30 }
+    val preferred = listOf(30, 60, 120, 240)
+    return preferred.filter { it in barMinutes } + barMinutes.filter { it !in preferred }
+}
+
+private fun buildMediumTrendSearchSeed(
+    searchConfig: CrossSectionalSearchConfig,
+    barMinutes: Int
+): ResearchConfig {
+    val anchor = buildSeedAnchorConfig(searchConfig, barMinutes)
+    val trendLookbackBars = selectIntSearchValue(
+        anchor.trendLookbackBars,
+        searchConfig.trendLookbackBars,
+        preferred = when {
+            barMinutes <= 30 -> listOf(12, 18, 24)
+            barMinutes <= 120 -> listOf(18, 24, 36)
+            else -> listOf(24, 36, 48)
+        }
+    )
+    val trendSlowBars = selectIntSearchValue(
+        anchor.trendSlowBars,
+        searchConfig.trendSlowBars,
+        preferred = when {
+            barMinutes <= 30 -> listOf(36, 48, 72)
+            barMinutes <= 120 -> listOf(48, 72, 96)
+            else -> listOf(72, 96, 144)
+        },
+        predicate = { it > trendLookbackBars }
+    )
+    return anchor.copy(
+        lookbackHours = selectIntSearchValue(anchor.lookbackHours, searchConfig.lookbackHours, listOf(720, 1080, 1440)),
+        forwardHours = selectIntSearchValue(anchor.forwardHours, searchConfig.forwardHours, listOf(48, 72, 96)),
+        betaLookbackBars = selectIntSearchValue(anchor.betaLookbackBars, searchConfig.betaLookbackBars, listOf(72, 96, 168)),
+        trendLookbackBars = trendLookbackBars,
+        trendSlowBars = trendSlowBars,
+        trendHoldBars = selectIntSearchValue(anchor.trendHoldBars, searchConfig.trendHoldBars, listOf(3, 4, 6, 9)),
+        topPerSide = selectIntSearchValue(anchor.topPerSide, searchConfig.topPerSide, listOf(4, 6, 10)),
+        trendEntryScore = selectDoubleSearchValue(anchor.trendEntryScore, searchConfig.trendEntryScore, listOf(0.8, 1.0, 1.2), predicate = { it > 0.0 }),
+        trendMinFlowAlignment = selectDoubleSearchValue(anchor.trendMinFlowAlignment, searchConfig.trendMinFlowAlignment, listOf(0.0, 0.05, 0.08), predicate = { it >= 0.0 }),
+        trendTrailingStopVolMultiple = selectDoubleSearchValue(anchor.trendTrailingStopVolMultiple, searchConfig.trendTrailingStopVolMultiple, listOf(0.75, 1.0, 1.5), predicate = { it >= 0.0 }),
+        trendTakeProfitVolMultiple = selectDoubleSearchValue(anchor.trendTakeProfitVolMultiple, searchConfig.trendTakeProfitVolMultiple, listOf(0.0, 1.5, 2.0, 3.0), predicate = { it >= 0.0 })
+    )
+}
+
+private fun buildMediumReversionSearchSeed(
+    searchConfig: CrossSectionalSearchConfig,
+    barMinutes: Int
+): ResearchConfig {
+    val anchor = buildSeedAnchorConfig(searchConfig, barMinutes)
+    return anchor.copy(
+        lookbackHours = selectIntSearchValue(anchor.lookbackHours, searchConfig.lookbackHours, listOf(720, 1080, 1440)),
+        forwardHours = selectIntSearchValue(anchor.forwardHours, searchConfig.forwardHours, listOf(24, 48, 72)),
+        betaLookbackBars = selectIntSearchValue(anchor.betaLookbackBars, searchConfig.betaLookbackBars, listOf(72, 96, 168)),
+        reversionLookbackBars = selectIntSearchValue(
+            anchor.reversionLookbackBars,
+            searchConfig.reversionLookbackBars,
+            preferred = when {
+                barMinutes <= 30 -> listOf(4, 8, 12)
+                barMinutes <= 120 -> listOf(8, 12, 16)
+                else -> listOf(12, 16, 24)
+            }
+        ),
+        reversionHoldBars = selectIntSearchValue(anchor.reversionHoldBars, searchConfig.reversionHoldBars, listOf(1, 2, 3, 4)),
+        topPerSide = selectIntSearchValue(anchor.topPerSide, searchConfig.topPerSide, listOf(4, 6, 10)),
+        reversionZEntry = selectDoubleSearchValue(anchor.reversionZEntry, searchConfig.reversionZEntry, listOf(1.0, 1.5, 1.8), predicate = { it > 0.0 }),
+        reversionZExit = selectDoubleSearchValue(anchor.reversionZExit, searchConfig.reversionZExit, listOf(0.1, 0.2, 0.45), predicate = { it >= 0.0 }),
+        reversionMaxContinuationPressure = selectDoubleSearchValue(
+            anchor.reversionMaxContinuationPressure,
+            searchConfig.reversionMaxContinuationPressure,
+            listOf(0.18, 0.24, 0.32),
+            predicate = { it >= 0.0 }
+        ),
+        reversionTrailingStopVolMultiple = selectDoubleSearchValue(anchor.reversionTrailingStopVolMultiple, searchConfig.reversionTrailingStopVolMultiple, listOf(0.0, 0.75, 1.0, 1.5), predicate = { it >= 0.0 }),
+        reversionTakeProfitVolMultiple = selectDoubleSearchValue(anchor.reversionTakeProfitVolMultiple, searchConfig.reversionTakeProfitVolMultiple, listOf(0.0, 0.5, 1.0, 1.5), predicate = { it >= 0.0 })
+    )
+}
+
 private fun buildBreadthSearchSeed(searchConfig: CrossSectionalSearchConfig): ResearchConfig {
     val base = searchConfig.baseConfig
     return base.copy(
@@ -5911,10 +6087,15 @@ private fun buildBreadthSearchSeed(searchConfig: CrossSectionalSearchConfig): Re
 private fun buildDiversifiedSearchSeeds(searchConfig: CrossSectionalSearchConfig): List<ResearchConfig> {
     val seedBarMinutes = prioritizedSeedBarMinutes(searchConfig)
         .ifEmpty { listOf(searchConfig.baseConfig.barMinutes) }
+    val mediumSeedBarMinutes = prioritizedMediumSeedBarMinutes(searchConfig)
     return buildList {
         seedBarMinutes.forEach { barMinutes ->
             add(buildTrendSearchSeed(searchConfig, barMinutes))
             add(buildReversionSearchSeed(searchConfig, barMinutes))
+        }
+        mediumSeedBarMinutes.forEach { barMinutes ->
+            add(buildMediumTrendSearchSeed(searchConfig, barMinutes))
+            add(buildMediumReversionSearchSeed(searchConfig, barMinutes))
         }
         add(buildBreadthSearchSeed(searchConfig))
     }
