@@ -27,6 +27,8 @@ import org.datamancy.trading.analytics.crosssectional.StrategyAggregateSnapshot
 import org.datamancy.trading.analytics.crosssectional.StrategySearchFitness
 import org.datamancy.trading.analytics.crosssectional.UniverseLiquidityBucketSnapshot
 import org.datamancy.trading.analytics.crosssectional.UniverseProfileSnapshot
+import org.datamancy.trading.analytics.crosssectional.UniverseSnapshotCacheEntryStatus
+import org.datamancy.trading.analytics.crosssectional.UniverseSnapshotCacheStatus
 import java.time.Instant
 
 class ApplicationTest {
@@ -145,6 +147,59 @@ class ApplicationTest {
         assertTrue(body.contains("\"enablePaperOrders\": false"), body)
     }
 
+    @Test
+    fun `cache status endpoint exposes ram layer summary`() = testApplication {
+        application {
+            configureAlphaAnalyticsApp(
+                runAnalysis = { fakeResult(it) },
+                runSearch = { fakeSearchResult(it) },
+                cacheStatus = { fakeCacheStatus() },
+                warmCache = { fakeCacheStatus() }
+            )
+        }
+
+        val response = client.get("/api/v1/alpha/cross-sectional/cache/status")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"enabled\": true"), body)
+        assertTrue(body.contains("\"barMinutes\": 60"), body)
+        assertTrue(body.contains("\"symbols\": 190"), body)
+    }
+
+    @Test
+    fun `cache warm endpoint decodes config and returns snapshot payload`() = testApplication {
+        application {
+            configureAlphaAnalyticsApp(
+                runAnalysis = { fakeResult(it) },
+                runSearch = { fakeSearchResult(it) },
+                cacheStatus = { fakeCacheStatus() },
+                warmCache = { config ->
+                    assertEquals(240, config.barMinutes)
+                    fakeCacheStatus()
+                }
+            )
+        }
+
+        val response = client.post("/api/v1/alpha/cross-sectional/cache/warm") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "barMinutes": 240,
+                  "lookbackHours": 720,
+                  "persistBacktest": false,
+                  "persistForward": false
+                }
+                """.trimIndent()
+            )
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"reloads\": 2"), body)
+        assertTrue(body.contains("\"lookbackHours\": 720"), body)
+    }
+
     private fun fakeResult(config: ResearchConfig): CrossSectionalResearchResult {
         return CrossSectionalResearchResult(
             config = config,
@@ -257,6 +312,32 @@ class ApplicationTest {
                     avgCapacityUtilization = 0.0,
                     maxCapacityUtilization = 0.0,
                     entryConstraints = PortfolioConstraintSnapshot(0, 0, 0, 0, 0, 0, 0, 0)
+                )
+            )
+        )
+    }
+
+    private fun fakeCacheStatus(): UniverseSnapshotCacheStatus {
+        return UniverseSnapshotCacheStatus(
+            enabled = true,
+            ttlSeconds = 300,
+            maxEntries = 8,
+            hits = 4,
+            misses = 2,
+            reloads = 2,
+            lastLoadMs = 183,
+            lastError = null,
+            entries = listOf(
+                UniverseSnapshotCacheEntryStatus(
+                    aliases = listOf("hyperliquid_mainnet"),
+                    barMinutes = 60,
+                    lookbackHours = 720,
+                    loadedAt = Instant.parse("2026-03-24T12:20:00Z"),
+                    ageSeconds = 12,
+                    symbols = 190,
+                    bars = 4_560,
+                    firstBarTime = Instant.parse("2026-03-19T12:00:00Z"),
+                    lastBarTime = Instant.parse("2026-03-24T12:00:00Z")
                 )
             )
         )

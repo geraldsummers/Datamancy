@@ -655,6 +655,12 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `discovery candidate limit keeps full-universe scan when discovery override is unset`() {
+        assertEquals(0, discoveryCandidateLimit(maxSymbols = 12, discoveryMaxSymbols = 0))
+        assertEquals(48, discoveryCandidateLimit(maxSymbols = 12, discoveryMaxSymbols = 48))
+    }
+
+    @Test
     fun `buildUniverseProfiles captures candidate versus selected breadth`() {
         val config = ResearchConfig(
             barMinutes = 240,

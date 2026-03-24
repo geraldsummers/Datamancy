@@ -935,6 +935,14 @@ private fun queryDiscoveredSymbolLiquidityFromFeatures(
     scaledMinBars: Int
 ): List<SymbolLiquiditySnapshot> {
     if (symbols.isEmpty()) return emptyList()
+    loadUniverseSnapshotLiquidity(
+        aliases = aliases,
+        symbols = symbols,
+        lookbackHours = lookbackHours,
+        barMinutes = source.minutes,
+        minBars = scaledMinBars
+    ).takeIf { it.isNotEmpty() }?.let { return it }
+
     val cacheKey = featureCacheKey(
         prefix = "feature-liquidity",
         aliases = aliases,
@@ -1024,6 +1032,17 @@ private fun discoverSymbolsByAggregateFromFeatures(
 ): List<String> {
     val source = selectResearchCandleSource(barMinutes)
     val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes)
+    loadUniverseSnapshotLiquidity(
+        aliases = aliases,
+        symbols = emptyList(),
+        lookbackHours = lookbackHours,
+        barMinutes = source.minutes,
+        minBars = scaledMinBars,
+        maxSymbols = maxSymbols
+    ).takeIf { it.isNotEmpty() }?.let { ranked ->
+        return ranked.map { it.symbol }
+    }
+
     val aliasSql = sqlList(aliases)
     val preferredAlias = aliases.firstOrNull().orEmpty()
     val bucketSeconds = max(source.minutes, 1) * 60
@@ -1090,13 +1109,38 @@ fun queryDiscoveredSymbolLiquidity(
     source: CandleSource,
     scaledMinBars: Int
 ): List<SymbolLiquiditySnapshot> {
-    queryDiscoveredSymbolLiquidityFromFeatures(
+    val featureResult = queryDiscoveredSymbolLiquidityFromFeatures(
         aliases = aliases,
         symbols = symbols,
         lookbackHours = lookbackHours,
         source = source,
         scaledMinBars = scaledMinBars
-    ).takeIf { it.isNotEmpty() }?.let { return it }
+    )
+    val coveredSymbols = featureResult.map { it.symbol }.toSet()
+    val missingSymbols = symbols
+        .map { it.trim().uppercase() }
+        .filter { it.isNotEmpty() && it !in coveredSymbols }
+    val rawResult = if (missingSymbols.isEmpty()) {
+        emptyList()
+    } else {
+        queryDiscoveredSymbolLiquidityRaw(
+            aliases = aliases,
+            symbols = missingSymbols,
+            lookbackHours = lookbackHours,
+            source = source,
+            scaledMinBars = scaledMinBars
+        )
+    }
+    val merged = (featureResult + rawResult)
+        .distinctBy { it.symbol }
+        .sortedWith(
+            compareByDescending<SymbolLiquiditySnapshot> { it.bars }
+                .thenByDescending { it.avgVolume }
+                .thenBy { it.symbol }
+        )
+    if (merged.isNotEmpty()) {
+        return merged
+    }
 
     return queryDiscoveredSymbolLiquidityRaw(
         aliases = aliases,
@@ -1203,21 +1247,26 @@ fun discoverSymbolsByAggregate(
     minBars: Int,
     barMinutes: Int
 ): List<String> {
-    discoverSymbolsByAggregateFromFeatures(
-        aliases = aliases,
-        lookbackHours = lookbackHours,
-        maxSymbols = maxSymbols,
-        minBars = minBars,
-        barMinutes = barMinutes
-    ).takeIf { it.isNotEmpty() }?.let { return it }
-
-    return discoverSymbolsByAggregateRaw(
+    val featureDiscovered = discoverSymbolsByAggregateFromFeatures(
         aliases = aliases,
         lookbackHours = lookbackHours,
         maxSymbols = maxSymbols,
         minBars = minBars,
         barMinutes = barMinutes
     )
+    val rawDiscovered = discoverSymbolsByAggregateRaw(
+        aliases = aliases,
+        lookbackHours = lookbackHours,
+        maxSymbols = maxSymbols,
+        minBars = minBars,
+        barMinutes = barMinutes
+    )
+    val merged = (featureDiscovered + rawDiscovered).distinct()
+    return if (merged.isNotEmpty()) {
+        if (maxSymbols > 0) merged.take(maxSymbols) else merged
+    } else {
+        emptyList()
+    }
 }
 
 private fun discoverSymbolsByAggregateRaw(
@@ -1301,7 +1350,7 @@ fun discoverSymbols(
     return universe
 }
 
-private fun discoveryCandidateLimit(maxSymbols: Int, discoveryMaxSymbols: Int): Int =
+internal fun discoveryCandidateLimit(maxSymbols: Int, discoveryMaxSymbols: Int): Int =
     when {
         discoveryMaxSymbols > 0 -> max(discoveryMaxSymbols, maxSymbols)
         else -> 0
@@ -1490,13 +1539,33 @@ internal fun buildUniverseProfiles(
 }
 
 fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, lookbackHours: Int, barMinutes: Int): List<Bar> {
-    queryBarsFromFeatures(
+    val featureBars = queryBarsFromFeatures(
         exchange = exchange,
         aliases = aliases,
         symbols = symbols,
         lookbackHours = lookbackHours,
         barMinutes = barMinutes
-    ).takeIf { it.isNotEmpty() }?.let { return it }
+    )
+    val missingSymbols = symbols
+        .map { it.trim().uppercase() }
+        .filter { it.isNotEmpty() && it !in featureBars.map { bar -> bar.symbol }.toSet() }
+    val rawBars = if (missingSymbols.isEmpty()) {
+        emptyList()
+    } else {
+        loadBarsRaw(
+            exchange = exchange,
+            aliases = aliases,
+            symbols = missingSymbols,
+            lookbackHours = lookbackHours,
+            barMinutes = barMinutes
+        )
+    }
+    val mergedBars = (featureBars + rawBars)
+        .distinctBy { Triple(it.symbol, it.time, it.exchange) }
+        .sortedWith(compareBy<Bar> { it.time }.thenBy { it.symbol })
+    if (mergedBars.isNotEmpty()) {
+        return mergedBars
+    }
 
     return loadBarsRaw(
         exchange = exchange,
@@ -1515,6 +1584,14 @@ private fun queryBarsFromFeatures(
     barMinutes: Int
 ): List<Bar> {
     if (symbols.isEmpty()) return emptyList()
+    loadUniverseSnapshotBars(
+        exchange = exchange,
+        aliases = aliases,
+        symbols = symbols,
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes
+    ).takeIf { it.isNotEmpty() }?.let { return it }
+
     val cacheKey = featureCacheKey(
         prefix = "feature-bars:$exchange",
         aliases = aliases,

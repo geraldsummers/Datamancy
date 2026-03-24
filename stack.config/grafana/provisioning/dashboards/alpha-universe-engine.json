@@ -496,6 +496,142 @@
         ]
       },
       "gridPos": { "h": 6, "w": 8, "x": 16, "y": 12 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Portfolio Budget Pressure",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", AVG(avg_capacity_utilization) * 100 AS \"Avg Slot Usage %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX((max_concurrent_positions::double precision / NULLIF(policy_max_concurrent_positions, 0)) * 100) AS \"Peak Slot Usage %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX((max_abs_net_exposure_fraction / NULLIF(policy_max_net_exposure_fraction, 0)) * 100) AS \"Peak Net Budget %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX((max_abs_beta_btc / NULLIF(policy_max_abs_beta_btc, 0)) * 100) AS \"BTC Beta Budget %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "E",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", MAX((max_abs_beta_eth / NULLIF(policy_max_abs_beta_eth, 0)) * 100) AS \"ETH Beta Budget %\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Entry Funnel By Constraint",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(candidate_entries) AS \"Candidates\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(accepted_entries) AS \"Accepted\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(rejected_gross_limit) AS \"Rejected Gross\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(rejected_net_limit) AS \"Rejected Net\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "E",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(rejected_beta_limit) AS \"Rejected Beta\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "F",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('15 minutes', run_at) AS \"time\", SUM(rejected_open_symbol) AS \"Rejected Open Symbol\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 }
+    },
+    {
+      "type": "table",
+      "title": "Backtest Leaderboard",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT run_at, strategy_name, timeframe, symbol, trades, ROUND((win_rate * 100)::numeric, 2) AS win_rate_pct, ROUND(net_return_pct::numeric, 2) AS net_return_pct, ROUND(avg_edge_after_cost_bps::numeric, 2) AS edge_after_cost_bps, ROUND(avg_total_cost_bps::numeric, 2) AS total_cost_bps, ROUND((avg_fill_ratio * 100)::numeric, 2) AS fill_ratio_pct, ROUND(max_drawdown_pct::numeric, 2) AS max_drawdown_pct, ROUND(sharpe::numeric, 3) AS sharpe FROM strategy_backtest_runs WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') ORDER BY run_at DESC, net_return_pct DESC LIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 26 }
     }
   ]
 }
