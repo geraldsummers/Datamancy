@@ -27,7 +27,13 @@ class CrossSectionalResearchTest {
 
     @Test
     fun `buildStrategySummaries carries bar minutes into metrics`() {
-        val config = ResearchConfig(barMinutes = 60, persistBacktest = false, persistForward = false)
+        val config = ResearchConfig(
+            barMinutes = 60,
+            trendTrailingStopVolMultiple = 1.5,
+            reversionTakeProfitVolMultiple = 1.0,
+            persistBacktest = false,
+            persistForward = false
+        )
         val trade = tradeRecord(
             entryTime = Instant.parse("2026-03-20T00:00:00Z"),
             exitTime = Instant.parse("2026-03-21T00:00:00Z"),
@@ -48,6 +54,7 @@ class CrossSectionalResearchTest {
 
         assertEquals(2, summaries.size)
         assertTrue(summaries.all { it.metricsJson.contains("\"bar_minutes\": 60") })
+        assertTrue(summaries.all { it.metricsJson.contains("\"trend_trailing_stop_vol_multiple\": 1.5") })
         assertTrue(summaries.any { it.symbol == "SOL" })
         assertTrue(summaries.any { it.symbol == "ALL" })
     }
@@ -330,6 +337,10 @@ class CrossSectionalResearchTest {
             minCalibrationWinRate = listOf(0.52),
             trendCooldownBars = listOf(2),
             reversionCooldownBars = listOf(1),
+            trendTrailingStopVolMultiple = listOf(0.0),
+            reversionTrailingStopVolMultiple = listOf(0.0),
+            trendTakeProfitVolMultiple = listOf(0.0),
+            reversionTakeProfitVolMultiple = listOf(0.0),
             maxConcurrentPositions = listOf(baseConfig.maxConcurrentPositions),
             maxConcurrentLongs = listOf(baseConfig.maxConcurrentLongs),
             maxConcurrentShorts = listOf(baseConfig.maxConcurrentShorts),
@@ -427,7 +438,11 @@ class CrossSectionalResearchTest {
             minCalibrationLowerBoundBps = listOf(0.5),
             minCalibrationWinRate = listOf(0.52),
             trendCooldownBars = listOf(2),
-            reversionCooldownBars = listOf(1)
+            reversionCooldownBars = listOf(1),
+            trendTrailingStopVolMultiple = listOf(0.0),
+            reversionTrailingStopVolMultiple = listOf(0.0),
+            trendTakeProfitVolMultiple = listOf(0.0),
+            reversionTakeProfitVolMultiple = listOf(0.0)
         )
 
         val result = searchCrossSectionalResearch(searchConfig) { config ->
@@ -515,7 +530,11 @@ class CrossSectionalResearchTest {
             minCalibrationLowerBoundBps = listOf(0.5),
             minCalibrationWinRate = listOf(0.52),
             trendCooldownBars = listOf(2),
-            reversionCooldownBars = listOf(1)
+            reversionCooldownBars = listOf(1),
+            trendTrailingStopVolMultiple = listOf(0.0),
+            reversionTrailingStopVolMultiple = listOf(0.0),
+            trendTakeProfitVolMultiple = listOf(0.0),
+            reversionTakeProfitVolMultiple = listOf(0.0)
         )
 
         val result = searchCrossSectionalResearch(searchConfig) { config ->
@@ -795,6 +814,175 @@ class CrossSectionalResearchTest {
         )
 
         assertTrue(trades.isEmpty())
+    }
+
+    @Test
+    fun `simulateIndependentTrade keeps baseline exit schedule when overlays are disabled`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 4,
+            trendLookbackBars = 2,
+            trendSlowBars = 4,
+            reversionLookbackBars = 2,
+            trendHoldBars = 3,
+            trendTrailingStopVolMultiple = 0.0,
+            trendTakeProfitVolMultiple = 0.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val t0 = Instant.parse("2026-03-23T10:00:00Z")
+        val t1 = t0.plusSeconds(3_600L)
+        val t2 = t1.plusSeconds(3_600L)
+        val t3 = t2.plusSeconds(3_600L)
+        val entry = featureRow(
+            symbol = "SOL",
+            liquid = true,
+            barIndex = 10,
+            time = t0,
+            trendScore = 1.6,
+            trendLongRank = 1,
+            flowSignal = 0.55,
+            rawTrend = 1.1,
+            residualMomFast = 0.8,
+            residualMomSlow = 0.9,
+            trendExpectedGrossEdgeBps = 48.0,
+            volumeRatio = 1.2,
+            depthUsd = 500_000.0,
+            spreadBps = 0.2,
+            spreadPct = 0.002
+        ).copy(close = 100.0)
+        val series = listOf(
+            entry,
+            featureRow(symbol = "SOL", liquid = true, barIndex = 11, time = t1, trendScore = 1.5, flowSignal = 0.45).copy(close = 102.0),
+            featureRow(symbol = "SOL", liquid = true, barIndex = 12, time = t2, trendScore = 1.4, flowSignal = 0.4).copy(close = 101.2),
+            featureRow(symbol = "SOL", liquid = true, barIndex = 13, time = t3, trendScore = 1.3, flowSignal = 0.35).copy(close = 101.4)
+        )
+        val candidate = assertNotNull(buildStructuralCandidate(StrategyKind.TREND, entry, 1, config))
+
+        val trade = assertNotNull(
+            simulateIndependentTrade(
+                strategyName = "cross_section_beta_trend_v1",
+                kind = StrategyKind.TREND,
+                candidate = candidate,
+                series = series,
+                startIndex = 0,
+                config = config
+            )
+        )
+
+        assertEquals(t3, trade.exitTime)
+        assertEquals(3, trade.holdBars)
+    }
+
+    @Test
+    fun `simulateIndependentTrade exits on trailing stop after favorable retrace`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 4,
+            trendLookbackBars = 2,
+            trendSlowBars = 4,
+            reversionLookbackBars = 2,
+            trendHoldBars = 3,
+            trendTrailingStopVolMultiple = 1.5,
+            trendTakeProfitVolMultiple = 0.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val t0 = Instant.parse("2026-03-23T10:00:00Z")
+        val t1 = t0.plusSeconds(3_600L)
+        val t2 = t1.plusSeconds(3_600L)
+        val t3 = t2.plusSeconds(3_600L)
+        val entry = featureRow(
+            symbol = "SOL",
+            liquid = true,
+            barIndex = 10,
+            time = t0,
+            trendScore = 1.6,
+            trendLongRank = 1,
+            flowSignal = 0.55,
+            rawTrend = 1.1,
+            residualMomFast = 0.8,
+            residualMomSlow = 0.9,
+            trendExpectedGrossEdgeBps = 48.0,
+            volumeRatio = 1.2,
+            depthUsd = 500_000.0,
+            spreadBps = 0.2,
+            spreadPct = 0.002
+        ).copy(close = 100.0)
+        val series = listOf(
+            entry,
+            featureRow(symbol = "SOL", liquid = true, barIndex = 11, time = t1, trendScore = 1.5, flowSignal = 0.45).copy(close = 102.0),
+            featureRow(symbol = "SOL", liquid = true, barIndex = 12, time = t2, trendScore = 1.4, flowSignal = 0.4).copy(close = 101.2),
+            featureRow(symbol = "SOL", liquid = true, barIndex = 13, time = t3, trendScore = 1.3, flowSignal = 0.35).copy(close = 101.4)
+        )
+        val candidate = assertNotNull(buildStructuralCandidate(StrategyKind.TREND, entry, 1, config))
+
+        val trade = assertNotNull(
+            simulateIndependentTrade(
+                strategyName = "cross_section_beta_trend_v1",
+                kind = StrategyKind.TREND,
+                candidate = candidate,
+                series = series,
+                startIndex = 0,
+                config = config
+            )
+        )
+
+        assertEquals(t2, trade.exitTime)
+        assertEquals(2, trade.holdBars)
+    }
+
+    @Test
+    fun `simulateIndependentTrade exits on take profit overlay before hold horizon`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 4,
+            trendLookbackBars = 2,
+            trendSlowBars = 4,
+            reversionLookbackBars = 2,
+            trendHoldBars = 3,
+            trendTrailingStopVolMultiple = 0.0,
+            trendTakeProfitVolMultiple = 2.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val t0 = Instant.parse("2026-03-23T10:00:00Z")
+        val t1 = t0.plusSeconds(3_600L)
+        val t2 = t1.plusSeconds(3_600L)
+        val entry = featureRow(
+            symbol = "SOL",
+            liquid = true,
+            barIndex = 10,
+            time = t0,
+            trendScore = 1.6,
+            trendLongRank = 1,
+            flowSignal = 0.55,
+            rawTrend = 1.1,
+            residualMomFast = 0.8,
+            residualMomSlow = 0.9,
+            trendExpectedGrossEdgeBps = 48.0,
+            volumeRatio = 1.2,
+            depthUsd = 500_000.0,
+            spreadBps = 0.2,
+            spreadPct = 0.002
+        ).copy(close = 100.0)
+        val series = listOf(
+            entry,
+            featureRow(symbol = "SOL", liquid = true, barIndex = 11, time = t1, trendScore = 1.5, flowSignal = 0.45).copy(close = 101.0),
+            featureRow(symbol = "SOL", liquid = true, barIndex = 12, time = t2, trendScore = 1.4, flowSignal = 0.4).copy(close = 101.3)
+        )
+        val candidate = assertNotNull(buildStructuralCandidate(StrategyKind.TREND, entry, 1, config))
+
+        val trade = assertNotNull(
+            simulateIndependentTrade(
+                strategyName = "cross_section_beta_trend_v1",
+                kind = StrategyKind.TREND,
+                candidate = candidate,
+                series = series,
+                startIndex = 0,
+                config = config
+            )
+        )
+
+        assertEquals(t1, trade.exitTime)
+        assertEquals(1, trade.holdBars)
     }
 
     @Test

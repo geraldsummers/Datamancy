@@ -286,6 +286,10 @@ data class ResearchConfig(
     val minCalibrationWinRate: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_WIN_RATE", 0.51),
     val trendCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_COOLDOWN_BARS", 8),
     val reversionCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_COOLDOWN_BARS", 4),
+    val trendTrailingStopVolMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_TRAILING_STOP_VOL_MULTIPLE", 0.0),
+    val reversionTrailingStopVolMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_TRAILING_STOP_VOL_MULTIPLE", 0.0),
+    val trendTakeProfitVolMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_TAKE_PROFIT_VOL_MULTIPLE", 0.0),
+    val reversionTakeProfitVolMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_TAKE_PROFIT_VOL_MULTIPLE", 0.0),
     val maxConcurrentPositions: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_CONCURRENT_POSITIONS", 6),
     val maxConcurrentLongs: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_CONCURRENT_LONGS", 3),
     val maxConcurrentShorts: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_CONCURRENT_SHORTS", 3),
@@ -313,15 +317,15 @@ data class CrossSectionalSearchConfig(
     val minForwardTrades: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_MIN_FORWARD_TRADES", 3),
     val minSearchFillRatio: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_SEARCH_MIN_FILL_RATIO", 0.6),
     val maxSearchDrawdownPct: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_SEARCH_MAX_DRAWDOWN_PCT", 14.0),
-    val barMinutes: List<Int> = listOf(60, 120, 240, 480, 720),
-    val lookbackHours: List<Int> = listOf(720, 1080, 1440, 2160),
-    val forwardHours: List<Int> = listOf(48, 72, 96, 120),
+    val barMinutes: List<Int> = listOf(5, 15, 30, 60, 120, 240, 480, 720),
+    val lookbackHours: List<Int> = listOf(120, 240, 360, 720, 1080, 1440, 2160),
+    val forwardHours: List<Int> = listOf(12, 24, 48, 72, 96, 120),
     val betaLookbackBars: List<Int> = listOf(48, 72, 96, 168, 240),
-    val trendLookbackBars: List<Int> = listOf(6, 12, 18, 24, 36, 48),
-    val trendSlowBars: List<Int> = listOf(18, 24, 36, 48, 72, 96),
-    val reversionLookbackBars: List<Int> = listOf(4, 8, 12, 16, 24),
-    val trendHoldBars: List<Int> = listOf(2, 3, 4, 6, 9),
-    val reversionHoldBars: List<Int> = listOf(1, 2, 3, 4, 6),
+    val trendLookbackBars: List<Int> = listOf(4, 6, 12, 18, 24, 36, 48),
+    val trendSlowBars: List<Int> = listOf(12, 18, 24, 36, 48, 72, 96),
+    val reversionLookbackBars: List<Int> = listOf(3, 4, 8, 12, 16, 24),
+    val trendHoldBars: List<Int> = listOf(1, 2, 3, 4, 6, 9, 12),
+    val reversionHoldBars: List<Int> = listOf(1, 2, 3, 4, 6, 8),
     val topPerSide: List<Int> = listOf(1, 2, 3),
     val maxSymbols: List<Int> = listOf(8, 12, 16, 24, 36, 48, 72),
     val discoveryMaxSymbols: List<Int> = listOf(0, 48, 96, 192),
@@ -345,6 +349,10 @@ data class CrossSectionalSearchConfig(
     val minCalibrationWinRate: List<Double> = listOf(0.5, 0.52, 0.55, 0.58),
     val trendCooldownBars: List<Int> = listOf(0, 2, 4, 8),
     val reversionCooldownBars: List<Int> = listOf(0, 1, 2, 4),
+    val trendTrailingStopVolMultiple: List<Double> = listOf(0.0, 0.75, 1.0, 1.5, 2.0, 3.0),
+    val reversionTrailingStopVolMultiple: List<Double> = listOf(0.0, 0.5, 0.75, 1.0, 1.5, 2.0),
+    val trendTakeProfitVolMultiple: List<Double> = listOf(0.0, 1.0, 1.5, 2.0, 3.0, 4.0),
+    val reversionTakeProfitVolMultiple: List<Double> = listOf(0.0, 0.75, 1.0, 1.5, 2.0, 3.0),
     val maxConcurrentPositions: List<Int> = listOf(4, 6, 8, 12, 16),
     val maxConcurrentLongs: List<Int> = listOf(2, 3, 4, 6, 8),
     val maxConcurrentShorts: List<Int> = listOf(2, 3, 4, 6, 8),
@@ -605,7 +613,8 @@ data class OpenPosition(
     val calibrationSamples: Int,
     val calibrationWinRate: Double,
     val calibrationLowerBoundBps: Double,
-    val calibrationScope: String
+    val calibrationScope: String,
+    val maxFavorableReturnFraction: Double = 0.0
 )
 
 private data class PortfolioConstraintCounters(
@@ -2572,6 +2581,16 @@ fun buildEntryCandidate(
 }
 
 fun shouldExitPosition(kind: StrategyKind, position: OpenPosition, current: FeatureRow, config: ResearchConfig): Boolean =
+    baseExitTriggered(kind, position, current, config) ||
+        trailingStopTriggered(kind, position, current, config) ||
+        takeProfitTriggered(kind, position, current, config)
+
+private fun baseExitTriggered(
+    kind: StrategyKind,
+    position: OpenPosition,
+    current: FeatureRow,
+    config: ResearchConfig
+): Boolean =
     when (kind) {
         StrategyKind.TREND -> {
             val ageBars = current.barIndex - position.entryRow.barIndex
@@ -2588,6 +2607,61 @@ fun shouldExitPosition(kind: StrategyKind, position: OpenPosition, current: Feat
                 (direction(position.entryRow.residualZ) * current.flowSignal) > config.reversionMaxContinuationPressure
         }
     }
+
+private fun positionSignedReturnFraction(position: OpenPosition, current: FeatureRow): Double {
+    if (position.entryRow.close <= 0.0 || current.close <= 0.0) return 0.0
+    return position.side.toDouble() * ((current.close / position.entryRow.close) - 1.0)
+}
+
+private fun exitDistanceFraction(position: OpenPosition, current: FeatureRow, multiple: Double): Double {
+    if (!multiple.isFinite() || multiple <= 0.0) return Double.POSITIVE_INFINITY
+    val referenceVol = max(max(position.entryRow.vol30, current.vol30), 1e-6)
+    return multiple * referenceVol
+}
+
+private fun trailingStopMultiple(kind: StrategyKind, config: ResearchConfig): Double =
+    when (kind) {
+        StrategyKind.TREND -> config.trendTrailingStopVolMultiple
+        StrategyKind.REVERSION -> config.reversionTrailingStopVolMultiple
+    }
+
+private fun takeProfitMultiple(kind: StrategyKind, config: ResearchConfig): Double =
+    when (kind) {
+        StrategyKind.TREND -> config.trendTakeProfitVolMultiple
+        StrategyKind.REVERSION -> config.reversionTakeProfitVolMultiple
+    }
+
+private fun trailingStopTriggered(
+    kind: StrategyKind,
+    position: OpenPosition,
+    current: FeatureRow,
+    config: ResearchConfig
+): Boolean {
+    val distance = exitDistanceFraction(position, current, trailingStopMultiple(kind, config))
+    if (!distance.isFinite()) return false
+    val favorableReturn = positionSignedReturnFraction(position, current)
+    return position.maxFavorableReturnFraction >= distance &&
+        (position.maxFavorableReturnFraction - favorableReturn) >= distance
+}
+
+private fun takeProfitTriggered(
+    kind: StrategyKind,
+    position: OpenPosition,
+    current: FeatureRow,
+    config: ResearchConfig
+): Boolean {
+    val distance = exitDistanceFraction(position, current, takeProfitMultiple(kind, config))
+    if (!distance.isFinite()) return false
+    return positionSignedReturnFraction(position, current) >= distance
+}
+
+private fun updateOpenPosition(position: OpenPosition, current: FeatureRow): OpenPosition =
+    position.copy(
+        maxFavorableReturnFraction = max(
+            position.maxFavorableReturnFraction,
+            positionSignedReturnFraction(position, current)
+        )
+    )
 
 fun seedCandidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: ResearchConfig): List<EntryCandidate> =
     when (kind) {
@@ -2868,7 +2942,7 @@ fun simulateIndependentTrade(
     config: ResearchConfig
 ): TradeRecord? {
     if (series.isEmpty() || startIndex !in series.indices) return null
-    val position = OpenPosition(
+    var position = OpenPosition(
         strategyName = strategyName,
         strategyKind = kind,
         exchange = candidate.row.exchange,
@@ -2882,16 +2956,22 @@ fun simulateIndependentTrade(
         calibrationSamples = candidate.calibrationSamples,
         calibrationWinRate = candidate.calibrationWinRate,
         calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
-        calibrationScope = candidate.calibrationScope
+        calibrationScope = candidate.calibrationScope,
+        maxFavorableReturnFraction = 0.0
     )
     for (index in (startIndex + 1) until series.size) {
         val current = series[index]
+        position = updateOpenPosition(position, current)
         if (shouldExitPosition(kind, position, current, config)) {
             return buildTradeRecord(position, current, config)
         }
     }
     val last = series.lastOrNull() ?: return null
-    return if (last.time == candidate.row.time) null else buildTradeRecord(position, last, config)
+    return if (last.time == candidate.row.time) {
+        null
+    } else {
+        buildTradeRecord(updateOpenPosition(position, last), last, config)
+    }
 }
 
 fun buildCalibrationExamples(
@@ -3116,7 +3196,8 @@ private fun buildOpenPosition(
         calibrationSamples = candidate.calibrationSamples,
         calibrationWinRate = candidate.calibrationWinRate,
         calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
-        calibrationScope = candidate.calibrationScope
+        calibrationScope = candidate.calibrationScope,
+        maxFavorableReturnFraction = 0.0
     )
 
 private fun simulateStrategyWithPortfolio(
@@ -3159,8 +3240,10 @@ private fun simulateStrategyWithPortfolio(
         for ((positionKey, position) in positions.toMap()) {
             if (position.exchange != exchange) continue
             val current = rowBySymbol[position.symbol] ?: continue
-            if (!shouldExitPosition(kind, position, current, config)) continue
-            trades += buildTradeRecord(position, current, config)
+            val updatedPosition = updateOpenPosition(position, current)
+            positions[positionKey] = updatedPosition
+            if (!shouldExitPosition(kind, updatedPosition, current, config)) continue
+            trades += buildTradeRecord(updatedPosition, current, config)
             positions.remove(positionKey)
             cooldownUntilBar[positionKey] = current.barIndex + when (kind) {
                 StrategyKind.TREND -> config.trendCooldownBars
@@ -3199,7 +3282,7 @@ private fun simulateStrategyWithPortfolio(
     for ((positionKey, position) in positions.toMap()) {
         val current = latestByExchangeSymbol[position.exchange to position.symbol] ?: continue
         if (current.time == position.entryRow.time) continue
-        trades += buildTradeRecord(position, current, config)
+        trades += buildTradeRecord(updateOpenPosition(position, current), current, config)
         positions.remove(positionKey)
     }
 
@@ -3373,6 +3456,10 @@ fun buildStrategySummaries(
                 "avg_entry_flow_signal" to avgEntryFlowSignal.round(4),
                 "avg_entry_volume_ratio" to avgEntryVolumeRatio.round(4),
                 "avg_entry_vol_regime" to avgEntryVolRegime.round(4),
+                "trend_trailing_stop_vol_multiple" to config.trendTrailingStopVolMultiple.round(4),
+                "reversion_trailing_stop_vol_multiple" to config.reversionTrailingStopVolMultiple.round(4),
+                "trend_take_profit_vol_multiple" to config.trendTakeProfitVolMultiple.round(4),
+                "reversion_take_profit_vol_multiple" to config.reversionTakeProfitVolMultiple.round(4),
                 "source" to "cross-sectional-beta-kotlin"
             )
         )
@@ -4969,6 +5056,10 @@ fun isValidResearchConfig(config: ResearchConfig): Boolean {
         config.minCalibrationWinRate in 0.0..1.0 &&
         config.trendCooldownBars >= 0 &&
         config.reversionCooldownBars >= 0 &&
+        config.trendTrailingStopVolMultiple >= 0.0 &&
+        config.reversionTrailingStopVolMultiple >= 0.0 &&
+        config.trendTakeProfitVolMultiple >= 0.0 &&
+        config.reversionTakeProfitVolMultiple >= 0.0 &&
         config.maxConcurrentPositions > 0 &&
         config.maxConcurrentLongs in 1..config.maxConcurrentPositions &&
         config.maxConcurrentShorts in 1..config.maxConcurrentPositions &&
@@ -5098,6 +5189,38 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
             { it.reversionCooldownBars },
             { cfg, value -> cfg.copy(reversionCooldownBars = value) },
             predicate = { it >= 0 }
+        ),
+        doubleMutation(
+            "trendTrailingStopVolMultiple",
+            "trend_exit",
+            searchConfig.trendTrailingStopVolMultiple,
+            { it.trendTrailingStopVolMultiple },
+            { cfg, value -> cfg.copy(trendTrailingStopVolMultiple = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation(
+            "trendTakeProfitVolMultiple",
+            "trend_exit",
+            searchConfig.trendTakeProfitVolMultiple,
+            { it.trendTakeProfitVolMultiple },
+            { cfg, value -> cfg.copy(trendTakeProfitVolMultiple = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation(
+            "reversionTrailingStopVolMultiple",
+            "reversion_exit",
+            searchConfig.reversionTrailingStopVolMultiple,
+            { it.reversionTrailingStopVolMultiple },
+            { cfg, value -> cfg.copy(reversionTrailingStopVolMultiple = value) },
+            predicate = { it >= 0.0 }
+        ),
+        doubleMutation(
+            "reversionTakeProfitVolMultiple",
+            "reversion_exit",
+            searchConfig.reversionTakeProfitVolMultiple,
+            { it.reversionTakeProfitVolMultiple },
+            { cfg, value -> cfg.copy(reversionTakeProfitVolMultiple = value) },
+            predicate = { it >= 0.0 }
         ),
         intMutation(
             "maxConcurrentPositions",
@@ -5402,6 +5525,10 @@ fun researchConfigFingerprint(config: ResearchConfig): String =
         config.minCalibrationWinRate.round(6),
         config.trendCooldownBars,
         config.reversionCooldownBars,
+        config.trendTrailingStopVolMultiple.round(6),
+        config.reversionTrailingStopVolMultiple.round(6),
+        config.trendTakeProfitVolMultiple.round(6),
+        config.reversionTakeProfitVolMultiple.round(6),
         config.maxConcurrentPositions,
         config.maxConcurrentLongs,
         config.maxConcurrentShorts,
