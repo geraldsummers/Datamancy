@@ -18,11 +18,12 @@ class CrossSectionalResearchTest {
     }
 
     @Test
-    fun `scaleRequiredSourceBars preserves minimum wall clock coverage`() {
-        assertEquals(360, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 1))
-        assertEquals(72, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 5))
-        assertEquals(24, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 15))
-        assertEquals(6, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 60))
+    fun `scaleRequiredSourceBars preserves minimum target bar coverage`() {
+        assertEquals(360, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 1, targetBarMinutes = 1))
+        assertEquals(360, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 5, targetBarMinutes = 5))
+        assertEquals(720, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 15, targetBarMinutes = 30))
+        assertEquals(720, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 5, targetBarMinutes = 10))
+        assertEquals(360, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 60, targetBarMinutes = 60))
     }
 
     @Test
@@ -798,6 +799,11 @@ class CrossSectionalResearchTest {
             barMinutes = 240,
             forwardHours = 72,
             maxSymbols = 2,
+            minBars = 6,
+            betaLookbackBars = 4,
+            trendLookbackBars = 2,
+            trendSlowBars = 4,
+            reversionLookbackBars = 3,
             minDepthMultiple = 8.0,
             maxSpreadBps = 4.0,
             persistBacktest = false,
@@ -852,6 +858,61 @@ class CrossSectionalResearchTest {
                         spreadPct = if (index < 2) 0.01 else 0.08,
                         depthUnitsPerSide = if (index < 2) 900.0 else 8.0,
                         executionObserved = index < 2
+                    )
+                )
+            }
+        }
+
+        val selected = selectResearchUniverseFromBars(bars, config)
+        val symbols = selected.getValue("hyperliquid")
+
+        assertTrue("SOL" in symbols)
+        assertTrue("TAO" in symbols)
+        assertFalse("APT" in symbols)
+    }
+
+    @Test
+    fun `selectResearchUniverseFromBars excludes short-history symbols even when recently liquid`() {
+        val config = ResearchConfig(
+            barMinutes = 60,
+            forwardHours = 24,
+            maxSymbols = 2,
+            minBars = 6,
+            betaLookbackBars = 4,
+            trendSlowBars = 4,
+            reversionLookbackBars = 3,
+            minDepthMultiple = 1.0,
+            maxSpreadBps = 4.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val start = Instant.parse("2026-03-20T00:00:00Z")
+        val bars = buildList {
+            listOf("BTC", "ETH", "SOL", "TAO").forEachIndexed { offset, symbol ->
+                repeat(6) { index ->
+                    add(
+                        bar(
+                            symbol = symbol,
+                            time = start.plusSeconds(index * 3_600L),
+                            close = 100.0 + offset,
+                            volume = 6_000.0 + (offset * 500.0),
+                            spreadPct = 0.01,
+                            depthUnitsPerSide = 400.0 + (offset * 20.0),
+                            executionObserved = true
+                        )
+                    )
+                }
+            }
+            repeat(5) { index ->
+                add(
+                    bar(
+                        symbol = "APT",
+                        time = start.plusSeconds(index * 3_600L),
+                        close = 10.0,
+                        volume = 50_000.0,
+                        spreadPct = 0.005,
+                        depthUnitsPerSide = 1_500.0,
+                        executionObserved = true
                     )
                 )
             }

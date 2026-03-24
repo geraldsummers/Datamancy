@@ -881,8 +881,12 @@ fun selectResearchCandleSource(barMinutes: Int): CandleSource =
         else -> CandleSource(intervalLabel = "1m", minutes = 1)
     }
 
-fun scaleRequiredSourceBars(minBars: Int, sourceMinutes: Int): Int =
-    max(1, ceil(minBars.toDouble() / max(sourceMinutes, 1).toDouble()).toInt())
+fun scaleRequiredSourceBars(minBars: Int, sourceMinutes: Int, targetBarMinutes: Int): Int {
+    val normalizedSourceMinutes = max(sourceMinutes, 1)
+    val normalizedTargetMinutes = max(targetBarMinutes, normalizedSourceMinutes)
+    val coverageMinutes = minBars.toDouble() * normalizedTargetMinutes.toDouble()
+    return max(1, ceil(coverageMinutes / normalizedSourceMinutes.toDouble()).toInt())
+}
 
 private data class TimedCacheEntry<T>(
     val loadedAt: Instant,
@@ -1040,7 +1044,7 @@ private fun discoverSymbolsByAggregateFromFeatures(
     barMinutes: Int
 ): List<String> {
     val source = selectResearchCandleSource(barMinutes)
-    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes)
+    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes, barMinutes)
     loadUniverseSnapshotLiquidity(
         aliases = aliases,
         symbols = emptyList(),
@@ -1217,7 +1221,7 @@ fun discoverSymbolsFromMarketCatalog(
     if (normalizedSymbols.isEmpty()) return emptyList()
 
     val source = selectResearchCandleSource(barMinutes)
-    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes)
+    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes, barMinutes)
     val batchSize = if (maxSymbols > 0) {
         min(64, max(16, maxSymbols * 4))
     } else {
@@ -1287,7 +1291,7 @@ private fun discoverSymbolsByAggregateRaw(
 ): List<String> {
     val aliasSql = sqlList(aliases)
     val source = selectResearchCandleSource(barMinutes)
-    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes)
+    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes, barMinutes)
     val sql = """
         SELECT symbol,
                COUNT(*) AS bars,
@@ -1416,6 +1420,10 @@ internal fun selectResearchUniverseFromCandidates(
 ): Map<String, List<String>> {
     if (candidates.isEmpty()) return emptyMap()
     val benchmarkSymbols = setOf("BTC", "ETH")
+    val requiredHistoryBars = max(
+        config.minBars,
+        maxOf(config.betaLookbackBars, config.trendSlowBars, config.reversionLookbackBars) + 1
+    )
 
     return candidates.groupBy { it.exchange }
         .mapValues { (_, candidates) ->
@@ -1424,7 +1432,7 @@ internal fun selectResearchUniverseFromCandidates(
                 .sortedBy { it.symbol }
                 .map { it.symbol }
             val selected = candidates
-                .filter { it.symbol !in benchmarkSymbols }
+                .filter { it.symbol !in benchmarkSymbols && it.totalBars >= requiredHistoryBars }
                 .sortedWith(
                     compareByDescending<ResearchUniverseCandidate> { it.recentTradableBars }
                         .thenByDescending { it.recentTradableRatio }
