@@ -4516,6 +4516,12 @@ data class ResearchDataContext(
     val loadedAt: Instant
 )
 
+internal data class ResearchWindowSplit(
+    val forwardCutoff: Instant?,
+    val calibrationRows: List<FeatureRow>,
+    val forwardRows: List<FeatureRow>
+)
+
 data class StrategyAggregateSnapshot(
     val exchanges: List<String>,
     val trades: Int,
@@ -4744,11 +4750,41 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
 fun evaluateCrossSectionalResearch(
     context: ResearchDataContext,
     config: ResearchConfig
+): CrossSectionalResearchResult =
+    evaluateCrossSectionalResearchRows(
+        context = context,
+        researchFeatureRows = engineerFeatures(context.bars, config),
+        config = config
+    )
+
+internal fun splitResearchWindow(
+    researchFeatureRows: List<FeatureRow>,
+    config: ResearchConfig
+): ResearchWindowSplit {
+    val forwardCutoff = researchFeatureRows.maxOfOrNull { it.time }
+        ?.minus(config.forwardHours.toLong(), ChronoUnit.HOURS)
+        ?: return ResearchWindowSplit(
+            forwardCutoff = null,
+            calibrationRows = researchFeatureRows,
+            forwardRows = emptyList()
+        )
+    return ResearchWindowSplit(
+        forwardCutoff = forwardCutoff,
+        calibrationRows = researchFeatureRows.filter { it.time.isBefore(forwardCutoff) },
+        forwardRows = researchFeatureRows.filter { !it.time.isBefore(forwardCutoff) }
+    )
+}
+
+internal fun evaluateCrossSectionalResearchRows(
+    context: ResearchDataContext,
+    researchFeatureRows: List<FeatureRow>,
+    config: ResearchConfig
 ): CrossSectionalResearchResult {
     val researchBars = context.bars
-    val researchFeatureRows = engineerFeatures(researchBars, config)
     val diagnostics = computeResearchDiagnostics(researchFeatureRows, config)
     val heuristicSignals = latestSignalSnapshots(researchFeatureRows, config)
+    val windowSplit = splitResearchWindow(researchFeatureRows, config)
+    val backtestRows = windowSplit.calibrationRows
 
     val trendStrategyName = "cross_section_beta_trend_v1"
     val reversionStrategyName = "cross_section_beta_reversion_v1"
@@ -4760,14 +4796,14 @@ fun evaluateCrossSectionalResearch(
     val trendBacktest = simulateStrategyWalkForwardResult(
         strategyName = trendStrategyName,
         kind = StrategyKind.TREND,
-        rows = researchFeatureRows,
+        rows = backtestRows,
         config = config,
         stage = "backtest"
     )
     val reversionBacktest = simulateStrategyWalkForwardResult(
         strategyName = reversionStrategyName,
         kind = StrategyKind.REVERSION,
-        rows = researchFeatureRows,
+        rows = backtestRows,
         config = config,
         stage = "backtest"
     )
@@ -4820,9 +4856,6 @@ fun evaluateCrossSectionalResearch(
         )
     }
 
-    val forwardCutoff = researchFeatureRows.maxOfOrNull { it.time }
-        ?.minus(config.forwardHours.toLong(), ChronoUnit.HOURS)
-
     var latestSignals = heuristicSignals
     var forwardSummaries = emptyList<StrategySummary>()
     var calibrationRowsCount = 0
@@ -4831,9 +4864,9 @@ fun evaluateCrossSectionalResearch(
     var forwardPortfolioProfiles = emptyMap<String, PortfolioProfileSnapshot>()
     var forwardRobustness = emptyMap<String, StrategyRobustnessSnapshot>()
 
-    if (forwardCutoff != null) {
-        val calibrationRows = researchFeatureRows.filter { it.time.isBefore(forwardCutoff) }
-        val forwardRows = researchFeatureRows.filter { !it.time.isBefore(forwardCutoff) }
+    if (windowSplit.forwardCutoff != null) {
+        val calibrationRows = windowSplit.calibrationRows
+        val forwardRows = windowSplit.forwardRows
         calibrationRowsCount = calibrationRows.size
         forwardRowsCount = forwardRows.size
 
@@ -4854,39 +4887,7 @@ fun evaluateCrossSectionalResearch(
             "reversion" to calibrationReversionExamples.size
         )
         val forwardCalibrationState = buildCalibrationState(calibrationTrendExamples + calibrationReversionExamples)
-
-        val calibrationTrendBacktest = simulateStrategyWalkForwardResult(
-            strategyName = trendStrategyName,
-            kind = StrategyKind.TREND,
-            rows = calibrationRows,
-            config = config
-        )
-        val calibrationReversionBacktest = simulateStrategyWalkForwardResult(
-            strategyName = reversionStrategyName,
-            kind = StrategyKind.REVERSION,
-            rows = calibrationRows,
-            config = config
-        )
-
-        val calibrationSummaries =
-            buildStrategySummaries(
-                config = config,
-                strategyName = trendStrategyName,
-                strategyKind = StrategyKind.TREND,
-                trades = calibrationTrendBacktest.trades,
-                timeframe = "candle_${config.barMinutes}m",
-                notes = "${config.barMinutes}m calibration slice with causal calibration gating"
-            ) +
-            buildStrategySummaries(
-                config = config,
-                strategyName = reversionStrategyName,
-                strategyKind = StrategyKind.REVERSION,
-                trades = calibrationReversionBacktest.trades,
-                timeframe = "candle_${config.barMinutes}m",
-                notes = "${config.barMinutes}m calibration slice with causal calibration gating"
-            )
-
-        val baselineMap = calibrationSummaries.associateBy { Triple(it.strategyName, it.exchange, it.symbol) }
+        val baselineMap = backtestSummaries.associateBy { Triple(it.strategyName, it.exchange, it.symbol) }
 
         val forwardTrend = simulateStrategyResult(
             strategyName = trendStrategyName,
@@ -4970,7 +4971,7 @@ fun evaluateCrossSectionalResearch(
         latestSignals = latestSignals,
         backtestSummaries = backtestSummaries,
         forwardSummaries = forwardSummaries,
-        forwardCutoff = forwardCutoff,
+        forwardCutoff = windowSplit.forwardCutoff,
         calibrationRows = calibrationRowsCount,
         forwardRows = forwardRowsCount,
         calibrationExampleCounts = calibrationCounts,
@@ -5655,6 +5656,264 @@ private data class SearchMutationCandidate(
     val config: ResearchConfig
 )
 
+private fun selectIntSearchValue(
+    current: Int,
+    values: List<Int>,
+    preferred: List<Int> = emptyList(),
+    predicate: (Int) -> Boolean = { true }
+): Int {
+    val candidates = values.filter(predicate).distinct()
+    return (preferred + current).firstOrNull { candidate -> candidate in candidates }
+        ?: candidates.firstOrNull()
+        ?: current
+}
+
+private fun selectDoubleSearchValue(
+    current: Double,
+    values: List<Double>,
+    preferred: List<Double> = emptyList(),
+    predicate: (Double) -> Boolean = { true }
+): Double {
+    val candidates = values.filter(predicate).distinct()
+    return (preferred + current).firstOrNull { candidate ->
+        candidates.any { abs(it - candidate) < 1e-9 }
+    }
+        ?: candidates.firstOrNull()
+        ?: current
+}
+
+private fun prioritizedSeedBarMinutes(searchConfig: CrossSectionalSearchConfig): List<Int> {
+    val barMinutes = searchConfig.barMinutes.distinct()
+    val nonBase = barMinutes.filter { it != searchConfig.baseConfig.barMinutes }
+    val shortHorizons = listOf(5, 15, 30).filter { it in nonBase }
+    val fallbackHorizons = nonBase
+        .filter { it !in shortHorizons }
+        .sortedBy { abs(it - searchConfig.baseConfig.barMinutes) }
+    return shortHorizons + fallbackHorizons
+}
+
+private fun buildSeedAnchorConfig(
+    searchConfig: CrossSectionalSearchConfig,
+    barMinutes: Int
+): ResearchConfig {
+    val base = searchConfig.baseConfig
+    val sharedLookbackPreferences = when {
+        barMinutes <= 5 -> listOf(240, 360, 720)
+        barMinutes <= 30 -> listOf(360, 720, 1080)
+        else -> listOf(720, 1080, 1440)
+    }
+    val sharedForwardPreferences = when {
+        barMinutes <= 30 -> listOf(24, 48, 72)
+        else -> listOf(48, 72, 96)
+    }
+    val sharedBetaPreferences = when {
+        barMinutes <= 30 -> listOf(48, 72, 96)
+        else -> listOf(72, 96, 168)
+    }
+    return base.copy(
+        barMinutes = barMinutes,
+        lookbackHours = selectIntSearchValue(base.lookbackHours, searchConfig.lookbackHours, sharedLookbackPreferences),
+        forwardHours = selectIntSearchValue(base.forwardHours, searchConfig.forwardHours, sharedForwardPreferences),
+        betaLookbackBars = selectIntSearchValue(base.betaLookbackBars, searchConfig.betaLookbackBars, sharedBetaPreferences),
+        maxSymbols = selectIntSearchValue(base.maxSymbols, searchConfig.maxSymbols, listOf(searchConfig.maxSymbols.maxOrNull() ?: base.maxSymbols)),
+        discoveryMaxSymbols = selectIntSearchValue(
+            base.discoveryMaxSymbols,
+            searchConfig.discoveryMaxSymbols,
+            listOf(searchConfig.discoveryMaxSymbols.maxOrNull() ?: base.discoveryMaxSymbols),
+            predicate = { it >= 0 }
+        ),
+        topPerSide = selectIntSearchValue(base.topPerSide, searchConfig.topPerSide, listOf(searchConfig.topPerSide.maxOrNull() ?: base.topPerSide)),
+        maxConcurrentPositions = selectIntSearchValue(
+            base.maxConcurrentPositions,
+            searchConfig.maxConcurrentPositions,
+            listOf(searchConfig.maxConcurrentPositions.maxOrNull() ?: base.maxConcurrentPositions)
+        ),
+        maxConcurrentLongs = selectIntSearchValue(
+            base.maxConcurrentLongs,
+            searchConfig.maxConcurrentLongs,
+            listOf(searchConfig.maxConcurrentLongs.maxOrNull() ?: base.maxConcurrentLongs)
+        ),
+        maxConcurrentShorts = selectIntSearchValue(
+            base.maxConcurrentShorts,
+            searchConfig.maxConcurrentShorts,
+            listOf(searchConfig.maxConcurrentShorts.maxOrNull() ?: base.maxConcurrentShorts)
+        )
+    )
+}
+
+private fun buildTrendSearchSeed(
+    searchConfig: CrossSectionalSearchConfig,
+    barMinutes: Int
+): ResearchConfig {
+    val anchor = buildSeedAnchorConfig(searchConfig, barMinutes)
+    val trendLookbackBars = selectIntSearchValue(
+        anchor.trendLookbackBars,
+        searchConfig.trendLookbackBars,
+        preferred = when {
+            barMinutes <= 5 -> listOf(4, 6, 12)
+            barMinutes <= 30 -> listOf(6, 12, 18)
+            else -> listOf(12, 18, 24)
+        }
+    )
+    val trendSlowBars = selectIntSearchValue(
+        anchor.trendSlowBars,
+        searchConfig.trendSlowBars,
+        preferred = when {
+            barMinutes <= 5 -> listOf(12, 18, 24)
+            barMinutes <= 30 -> listOf(18, 24, 36)
+            else -> listOf(24, 36, 48)
+        },
+        predicate = { it > trendLookbackBars }
+    )
+    return anchor.copy(
+        trendLookbackBars = trendLookbackBars,
+        trendSlowBars = trendSlowBars,
+        trendHoldBars = selectIntSearchValue(
+            anchor.trendHoldBars,
+            searchConfig.trendHoldBars,
+            preferred = if (barMinutes <= 30) listOf(1, 2, 3) else listOf(2, 3, 4)
+        ),
+        trendEntryScore = selectDoubleSearchValue(
+            anchor.trendEntryScore,
+            searchConfig.trendEntryScore,
+            preferred = listOf(0.8, 1.0, 1.2),
+            predicate = { it > 0.0 }
+        ),
+        trendMinFlowAlignment = selectDoubleSearchValue(
+            anchor.trendMinFlowAlignment,
+            searchConfig.trendMinFlowAlignment,
+            preferred = listOf(0.0, 0.05, 0.08),
+            predicate = { it >= 0.0 }
+        ),
+        trendTakeProfitVolMultiple = selectDoubleSearchValue(
+            anchor.trendTakeProfitVolMultiple,
+            searchConfig.trendTakeProfitVolMultiple,
+            preferred = listOf(2.0, 1.5, 3.0),
+            predicate = { it > 0.0 }
+        ),
+        trendTrailingStopVolMultiple = selectDoubleSearchValue(
+            anchor.trendTrailingStopVolMultiple,
+            searchConfig.trendTrailingStopVolMultiple,
+            preferred = listOf(0.0, 0.75, 1.0),
+            predicate = { it >= 0.0 }
+        )
+    )
+}
+
+private fun buildReversionSearchSeed(
+    searchConfig: CrossSectionalSearchConfig,
+    barMinutes: Int
+): ResearchConfig {
+    val anchor = buildSeedAnchorConfig(searchConfig, barMinutes)
+    return anchor.copy(
+        reversionLookbackBars = selectIntSearchValue(
+            anchor.reversionLookbackBars,
+            searchConfig.reversionLookbackBars,
+            preferred = when {
+                barMinutes <= 5 -> listOf(3, 4, 8)
+                barMinutes <= 30 -> listOf(4, 8, 12)
+                else -> listOf(8, 12, 16)
+            }
+        ),
+        reversionHoldBars = selectIntSearchValue(
+            anchor.reversionHoldBars,
+            searchConfig.reversionHoldBars,
+            preferred = if (barMinutes <= 30) listOf(1, 2, 3) else listOf(2, 3, 4)
+        ),
+        reversionZEntry = selectDoubleSearchValue(
+            anchor.reversionZEntry,
+            searchConfig.reversionZEntry,
+            preferred = searchConfig.reversionZEntry.sorted(),
+            predicate = { it > 0.0 }
+        ),
+        reversionZExit = selectDoubleSearchValue(
+            anchor.reversionZExit,
+            searchConfig.reversionZExit,
+            preferred = searchConfig.reversionZExit.sorted(),
+            predicate = { it >= 0.0 }
+        ),
+        reversionMaxContinuationPressure = selectDoubleSearchValue(
+            anchor.reversionMaxContinuationPressure,
+            searchConfig.reversionMaxContinuationPressure,
+            preferred = searchConfig.reversionMaxContinuationPressure.sorted(),
+            predicate = { it >= 0.0 }
+        ),
+        reversionTrailingStopVolMultiple = selectDoubleSearchValue(
+            anchor.reversionTrailingStopVolMultiple,
+            searchConfig.reversionTrailingStopVolMultiple,
+            preferred = listOf(0.75, 1.0, 1.5),
+            predicate = { it > 0.0 }
+        ),
+        reversionTakeProfitVolMultiple = selectDoubleSearchValue(
+            anchor.reversionTakeProfitVolMultiple,
+            searchConfig.reversionTakeProfitVolMultiple,
+            preferred = listOf(0.0, 1.0, 1.5),
+            predicate = { it >= 0.0 }
+        )
+    )
+}
+
+private fun buildBreadthSearchSeed(searchConfig: CrossSectionalSearchConfig): ResearchConfig {
+    val base = searchConfig.baseConfig
+    return base.copy(
+        maxSymbols = selectIntSearchValue(base.maxSymbols, searchConfig.maxSymbols, listOf(searchConfig.maxSymbols.maxOrNull() ?: base.maxSymbols)),
+        discoveryMaxSymbols = selectIntSearchValue(
+            base.discoveryMaxSymbols,
+            searchConfig.discoveryMaxSymbols,
+            listOf(searchConfig.discoveryMaxSymbols.maxOrNull() ?: base.discoveryMaxSymbols),
+            predicate = { it >= 0 }
+        ),
+        topPerSide = selectIntSearchValue(base.topPerSide, searchConfig.topPerSide, listOf(searchConfig.topPerSide.maxOrNull() ?: base.topPerSide)),
+        maxConcurrentPositions = selectIntSearchValue(
+            base.maxConcurrentPositions,
+            searchConfig.maxConcurrentPositions,
+            listOf(searchConfig.maxConcurrentPositions.maxOrNull() ?: base.maxConcurrentPositions)
+        ),
+        maxConcurrentLongs = selectIntSearchValue(
+            base.maxConcurrentLongs,
+            searchConfig.maxConcurrentLongs,
+            listOf(searchConfig.maxConcurrentLongs.maxOrNull() ?: base.maxConcurrentLongs)
+        ),
+        maxConcurrentShorts = selectIntSearchValue(
+            base.maxConcurrentShorts,
+            searchConfig.maxConcurrentShorts,
+            listOf(searchConfig.maxConcurrentShorts.maxOrNull() ?: base.maxConcurrentShorts)
+        ),
+        maxNetExposureFraction = selectDoubleSearchValue(
+            base.maxNetExposureFraction,
+            searchConfig.maxNetExposureFraction,
+            listOf(searchConfig.maxNetExposureFraction.maxOrNull() ?: base.maxNetExposureFraction),
+            predicate = { it in 0.0..1.0 }
+        ),
+        maxPortfolioBetaBtcAbs = selectDoubleSearchValue(
+            base.maxPortfolioBetaBtcAbs,
+            searchConfig.maxPortfolioBetaBtcAbs,
+            listOf(searchConfig.maxPortfolioBetaBtcAbs.maxOrNull() ?: base.maxPortfolioBetaBtcAbs),
+            predicate = { it >= 0.0 }
+        ),
+        maxPortfolioBetaEthAbs = selectDoubleSearchValue(
+            base.maxPortfolioBetaEthAbs,
+            searchConfig.maxPortfolioBetaEthAbs,
+            listOf(searchConfig.maxPortfolioBetaEthAbs.maxOrNull() ?: base.maxPortfolioBetaEthAbs),
+            predicate = { it >= 0.0 }
+        )
+    )
+}
+
+private fun buildDiversifiedSearchSeeds(searchConfig: CrossSectionalSearchConfig): List<ResearchConfig> {
+    val seedBarMinutes = prioritizedSeedBarMinutes(searchConfig)
+        .ifEmpty { listOf(searchConfig.baseConfig.barMinutes) }
+    return buildList {
+        seedBarMinutes.forEach { barMinutes ->
+            add(buildTrendSearchSeed(searchConfig, barMinutes))
+            add(buildReversionSearchSeed(searchConfig, barMinutes))
+        }
+        add(buildBreadthSearchSeed(searchConfig))
+    }
+        .filter(::isValidResearchConfig)
+        .distinctBy(::researchConfigFingerprint)
+}
+
 private fun buildSeedMutationCandidates(
     seed: ResearchConfig,
     mutations: List<SearchMutation>,
@@ -5663,7 +5922,17 @@ private fun buildSeedMutationCandidates(
     if (mutations.isEmpty()) return emptyList()
 
     val seedFingerprint = researchConfigFingerprint(seed)
-    val preferredGroups = listOf("timeframe", "trend_signal", "reversion_signal", "execution_liquidity", "calibration")
+    val preferredGroups = listOf(
+        "timeframe",
+        "universe_breadth",
+        "trend_signal",
+        "trend_exit",
+        "reversion_signal",
+        "reversion_exit",
+        "portfolio_policy",
+        "execution_liquidity",
+        "calibration"
+    )
     val discoveredGroups = mutations.map { it.group }.distinct()
     val orderedGroups = rotate(
         preferredGroups.filter { it in discoveredGroups } + discoveredGroups.filter { it !in preferredGroups },
@@ -5722,14 +5991,24 @@ private fun buildSearchGeneration(
     limit: Int,
     evaluatedFingerprints: Set<String>
 ): List<SearchMutationCandidate> {
-    if (limit <= 0 || seeds.isEmpty() || mutations.isEmpty()) return emptyList()
+    if (limit <= 0 || seeds.isEmpty()) return emptyList()
 
     val rotatedSeeds = rotate(
         seeds.distinctBy(::researchConfigFingerprint),
         roundsCompleted
     )
     val seedIterators = rotatedSeeds.mapIndexed { index, seed ->
-        buildSeedMutationCandidates(seed, mutations, roundsCompleted + index).iterator()
+        buildList {
+            add(
+                SearchMutationCandidate(
+                    seedFingerprint = researchConfigFingerprint(seed),
+                    mutationName = "seed",
+                    mutationGroup = "seed_anchor",
+                    config = seed
+                )
+            )
+            addAll(buildSeedMutationCandidates(seed, mutations, roundsCompleted + index))
+        }.iterator()
     }.toMutableList()
     val seenFingerprints = evaluatedFingerprints.toMutableSet()
 
@@ -5793,7 +6072,7 @@ fun searchCrossSectionalResearch(
     evaluateCandidate(normalizedSearch.baseConfig)
 
     var roundsCompleted = 0
-    var seeds = listOf(normalizedSearch.baseConfig)
+    var seeds = listOf(normalizedSearch.baseConfig) + buildDiversifiedSearchSeeds(normalizedSearch)
     while (
         roundsCompleted < normalizedSearch.rounds &&
         evaluations.size < normalizedSearch.maxEvaluations &&
