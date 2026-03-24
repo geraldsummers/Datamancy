@@ -3222,14 +3222,15 @@ private fun simulateStrategyResult(
     kind: StrategyKind,
     rows: List<FeatureRow>,
     config: ResearchConfig,
-    calibrationState: CalibrationState? = null
+    calibrationState: CalibrationState? = null,
+    stage: String = "backtest"
 ): StrategySimulationResult =
     simulateStrategyWithPortfolio(
         strategyName = strategyName,
         kind = kind,
         rows = rows,
         config = config,
-        stage = "backtest"
+        stage = stage
     ) { bucket, _ ->
         candidateRows(kind, bucket, config, calibrationState)
     }
@@ -3247,14 +3248,15 @@ private fun simulateStrategyWalkForwardResult(
     strategyName: String,
     kind: StrategyKind,
     rows: List<FeatureRow>,
-    config: ResearchConfig
+    config: ResearchConfig,
+    stage: String = "forward"
 ): StrategySimulationResult {
     if (rows.isEmpty()) {
         return StrategySimulationResult(
             trades = emptyList(),
             portfolioProfile = buildPortfolioProfile(
                 kind = kind,
-                stage = "forward",
+                stage = stage,
                 exchanges = emptyList(),
                 trades = emptyList(),
                 telemetry = emptyList(),
@@ -3274,7 +3276,7 @@ private fun simulateStrategyWalkForwardResult(
         kind = kind,
         rows = rows,
         config = config,
-        stage = "forward"
+        stage = stage
     ) { bucket, currentTime ->
         while (exampleIndex < calibrationExamples.size && calibrationExamples[exampleIndex].availableAt.isBefore(currentTime)) {
             val example = calibrationExamples[exampleIndex]
@@ -4672,13 +4674,15 @@ fun evaluateCrossSectionalResearch(
         strategyName = trendStrategyName,
         kind = StrategyKind.TREND,
         rows = researchFeatureRows,
-        config = config
+        config = config,
+        stage = "backtest"
     )
     val reversionBacktest = simulateStrategyWalkForwardResult(
         strategyName = reversionStrategyName,
         kind = StrategyKind.REVERSION,
         rows = researchFeatureRows,
-        config = config
+        config = config,
+        stage = "backtest"
     )
 
     val backtestSummaries =
@@ -4802,14 +4806,16 @@ fun evaluateCrossSectionalResearch(
             kind = StrategyKind.TREND,
             rows = forwardRows,
             config = config,
-            calibrationState = forwardCalibrationState
+            calibrationState = forwardCalibrationState,
+            stage = "forward"
         )
         val forwardReversion = simulateStrategyResult(
             strategyName = reversionStrategyName,
             kind = StrategyKind.REVERSION,
             rows = forwardRows,
             config = config,
-            calibrationState = forwardCalibrationState
+            calibrationState = forwardCalibrationState,
+            stage = "forward"
         )
 
         val forwardTrendTrades = forwardTrend.trades
