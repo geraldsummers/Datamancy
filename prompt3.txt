@@ -142,3 +142,9 @@ Final report to operator:
 - backtest vs forward vs paper drift
 - what should be promoted, held, or killed
 - explain how alpha discovery works
+- explain how risk model works
+- explain how execution model works
+- explain how promotion and kill criteria work
+- explain if we're getting closer to alpha
+- suggest directions for alpha discovery
+- suggest directions for risk model
