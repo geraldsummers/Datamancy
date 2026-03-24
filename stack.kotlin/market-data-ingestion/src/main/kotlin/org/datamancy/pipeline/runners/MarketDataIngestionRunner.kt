@@ -58,6 +58,7 @@ class MarketDataIngestionRunner {
     private var statsJob: Job? = null
     private var ingestionJob: Job? = null
     private var flushJob: Job? = null
+    private var researchFeaturesJob: Job? = null
 
     private val postgresHost = System.getenv("POSTGRES_HOST") ?: "postgres"
     private val postgresPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
@@ -67,12 +68,24 @@ class MarketDataIngestionRunner {
     private val batchSize = System.getenv("MARKET_DATA_BATCH_SIZE")?.toIntOrNull() ?: 250
     private val flushIntervalSeconds = System.getenv("MARKET_DATA_FLUSH_SECONDS")?.toLongOrNull() ?: 10
 
-    private val symbols = System.getenv("HYPERLIQUID_SYMBOLS")?.split(",")?.map { it.trim() }
-        ?: listOf("BTC", "ETH")
+    private val staticSymbols = parseSymbolList(System.getenv("HYPERLIQUID_SYMBOLS"))
     private val candleIntervals = System.getenv("CANDLE_INTERVALS")?.split(",")?.map { it.trim() }
         ?: listOf("1m", "5m", "15m", "1h")
     private val enableOrderbook = System.getenv("ENABLE_ORDERBOOK")?.toBoolean() ?: false
     private val hyperliquidMainnet = parseBooleanEnv(System.getenv("HYPERLIQUID_MAINNET"), defaultValue = true)
+    private val hyperliquidUniverseMode = resolveHyperliquidUniverseMode(
+        explicitMode = System.getenv("HYPERLIQUID_UNIVERSE_MODE"),
+        staticSymbols = staticSymbols
+    )
+    private val hyperliquidUniverseIncludeSymbols = parseSymbolSet(System.getenv("HYPERLIQUID_UNIVERSE_INCLUDE"))
+    private val hyperliquidUniverseExcludeSymbols = parseSymbolSet(System.getenv("HYPERLIQUID_UNIVERSE_EXCLUDE"))
+    private val hyperliquidIncludeDelisted = parseBooleanEnv(
+        System.getenv("HYPERLIQUID_INCLUDE_DELISTED"),
+        defaultValue = false
+    )
+    private val hyperliquidUniverseRefreshIntervalMs = resolveHyperliquidUniverseRefreshIntervalMs(
+        explicitIntervalMs = System.getenv("HYPERLIQUID_UNIVERSE_REFRESH_INTERVAL_MS")?.toLongOrNull()
+    )
     private val hyperliquidWsUrl = resolveHyperliquidWsUrl(
         explicitUrl = System.getenv("HYPERLIQUID_WS_URL"),
         mainnet = hyperliquidMainnet
@@ -106,10 +119,39 @@ class MarketDataIngestionRunner {
         explicitExchangeId = System.getenv("HYPERLIQUID_EXCHANGE_ID"),
         mainnet = hyperliquidMainnet
     )
+    private val researchFeaturesEnabled = parseBooleanEnv(
+        System.getenv("RESEARCH_FEATURES_ENABLED"),
+        defaultValue = true
+    )
+    private val researchFeaturesBootstrapHours = resolveResearchFeaturesBootstrapHours(
+        explicitHours = System.getenv("RESEARCH_FEATURES_BOOTSTRAP_HOURS")?.toLongOrNull()
+    )
+    private val researchFeaturesRefreshIntervalMs = resolveResearchFeaturesRefreshIntervalMs(
+        explicitIntervalMs = System.getenv("RESEARCH_FEATURES_REFRESH_INTERVAL_MS")?.toLongOrNull()
+    )
+    private val researchFeaturesRefreshOverlapMinutes = resolveResearchFeaturesRefreshOverlapMinutes(
+        explicitMinutes = System.getenv("RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES")?.toLongOrNull()
+    )
+    private val researchFeaturesBackfillChunkHours = resolveResearchFeaturesBackfillChunkHours(
+        explicitHours = System.getenv("RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS")?.toLongOrNull()
+    )
+    private val universeSettings = HyperliquidUniverseSettings(
+        mode = hyperliquidUniverseMode,
+        staticSymbols = staticSymbols,
+        includeSymbols = hyperliquidUniverseIncludeSymbols,
+        excludeSymbols = hyperliquidUniverseExcludeSymbols,
+        includeDelisted = hyperliquidIncludeDelisted,
+        refreshIntervalMs = hyperliquidUniverseRefreshIntervalMs
+    )
 
-    private lateinit var source: HyperliquidSource
     private lateinit var candleBackfillClient: HyperliquidCandleBackfillClient
+    private lateinit var universeResolver: HyperliquidUniverseResolver
+    private lateinit var researchFeatureAggregator: ResearchFeatureAggregator
     private lateinit var sink: MarketDataSink
+    @Volatile
+    private var activeSource: HyperliquidSource? = null
+    @Volatile
+    private var activeUniverse: HyperliquidUniverseSnapshot? = null
 
     /**
      * Start the market data ingestion pipeline
@@ -118,7 +160,21 @@ class MarketDataIngestionRunner {
         logger.info { "=" * 80 }
         logger.info { "Starting Hyperliquid Market Data Ingestion Pipeline" }
         logger.info { "=" * 80 }
-        logger.info { "Symbols: ${symbols.joinToString()}" }
+        logger.info { "Universe Mode: $hyperliquidUniverseMode" }
+        if (staticSymbols.isNotEmpty()) {
+            logger.info { "Static Symbols Override: ${staticSymbols.joinToString()}" }
+        }
+        if (hyperliquidUniverseIncludeSymbols.isNotEmpty()) {
+            logger.info {
+                "Universe Include Filter: ${hyperliquidUniverseIncludeSymbols.toList().sorted().joinToString()}"
+            }
+        }
+        if (hyperliquidUniverseExcludeSymbols.isNotEmpty()) {
+            logger.info {
+                "Universe Exclude Filter: ${hyperliquidUniverseExcludeSymbols.toList().sorted().joinToString()}"
+            }
+        }
+        logger.info { "Universe Refresh Interval: ${hyperliquidUniverseRefreshIntervalMs}ms" }
         logger.info { "Candle Intervals: ${candleIntervals.joinToString()}" }
         logger.info { "Orderbook Ingestion: ${if (enableOrderbook) "ENABLED" else "DISABLED"}" }
         logger.info { "Asset Context Ingestion: ENABLED (funding + open interest)" }
@@ -134,32 +190,36 @@ class MarketDataIngestionRunner {
                 "${hyperliquidBackfillMaxBars} max bars, ${hyperliquidBackfillOverlapBars} overlap bars"
         }
         logger.info { "Hyperliquid Exchange ID: $hyperliquidExchangeId" }
+        logger.info {
+            "research_features_1m: ${if (researchFeaturesEnabled) "ENABLED" else "DISABLED"} " +
+                "(bootstrap=${researchFeaturesBootstrapHours}h refreshEvery=${researchFeaturesRefreshIntervalMs}ms " +
+                "overlap=${researchFeaturesRefreshOverlapMinutes}m chunk=${researchFeaturesBackfillChunkHours}h)"
+        }
         logger.info { "TimescaleDB: $postgresHost:$postgresPort/$postgresDb" }
         logger.info { "=" * 80 }
 
-        // Initialize source and sink
-        source = HyperliquidSource(
-            symbols = symbols,
-            subscribeToTrades = true,
-            subscribeToCandles = true,
-            candleIntervals = candleIntervals,
-            subscribeToOrderbook = enableOrderbook,
-            subscribeToAssetCtx = true,
-            url = hyperliquidWsUrl,
-            receiveIdleTimeoutMs = hyperliquidIdleTimeoutMs
-        )
         candleBackfillClient = HyperliquidCandleBackfillClient(
             infoUrl = hyperliquidInfoUrl,
             lookbackHours = hyperliquidBackfillLookbackHours,
             maxBarsPerRequest = hyperliquidBackfillMaxBars,
             overlapBars = hyperliquidBackfillOverlapBars
         )
+        universeResolver = HyperliquidUniverseResolver(infoUrl = hyperliquidInfoUrl)
 
         val dataSource = createDataSource()
         sink = MarketDataSink(
             dataSource = dataSource,
             batchSize = batchSize,
             exchangeId = hyperliquidExchangeId
+        )
+        researchFeatureAggregator = ResearchFeatureAggregator(
+            dataSource = dataSource,
+            exchangeId = hyperliquidExchangeId,
+            enabled = researchFeaturesEnabled,
+            bootstrapHours = researchFeaturesBootstrapHours,
+            refreshIntervalMs = researchFeaturesRefreshIntervalMs,
+            refreshOverlapMinutes = researchFeaturesRefreshOverlapMinutes,
+            backfillChunkHours = researchFeaturesBackfillChunkHours
         )
 
         // Block startup until TimescaleDB is reachable instead of shutting down on first race.
@@ -168,6 +228,21 @@ class MarketDataIngestionRunner {
             return
         }
         logger.info { "✓ TimescaleDB connection healthy" }
+        runBlocking {
+            runCatching { resolveUniverseSnapshot(previous = emptyList()) }
+                .onSuccess { snapshot ->
+                    activeUniverse = snapshot
+                    logger.info {
+                        "Resolved initial Hyperliquid universe source=${snapshot.source} symbols=${snapshot.symbols.size}"
+                    }
+                }
+                .onFailure { ex ->
+                    logger.warn(ex) {
+                        "Initial Hyperliquid universe resolution failed: ${ex.message}. " +
+                            "The ingestion loop will retry until the catalog/static source becomes available."
+                    }
+                }
+        }
 
         // Start ingestion
         ingestionJob = scope.launch {
@@ -192,6 +267,10 @@ class MarketDataIngestionRunner {
                     logger.error(e) { "Periodic flush failed: ${e.message}" }
                 }
             }
+        }
+
+        researchFeaturesJob = scope.launch {
+            researchFeatureAggregator.runLoop()
         }
 
         logger.info { "Pipeline started successfully" }
@@ -230,10 +309,19 @@ class MarketDataIngestionRunner {
 
         while (scope.isActive) {
             var messagesInSession = 0
+            var sessionSource: HyperliquidSource? = null
             try {
-                logger.info { "Connecting to Hyperliquid WebSocket..." }
+                val universe = resolveUniverseSnapshot(
+                    previous = activeUniverse?.symbols.orEmpty()
+                )
+                activeUniverse = universe
+                logger.info {
+                    "Connecting to Hyperliquid WebSocket... universeSource=${universe.source} symbols=${universe.symbols.size}"
+                }
+                sessionSource = createSource(universe.symbols)
+                activeSource = sessionSource
                 val continuityWatchdog = HyperliquidContinuityWatchdog(
-                    symbols = symbols,
+                    symbols = universe.symbols,
                     candleIntervals = candleIntervals,
                     activityTimeoutMs = hyperliquidChannelActivityTimeoutMs,
                     candleStaleMultiplier = hyperliquidCandleStaleMultiplier
@@ -241,10 +329,16 @@ class MarketDataIngestionRunner {
 
                 coroutineScope {
                     val candleRepairJob = launch {
-                        repairRecentCandleHistory(continuityWatchdog)
+                        repairRecentCandleHistory(universe.symbols, continuityWatchdog)
+                    }
+                    val universeRefreshJob = launch {
+                        refreshUniverseDuringSession(
+                            currentUniverse = universe,
+                            source = sessionSource
+                        )
                     }
                     val streamCollector = async {
-                        source.fetch()
+                        sessionSource.fetch()
                             .onEach { data ->
                                 messagesInSession++
                                 continuityWatchdog.record(data)
@@ -271,6 +365,7 @@ class MarketDataIngestionRunner {
                     try {
                         streamCollector.await()
                     } finally {
+                        universeRefreshJob.cancelAndJoin()
                         continuityMonitor.cancelAndJoin()
                         candleRepairJob.cancelAndJoin()
                     }
@@ -318,6 +413,70 @@ class MarketDataIngestionRunner {
                 )
                 logger.info { "Reconnecting in ${reconnectDelayMs}ms (attempt $reconnectAttempt)..." }
                 delay(reconnectDelayMs)
+            } finally {
+                activeSource = null
+                sessionSource?.let { source ->
+                    runCatching { source.close() }
+                        .onFailure { ex ->
+                            logger.warn(ex) { "Failed to close Hyperliquid source cleanly: ${ex.message}" }
+                        }
+                }
+            }
+        }
+    }
+
+    private suspend fun resolveUniverseSnapshot(previous: List<String>): HyperliquidUniverseSnapshot {
+        return runCatching { universeResolver.resolve(universeSettings) }
+            .recoverCatching { ex ->
+                if (previous.isEmpty()) {
+                    throw ex
+                }
+                logger.warn(ex) {
+                    "Universe refresh failed; keeping previous subscription set of ${previous.size} symbols"
+                }
+                HyperliquidUniverseSnapshot(symbols = previous, source = "previous")
+            }
+            .getOrThrow()
+    }
+
+    private fun createSource(symbols: List<String>): HyperliquidSource {
+        return HyperliquidSource(
+            symbols = symbols,
+            subscribeToTrades = true,
+            subscribeToCandles = true,
+            candleIntervals = candleIntervals,
+            subscribeToOrderbook = enableOrderbook,
+            subscribeToAssetCtx = true,
+            url = hyperliquidWsUrl,
+            receiveIdleTimeoutMs = hyperliquidIdleTimeoutMs
+        )
+    }
+
+    private suspend fun refreshUniverseDuringSession(
+        currentUniverse: HyperliquidUniverseSnapshot,
+        source: HyperliquidSource
+    ) {
+        if (hyperliquidUniverseMode != HyperliquidUniverseMode.CATALOG) {
+            return
+        }
+        while (currentCoroutineContext().isActive) {
+            delay(hyperliquidUniverseRefreshIntervalMs)
+            val refreshedResult = runCatching {
+                universeResolver.resolve(universeSettings)
+            }
+            if (refreshedResult.isFailure) {
+                val ex = refreshedResult.exceptionOrNull()
+                logger.warn(ex) { "Universe refresh during active session failed: ${ex?.message}" }
+                continue
+            }
+            val refreshed = refreshedResult.getOrThrow()
+            if (refreshed.symbols != currentUniverse.symbols) {
+                activeUniverse = refreshed
+                logger.info {
+                    "Hyperliquid universe changed from ${currentUniverse.symbols.size} to ${refreshed.symbols.size} symbols; reconnecting stream"
+                }
+                source.close()
+                return
             }
         }
     }
@@ -355,6 +514,7 @@ class MarketDataIngestionRunner {
         statsJob?.cancel()
         ingestionJob?.cancel()
         flushJob?.cancel()
+        researchFeaturesJob?.cancel()
 
         // Flush remaining data
         runBlocking {
@@ -366,7 +526,7 @@ class MarketDataIngestionRunner {
                     logger.error(e) { "Failed to flush pending data during shutdown: ${e.message}" }
                 }
             }
-            if (::source.isInitialized) {
+            activeSource?.let { source ->
                 try {
                     source.close()
                 } catch (e: Exception) {
@@ -378,6 +538,13 @@ class MarketDataIngestionRunner {
                     candleBackfillClient.close()
                 } catch (e: Exception) {
                     logger.warn(e) { "Failed to close Hyperliquid candle backfill client cleanly: ${e.message}" }
+                }
+            }
+            if (::universeResolver.isInitialized) {
+                try {
+                    universeResolver.close()
+                } catch (e: Exception) {
+                    logger.warn(e) { "Failed to close Hyperliquid universe resolver cleanly: ${e.message}" }
                 }
             }
         }
@@ -404,12 +571,15 @@ class MarketDataIngestionRunner {
         }
     }
 
-    private suspend fun repairRecentCandleHistory(continuityWatchdog: HyperliquidContinuityWatchdog) {
+    private suspend fun repairRecentCandleHistory(
+        sessionSymbols: List<String>,
+        continuityWatchdog: HyperliquidContinuityWatchdog
+    ) {
         val sessionStart = java.time.Instant.now()
         var fetchedCandles = 0
         var repairedStreams = 0
 
-        for (symbol in symbols) {
+        for (symbol in sessionSymbols) {
             for (interval in candleIntervals) {
                 try {
                     val candles = candleBackfillClient.fetchRecentCandles(

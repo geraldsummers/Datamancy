@@ -20,6 +20,7 @@ import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.LinkedHashMap
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
@@ -322,8 +323,8 @@ data class CrossSectionalSearchConfig(
     val trendHoldBars: List<Int> = listOf(2, 3, 4, 6, 9),
     val reversionHoldBars: List<Int> = listOf(1, 2, 3, 4, 6),
     val topPerSide: List<Int> = listOf(1, 2, 3),
-    val maxSymbols: List<Int> = listOf(8, 12, 16, 24, 36),
-    val discoveryMaxSymbols: List<Int> = listOf(0, 24, 48, 96),
+    val maxSymbols: List<Int> = listOf(8, 12, 16, 24, 36, 48, 72),
+    val discoveryMaxSymbols: List<Int> = listOf(0, 48, 96, 192),
     val trendEntryScore: List<Double> = listOf(0.8, 1.0, 1.2, 1.4, 1.6),
     val reversionZEntry: List<Double> = listOf(1.5, 1.8, 2.15, 2.4, 2.8),
     val reversionZExit: List<Double> = listOf(0.25, 0.45, 0.65, 0.85, 1.05),
@@ -344,9 +345,9 @@ data class CrossSectionalSearchConfig(
     val minCalibrationWinRate: List<Double> = listOf(0.5, 0.52, 0.55, 0.58),
     val trendCooldownBars: List<Int> = listOf(0, 2, 4, 8),
     val reversionCooldownBars: List<Int> = listOf(0, 1, 2, 4),
-    val maxConcurrentPositions: List<Int> = listOf(4, 6, 8, 12),
-    val maxConcurrentLongs: List<Int> = listOf(2, 3, 4, 6),
-    val maxConcurrentShorts: List<Int> = listOf(2, 3, 4, 6),
+    val maxConcurrentPositions: List<Int> = listOf(4, 6, 8, 12, 16),
+    val maxConcurrentLongs: List<Int> = listOf(2, 3, 4, 6, 8),
+    val maxConcurrentShorts: List<Int> = listOf(2, 3, 4, 6, 8),
     val maxNetExposureFraction: List<Double> = listOf(0.25, 0.4, 0.5, 0.75),
     val maxPortfolioBetaBtcAbs: List<Double> = listOf(0.35, 0.5, 0.65, 0.9),
     val maxPortfolioBetaEthAbs: List<Double> = listOf(0.35, 0.5, 0.65, 0.9)
@@ -874,7 +875,239 @@ fun selectResearchCandleSource(barMinutes: Int): CandleSource =
 fun scaleRequiredSourceBars(minBars: Int, sourceMinutes: Int): Int =
     max(1, ceil(minBars.toDouble() / max(sourceMinutes, 1).toDouble()).toInt())
 
+private data class TimedCacheEntry<T>(
+    val loadedAt: Instant,
+    val value: T
+)
+
+private class TimedLruCache<K, V>(private val maxEntries: Int) {
+    private val entries = object : LinkedHashMap<K, TimedCacheEntry<V>>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, TimedCacheEntry<V>>?): Boolean =
+            size > maxEntries
+    }
+
+    fun get(key: K, ttl: Duration, now: Instant = Instant.now()): V? = synchronized(this) {
+        val entry = entries[key] ?: return null
+        if (Duration.between(entry.loadedAt, now) > ttl) {
+            entries.remove(key)
+            return null
+        }
+        entry.value
+    }
+
+    fun put(key: K, value: V, now: Instant = Instant.now()) = synchronized(this) {
+        entries[key] = TimedCacheEntry(loadedAt = now, value = value)
+    }
+}
+
+private val researchFeatureQueryCacheTtl: Duration =
+    Duration.ofSeconds(envInt("DATAMANCY_CROSS_SECTIONAL_FEATURE_CACHE_TTL_SECONDS", 60).toLong())
+private val researchFeatureLiquidityCache = TimedLruCache<String, List<SymbolLiquiditySnapshot>>(
+    envInt("DATAMANCY_CROSS_SECTIONAL_FEATURE_CACHE_MAX_ENTRIES", 24)
+)
+private val researchFeatureBarCache = TimedLruCache<String, List<Bar>>(
+    envInt("DATAMANCY_CROSS_SECTIONAL_FEATURE_CACHE_MAX_ENTRIES", 24)
+)
+
+private fun featureCacheKey(
+    prefix: String,
+    aliases: List<String>,
+    symbols: List<String>,
+    lookbackHours: Int,
+    barMinutes: Int
+): String = buildString {
+    append(prefix)
+    append('|')
+    append(aliases.sorted().joinToString(","))
+    append('|')
+    append(symbols.sorted().joinToString(","))
+    append('|')
+    append(lookbackHours)
+    append('|')
+    append(barMinutes)
+}
+
+private fun queryDiscoveredSymbolLiquidityFromFeatures(
+    aliases: List<String>,
+    symbols: List<String>,
+    lookbackHours: Int,
+    source: CandleSource,
+    scaledMinBars: Int
+): List<SymbolLiquiditySnapshot> {
+    if (symbols.isEmpty()) return emptyList()
+    val cacheKey = featureCacheKey(
+        prefix = "feature-liquidity",
+        aliases = aliases,
+        symbols = symbols,
+        lookbackHours = lookbackHours,
+        barMinutes = source.minutes
+    )
+    researchFeatureLiquidityCache.get(cacheKey, researchFeatureQueryCacheTtl)?.let { return it }
+
+    val aliasSql = sqlList(aliases)
+    val symbolSql = sqlList(symbols)
+    val preferredAlias = aliases.firstOrNull().orEmpty()
+    val bucketSeconds = max(source.minutes, 1) * 60
+    val sql = """
+        WITH minute_rows AS (
+            SELECT DISTINCT ON (symbol, time)
+                symbol,
+                time,
+                COALESCE(volume, 0) AS volume
+            FROM research_features_1m
+            WHERE exchange IN ($aliasSql)
+              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND symbol IN ($symbolSql)
+              AND candle_observed
+            ORDER BY
+                symbol,
+                time,
+                CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END
+        ),
+        bucketed AS (
+            SELECT
+                symbol,
+                to_timestamp(floor(extract(epoch from time) / $bucketSeconds) * $bucketSeconds) AS bucket_time,
+                volume
+            FROM minute_rows
+        ),
+        aggregated AS (
+            SELECT
+                symbol,
+                bucket_time,
+                SUM(volume) AS bucket_volume
+            FROM bucketed
+            GROUP BY symbol, bucket_time
+        )
+        SELECT
+            symbol,
+            COUNT(*) AS bars,
+            COALESCE(AVG(bucket_volume), 0) AS avg_volume
+        FROM aggregated
+        GROUP BY symbol
+        HAVING COUNT(*) >= $scaledMinBars
+        ORDER BY bars DESC, avg_volume DESC, symbol ASC
+    """.trimIndent()
+
+    val result = runCatching {
+        buildList {
+            pgConnection().use { conn ->
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.executeQuery().use { rs ->
+                        while (rs.next()) {
+                            add(
+                                SymbolLiquiditySnapshot(
+                                    symbol = rs.getString("symbol"),
+                                    bars = rs.getInt("bars"),
+                                    avgVolume = rs.getDouble("avg_volume")
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }.getOrElse { emptyList() }
+
+    if (result.isNotEmpty()) {
+        researchFeatureLiquidityCache.put(cacheKey, result)
+    }
+    return result
+}
+
+private fun discoverSymbolsByAggregateFromFeatures(
+    aliases: List<String>,
+    lookbackHours: Int,
+    maxSymbols: Int,
+    minBars: Int,
+    barMinutes: Int
+): List<String> {
+    val source = selectResearchCandleSource(barMinutes)
+    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes)
+    val aliasSql = sqlList(aliases)
+    val preferredAlias = aliases.firstOrNull().orEmpty()
+    val bucketSeconds = max(source.minutes, 1) * 60
+    val sql = """
+        WITH minute_rows AS (
+            SELECT DISTINCT ON (symbol, time)
+                symbol,
+                time,
+                COALESCE(volume, 0) AS volume
+            FROM research_features_1m
+            WHERE exchange IN ($aliasSql)
+              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND candle_observed
+            ORDER BY
+                symbol,
+                time,
+                CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END
+        ),
+        bucketed AS (
+            SELECT
+                symbol,
+                to_timestamp(floor(extract(epoch from time) / $bucketSeconds) * $bucketSeconds) AS bucket_time,
+                volume
+            FROM minute_rows
+        ),
+        aggregated AS (
+            SELECT
+                symbol,
+                bucket_time,
+                SUM(volume) AS bucket_volume
+            FROM bucketed
+            GROUP BY symbol, bucket_time
+        )
+        SELECT
+            symbol,
+            COUNT(*) AS bars,
+            COALESCE(AVG(bucket_volume), 0) AS avg_volume
+        FROM aggregated
+        GROUP BY symbol
+        HAVING COUNT(*) >= $scaledMinBars
+        ORDER BY bars DESC, avg_volume DESC, symbol ASC
+        ${if (maxSymbols > 0) "LIMIT $maxSymbols" else ""}
+    """.trimIndent()
+
+    return runCatching {
+        buildList {
+            pgConnection().use { conn ->
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.executeQuery().use { rs ->
+                        while (rs.next()) {
+                            add(rs.getString("symbol"))
+                        }
+                    }
+                }
+            }
+        }
+    }.getOrElse { emptyList() }
+}
+
 fun queryDiscoveredSymbolLiquidity(
+    aliases: List<String>,
+    symbols: List<String>,
+    lookbackHours: Int,
+    source: CandleSource,
+    scaledMinBars: Int
+): List<SymbolLiquiditySnapshot> {
+    queryDiscoveredSymbolLiquidityFromFeatures(
+        aliases = aliases,
+        symbols = symbols,
+        lookbackHours = lookbackHours,
+        source = source,
+        scaledMinBars = scaledMinBars
+    ).takeIf { it.isNotEmpty() }?.let { return it }
+
+    return queryDiscoveredSymbolLiquidityRaw(
+        aliases = aliases,
+        symbols = symbols,
+        lookbackHours = lookbackHours,
+        source = source,
+        scaledMinBars = scaledMinBars
+    )
+}
+
+private fun queryDiscoveredSymbolLiquidityRaw(
     aliases: List<String>,
     symbols: List<String>,
     lookbackHours: Int,
@@ -964,6 +1197,30 @@ fun discoverSymbolsFromMarketCatalog(
 }
 
 fun discoverSymbolsByAggregate(
+    aliases: List<String>,
+    lookbackHours: Int,
+    maxSymbols: Int,
+    minBars: Int,
+    barMinutes: Int
+): List<String> {
+    discoverSymbolsByAggregateFromFeatures(
+        aliases = aliases,
+        lookbackHours = lookbackHours,
+        maxSymbols = maxSymbols,
+        minBars = minBars,
+        barMinutes = barMinutes
+    ).takeIf { it.isNotEmpty() }?.let { return it }
+
+    return discoverSymbolsByAggregateRaw(
+        aliases = aliases,
+        lookbackHours = lookbackHours,
+        maxSymbols = maxSymbols,
+        minBars = minBars,
+        barMinutes = barMinutes
+    )
+}
+
+private fun discoverSymbolsByAggregateRaw(
     aliases: List<String>,
     lookbackHours: Int,
     maxSymbols: Int,
@@ -1233,6 +1490,170 @@ internal fun buildUniverseProfiles(
 }
 
 fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, lookbackHours: Int, barMinutes: Int): List<Bar> {
+    queryBarsFromFeatures(
+        exchange = exchange,
+        aliases = aliases,
+        symbols = symbols,
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes
+    ).takeIf { it.isNotEmpty() }?.let { return it }
+
+    return loadBarsRaw(
+        exchange = exchange,
+        aliases = aliases,
+        symbols = symbols,
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes
+    )
+}
+
+private fun queryBarsFromFeatures(
+    exchange: String,
+    aliases: List<String>,
+    symbols: List<String>,
+    lookbackHours: Int,
+    barMinutes: Int
+): List<Bar> {
+    if (symbols.isEmpty()) return emptyList()
+    val cacheKey = featureCacheKey(
+        prefix = "feature-bars:$exchange",
+        aliases = aliases,
+        symbols = symbols,
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes
+    )
+    researchFeatureBarCache.get(cacheKey, researchFeatureQueryCacheTtl)?.let { return it }
+
+    val aliasSql = sqlList(aliases)
+    val symbolSql = sqlList(symbols)
+    val preferredAlias = aliases.first()
+    val bucketSeconds = max(barMinutes, 1) * 60
+    val sql = """
+        WITH minute_rows AS (
+            SELECT DISTINCT ON (symbol, time)
+                symbol,
+                time,
+                close,
+                COALESCE(volume, 0) AS volume,
+                COALESCE(spread_pct, 0) AS spread_pct,
+                COALESCE(bid_depth_10, 0) AS bid_depth_10,
+                COALESCE(ask_depth_10, 0) AS ask_depth_10,
+                COALESCE(NULLIF(mid_price, 0), close) AS mid_price,
+                orderbook_observed,
+                exchange
+            FROM research_features_1m
+            WHERE exchange IN ($aliasSql)
+              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND symbol IN ($symbolSql)
+              AND candle_observed
+            ORDER BY
+                symbol,
+                time,
+                CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END
+        ),
+        bucketed AS (
+            SELECT
+                symbol,
+                to_timestamp(floor(extract(epoch from time) / $bucketSeconds) * $bucketSeconds) AS bucket_time,
+                time,
+                close,
+                volume,
+                spread_pct,
+                bid_depth_10,
+                ask_depth_10,
+                mid_price,
+                orderbook_observed
+            FROM minute_rows
+        ),
+        bucket_volume AS (
+            SELECT
+                symbol,
+                bucket_time,
+                SUM(volume) AS volume
+            FROM bucketed
+            GROUP BY symbol, bucket_time
+        ),
+        bucket_close AS (
+            SELECT DISTINCT ON (symbol, bucket_time)
+                symbol,
+                bucket_time,
+                close
+            FROM bucketed
+            ORDER BY symbol, bucket_time, time DESC
+        ),
+        bucket_orderbook AS (
+            SELECT DISTINCT ON (symbol, bucket_time)
+                symbol,
+                bucket_time,
+                spread_pct,
+                bid_depth_10,
+                ask_depth_10,
+                mid_price,
+                orderbook_observed
+            FROM bucketed
+            WHERE orderbook_observed
+            ORDER BY symbol, bucket_time, time DESC
+        )
+        SELECT
+            c.symbol,
+            c.bucket_time,
+            c.close,
+            v.volume,
+            COALESCE(o.spread_pct, 0) AS spread_pct,
+            COALESCE(o.bid_depth_10, 0) AS bid_depth_10,
+            COALESCE(o.ask_depth_10, 0) AS ask_depth_10,
+            COALESCE(o.mid_price, c.close) AS mid_price,
+            CASE WHEN o.symbol IS NULL THEN FALSE ELSE TRUE END AS execution_observed
+        FROM bucket_close c
+        JOIN bucket_volume v
+          ON v.symbol = c.symbol
+         AND v.bucket_time = c.bucket_time
+        LEFT JOIN bucket_orderbook o
+          ON o.symbol = c.symbol
+         AND o.bucket_time = c.bucket_time
+        ORDER BY c.bucket_time ASC, c.symbol ASC
+    """.trimIndent()
+
+    val result = runCatching {
+        buildList {
+            pgConnection().use { conn ->
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.executeQuery().use { rs ->
+                        while (rs.next()) {
+                            add(
+                                Bar(
+                                    exchange = exchange,
+                                    symbol = rs.getString("symbol"),
+                                    time = rs.getTimestamp("bucket_time").toInstant(),
+                                    close = rs.getDouble("close"),
+                                    volume = rs.getDouble("volume"),
+                                    spreadPct = rs.getDouble("spread_pct"),
+                                    bidDepth10 = rs.getDouble("bid_depth_10"),
+                                    askDepth10 = rs.getDouble("ask_depth_10"),
+                                    midPrice = rs.getDouble("mid_price"),
+                                    executionObserved = rs.getBoolean("execution_observed")
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }.getOrElse { emptyList() }
+
+    if (result.isNotEmpty()) {
+        researchFeatureBarCache.put(cacheKey, result)
+    }
+    return result
+}
+
+private fun loadBarsRaw(
+    exchange: String,
+    aliases: List<String>,
+    symbols: List<String>,
+    lookbackHours: Int,
+    barMinutes: Int
+): List<Bar> {
     if (symbols.isEmpty()) return emptyList()
     val aliasSql = sqlList(aliases)
     val symbolSql = sqlList(symbols)

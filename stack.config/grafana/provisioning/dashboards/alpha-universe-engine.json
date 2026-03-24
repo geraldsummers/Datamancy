@@ -1,0 +1,501 @@
+{
+  "uid": "alpha-universe-engine",
+  "title": "Alpha Universe Engine",
+  "tags": [
+    "trading",
+    "alpha",
+    "research",
+    "universe"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-14d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "engine_exchange",
+        "type": "query",
+        "label": "Exchange",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM research_features_1m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
+        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM research_features_1m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "__all",
+          "value": "__all"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "engine_strategy",
+        "type": "query",
+        "label": "Strategy",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT strategy_name AS __text, strategy_name AS __value FROM (SELECT DISTINCT strategy_name FROM strategy_universe_profiles UNION SELECT DISTINCT strategy_name FROM strategy_portfolio_profiles UNION SELECT DISTINCT strategy_name FROM strategy_backtest_runs) strategies ORDER BY 1",
+        "definition": "SELECT strategy_name AS __text, strategy_name AS __value FROM (SELECT DISTINCT strategy_name FROM strategy_universe_profiles UNION SELECT DISTINCT strategy_name FROM strategy_portfolio_profiles UNION SELECT DISTINCT strategy_name FROM strategy_backtest_runs) strategies ORDER BY 1",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "cross_section_beta_trend_v1",
+          "value": "cross_section_beta_trend_v1"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "engine_stage",
+        "type": "query",
+        "label": "Stage",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT stage AS __text, stage AS __value FROM (SELECT DISTINCT stage FROM strategy_portfolio_profiles WHERE strategy_name = '${engine_strategy}') stages ORDER BY 1",
+        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT stage AS __text, stage AS __value FROM (SELECT DISTINCT stage FROM strategy_portfolio_profiles WHERE strategy_name = '${engine_strategy}') stages ORDER BY 1",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "__all",
+          "value": "__all"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Universe Symbols 24h",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT symbol) AS value FROM research_features_1m WHERE time >= NOW() - INTERVAL '24 hours' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 24 },
+              { "color": "green", "value": 64 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "Feature Freshness",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(time))), 0) AS value FROM research_features_1m WHERE ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 120 },
+              { "color": "red", "value": 600 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "Orderbook Coverage 24h",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(COALESCE(AVG(CASE WHEN orderbook_observed THEN 1 ELSE 0 END) * 100, 0), 2) AS value FROM research_features_1m WHERE time >= NOW() - INTERVAL '24 hours' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.35 },
+              { "color": "green", "value": 0.7 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "Latest Selected Universe",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT MAX(run_at) AS run_at FROM strategy_universe_profiles WHERE strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') AND $__timeFilter(run_at)) SELECT COALESCE(SUM(selected_symbols), 0) AS value FROM strategy_universe_profiles u JOIN latest l ON u.run_at = l.run_at WHERE strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR u.exchange = '${engine_exchange}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 4 },
+              { "color": "green", "value": 12 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Minute Feature Rows",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 hour', time) AS \"time\", COUNT(*) AS \"Minute Feature Rows\" FROM research_features_1m WHERE $__timeFilter(time) AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 18,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 4 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Universe Coverage",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 hour', time) AS \"time\", COUNT(DISTINCT symbol) AS \"Symbols With Features\" FROM research_features_1m WHERE $__timeFilter(time) AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 hour', time) AS \"time\", AVG(CASE WHEN orderbook_observed THEN 100 ELSE 0 END) AS \"Orderbook Coverage %\" FROM research_features_1m WHERE $__timeFilter(time) AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Orderbook Coverage %" },
+            "properties": [
+              { "id": "unit", "value": "percent" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 4 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Selection And Tradability",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 hour', run_at) AS \"time\", MAX(candidate_symbols) AS \"Candidate Scan\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 hour', run_at) AS \"time\", MAX(selected_symbols) AS \"Selected Universe\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 hour', run_at) AS \"time\", AVG(selected_avg_tradable_ratio) * 100 AS \"Selected Tradable %\" FROM strategy_universe_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Selected Tradable %" },
+            "properties": [
+              { "id": "unit", "value": "percent" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 4 }
+    },
+    {
+      "type": "bargauge",
+      "title": "Latest Liquidity Bucket Mix",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT MAX(run_at) AS run_at FROM strategy_universe_profiles WHERE strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') AND $__timeFilter(run_at)) SELECT * FROM (SELECT 'deep' AS bucket, COALESCE(SUM(deep_liquidity_symbols), 0) AS value FROM strategy_universe_profiles u JOIN latest l ON u.run_at = l.run_at WHERE strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR u.exchange = '${engine_exchange}') UNION ALL SELECT 'core' AS bucket, COALESCE(SUM(core_liquidity_symbols), 0) AS value FROM strategy_universe_profiles u JOIN latest l ON u.run_at = l.run_at WHERE strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR u.exchange = '${engine_exchange}') UNION ALL SELECT 'tradable' AS bucket, COALESCE(SUM(tradable_liquidity_symbols), 0) AS value FROM strategy_universe_profiles u JOIN latest l ON u.run_at = l.run_at WHERE strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR u.exchange = '${engine_exchange}') UNION ALL SELECT 'fragile' AS bucket, COALESCE(SUM(fragile_liquidity_symbols), 0) AS value FROM strategy_universe_profiles u JOIN latest l ON u.run_at = l.run_at WHERE strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR u.exchange = '${engine_exchange}')) buckets ORDER BY bucket"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "continuous-GrYlRd" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": "/value/"
+        },
+        "showUnfilled": true,
+        "text": {}
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 12 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Portfolio Accepts And Rejects",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 hour', run_at) AS \"time\", SUM(accepted_entries) AS \"Accepted Entries\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 hour', run_at) AS \"time\", SUM(rejected_gross_limit + rejected_long_limit + rejected_short_limit + rejected_net_limit + rejected_beta_limit + rejected_open_symbol) AS \"Constraint Rejects\" FROM strategy_portfolio_profiles WHERE $__timeFilter(run_at) AND strategy_name = '${engine_strategy}' AND ('${engine_stage}' = '__all' OR stage = '${engine_stage}') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 12 }
+    },
+    {
+      "type": "table",
+      "title": "Latest Universe Snapshot",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT MAX(run_at) AS run_at FROM strategy_universe_profiles WHERE strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') AND $__timeFilter(run_at)) SELECT exchange, candidate_symbols, selected_symbols, ROUND(selected_avg_tradable_ratio * 100, 2) AS selected_tradable_pct, ROUND(selected_avg_spread_bps::numeric, 2) AS selected_spread_bps, ROUND(selected_avg_depth_usd::numeric, 2) AS selected_depth_usd, metadata -> 'top_candidates' AS top_candidates, metadata -> 'selected_universe' AS selected_universe FROM strategy_universe_profiles u JOIN latest l ON u.run_at = l.run_at WHERE strategy_name = '${engine_strategy}' AND ('${engine_exchange}' = '__all' OR u.exchange = '${engine_exchange}') ORDER BY exchange"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "exchange",
+            "desc": false
+          }
+        ]
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 12 }
+    }
+  ]
+}
