@@ -141,3 +141,4 @@ Final report to operator:
 - what failed and why
 - backtest vs forward vs paper drift
 - what should be promoted, held, or killed
+- explain how alpha discovery works
