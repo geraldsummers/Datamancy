@@ -1094,7 +1094,7 @@ class MarketDataIngestionRunner {
               AND latest_support_time >= ?
               AND (
                     latest_candle_time IS NULL OR
-                    latest_candle_time < latest_support_time OR
+                    latest_candle_time < (date_trunc('minute', latest_support_time) - interval '1 minute') OR
                     latest_candle_time < ?
                 )
             ORDER BY
