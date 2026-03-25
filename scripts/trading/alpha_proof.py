@@ -222,107 +222,66 @@ def resolve_exchange_aliases(exchange: str) -> list[str]:
 
 def build_query(exchange_aliases: Sequence[str], use_trade_flow: bool) -> str:
     aliases = ", ".join(sql_quote(alias) for alias in exchange_aliases)
-    trade_flow_cte = f"""
-,trade_flow AS (
-    SELECT
-        date_trunc('minute', time) AS minute,
-        SUM(CASE WHEN lower(side) = 'buy' THEN COALESCE(size, 0) ELSE 0 END) AS buy_volume,
-        SUM(CASE WHEN lower(side) = 'sell' THEN COALESCE(size, 0) ELSE 0 END) AS sell_volume,
-        COUNT(*) AS trade_count
-    FROM market_data
-    WHERE exchange IN ({aliases})
-      AND symbol = %(symbol)s
-      AND data_type = 'trade'
-      AND time >= NOW() - CAST(%(lookback)s AS interval)
-    GROUP BY 1
-)
-""" if use_trade_flow else ""
-    orderbook_cte = f"""
-,orderbook AS (
-    SELECT DISTINCT ON (minute)
-        minute,
-        spread_pct,
-        bid_depth_10,
-        ask_depth_10,
-        mid_price,
-        best_bid,
-        best_ask
-    FROM (
-        SELECT
-            date_trunc('minute', time) AS minute,
-            spread_pct,
-            bid_depth_10,
-            ask_depth_10,
-            mid_price,
-            best_bid,
-            best_ask,
-            time
-        FROM orderbook_data
-        WHERE exchange IN ({aliases})
-          AND symbol = %(symbol)s
-          AND time >= NOW() - CAST(%(lookback)s AS interval)
-    ) snapshots
-    ORDER BY minute, time DESC
-)
-"""
-    funding_cte = f"""
-,funding AS (
-    SELECT time, funding_rate
-    FROM market_data
-    WHERE exchange IN ({aliases})
-      AND symbol = %(symbol)s
-      AND data_type = 'funding'
-      AND time >= NOW() - CAST(%(lookback)s AS interval) - INTERVAL '1 hour'
-)
-"""
     trade_flow_select = (
-        "COALESCE(t.buy_volume, 0) AS buy_volume,\n"
-        "    COALESCE(t.sell_volume, 0) AS sell_volume,\n"
-        "    COALESCE(t.trade_count, 0) AS trade_count,"
+        "COALESCE(f.buy_volume, 0) AS buy_volume,\n"
+        "    COALESCE(f.sell_volume, 0) AS sell_volume,\n"
+        "    COALESCE(f.trade_count, 0) AS trade_count,"
         if use_trade_flow else
         "0.0 AS buy_volume,\n"
         "    0.0 AS sell_volume,\n"
         "    0 AS trade_count,"
     )
-    trade_flow_join = "LEFT JOIN trade_flow t\n  ON t.minute = c.time\n" if use_trade_flow else ""
     return f"""
-WITH candles AS (
-    SELECT time, open, high, low, close, volume
-    FROM market_data
+WITH features AS (
+    SELECT
+        time,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        buy_volume,
+        sell_volume,
+        trade_count,
+        spread_pct,
+        bid_depth_10,
+        ask_depth_10,
+        mid_price,
+        best_bid,
+        best_ask,
+        funding_rate,
+        candle_observed,
+        trade_observed,
+        orderbook_observed,
+        is_finalized,
+        source_updated_at
+    FROM research_features_1m
     WHERE exchange IN ({aliases})
       AND symbol = %(symbol)s
-      AND data_type = 'candle_1m'
       AND time >= NOW() - CAST(%(lookback)s AS interval)
+      AND candle_observed
 )
-{trade_flow_cte}
-{orderbook_cte}
-{funding_cte}
 SELECT
-    c.time,
-    c.open,
-    c.high,
-    c.low,
-    c.close,
-    c.volume,
+    f.time,
+    f.open,
+    f.high,
+    f.low,
+    f.close,
+    f.volume,
     {trade_flow_select}
-    o.spread_pct,
-    o.bid_depth_10,
-    o.ask_depth_10,
-    o.mid_price,
-    o.best_bid,
-    o.best_ask,
-    COALESCE(f.funding_rate, 0.0) AS funding_rate
-FROM candles c
-{trade_flow_join}LEFT JOIN orderbook o
-  ON o.minute = c.time
-LEFT JOIN LATERAL (
-    SELECT funding_rate
-    FROM funding f
-    WHERE f.time <= c.time
-    ORDER BY f.time DESC
-    LIMIT 1
-) f ON TRUE
-ORDER BY c.time ASC
+    f.spread_pct,
+    f.bid_depth_10,
+    f.ask_depth_10,
+    f.mid_price,
+    f.best_bid,
+    f.best_ask,
+    COALESCE(f.funding_rate, 0.0) AS funding_rate,
+    f.trade_observed,
+    f.orderbook_observed,
+    f.is_finalized,
+    f.source_updated_at
+FROM features f
+ORDER BY f.time ASC
 """
 
 
