@@ -24,6 +24,7 @@ internal const val HYPERLIQUID_TESTNET_WS_URL = "wss://api.hyperliquid-testnet.x
 internal const val DEFAULT_HYPERLIQUID_IDLE_TIMEOUT_MS = 120_000L
 internal const val MIN_HYPERLIQUID_IDLE_TIMEOUT_MS = 5_000L
 internal const val DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_GUARD_MS = 120_000L
+internal const val DEFAULT_HYPERLIQUID_INITIAL_RECENT_REPAIR_BATCH_STREAMS = 24
 
 internal fun determineCandleRepairPermits(
     streamCount: Int,
@@ -63,6 +64,7 @@ internal data class RawCandleCoverageState(
 
 internal data class RawCandleRecoveryPlannerState(
     val initialRecentRepairPending: Boolean = true,
+    val initialRecentRepairCursor: Int = 0,
     val initialRecentRepairCompletedAt: java.time.Instant? = null
 )
 
@@ -1147,6 +1149,7 @@ class MarketDataIngestionRunner {
         continuityWatchdog: HyperliquidContinuityWatchdog
     ) {
         val repairIntervalMs = hyperliquidFreshnessCheckIntervalMs.coerceAtLeast(30_000L)
+        val initialRepairSymbols = prioritizeRecentRepairSymbols(sessionSymbols)
         var plannerState = RawCandleRecoveryPlannerState(initialRecentRepairPending = true)
         if (sessionSymbols.isEmpty()) {
             continuityWatchdog.markInitialCandleRepairComplete()
@@ -1158,7 +1161,10 @@ class MarketDataIngestionRunner {
 
         while (currentCoroutineContext().isActive) {
             val initialStreams = if (plannerState.initialRecentRepairPending) {
-                prioritizeRecentRepairSymbols(sessionSymbols).flatMap { symbol ->
+                initialRepairSymbols
+                    .drop(plannerState.initialRecentRepairCursor)
+                    .take(DEFAULT_HYPERLIQUID_INITIAL_RECENT_REPAIR_BATCH_STREAMS)
+                    .flatMap { symbol ->
                     candleIntervals.map { interval -> symbol to interval }
                 }
             } else {
@@ -1188,17 +1194,24 @@ class MarketDataIngestionRunner {
                 )
             ) {
                 is RawCandleRecoveryAction.InitialRecentRepair -> {
+                    val nextInitialCursor = plannerState.initialRecentRepairCursor + action.streams.size
+                    val initialRepairComplete = nextInitialCursor >= initialRepairSymbols.size
                     repairCandleStreams(
                         streams = action.streams,
                         continuityWatchdog = continuityWatchdog,
                         label = "Initial recent candle repair",
                         lookbackHours = DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS
                             .coerceAtMost(hyperliquidBackfillLookbackHours),
-                        markInitialRepairComplete = true
+                        markInitialRepairComplete = initialRepairComplete
                     )
                     plannerState = plannerState.copy(
-                        initialRecentRepairPending = false,
-                        initialRecentRepairCompletedAt = java.time.Instant.now()
+                        initialRecentRepairPending = !initialRepairComplete,
+                        initialRecentRepairCursor = nextInitialCursor,
+                        initialRecentRepairCompletedAt = if (initialRepairComplete) {
+                            java.time.Instant.now()
+                        } else {
+                            null
+                        }
                     )
                 }
                 is RawCandleRecoveryAction.TargetedRecentRepair -> {
