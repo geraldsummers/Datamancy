@@ -1,8 +1,12 @@
 package org.datamancy.pipeline.runners
 
+import java.sql.SQLException
+import java.sql.SQLTimeoutException
 import java.time.Instant
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ResearchFeatureAggregationTest {
     @Test
@@ -114,6 +118,58 @@ class ResearchFeatureAggregationTest {
         assertEquals(6L, recentGapRepairHours(1L))
         assertEquals(12L, recentGapRepairHours(12L))
         assertEquals(48L, recentGapRepairHours(336L))
+    }
+
+    @Test
+    fun `aggregation window minutes measure inclusive range width in minutes`() {
+        val window = AggregationWindow(
+            startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+            endExclusive = Instant.parse("2026-03-20T01:30:00Z")
+        )
+
+        assertEquals(90L, aggregationWindowMinutes(window))
+    }
+
+    @Test
+    fun `split aggregation window halves work newest-first`() {
+        val split = splitAggregationWindow(
+            window = AggregationWindow(
+                startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                endExclusive = Instant.parse("2026-03-20T01:00:00Z")
+            )
+        )
+
+        assertEquals(
+            listOf(
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:30:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T01:00:00Z")
+                ),
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:30:00Z")
+                )
+            ),
+            split
+        )
+    }
+
+    @Test
+    fun `minimum-sized aggregation window does not subdivide`() {
+        val window = AggregationWindow(
+            startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+            endExclusive = Instant.parse("2026-03-20T00:01:00Z")
+        )
+
+        assertFalse(canSubdivideAggregationWindow(window))
+        assertEquals(listOf(window), splitAggregationWindow(window))
+    }
+
+    @Test
+    fun `aggregation timeout detection catches jdbc timeout and postgres cancel state`() {
+        assertTrue(isAggregationQueryTimeout(SQLTimeoutException("timed out")))
+        assertTrue(isAggregationQueryTimeout(SQLException("cancelled", "57014")))
+        assertFalse(isAggregationQueryTimeout(SQLException("other", "23505")))
     }
 
     @Test

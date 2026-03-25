@@ -7,8 +7,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.sql.Connection
+import java.sql.SQLException
 import java.sql.Timestamp
 import java.time.Instant
+import java.time.temporal.ChronoUnit.MINUTES
 import java.time.temporal.ChronoUnit
 import javax.sql.DataSource
 import kotlin.coroutines.coroutineContext
@@ -27,6 +29,9 @@ internal const val DEFAULT_RESEARCH_FEATURES_HISTORICAL_CATCHUP_WINDOWS_PER_CYCL
 internal const val DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE = 4
 internal const val DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES = 5L
 internal const val DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS = 48L
+internal const val DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 30
+internal const val MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 5
+internal const val DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES = 1L
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -111,6 +116,53 @@ internal fun startupRefreshWindowMinutes(refreshOverlapMinutes: Long): Long {
 internal fun recentGapRepairHours(bootstrapHours: Long): Long =
     bootstrapHours.coerceAtMost(DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS).coerceAtLeast(6L)
 
+internal fun aggregationWindowMinutes(window: AggregationWindow): Long =
+    MINUTES.between(window.startInclusive, window.endExclusive)
+
+internal fun canSubdivideAggregationWindow(
+    window: AggregationWindow,
+    minimumWindowMinutes: Long = DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES
+): Boolean = aggregationWindowMinutes(window) > minimumWindowMinutes.coerceAtLeast(1L)
+
+internal fun splitAggregationWindow(
+    window: AggregationWindow,
+    minimumWindowMinutes: Long = DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES
+): List<AggregationWindow> {
+    val durationMinutes = aggregationWindowMinutes(window)
+    val minimumMinutes = minimumWindowMinutes.coerceAtLeast(1L)
+    if (durationMinutes <= minimumMinutes) {
+        return listOf(window)
+    }
+
+    val leftMinutes = maxOf(durationMinutes / 2, minimumMinutes)
+    val rightMinutes = durationMinutes - leftMinutes
+    if (rightMinutes <= 0) {
+        return listOf(window)
+    }
+
+    val splitPoint = window.startInclusive.plus(leftMinutes, MINUTES)
+    return prioritizeRecentAggregationWindows(
+        listOf(
+            AggregationWindow(window.startInclusive, splitPoint),
+            AggregationWindow(splitPoint, window.endExclusive)
+        )
+    )
+}
+
+internal fun isAggregationQueryTimeout(throwable: Throwable?): Boolean {
+    var current = throwable
+    while (current != null) {
+        if (current is java.sql.SQLTimeoutException) {
+            return true
+        }
+        if (current is SQLException && current.sqlState == "57014") {
+            return true
+        }
+        current = current.cause
+    }
+    return false
+}
+
 internal fun planRollingRecentGapRepairWindows(
     startInclusive: Instant,
     endExclusive: Instant,
@@ -154,7 +206,8 @@ internal class ResearchFeatureAggregator(
     private val refreshOverlapMinutes: Long,
     private val backfillChunkHours: Long,
     private val finalizationLagMinutes: Long,
-    private val featureStateStore: FeatureStateStore
+    private val featureStateStore: FeatureStateStore,
+    windowTimeoutSeconds: Int = DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
 ) {
     private val schemaLock = Any()
     @Volatile
@@ -163,6 +216,9 @@ internal class ResearchFeatureAggregator(
     private var bootstrapCompleted = false
     @Volatile
     private var recentGapRepairCursorExclusive: Instant? = null
+    private val effectiveWindowTimeoutSeconds = windowTimeoutSeconds.coerceAtLeast(
+        MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
+    )
 
     private val requiredColumns = listOf(
         "time",
@@ -295,22 +351,11 @@ internal class ResearchFeatureAggregator(
             val windows = prioritizeRecentAggregationWindows(
                 chunkAggregationWindows(start, now, backfillChunkHours)
             )
-            var totalRows = 0
-            windows.forEachIndexed { index, window ->
-                try {
-                    val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
-                    featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
-                    conn.commit()
-                    totalRows += rows
-                    researchFeatureLogger.info {
-                        "research_features_1m bootstrap exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
-                            "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
-                    }
-                } catch (e: Exception) {
-                    conn.rollback()
-                    throw e
-                }
-            }
+            val (totalRows, _) = materializeWindows(
+                conn = conn,
+                phase = "bootstrap",
+                windows = windows
+            )
             researchFeatureLogger.info {
                 "research_features_1m bootstrap complete exchange=$exchangeId windows=${windows.size} totalRows=$totalRows"
             }
@@ -329,18 +374,12 @@ internal class ResearchFeatureAggregator(
             }
             val end = Instant.now().truncatedTo(ChronoUnit.MINUTES).plus(1, ChronoUnit.MINUTES)
             val start = end.minus(windowMinutes, ChronoUnit.MINUTES)
-            val updatedAt = Instant.now()
-            val rows = upsertWindow(conn, start, end)
-            val finalizedRows = finalizeDueRows(conn, finalizedAt = updatedAt)
-            if (finalizedRows > 0) {
-                featureStateStore.refresh(conn, null, null)
-            } else {
-                featureStateStore.refresh(conn, start, end)
-            }
-            conn.commit()
-            researchFeatureLogger.info {
-                "research_features_1m $phase exchange=$exchangeId window=$start..$end rows=$rows finalized=$finalizedRows"
-            }
+            materializeWindows(
+                conn = conn,
+                phase = phase,
+                windows = listOf(AggregationWindow(startInclusive = start, endExclusive = end)),
+                finalizeRows = true
+            )
         }
     }
 
@@ -381,22 +420,11 @@ internal class ResearchFeatureAggregator(
                 return@withContext
             }
 
-            var totalRows = 0
-            windows.forEachIndexed { index, window ->
-                try {
-                    val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
-                    featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
-                    conn.commit()
-                    totalRows += rows
-                    researchFeatureLogger.info {
-                        "research_features_1m historical_catchup exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
-                            "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
-                    }
-                } catch (e: Exception) {
-                    conn.rollback()
-                    throw e
-                }
-            }
+            val (totalRows, _) = materializeWindows(
+                conn = conn,
+                phase = "historical_catchup",
+                windows = windows
+            )
 
             researchFeatureLogger.info {
                 "research_features_1m historical_catchup complete exchange=$exchangeId " +
@@ -423,30 +451,12 @@ internal class ResearchFeatureAggregator(
                 return@withContext false
             }
 
-            val updatedAt = Instant.now()
-            var totalRows = 0
-            var totalFinalizedRows = 0
-            windows.forEachIndexed { index, window ->
-                try {
-                    val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
-                    val finalizedRows = finalizeDueRows(conn, finalizedAt = updatedAt)
-                    if (finalizedRows > 0) {
-                        featureStateStore.refresh(conn, null, null)
-                    } else {
-                        featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
-                    }
-                    conn.commit()
-                    totalRows += rows
-                    totalFinalizedRows += finalizedRows
-                    researchFeatureLogger.info {
-                        "research_features_1m gap_repair exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
-                            "window=${window.startInclusive}..${window.endExclusive} rows=$rows finalized=$finalizedRows"
-                    }
-                } catch (e: Exception) {
-                    conn.rollback()
-                    throw e
-                }
-            }
+            val (totalRows, totalFinalizedRows) = materializeWindows(
+                conn = conn,
+                phase = "gap_repair",
+                windows = windows,
+                finalizeRows = true
+            )
 
             recentGapRepairCursorExclusive = nextCursor
             researchFeatureLogger.info {
@@ -455,6 +465,70 @@ internal class ResearchFeatureAggregator(
             }
             return@withContext true
         }
+    }
+
+    private fun materializeWindows(
+        conn: Connection,
+        phase: String,
+        windows: List<AggregationWindow>,
+        finalizeRows: Boolean = false
+    ): Pair<Int, Int> {
+        if (windows.isEmpty()) {
+            return 0 to 0
+        }
+
+        val queue = ArrayDeque(windows)
+        var totalRows = 0
+        var totalFinalizedRows = 0
+
+        while (queue.isNotEmpty()) {
+            val window = queue.removeFirst()
+            val savepoint = conn.setSavepoint()
+            try {
+                val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                val finalizedRows = if (finalizeRows) {
+                    finalizeDueRows(conn, finalizedAt = Instant.now())
+                } else {
+                    0
+                }
+                if (finalizedRows > 0) {
+                    featureStateStore.refresh(conn, null, null)
+                } else {
+                    featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
+                }
+                conn.commit()
+                totalRows += rows
+                totalFinalizedRows += finalizedRows
+                researchFeatureLogger.info {
+                    "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                        "minutes=${aggregationWindowMinutes(window)} rows=$rows finalized=$finalizedRows"
+                }
+            } catch (e: Exception) {
+                conn.rollback(savepoint)
+                if (isAggregationQueryTimeout(e) && canSubdivideAggregationWindow(window)) {
+                    val splitWindows = splitAggregationWindow(window)
+                    researchFeatureLogger.warn(e) {
+                        "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                            "timed out after ${effectiveWindowTimeoutSeconds}s; subdividing into " +
+                            splitWindows.joinToString { "${it.startInclusive}..${it.endExclusive}" }
+                    }
+                    splitWindows.asReversed().forEach(queue::addFirst)
+                    continue
+                }
+                if (isAggregationQueryTimeout(e)) {
+                    researchFeatureLogger.error(e) {
+                        "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                            "timed out after ${effectiveWindowTimeoutSeconds}s at minimum granularity; skipping window"
+                    }
+                    conn.commit()
+                    continue
+                }
+                conn.rollback()
+                throw e
+            }
+        }
+
+        return totalRows to totalFinalizedRows
     }
 
     private fun ensureSchema(conn: Connection): Boolean {
@@ -734,6 +808,7 @@ internal class ResearchFeatureAggregator(
         """.trimIndent()
 
         conn.prepareStatement(sql).use { stmt ->
+            stmt.queryTimeout = effectiveWindowTimeoutSeconds
             bindWindow(stmt, 1, exchangeId, startInclusive, endExclusive)
             bindWindow(stmt, 4, exchangeId, startInclusive, endExclusive)
             bindWindow(stmt, 7, exchangeId, startInclusive, endExclusive)
