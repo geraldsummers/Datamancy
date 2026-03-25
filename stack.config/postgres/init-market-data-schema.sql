@@ -131,6 +131,10 @@ CREATE TABLE IF NOT EXISTS research_features_1m (
     trade_observed BOOLEAN NOT NULL DEFAULT FALSE,
     orderbook_observed BOOLEAN NOT NULL DEFAULT FALSE,
     asset_context_observed BOOLEAN NOT NULL DEFAULT FALSE,
+    is_provisional BOOLEAN NOT NULL DEFAULT TRUE,
+    is_finalized BOOLEAN NOT NULL DEFAULT FALSE,
+    finalization_due_at TIMESTAMPTZ,
+    finalized_at TIMESTAMPTZ,
     source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     PRIMARY KEY (time, symbol, exchange)
@@ -161,9 +165,80 @@ ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS candle_observed BOOLEA
 ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS trade_observed BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS orderbook_observed BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS asset_context_observed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS is_provisional BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS is_finalized BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS finalization_due_at TIMESTAMPTZ;
+ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS finalized_at TIMESTAMPTZ;
 -- Avoid non-constant defaults on repeated ALTER runs against a compressed hypertable.
 -- Fresh rows still populate this column from the aggregation pipeline.
 ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
+
+-- Persistent raw sync checkpoints per exchange/symbol/channel.
+CREATE TABLE IF NOT EXISTS raw_sync_state (
+    exchange TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    earliest_raw_time TIMESTAMPTZ,
+    latest_raw_time TIMESTAMPTZ,
+    last_observed_at TIMESTAMPTZ,
+    last_persisted_at TIMESTAMPTZ,
+    row_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (exchange, symbol, channel)
+);
+
+ALTER TABLE raw_sync_state ADD COLUMN IF NOT EXISTS earliest_raw_time TIMESTAMPTZ;
+ALTER TABLE raw_sync_state ADD COLUMN IF NOT EXISTS latest_raw_time TIMESTAMPTZ;
+ALTER TABLE raw_sync_state ADD COLUMN IF NOT EXISTS last_observed_at TIMESTAMPTZ;
+ALTER TABLE raw_sync_state ADD COLUMN IF NOT EXISTS last_persisted_at TIMESTAMPTZ;
+ALTER TABLE raw_sync_state ADD COLUMN IF NOT EXISTS row_count BIGINT NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS feature_materialization_state (
+    exchange TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    bar_size_minutes INTEGER NOT NULL,
+    earliest_feature_time TIMESTAMPTZ,
+    latest_feature_time TIMESTAMPTZ,
+    finalized_through TIMESTAMPTZ,
+    feature_rows BIGINT NOT NULL DEFAULT 0,
+    last_materialized_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (exchange, symbol, bar_size_minutes)
+);
+
+ALTER TABLE feature_materialization_state ADD COLUMN IF NOT EXISTS earliest_feature_time TIMESTAMPTZ;
+ALTER TABLE feature_materialization_state ADD COLUMN IF NOT EXISTS latest_feature_time TIMESTAMPTZ;
+ALTER TABLE feature_materialization_state ADD COLUMN IF NOT EXISTS finalized_through TIMESTAMPTZ;
+ALTER TABLE feature_materialization_state ADD COLUMN IF NOT EXISTS feature_rows BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE feature_materialization_state ADD COLUMN IF NOT EXISTS last_materialized_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS feature_coverage_state (
+    exchange TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    bar_size_minutes INTEGER NOT NULL,
+    earliest_raw_time TIMESTAMPTZ,
+    latest_raw_time TIMESTAMPTZ,
+    earliest_feature_time TIMESTAMPTZ,
+    latest_feature_time TIMESTAMPTZ,
+    finalized_through TIMESTAMPTZ,
+    expected_bars INTEGER NOT NULL DEFAULT 0,
+    observed_bars INTEGER NOT NULL DEFAULT 0,
+    finalized_bars INTEGER NOT NULL DEFAULT 0,
+    coverage_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    finalized_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    last_computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (exchange, symbol, bar_size_minutes)
+);
+
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS earliest_raw_time TIMESTAMPTZ;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS latest_raw_time TIMESTAMPTZ;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS earliest_feature_time TIMESTAMPTZ;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS latest_feature_time TIMESTAMPTZ;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS finalized_through TIMESTAMPTZ;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS expected_bars INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS observed_bars INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS finalized_bars INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS coverage_ratio DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS finalized_ratio DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE feature_coverage_state ADD COLUMN IF NOT EXISTS last_computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 -- Quantified RSS sentiment scores that can be correlated with market moves
 CREATE TABLE IF NOT EXISTS rss_sentiment_signals (
@@ -408,6 +483,9 @@ BEGIN
         ALTER TABLE IF EXISTS market_data OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS orderbook_data OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS research_features_1m OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS raw_sync_state OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS feature_materialization_state OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS feature_coverage_state OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS rss_sentiment_signals OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS strategy_backtest_runs OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS strategy_latency_metrics OWNER TO pipeline_user;
@@ -437,6 +515,9 @@ BEGIN
         GRANT SELECT, INSERT ON market_data TO test_runner_user;
         GRANT SELECT, INSERT ON orderbook_data TO test_runner_user;
         GRANT SELECT, INSERT ON research_features_1m TO test_runner_user;
+        GRANT SELECT, INSERT ON raw_sync_state TO test_runner_user;
+        GRANT SELECT, INSERT ON feature_materialization_state TO test_runner_user;
+        GRANT SELECT, INSERT ON feature_coverage_state TO test_runner_user;
         GRANT SELECT, INSERT ON rss_sentiment_signals TO test_runner_user;
         GRANT SELECT, INSERT ON strategy_backtest_runs TO test_runner_user;
         GRANT SELECT, INSERT ON strategy_latency_metrics TO test_runner_user;
@@ -452,6 +533,9 @@ BEGIN
         GRANT SELECT, INSERT, UPDATE ON market_data TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON orderbook_data TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON research_features_1m TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON raw_sync_state TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON feature_materialization_state TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON feature_coverage_state TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON rss_sentiment_signals TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON strategy_backtest_runs TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON strategy_latency_metrics TO pipeline_user;
@@ -505,6 +589,29 @@ CREATE INDEX IF NOT EXISTS idx_research_features_1m_symbol_exchange_time
     ON research_features_1m (symbol, exchange, time DESC)
     INCLUDE (close, volume, spread_pct, bid_depth_10, ask_depth_10, mid_price, candle_observed, orderbook_observed)
     WITH (timescaledb.transaction_per_chunk);
+
+CREATE INDEX IF NOT EXISTS idx_research_features_1m_exchange_finalized_time_symbol
+    ON research_features_1m (exchange, is_finalized, time DESC, symbol)
+    INCLUDE (candle_observed, orderbook_observed, source_updated_at)
+    WITH (timescaledb.transaction_per_chunk);
+
+CREATE INDEX IF NOT EXISTS idx_raw_sync_state_exchange_channel_symbol
+    ON raw_sync_state (exchange, channel, symbol);
+
+CREATE INDEX IF NOT EXISTS idx_raw_sync_state_exchange_channel_latest
+    ON raw_sync_state (exchange, channel, latest_raw_time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_feature_materialization_state_exchange_bar_symbol
+    ON feature_materialization_state (exchange, bar_size_minutes, symbol);
+
+CREATE INDEX IF NOT EXISTS idx_feature_materialization_state_exchange_bar_latest
+    ON feature_materialization_state (exchange, bar_size_minutes, latest_feature_time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_feature_coverage_state_exchange_bar_symbol
+    ON feature_coverage_state (exchange, bar_size_minutes, symbol);
+
+CREATE INDEX IF NOT EXISTS idx_feature_coverage_state_exchange_bar_ratio
+    ON feature_coverage_state (exchange, bar_size_minutes, coverage_ratio DESC, finalized_ratio DESC);
 
 -- Enable compression on hypertables (optional, for better storage efficiency)
 ALTER TABLE market_data SET (

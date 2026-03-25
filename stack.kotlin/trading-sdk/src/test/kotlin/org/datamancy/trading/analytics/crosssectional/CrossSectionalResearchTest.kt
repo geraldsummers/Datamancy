@@ -1015,6 +1015,47 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `selectResearchUniverseFromCandidates treats zero max symbols as unlimited`() {
+        val config = ResearchConfig(
+            maxSymbols = 0,
+            minBars = 6,
+            betaLookbackBars = 4,
+            trendSlowBars = 4,
+            reversionLookbackBars = 3,
+            persistBacktest = false,
+            persistForward = false
+        )
+
+        val selected = selectResearchUniverseFromCandidates(
+            candidates = listOf(
+                ResearchUniverseCandidate("hyperliquid", "BTC", 12, 6, 6, 6, 1.0, 1.0, 800_000.0, 5_000_000.0, 0.8),
+                ResearchUniverseCandidate("hyperliquid", "ETH", 12, 6, 6, 6, 1.0, 1.0, 600_000.0, 3_500_000.0, 1.0),
+                ResearchUniverseCandidate("hyperliquid", "SOL", 12, 6, 6, 6, 1.0, 1.0, 450_000.0, 2_400_000.0, 1.4),
+                ResearchUniverseCandidate("hyperliquid", "TAO", 11, 6, 6, 5, 0.83, 1.0, 300_000.0, 1_600_000.0, 1.8),
+                ResearchUniverseCandidate("hyperliquid", "APT", 10, 6, 6, 4, 0.67, 1.0, 240_000.0, 1_200_000.0, 2.2)
+            ),
+            config = config
+        ).getValue("hyperliquid")
+
+        assertEquals(5, selected.size)
+        assertTrue(selected.containsAll(listOf("BTC", "ETH", "SOL", "TAO", "APT")))
+    }
+
+    @Test
+    fun `isValidResearchConfig accepts zero max symbols for full-universe scans`() {
+        assertTrue(
+            isValidResearchConfig(
+                ResearchConfig(
+                    maxSymbols = 0,
+                    discoveryMaxSymbols = 0,
+                    persistBacktest = false,
+                    persistForward = false
+                )
+            )
+        )
+    }
+
+    @Test
     fun `buildUniverseProfiles captures candidate versus selected breadth`() {
         val config = ResearchConfig(
             barMinutes = 240,

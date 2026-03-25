@@ -29,6 +29,7 @@ import org.datamancy.trading.analytics.crosssectional.UniverseLiquidityBucketSna
 import org.datamancy.trading.analytics.crosssectional.UniverseProfileSnapshot
 import org.datamancy.trading.analytics.crosssectional.UniverseSnapshotCacheEntryStatus
 import org.datamancy.trading.analytics.crosssectional.UniverseSnapshotCacheStatus
+import org.datamancy.trading.policy.DatamancyTradingPolicy
 import java.time.Instant
 
 class ApplicationTest {
@@ -60,6 +61,24 @@ class ApplicationTest {
         val body = response.bodyAsText()
         assertTrue(body.contains("\"barMinutes\": 60"), body)
         assertTrue(body.contains("hyperliquid_mainnet"), body)
+    }
+
+    @Test
+    fun `trading policy endpoint exposes authoritative runtime policy`() = testApplication {
+        application {
+            configureAlphaAnalyticsApp(
+                runAnalysis = { fakeResult(it) },
+                runSearch = { fakeSearchResult(it) },
+                tradingPolicy = { DatamancyTradingPolicy.default() }
+            )
+        }
+
+        val response = client.get("/api/v1/policy/trading")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"canonicalFeatureTable\": \"research_features_1m\""), body)
+        assertTrue(body.contains("\"exchangeId\": \"hyperliquid_mainnet\""), body)
+        assertTrue(body.contains("\"allowRawFallback\": false"), body)
     }
 
     @Test

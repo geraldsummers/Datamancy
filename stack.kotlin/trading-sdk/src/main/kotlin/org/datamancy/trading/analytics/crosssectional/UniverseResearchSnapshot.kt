@@ -1,5 +1,6 @@
 package org.datamancy.trading.analytics.crosssectional
 
+import org.datamancy.trading.policy.ActiveTradingPolicy
 import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
@@ -156,9 +157,9 @@ private class UniverseSnapshotCache(
 }
 
 private val universeSnapshotCache = UniverseSnapshotCache(
-    enabled = envBoolean("DATAMANCY_CROSS_SECTIONAL_UNIVERSE_CACHE_ENABLED", true),
-    ttl = Duration.ofSeconds(envInt("DATAMANCY_CROSS_SECTIONAL_UNIVERSE_CACHE_TTL_SECONDS", 300).toLong()),
-    maxEntries = envInt("DATAMANCY_CROSS_SECTIONAL_UNIVERSE_CACHE_MAX_ENTRIES", 8)
+    enabled = ActiveTradingPolicy.current().research.crossSectional.universeCache.enabled,
+    ttl = Duration.ofSeconds(ActiveTradingPolicy.current().research.crossSectional.universeCache.ttlSeconds.toLong()),
+    maxEntries = ActiveTradingPolicy.current().research.crossSectional.universeCache.maxEntries
 )
 
 private fun loadUniverseSnapshotFromFeatures(

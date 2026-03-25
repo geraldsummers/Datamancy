@@ -14,6 +14,7 @@ repositories {
 
 dependencies {
     implementation(project(":pipeline-common"))
+    implementation(project(":trading-sdk"))
 
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")

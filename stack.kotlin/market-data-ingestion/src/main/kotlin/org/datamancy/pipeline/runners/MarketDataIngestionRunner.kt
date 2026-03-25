@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.onEach
 import org.datamancy.pipeline.sinks.MarketDataSink
 import org.datamancy.pipeline.sources.HyperliquidMarketData
 import org.datamancy.pipeline.sources.HyperliquidSource
+import org.datamancy.trading.policy.ActiveTradingPolicy
+import org.datamancy.trading.policy.UniverseSelectionMode
 import org.postgresql.ds.PGSimpleDataSource
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -71,77 +73,69 @@ class MarketDataIngestionRunner {
     private val postgresPassword = System.getenv("POSTGRES_PASSWORD") ?: ""
     private val batchSize = System.getenv("MARKET_DATA_BATCH_SIZE")?.toIntOrNull() ?: 250
     private val flushIntervalSeconds = System.getenv("MARKET_DATA_FLUSH_SECONDS")?.toLongOrNull() ?: 10
-    private val hyperliquidSymbolsPerConnection = System.getenv("HYPERLIQUID_SYMBOLS_PER_CONNECTION")?.toIntOrNull()
-        ?.coerceAtLeast(1)
-        ?: 8
+    private val tradingPolicy = ActiveTradingPolicy.current()
+    private val hyperliquidPolicy = tradingPolicy.venue("hyperliquid")
+    private val hyperliquidSymbolsPerConnection = hyperliquidPolicy.universe.symbolsPerConnection.coerceAtLeast(1)
 
-    private val staticSymbols = parseSymbolList(System.getenv("HYPERLIQUID_SYMBOLS"))
-    private val candleIntervals = System.getenv("CANDLE_INTERVALS")?.split(",")?.map { it.trim() }
-        ?: listOf("1m", "5m", "15m", "1h")
-    private val enableOrderbook = System.getenv("ENABLE_ORDERBOOK")?.toBoolean() ?: false
-    private val hyperliquidMainnet = parseBooleanEnv(System.getenv("HYPERLIQUID_MAINNET"), defaultValue = true)
-    private val hyperliquidUniverseMode = resolveHyperliquidUniverseMode(
-        explicitMode = System.getenv("HYPERLIQUID_UNIVERSE_MODE"),
-        staticSymbols = staticSymbols
-    )
-    private val hyperliquidUniverseIncludeSymbols = parseSymbolSet(System.getenv("HYPERLIQUID_UNIVERSE_INCLUDE"))
-    private val hyperliquidUniverseExcludeSymbols = parseSymbolSet(System.getenv("HYPERLIQUID_UNIVERSE_EXCLUDE"))
-    private val hyperliquidIncludeDelisted = parseBooleanEnv(
-        System.getenv("HYPERLIQUID_INCLUDE_DELISTED"),
-        defaultValue = false
-    )
+    private val staticSymbols = hyperliquidPolicy.universe.staticSymbols
+    private val candleIntervals = listOf("1m")
+    private val enableOrderbook =
+        hyperliquidPolicy.rawSync.channels["orderbook_l2"] != org.datamancy.trading.policy.RequirementLevel.DISABLED
+    private val hyperliquidMainnet = hyperliquidPolicy.mainnet
+    private val hyperliquidUniverseMode = when (hyperliquidPolicy.universe.selectionMode) {
+        UniverseSelectionMode.STATIC -> HyperliquidUniverseMode.STATIC
+        UniverseSelectionMode.EXCHANGE_CATALOG -> HyperliquidUniverseMode.CATALOG
+    }
+    private val hyperliquidUniverseIncludeSymbols = hyperliquidPolicy.universe.includeSymbols.toSet()
+    private val hyperliquidUniverseExcludeSymbols = hyperliquidPolicy.universe.excludeSymbols.toSet()
+    private val hyperliquidIncludeDelisted = hyperliquidPolicy.universe.includeDelisted
     private val hyperliquidUniverseRefreshIntervalMs = resolveHyperliquidUniverseRefreshIntervalMs(
-        explicitIntervalMs = System.getenv("HYPERLIQUID_UNIVERSE_REFRESH_INTERVAL_MS")?.toLongOrNull()
+        explicitIntervalMs = hyperliquidPolicy.universe.refreshIntervalMs
     )
     private val hyperliquidWsUrl = resolveHyperliquidWsUrl(
-        explicitUrl = System.getenv("HYPERLIQUID_WS_URL"),
+        explicitUrl = hyperliquidPolicy.websocketUrl,
         mainnet = hyperliquidMainnet
     )
     private val hyperliquidInfoUrl = resolveHyperliquidInfoUrl(
-        explicitUrl = System.getenv("HYPERLIQUID_INFO_URL"),
+        explicitUrl = hyperliquidPolicy.infoUrl,
         mainnet = hyperliquidMainnet
     )
     private val hyperliquidIdleTimeoutMs = resolveHyperliquidIdleTimeoutMs(
-        explicitTimeoutMs = System.getenv("HYPERLIQUID_IDLE_TIMEOUT_MS")?.toLongOrNull()
+        explicitTimeoutMs = hyperliquidPolicy.rawSync.idleTimeoutMs
     )
     private val hyperliquidFreshnessCheckIntervalMs = resolveHyperliquidFreshnessCheckIntervalMs(
-        explicitIntervalMs = System.getenv("HYPERLIQUID_FRESHNESS_CHECK_INTERVAL_MS")?.toLongOrNull()
+        explicitIntervalMs = hyperliquidPolicy.rawSync.freshnessCheckIntervalMs
     )
     private val hyperliquidChannelActivityTimeoutMs = resolveHyperliquidChannelActivityTimeoutMs(
-        explicitTimeoutMs = System.getenv("HYPERLIQUID_CHANNEL_ACTIVITY_TIMEOUT_MS")?.toLongOrNull()
+        explicitTimeoutMs = hyperliquidPolicy.rawSync.channelActivityTimeoutMs
     )
     private val hyperliquidCandleStaleMultiplier = resolveHyperliquidCandleStaleMultiplier(
-        explicitMultiplier = System.getenv("HYPERLIQUID_CANDLE_STALE_MULTIPLIER")?.toDoubleOrNull()
+        explicitMultiplier = hyperliquidPolicy.rawSync.candleStaleMultiplier
     )
     private val hyperliquidBackfillLookbackHours = resolveHyperliquidBackfillLookbackHours(
-        explicitLookbackHours = System.getenv("HYPERLIQUID_BACKFILL_LOOKBACK_HOURS")?.toLongOrNull()
+        explicitLookbackHours = hyperliquidPolicy.rawSync.backfillLookbackHours
     )
     private val hyperliquidBackfillMaxBars = resolveHyperliquidBackfillMaxBars(
-        explicitMaxBars = System.getenv("HYPERLIQUID_BACKFILL_MAX_BARS")?.toIntOrNull()
+        explicitMaxBars = hyperliquidPolicy.rawSync.backfillMaxBars
     )
     private val hyperliquidBackfillOverlapBars = resolveHyperliquidBackfillOverlapBars(
-        explicitOverlapBars = System.getenv("HYPERLIQUID_BACKFILL_OVERLAP_BARS")?.toIntOrNull()
+        explicitOverlapBars = hyperliquidPolicy.rawSync.backfillOverlapBars
     )
-    private val hyperliquidExchangeId = resolveHyperliquidExchangeId(
-        explicitExchangeId = System.getenv("HYPERLIQUID_EXCHANGE_ID"),
-        mainnet = hyperliquidMainnet
-    )
-    private val researchFeaturesEnabled = parseBooleanEnv(
-        System.getenv("RESEARCH_FEATURES_ENABLED"),
-        defaultValue = true
-    )
+    private val hyperliquidExchangeId = hyperliquidPolicy.exchangeId
+    private val researchFeaturesEnabled = hyperliquidPolicy.features.enabled
     private val researchFeaturesBootstrapHours = resolveResearchFeaturesBootstrapHours(
-        explicitHours = System.getenv("RESEARCH_FEATURES_BOOTSTRAP_HOURS")?.toLongOrNull()
+        explicitHours = hyperliquidPolicy.features.bootstrapHours
     )
     private val researchFeaturesRefreshIntervalMs = resolveResearchFeaturesRefreshIntervalMs(
-        explicitIntervalMs = System.getenv("RESEARCH_FEATURES_REFRESH_INTERVAL_MS")?.toLongOrNull()
+        explicitIntervalMs = hyperliquidPolicy.features.refreshIntervalMs
     )
     private val researchFeaturesRefreshOverlapMinutes = resolveResearchFeaturesRefreshOverlapMinutes(
-        explicitMinutes = System.getenv("RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES")?.toLongOrNull()
+        explicitMinutes = hyperliquidPolicy.features.refreshOverlapMinutes
     )
     private val researchFeaturesBackfillChunkHours = resolveResearchFeaturesBackfillChunkHours(
-        explicitHours = System.getenv("RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS")?.toLongOrNull()
+        explicitHours = hyperliquidPolicy.features.backfillChunkHours
     )
+    private val researchFeaturesFinalizationLagMinutes = hyperliquidPolicy.features.finalizationLagMinutes
     private val universeSettings = HyperliquidUniverseSettings(
         mode = hyperliquidUniverseMode,
         staticSymbols = staticSymbols,
@@ -155,6 +149,8 @@ class MarketDataIngestionRunner {
     private lateinit var universeResolver: HyperliquidUniverseResolver
     private lateinit var researchFeatureAggregator: ResearchFeatureAggregator
     private lateinit var sink: MarketDataSink
+    private lateinit var rawSyncStateStore: RawSyncStateStore
+    private lateinit var featureStateStore: FeatureStateStore
     private val activeSourcesLock = Any()
     @Volatile
     private var activeSources: List<HyperliquidSource> = emptyList()
@@ -202,7 +198,8 @@ class MarketDataIngestionRunner {
         logger.info {
             "research_features_1m: ${if (researchFeaturesEnabled) "ENABLED" else "DISABLED"} " +
                 "(bootstrap=${researchFeaturesBootstrapHours}h refreshEvery=${researchFeaturesRefreshIntervalMs}ms " +
-                "overlap=${researchFeaturesRefreshOverlapMinutes}m chunk=${researchFeaturesBackfillChunkHours}h)"
+                "overlap=${researchFeaturesRefreshOverlapMinutes}m chunk=${researchFeaturesBackfillChunkHours}h " +
+                "finalizeLag=${researchFeaturesFinalizationLagMinutes}m)"
         }
         logger.info { "TimescaleDB: $postgresHost:$postgresPort/$postgresDb" }
         logger.info { "=" * 80 }
@@ -221,6 +218,15 @@ class MarketDataIngestionRunner {
             batchSize = batchSize,
             exchangeId = hyperliquidExchangeId
         )
+        rawSyncStateStore = RawSyncStateStore(
+            dataSource = dataSource,
+            exchangeId = hyperliquidExchangeId
+        )
+        featureStateStore = FeatureStateStore(
+            dataSource = dataSource,
+            exchangeId = hyperliquidExchangeId,
+            barSizeMinutes = 1
+        )
         researchFeatureAggregator = ResearchFeatureAggregator(
             dataSource = dataSource,
             exchangeId = hyperliquidExchangeId,
@@ -228,7 +234,9 @@ class MarketDataIngestionRunner {
             bootstrapHours = researchFeaturesBootstrapHours,
             refreshIntervalMs = researchFeaturesRefreshIntervalMs,
             refreshOverlapMinutes = researchFeaturesRefreshOverlapMinutes,
-            backfillChunkHours = researchFeaturesBackfillChunkHours
+            backfillChunkHours = researchFeaturesBackfillChunkHours,
+            finalizationLagMinutes = researchFeaturesFinalizationLagMinutes,
+            featureStateStore = featureStateStore
         )
 
         // Block startup until TimescaleDB is reachable instead of shutting down on first race.
@@ -237,6 +245,9 @@ class MarketDataIngestionRunner {
             return
         }
         logger.info { "✓ TimescaleDB connection healthy" }
+        runBlocking {
+            backfillPersistentState()
+        }
         runBlocking {
             runCatching { resolveUniverseSnapshot(previous = emptyList()) }
                 .onSuccess { snapshot ->
@@ -301,6 +312,17 @@ class MarketDataIngestionRunner {
             Thread.sleep(delayMs)
         }
         return false
+    }
+
+    private suspend fun backfillPersistentState() {
+        runCatching {
+            rawSyncStateStore.backfillAll()
+            featureStateStore.backfillAll()
+            logger.info { "Hydrated raw_sync_state and feature state tables from existing market data" }
+        }.onFailure { ex ->
+            logger.error(ex) { "Failed to hydrate persistent sync/materialization state: ${ex.message}" }
+            throw ex
+        }
     }
 
     private fun parseBooleanEnv(raw: String?, defaultValue: Boolean): Boolean {

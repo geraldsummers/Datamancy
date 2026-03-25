@@ -6,6 +6,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.datamancy.pipeline.core.Sink
+import org.datamancy.pipeline.runners.RawSyncStateStore
 import org.datamancy.pipeline.sources.HyperliquidAssetContext
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidMarketData
@@ -81,6 +82,7 @@ class MarketDataSink(
 
     override val name = "MarketDataSink"
     private val exchange = exchangeId.trim().lowercase().ifBlank { "hyperliquid" }
+    private val rawSyncStateStore = RawSyncStateStore(dataSource = dataSource, exchangeId = exchange)
 
     // Batch accumulators
     private val tradeBatch = mutableListOf<HyperliquidTrade>()
@@ -220,6 +222,7 @@ class MarketDataSink(
                         }
                         stmt.executeBatch()
                     }
+                    rawSyncStateStore.recordTrades(conn, trades)
                     conn.commit()
                     tradeCount += trades.size
                     logger.debug { "Flushed ${trades.size} trades to market_data (total: $tradeCount)" }
@@ -279,12 +282,13 @@ class MarketDataSink(
                                 stmt.setBigDecimal(9, BigDecimal.valueOf(candle.volume))
                                 stmt.setInt(10, candle.numTrades)
                                 stmt.addBatch()
-                            }
-                            stmt.executeBatch()
                         }
-                        conn.commit()
-                        candleCount += normalizedCandles.size
-                        logger.debug {
+                        stmt.executeBatch()
+                    }
+                    rawSyncStateStore.recordCandles(conn, normalizedCandles)
+                    conn.commit()
+                    candleCount += normalizedCandles.size
+                    logger.debug {
                             "Flushed ${normalizedCandles.size} candles to market_data (total: $candleCount)"
                         }
                     } catch (e: Exception) {
@@ -350,6 +354,7 @@ class MarketDataSink(
                         }
                         openInterestStmt.executeBatch()
                     }
+                    rawSyncStateStore.recordAssetContexts(conn, assetContexts)
                     conn.commit()
                     fundingCount += assetContexts.size
                     openInterestCount += assetContexts.size
@@ -403,6 +408,7 @@ class MarketDataSink(
                         OrderbookWriteMode.JSON_DEPTH_CANONICAL -> flushOrderbooksJsonCanonical(conn, orderbooks)
                     }
 
+                    rawSyncStateStore.recordOrderbooks(conn, orderbooks)
                     conn.commit()
                     orderbookCount += orderbooks.size
                     logger.debug { "Flushed ${orderbooks.size} orderbooks to orderbook_data (total: $orderbookCount)" }

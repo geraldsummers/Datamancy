@@ -2,7 +2,10 @@ plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
     id("maven-publish")
+    id("com.gradleup.shadow")
 }
+
+val tradingPolicyArtifact = layout.buildDirectory.file("generated/trading-policy/trading-policy.json")
 
 dependencies {
     // Coroutines
@@ -39,4 +42,18 @@ publishing {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+val generateTradingPolicyArtifact by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "Generate the compiled Datamancy trading policy artifact"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.datamancy.trading.policy.TradingPolicyArtifactMainKt")
+    args(tradingPolicyArtifact.get().asFile.absolutePath)
+    outputs.file(tradingPolicyArtifact)
+}
+
+tasks.named("shadowJar") {
+    dependsOn(generateTradingPolicyArtifact)
 }

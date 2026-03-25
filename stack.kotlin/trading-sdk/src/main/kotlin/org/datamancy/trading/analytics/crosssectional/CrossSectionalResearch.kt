@@ -6,6 +6,8 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.serialization.Serializable
+import org.datamancy.trading.policy.ActiveTradingPolicy
+import org.datamancy.trading.policy.CoverageContractPolicy
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -42,6 +44,10 @@ fun envBoolean(name: String, default: Boolean): Boolean {
     val raw = env(name, if (default) "true" else "false").lowercase()
     return raw in setOf("1", "true", "yes", "on")
 }
+
+private fun crossSectionalPolicy() = ActiveTradingPolicy.current().research.crossSectional
+
+private fun crossSectionalSearchPolicy() = crossSectionalPolicy().search
 
 fun clamp(value: Double, lower: Double, upper: Double): Double =
     max(lower, min(upper, value))
@@ -250,56 +256,56 @@ data class ExchangePlan(
 data class ResearchConfig(
     val txGatewayUrl: String = env("TX_GATEWAY_URL", "http://tx-gateway:8080"),
     val txAuthToken: String = env("TX_AUTH_TOKEN", ""),
-    val marketExchange: String = env("DATAMANCY_CROSS_SECTIONAL_MARKET_EXCHANGE", "hyperliquid_mainnet"),
-    val executionExchangeOverride: String = env("DATAMANCY_CROSS_SECTIONAL_EXECUTION_EXCHANGE", ""),
-    val barMinutes: Int = envInt("DATAMANCY_CROSS_SECTIONAL_BAR_MINUTES", 60),
-    val lookbackHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_LOOKBACK_HOURS", 1080),
-    val forwardHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_FORWARD_HOURS", 72),
-    val betaLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_BETA_LOOKBACK_BARS", 168),
-    val trendLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_LOOKBACK_BARS", 24),
-    val trendSlowBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_SLOW_BARS", 96),
-    val reversionLookbackBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_LOOKBACK_BARS", 12),
-    val trendHoldBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_HOLD_BARS", 24),
-    val reversionHoldBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_HOLD_BARS", 8),
-    val topPerSide: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TOP_PER_SIDE", 1),
-    val notionalUsd: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_NOTIONAL_USD", 5000.0),
-    val maxSymbols: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_SYMBOLS", 8),
-    val discoveryMaxSymbols: Int = envInt("DATAMANCY_CROSS_SECTIONAL_DISCOVERY_MAX_SYMBOLS", 0),
-    val minBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MIN_BARS", 360),
-    val trendEntryScore: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_ENTRY_SCORE", 1.05),
-    val reversionZEntry: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_Z_ENTRY", 2.15),
-    val reversionZExit: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_Z_EXIT", 0.45),
-    val maxSpreadBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_SPREAD_BPS", 11.0),
-    val minDepthMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_DEPTH_MULTIPLE", 12.0),
-    val minFillRatio: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_FILL_RATIO", 0.58),
-    val minVolumeRatio: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_VOLUME_RATIO", 0.35),
-    val maxVolumeRatio: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_VOLUME_RATIO", 4.5),
-    val maxVolRegime: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_VOL_REGIME", 2.35),
-    val executionSafetyMarginBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_EXECUTION_SAFETY_MARGIN_BPS", 8.0),
-    val minExpectedNetEdgeBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_EXPECTED_NET_EDGE_BPS", 4.0),
-    val trendMinFlowAlignment: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_MIN_FLOW_ALIGNMENT", 0.08),
-    val reversionMaxContinuationPressure: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_MAX_CONTINUATION_PRESSURE", 0.18),
-    val calibrationLookbackHours: Int = envInt("DATAMANCY_CROSS_SECTIONAL_CALIBRATION_LOOKBACK_HOURS", 720),
-    val minCalibrationSamples: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_SAMPLES", 4),
-    val strongCalibrationSamples: Int = envInt("DATAMANCY_CROSS_SECTIONAL_STRONG_CALIBRATION_SAMPLES", 12),
-    val minCalibrationLowerBoundBps: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_LOWER_BOUND_BPS", 0.5),
-    val minCalibrationWinRate: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MIN_CALIBRATION_WIN_RATE", 0.51),
-    val trendCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_TREND_COOLDOWN_BARS", 8),
-    val reversionCooldownBars: Int = envInt("DATAMANCY_CROSS_SECTIONAL_REVERSION_COOLDOWN_BARS", 4),
-    val trendTrailingStopVolMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_TRAILING_STOP_VOL_MULTIPLE", 0.0),
-    val reversionTrailingStopVolMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_TRAILING_STOP_VOL_MULTIPLE", 0.0),
-    val trendTakeProfitVolMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_TREND_TAKE_PROFIT_VOL_MULTIPLE", 0.0),
-    val reversionTakeProfitVolMultiple: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_REVERSION_TAKE_PROFIT_VOL_MULTIPLE", 0.0),
-    val maxConcurrentPositions: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_CONCURRENT_POSITIONS", 6),
-    val maxConcurrentLongs: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_CONCURRENT_LONGS", 3),
-    val maxConcurrentShorts: Int = envInt("DATAMANCY_CROSS_SECTIONAL_MAX_CONCURRENT_SHORTS", 3),
-    val maxNetExposureFraction: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_NET_EXPOSURE_FRACTION", 0.4),
-    val maxPortfolioBetaBtcAbs: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_PORTFOLIO_BETA_BTC_ABS", 0.65),
-    val maxPortfolioBetaEthAbs: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_MAX_PORTFOLIO_BETA_ETH_ABS", 0.65),
-    val persistBacktest: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_PERSIST_BACKTEST", true),
-    val persistForward: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_PERSIST_FORWARD", true),
-    val enablePaperOrders: Boolean = envBoolean("DATAMANCY_CROSS_SECTIONAL_ENABLE_PAPER_ORDERS", false),
-    val paperExecutionMode: String = env("DATAMANCY_CROSS_SECTIONAL_ORDER_MODE", "forward_paper")
+    val marketExchange: String = crossSectionalPolicy().marketExchange,
+    val executionExchangeOverride: String = crossSectionalPolicy().executionExchange,
+    val barMinutes: Int = crossSectionalPolicy().barMinutes,
+    val lookbackHours: Int = crossSectionalPolicy().lookbackHours,
+    val forwardHours: Int = crossSectionalPolicy().forwardHours,
+    val betaLookbackBars: Int = crossSectionalPolicy().betaLookbackBars,
+    val trendLookbackBars: Int = crossSectionalPolicy().trendLookbackBars,
+    val trendSlowBars: Int = crossSectionalPolicy().trendSlowBars,
+    val reversionLookbackBars: Int = crossSectionalPolicy().reversionLookbackBars,
+    val trendHoldBars: Int = crossSectionalPolicy().trendHoldBars,
+    val reversionHoldBars: Int = crossSectionalPolicy().reversionHoldBars,
+    val topPerSide: Int = crossSectionalPolicy().topPerSide,
+    val notionalUsd: Double = crossSectionalPolicy().notionalUsd,
+    val maxSymbols: Int = crossSectionalPolicy().maxSymbols,
+    val discoveryMaxSymbols: Int = crossSectionalPolicy().discoveryMaxSymbols,
+    val minBars: Int = crossSectionalPolicy().minBars,
+    val trendEntryScore: Double = crossSectionalPolicy().trendEntryScore,
+    val reversionZEntry: Double = crossSectionalPolicy().reversionZEntry,
+    val reversionZExit: Double = crossSectionalPolicy().reversionZExit,
+    val maxSpreadBps: Double = crossSectionalPolicy().maxSpreadBps,
+    val minDepthMultiple: Double = crossSectionalPolicy().minDepthMultiple,
+    val minFillRatio: Double = crossSectionalPolicy().minFillRatio,
+    val minVolumeRatio: Double = crossSectionalPolicy().minVolumeRatio,
+    val maxVolumeRatio: Double = crossSectionalPolicy().maxVolumeRatio,
+    val maxVolRegime: Double = crossSectionalPolicy().maxVolRegime,
+    val executionSafetyMarginBps: Double = crossSectionalPolicy().executionSafetyMarginBps,
+    val minExpectedNetEdgeBps: Double = crossSectionalPolicy().minExpectedNetEdgeBps,
+    val trendMinFlowAlignment: Double = crossSectionalPolicy().trendMinFlowAlignment,
+    val reversionMaxContinuationPressure: Double = crossSectionalPolicy().reversionMaxContinuationPressure,
+    val calibrationLookbackHours: Int = crossSectionalPolicy().calibrationLookbackHours,
+    val minCalibrationSamples: Int = crossSectionalPolicy().minCalibrationSamples,
+    val strongCalibrationSamples: Int = crossSectionalPolicy().strongCalibrationSamples,
+    val minCalibrationLowerBoundBps: Double = crossSectionalPolicy().minCalibrationLowerBoundBps,
+    val minCalibrationWinRate: Double = crossSectionalPolicy().minCalibrationWinRate,
+    val trendCooldownBars: Int = crossSectionalPolicy().trendCooldownBars,
+    val reversionCooldownBars: Int = crossSectionalPolicy().reversionCooldownBars,
+    val trendTrailingStopVolMultiple: Double = crossSectionalPolicy().trendTrailingStopVolMultiple,
+    val reversionTrailingStopVolMultiple: Double = crossSectionalPolicy().reversionTrailingStopVolMultiple,
+    val trendTakeProfitVolMultiple: Double = crossSectionalPolicy().trendTakeProfitVolMultiple,
+    val reversionTakeProfitVolMultiple: Double = crossSectionalPolicy().reversionTakeProfitVolMultiple,
+    val maxConcurrentPositions: Int = crossSectionalPolicy().maxConcurrentPositions,
+    val maxConcurrentLongs: Int = crossSectionalPolicy().maxConcurrentLongs,
+    val maxConcurrentShorts: Int = crossSectionalPolicy().maxConcurrentShorts,
+    val maxNetExposureFraction: Double = crossSectionalPolicy().maxNetExposureFraction,
+    val maxPortfolioBetaBtcAbs: Double = crossSectionalPolicy().maxPortfolioBetaBtcAbs,
+    val maxPortfolioBetaEthAbs: Double = crossSectionalPolicy().maxPortfolioBetaEthAbs,
+    val persistBacktest: Boolean = crossSectionalPolicy().persistBacktest,
+    val persistForward: Boolean = crossSectionalPolicy().persistForward,
+    val enablePaperOrders: Boolean = crossSectionalPolicy().enablePaperOrders,
+    val paperExecutionMode: String = crossSectionalPolicy().paperExecutionMode
 )
 
 @Serializable
@@ -309,56 +315,56 @@ data class CrossSectionalSearchConfig(
         persistForward = false,
         enablePaperOrders = false
     ),
-    val beamWidth: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_BEAM_WIDTH", 6),
-    val rounds: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_ROUNDS", 4),
-    val maxEvaluations: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_MAX_EVALUATIONS", 96),
-    val leaderboardSize: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_LEADERBOARD_SIZE", 8),
-    val minBacktestTrades: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_MIN_BACKTEST_TRADES", 8),
-    val minForwardTrades: Int = envInt("DATAMANCY_CROSS_SECTIONAL_SEARCH_MIN_FORWARD_TRADES", 3),
-    val minSearchFillRatio: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_SEARCH_MIN_FILL_RATIO", 0.6),
-    val maxSearchDrawdownPct: Double = envDouble("DATAMANCY_CROSS_SECTIONAL_SEARCH_MAX_DRAWDOWN_PCT", 14.0),
-    val barMinutes: List<Int> = listOf(5, 15, 30, 60, 120, 240, 480, 720),
-    val lookbackHours: List<Int> = listOf(120, 240, 360, 720, 1080, 1440, 2160),
-    val forwardHours: List<Int> = listOf(12, 24, 48, 72, 96, 120),
-    val betaLookbackBars: List<Int> = listOf(48, 72, 96, 168, 240),
-    val trendLookbackBars: List<Int> = listOf(4, 6, 12, 18, 24, 36, 48),
-    val trendSlowBars: List<Int> = listOf(12, 18, 24, 36, 48, 72, 96),
-    val reversionLookbackBars: List<Int> = listOf(3, 4, 8, 12, 16, 24),
-    val trendHoldBars: List<Int> = listOf(1, 2, 3, 4, 6, 9, 12),
-    val reversionHoldBars: List<Int> = listOf(1, 2, 3, 4, 6, 8),
-    val topPerSide: List<Int> = listOf(1, 2, 3),
-    val maxSymbols: List<Int> = listOf(8, 12, 16, 24, 36, 48, 72),
-    val discoveryMaxSymbols: List<Int> = listOf(0, 48, 96, 192),
-    val trendEntryScore: List<Double> = listOf(0.8, 1.0, 1.2, 1.4, 1.6),
-    val reversionZEntry: List<Double> = listOf(1.5, 1.8, 2.15, 2.4, 2.8),
-    val reversionZExit: List<Double> = listOf(0.25, 0.45, 0.65, 0.85, 1.05),
-    val maxSpreadBps: List<Double> = listOf(6.0, 8.0, 11.0, 14.0),
-    val minDepthMultiple: List<Double> = listOf(8.0, 12.0, 16.0),
-    val minFillRatio: List<Double> = listOf(0.5, 0.58, 0.65, 0.75),
-    val minVolumeRatio: List<Double> = listOf(0.25, 0.35, 0.5),
-    val maxVolumeRatio: List<Double> = listOf(3.0, 4.5, 6.0),
-    val maxVolRegime: List<Double> = listOf(1.8, 2.35, 3.0),
-    val executionSafetyMarginBps: List<Double> = listOf(4.0, 8.0, 12.0),
-    val minExpectedNetEdgeBps: List<Double> = listOf(2.0, 4.0, 6.0, 8.0),
-    val trendMinFlowAlignment: List<Double> = listOf(0.0, 0.05, 0.08, 0.12, 0.18),
-    val reversionMaxContinuationPressure: List<Double> = listOf(0.08, 0.12, 0.18, 0.24, 0.32),
-    val calibrationLookbackHours: List<Int> = listOf(240, 360, 720, 1080),
-    val minCalibrationSamples: List<Int> = listOf(4, 6, 8, 12),
-    val strongCalibrationSamples: List<Int> = listOf(12, 16, 20),
-    val minCalibrationLowerBoundBps: List<Double> = listOf(0.0, 0.5, 1.0, 2.0),
-    val minCalibrationWinRate: List<Double> = listOf(0.5, 0.52, 0.55, 0.58),
-    val trendCooldownBars: List<Int> = listOf(0, 2, 4, 8),
-    val reversionCooldownBars: List<Int> = listOf(0, 1, 2, 4),
-    val trendTrailingStopVolMultiple: List<Double> = listOf(0.0, 0.75, 1.0, 1.5, 2.0, 3.0),
-    val reversionTrailingStopVolMultiple: List<Double> = listOf(0.0, 0.5, 0.75, 1.0, 1.5, 2.0),
-    val trendTakeProfitVolMultiple: List<Double> = listOf(0.0, 1.0, 1.5, 2.0, 3.0, 4.0),
-    val reversionTakeProfitVolMultiple: List<Double> = listOf(0.0, 0.75, 1.0, 1.5, 2.0, 3.0),
-    val maxConcurrentPositions: List<Int> = listOf(4, 6, 8, 12, 16),
-    val maxConcurrentLongs: List<Int> = listOf(2, 3, 4, 6, 8),
-    val maxConcurrentShorts: List<Int> = listOf(2, 3, 4, 6, 8),
-    val maxNetExposureFraction: List<Double> = listOf(0.25, 0.4, 0.5, 0.75),
-    val maxPortfolioBetaBtcAbs: List<Double> = listOf(0.35, 0.5, 0.65, 0.9),
-    val maxPortfolioBetaEthAbs: List<Double> = listOf(0.35, 0.5, 0.65, 0.9)
+    val beamWidth: Int = crossSectionalSearchPolicy().beamWidth,
+    val rounds: Int = crossSectionalSearchPolicy().rounds,
+    val maxEvaluations: Int = crossSectionalSearchPolicy().maxEvaluations,
+    val leaderboardSize: Int = crossSectionalSearchPolicy().leaderboardSize,
+    val minBacktestTrades: Int = crossSectionalSearchPolicy().minBacktestTrades,
+    val minForwardTrades: Int = crossSectionalSearchPolicy().minForwardTrades,
+    val minSearchFillRatio: Double = crossSectionalSearchPolicy().minSearchFillRatio,
+    val maxSearchDrawdownPct: Double = crossSectionalSearchPolicy().maxSearchDrawdownPct,
+    val barMinutes: List<Int> = crossSectionalSearchPolicy().barMinutes,
+    val lookbackHours: List<Int> = crossSectionalSearchPolicy().lookbackHours,
+    val forwardHours: List<Int> = crossSectionalSearchPolicy().forwardHours,
+    val betaLookbackBars: List<Int> = crossSectionalSearchPolicy().betaLookbackBars,
+    val trendLookbackBars: List<Int> = crossSectionalSearchPolicy().trendLookbackBars,
+    val trendSlowBars: List<Int> = crossSectionalSearchPolicy().trendSlowBars,
+    val reversionLookbackBars: List<Int> = crossSectionalSearchPolicy().reversionLookbackBars,
+    val trendHoldBars: List<Int> = crossSectionalSearchPolicy().trendHoldBars,
+    val reversionHoldBars: List<Int> = crossSectionalSearchPolicy().reversionHoldBars,
+    val topPerSide: List<Int> = crossSectionalSearchPolicy().topPerSide,
+    val maxSymbols: List<Int> = crossSectionalSearchPolicy().maxSymbols,
+    val discoveryMaxSymbols: List<Int> = crossSectionalSearchPolicy().discoveryMaxSymbols,
+    val trendEntryScore: List<Double> = crossSectionalSearchPolicy().trendEntryScore,
+    val reversionZEntry: List<Double> = crossSectionalSearchPolicy().reversionZEntry,
+    val reversionZExit: List<Double> = crossSectionalSearchPolicy().reversionZExit,
+    val maxSpreadBps: List<Double> = crossSectionalSearchPolicy().maxSpreadBps,
+    val minDepthMultiple: List<Double> = crossSectionalSearchPolicy().minDepthMultiple,
+    val minFillRatio: List<Double> = crossSectionalSearchPolicy().minFillRatio,
+    val minVolumeRatio: List<Double> = crossSectionalSearchPolicy().minVolumeRatio,
+    val maxVolumeRatio: List<Double> = crossSectionalSearchPolicy().maxVolumeRatio,
+    val maxVolRegime: List<Double> = crossSectionalSearchPolicy().maxVolRegime,
+    val executionSafetyMarginBps: List<Double> = crossSectionalSearchPolicy().executionSafetyMarginBps,
+    val minExpectedNetEdgeBps: List<Double> = crossSectionalSearchPolicy().minExpectedNetEdgeBps,
+    val trendMinFlowAlignment: List<Double> = crossSectionalSearchPolicy().trendMinFlowAlignment,
+    val reversionMaxContinuationPressure: List<Double> = crossSectionalSearchPolicy().reversionMaxContinuationPressure,
+    val calibrationLookbackHours: List<Int> = crossSectionalSearchPolicy().calibrationLookbackHours,
+    val minCalibrationSamples: List<Int> = crossSectionalSearchPolicy().minCalibrationSamples,
+    val strongCalibrationSamples: List<Int> = crossSectionalSearchPolicy().strongCalibrationSamples,
+    val minCalibrationLowerBoundBps: List<Double> = crossSectionalSearchPolicy().minCalibrationLowerBoundBps,
+    val minCalibrationWinRate: List<Double> = crossSectionalSearchPolicy().minCalibrationWinRate,
+    val trendCooldownBars: List<Int> = crossSectionalSearchPolicy().trendCooldownBars,
+    val reversionCooldownBars: List<Int> = crossSectionalSearchPolicy().reversionCooldownBars,
+    val trendTrailingStopVolMultiple: List<Double> = crossSectionalSearchPolicy().trendTrailingStopVolMultiple,
+    val reversionTrailingStopVolMultiple: List<Double> = crossSectionalSearchPolicy().reversionTrailingStopVolMultiple,
+    val trendTakeProfitVolMultiple: List<Double> = crossSectionalSearchPolicy().trendTakeProfitVolMultiple,
+    val reversionTakeProfitVolMultiple: List<Double> = crossSectionalSearchPolicy().reversionTakeProfitVolMultiple,
+    val maxConcurrentPositions: List<Int> = crossSectionalSearchPolicy().maxConcurrentPositions,
+    val maxConcurrentLongs: List<Int> = crossSectionalSearchPolicy().maxConcurrentLongs,
+    val maxConcurrentShorts: List<Int> = crossSectionalSearchPolicy().maxConcurrentShorts,
+    val maxNetExposureFraction: List<Double> = crossSectionalSearchPolicy().maxNetExposureFraction,
+    val maxPortfolioBetaBtcAbs: List<Double> = crossSectionalSearchPolicy().maxPortfolioBetaBtcAbs,
+    val maxPortfolioBetaEthAbs: List<Double> = crossSectionalSearchPolicy().maxPortfolioBetaEthAbs
 )
 
 data class Bar(
@@ -930,12 +936,12 @@ private class TimedLruCache<K, V>(private val maxEntries: Int) {
 }
 
 private val researchFeatureQueryCacheTtl: Duration =
-    Duration.ofSeconds(envInt("DATAMANCY_CROSS_SECTIONAL_FEATURE_CACHE_TTL_SECONDS", 60).toLong())
+    Duration.ofSeconds(crossSectionalPolicy().featureCache.ttlSeconds.toLong())
 private val researchFeatureLiquidityCache = TimedLruCache<String, List<SymbolLiquiditySnapshot>>(
-    envInt("DATAMANCY_CROSS_SECTIONAL_FEATURE_CACHE_MAX_ENTRIES", 24)
+    crossSectionalPolicy().featureCache.maxEntries
 )
 private val researchFeatureBarCache = TimedLruCache<String, List<Bar>>(
-    envInt("DATAMANCY_CROSS_SECTIONAL_FEATURE_CACHE_MAX_ENTRIES", 24)
+    crossSectionalPolicy().featureCache.maxEntries
 )
 
 private fun featureCacheKey(
@@ -1137,90 +1143,19 @@ fun queryDiscoveredSymbolLiquidity(
     lookbackHours: Int,
     source: CandleSource,
     scaledMinBars: Int
-): List<SymbolLiquiditySnapshot> {
-    val featureResult = queryDiscoveredSymbolLiquidityFromFeatures(
+): List<SymbolLiquiditySnapshot> =
+    queryDiscoveredSymbolLiquidityFromFeatures(
         aliases = aliases,
         symbols = symbols,
         lookbackHours = lookbackHours,
         source = source,
         scaledMinBars = scaledMinBars
     )
-    val coveredSymbols = featureResult.map { it.symbol }.toSet()
-    val missingSymbols = symbols
-        .map { it.trim().uppercase() }
-        .filter { it.isNotEmpty() && it !in coveredSymbols }
-    val rawResult = if (missingSymbols.isEmpty()) {
-        emptyList()
-    } else {
-        queryDiscoveredSymbolLiquidityRaw(
-            aliases = aliases,
-            symbols = missingSymbols,
-            lookbackHours = lookbackHours,
-            source = source,
-            scaledMinBars = scaledMinBars
-        )
-    }
-    val merged = (featureResult + rawResult)
-        .distinctBy { it.symbol }
         .sortedWith(
             compareByDescending<SymbolLiquiditySnapshot> { it.bars }
                 .thenByDescending { it.avgVolume }
                 .thenBy { it.symbol }
         )
-    if (merged.isNotEmpty()) {
-        return merged
-    }
-
-    return queryDiscoveredSymbolLiquidityRaw(
-        aliases = aliases,
-        symbols = symbols,
-        lookbackHours = lookbackHours,
-        source = source,
-        scaledMinBars = scaledMinBars
-    )
-}
-
-private fun queryDiscoveredSymbolLiquidityRaw(
-    aliases: List<String>,
-    symbols: List<String>,
-    lookbackHours: Int,
-    source: CandleSource,
-    scaledMinBars: Int
-): List<SymbolLiquiditySnapshot> {
-    if (symbols.isEmpty()) return emptyList()
-    val aliasSql = sqlList(aliases)
-    val symbolSql = sqlList(symbols)
-    val sql = """
-        SELECT symbol,
-               COUNT(*) AS bars,
-               COALESCE(AVG(volume), 0) AS avg_volume
-        FROM market_data
-        WHERE exchange IN ($aliasSql)
-          AND data_type = 'candle_${source.intervalLabel}'
-          AND time >= NOW() - INTERVAL '${lookbackHours} hours'
-          AND symbol IN ($symbolSql)
-        GROUP BY symbol
-        HAVING COUNT(*) >= $scaledMinBars
-    """.trimIndent()
-
-    return buildList {
-        pgConnection().use { conn ->
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.executeQuery().use { rs ->
-                    while (rs.next()) {
-                        add(
-                            SymbolLiquiditySnapshot(
-                                symbol = rs.getString("symbol"),
-                                bars = rs.getInt("bars"),
-                                avgVolume = rs.getDouble("avg_volume")
-                            )
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 fun discoverSymbolsFromMarketCatalog(
     aliases: List<String>,
@@ -1275,66 +1210,14 @@ fun discoverSymbolsByAggregate(
     maxSymbols: Int,
     minBars: Int,
     barMinutes: Int
-): List<String> {
-    val featureDiscovered = discoverSymbolsByAggregateFromFeatures(
+): List<String> =
+    discoverSymbolsByAggregateFromFeatures(
         aliases = aliases,
         lookbackHours = lookbackHours,
         maxSymbols = maxSymbols,
         minBars = minBars,
         barMinutes = barMinutes
     )
-    val rawDiscovered = discoverSymbolsByAggregateRaw(
-        aliases = aliases,
-        lookbackHours = lookbackHours,
-        maxSymbols = maxSymbols,
-        minBars = minBars,
-        barMinutes = barMinutes
-    )
-    val merged = (featureDiscovered + rawDiscovered).distinct()
-    return if (merged.isNotEmpty()) {
-        if (maxSymbols > 0) merged.take(maxSymbols) else merged
-    } else {
-        emptyList()
-    }
-}
-
-private fun discoverSymbolsByAggregateRaw(
-    aliases: List<String>,
-    lookbackHours: Int,
-    maxSymbols: Int,
-    minBars: Int,
-    barMinutes: Int
-): List<String> {
-    val aliasSql = sqlList(aliases)
-    val source = selectResearchCandleSource(barMinutes)
-    val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes, barMinutes)
-    val sql = """
-        SELECT symbol,
-               COUNT(*) AS bars,
-               COALESCE(AVG(volume), 0) AS avg_volume
-        FROM market_data
-        WHERE exchange IN ($aliasSql)
-          AND data_type = 'candle_${source.intervalLabel}'
-          AND time >= NOW() - INTERVAL '${lookbackHours} hours'
-        GROUP BY symbol
-        HAVING COUNT(*) >= $scaledMinBars
-        ORDER BY bars DESC, avg_volume DESC, symbol ASC
-        ${if (maxSymbols > 0) "LIMIT $maxSymbols" else ""}
-    """.trimIndent()
-
-    val discovered = mutableListOf<String>()
-    pgConnection().use { conn ->
-        conn.prepareStatement(sql).use { stmt ->
-            stmt.executeQuery().use { rs ->
-                while (rs.next()) {
-                    discovered += rs.getString("symbol")
-                }
-            }
-        }
-    }
-
-    return discovered
-}
 
 fun discoverSymbols(
     txBase: String,
@@ -1375,8 +1258,7 @@ fun discoverSymbols(
         ranked
     }
 
-    val universe = (listOf("BTC", "ETH") + discovered).distinct()
-    return universe
+    return discovered
 }
 
 internal fun discoveryCandidateLimit(maxSymbols: Int, discoveryMaxSymbols: Int): Int =
@@ -1460,7 +1342,9 @@ internal fun selectResearchUniverseFromCandidates(
                         .thenByDescending { it.totalBars }
                         .thenBy { it.symbol }
                 )
-                .take(config.maxSymbols)
+                .let { ranked ->
+                    if (config.maxSymbols > 0) ranked.take(config.maxSymbols) else ranked
+                }
                 .map { it.symbol }
 
             (benchmarks + selected).distinct()
@@ -1571,43 +1455,16 @@ internal fun buildUniverseProfiles(
         .sortedBy { it.exchange }
 }
 
-fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, lookbackHours: Int, barMinutes: Int): List<Bar> {
-    val featureBars = queryBarsFromFeatures(
+fun loadBars(exchange: String, aliases: List<String>, symbols: List<String>, lookbackHours: Int, barMinutes: Int): List<Bar> =
+    queryBarsFromFeatures(
         exchange = exchange,
         aliases = aliases,
         symbols = symbols,
         lookbackHours = lookbackHours,
         barMinutes = barMinutes
     )
-    val missingSymbols = symbols
-        .map { it.trim().uppercase() }
-        .filter { it.isNotEmpty() && it !in featureBars.map { bar -> bar.symbol }.toSet() }
-    val rawBars = if (missingSymbols.isEmpty()) {
-        emptyList()
-    } else {
-        loadBarsRaw(
-            exchange = exchange,
-            aliases = aliases,
-            symbols = missingSymbols,
-            lookbackHours = lookbackHours,
-            barMinutes = barMinutes
-        )
-    }
-    val mergedBars = (featureBars + rawBars)
         .distinctBy { Triple(it.symbol, it.time, it.exchange) }
         .sortedWith(compareBy<Bar> { it.time }.thenBy { it.symbol })
-    if (mergedBars.isNotEmpty()) {
-        return mergedBars
-    }
-
-    return loadBarsRaw(
-        exchange = exchange,
-        aliases = aliases,
-        symbols = symbols,
-        lookbackHours = lookbackHours,
-        barMinutes = barMinutes
-    )
-}
 
 private fun queryBarsFromFeatures(
     exchange: String,
@@ -1755,120 +1612,6 @@ private fun queryBarsFromFeatures(
         researchFeatureBarCache.put(cacheKey, result)
     }
     return result
-}
-
-private fun loadBarsRaw(
-    exchange: String,
-    aliases: List<String>,
-    symbols: List<String>,
-    lookbackHours: Int,
-    barMinutes: Int
-): List<Bar> {
-    if (symbols.isEmpty()) return emptyList()
-    val aliasSql = sqlList(aliases)
-    val symbolSql = sqlList(symbols)
-    val preferredAlias = aliases.first()
-    val bucketSeconds = max(barMinutes, 1) * 60
-    val source = selectResearchCandleSource(barMinutes)
-    val sql = """
-        WITH candle_rows AS (
-            SELECT
-                symbol,
-                to_timestamp(floor(extract(epoch from time) / $bucketSeconds) * $bucketSeconds) AS bucket_time,
-                close,
-                COALESCE(volume, 0) AS volume,
-                exchange,
-                time
-            FROM market_data
-            WHERE exchange IN ($aliasSql)
-              AND data_type = 'candle_${source.intervalLabel}'
-              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
-              AND symbol IN ($symbolSql)
-        ),
-        candles AS (
-            SELECT DISTINCT ON (symbol, bucket_time)
-                symbol,
-                bucket_time,
-                close,
-                SUM(volume) OVER (PARTITION BY symbol, bucket_time) AS volume
-            FROM candle_rows
-            ORDER BY
-                symbol,
-                bucket_time,
-                CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END,
-                time DESC
-        ),
-        orderbook_rows AS (
-            SELECT
-                symbol,
-                to_timestamp(floor(extract(epoch from time) / $bucketSeconds) * $bucketSeconds) AS bucket_time,
-                COALESCE(spread_pct, 0) AS spread_pct,
-                COALESCE(bid_depth_10, 0) AS bid_depth_10,
-                COALESCE(ask_depth_10, 0) AS ask_depth_10,
-                COALESCE(NULLIF(mid_price, 0), 0) AS mid_price,
-                exchange,
-                time
-            FROM orderbook_data
-            WHERE exchange IN ($aliasSql)
-              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
-              AND symbol IN ($symbolSql)
-        ),
-        orderbook_snapshots AS (
-            SELECT DISTINCT ON (symbol, bucket_time)
-                symbol,
-                bucket_time,
-                spread_pct,
-                bid_depth_10,
-                ask_depth_10,
-                mid_price
-            FROM orderbook_rows
-            ORDER BY
-                symbol,
-                bucket_time,
-                CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END,
-                time DESC
-        )
-        SELECT
-            c.symbol,
-            c.bucket_time,
-            c.close,
-            c.volume,
-            COALESCE(o.spread_pct, 0) AS spread_pct,
-            COALESCE(o.bid_depth_10, 0) AS bid_depth_10,
-            COALESCE(o.ask_depth_10, 0) AS ask_depth_10,
-            COALESCE(NULLIF(o.mid_price, 0), c.close) AS mid_price,
-            CASE WHEN o.symbol IS NULL THEN FALSE ELSE TRUE END AS execution_observed
-        FROM candles c
-        LEFT JOIN orderbook_snapshots o
-          ON o.symbol = c.symbol
-         AND o.bucket_time = c.bucket_time
-        ORDER BY c.bucket_time ASC, c.symbol ASC
-    """.trimIndent()
-
-    return buildList {
-        pgConnection().use { conn ->
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.executeQuery().use { rs ->
-                    while (rs.next()) {
-                        add(
-                            Bar(
-                                exchange = exchange,
-                                symbol = rs.getString("symbol"),
-                                time = rs.getTimestamp("bucket_time").toInstant(),
-                                close = rs.getDouble("close"),
-                                volume = rs.getDouble("volume"),
-                                spreadPct = rs.getDouble("spread_pct"),
-                                bidDepth10 = rs.getDouble("bid_depth_10"),
-                                askDepth10 = rs.getDouble("ask_depth_10"),
-                                midPrice = rs.getDouble("mid_price"),
-                                executionObserved = rs.getBoolean("execution_observed")
-                            )
-                        )
-                    }
-                }
-            }
-        }
-    }
 }
 
 private fun observedSpreadBps(bar: Bar): Double =
@@ -4783,14 +4526,209 @@ fun researchDataKey(config: ResearchConfig): ResearchDataKey =
         minBars = config.minBars
     )
 
+data class ResearchCoverageSnapshot(
+    val symbol: String,
+    val expectedBars: Int,
+    val observedBars: Int,
+    val finalizedBars: Int,
+    val executionObservedBars: Int,
+    val coverageRatio: Double,
+    val finalizedRatio: Double,
+    val executionObservedRatio: Double,
+    val latestFeatureTime: Instant?,
+    val finalizedThrough: Instant?,
+    val latestFeatureLagSeconds: Long,
+    val finalizedLagMinutes: Long?
+)
+
+data class ResearchCoverageVerdict(
+    val exchange: String,
+    val requestedSymbols: Int,
+    val requiredBars: Int,
+    val minimumEligibleSymbols: Int,
+    val eligibleSymbols: List<String>,
+    val snapshots: List<ResearchCoverageSnapshot>,
+    val passed: Boolean,
+    val reason: String?
+)
+
+class ResearchCoverageException(message: String) : IllegalStateException(message)
+
+private fun expectedCoverageBars(lookbackHours: Int, barMinutes: Int, minBars: Int): Int {
+    val lookbackBars = ceil((lookbackHours.toDouble() * 60.0) / max(barMinutes, 1).toDouble()).toInt()
+    return max(minBars, lookbackBars)
+}
+
+private fun computeResearchCoverageSnapshots(
+    exchange: String,
+    aliases: List<String>,
+    symbols: List<String>,
+    lookbackHours: Int,
+    barMinutes: Int,
+    minBars: Int
+): List<ResearchCoverageSnapshot> {
+    if (symbols.isEmpty()) return emptyList()
+
+    val normalizedSymbols = symbols.map(String::trim).map(String::uppercase).filter(String::isNotEmpty).distinct()
+    if (normalizedSymbols.isEmpty()) return emptyList()
+
+    val aliasSql = sqlList(aliases)
+    val symbolSql = sqlList(normalizedSymbols)
+    val preferredAlias = aliases.firstOrNull().orEmpty()
+    val bucketSeconds = max(barMinutes, 1) * 60
+    val expectedBars = expectedCoverageBars(lookbackHours = lookbackHours, barMinutes = barMinutes, minBars = minBars)
+    val sql = """
+        WITH minute_rows AS (
+            SELECT DISTINCT ON (symbol, time)
+                symbol,
+                time,
+                orderbook_observed,
+                is_finalized,
+                exchange
+            FROM research_features_1m
+            WHERE exchange IN ($aliasSql)
+              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND symbol IN ($symbolSql)
+              AND candle_observed
+            ORDER BY
+                symbol,
+                time,
+                CASE WHEN exchange = '$preferredAlias' THEN 0 ELSE 1 END
+        ),
+        bucketed AS (
+            SELECT
+                symbol,
+                to_timestamp(floor(extract(epoch from time) / $bucketSeconds) * $bucketSeconds) AS bucket_time,
+                orderbook_observed,
+                is_finalized
+            FROM minute_rows
+        ),
+        bucket_rollup AS (
+            SELECT
+                symbol,
+                bucket_time,
+                BOOL_OR(orderbook_observed) AS execution_observed,
+                BOOL_AND(is_finalized) AS finalized
+            FROM bucketed
+            GROUP BY symbol, bucket_time
+        )
+        SELECT
+            symbol,
+            COUNT(*)::INTEGER AS observed_bars,
+            COUNT(*) FILTER (WHERE finalized)::INTEGER AS finalized_bars,
+            COUNT(*) FILTER (WHERE execution_observed)::INTEGER AS execution_observed_bars,
+            MAX(bucket_time) AS latest_feature_time,
+            MAX(bucket_time) FILTER (WHERE finalized) AS finalized_through
+        FROM bucket_rollup
+        GROUP BY symbol
+        ORDER BY symbol ASC
+    """.trimIndent()
+
+    return buildList {
+        pgConnection().use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        val observedBars = rs.getInt("observed_bars")
+                        val finalizedBars = rs.getInt("finalized_bars")
+                        val executionObservedBars = rs.getInt("execution_observed_bars")
+                        val latestFeatureTime = rs.getTimestamp("latest_feature_time")?.toInstant()
+                        val finalizedThrough = rs.getTimestamp("finalized_through")?.toInstant()
+                        val latestFeatureLagSeconds = latestFeatureTime
+                            ?.let { Duration.between(it, Instant.now()).seconds.coerceAtLeast(0L) }
+                            ?: Long.MAX_VALUE
+                        val finalizedLagMinutes = finalizedThrough
+                            ?.let { Duration.between(it, Instant.now()).toMinutes().coerceAtLeast(0L) }
+
+                        add(
+                            ResearchCoverageSnapshot(
+                                symbol = rs.getString("symbol"),
+                                expectedBars = expectedBars,
+                                observedBars = observedBars,
+                                finalizedBars = finalizedBars,
+                                executionObservedBars = executionObservedBars,
+                                coverageRatio = clamp(observedBars.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
+                                finalizedRatio = clamp(finalizedBars.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
+                                executionObservedRatio = clamp(executionObservedBars.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
+                                latestFeatureTime = latestFeatureTime,
+                                finalizedThrough = finalizedThrough,
+                                latestFeatureLagSeconds = latestFeatureLagSeconds,
+                                finalizedLagMinutes = finalizedLagMinutes
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun buildResearchCoverageVerdict(
+    exchange: String,
+    symbols: List<String>,
+    snapshots: List<ResearchCoverageSnapshot>,
+    requiredBars: Int,
+    coveragePolicy: CoverageContractPolicy
+): ResearchCoverageVerdict {
+    val eligibleSymbols = snapshots
+        .filter { snapshot ->
+            snapshot.observedBars >= requiredBars &&
+                snapshot.coverageRatio >= coveragePolicy.minCoverageRatio &&
+                snapshot.finalizedRatio >= coveragePolicy.minFinalizedRatio &&
+                snapshot.latestFeatureLagSeconds <= coveragePolicy.maxFeatureLagSeconds &&
+                (snapshot.finalizedLagMinutes ?: Long.MAX_VALUE) <= coveragePolicy.maxFinalizedLagMinutes &&
+                (
+                    !coveragePolicy.requireExecutionObserved ||
+                        snapshot.executionObservedRatio >= coveragePolicy.minExecutionObservedRatio
+                    )
+        }
+        .map { it.symbol }
+        .sorted()
+
+    val requestedSymbols = symbols.map(String::trim).count(String::isNotEmpty)
+    val reason = when {
+        requestedSymbols == 0 ->
+            "coverage gate failed exchange=$exchange requestedSymbols=0 reason=no_candidate_universe"
+        snapshots.isEmpty() ->
+            "coverage gate failed exchange=$exchange requestedSymbols=$requestedSymbols reason=no_feature_rows"
+        eligibleSymbols.size < coveragePolicy.minUniverseSymbols -> {
+            val sample = snapshots.take(3).joinToString(";") { snapshot ->
+                "${snapshot.symbol}:cov=${snapshot.coverageRatio.round(3)} fin=${snapshot.finalizedRatio.round(3)} exec=${snapshot.executionObservedRatio.round(3)}"
+            }
+            "coverage gate failed exchange=$exchange eligible=${eligibleSymbols.size}/$requestedSymbols " +
+                "requiredMinSymbols=${coveragePolicy.minUniverseSymbols} requiredBars=$requiredBars " +
+                "thresholds=cov>=${coveragePolicy.minCoverageRatio.round(3)} fin>=${coveragePolicy.minFinalizedRatio.round(3)} " +
+                "exec>=${coveragePolicy.minExecutionObservedRatio.round(3)} sample=[$sample]"
+        }
+        else -> null
+    }
+
+    return ResearchCoverageVerdict(
+        exchange = exchange,
+        requestedSymbols = requestedSymbols,
+        requiredBars = requiredBars,
+        minimumEligibleSymbols = coveragePolicy.minUniverseSymbols,
+        eligibleSymbols = eligibleSymbols,
+        snapshots = snapshots,
+        passed = reason == null,
+        reason = reason
+    )
+}
+
 fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
     val (exchangeCatalog, exchangeCatalogMs) = timedMillis {
         fetchExchangeCatalog(config.txGatewayUrl)
     }
     val exchangePlans = buildExchangePlans(exchangeCatalog, config)
     val discoveryMaxSymbols = discoveryCandidateLimit(config.maxSymbols, config.discoveryMaxSymbols)
+    val requiredCoverageBars = expectedCoverageBars(
+        lookbackHours = config.lookbackHours,
+        barMinutes = config.barMinutes,
+        minBars = config.minBars
+    )
+    val coveragePolicy = crossSectionalPolicy().coverage
 
-    val (candidateUniverse, discoveryMs) = timedMillis {
+    val (discoveredUniverse, discoveryMs) = timedMillis {
         exchangePlans.associate { plan ->
             plan.exchange to discoverSymbols(
                 txBase = config.txGatewayUrl,
@@ -4803,6 +4741,41 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
             )
         }
     }
+
+    val coverageVerdicts = exchangePlans.associate { plan ->
+        val symbols = discoveredUniverse[plan.exchange].orEmpty()
+        val snapshots = computeResearchCoverageSnapshots(
+            exchange = plan.exchange,
+            aliases = plan.marketAliases,
+            symbols = symbols,
+            lookbackHours = config.lookbackHours,
+            barMinutes = config.barMinutes,
+            minBars = config.minBars
+        )
+        plan.exchange to buildResearchCoverageVerdict(
+            exchange = plan.exchange,
+            symbols = symbols,
+            snapshots = snapshots,
+            requiredBars = requiredCoverageBars,
+            coveragePolicy = coveragePolicy
+        )
+    }
+
+    coverageVerdicts.values.forEach { verdict ->
+        println(
+            "Cross-sectional coverage exchange=${verdict.exchange} " +
+                "eligible=${verdict.eligibleSymbols.size}/${verdict.requestedSymbols} " +
+                "requiredBars=${verdict.requiredBars} passed=${verdict.passed} " +
+                "reason=${verdict.reason ?: "ok"}"
+        )
+    }
+
+    val coverageFailure = coverageVerdicts.values.firstOrNull { !it.passed }
+    if (coverageFailure != null) {
+        throw ResearchCoverageException(coverageFailure.reason ?: "coverage gate failed for ${coverageFailure.exchange}")
+    }
+
+    val candidateUniverse = coverageVerdicts.mapValues { (_, verdict) -> verdict.eligibleSymbols }
 
     val (researchBars, loadBarsMs) = timedMillis {
         exchangePlans.flatMap { plan ->
@@ -5143,7 +5116,7 @@ fun isValidResearchConfig(config: ResearchConfig): Boolean {
         config.reversionHoldBars > 0 &&
         config.topPerSide > 0 &&
         config.notionalUsd > 0.0 &&
-        config.maxSymbols >= 2 &&
+        (config.maxSymbols == 0 || config.maxSymbols >= 2) &&
         config.discoveryMaxSymbols >= 0 &&
         config.minBars > 0 &&
         config.reversionZEntry > 0.0 &&
@@ -5241,7 +5214,7 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
         intMutation("lookbackHours", "timeframe", searchConfig.lookbackHours, { it.lookbackHours }, { cfg, value -> cfg.copy(lookbackHours = value) }),
         intMutation("forwardHours", "timeframe", searchConfig.forwardHours, { it.forwardHours }, { cfg, value -> cfg.copy(forwardHours = value) }),
         intMutation("betaLookbackBars", "timeframe", searchConfig.betaLookbackBars, { it.betaLookbackBars }, { cfg, value -> cfg.copy(betaLookbackBars = value) }),
-        intMutation("maxSymbols", "universe_breadth", searchConfig.maxSymbols, { it.maxSymbols }, { cfg, value -> cfg.copy(maxSymbols = value) }, predicate = { it >= 2 }),
+        intMutation("maxSymbols", "universe_breadth", searchConfig.maxSymbols, { it.maxSymbols }, { cfg, value -> cfg.copy(maxSymbols = value) }, predicate = { it == 0 || it >= 2 }),
         intMutation(
             "discoveryMaxSymbols",
             "universe_breadth",

@@ -1558,6 +1558,16 @@ fun copyBuildArtifacts(distDir: File) {
         info("Copied stack.kotlin JARs")
     }
 
+    val tradingPolicyArtifact = File("stack.kotlin/trading-sdk/build/generated/trading-policy/trading-policy.json")
+    if (tradingPolicyArtifact.exists()) {
+        val destPolicy = distDir.resolve("configs/trading/trading-policy.json")
+        destPolicy.parentFile.mkdirs()
+        tradingPolicyArtifact.copyTo(destPolicy, overwrite = true)
+        info("Copied compiled trading policy to dist/configs/trading/trading-policy.json")
+    } else {
+        warn("Compiled trading policy artifact not found at ${tradingPolicyArtifact.path}")
+    }
+
     // Copy tests.kotlin JARs only
     val testsKotlinDir = File("tests.kotlin")
     if (testsKotlinDir.exists()) {

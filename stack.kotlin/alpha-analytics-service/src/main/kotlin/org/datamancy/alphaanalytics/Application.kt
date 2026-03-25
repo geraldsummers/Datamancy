@@ -26,6 +26,8 @@ import org.datamancy.trading.analytics.crosssectional.crossSectionalUniverseSnap
 import org.datamancy.trading.analytics.crosssectional.runCrossSectionalResearch
 import org.datamancy.trading.analytics.crosssectional.searchCrossSectionalResearch
 import org.datamancy.trading.analytics.crosssectional.warmCrossSectionalUniverseSnapshots
+import org.datamancy.trading.policy.ActiveTradingPolicy
+import org.datamancy.trading.policy.TradingPolicy
 import org.slf4j.LoggerFactory
 import java.time.Instant
 
@@ -64,7 +66,8 @@ fun Application.configureAlphaAnalyticsApp(
     runAnalysis: suspend (ResearchConfig) -> CrossSectionalResearchResult = ::runCrossSectionalResearch,
     runSearch: suspend (CrossSectionalSearchConfig) -> CrossSectionalSearchResult = ::searchCrossSectionalResearch,
     cacheStatus: () -> UniverseSnapshotCacheStatus = ::crossSectionalUniverseSnapshotCacheStatus,
-    warmCache: suspend (ResearchConfig) -> UniverseSnapshotCacheStatus = ::warmCrossSectionalUniverseSnapshots
+    warmCache: suspend (ResearchConfig) -> UniverseSnapshotCacheStatus = ::warmCrossSectionalUniverseSnapshots,
+    tradingPolicy: () -> TradingPolicy = ActiveTradingPolicy::current
 ) {
     routing {
         get("/health") {
@@ -83,6 +86,7 @@ fun Application.configureAlphaAnalyticsApp(
                         version = "1.0.0",
                         endpoints = listOf(
                             "/health",
+                            "/api/v1/policy/trading",
                             "/api/v1/alpha/cross-sectional/default-config",
                             "/api/v1/alpha/cross-sectional/cache/status",
                             "/api/v1/alpha/cross-sectional/cache/warm",
@@ -92,6 +96,14 @@ fun Application.configureAlphaAnalyticsApp(
                         )
                     )
                 ),
+                ContentType.Application.Json,
+                HttpStatusCode.OK
+            )
+        }
+
+        get("/api/v1/policy/trading") {
+            call.respondText(
+                responseGson.toJson(tradingPolicy()),
                 ContentType.Application.Json,
                 HttpStatusCode.OK
             )

@@ -104,7 +104,9 @@ internal class ResearchFeatureAggregator(
     private val bootstrapHours: Long,
     private val refreshIntervalMs: Long,
     private val refreshOverlapMinutes: Long,
-    private val backfillChunkHours: Long
+    private val backfillChunkHours: Long,
+    private val finalizationLagMinutes: Long,
+    private val featureStateStore: FeatureStateStore
 ) {
     private val schemaLock = Any()
     @Volatile
@@ -141,7 +143,11 @@ internal class ResearchFeatureAggregator(
         "trade_observed",
         "orderbook_observed",
         "asset_context_observed",
-        "source_updated_at"
+        "source_updated_at",
+        "is_provisional",
+        "is_finalized",
+        "finalization_due_at",
+        "finalized_at"
     )
 
     suspend fun runLoop() {
@@ -152,7 +158,8 @@ internal class ResearchFeatureAggregator(
 
         researchFeatureLogger.info {
             "Starting research_features_1m aggregation for $exchangeId " +
-                "(bootstrap=${bootstrapHours}h refreshEvery=${refreshIntervalMs}ms overlap=${refreshOverlapMinutes}m chunk=${backfillChunkHours}h)"
+                "(bootstrap=${bootstrapHours}h refreshEvery=${refreshIntervalMs}ms overlap=${refreshOverlapMinutes}m " +
+                "chunk=${backfillChunkHours}h finalizeLag=${finalizationLagMinutes}m)"
         }
 
         while (coroutineContext.isActive) {
@@ -179,6 +186,7 @@ internal class ResearchFeatureAggregator(
 
     private suspend fun bootstrap(): Boolean = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
+            conn.autoCommit = false
             if (!ensureSchema(conn)) {
                 return@withContext false
             }
@@ -186,10 +194,10 @@ internal class ResearchFeatureAggregator(
             val earliestRaw = queryBoundary(
                 conn = conn,
                 sql = """
-                    SELECT MIN(time)
-                    FROM market_data
+                    SELECT MIN(earliest_raw_time)
+                    FROM raw_sync_state
                     WHERE exchange = ?
-                      AND data_type = 'candle_1m'
+                      AND channel = 'candle_1m'
                 """.trimIndent()
             ) ?: run {
                 researchFeatureLogger.info {
@@ -202,9 +210,10 @@ internal class ResearchFeatureAggregator(
             val latestFeature = queryBoundary(
                 conn = conn,
                 sql = """
-                    SELECT MAX(time)
-                    FROM research_features_1m
+                    SELECT MAX(latest_feature_time)
+                    FROM feature_materialization_state
                     WHERE exchange = ?
+                      AND bar_size_minutes = 1
                 """.trimIndent()
             )
             val start = latestFeature
@@ -223,12 +232,14 @@ internal class ResearchFeatureAggregator(
             var totalRows = 0
             windows.forEachIndexed { index, window ->
                 val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
                 totalRows += rows
                 researchFeatureLogger.info {
                     "research_features_1m bootstrap exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
                         "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
                 }
             }
+            conn.commit()
             researchFeatureLogger.info {
                 "research_features_1m bootstrap complete exchange=$exchangeId windows=${windows.size} totalRows=$totalRows"
             }
@@ -238,12 +249,15 @@ internal class ResearchFeatureAggregator(
 
     private suspend fun refreshRecentWindow() = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
+            conn.autoCommit = false
             if (!ensureSchema(conn)) {
                 return@withContext
             }
             val end = Instant.now().truncatedTo(ChronoUnit.MINUTES).plus(1, ChronoUnit.MINUTES)
             val start = end.minus(refreshOverlapMinutes, ChronoUnit.MINUTES)
             val rows = upsertWindow(conn, start, end)
+            featureStateStore.refresh(conn, start, end)
+            conn.commit()
             researchFeatureLogger.info {
                 "research_features_1m refresh exchange=$exchangeId window=$start..$end rows=$rows"
             }
@@ -252,6 +266,7 @@ internal class ResearchFeatureAggregator(
 
     private suspend fun catchUpHistoricalWindows() = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
+            conn.autoCommit = false
             if (!ensureSchema(conn)) {
                 return@withContext
             }
@@ -259,18 +274,19 @@ internal class ResearchFeatureAggregator(
             val earliestRaw = queryBoundary(
                 conn = conn,
                 sql = """
-                    SELECT MIN(time)
-                    FROM market_data
+                    SELECT MIN(earliest_raw_time)
+                    FROM raw_sync_state
                     WHERE exchange = ?
-                      AND data_type = 'candle_1m'
+                      AND channel = 'candle_1m'
                 """.trimIndent()
             )
             val earliestFeature = queryBoundary(
                 conn = conn,
                 sql = """
-                    SELECT MIN(time)
-                    FROM research_features_1m
+                    SELECT MIN(earliest_feature_time)
+                    FROM feature_materialization_state
                     WHERE exchange = ?
+                      AND bar_size_minutes = 1
                 """.trimIndent()
             )
             val windows = planHistoricalCatchUpWindows(
@@ -288,12 +304,14 @@ internal class ResearchFeatureAggregator(
             var totalRows = 0
             windows.forEachIndexed { index, window ->
                 val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
                 totalRows += rows
                 researchFeatureLogger.info {
                     "research_features_1m historical_catchup exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
                         "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
                 }
             }
+            conn.commit()
 
             researchFeatureLogger.info {
                 "research_features_1m historical_catchup complete exchange=$exchangeId " +
@@ -337,6 +355,8 @@ internal class ResearchFeatureAggregator(
     }
 
     private fun upsertWindow(conn: Connection, startInclusive: Instant, endExclusive: Instant): Int {
+        val updatedAt = Instant.now()
+        val finalizationCutoff = updatedAt.minus(finalizationLagMinutes, ChronoUnit.MINUTES)
         val sql = """
             WITH minute_candles AS (
                 SELECT
@@ -483,7 +503,11 @@ internal class ResearchFeatureAggregator(
                 trade_observed,
                 orderbook_observed,
                 asset_context_observed,
-                source_updated_at
+                source_updated_at,
+                is_provisional,
+                is_finalized,
+                finalization_due_at,
+                finalized_at
             )
             SELECT
                 c.bucket_time,
@@ -514,7 +538,11 @@ internal class ResearchFeatureAggregator(
                 t.bucket_time IS NOT NULL,
                 o.bucket_time IS NOT NULL,
                 f.bucket_time IS NOT NULL OR oi.bucket_time IS NOT NULL,
-                NOW()
+                ?,
+                CASE WHEN c.bucket_time <= ? THEN FALSE ELSE TRUE END,
+                CASE WHEN c.bucket_time <= ? THEN TRUE ELSE FALSE END,
+                c.bucket_time + INTERVAL '${finalizationLagMinutes} minutes',
+                CASE WHEN c.bucket_time <= ? THEN ? ELSE NULL END
             FROM minute_candles c
             LEFT JOIN minute_trades t
               ON t.bucket_time = c.bucket_time
@@ -558,7 +586,14 @@ internal class ResearchFeatureAggregator(
                 trade_observed = EXCLUDED.trade_observed,
                 orderbook_observed = EXCLUDED.orderbook_observed,
                 asset_context_observed = EXCLUDED.asset_context_observed,
-                source_updated_at = EXCLUDED.source_updated_at
+                source_updated_at = EXCLUDED.source_updated_at,
+                is_provisional = CASE
+                    WHEN research_features_1m.is_finalized OR EXCLUDED.is_finalized THEN FALSE
+                    ELSE EXCLUDED.is_provisional
+                END,
+                is_finalized = research_features_1m.is_finalized OR EXCLUDED.is_finalized,
+                finalization_due_at = EXCLUDED.finalization_due_at,
+                finalized_at = COALESCE(research_features_1m.finalized_at, EXCLUDED.finalized_at)
         """.trimIndent()
 
         conn.prepareStatement(sql).use { stmt ->
@@ -567,6 +602,11 @@ internal class ResearchFeatureAggregator(
             bindWindow(stmt, 7, exchangeId, startInclusive, endExclusive)
             bindWindow(stmt, 10, exchangeId, startInclusive, endExclusive)
             bindWindow(stmt, 13, exchangeId, startInclusive, endExclusive)
+            stmt.setTimestamp(16, Timestamp.from(updatedAt))
+            stmt.setTimestamp(17, Timestamp.from(finalizationCutoff))
+            stmt.setTimestamp(18, Timestamp.from(finalizationCutoff))
+            stmt.setTimestamp(19, Timestamp.from(finalizationCutoff))
+            stmt.setTimestamp(20, Timestamp.from(updatedAt))
             return stmt.executeUpdate()
         }
     }
