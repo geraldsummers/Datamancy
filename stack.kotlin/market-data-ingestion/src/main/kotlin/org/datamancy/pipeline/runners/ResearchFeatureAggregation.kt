@@ -32,6 +32,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS = 48L
 internal const val DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 30
 internal const val MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 5
 internal const val DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES = 1L
+internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 30_000L
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -162,6 +163,12 @@ internal fun isAggregationQueryTimeout(throwable: Throwable?): Boolean {
     }
     return false
 }
+
+internal data class WindowMaterializationResult(
+    val totalRows: Int,
+    val totalFinalizedRows: Int,
+    val completed: Boolean
+)
 
 internal fun planRollingRecentGapRepairWindows(
     startInclusive: Instant,
@@ -351,13 +358,14 @@ internal class ResearchFeatureAggregator(
             val windows = prioritizeRecentAggregationWindows(
                 chunkAggregationWindows(start, now, backfillChunkHours)
             )
-            val (totalRows, _) = materializeWindows(
+            val result = materializeWindows(
                 conn = conn,
                 phase = "bootstrap",
                 windows = windows
             )
             researchFeatureLogger.info {
-                "research_features_1m bootstrap complete exchange=$exchangeId windows=${windows.size} totalRows=$totalRows"
+                "research_features_1m bootstrap complete exchange=$exchangeId windows=${windows.size} " +
+                    "totalRows=${result.totalRows} completed=${result.completed}"
             }
             return@withContext true
         }
@@ -420,15 +428,16 @@ internal class ResearchFeatureAggregator(
                 return@withContext
             }
 
-            val (totalRows, _) = materializeWindows(
+            val result = materializeWindows(
                 conn = conn,
                 phase = "historical_catchup",
-                windows = windows
+                windows = windows,
+                maxRuntimeMs = backgroundPhaseBudgetMs()
             )
 
             researchFeatureLogger.info {
                 "research_features_1m historical_catchup complete exchange=$exchangeId " +
-                    "windows=${windows.size} totalRows=$totalRows"
+                    "windows=${windows.size} totalRows=${result.totalRows} completed=${result.completed}"
             }
         }
     }
@@ -451,17 +460,21 @@ internal class ResearchFeatureAggregator(
                 return@withContext false
             }
 
-            val (totalRows, totalFinalizedRows) = materializeWindows(
+            val result = materializeWindows(
                 conn = conn,
                 phase = "gap_repair",
                 windows = windows,
-                finalizeRows = true
+                finalizeRows = true,
+                maxRuntimeMs = backgroundPhaseBudgetMs()
             )
 
-            recentGapRepairCursorExclusive = nextCursor
+            if (result.completed) {
+                recentGapRepairCursorExclusive = nextCursor
+            }
             researchFeatureLogger.info {
                 "research_features_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
-                    "totalRows=$totalRows finalized=$totalFinalizedRows nextCursor=$recentGapRepairCursorExclusive"
+                    "totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
+                    "completed=${result.completed} nextCursor=$recentGapRepairCursorExclusive"
             }
             return@withContext true
         }
@@ -471,17 +484,32 @@ internal class ResearchFeatureAggregator(
         conn: Connection,
         phase: String,
         windows: List<AggregationWindow>,
-        finalizeRows: Boolean = false
-    ): Pair<Int, Int> {
+        finalizeRows: Boolean = false,
+        maxRuntimeMs: Long? = null
+    ): WindowMaterializationResult {
         if (windows.isEmpty()) {
-            return 0 to 0
+            return WindowMaterializationResult(0, 0, completed = true)
         }
 
         val queue = ArrayDeque(windows)
         var totalRows = 0
         var totalFinalizedRows = 0
+        val startNanos = System.nanoTime()
+
+        fun budgetExceeded(): Boolean {
+            val limitMs = maxRuntimeMs ?: return false
+            val elapsedMs = (System.nanoTime() - startNanos) / 1_000_000
+            return elapsedMs >= limitMs
+        }
 
         while (queue.isNotEmpty()) {
+            if (budgetExceeded()) {
+                researchFeatureLogger.info {
+                    "research_features_1m $phase exchange=$exchangeId paused after ${maxRuntimeMs}ms budget " +
+                        "rows=$totalRows finalized=$totalFinalizedRows remaining=${queue.size}"
+                }
+                return WindowMaterializationResult(totalRows, totalFinalizedRows, completed = false)
+            }
             val window = queue.removeFirst()
             val savepoint = conn.setSavepoint()
             try {
@@ -512,6 +540,13 @@ internal class ResearchFeatureAggregator(
                             "timed out after ${effectiveWindowTimeoutSeconds}s; subdividing into " +
                             splitWindows.joinToString { "${it.startInclusive}..${it.endExclusive}" }
                     }
+                    if (budgetExceeded()) {
+                        researchFeatureLogger.info {
+                            "research_features_1m $phase exchange=$exchangeId budget exhausted after timeout while " +
+                                "splitting ${window.startInclusive}..${window.endExclusive}"
+                        }
+                        return WindowMaterializationResult(totalRows, totalFinalizedRows, completed = false)
+                    }
                     splitWindows.asReversed().forEach(queue::addFirst)
                     continue
                 }
@@ -528,8 +563,11 @@ internal class ResearchFeatureAggregator(
             }
         }
 
-        return totalRows to totalFinalizedRows
+        return WindowMaterializationResult(totalRows, totalFinalizedRows, completed = true)
     }
+
+    private fun backgroundPhaseBudgetMs(): Long =
+        (refreshIntervalMs / 2).coerceAtLeast(DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
 
     private fun ensureSchema(conn: Connection): Boolean {
         if (schemaValidated) {
