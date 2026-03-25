@@ -6,7 +6,7 @@ RUN groupadd -r pipeline && useradd -r -g pipeline pipeline
 
 WORKDIR /app
 
-COPY stack.kotlin/market-data-sync/build/libs/market-data-sync-1.0.0-all.jar /app/market-data-sync.jar
+COPY stack.kotlin/market-data-sync/build/libs/market-data-sync-*-all.jar /app/market-data-sync.jar
 
 RUN mkdir -p /app/config && chown -R pipeline:pipeline /app
 

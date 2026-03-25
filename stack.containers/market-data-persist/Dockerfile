@@ -6,7 +6,7 @@ RUN groupadd -r pipeline && useradd -r -g pipeline pipeline
 
 WORKDIR /app
 
-COPY stack.kotlin/market-data-persist/build/libs/market-data-persist-1.0.0-all.jar /app/market-data-persist.jar
+COPY stack.kotlin/market-data-persist/build/libs/market-data-persist-*-all.jar /app/market-data-persist.jar
 
 RUN mkdir -p /app/config && chown -R pipeline:pipeline /app
 

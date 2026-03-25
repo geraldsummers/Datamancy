@@ -6,7 +6,7 @@ RUN groupadd -r pipeline && useradd -r -g pipeline pipeline
 
 WORKDIR /app
 
-COPY stack.kotlin/market-data-repair/build/libs/market-data-repair-1.0.0-all.jar /app/market-data-repair.jar
+COPY stack.kotlin/market-data-repair/build/libs/market-data-repair-*-all.jar /app/market-data-repair.jar
 
 RUN mkdir -p /app/config && chown -R pipeline:pipeline /app
 

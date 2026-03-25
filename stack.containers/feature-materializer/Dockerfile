@@ -6,7 +6,7 @@ RUN groupadd -r pipeline && useradd -r -g pipeline pipeline
 
 WORKDIR /app
 
-COPY stack.kotlin/feature-materializer/build/libs/feature-materializer-1.0.0-all.jar /app/feature-materializer.jar
+COPY stack.kotlin/feature-materializer/build/libs/feature-materializer-*-all.jar /app/feature-materializer.jar
 
 RUN mkdir -p /app/config && chown -R pipeline:pipeline /app
 
