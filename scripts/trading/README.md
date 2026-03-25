@@ -14,3 +14,13 @@ Use these instead:
 - `POST /api/v1/alpha/cross-sectional/search/run`
 
 Run them through `alpha-analytics-service` on `latium.local`.
+
+For preflight gating before meaningful research or promotion attempts, use:
+
+- `scripts/trading/alpha_readiness_latium.sh`
+
+This checks:
+
+- `data-health` summary and top issues
+- cross-sectional cache status
+- a simple `READY` vs `BLOCKED` verdict based on critical symbols, coverage failures, finalized failures, and cache errors
