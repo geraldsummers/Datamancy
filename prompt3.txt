@@ -22,7 +22,8 @@ Server environment:
 - if waiting, wait in 120s intervals unless waiting for the test runner, then prefer 300s intervals
 
 Hard operating constraints:
-- Use latium.local only. Do not run the stack locally.
+- Use latium.local for deployments. Do not run the stack locally.
+- Use the local environment for building. Do not build on the server.
 - Check recent commit history before doing new work and continue from the current state.
 - Prefer targeted deploys and targeted tests.
 - Commit frequently with alpha-focused commit messages.
