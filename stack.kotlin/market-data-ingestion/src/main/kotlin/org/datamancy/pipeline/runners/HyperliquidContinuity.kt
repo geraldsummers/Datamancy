@@ -7,6 +7,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
@@ -34,6 +35,7 @@ internal const val MIN_HYPERLIQUID_BACKFILL_MAX_BARS = 2
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_OVERLAP_BARS = 2
 internal const val DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS = 2L
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_SPACING_MS = 150L
+internal const val DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_TIMEOUT_MS = 15_000L
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_RETRY_BASE_DELAY_MS = 1_000L
 internal const val MAX_HYPERLIQUID_BACKFILL_RETRY_DELAY_MS = 12_000L
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS = 4
@@ -525,11 +527,30 @@ internal class HyperliquidCandleBackfillClient(
 
         repeat(DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS) { attempt ->
             awaitBackfillRequestSlot()
-            val response = client.post(infoUrl) {
-                contentType(ContentType.Application.Json)
-                setBody(payload.toString())
+            val responseWithBody = withTimeoutOrNull(DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_TIMEOUT_MS) {
+                val response = client.post(infoUrl) {
+                    contentType(ContentType.Application.Json)
+                    setBody(payload.toString())
+                }
+                response to response.bodyAsText()
             }
-            val responseText = response.bodyAsText()
+            if (responseWithBody == null) {
+                val retryDelayMs = backfillRetryDelayMs(window, attempt)
+                if (attempt == DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS - 1) {
+                    throw IllegalStateException(
+                        "Hyperliquid candle backfill timed out for ${window.symbol}/${window.interval} " +
+                            "after ${DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_TIMEOUT_MS}ms"
+                    )
+                }
+                continuityLogger.warn {
+                    "Retrying candle backfill for ${window.symbol}/${window.interval} after request timeout " +
+                        "in ${retryDelayMs}ms (attempt ${attempt + 1}/$DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS)"
+                }
+                delay(retryDelayMs)
+                return@repeat
+            }
+
+            val (response, responseText) = responseWithBody
             if (response.status.value in 200..299) {
                 return try {
                     json.parseToJsonElement(responseText).jsonArray

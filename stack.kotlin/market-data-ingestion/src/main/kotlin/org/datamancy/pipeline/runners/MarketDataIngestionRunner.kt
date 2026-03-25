@@ -1063,6 +1063,7 @@ class MarketDataIngestionRunner {
         val distinctStreams = streams.distinct()
         var fetchedCandles = 0
         var repairedStreams = 0
+        val completedStreams = AtomicInteger(0)
         val permits = determineCandleRepairPermits(
             streamCount = distinctStreams.size,
             markInitialRepairComplete = markInitialRepairComplete
@@ -1102,6 +1103,15 @@ class MarketDataIngestionRunner {
                             } catch (e: Exception) {
                                 logger.error(e) { "$label failed for $symbol/$interval: ${e.message}" }
                                 0 to 0
+                            } finally {
+                                val completed = completedStreams.incrementAndGet()
+                                if (distinctStreams.isNotEmpty() &&
+                                    (completed == distinctStreams.size || completed % 16 == 0)
+                                ) {
+                                    logger.info {
+                                        "$label progress completed=$completed/${distinctStreams.size}"
+                                    }
+                                }
                             }
                         }
                     }
