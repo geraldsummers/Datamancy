@@ -12,8 +12,28 @@ class SmartUpScriptTest {
         val text = smartUpScriptText()
 
         assertTrue(
-            text.contains("STATUS_JSON=\"\${STATUS_JSON:-\${DEPLOY_STATUS_JSON:-\$ROOT_DIR/deploy-status.json}}\""),
-            "smart-up should track deploy state outside the synced build-status artifact"
+            text.contains("SMART_UP_STATE_DIR=\"\${SMART_UP_STATE_DIR:-\${XDG_STATE_HOME:-\$HOME/.local/state}/datamancy/smart-up}\""),
+            "smart-up should keep deploy state in a persistent per-user state directory by default"
+        )
+        assertTrue(
+            text.contains("STATUS_JSON=\"\${STATUS_JSON:-\${DEPLOY_STATUS_JSON:-}}\""),
+            "smart-up should allow a persistent deploy ledger override without defaulting back into the rsynced tree"
+        )
+        assertTrue(
+            text.contains("STATUS_JSON=\"\${SMART_UP_STATE_DIR}/deploy-status-\${status_key}.json\""),
+            "smart-up should derive a per-stack deploy ledger path under the persistent state directory"
+        )
+        assertTrue(
+            text.contains("LEGACY_STATUS_JSON=\"\${ROOT_DIR}/deploy-status.json\""),
+            "smart-up should still recognize the old in-tree deploy status path for migration"
+        )
+        assertTrue(
+            text.contains("Migrated legacy deploy status to \$STATUS_JSON"),
+            "smart-up should migrate existing in-tree deploy ledgers into the persistent state location"
+        )
+        assertTrue(
+            text.contains("rsync --delete"),
+            "smart-up should explicitly warn when the deploy ledger is configured inside the synced tree"
         )
         assertTrue(
             text.contains("FORCE_REFRESH_SERVICES=\"\${FORCE_REFRESH_SERVICES:-postgres-datamancy-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e,test-trading-staged}\""),

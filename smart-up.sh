@@ -4,10 +4,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REGISTRY_JSON="${REGISTRY_JSON:-$ROOT_DIR/test-registry.json}"
-STATUS_JSON="${STATUS_JSON:-${DEPLOY_STATUS_JSON:-$ROOT_DIR/deploy-status.json}}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
 DRY_RUN="${DRY_RUN:-0}"
 FORCE_REFRESH_SERVICES="${FORCE_REFRESH_SERVICES:-postgres-datamancy-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e,test-trading-staged}"
+SMART_UP_STATE_DIR="${SMART_UP_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/datamancy/smart-up}"
+LEGACY_STATUS_JSON="${ROOT_DIR}/deploy-status.json"
+STATUS_JSON="${STATUS_JSON:-${DEPLOY_STATUS_JSON:-}}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -18,6 +20,36 @@ NC='\033[0m'
 info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
+
+prepare_status_file() {
+    local status_dir
+    if [ -z "$STATUS_JSON" ]; then
+        local status_key
+        status_key="$(python3 - "$COMPOSE_FILE" <<'PY'
+import hashlib
+import os
+import sys
+
+compose_file = os.path.abspath(sys.argv[1])
+print(hashlib.sha256(compose_file.encode("utf-8")).hexdigest()[:16])
+PY
+)"
+        STATUS_JSON="${SMART_UP_STATE_DIR}/deploy-status-${status_key}.json"
+    fi
+    status_dir="$(dirname "$STATUS_JSON")"
+    mkdir -p "$status_dir"
+
+    if [ "$STATUS_JSON" != "$LEGACY_STATUS_JSON" ] && [ ! -f "$STATUS_JSON" ] && [ -f "$LEGACY_STATUS_JSON" ]; then
+        cp "$LEGACY_STATUS_JSON" "$STATUS_JSON"
+        info "Migrated legacy deploy status to $STATUS_JSON"
+    fi
+
+    case "$STATUS_JSON" in
+        "$ROOT_DIR"/*|"$ROOT_DIR")
+            warn "Deploy status path is inside the synced tree and may be wiped by rsync --delete: $STATUS_JSON"
+            ;;
+    esac
+}
 
 prepare_shadow_accounts_dir() {
     local env_file="${ROOT_DIR}/.env"
@@ -192,6 +224,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 prepare_shadow_accounts_dir
+prepare_status_file
 
 if ! docker compose -f "$COMPOSE_FILE" config --services >/dev/null 2>&1; then
     error "Failed to load docker compose file: $COMPOSE_FILE"
