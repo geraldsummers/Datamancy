@@ -50,6 +50,22 @@ class HyperliquidUniverseTest {
     }
 
     @Test
+    fun `catalog preserves canonical exchange symbol case while filtering case insensitively`() {
+        val filtered = filterCatalogUniverse(
+            entries = listOf(
+                HyperliquidUniverseEntry(symbol = "kPEPE", delisted = false),
+                HyperliquidUniverseEntry(symbol = "kBONK", delisted = false),
+                HyperliquidUniverseEntry(symbol = "BTC", delisted = false)
+            ),
+            includeSymbols = parseSymbolSet("kpepe,btc"),
+            excludeSymbols = emptySet(),
+            includeDelisted = false
+        )
+
+        assertEquals(listOf("BTC", "kPEPE"), filtered)
+    }
+
+    @Test
     fun `universe refresh interval clamps to minimum`() {
         assertEquals(MIN_HYPERLIQUID_UNIVERSE_REFRESH_INTERVAL_MS, resolveHyperliquidUniverseRefreshIntervalMs(1L))
     }

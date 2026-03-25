@@ -28,7 +28,7 @@ internal const val MIN_HYPERLIQUID_BACKFILL_LOOKBACK_HOURS = 1L
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_MAX_BARS = 5_000
 internal const val MIN_HYPERLIQUID_BACKFILL_MAX_BARS = 2
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_OVERLAP_BARS = 2
-internal const val DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS = 24L
+internal const val DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS = 2L
 
 internal fun resolveHyperliquidInfoUrl(explicitUrl: String?, mainnet: Boolean): String {
     val url = explicitUrl?.trim()

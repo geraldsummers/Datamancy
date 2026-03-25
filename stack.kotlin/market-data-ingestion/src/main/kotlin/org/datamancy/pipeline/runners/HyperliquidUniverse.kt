@@ -56,6 +56,8 @@ internal fun parseSymbolList(raw: String?): List<String> =
 internal fun parseSymbolSet(raw: String?): Set<String> =
     parseSymbolList(raw).toSet()
 
+private fun symbolKey(symbol: String): String = symbol.trim().uppercase()
+
 internal fun resolveHyperliquidUniverseMode(explicitMode: String?, staticSymbols: List<String>): HyperliquidUniverseMode {
     val normalized = explicitMode?.trim()?.lowercase()
     return when (normalized) {
@@ -86,11 +88,12 @@ internal fun filterCatalogUniverse(
     return entries
         .asSequence()
         .filter { includeDelisted || !it.delisted }
-        .map { it.symbol }
-        .filter { includeSymbols.isEmpty() || it in includeSymbols }
-        .filterNot { it in excludeSymbols }
+        .map { it.symbol.trim() }
+        .filter { it.isNotEmpty() }
+        .filter { includeSymbols.isEmpty() || symbolKey(it) in includeSymbols }
+        .filterNot { symbolKey(it) in excludeSymbols }
         .distinct()
-        .sorted()
+        .sortedWith(compareBy<String> { symbolKey(it) }.thenBy { it })
         .toList()
 }
 
@@ -103,8 +106,10 @@ internal class HyperliquidUniverseResolver(
         return when (settings.mode) {
             HyperliquidUniverseMode.STATIC -> {
                 val symbols = settings.staticSymbols
-                    .filter { settings.includeSymbols.isEmpty() || it in settings.includeSymbols }
-                    .filterNot { it in settings.excludeSymbols }
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .filter { settings.includeSymbols.isEmpty() || symbolKey(it) in settings.includeSymbols }
+                    .filterNot { symbolKey(it) in settings.excludeSymbols }
                     .distinct()
                 require(symbols.isNotEmpty()) {
                     "Static universe mode resolved no symbols. Provide HYPERLIQUID_SYMBOLS or switch to catalog mode."
@@ -154,12 +159,12 @@ internal class HyperliquidUniverseResolver(
             val symbol = obj["name"]?.jsonPrimitive?.contentOrNull
                 ?: obj["coin"]?.jsonPrimitive?.contentOrNull
                 ?: return@mapNotNull null
-            val normalized = symbol.trim().uppercase()
-            if (normalized.isEmpty()) {
+            val canonical = symbol.trim()
+            if (canonical.isEmpty()) {
                 return@mapNotNull null
             }
             HyperliquidUniverseEntry(
-                symbol = normalized,
+                symbol = canonical,
                 delisted = obj["isDelisted"]?.jsonPrimitive?.booleanOrNull == true ||
                     obj["delisted"]?.jsonPrimitive?.booleanOrNull == true
             )

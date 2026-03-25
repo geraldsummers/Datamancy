@@ -81,6 +81,11 @@ class MarketDataIngestionRunner {
     private val tradingPolicy = ActiveTradingPolicy.current()
     private val hyperliquidPolicy = tradingPolicy.venue("hyperliquid")
     private val hyperliquidSymbolsPerConnection = hyperliquidPolicy.universe.symbolsPerConnection.coerceAtLeast(1)
+    private val hyperliquidSplitCandlesFromExecution = hyperliquidPolicy.rawSync.splitCandlesFromExecution
+    private val hyperliquidCandleSymbolsPerConnection =
+        hyperliquidPolicy.rawSync.candleSymbolsPerConnection.coerceAtLeast(1)
+    private val hyperliquidExecutionSymbolsPerConnection =
+        hyperliquidPolicy.rawSync.executionSymbolsPerConnection.coerceAtLeast(1)
 
     private val staticSymbols = hyperliquidPolicy.universe.staticSymbols
     private val candleIntervals = listOf("1m")
@@ -172,6 +177,10 @@ class MarketDataIngestionRunner {
         logger.info { "=" * 80 }
         logger.info { "Universe Mode: $hyperliquidUniverseMode" }
         logger.info { "Symbols Per Connection: $hyperliquidSymbolsPerConnection" }
+        logger.info {
+            "Split Candle/Execution Streams: $hyperliquidSplitCandlesFromExecution " +
+                "(candle=${hyperliquidCandleSymbolsPerConnection}, execution=${hyperliquidExecutionSymbolsPerConnection})"
+        }
         if (staticSymbols.isNotEmpty()) {
             logger.info { "Static Symbols Override: ${staticSymbols.joinToString()}" }
         }
@@ -373,10 +382,13 @@ class MarketDataIngestionRunner {
                     previous = activeUniverse?.symbols.orEmpty()
                 )
                 activeUniverse = universe
-                val symbolShards = universe.symbols.chunked(hyperliquidSymbolsPerConnection)
+                val sourcePlans = buildSourcePlans(universe.symbols)
+                val candleShardCount = sourcePlans.count { it.family == "candle" }
+                val executionShardCount = sourcePlans.count { it.family == "execution" }
                 logger.info {
                     "Connecting to Hyperliquid WebSocket... universeSource=${universe.source} " +
-                        "symbols=${universe.symbols.size} shards=${symbolShards.size}"
+                        "symbols=${universe.symbols.size} sourcePlans=${sourcePlans.size} " +
+                        "candleShards=$candleShardCount executionShards=$executionShardCount"
                 }
                 val continuityWatchdog = HyperliquidContinuityWatchdog(
                     symbols = universe.symbols,
@@ -404,14 +416,9 @@ class MarketDataIngestionRunner {
                             )
                         }
                     }
-                    val streamCollectors = symbolShards.mapIndexed { shardIndex, shardSymbols ->
+                    val streamCollectors = sourcePlans.map { sourcePlan ->
                         launch {
-                            runShardLoop(
-                                shardIndex = shardIndex,
-                                shardCount = symbolShards.size,
-                                shardSymbols = shardSymbols,
-                                sessionRestart = sessionRestart
-                            ) { data ->
+                            runShardLoop(sourcePlan, sessionRestart) { data ->
                                 messagesInSession.incrementAndGet()
                                 sessionProducedData.set(true)
                                 continuityWatchdog.record(data)
@@ -530,38 +537,93 @@ class MarketDataIngestionRunner {
             .getOrThrow()
     }
 
-    private fun createSource(symbols: List<String>): HyperliquidSource {
+    private fun createSource(plan: HyperliquidSourcePlan): HyperliquidSource {
         return HyperliquidSource(
-            symbols = symbols,
-            subscribeToTrades = true,
-            subscribeToCandles = true,
+            symbols = plan.symbols,
+            subscribeToTrades = plan.subscribeToTrades,
+            subscribeToCandles = plan.subscribeToCandles,
             candleIntervals = candleIntervals,
-            subscribeToOrderbook = enableOrderbook,
-            subscribeToAssetCtx = true,
+            subscribeToOrderbook = plan.subscribeToOrderbook,
+            subscribeToAssetCtx = plan.subscribeToAssetCtx,
             url = hyperliquidWsUrl,
             receiveIdleTimeoutMs = hyperliquidIdleTimeoutMs
         )
     }
 
+    private fun buildSourcePlans(symbols: List<String>): List<HyperliquidSourcePlan> {
+        val normalized = symbols.distinct()
+        if (normalized.isEmpty()) {
+            return emptyList()
+        }
+        if (!hyperliquidSplitCandlesFromExecution) {
+            val combinedShards = normalized.chunked(hyperliquidSymbolsPerConnection)
+            return combinedShards.mapIndexed { shardIndex, shardSymbols ->
+                HyperliquidSourcePlan(
+                    family = "combined",
+                    shardIndex = shardIndex,
+                    shardCount = combinedShards.size,
+                    symbols = shardSymbols,
+                    subscribeToTrades = true,
+                    subscribeToCandles = true,
+                    subscribeToOrderbook = enableOrderbook,
+                    subscribeToAssetCtx = true
+                )
+            }
+        }
+
+        val candleShards = normalized.chunked(hyperliquidCandleSymbolsPerConnection)
+        val executionShards = normalized.chunked(hyperliquidExecutionSymbolsPerConnection)
+        return buildList {
+            addAll(
+                candleShards.mapIndexed { shardIndex, shardSymbols ->
+                    HyperliquidSourcePlan(
+                        family = "candle",
+                        shardIndex = shardIndex,
+                        shardCount = candleShards.size,
+                        symbols = shardSymbols,
+                        subscribeToTrades = false,
+                        subscribeToCandles = true,
+                        subscribeToOrderbook = false,
+                        subscribeToAssetCtx = false
+                    )
+                }
+            )
+            addAll(
+                executionShards.mapIndexed { shardIndex, shardSymbols ->
+                    HyperliquidSourcePlan(
+                        family = "execution",
+                        shardIndex = shardIndex,
+                        shardCount = executionShards.size,
+                        symbols = shardSymbols,
+                        subscribeToTrades = true,
+                        subscribeToCandles = false,
+                        subscribeToOrderbook = enableOrderbook,
+                        subscribeToAssetCtx = true
+                    )
+                }
+            )
+        }
+    }
+
     private suspend fun runShardLoop(
-        shardIndex: Int,
-        shardCount: Int,
-        shardSymbols: List<String>,
+        sourcePlan: HyperliquidSourcePlan,
         sessionRestart: CompletableDeferred<IngestionSessionRestartReason>,
         onData: suspend (HyperliquidMarketData) -> Unit
     ) {
         var reconnectAttempt = 0
 
         while (currentCoroutineContext().isActive && !sessionRestart.isCompleted) {
-            if (reconnectAttempt == 0 && shardIndex > 0) {
-                delay((shardIndex * 250L).coerceAtMost(5_000L))
+            if (reconnectAttempt == 0 && sourcePlan.shardIndex > 0) {
+                delay((sourcePlan.shardIndex * 250L).coerceAtMost(5_000L))
             }
 
-            val source = createSource(shardSymbols)
+            val source = createSource(sourcePlan)
             registerActiveSource(source)
             try {
                 logger.info {
-                    "Starting Hyperliquid shard=${shardIndex + 1}/$shardCount symbols=${shardSymbols.size}"
+                    "Starting Hyperliquid ${sourcePlan.label} symbols=${sourcePlan.symbols.size} " +
+                        "trades=${sourcePlan.subscribeToTrades} candles=${sourcePlan.subscribeToCandles} " +
+                        "orderbook=${sourcePlan.subscribeToOrderbook} assetCtx=${sourcePlan.subscribeToAssetCtx}"
                 }
                 var shardRecovered = reconnectAttempt == 0
                 source.fetch()
@@ -570,7 +632,7 @@ class MarketDataIngestionRunner {
                             reconnectAttempt = 0
                             shardRecovered = true
                             logger.info {
-                                "Hyperliquid shard=${shardIndex + 1}/$shardCount recovered and is receiving data again"
+                                "Hyperliquid ${sourcePlan.label} recovered and is receiving data again"
                             }
                         }
                         onData(data)
@@ -580,13 +642,13 @@ class MarketDataIngestionRunner {
                             throw e
                         }
                         logger.error(e) {
-                            "Error in data stream shard=${shardIndex + 1}/$shardCount: ${e.message}"
+                            "Error in data stream ${sourcePlan.label}: ${e.message}"
                         }
                         try {
                             sink.flush()
                         } catch (flushError: Exception) {
                             logger.error(flushError) {
-                                "Failed to flush pending data after shard failure shard=${shardIndex + 1}/$shardCount: ${flushError.message}"
+                                "Failed to flush pending data after ${sourcePlan.label} failure: ${flushError.message}"
                             }
                         }
                         throw e
@@ -597,7 +659,7 @@ class MarketDataIngestionRunner {
                     return
                 }
                 logger.warn {
-                    "Hyperliquid shard=${shardIndex + 1}/$shardCount completed unexpectedly; reconnecting"
+                    "Hyperliquid ${sourcePlan.label} completed unexpectedly; reconnecting"
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -610,7 +672,7 @@ class MarketDataIngestionRunner {
                 runCatching { source.close() }
                     .onFailure { ex ->
                         logger.warn(ex) {
-                            "Failed to close Hyperliquid shard=${shardIndex + 1}/$shardCount cleanly: ${ex.message}"
+                            "Failed to close Hyperliquid ${sourcePlan.label} cleanly: ${ex.message}"
                         }
                     }
             }
@@ -624,7 +686,7 @@ class MarketDataIngestionRunner {
                 maxDelayMs = 30_000L
             )
             logger.info {
-                "Reconnecting Hyperliquid shard=${shardIndex + 1}/$shardCount in ${reconnectDelayMs}ms (attempt $reconnectAttempt)"
+                "Reconnecting Hyperliquid ${sourcePlan.label} in ${reconnectDelayMs}ms (attempt $reconnectAttempt)"
             }
             delay(reconnectDelayMs)
         }
@@ -844,13 +906,18 @@ class MarketDataIngestionRunner {
         markInitialRepairComplete: Boolean
     ) {
         val sessionStart = java.time.Instant.now()
+        val distinctStreams = streams.distinct()
         var fetchedCandles = 0
         var repairedStreams = 0
         val semaphore = Semaphore(permits = 8)
 
+        logger.info {
+            "$label starting: streams=${distinctStreams.size} lookbackHours=$lookbackHours " +
+                "markInitialRepairComplete=$markInitialRepairComplete"
+        }
+
         supervisorScope {
-            streams
-                .distinct()
+            distinctStreams
                 .map { (symbol, interval) ->
                     async {
                         semaphore.withPermit {
@@ -1037,6 +1104,19 @@ internal fun completeSessionRestart(
     if (!sessionRestart.isCompleted) {
         sessionRestart.complete(reason)
     }
+}
+
+private data class HyperliquidSourcePlan(
+    val family: String,
+    val shardIndex: Int,
+    val shardCount: Int,
+    val symbols: List<String>,
+    val subscribeToTrades: Boolean,
+    val subscribeToCandles: Boolean,
+    val subscribeToOrderbook: Boolean,
+    val subscribeToAssetCtx: Boolean
+) {
+    val label: String = "$family shard=${shardIndex + 1}/$shardCount"
 }
 
 internal fun reconnectBackoffDelayMs(reconnectAttempt: Int, maxDelayMs: Long): Long {

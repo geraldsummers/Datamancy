@@ -80,6 +80,9 @@ data class RawSyncPolicy(
         "funding" to RequirementLevel.REQUIRED,
         "open_interest" to RequirementLevel.OPTIONAL
     ),
+    val splitCandlesFromExecution: Boolean = true,
+    val candleSymbolsPerConnection: Int = 16,
+    val executionSymbolsPerConnection: Int = 24,
     val idleTimeoutMs: Long = 120_000L,
     val freshnessCheckIntervalMs: Long = 30_000L,
     val channelActivityTimeoutMs: Long = 120_000L,
@@ -483,6 +486,9 @@ class RawSyncPolicyBuilder {
         "funding" to RequirementLevel.REQUIRED,
         "open_interest" to RequirementLevel.OPTIONAL
     )
+    var splitCandlesFromExecution: Boolean = true
+    var candleSymbolsPerConnection: Int = 16
+    var executionSymbolsPerConnection: Int = 24
     var idleTimeoutMs: Long = 120_000L
     var freshnessCheckIntervalMs: Long = 30_000L
     var channelActivityTimeoutMs: Long = 120_000L
@@ -499,6 +505,9 @@ class RawSyncPolicyBuilder {
 
     fun build(): RawSyncPolicy = RawSyncPolicy(
         channels = channels.toMap(),
+        splitCandlesFromExecution = splitCandlesFromExecution,
+        candleSymbolsPerConnection = candleSymbolsPerConnection,
+        executionSymbolsPerConnection = executionSymbolsPerConnection,
         idleTimeoutMs = idleTimeoutMs,
         freshnessCheckIntervalMs = freshnessCheckIntervalMs,
         channelActivityTimeoutMs = channelActivityTimeoutMs,
@@ -881,6 +890,9 @@ object DatamancyTradingPolicy {
                 channel("orderbook_l2", RequirementLevel.REQUIRED)
                 channel("funding", RequirementLevel.REQUIRED)
                 channel("open_interest", RequirementLevel.OPTIONAL)
+                splitCandlesFromExecution = true
+                candleSymbolsPerConnection = 16
+                executionSymbolsPerConnection = 24
                 idleTimeoutMs = 120_000L
                 freshnessCheckIntervalMs = 30_000L
                 channelActivityTimeoutMs = 120_000L
