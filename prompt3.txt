@@ -22,11 +22,51 @@ server env:
 - if waiting, wait in 120s intervals unless waiting for the test runner in which case you'd be better to wait in 300s intervals
 
 Assumptions:
-- Infrastructure is mostly stable.
+- Infrastructure is mostly stable, but alpha discovery must obey hard data-readiness gates.
 - Do not spend time on broad stack hardening, security cleanup, account homogeneity, compose hygiene, or exchange abstraction unless they are directly blocking alpha research, execution realism, or promotion.
 - Hyperliquid is the active trading venue.
 - Use latium.local only. Do not run the stack locally. Execute commands on latium via ssh gerald@latium.local "command"
 - Check commit history for prior alpha work and continue from the current state.
+
+Current engine contract:
+1. Cross-sectional research is the only supported alpha discovery surface right now.
+2. `research_features_1m` is the required research layer.
+3. Every research run computes coverage and watermarks first.
+4. If the requested horizon is not covered, abort with a clear reason.
+5. No implicit raw fallback is allowed in search or promotion flows.
+6. Raw sync owns raw completeness and freshness.
+7. Feature materialization owns feature completeness, freshness, provisional/finalized lifecycle, and observation flags.
+8. Canonical raw candle recovery order is:
+   - initial recent repair
+   - targeted stale repair
+   - historical catchup only when live backlog is clear
+9. Canonical feature materialization order is:
+   - refresh
+   - bootstrap if needed
+   - rolling recent gap repair
+   - historical catchup
+10. Initial universe candle repair is bounded into 24-stream batches with explicit progress logging.
+11. Candle snapshot/backfill requests are time-bounded so a few stuck requests cannot freeze the whole universe bootstrap.
+12. Readers must never reconstruct research features on the fly from raw tables.
+
+Current engine status on latium.local:
+- Latest verified readiness snapshot was taken on 2026-03-25T19:50Z.
+- `market-data-ingestion` now runs the canonical raw candle recovery planner/executor rather than split startup/targeted/historical loops.
+- The old frozen bootstrap behavior improved materially:
+  - initial recent repair now completes bounded 24-stream slices in about 80s
+  - live recent raw counts stayed materially alive during bootstrap (`candle_1m=163`, `trade=150`, `orderbook_l2=190` within the last 180s in the sampled check)
+- Cross-sectional alpha search is still BLOCKED by readiness gates, not yet by strategy logic:
+  - tracked=191
+  - active=190
+  - healthy=0
+  - degraded=30
+  - critical=160
+  - coverage_fail=190
+  - finalized_fail=188
+  - execution_fail=22
+  - research readiness: `passed=false`, `eligible=0/207`, reason=`coverage gate failed`
+- Current blocker is the long stale tail in raw coverage/finalization and resulting feature lag, not the old split candle-repair scheduler.
+- Do not claim alpha progress while readiness remains blocked.
 
 Core mission:
 1. Prove or kill alpha.
@@ -41,7 +81,7 @@ Core mission:
 Research priorities:
 1. Cross-sectional residual trend
 2. Cross-sectional residual mean reversion
-3. Time-series momentum / reversal overlays
+3. Time-series momentum / reversal overlays only if they are attached to the cross-sectional engine rather than separate single-name workflows
 4. Funding / basis carry
 5. LOB / flow-alpha as execution gating and entry timing
 6. Toxicity / no-trade regime filters
@@ -54,6 +94,7 @@ Research framework:
 - Execution model predicts fill probability, slippage, impact, and fail-to-fill behavior.
 - Risk model enforces inventory bounds, drawdown brakes, venue limits, liquidation distance, and kill switches.
 - Do not accept any result that depends on optimistic mid-price fills.
+- Do not run strategy search when readiness is blocked; fix readiness first or explicitly report that alpha search is gated.
 
 Execution realism requirements:
 - maker/taker fees and rebates
@@ -79,6 +120,12 @@ Research questions to answer:
   - event/jump windows
   - different symbols / sectors
 - Where does backtest diverge from forward or paper behavior?
+- Where does raw coverage or feature freshness diverge from the research contract?
+
+Operator surfaces:
+- Use `scripts/trading/alpha_readiness_latium.sh hyperliquid_mainnet` before meaningful research or promotion attempts.
+- Use `scripts/trading/alpha_discovery_latium.sh search` and `scripts/trading/alpha_discovery_latium.sh run` once readiness passes.
+- Use `alpha-analytics-service` endpoints for cross-sectional configs and runs.
 
 Deliverables:
 - Reusable analytics services as the main computation layer.
@@ -100,6 +147,7 @@ Deliverables:
   - drawdown
   - regime attribution
   - degradation alerts
+  - raw/feature coverage health
 
 Promotion ladder:
 idea -> offline backtest -> walk-forward -> paper / shadow -> testnet infra validation -> small-risk live
@@ -113,6 +161,7 @@ Promotion criteria:
 - stable behavior across regime slices
 - tolerable live-vs-backtest drift
 - no dependency on unrealistic execution assumptions
+- readiness gates pass for the relevant universe/horizon
 
 Kill criteria:
 - edge disappears after realistic costs
@@ -121,10 +170,12 @@ Kill criteria:
 - results are driven by sparse trades
 - profitability depends on optimistic fill assumptions
 - strategy complexity exceeds expected practical payoff
+- the required data/readiness contract cannot be met reliably enough to operate the strategy
 
 Work style:
 - Take initiative and keep moving.
 - Prefer alpha work over infra work unless infra is blocking alpha.
+- When infra blocks alpha, fix the blocker decisively and update the operator surface/prompt with the new reality.
 - Use targeted deploys and targeted tests during research.
 - Run broader test suites only when promoting or deploying meaningful changes.
 - Leave short practical notes:
@@ -134,6 +185,12 @@ Work style:
   - remaining risk
   - next step
 - Commit frequently with alpha-focused commit messages.
+
+Immediate priorities:
+1. Finish driving universe-wide raw coverage/finalization to the point that readiness passes.
+2. Keep the canonical no-fallback research contract intact.
+3. Once readiness passes, resume cross-sectional search over medium-term residual trend/reversion families first.
+4. Report exact blocked-vs-ready status with timestamps instead of vague optimism.
 
 Final report to operator:
 - strongest surviving strategy families
@@ -146,5 +203,6 @@ Final report to operator:
 - explain how execution model works
 - explain how promotion and kill criteria work
 - explain if we're getting closer to alpha
+- state whether readiness is currently blocking alpha search
 - suggest directions for alpha discovery
 - suggest directions for risk model
