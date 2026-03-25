@@ -1,7 +1,9 @@
 package org.datamancy.pipeline.runners
 
 import org.junit.jupiter.api.Test
+import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class MarketDataIngestionRunnerConfigTest {
 
@@ -153,5 +155,34 @@ class MarketDataIngestionRunnerConfigTest {
     fun `reconnect backoff handles non-positive attempts safely`() {
         assertEquals(2000L, reconnectBackoffDelayMs(reconnectAttempt = 0, maxDelayMs = 60_000L))
         assertEquals(2000L, reconnectBackoffDelayMs(reconnectAttempt = -5, maxDelayMs = 60_000L))
+    }
+
+    @Test
+    fun `historical backfill range skips already covered lookback`() {
+        val now = Instant.parse("2026-03-25T10:15:45Z")
+        assertNull(
+            determineHistoricalCandleBackfillRange(
+                interval = "1m",
+                now = now,
+                lookbackHours = 2L,
+                earliestRawTime = Instant.parse("2026-03-25T08:10:00Z"),
+                latestRawTime = Instant.parse("2026-03-25T10:14:00Z")
+            )
+        )
+    }
+
+    @Test
+    fun `historical backfill range only requests missing older history`() {
+        val now = Instant.parse("2026-03-25T10:15:45Z")
+        val range = determineHistoricalCandleBackfillRange(
+            interval = "1m",
+            now = now,
+            lookbackHours = 4L,
+            earliestRawTime = Instant.parse("2026-03-25T08:12:00Z"),
+            latestRawTime = Instant.parse("2026-03-25T10:14:00Z")
+        )
+
+        assertEquals(Instant.parse("2026-03-25T06:15:00Z"), range?.startTime)
+        assertEquals(Instant.parse("2026-03-25T08:11:00Z"), range?.endTime)
     }
 }

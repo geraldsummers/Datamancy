@@ -59,6 +59,26 @@ class HyperliquidContinuityTest {
     }
 
     @Test
+    fun `backfill windows for explicit range preserve overlap and bounds`() {
+        val windows = planCandleBackfillWindowsForRange(
+            symbol = "BTC",
+            interval = "1h",
+            startTime = Instant.parse("2026-03-23T01:15:00Z"),
+            endTime = Instant.parse("2026-03-23T10:15:45Z"),
+            maxBars = 5,
+            overlapBars = 2
+        )
+
+        assertEquals(3, windows.size)
+        assertEquals(Instant.parse("2026-03-23T06:00:00Z"), windows[0].startTime)
+        assertEquals(Instant.parse("2026-03-23T10:15:45Z"), windows[0].endTime)
+        assertEquals(Instant.parse("2026-03-23T03:00:00Z"), windows[1].startTime)
+        assertEquals(Instant.parse("2026-03-23T07:59:59.999Z"), windows[1].endTime)
+        assertEquals(Instant.parse("2026-03-23T01:00:00Z"), windows[2].startTime)
+        assertEquals(Instant.parse("2026-03-23T04:59:59.999Z"), windows[2].endTime)
+    }
+
+    @Test
     fun `watchdog reconnects when candles stall while trades remain active`() {
         var now = Instant.parse("2026-03-23T10:00:00Z")
         val watchdog = HyperliquidContinuityWatchdog(

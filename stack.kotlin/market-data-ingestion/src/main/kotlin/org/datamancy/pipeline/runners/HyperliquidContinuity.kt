@@ -140,35 +140,71 @@ internal fun planCandleBackfillWindows(
     overlapBars: Int
 ): List<CandleBackfillWindow> {
     val intervalMs = candleIntervalToMillis(interval)
-    val normalizedMaxBars = resolveHyperliquidBackfillMaxBars(maxBars)
-    val normalizedOverlapBars = normalizedBackfillOverlapBars(normalizedMaxBars, overlapBars)
     val requestedLookbackMs = resolveHyperliquidBackfillLookbackHours(lookbackHours) * 60L * 60L * 1000L
     val totalBars = ceil(requestedLookbackMs.toDouble() / intervalMs.toDouble()).toInt().coerceAtLeast(1)
     val latestBoundary = alignDownToIntervalBoundary(now, intervalMs)
     val oldestBoundary = latestBoundary.minusMillis((totalBars - 1L) * intervalMs)
-    val overlapOffsetMs = (normalizedOverlapBars.toLong() - 1L) * intervalMs
-    val newestWindow = planCandleBackfillWindow(
+    return planCandleBackfillWindowsForRange(
         symbol = symbol,
         interval = interval,
-        now = now,
-        lookbackHours = lookbackHours,
+        startTime = oldestBoundary,
+        endTime = now,
         maxBars = maxBars,
         overlapBars = overlapBars
+    )
+}
+
+internal fun planCandleBackfillWindowsForRange(
+    symbol: String,
+    interval: String,
+    startTime: Instant,
+    endTime: Instant,
+    maxBars: Int,
+    overlapBars: Int
+): List<CandleBackfillWindow> {
+    if (endTime.isBefore(startTime)) {
+        return emptyList()
+    }
+
+    val intervalMs = candleIntervalToMillis(interval)
+    val normalizedMaxBars = resolveHyperliquidBackfillMaxBars(maxBars)
+    val normalizedOverlapBars = normalizedBackfillOverlapBars(normalizedMaxBars, overlapBars)
+    val alignedStart = alignDownToIntervalBoundary(startTime, intervalMs)
+    val alignedEnd = alignDownToIntervalBoundary(endTime, intervalMs)
+    if (alignedEnd.isBefore(alignedStart)) {
+        return emptyList()
+    }
+
+    val overlapOffsetMs = (normalizedOverlapBars.toLong() - 1L) * intervalMs
+    val newestWindowStart = maxOf(
+        alignedStart,
+        alignedEnd.minusMillis((normalizedMaxBars - 1L) * intervalMs)
+    )
+    val newestRequestedBars = (((alignedEnd.toEpochMilli() - newestWindowStart.toEpochMilli()) / intervalMs) + 1L)
+        .toInt()
+        .coerceAtLeast(1)
+    val newestWindow = CandleBackfillWindow(
+        symbol = symbol,
+        interval = interval,
+        intervalMs = intervalMs,
+        requestedBars = newestRequestedBars,
+        startTime = newestWindowStart,
+        endTime = endTime
     )
 
     val windows = mutableListOf(newestWindow)
     var currentStart = newestWindow.startTime
-    while (currentStart.isAfter(oldestBoundary)) {
+    while (currentStart.isAfter(alignedStart)) {
         val nextEndBoundary = currentStart.plusMillis(overlapOffsetMs)
         val nextStartBoundary = maxOf(
-            oldestBoundary,
+            alignedStart,
             nextEndBoundary.minusMillis((normalizedMaxBars - 1L) * intervalMs)
         )
         val requestedBars = (((nextEndBoundary.toEpochMilli() - nextStartBoundary.toEpochMilli()) / intervalMs) + 1L)
             .toInt()
             .coerceAtLeast(1)
         val nextEndTime = minOf(
-            now,
+            endTime,
             nextEndBoundary.plusMillis(intervalMs).minusMillis(1L)
         )
         windows += CandleBackfillWindow(
@@ -377,14 +413,42 @@ internal class HyperliquidCandleBackfillClient(
     }
 
     suspend fun fetchHistoricalCandles(symbol: String, interval: String, now: Instant = nowProvider()): List<HyperliquidCandle> {
-        return planCandleBackfillWindows(
-            symbol = symbol,
-            interval = interval,
-            now = now,
-            lookbackHours = lookbackHours,
-            maxBars = maxBarsPerRequest,
-            overlapBars = overlapBars
+        return fetchWindows(
+            planCandleBackfillWindows(
+                symbol = symbol,
+                interval = interval,
+                now = now,
+                lookbackHours = lookbackHours,
+                maxBars = maxBarsPerRequest,
+                overlapBars = overlapBars
+            )
         )
+    }
+
+    suspend fun fetchHistoricalCandlesRange(
+        symbol: String,
+        interval: String,
+        startTime: Instant,
+        endTime: Instant
+    ): List<HyperliquidCandle> {
+        return fetchWindows(
+            planCandleBackfillWindowsForRange(
+                symbol = symbol,
+                interval = interval,
+                startTime = startTime,
+                endTime = endTime,
+                maxBars = maxBarsPerRequest,
+                overlapBars = overlapBars
+            )
+        )
+    }
+
+    suspend fun fetchWindowCandles(window: CandleBackfillWindow): List<HyperliquidCandle> {
+        return fetchWindow(window)
+    }
+
+    private suspend fun fetchWindows(windows: List<CandleBackfillWindow>): List<HyperliquidCandle> {
+        return windows
             .flatMap { fetchWindow(it) }
             .distinctBy { candle ->
                 listOf(candle.symbol, candle.interval, candle.time.toEpochMilli()).joinToString("|")

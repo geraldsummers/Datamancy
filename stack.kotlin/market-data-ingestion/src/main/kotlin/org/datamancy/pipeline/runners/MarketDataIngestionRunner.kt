@@ -23,6 +23,42 @@ internal const val HYPERLIQUID_MAINNET_WS_URL = "wss://api.hyperliquid.xyz/ws"
 internal const val HYPERLIQUID_TESTNET_WS_URL = "wss://api.hyperliquid-testnet.xyz/ws"
 internal const val DEFAULT_HYPERLIQUID_IDLE_TIMEOUT_MS = 120_000L
 internal const val MIN_HYPERLIQUID_IDLE_TIMEOUT_MS = 5_000L
+internal const val DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_PAUSE_MS = 30_000L
+
+internal data class HistoricalCandleBackfillRange(
+    val startTime: java.time.Instant,
+    val endTime: java.time.Instant
+)
+
+internal fun determineHistoricalCandleBackfillRange(
+    interval: String,
+    now: java.time.Instant,
+    lookbackHours: Long,
+    earliestRawTime: java.time.Instant?,
+    latestRawTime: java.time.Instant?
+): HistoricalCandleBackfillRange? {
+    val intervalMs = candleIntervalToMillis(interval)
+    val lookbackStart = alignDownToIntervalBoundary(
+        now.minusSeconds(resolveHyperliquidBackfillLookbackHours(lookbackHours) * 60L * 60L),
+        intervalMs
+    )
+    val latestBoundary = alignDownToIntervalBoundary(now, intervalMs)
+    val earliestBoundary = earliestRawTime?.let { alignDownToIntervalBoundary(it, intervalMs) }
+        ?: latestRawTime?.let { alignDownToIntervalBoundary(it, intervalMs) }
+    if (earliestBoundary == null) {
+        return HistoricalCandleBackfillRange(startTime = lookbackStart, endTime = latestBoundary)
+    }
+
+    val missingEnd = earliestBoundary.minusMillis(intervalMs)
+    if (missingEnd.isBefore(lookbackStart)) {
+        return null
+    }
+
+    return HistoricalCandleBackfillRange(
+        startTime = lookbackStart,
+        endTime = minOf(missingEnd, latestBoundary)
+    )
+}
 
 /**
  * Continuous market data ingestion runner for Hyperliquid.
@@ -992,7 +1028,10 @@ class MarketDataIngestionRunner {
             delay(repairIntervalMs)
 
             val watchdogStreams = continuityWatchdog.staleCandleStreams().map { it.symbol to it.interval }
-            val persistedStreams = loadPersistedCandleRepairStreams(activeUniverse?.symbols.orEmpty())
+            val persistedStreams = loadPersistedCandleRepairStreams(
+                sessionSymbols = activeUniverse?.symbols.orEmpty(),
+                limit = activeUniverse?.symbols?.size ?: 48
+            )
             val staleStreams = (watchdogStreams + persistedStreams).distinct()
             if (staleStreams.isEmpty()) {
                 continue
@@ -1102,27 +1141,61 @@ class MarketDataIngestionRunner {
             for (interval in candleIntervals) {
                 currentCoroutineContext().ensureActive()
                 try {
-                    val candles = candleBackfillClient.fetchHistoricalCandles(
+                    val now = java.time.Instant.now()
+                    val range = loadHistoricalCandleBackfillRange(
                         symbol = symbol,
                         interval = interval,
-                        now = java.time.Instant.now()
+                        now = now
                     )
-                    if (candles.isEmpty()) {
-                        logger.warn { "Historical candle backfill returned no data for $symbol/$interval" }
+                    if (range == null) {
                         completedStreams += 1
                         continue
                     }
 
-                    candles.forEach { candle ->
-                        sink.write(HyperliquidMarketData.Candle(candle))
+                    val windows = planCandleBackfillWindowsForRange(
+                        symbol = symbol,
+                        interval = interval,
+                        startTime = range.startTime,
+                        endTime = range.endTime,
+                        maxBars = hyperliquidBackfillMaxBars,
+                        overlapBars = hyperliquidBackfillOverlapBars
+                    )
+                    if (windows.isEmpty()) {
+                        completedStreams += 1
+                        continue
                     }
-                    fetchedCandles += candles.size
-                    completedStreams += 1
-                    sink.flush()
 
-                    logger.info {
-                        "Historical candle backfill stream=$completedStreams/$totalStreams " +
-                            "symbol=$symbol interval=$interval candles=${candles.size} symbolIndex=${symbolIndex + 1}/${universe.symbols.size}"
+                    var streamCandles = 0
+                    for ((windowIndex, window) in windows.withIndex()) {
+                        currentCoroutineContext().ensureActive()
+                        awaitHistoricalBackfillBudget(universe.symbols)
+
+                        val candles = candleBackfillClient.fetchWindowCandles(window)
+                        if (candles.isEmpty()) {
+                            logger.warn {
+                                "Historical candle backfill returned no data for $symbol/$interval " +
+                                    "window=${windowIndex + 1}/${windows.size} start=${window.startTime} end=${window.endTime}"
+                            }
+                            continue
+                        }
+
+                        candles.forEach { candle ->
+                            sink.write(HyperliquidMarketData.Candle(candle))
+                        }
+                        fetchedCandles += candles.size
+                        streamCandles += candles.size
+                        sink.flush()
+                    }
+
+                    completedStreams += 1
+                    if (streamCandles == 0) {
+                        logger.warn { "Historical candle backfill returned no data for $symbol/$interval" }
+                    } else {
+                        logger.info {
+                            "Historical candle backfill stream=$completedStreams/$totalStreams " +
+                                "symbol=$symbol interval=$interval candles=$streamCandles " +
+                                "windows=${windows.size} symbolIndex=${symbolIndex + 1}/${universe.symbols.size}"
+                        }
                     }
                 } catch (e: CancellationException) {
                     logger.info { "Historical candle backfill cancelled while processing $symbol/$interval" }
@@ -1145,6 +1218,66 @@ class MarketDataIngestionRunner {
             "Historical candle backfill completed streams=$completedStreams/$totalStreams " +
                 "candles=$fetchedCandles durationSeconds=${java.time.Duration.between(startedAt, java.time.Instant.now()).seconds}"
         }
+    }
+
+    private suspend fun awaitHistoricalBackfillBudget(sessionSymbols: List<String>) {
+        var pauseLogged = false
+        while (currentCoroutineContext().isActive) {
+            val backlog = loadPersistedCandleRepairStreams(sessionSymbols = sessionSymbols, limit = 1)
+            if (backlog.isEmpty()) {
+                if (pauseLogged) {
+                    logger.info { "Historical candle backfill resumed after live repair backlog cleared" }
+                }
+                return
+            }
+            if (!pauseLogged) {
+                logger.warn {
+                    "Pausing historical candle backfill while live repair backlog exists " +
+                        "sample=${backlog.joinToString { "${it.first}/${it.second}" }}"
+                }
+                pauseLogged = true
+            }
+            delay(DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_PAUSE_MS)
+        }
+    }
+
+    private suspend fun loadHistoricalCandleBackfillRange(
+        symbol: String,
+        interval: String,
+        now: java.time.Instant
+    ): HistoricalCandleBackfillRange? = withContext(Dispatchers.IO) {
+        val channel = "candle_$interval"
+        val sql = """
+            SELECT earliest_raw_time, latest_raw_time
+            FROM raw_sync_state
+            WHERE exchange = ?
+              AND symbol = ?
+              AND channel = ?
+        """.trimIndent()
+
+        val state = dataSource.connection.use { connection ->
+            connection.prepareStatement(sql).use { statement ->
+                statement.setString(1, hyperliquidPolicy.exchangeId)
+                statement.setString(2, symbol)
+                statement.setString(3, channel)
+                statement.executeQuery().use { rs ->
+                    if (!rs.next()) {
+                        null
+                    } else {
+                        rs.getTimestamp("earliest_raw_time")?.toInstant() to
+                            rs.getTimestamp("latest_raw_time")?.toInstant()
+                    }
+                }
+            }
+        }
+
+        determineHistoricalCandleBackfillRange(
+            interval = interval,
+            now = now,
+            lookbackHours = hyperliquidBackfillLookbackHours,
+            earliestRawTime = state?.first,
+            latestRawTime = state?.second
+        )
     }
 }
 
