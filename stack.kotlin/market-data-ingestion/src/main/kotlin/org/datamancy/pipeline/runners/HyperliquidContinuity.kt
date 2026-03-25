@@ -59,6 +59,21 @@ internal fun resolveHyperliquidCandleStaleMultiplier(explicitMultiplier: Double?
     return multiplier.coerceAtLeast(MIN_HYPERLIQUID_CANDLE_STALE_MULTIPLIER)
 }
 
+internal fun candleAllowedLagMs(
+    activityTimeoutMs: Long,
+    intervalMs: Long,
+    candleStaleMultiplier: Double
+): Long = maxOf(
+    activityTimeoutMs,
+    (intervalMs.toDouble() * candleStaleMultiplier).roundToLong()
+)
+
+internal fun candleTradeRelevanceWindowMs(
+    activityTimeoutMs: Long,
+    intervalMs: Long,
+    candleStaleMultiplier: Double
+): Long = maxOf(activityTimeoutMs, candleAllowedLagMs(activityTimeoutMs, intervalMs, candleStaleMultiplier) * 2)
+
 internal fun resolveHyperliquidBackfillLookbackHours(explicitLookbackHours: Long?): Long {
     val lookbackHours = explicitLookbackHours ?: DEFAULT_HYPERLIQUID_BACKFILL_LOOKBACK_HOURS
     return lookbackHours.coerceAtLeast(MIN_HYPERLIQUID_BACKFILL_LOOKBACK_HOURS)
@@ -235,11 +250,26 @@ internal data class StaleCandleStream(
     val symbol: String,
     val interval: String,
     val candleMarketTime: Instant?,
+    val expectedCandleMarketTime: Instant?,
     val candleAgeMs: Long?,
     val receiveAgeMs: Long?,
     val tradeActivityAgeMs: Long,
     val reason: String
 )
+
+internal fun restartContinuityIssueThreshold(trackedSymbols: Int): Int {
+    val normalized = trackedSymbols.coerceAtLeast(1)
+    return if (normalized <= 4) {
+        1
+    } else {
+        maxOf(2, ceil(normalized * 0.02).toInt())
+    }
+}
+
+internal fun shouldRestartForContinuityIssues(issueCount: Int, trackedSymbols: Int): Boolean {
+    if (issueCount <= 0) return false
+    return issueCount >= restartContinuityIssueThreshold(trackedSymbols)
+}
 
 internal class HyperliquidContinuityWatchdog(
     symbols: Collection<String>,
@@ -256,12 +286,18 @@ internal class HyperliquidContinuityWatchdog(
     private val lastCandleMarketTime = mutableMapOf<String, Instant>()
     private val lastCandleReceivedAt = mutableMapOf<String, Instant>()
 
+    val trackedSymbolCount: Int
+        get() = trackedSymbols.size
+
     fun record(data: HyperliquidMarketData, receivedAt: Instant = nowProvider()) {
         when (data) {
             is HyperliquidMarketData.Trades -> {
-                data.trades.map { it.symbol }.distinct().forEach { symbol ->
-                    updateTradeActivity(symbol, receivedAt)
-                }
+                data.trades
+                    .groupBy { it.symbol }
+                    .forEach { (symbol, trades) ->
+                        val latestTradeTime = trades.maxOfOrNull { it.time } ?: receivedAt
+                        updateTradeActivity(symbol, latestTradeTime)
+                    }
             }
             is HyperliquidMarketData.Orderbook -> Unit
             is HyperliquidMarketData.AssetContext -> Unit
@@ -320,17 +356,25 @@ internal class HyperliquidContinuityWatchdog(
         trackedSymbols.forEach { symbol ->
             val tradeActivityAt = lastTradeActivityAt[symbol] ?: return@forEach
             val tradeActivityAgeMs = ageMs(tradeActivityAt, now)
-            if (tradeActivityAgeMs > activityTimeoutMs) {
-                return@forEach
-            }
 
             trackedIntervals.forEach { interval ->
                 val intervalMs = candleIntervalToMillis(interval)
-                val allowedLagMs = maxOf(
-                    activityTimeoutMs,
-                    (intervalMs.toDouble() * candleStaleMultiplier).roundToLong()
+                val allowedLagMs = candleAllowedLagMs(activityTimeoutMs, intervalMs, candleStaleMultiplier)
+                val tradeRelevanceWindowMs = candleTradeRelevanceWindowMs(
+                    activityTimeoutMs = activityTimeoutMs,
+                    intervalMs = intervalMs,
+                    candleStaleMultiplier = candleStaleMultiplier
                 )
+                if (tradeActivityAgeMs > tradeRelevanceWindowMs) {
+                    return@forEach
+                }
                 val key = candleKey(symbol, interval)
+                val expectedCandleMarketTime = alignDownToIntervalBoundary(tradeActivityAt, intervalMs)
+                val expectedCandleCloseTime = expectedCandleMarketTime.plusMillis(intervalMs)
+                val expectedCandleAgeMs = ageMs(expectedCandleCloseTime, now)
+                if (expectedCandleAgeMs <= allowedLagMs) {
+                    return@forEach
+                }
                 val candleMarketTime = lastCandleMarketTime[key]
 
                 if (candleMarketTime == null) {
@@ -339,36 +383,44 @@ internal class HyperliquidContinuityWatchdog(
                             symbol = symbol,
                             interval = interval,
                             candleMarketTime = null,
+                            expectedCandleMarketTime = expectedCandleMarketTime,
                             candleAgeMs = null,
                             receiveAgeMs = null,
                             tradeActivityAgeMs = tradeActivityAgeMs,
-                            reason = "$symbol/$interval never produced a candle while trades remained active"
+                            reason = "$symbol/$interval missing expected_bar=$expectedCandleMarketTime while trades remained active"
                         )
                     }
                     return@forEach
                 }
 
+                if (!candleMarketTime.isBefore(expectedCandleMarketTime)) {
+                    return@forEach
+                }
+
                 val candleAgeMs = ageMs(candleMarketTime, now)
                 val receiveAgeMs = lastCandleReceivedAt[key]?.let { ageMs(it, now) } ?: Long.MAX_VALUE
-                if (candleAgeMs > allowedLagMs && receiveAgeMs > allowedLagMs) {
+                if (receiveAgeMs > allowedLagMs) {
                     issues += StaleCandleStream(
                         symbol = symbol,
                         interval = interval,
                         candleMarketTime = candleMarketTime,
+                        expectedCandleMarketTime = expectedCandleMarketTime,
                         candleAgeMs = candleAgeMs,
                         receiveAgeMs = receiveAgeMs,
                         tradeActivityAgeMs = tradeActivityAgeMs,
                         reason = buildString {
-                        append("$symbol/$interval stale")
-                        append(" last_bar=")
-                        append(candleMarketTime)
-                        append(" candle_age_ms=")
-                        append(candleAgeMs)
-                        append(" receive_age_ms=")
-                        append(receiveAgeMs)
-                        append(" trade_activity_age_ms=")
-                        append(tradeActivityAgeMs)
-                    }
+                            append("$symbol/$interval stale")
+                            append(" last_bar=")
+                            append(candleMarketTime)
+                            append(" expected_bar=")
+                            append(expectedCandleMarketTime)
+                            append(" candle_age_ms=")
+                            append(candleAgeMs)
+                            append(" receive_age_ms=")
+                            append(receiveAgeMs)
+                            append(" trade_activity_age_ms=")
+                            append(tradeActivityAgeMs)
+                        }
                     )
                 }
             }
@@ -504,6 +556,9 @@ internal class HyperliquidCandleBackfillClient(
             }
 
             val retryDelayMs = backfillRetryDelayMs(window, attempt)
+            if (response.status.value == 429) {
+                pushBackfillCooldown(retryDelayMs)
+            }
             continuityLogger.warn {
                 "Retrying candle backfill for ${window.symbol}/${window.interval} after " +
                     "HTTP ${response.status.value} in ${retryDelayMs}ms (attempt ${attempt + 1}/$DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS)"
@@ -523,6 +578,14 @@ internal class HyperliquidCandleBackfillClient(
         }
         if (delayMs > 0L) {
             delay(delayMs)
+        }
+    }
+
+    private suspend fun pushBackfillCooldown(delayMs: Long) {
+        if (delayMs <= 0L) return
+        requestThrottle.withLock {
+            val nowMs = nowProvider().toEpochMilli()
+            nextRequestAllowedAtMs = maxOf(nextRequestAllowedAtMs, nowMs + delayMs)
         }
     }
 

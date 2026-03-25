@@ -125,7 +125,59 @@ class HyperliquidContinuityTest {
             HyperliquidMarketData.Trades(
                 listOf(
                     HyperliquidTrade(
-                        time = now,
+                        time = Instant.parse("2026-03-23T10:02:30Z"),
+                        symbol = "BTC",
+                        price = 1.0,
+                        size = 1.0,
+                        side = "buy"
+                    )
+                )
+            ),
+            receivedAt = Instant.parse("2026-03-23T10:02:30Z")
+        )
+        watchdog.markInitialCandleRepairComplete(now)
+
+        now = Instant.parse("2026-03-23T10:05:40Z")
+        assertFailsWith<HyperliquidContinuityException> {
+            watchdog.assertHealthy()
+        }
+    }
+
+    @Test
+    fun `watchdog ignores trades that do not imply a newer candle than the last bar`() {
+        var now = Instant.parse("2026-03-23T10:32:05Z")
+        val watchdog = HyperliquidContinuityWatchdog(
+            symbols = listOf("BTC"),
+            candleIntervals = listOf("1m"),
+            activityTimeoutMs = 60_000L,
+            candleStaleMultiplier = 2.5,
+            nowProvider = { now }
+        )
+
+        watchdog.seedBackfilledCandles(
+            listOf(
+                HyperliquidCandle(
+                    time = Instant.parse("2026-03-23T10:31:00Z"),
+                    symbol = "BTC",
+                    interval = "1m",
+                    open = 1.0,
+                    high = 1.0,
+                    low = 1.0,
+                    close = 1.0,
+                    volume = 1.0,
+                    numTrades = 1
+                )
+            ),
+            receivedAt = now
+        )
+        watchdog.markInitialCandleRepairComplete(now)
+
+        now = Instant.parse("2026-03-23T10:33:34Z")
+        watchdog.record(
+            HyperliquidMarketData.Trades(
+                listOf(
+                    HyperliquidTrade(
+                        time = Instant.parse("2026-03-23T10:31:54Z"),
                         symbol = "BTC",
                         price = 1.0,
                         size = 1.0,
@@ -135,12 +187,8 @@ class HyperliquidContinuityTest {
             ),
             receivedAt = now
         )
-        watchdog.markInitialCandleRepairComplete(now)
 
-        now = Instant.parse("2026-03-23T10:03:01Z")
-        assertFailsWith<HyperliquidContinuityException> {
-            watchdog.assertHealthy()
-        }
+        watchdog.assertHealthy()
     }
 
     @Test
@@ -332,9 +380,21 @@ class HyperliquidContinuityTest {
             ),
             receivedAt = now
         )
-        now = Instant.parse("2026-03-23T10:07:31Z")
+        now = Instant.parse("2026-03-23T10:10:40Z")
         assertFailsWith<HyperliquidContinuityException> {
             watchdog.assertHealthy()
         }
+    }
+
+    @Test
+    fun `continuity restart threshold scales with universe breadth`() {
+        assertEquals(1, restartContinuityIssueThreshold(1))
+        assertEquals(1, restartContinuityIssueThreshold(4))
+        assertEquals(2, restartContinuityIssueThreshold(5))
+        assertEquals(4, restartContinuityIssueThreshold(190))
+        assertEquals(false, shouldRestartForContinuityIssues(issueCount = 3, trackedSymbols = 190))
+        assertEquals(true, shouldRestartForContinuityIssues(issueCount = 4, trackedSymbols = 190))
+        assertEquals(150_000L, candleAllowedLagMs(120_000L, 60_000L, 2.5))
+        assertEquals(300_000L, candleTradeRelevanceWindowMs(120_000L, 60_000L, 2.5))
     }
 }

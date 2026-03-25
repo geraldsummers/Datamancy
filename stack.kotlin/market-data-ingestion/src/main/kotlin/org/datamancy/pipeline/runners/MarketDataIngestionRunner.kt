@@ -475,15 +475,37 @@ class MarketDataIngestionRunner {
                     val continuityMonitor = launch {
                         while (isActive && !sessionRestart.isCompleted) {
                             delay(hyperliquidFreshnessCheckIntervalMs)
+                            val issues = continuityWatchdog.staleCandleStreams()
+                            if (issues.isEmpty()) {
+                                continue
+                            }
+                            val shouldRestart = shouldRestartForContinuityIssues(
+                                issueCount = issues.size,
+                                trackedSymbols = continuityWatchdog.trackedSymbolCount
+                            )
+                            val sample = issues.take(5).joinToString("; ") { it.reason }
+                            if (!shouldRestart) {
+                                logger.warn {
+                                    "Localized Hyperliquid continuity gaps detected; " +
+                                        "targeted repair will handle issues=${issues.size} " +
+                                        "restartThreshold=${restartContinuityIssueThreshold(continuityWatchdog.trackedSymbolCount)} " +
+                                        "sample=$sample"
+                                }
+                                continue
+                            }
                             try {
-                                continuityWatchdog.assertHealthy()
+                                throw HyperliquidContinuityException(sample)
                             } catch (e: HyperliquidContinuityException) {
-                                logger.error(e) { "Hyperliquid continuity watchdog triggered: ${e.message}" }
+                                logger.error(e) {
+                                    "Hyperliquid continuity watchdog triggered: issues=${issues.size} sample=$sample"
+                                }
                                 completeSessionRestart(
                                     sessionRestart,
                                     IngestionSessionRestartReason(
                                         code = "continuity_failure",
-                                        description = e.message ?: "Hyperliquid continuity watchdog failed"
+                                        description = "issues=${issues.size} threshold=" +
+                                            restartContinuityIssueThreshold(continuityWatchdog.trackedSymbolCount) +
+                                            " sample=$sample"
                                     )
                                 )
                                 return@launch
@@ -945,11 +967,16 @@ class MarketDataIngestionRunner {
         val distinctStreams = streams.distinct()
         var fetchedCandles = 0
         var repairedStreams = 0
-        val semaphore = Semaphore(permits = 3)
+        val permits = when {
+            markInitialRepairComplete -> 1
+            distinctStreams.size >= 16 -> 2
+            else -> 3
+        }
+        val semaphore = Semaphore(permits = permits)
 
         logger.info {
             "$label starting: streams=${distinctStreams.size} lookbackHours=$lookbackHours " +
-                "markInitialRepairComplete=$markInitialRepairComplete"
+                "markInitialRepairComplete=$markInitialRepairComplete permits=$permits"
         }
 
         supervisorScope {
@@ -1023,7 +1050,7 @@ class MarketDataIngestionRunner {
             initialRecentCandleRepairCompleted.complete(Unit)
         }
 
-        val repairIntervalMs = hyperliquidFreshnessCheckIntervalMs.coerceAtLeast(60_000L)
+        val repairIntervalMs = hyperliquidFreshnessCheckIntervalMs.coerceAtLeast(30_000L)
         while (currentCoroutineContext().isActive) {
             delay(repairIntervalMs)
 
@@ -1068,20 +1095,26 @@ class MarketDataIngestionRunner {
         }
 
         val now = java.time.Instant.now()
-        val recentActivityCutoff = now.minusMillis(hyperliquidChannelActivityTimeoutMs)
+        val candleIntervalMs = candleIntervalToMillis("1m")
+        val recentActivityCutoff = now.minusMillis(
+            candleTradeRelevanceWindowMs(
+                activityTimeoutMs = hyperliquidChannelActivityTimeoutMs,
+                intervalMs = candleIntervalMs,
+                candleStaleMultiplier = hyperliquidCandleStaleMultiplier
+            )
+        )
         val staleCandleCutoff = now.minusMillis(
-            maxOf(
-                hyperliquidChannelActivityTimeoutMs,
-                (candleIntervalToMillis("1m").toDouble() * hyperliquidCandleStaleMultiplier).toLong()
+            candleAllowedLagMs(
+                activityTimeoutMs = hyperliquidChannelActivityTimeoutMs,
+                intervalMs = candleIntervalMs,
+                candleStaleMultiplier = hyperliquidCandleStaleMultiplier
             )
         )
         val sql = """
             WITH channel_state AS (
                 SELECT
                     symbol,
-                    MAX(latest_raw_time) FILTER (
-                        WHERE channel IN ('trade', 'orderbook_l2', 'funding', 'open_interest')
-                    ) AS latest_support_time,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'trade') AS latest_trade_time,
                     MAX(latest_raw_time) FILTER (WHERE channel = 'candle_1m') AS latest_candle_time
                 FROM raw_sync_state
                 WHERE exchange = ?
@@ -1090,16 +1123,16 @@ class MarketDataIngestionRunner {
             )
             SELECT symbol
             FROM channel_state
-            WHERE latest_support_time IS NOT NULL
-              AND latest_support_time >= ?
+            WHERE latest_trade_time IS NOT NULL
+              AND latest_trade_time >= ?
               AND (
                     latest_candle_time IS NULL OR
-                    latest_candle_time < (date_trunc('minute', latest_support_time) - interval '1 minute') OR
+                    latest_candle_time < date_trunc('minute', latest_trade_time) OR
                     latest_candle_time < ?
                 )
             ORDER BY
                 latest_candle_time ASC NULLS FIRST,
-                latest_support_time DESC,
+                latest_trade_time DESC,
                 symbol ASC
             LIMIT ?
         """.trimIndent()
