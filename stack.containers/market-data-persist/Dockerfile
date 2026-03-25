@@ -10,7 +10,7 @@ COPY stack.kotlin/market-data-persist/build/libs/market-data-persist-*-all.jar /
 
 RUN mkdir -p /app/config && chown -R pipeline:pipeline /app
 
-RUN echo '#!/bin/bash\nset -e\nexec gosu pipeline ""\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+RUN printf '%s\n' '#!/bin/bash' 'set -e' 'exec gosu pipeline "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["java", "-jar", "/app/market-data-persist.jar"]

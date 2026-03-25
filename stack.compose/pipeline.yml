@@ -179,7 +179,7 @@ services:
       RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
       RAW_EVENT_MAX_ACK_PENDING: "2048"
     volumes:
-      - ./stack.config/market-data-plumbing/redpanda-connect.yaml:/etc/redpanda-connect/redpanda-connect.yaml:ro
+      - ./configs/market-data-plumbing/redpanda-connect.yaml:/etc/redpanda-connect/redpanda-connect.yaml:ro
 
   market-data-sync:
     image: datamancy/market-data-sync:local-build

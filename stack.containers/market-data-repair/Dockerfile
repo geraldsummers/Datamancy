@@ -10,7 +10,7 @@ COPY stack.kotlin/market-data-repair/build/libs/market-data-repair-*-all.jar /ap
 
 RUN mkdir -p /app/config && chown -R pipeline:pipeline /app
 
-RUN echo '#!/bin/bash\nset -e\nexec gosu pipeline ""\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+RUN printf '%s\n' '#!/bin/bash' 'set -e' 'exec gosu pipeline "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["java", "-jar", "/app/market-data-repair.jar"]

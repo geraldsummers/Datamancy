@@ -10,7 +10,7 @@ COPY stack.kotlin/feature-materializer/build/libs/feature-materializer-*-all.jar
 
 RUN mkdir -p /app/config && chown -R pipeline:pipeline /app
 
-RUN echo '#!/bin/bash\nset -e\nexec gosu pipeline ""\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+RUN printf '%s\n' '#!/bin/bash' 'set -e' 'exec gosu pipeline "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["java", "-jar", "/app/feature-materializer.jar"]
