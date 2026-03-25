@@ -2,13 +2,9 @@ package org.datamancy.pipeline.runners
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.sql.Connection
 import java.sql.Timestamp
@@ -161,7 +157,6 @@ internal class ResearchFeatureAggregator(
     private val featureStateStore: FeatureStateStore
 ) {
     private val schemaLock = Any()
-    private val maintenanceLock = Mutex()
     @Volatile
     private var schemaValidated = false
     @Volatile
@@ -217,124 +212,109 @@ internal class ResearchFeatureAggregator(
                 "chunk=${backfillChunkHours}h finalizeLag=${finalizationLagMinutes}m)"
         }
 
-        coroutineScope {
-            launch {
-                while (coroutineContext.isActive) {
-                    try {
-                        val refreshWindowMinutes = if (bootstrapCompleted) {
-                            refreshOverlapMinutes
-                        } else {
-                            startupRefreshWindowMinutes(refreshOverlapMinutes)
-                        }
-                        refreshRecentWindow(
-                            windowMinutes = refreshWindowMinutes,
-                            phase = if (bootstrapCompleted) "refresh" else "startup_refresh"
-                        )
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        researchFeatureLogger.error(e) {
-                            "research_features_1m refresh loop failed for $exchangeId: ${e.message}"
-                        }
-                    }
-                    delay(refreshIntervalMs)
+        while (coroutineContext.isActive) {
+            try {
+                runMaintenanceCycle()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                researchFeatureLogger.error(e) {
+                    "research_features_1m maintenance loop failed for $exchangeId: ${e.message}"
                 }
             }
+            delay(refreshIntervalMs)
+        }
+    }
 
-            launch {
-                while (coroutineContext.isActive) {
-                    try {
-                        if (!bootstrapCompleted) {
-                            bootstrapCompleted = bootstrap()
-                            if (!bootstrapCompleted) {
-                                delay(refreshIntervalMs)
-                                continue
-                            }
-                        }
-                        val repairedRecentGaps = repairRecentGapWindows()
-                        if (!repairedRecentGaps) {
-                            catchUpHistoricalWindows()
-                        }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        researchFeatureLogger.error(e) {
-                            "research_features_1m historical loop failed for $exchangeId: ${e.message}"
-                        }
-                    }
-                    delay(refreshIntervalMs)
-                }
+    private suspend fun runMaintenanceCycle() {
+        val refreshWindowMinutes = if (bootstrapCompleted) {
+            refreshOverlapMinutes
+        } else {
+            startupRefreshWindowMinutes(refreshOverlapMinutes)
+        }
+        refreshRecentWindow(
+            windowMinutes = refreshWindowMinutes,
+            phase = if (bootstrapCompleted) "refresh" else "startup_refresh"
+        )
+
+        if (!bootstrapCompleted) {
+            bootstrapCompleted = bootstrap()
+            if (!bootstrapCompleted) {
+                return
             }
+        }
+
+        val repairedRecentGaps = repairRecentGapWindows()
+        if (!repairedRecentGaps) {
+            catchUpHistoricalWindows()
         }
     }
 
     private suspend fun bootstrap(): Boolean = withContext(Dispatchers.IO) {
-        maintenanceLock.withLock {
-            dataSource.connection.use { conn ->
-                conn.autoCommit = false
-                if (!ensureSchema(conn)) {
-                    return@withContext false
-                }
-                val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
-                val earliestRaw = queryBoundary(
-                    conn = conn,
-                    sql = """
-                        SELECT MIN(earliest_raw_time)
-                        FROM raw_sync_state
-                        WHERE exchange = ?
-                          AND channel = 'candle_1m'
-                    """.trimIndent()
-                ) ?: run {
-                    researchFeatureLogger.info {
-                        "research_features_1m bootstrap waiting for raw candle data exchange=$exchangeId"
-                    }
-                    return@withContext false
-                }
-                val bootstrapFloor = now.minus(bootstrapHours, ChronoUnit.HOURS)
-                val requestedStart = maxOf(earliestRaw, bootstrapFloor)
-                val latestFeature = queryBoundary(
-                    conn = conn,
-                    sql = """
-                        SELECT MAX(latest_feature_time)
-                        FROM feature_materialization_state
-                        WHERE exchange = ?
-                          AND bar_size_minutes = 1
-                    """.trimIndent()
-                )
-                val start = latestFeature
-                    ?.minus(refreshOverlapMinutes, ChronoUnit.MINUTES)
-                    ?.let { maxOf(it, requestedStart) }
-                    ?: requestedStart
-                if (!start.isBefore(now)) {
-                    researchFeatureLogger.info {
-                        "research_features_1m bootstrap already current for $exchangeId up to ${latestFeature ?: now}"
-                    }
-                    return@withContext true
-                }
-                val windows = prioritizeRecentAggregationWindows(
-                    chunkAggregationWindows(start, now, backfillChunkHours)
-                )
-                var totalRows = 0
-                windows.forEachIndexed { index, window ->
-                    try {
-                        val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
-                        featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
-                        conn.commit()
-                        totalRows += rows
-                        researchFeatureLogger.info {
-                            "research_features_1m bootstrap exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
-                                "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
-                        }
-                    } catch (e: Exception) {
-                        conn.rollback()
-                        throw e
-                    }
-                }
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            if (!ensureSchema(conn)) {
+                return@withContext false
+            }
+            val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+            val earliestRaw = queryBoundary(
+                conn = conn,
+                sql = """
+                    SELECT MIN(earliest_raw_time)
+                    FROM raw_sync_state
+                    WHERE exchange = ?
+                      AND channel = 'candle_1m'
+                """.trimIndent()
+            ) ?: run {
                 researchFeatureLogger.info {
-                    "research_features_1m bootstrap complete exchange=$exchangeId windows=${windows.size} totalRows=$totalRows"
+                    "research_features_1m bootstrap waiting for raw candle data exchange=$exchangeId"
+                }
+                return@withContext false
+            }
+            val bootstrapFloor = now.minus(bootstrapHours, ChronoUnit.HOURS)
+            val requestedStart = maxOf(earliestRaw, bootstrapFloor)
+            val latestFeature = queryBoundary(
+                conn = conn,
+                sql = """
+                    SELECT MAX(latest_feature_time)
+                    FROM feature_materialization_state
+                    WHERE exchange = ?
+                      AND bar_size_minutes = 1
+                """.trimIndent()
+            )
+            val start = latestFeature
+                ?.minus(refreshOverlapMinutes, ChronoUnit.MINUTES)
+                ?.let { maxOf(it, requestedStart) }
+                ?: requestedStart
+            if (!start.isBefore(now)) {
+                researchFeatureLogger.info {
+                    "research_features_1m bootstrap already current for $exchangeId up to ${latestFeature ?: now}"
                 }
                 return@withContext true
             }
+            val windows = prioritizeRecentAggregationWindows(
+                chunkAggregationWindows(start, now, backfillChunkHours)
+            )
+            var totalRows = 0
+            windows.forEachIndexed { index, window ->
+                try {
+                    val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                    featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
+                    conn.commit()
+                    totalRows += rows
+                    researchFeatureLogger.info {
+                        "research_features_1m bootstrap exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
+                            "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
+                    }
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
+                }
+            }
+            researchFeatureLogger.info {
+                "research_features_1m bootstrap complete exchange=$exchangeId windows=${windows.size} totalRows=$totalRows"
+            }
+            return@withContext true
         }
     }
 
@@ -342,144 +322,138 @@ internal class ResearchFeatureAggregator(
         windowMinutes: Long = refreshOverlapMinutes,
         phase: String = "refresh"
     ) = withContext(Dispatchers.IO) {
-        maintenanceLock.withLock {
-            dataSource.connection.use { conn ->
-                conn.autoCommit = false
-                if (!ensureSchema(conn)) {
-                    return@withContext
-                }
-                val end = Instant.now().truncatedTo(ChronoUnit.MINUTES).plus(1, ChronoUnit.MINUTES)
-                val start = end.minus(windowMinutes, ChronoUnit.MINUTES)
-                val updatedAt = Instant.now()
-                val rows = upsertWindow(conn, start, end)
-                val finalizedRows = finalizeDueRows(conn, finalizedAt = updatedAt)
-                if (finalizedRows > 0) {
-                    featureStateStore.refresh(conn, null, null)
-                } else {
-                    featureStateStore.refresh(conn, start, end)
-                }
-                conn.commit()
-                researchFeatureLogger.info {
-                    "research_features_1m $phase exchange=$exchangeId window=$start..$end rows=$rows finalized=$finalizedRows"
-                }
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            if (!ensureSchema(conn)) {
+                return@withContext
+            }
+            val end = Instant.now().truncatedTo(ChronoUnit.MINUTES).plus(1, ChronoUnit.MINUTES)
+            val start = end.minus(windowMinutes, ChronoUnit.MINUTES)
+            val updatedAt = Instant.now()
+            val rows = upsertWindow(conn, start, end)
+            val finalizedRows = finalizeDueRows(conn, finalizedAt = updatedAt)
+            if (finalizedRows > 0) {
+                featureStateStore.refresh(conn, null, null)
+            } else {
+                featureStateStore.refresh(conn, start, end)
+            }
+            conn.commit()
+            researchFeatureLogger.info {
+                "research_features_1m $phase exchange=$exchangeId window=$start..$end rows=$rows finalized=$finalizedRows"
             }
         }
     }
 
     private suspend fun catchUpHistoricalWindows() = withContext(Dispatchers.IO) {
-        maintenanceLock.withLock {
-            dataSource.connection.use { conn ->
-                conn.autoCommit = false
-                if (!ensureSchema(conn)) {
-                    return@withContext
-                }
-                val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
-                val earliestRaw = queryBoundary(
-                    conn = conn,
-                    sql = """
-                        SELECT MIN(earliest_raw_time)
-                        FROM raw_sync_state
-                        WHERE exchange = ?
-                          AND channel = 'candle_1m'
-                    """.trimIndent()
-                )
-                val earliestFeature = queryBoundary(
-                    conn = conn,
-                    sql = """
-                        SELECT MIN(earliest_feature_time)
-                        FROM feature_materialization_state
-                        WHERE exchange = ?
-                          AND bar_size_minutes = 1
-                    """.trimIndent()
-                )
-                val windows = planHistoricalCatchUpWindows(
-                    rawStartInclusive = earliestRaw,
-                    featureStartInclusive = earliestFeature,
-                    now = now,
-                    bootstrapHours = bootstrapHours,
-                    refreshOverlapMinutes = refreshOverlapMinutes,
-                    backfillChunkHours = backfillChunkHours
-                )
-                if (windows.isEmpty()) {
-                    return@withContext
-                }
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            if (!ensureSchema(conn)) {
+                return@withContext
+            }
+            val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+            val earliestRaw = queryBoundary(
+                conn = conn,
+                sql = """
+                    SELECT MIN(earliest_raw_time)
+                    FROM raw_sync_state
+                    WHERE exchange = ?
+                      AND channel = 'candle_1m'
+                """.trimIndent()
+            )
+            val earliestFeature = queryBoundary(
+                conn = conn,
+                sql = """
+                    SELECT MIN(earliest_feature_time)
+                    FROM feature_materialization_state
+                    WHERE exchange = ?
+                      AND bar_size_minutes = 1
+                """.trimIndent()
+            )
+            val windows = planHistoricalCatchUpWindows(
+                rawStartInclusive = earliestRaw,
+                featureStartInclusive = earliestFeature,
+                now = now,
+                bootstrapHours = bootstrapHours,
+                refreshOverlapMinutes = refreshOverlapMinutes,
+                backfillChunkHours = backfillChunkHours
+            )
+            if (windows.isEmpty()) {
+                return@withContext
+            }
 
-                var totalRows = 0
-                windows.forEachIndexed { index, window ->
-                    try {
-                        val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
-                        featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
-                        conn.commit()
-                        totalRows += rows
-                        researchFeatureLogger.info {
-                            "research_features_1m historical_catchup exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
-                                "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
-                        }
-                    } catch (e: Exception) {
-                        conn.rollback()
-                        throw e
+            var totalRows = 0
+            windows.forEachIndexed { index, window ->
+                try {
+                    val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                    featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
+                    conn.commit()
+                    totalRows += rows
+                    researchFeatureLogger.info {
+                        "research_features_1m historical_catchup exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
+                            "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
                     }
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
                 }
+            }
 
-                researchFeatureLogger.info {
-                    "research_features_1m historical_catchup complete exchange=$exchangeId " +
-                        "windows=${windows.size} totalRows=$totalRows"
-                }
+            researchFeatureLogger.info {
+                "research_features_1m historical_catchup complete exchange=$exchangeId " +
+                    "windows=${windows.size} totalRows=$totalRows"
             }
         }
     }
 
     private suspend fun repairRecentGapWindows(): Boolean = withContext(Dispatchers.IO) {
-        maintenanceLock.withLock {
-            dataSource.connection.use { conn ->
-                conn.autoCommit = false
-                if (!ensureSchema(conn)) {
-                    return@withContext false
-                }
-                val endExclusive = Instant.now().truncatedTo(ChronoUnit.HOURS)
-                val startInclusive = endExclusive.minus(recentGapRepairHours(bootstrapHours), ChronoUnit.HOURS)
-                val (windows, nextCursor) = planRollingRecentGapRepairWindows(
-                    startInclusive = startInclusive,
-                    endExclusive = endExclusive,
-                    chunkHours = backfillChunkHours,
-                    cursorExclusive = recentGapRepairCursorExclusive
-                )
-                if (windows.isEmpty()) {
-                    return@withContext false
-                }
-
-                val updatedAt = Instant.now()
-                var totalRows = 0
-                var totalFinalizedRows = 0
-                windows.forEachIndexed { index, window ->
-                    try {
-                        val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
-                        val finalizedRows = finalizeDueRows(conn, finalizedAt = updatedAt)
-                        if (finalizedRows > 0) {
-                            featureStateStore.refresh(conn, null, null)
-                        } else {
-                            featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
-                        }
-                        conn.commit()
-                        totalRows += rows
-                        totalFinalizedRows += finalizedRows
-                        researchFeatureLogger.info {
-                            "research_features_1m gap_repair exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
-                                "window=${window.startInclusive}..${window.endExclusive} rows=$rows finalized=$finalizedRows"
-                        }
-                    } catch (e: Exception) {
-                        conn.rollback()
-                        throw e
-                    }
-                }
-
-                recentGapRepairCursorExclusive = nextCursor
-                researchFeatureLogger.info {
-                    "research_features_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
-                        "totalRows=$totalRows finalized=$totalFinalizedRows nextCursor=$recentGapRepairCursorExclusive"
-                }
-                return@withContext true
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            if (!ensureSchema(conn)) {
+                return@withContext false
             }
+            val endExclusive = Instant.now().truncatedTo(ChronoUnit.HOURS)
+            val startInclusive = endExclusive.minus(recentGapRepairHours(bootstrapHours), ChronoUnit.HOURS)
+            val (windows, nextCursor) = planRollingRecentGapRepairWindows(
+                startInclusive = startInclusive,
+                endExclusive = endExclusive,
+                chunkHours = backfillChunkHours,
+                cursorExclusive = recentGapRepairCursorExclusive
+            )
+            if (windows.isEmpty()) {
+                return@withContext false
+            }
+
+            val updatedAt = Instant.now()
+            var totalRows = 0
+            var totalFinalizedRows = 0
+            windows.forEachIndexed { index, window ->
+                try {
+                    val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                    val finalizedRows = finalizeDueRows(conn, finalizedAt = updatedAt)
+                    if (finalizedRows > 0) {
+                        featureStateStore.refresh(conn, null, null)
+                    } else {
+                        featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
+                    }
+                    conn.commit()
+                    totalRows += rows
+                    totalFinalizedRows += finalizedRows
+                    researchFeatureLogger.info {
+                        "research_features_1m gap_repair exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
+                            "window=${window.startInclusive}..${window.endExclusive} rows=$rows finalized=$finalizedRows"
+                    }
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
+                }
+            }
+
+            recentGapRepairCursorExclusive = nextCursor
+            researchFeatureLogger.info {
+                "research_features_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
+                    "totalRows=$totalRows finalized=$totalFinalizedRows nextCursor=$recentGapRepairCursorExclusive"
+            }
+            return@withContext true
         }
     }
 
