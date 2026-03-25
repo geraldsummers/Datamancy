@@ -10,7 +10,10 @@ dependencies {
     implementation(libs.bundles.ktor.server)
     implementation(libs.gson)
     implementation(libs.bundles.logging)
-    implementation("org.postgresql:postgresql:42.7.1")
+    implementation(libs.postgres.jdbc)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.java.time)
 
     testImplementation(libs.bundles.testing)
     testImplementation("io.ktor:ktor-server-test-host:3.0.2")

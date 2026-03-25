@@ -5,13 +5,50 @@ import kotlinx.coroutines.withContext
 import org.datamancy.trading.policy.ActiveTradingPolicy
 import org.datamancy.trading.policy.RequirementLevel
 import org.datamancy.trading.policy.TradingPolicy
+import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.andWhere
+import org.jetbrains.exposed.sql.javatime.timestamp
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.Database
 import org.postgresql.ds.PGSimpleDataSource
-import java.sql.ResultSet
 import java.time.Duration
 import java.time.Instant
 import javax.sql.DataSource
 
 private const val CANONICAL_RESEARCH_FEATURE_BAR_SECONDS = 60L
+
+private object DataHealthSymbol1mTable : Table("data_health_symbol_1m") {
+    val exchange = text("exchange")
+    val symbol = text("symbol")
+    val activeRecent = bool("active_recent")
+    val latestAnyRawTime = timestamp("latest_any_raw_time").nullable()
+    val candle1mLatestRawTime = timestamp("candle_1m_latest_raw_time").nullable()
+    val tradeLatestRawTime = timestamp("trade_latest_raw_time").nullable()
+    val orderbookL2LatestRawTime = timestamp("orderbook_l2_latest_raw_time").nullable()
+    val fundingLatestRawTime = timestamp("funding_latest_raw_time").nullable()
+    val openInterestLatestRawTime = timestamp("open_interest_latest_raw_time").nullable()
+    val tradeRawLagSeconds = long("trade_raw_lag_seconds").nullable()
+    val orderbookL2RawLagSeconds = long("orderbook_l2_raw_lag_seconds").nullable()
+    val fundingRawLagSeconds = long("funding_raw_lag_seconds").nullable()
+    val openInterestRawLagSeconds = long("open_interest_raw_lag_seconds").nullable()
+    val latestFeatureTime = timestamp("latest_feature_time").nullable()
+    val finalizedThrough = timestamp("finalized_through").nullable()
+    val materializerLagSeconds = long("materializer_lag_seconds").nullable()
+    val coverageRatio = double("coverage_ratio")
+    val finalizedRatio = double("finalized_ratio")
+    val expectedBars = integer("expected_bars")
+    val observedBars = integer("observed_bars")
+    val finalizedBars = integer("finalized_bars")
+    val featureRows = long("feature_rows")
+    val recentFeatureRows24h = integer("recent_feature_rows_24h")
+    val recentTradeObservedShare24h = double("recent_trade_observed_share_24h")
+    val recentOrderbookObservedShare24h = double("recent_orderbook_observed_share_24h")
+    val recentExecutionObservedShare24h = double("recent_execution_observed_share_24h")
+    val recentFinalizedShare24h = double("recent_finalized_share_24h")
+}
 
 data class DataHealthThresholds(
     val exchange: String,
@@ -135,6 +172,8 @@ class DataHealthService(
     private val dataSource: DataSource,
     private val policyProvider: () -> TradingPolicy = ActiveTradingPolicy::current
 ) {
+    private val database by lazy { Database.connect(dataSource) }
+
     suspend fun loadSummary(exchange: String? = null, barMinutes: Int = 1): DataHealthSummary = withContext(Dispatchers.IO) {
         require(barMinutes == 1) { "data health currently supports only barMinutes=1" }
         val resolvedExchange = resolveExchange(exchange)
@@ -253,54 +292,12 @@ class DataHealthService(
 
     private fun loadRows(exchange: String): List<DataHealthSymbolRow> {
         val asOf = Instant.now()
-        val sql = """
-            SELECT
-                exchange,
-                symbol,
-                active_recent,
-                latest_any_raw_time,
-                candle_1m_latest_raw_time,
-                trade_latest_raw_time,
-                orderbook_l2_latest_raw_time,
-                funding_latest_raw_time,
-                open_interest_latest_raw_time,
-                candle_1m_raw_lag_seconds,
-                trade_raw_lag_seconds,
-                orderbook_l2_raw_lag_seconds,
-                funding_raw_lag_seconds,
-                open_interest_raw_lag_seconds,
-                latest_feature_time,
-                finalized_through,
-                feature_lag_seconds,
-                finalized_lag_minutes,
-                feature_rows,
-                materializer_lag_seconds,
-                coverage_ratio,
-                finalized_ratio,
-                expected_bars,
-                observed_bars,
-                finalized_bars,
-                recent_feature_rows_24h,
-                recent_trade_observed_share_24h,
-                recent_orderbook_observed_share_24h,
-                recent_execution_observed_share_24h,
-                recent_finalized_share_24h
-            FROM data_health_symbol_1m
-            WHERE exchange = ?
-            ORDER BY symbol ASC
-        """.trimIndent()
-
-        return dataSource.connection.use { connection ->
-            connection.prepareStatement(sql).use { statement ->
-                statement.setString(1, exchange)
-                statement.executeQuery().use { rs ->
-                    buildList {
-                        while (rs.next()) {
-                            add(rs.toDataHealthSymbolRow(asOf))
-                        }
-                    }
-                }
-            }
+        return transaction(database) {
+            DataHealthSymbol1mTable
+                .selectAll()
+                .andWhere { DataHealthSymbol1mTable.exchange eq exchange }
+                .orderBy(DataHealthSymbol1mTable.symbol to SortOrder.ASC)
+                .map { it.toDataHealthSymbolRow(asOf) }
         }
     }
 
@@ -467,52 +464,42 @@ private fun effectiveBarCloseLagMinutes(
             Duration.between(bucketClose, referenceTime).toMillis().coerceAtLeast(0L) / 60_000.0
         }
 
-private fun ResultSet.toDataHealthSymbolRow(referenceTime: Instant): DataHealthSymbolRow {
-    val candleLatestRawTime = getTimestamp("candle_1m_latest_raw_time")?.toInstant()
-    val latestFeatureTime = getTimestamp("latest_feature_time")?.toInstant()
-    val finalizedThrough = getTimestamp("finalized_through")?.toInstant()
+private fun ResultRow.toDataHealthSymbolRow(referenceTime: Instant): DataHealthSymbolRow {
+    val candleLatestRawTime = this[DataHealthSymbol1mTable.candle1mLatestRawTime]
+    val latestFeatureTime = this[DataHealthSymbol1mTable.latestFeatureTime]
+    val finalizedThrough = this[DataHealthSymbol1mTable.finalizedThrough]
     return DataHealthSymbolRow(
-        exchange = getString("exchange"),
-        symbol = getString("symbol"),
-        activeRecent = getBoolean("active_recent"),
-        latestAnyRawTime = getTimestamp("latest_any_raw_time")?.toInstant(),
+        exchange = this[DataHealthSymbol1mTable.exchange],
+        symbol = this[DataHealthSymbol1mTable.symbol],
+        activeRecent = this[DataHealthSymbol1mTable.activeRecent],
+        latestAnyRawTime = this[DataHealthSymbol1mTable.latestAnyRawTime],
         candleLatestRawTime = candleLatestRawTime,
-        tradeLatestRawTime = getTimestamp("trade_latest_raw_time")?.toInstant(),
-        orderbookLatestRawTime = getTimestamp("orderbook_l2_latest_raw_time")?.toInstant(),
-        fundingLatestRawTime = getTimestamp("funding_latest_raw_time")?.toInstant(),
-        openInterestLatestRawTime = getTimestamp("open_interest_latest_raw_time")?.toInstant(),
+        tradeLatestRawTime = this[DataHealthSymbol1mTable.tradeLatestRawTime],
+        orderbookLatestRawTime = this[DataHealthSymbol1mTable.orderbookL2LatestRawTime],
+        fundingLatestRawTime = this[DataHealthSymbol1mTable.fundingLatestRawTime],
+        openInterestLatestRawTime = this[DataHealthSymbol1mTable.openInterestLatestRawTime],
         candleRawLagSeconds = effectiveBarCloseLagSeconds(candleLatestRawTime, referenceTime),
-        tradeRawLagSeconds = getLongOrNull("trade_raw_lag_seconds"),
-        orderbookRawLagSeconds = getLongOrNull("orderbook_l2_raw_lag_seconds"),
-        fundingRawLagSeconds = getLongOrNull("funding_raw_lag_seconds"),
-        openInterestRawLagSeconds = getLongOrNull("open_interest_raw_lag_seconds"),
+        tradeRawLagSeconds = this[DataHealthSymbol1mTable.tradeRawLagSeconds],
+        orderbookRawLagSeconds = this[DataHealthSymbol1mTable.orderbookL2RawLagSeconds],
+        fundingRawLagSeconds = this[DataHealthSymbol1mTable.fundingRawLagSeconds],
+        openInterestRawLagSeconds = this[DataHealthSymbol1mTable.openInterestRawLagSeconds],
         latestFeatureTime = latestFeatureTime,
         finalizedThrough = finalizedThrough,
         featureLagSeconds = effectiveBarCloseLagSeconds(latestFeatureTime, referenceTime),
         finalizedLagMinutes = effectiveBarCloseLagMinutes(finalizedThrough, referenceTime),
-        featureRows = getLong("feature_rows"),
-        materializerLagSeconds = getLongOrNull("materializer_lag_seconds"),
-        coverageRatio = getDouble("coverage_ratio"),
-        finalizedRatio = getDouble("finalized_ratio"),
-        expectedBars = getInt("expected_bars"),
-        observedBars = getInt("observed_bars"),
-        finalizedBars = getInt("finalized_bars"),
-        recentFeatureRows24h = getInt("recent_feature_rows_24h"),
-        recentTradeObservedShare24h = getDouble("recent_trade_observed_share_24h"),
-        recentOrderbookObservedShare24h = getDouble("recent_orderbook_observed_share_24h"),
-        recentExecutionObservedShare24h = getDouble("recent_execution_observed_share_24h"),
-        recentFinalizedShare24h = getDouble("recent_finalized_share_24h")
+        featureRows = this[DataHealthSymbol1mTable.featureRows],
+        materializerLagSeconds = this[DataHealthSymbol1mTable.materializerLagSeconds],
+        coverageRatio = this[DataHealthSymbol1mTable.coverageRatio],
+        finalizedRatio = this[DataHealthSymbol1mTable.finalizedRatio],
+        expectedBars = this[DataHealthSymbol1mTable.expectedBars],
+        observedBars = this[DataHealthSymbol1mTable.observedBars],
+        finalizedBars = this[DataHealthSymbol1mTable.finalizedBars],
+        recentFeatureRows24h = this[DataHealthSymbol1mTable.recentFeatureRows24h],
+        recentTradeObservedShare24h = this[DataHealthSymbol1mTable.recentTradeObservedShare24h],
+        recentOrderbookObservedShare24h = this[DataHealthSymbol1mTable.recentOrderbookObservedShare24h],
+        recentExecutionObservedShare24h = this[DataHealthSymbol1mTable.recentExecutionObservedShare24h],
+        recentFinalizedShare24h = this[DataHealthSymbol1mTable.recentFinalizedShare24h]
     )
-}
-
-private fun ResultSet.getLongOrNull(column: String): Long? {
-    val value = getLong(column)
-    return if (wasNull()) null else value
-}
-
-private fun ResultSet.getDoubleOrNull(column: String): Double? {
-    val value = getDouble(column)
-    return if (wasNull()) null else value
 }
 
 private fun DataHealthSymbolRow.latestRawTime(channel: String): Instant? = when (channel) {

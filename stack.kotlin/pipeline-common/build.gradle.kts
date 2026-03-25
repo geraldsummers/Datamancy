@@ -20,13 +20,13 @@ dependencies {
 
     implementation("com.charleskorn.kaml:kaml:0.55.0")
 
-    implementation("org.postgresql:postgresql:42.7.1")
+    implementation(libs.postgres.jdbc)
     implementation("com.zaxxer:HikariCP:5.1.0")
 
-    implementation("org.jetbrains.exposed:exposed-core:0.47.0")
-    implementation("org.jetbrains.exposed:exposed-dao:0.47.0")
-    implementation("org.jetbrains.exposed:exposed-jdbc:0.47.0")
-    implementation("org.jetbrains.exposed:exposed-java-time:0.47.0")
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.dao)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.java.time)
 
     implementation("com.google.code.gson:gson:2.10.1")
 

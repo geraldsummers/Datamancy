@@ -28,14 +28,14 @@ dependencies {
     implementation(libs.guava)
 
     
-    implementation("org.postgresql:postgresql:42.7.1")
+    implementation(libs.postgres.jdbc)
 
     
     implementation("com.zaxxer:HikariCP:5.1.0")
 
     
-    implementation("org.jetbrains.exposed:exposed-core:0.47.0")
-    implementation("org.jetbrains.exposed:exposed-jdbc:0.47.0")
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
 
     
     implementation(libs.okhttp)
@@ -69,5 +69,4 @@ tasks.withType(Jar::class) {
 tasks.test {
 
 }
-
 

@@ -19,11 +19,11 @@ dependencies {
     implementation("io.ktor:ktor-server-metrics-micrometer:3.0.2")
 
     // Database
-    implementation("org.postgresql:postgresql:42.7.1")
+    implementation(libs.postgres.jdbc)
     implementation("com.zaxxer:HikariCP:5.1.0")
-    implementation("org.jetbrains.exposed:exposed-core:0.47.0")
-    implementation("org.jetbrains.exposed:exposed-jdbc:0.47.0")
-    implementation("org.jetbrains.exposed:exposed-java-time:0.47.0")
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.java.time)
 
     // HTTP client for worker communication
     implementation(libs.okhttp)
