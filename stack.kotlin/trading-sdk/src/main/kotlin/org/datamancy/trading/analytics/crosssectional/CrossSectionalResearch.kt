@@ -4631,7 +4631,45 @@ data class ResearchCoverageVerdict(
     val reason: String?
 )
 
+data class CrossSectionalExchangeReadiness(
+    val exchange: String,
+    val marketAliases: List<String>,
+    val discoveredSymbols: Int,
+    val eligibleSymbols: Int,
+    val requiredBars: Int,
+    val minimumEligibleSymbols: Int,
+    val passed: Boolean,
+    val reason: String?,
+    val sampleEligibleSymbols: List<String>,
+    val sampleCoverageFailures: List<ResearchCoverageSnapshot>
+)
+
+data class CrossSectionalResearchReadiness(
+    val config: ResearchConfig,
+    val exchangeCatalog: List<ExchangeCatalogSnapshot>,
+    val exchangePlans: List<ExchangePlan>,
+    val exchangeCatalogMs: Long,
+    val discoveryMs: Long,
+    val discoveryCandidateLimit: Int,
+    val requiredBars: Int,
+    val minimumEligibleSymbols: Int,
+    val passed: Boolean,
+    val reason: String?,
+    val exchanges: List<CrossSectionalExchangeReadiness>
+)
+
 class ResearchCoverageException(message: String) : IllegalStateException(message)
+
+private data class PreparedResearchUniverse(
+    val exchangeCatalog: List<ExchangeCatalogSnapshot>,
+    val exchangeCatalogMs: Long,
+    val exchangePlans: List<ExchangePlan>,
+    val discoveryMs: Long,
+    val discoveryCandidateLimit: Int,
+    val requiredCoverageBars: Int,
+    val discoveredUniverse: Map<String, List<String>>,
+    val coverageVerdicts: Map<String, ResearchCoverageVerdict>
+)
 
 private fun expectedCoverageBars(lookbackHours: Int, barMinutes: Int, minBars: Int): Int {
     return requiredResearchWindowBars(
@@ -4822,7 +4860,7 @@ private fun buildResearchCoverageVerdict(
     )
 }
 
-fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
+private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUniverse {
     val (exchangeCatalog, exchangeCatalogMs) = timedMillis {
         fetchExchangeCatalog(config.txGatewayUrl)
     }
@@ -4867,6 +4905,72 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
             coveragePolicy = coveragePolicy
         )
     }
+
+    return PreparedResearchUniverse(
+        exchangeCatalog = exchangeCatalog,
+        exchangeCatalogMs = exchangeCatalogMs,
+        exchangePlans = exchangePlans,
+        discoveryMs = discoveryMs,
+        discoveryCandidateLimit = discoveryMaxSymbols,
+        requiredCoverageBars = requiredCoverageBars,
+        discoveredUniverse = discoveredUniverse,
+        coverageVerdicts = coverageVerdicts
+    )
+}
+
+fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResearchReadiness {
+    val prepared = prepareResearchUniverse(config)
+    val coveragePolicy = crossSectionalPolicy().coverage
+    val exchanges = prepared.exchangePlans.map { plan ->
+        val verdict = prepared.coverageVerdicts.getValue(plan.exchange)
+        val failingSamples = verdict.snapshots
+            .filterNot { it.symbol in verdict.eligibleSymbols }
+            .sortedWith(
+                compareBy<ResearchCoverageSnapshot> { it.coverageRatio }
+                    .thenBy { it.finalizedRatio }
+                    .thenBy { it.executionObservedRatio }
+                    .thenByDescending { it.latestFeatureLagSeconds }
+                    .thenBy { it.symbol }
+            )
+            .take(5)
+        CrossSectionalExchangeReadiness(
+            exchange = plan.exchange,
+            marketAliases = plan.marketAliases,
+            discoveredSymbols = prepared.discoveredUniverse[plan.exchange].orEmpty().size,
+            eligibleSymbols = verdict.eligibleSymbols.size,
+            requiredBars = verdict.requiredBars,
+            minimumEligibleSymbols = verdict.minimumEligibleSymbols,
+            passed = verdict.passed,
+            reason = verdict.reason,
+            sampleEligibleSymbols = verdict.eligibleSymbols.take(12),
+            sampleCoverageFailures = failingSamples
+        )
+    }
+    val failure = exchanges.firstOrNull { !it.passed }
+    return CrossSectionalResearchReadiness(
+        config = config,
+        exchangeCatalog = prepared.exchangeCatalog,
+        exchangePlans = prepared.exchangePlans,
+        exchangeCatalogMs = prepared.exchangeCatalogMs,
+        discoveryMs = prepared.discoveryMs,
+        discoveryCandidateLimit = prepared.discoveryCandidateLimit,
+        requiredBars = prepared.requiredCoverageBars,
+        minimumEligibleSymbols = coveragePolicy.minUniverseSymbols,
+        passed = failure == null,
+        reason = failure?.reason,
+        exchanges = exchanges
+    )
+}
+
+fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
+    val prepared = prepareResearchUniverse(config)
+    val exchangeCatalog = prepared.exchangeCatalog
+    val exchangeCatalogMs = prepared.exchangeCatalogMs
+    val exchangePlans = prepared.exchangePlans
+    val discoveryMs = prepared.discoveryMs
+    val requiredCoverageBars = prepared.requiredCoverageBars
+    val discoveredUniverse = prepared.discoveredUniverse
+    val coverageVerdicts = prepared.coverageVerdicts
 
     coverageVerdicts.values.forEach { verdict ->
         println(

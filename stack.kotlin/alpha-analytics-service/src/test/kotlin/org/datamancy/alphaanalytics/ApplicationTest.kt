@@ -14,12 +14,15 @@ import kotlin.test.assertTrue
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalSearchCandidate
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalSearchConfig
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalSearchResult
+import org.datamancy.trading.analytics.crosssectional.CrossSectionalExchangeReadiness
+import org.datamancy.trading.analytics.crosssectional.CrossSectionalResearchReadiness
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalResearchResult
 import org.datamancy.trading.analytics.crosssectional.ExchangeCatalogSnapshot
 import org.datamancy.trading.analytics.crosssectional.ExchangeCapabilitiesSnapshot
 import org.datamancy.trading.analytics.crosssectional.ExchangePlan
 import org.datamancy.trading.analytics.crosssectional.PortfolioConstraintSnapshot
 import org.datamancy.trading.analytics.crosssectional.PortfolioProfileSnapshot
+import org.datamancy.trading.analytics.crosssectional.ResearchCoverageSnapshot
 import org.datamancy.trading.analytics.crosssectional.ResearchConfig
 import org.datamancy.trading.analytics.crosssectional.ResearchDataKey
 import org.datamancy.trading.analytics.crosssectional.ResearchDiagnostics
@@ -127,6 +130,39 @@ class ApplicationTest {
         assertTrue(body.contains("\"symbol\": \"KAS\""), body)
         assertTrue(body.contains("\"status\": \"CRITICAL\""), body)
         assertTrue(body.contains("missing required raw channel candle_1m"), body)
+    }
+
+    @Test
+    fun `readiness endpoint exposes engine backed research verdict`() = testApplication {
+        application {
+            configureAlphaAnalyticsApp(
+                runAnalysis = { fakeResult(it) },
+                runSearch = { fakeSearchResult(it) },
+                evaluateReadiness = { config ->
+                    assertEquals("hyperliquid_mainnet", config.marketExchange)
+                    fakeReadiness(config)
+                }
+            )
+        }
+
+        val response = client.post("/api/v1/alpha/cross-sectional/readiness") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "marketExchange": "hyperliquid_mainnet",
+                  "persistBacktest": false,
+                  "persistForward": false
+                }
+                """.trimIndent()
+            )
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"passed\": true"), body)
+        assertTrue(body.contains("\"eligibleSymbols\": 17"), body)
+        assertTrue(body.contains("\"requiredBars\": 96"), body)
     }
 
     @Test
@@ -516,6 +552,70 @@ class ApplicationTest {
                     bars = 4_560,
                     firstBarTime = Instant.parse("2026-03-19T12:00:00Z"),
                     lastBarTime = Instant.parse("2026-03-24T12:00:00Z")
+                )
+            )
+        )
+    }
+
+    private fun fakeReadiness(config: ResearchConfig): CrossSectionalResearchReadiness {
+        return CrossSectionalResearchReadiness(
+            config = config,
+            exchangeCatalog = listOf(
+                ExchangeCatalogSnapshot(
+                    apiName = "hyperliquid",
+                    implementationStatus = "INTEGRATED",
+                    defaultExecutionMode = "forward_paper",
+                    supportedExecutionModes = listOf("backtest", "forward_paper"),
+                    capabilities = ExchangeCapabilitiesSnapshot(
+                        paperOrder = true,
+                        liveOrder = true,
+                        nativeOrderAdapter = true,
+                        marketDataIngress = true,
+                        bestQuoteDefault = true
+                    ),
+                    notes = "test"
+                )
+            ),
+            exchangePlans = listOf(
+                ExchangePlan(
+                    exchange = "hyperliquid",
+                    marketAliases = listOf("hyperliquid_mainnet")
+                )
+            ),
+            exchangeCatalogMs = 21,
+            discoveryMs = 84,
+            discoveryCandidateLimit = 64,
+            requiredBars = 96,
+            minimumEligibleSymbols = 12,
+            passed = true,
+            reason = null,
+            exchanges = listOf(
+                CrossSectionalExchangeReadiness(
+                    exchange = "hyperliquid",
+                    marketAliases = listOf("hyperliquid_mainnet"),
+                    discoveredSymbols = 19,
+                    eligibleSymbols = 17,
+                    requiredBars = 96,
+                    minimumEligibleSymbols = 12,
+                    passed = true,
+                    reason = null,
+                    sampleEligibleSymbols = listOf("BTC", "ETH", "SOL"),
+                    sampleCoverageFailures = listOf(
+                        ResearchCoverageSnapshot(
+                            symbol = "BOME",
+                            expectedBars = 96,
+                            observedBars = 40,
+                            finalizedBars = 38,
+                            executionObservedBars = 36,
+                            coverageRatio = 0.4167,
+                            finalizedRatio = 0.3958,
+                            executionObservedRatio = 0.3750,
+                            latestFeatureTime = Instant.parse("2026-03-25T05:00:00Z"),
+                            finalizedThrough = Instant.parse("2026-03-25T04:58:00Z"),
+                            latestFeatureLagSeconds = 60,
+                            finalizedLagMinutes = 3
+                        )
+                    )
                 )
             )
         )

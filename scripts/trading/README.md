@@ -23,7 +23,8 @@ This checks:
 
 - `data-health` summary and top issues
 - cross-sectional cache status
-- a simple `READY` vs `BLOCKED` verdict based on critical symbols, coverage failures, finalized failures, and cache errors
+- engine-backed cross-sectional research readiness using the same discovery and coverage contract as `/api/v1/alpha/cross-sectional/run`
+- a final `READY` vs `BLOCKED` verdict from research readiness, while leaving raw `data-health` and cache state as diagnostics
 
 For live remote execution on `latium.local`, use:
 

@@ -19,10 +19,12 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalSearchConfig
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalSearchResult
+import org.datamancy.trading.analytics.crosssectional.CrossSectionalResearchReadiness
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalResearchResult
 import org.datamancy.trading.analytics.crosssectional.ResearchConfig
 import org.datamancy.trading.analytics.crosssectional.UniverseSnapshotCacheStatus
 import org.datamancy.trading.analytics.crosssectional.crossSectionalUniverseSnapshotCacheStatus
+import org.datamancy.trading.analytics.crosssectional.evaluateCrossSectionalReadiness
 import org.datamancy.trading.analytics.crosssectional.runCrossSectionalResearch
 import org.datamancy.trading.analytics.crosssectional.searchCrossSectionalResearch
 import org.datamancy.trading.analytics.crosssectional.warmCrossSectionalUniverseSnapshots
@@ -65,6 +67,7 @@ fun main() {
 fun Application.configureAlphaAnalyticsApp(
     runAnalysis: suspend (ResearchConfig) -> CrossSectionalResearchResult = ::runCrossSectionalResearch,
     runSearch: suspend (CrossSectionalSearchConfig) -> CrossSectionalSearchResult = ::searchCrossSectionalResearch,
+    evaluateReadiness: suspend (ResearchConfig) -> CrossSectionalResearchReadiness = ::evaluateCrossSectionalReadiness,
     cacheStatus: () -> UniverseSnapshotCacheStatus = ::crossSectionalUniverseSnapshotCacheStatus,
     warmCache: suspend (ResearchConfig) -> UniverseSnapshotCacheStatus = ::warmCrossSectionalUniverseSnapshots,
     tradingPolicy: () -> TradingPolicy = ActiveTradingPolicy::current,
@@ -103,6 +106,7 @@ fun Application.configureAlphaAnalyticsApp(
                             "/api/v1/data-health/summary",
                             "/api/v1/data-health/issues",
                             "/api/v1/alpha/cross-sectional/default-config",
+                            "/api/v1/alpha/cross-sectional/readiness",
                             "/api/v1/alpha/cross-sectional/cache/status",
                             "/api/v1/alpha/cross-sectional/cache/warm",
                             "/api/v1/alpha/cross-sectional/run",
@@ -186,6 +190,48 @@ fun Application.configureAlphaAnalyticsApp(
         get("/api/v1/alpha/cross-sectional/default-config") {
             call.respondText(
                 responseGson.toJson(ResearchConfig()),
+                ContentType.Application.Json,
+                HttpStatusCode.OK
+            )
+        }
+
+        post("/api/v1/alpha/cross-sectional/readiness") {
+            val body = call.receiveText().trim()
+            val config = try {
+                if (body.isBlank()) {
+                    ResearchConfig()
+                } else {
+                    requestJson.decodeFromString<ResearchConfig>(body)
+                }
+            } catch (e: SerializationException) {
+                call.respondText(
+                    responseGson.toJson(ErrorResponse("invalid request body: ${e.message ?: "serialization error"}")),
+                    ContentType.Application.Json,
+                    HttpStatusCode.BadRequest
+                )
+                return@post
+            } catch (e: IllegalArgumentException) {
+                call.respondText(
+                    responseGson.toJson(ErrorResponse("invalid request body: ${e.message ?: "illegal argument"}")),
+                    ContentType.Application.Json,
+                    HttpStatusCode.BadRequest
+                )
+                return@post
+            }
+
+            val result = runCatching { evaluateReadiness(config) }
+                .onFailure { logger.warn("Cross-sectional readiness failed", it) }
+                .getOrElse { ex ->
+                    call.respondText(
+                        responseGson.toJson(ErrorResponse("cross-sectional readiness failed: ${ex.message ?: ex::class.simpleName}")),
+                        ContentType.Application.Json,
+                        HttpStatusCode.InternalServerError
+                    )
+                    return@post
+                }
+
+            call.respondText(
+                responseGson.toJson(result),
                 ContentType.Application.Json,
                 HttpStatusCode.OK
             )
