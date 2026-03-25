@@ -185,4 +185,17 @@ class MarketDataIngestionRunnerConfigTest {
         assertEquals(Instant.parse("2026-03-25T06:15:00Z"), range?.startTime)
         assertEquals(Instant.parse("2026-03-25T08:11:00Z"), range?.endTime)
     }
+
+    @Test
+    fun `initial candle repair scales permits with universe size`() {
+        assertEquals(2, determineCandleRepairPermits(streamCount = 12, markInitialRepairComplete = true))
+        assertEquals(3, determineCandleRepairPermits(streamCount = 64, markInitialRepairComplete = true))
+        assertEquals(4, determineCandleRepairPermits(streamCount = 190, markInitialRepairComplete = true))
+    }
+
+    @Test
+    fun `targeted candle repair remains conservative under backlog`() {
+        assertEquals(3, determineCandleRepairPermits(streamCount = 8, markInitialRepairComplete = false))
+        assertEquals(2, determineCandleRepairPermits(streamCount = 24, markInitialRepairComplete = false))
+    }
 }

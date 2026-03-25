@@ -108,4 +108,70 @@ class ResearchFeatureAggregationTest {
         assertEquals(5L, startupRefreshWindowMinutes(15L))
         assertEquals(3L, startupRefreshWindowMinutes(3L))
     }
+
+    @Test
+    fun `recent gap repair lookback is at least six hours and capped by default window`() {
+        assertEquals(6L, recentGapRepairHours(1L))
+        assertEquals(12L, recentGapRepairHours(12L))
+        assertEquals(48L, recentGapRepairHours(336L))
+    }
+
+    @Test
+    fun `rolling recent gap repair windows walk backward through recent horizon then reset`() {
+        val start = Instant.parse("2026-03-20T00:00:00Z")
+        val end = Instant.parse("2026-03-20T12:00:00Z")
+
+        val (first, firstCursor) = planRollingRecentGapRepairWindows(
+            startInclusive = start,
+            endExclusive = end,
+            chunkHours = 1,
+            maxWindowsPerCycle = 3
+        )
+        assertEquals(
+            listOf(
+                Instant.parse("2026-03-20T11:00:00Z"),
+                Instant.parse("2026-03-20T10:00:00Z"),
+                Instant.parse("2026-03-20T09:00:00Z")
+            ),
+            first.map { it.startInclusive }
+        )
+        assertEquals(Instant.parse("2026-03-20T09:00:00Z"), firstCursor)
+
+        val (second, secondCursor) = planRollingRecentGapRepairWindows(
+            startInclusive = start,
+            endExclusive = end,
+            chunkHours = 1,
+            maxWindowsPerCycle = 3,
+            cursorExclusive = firstCursor
+        )
+        assertEquals(
+            listOf(
+                Instant.parse("2026-03-20T08:00:00Z"),
+                Instant.parse("2026-03-20T07:00:00Z"),
+                Instant.parse("2026-03-20T06:00:00Z")
+            ),
+            second.map { it.startInclusive }
+        )
+        assertEquals(Instant.parse("2026-03-20T06:00:00Z"), secondCursor)
+
+        val (finalSweep, finalCursor) = planRollingRecentGapRepairWindows(
+            startInclusive = start,
+            endExclusive = end,
+            chunkHours = 1,
+            maxWindowsPerCycle = 6,
+            cursorExclusive = Instant.parse("2026-03-20T06:00:00Z")
+        )
+        assertEquals(
+            listOf(
+                Instant.parse("2026-03-20T05:00:00Z"),
+                Instant.parse("2026-03-20T04:00:00Z"),
+                Instant.parse("2026-03-20T03:00:00Z"),
+                Instant.parse("2026-03-20T02:00:00Z"),
+                Instant.parse("2026-03-20T01:00:00Z"),
+                Instant.parse("2026-03-20T00:00:00Z")
+            ),
+            finalSweep.map { it.startInclusive }
+        )
+        assertEquals(end, finalCursor)
+    }
 }

@@ -25,6 +25,25 @@ internal const val DEFAULT_HYPERLIQUID_IDLE_TIMEOUT_MS = 120_000L
 internal const val MIN_HYPERLIQUID_IDLE_TIMEOUT_MS = 5_000L
 internal const val DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_PAUSE_MS = 30_000L
 
+internal fun determineCandleRepairPermits(
+    streamCount: Int,
+    markInitialRepairComplete: Boolean
+): Int {
+    val normalizedStreams = streamCount.coerceAtLeast(0)
+    return if (markInitialRepairComplete) {
+        when {
+            normalizedStreams >= 128 -> 4
+            normalizedStreams >= 64 -> 3
+            else -> 2
+        }
+    } else {
+        when {
+            normalizedStreams >= 16 -> 2
+            else -> 3
+        }
+    }
+}
+
 internal data class HistoricalCandleBackfillRange(
     val startTime: java.time.Instant,
     val endTime: java.time.Instant
@@ -967,11 +986,10 @@ class MarketDataIngestionRunner {
         val distinctStreams = streams.distinct()
         var fetchedCandles = 0
         var repairedStreams = 0
-        val permits = when {
-            markInitialRepairComplete -> 1
-            distinctStreams.size >= 16 -> 2
-            else -> 3
-        }
+        val permits = determineCandleRepairPermits(
+            streamCount = distinctStreams.size,
+            markInitialRepairComplete = markInitialRepairComplete
+        )
         val semaphore = Semaphore(permits = permits)
 
         logger.info {
